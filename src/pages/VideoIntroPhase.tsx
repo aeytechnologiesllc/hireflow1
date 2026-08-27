@@ -1,24 +1,24 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { EvaluationScreen } from "@/components/EvaluationScreen";
-import { PhaseContextCard } from "@/components/PhaseContextCard";
-import { 
-  ArrowLeft, 
-  Video, 
+import { AvaSeal } from "@/components/ava/AvaSeal";
+import { buildCandidateJourney, positionFor, DECISION_STAGE_ID } from "@/lib/candidateJourney";
+import {
+  ArrowLeft,
   Play,
   Square,
   RotateCcw,
   CheckCircle,
-  Loader2,
   Camera
 } from "lucide-react";
 import { toast } from "sonner";
@@ -112,6 +112,20 @@ export default function VideoIntroPhase() {
     };
   })();
 
+  // Where this screen sits in the whole journey — derived from the same real
+  // workflow_steps used to build the journey at submit time below, via the
+  // shared candidateJourney builder, never invented.
+  const journey = useMemo(() => {
+    const workflowSteps = (application?.jobs?.workflow_steps || []) as Array<{ id: string; type: string; title?: string }>;
+    const quizQuestions = application?.jobs?.quiz_questions as Json[] | undefined;
+    const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
+    const phases = buildCandidateJourney(workflowSteps, { hasQuiz });
+    const { index, total, current } = positionFor(phases, { stepId, phase: application?.phase });
+    return { index, total, title: current.title };
+  }, [application?.jobs?.workflow_steps, application?.jobs?.quiz_questions, application?.phase, stepId]);
+
+  const journeyProgressPct = Math.round(((journey.index + 1) / Math.max(journey.total, 1)) * 100);
+
   // Cleanup
   useEffect(() => {
     return () => {
@@ -135,7 +149,9 @@ export default function VideoIntroPhase() {
       setRecordingState("camera_preview");
     } catch (error) {
       console.error("Camera access error:", error);
-      toast.error("Unable to access camera or microphone");
+      toast.error("We couldn't get to your camera or mic", {
+        description: "Check your browser's permissions and try again.",
+      });
     }
   };
 
@@ -227,45 +243,13 @@ export default function VideoIntroPhase() {
       const { data: urlData } = supabase.storage.from("videos").getPublicUrl(fileName);
       const videoUrl = urlData.publicUrl;
 
-      // 3. Build phases list to determine next phase
+      // 3. Build the real journey to determine the next stage
       const workflowSteps = application.jobs?.workflow_steps as Array<{ id: string; type: string; title?: string }> || [];
       const quizQuestions = application.jobs?.quiz_questions as Json[] | undefined;
+      const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
 
-      // Extract voice_interview step (goes AFTER review)
-      const voiceInterviewStep = workflowSteps.find((step) => step.type === 'voice_interview');
+      const allPhases = buildCandidateJourney(workflowSteps, { hasQuiz });
 
-      const allPhases: { id: string; type: string; title: string }[] = [
-        { id: "application", type: "application", title: "Application" },
-      ];
-
-      // Add quiz phase if quiz_questions exist
-      if (quizQuestions && quizQuestions.length > 0) {
-        allPhases.push({ id: "quiz", type: "quiz", title: "Quiz" });
-      }
-
-      // Add workflow steps EXCEPT voice_interview (which goes after Review)
-      workflowSteps.filter((step) => step.type !== 'voice_interview').forEach((step) => {
-        allPhases.push({ id: step.id, type: step.type, title: step.title || step.type });
-      });
-      
-      // Add Review phase
-      allPhases.push({ id: "review", type: "review", title: "Review" });
-      
-      // Add voice_interview AFTER Review if it exists
-      if (voiceInterviewStep) {
-        allPhases.push({ 
-          id: voiceInterviewStep.id, 
-          type: "voice_interview", 
-          title: voiceInterviewStep.title || "Voice Interview"
-        });
-      }
-      
-      // Add final phases
-      allPhases.push(
-        { id: "interview", type: "interview", title: "Interview" },
-        { id: "hired", type: "hired", title: "Hired" }
-      );
-      
       // Find current step index
       let currentIndex = allPhases.findIndex((p) => p.id === stepId);
       if (currentIndex === -1 && application.phase) {
@@ -280,7 +264,7 @@ export default function VideoIntroPhase() {
       if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
         nextPhase = allPhases[currentIndex + 1];
       }
-      
+
       // Advance to next phase ONLY in auto mode
       if (isAutoMode) {
         if (nextPhase) {
@@ -292,8 +276,9 @@ export default function VideoIntroPhase() {
           } else {
             newPhase = nextPhase.id;
 
-            // DON'T show "Start Next Phase" button if next phase is review (only in auto mode)
-            if (nextPhase.type !== "review") {
+            // DON'T show "Start Next Phase" button if next stage is the
+            // closing decision stage (only in auto mode) — nothing to click into.
+            if (nextPhase.id !== DECISION_STAGE_ID) {
               setNextPhaseInfo({
                 id: nextPhase.id,
                 title: nextPhase.title,
@@ -398,7 +383,7 @@ export default function VideoIntroPhase() {
         }).catch(err => console.error("[VideoIntroPhase] AVA analysis trigger failed:", err));
         
         toast.success("Video submitted!", {
-          description: "Your video has been recorded. The employer will review it.",
+          description: "The hiring team will get back to you — everyone hears back.",
         });
         navigate(`/applications/${id}`);
       }
@@ -473,7 +458,7 @@ export default function VideoIntroPhase() {
               }).catch(err => console.error("[VideoIntroPhase] AVA analysis trigger failed:", err));
               
               toast.success("Video submitted!", {
-                description: "Your video has been recorded. The employer will review it.",
+                description: "The hiring team will get back to you — everyone hears back.",
               });
               navigate(`/applications/${id}`);
             }
@@ -484,7 +469,7 @@ export default function VideoIntroPhase() {
         // Verification failed, show original error
       }
       
-      toast.error("Upload failed", {
+      toast.error("That didn't upload", {
         description: error instanceof Error ? error.message : "Please try again.",
       });
       setRecordingState("preview");
@@ -515,9 +500,9 @@ export default function VideoIntroPhase() {
       };
       const route = phaseRoutes[nextStep.type] || nextStep.type;
       navigate(`/applications/${id}/${route}/${nextPhaseInfo.id}`);
-    } else if (nextPhaseInfo.id === "review") {
-      navigate(`/applications/${id}`);
     } else {
+      // Next stage isn't a real workflow step (e.g. the closing decision
+      // stage) — nothing to navigate into, just head back to the overview.
       navigate(`/applications/${id}`);
     }
   };
@@ -543,7 +528,7 @@ export default function VideoIntroPhase() {
 
   if (authLoading || isLoading) {
     return (
-      <div className="space-y-6 max-w-3xl mx-auto p-6">
+      <div className="mx-auto max-w-3xl space-y-6">
         <Skeleton className="h-12 w-48" />
         <Skeleton className="h-96 w-full" />
       </div>
@@ -552,12 +537,15 @@ export default function VideoIntroPhase() {
 
   if (!application) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex h-full items-center justify-center">
         <Card className="bg-card border-border max-w-md">
           <CardContent className="p-8 text-center">
-            <h2 className="text-xl font-semibold text-foreground mb-2">Application Not Found</h2>
-            <Button onClick={() => navigate("/applications")} className="mt-4">
-              Back to Applications
+            <h2 className="font-display mb-2 text-xl text-foreground">We couldn't find this application</h2>
+            <p className="mb-4 text-muted-foreground">
+              It may have been removed, or you might not have access to it.
+            </p>
+            <Button onClick={() => navigate("/applications")}>
+              Back to applications
             </Button>
           </CardContent>
         </Card>
@@ -588,35 +576,54 @@ export default function VideoIntroPhase() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <Button variant="outline" onClick={() => navigate(`/applications/${id}`)} className="gap-2">
-          <ArrowLeft className="h-4 w-4" />
-          Back to Application
-        </Button>
-        <Badge className="bg-primary/20 text-primary border-primary/30 gap-1">
-          <Video className="h-4 w-4" />
-          Video Introduction
-        </Badge>
-      </div>
+    <div className="ck-page mx-auto max-w-3xl space-y-6">
+      {/* Journey header — where am I, what's happening now, what's next */}
+      <header className="ck-reveal space-y-4">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate(`/applications/${id}`)}
+            aria-label="Back to application overview"
+            className="h-11 w-11 shrink-0 text-muted-foreground"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <p className="min-w-0 truncate text-sm font-medium text-muted-foreground">
+            {application.jobs?.title || "This role"}
+          </p>
+        </div>
+
+        <div className="space-y-2.5">
+          <h1 className="font-display ck-ink text-2xl text-foreground sm:text-3xl">
+            Record your video
+          </h1>
+
+          <span className="block text-xs font-medium text-muted-foreground">
+            Step <span className="ck-num">{journey.index + 1}</span> of{" "}
+            <span className="ck-num">{journey.total}</span> — {journey.title}
+          </span>
+
+          <Progress value={journeyProgressPct} className="h-1.5 bg-[var(--track)]" />
+
+          <p className="text-sm text-muted-foreground">
+            {recordingState === "recording"
+              ? "Speak naturally — stop whenever you're done."
+              : `Up to ${formatTime(videoConfig.maxDuration)}. Take your time — you can watch it back and re-record before you submit.`}
+          </p>
+        </div>
+      </header>
 
       {/* Main Card */}
       <Card className="bg-card border-border overflow-hidden">
-        <CardHeader className="border-b border-border/50">
-          <CardTitle className="flex items-center gap-2">
-            <Video className="h-5 w-5 text-primary" />
-            Record Your Video Introduction
-          </CardTitle>
-          <p className="text-muted-foreground">For: {application.jobs?.title}</p>
-        </CardHeader>
-        
-        <CardContent className="p-6 space-y-6">
+        <CardContent className="space-y-6 p-4 pt-6 sm:p-8">
           {/* Prompt */}
-          <div className="bg-gradient-to-r from-primary/10 to-accent/10 rounded-xl p-5 border border-primary/20">
-            <p className="text-xs uppercase tracking-wider text-primary font-medium mb-2">Instructions</p>
-            <p className="text-foreground">{videoConfig.prompt}</p>
-          </div>
+          {recordingState !== "submitting" && (
+            <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-5">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">What to say</p>
+              <p className="text-foreground">{videoConfig.prompt}</p>
+            </div>
+          )}
 
           <AnimatePresence mode="wait">
             {/* Recording States */}
@@ -629,34 +636,40 @@ export default function VideoIntroPhase() {
                 className="space-y-6"
               >
                 {/* Video Area */}
-                <div className="relative aspect-video bg-black rounded-xl overflow-hidden border border-border/50">
+                <div className="relative aspect-video overflow-hidden rounded-xl border border-border/50 bg-[var(--slab)]">
                   {recordingState === "intro" && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-muted/20 to-background/80">
-                      <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Camera className="h-10 w-10 text-primary" />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6">
+                      <div
+                        className="flex h-20 w-20 items-center justify-center rounded-full"
+                        style={{ background: "color-mix(in srgb, var(--jade-bright) 16%, transparent)" }}
+                      >
+                        <Camera className="h-10 w-10 text-[var(--jade-bright)]" />
                       </div>
-                      <p className="text-muted-foreground text-center px-4">
-                        Click below to enable your camera and microphone
+                      <p className="text-center text-[var(--slab-ink-2)]">
+                        When you're ready, we'll ask for your camera and mic — you'll see a preview before
+                        anything records.
                       </p>
                     </div>
                   )}
-                  
+
                   {(recordingState === "camera_preview" || recordingState === "recording") && (
-                    <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+                    <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover" />
                   )}
 
                   {recordingState === "camera_preview" && (
-                    <div className="absolute top-4 left-4 flex items-center gap-2">
-                      <span className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse" />
-                      <Badge className="bg-emerald-500/90 text-white border-0">Camera Ready</Badge>
+                    <div className="absolute left-4 top-4">
+                      <Badge className="gap-1.5 border-transparent bg-[var(--slab)] text-[var(--slab-ink)]">
+                        <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--jade-bright)]" />
+                        Camera ready
+                      </Badge>
                     </div>
                   )}
 
                   {recordingState === "recording" && (
-                    <div className="absolute top-4 left-4 flex items-center gap-2">
-                      <span className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-                      <Badge className="bg-red-500/90 text-white border-0">
-                        {formatTime(recordingTime)} / {formatTime(videoConfig.maxDuration)}
+                    <div className="absolute left-4 top-4">
+                      <Badge className="gap-1.5 border-transparent bg-[var(--slab)] text-[var(--slab-ink)]">
+                        <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--crit)]" />
+                        <span className="ck-num">{formatTime(recordingTime)}</span> / {formatTime(videoConfig.maxDuration)}
                       </Badge>
                     </div>
                   )}
@@ -667,21 +680,21 @@ export default function VideoIntroPhase() {
                   {recordingState === "intro" && (
                     <Button onClick={enableCamera} size="lg" className="gap-2 px-8">
                       <Camera className="h-5 w-5" />
-                      Enable Camera
+                      Turn on camera
                     </Button>
                   )}
-                  
+
                   {recordingState === "camera_preview" && (
-                    <Button onClick={startRecording} size="lg" className="gap-2 px-8 bg-red-600 hover:bg-red-700">
+                    <Button onClick={startRecording} size="lg" className="gap-2 px-8">
                       <Play className="h-5 w-5" />
-                      Start Recording
+                      Start recording
                     </Button>
                   )}
-                  
+
                   {recordingState === "recording" && (
-                    <Button onClick={stopRecording} variant="destructive" size="lg" className="gap-2 px-8">
+                    <Button onClick={stopRecording} size="lg" className="gap-2 px-8">
                       <Square className="h-5 w-5" />
-                      Stop Recording
+                      Stop recording
                     </Button>
                   )}
                 </div>
@@ -697,49 +710,55 @@ export default function VideoIntroPhase() {
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-6"
               >
-                <div className="relative aspect-video bg-black rounded-xl overflow-hidden border border-border/50">
-                  <video ref={previewRef} src={recordedUrl} controls className="w-full h-full object-cover" />
-                  <div className="absolute top-4 left-4">
-                    <Badge className="bg-primary/90 text-white border-0 gap-1">
-                      <CheckCircle className="h-3 w-3" />
-                      {formatTime(recordingTime)} recorded
+                <div className="relative aspect-video overflow-hidden rounded-xl border border-border/50 bg-[var(--slab)]">
+                  <video ref={previewRef} src={recordedUrl} controls className="h-full w-full object-cover" />
+                  <div className="absolute left-4 top-4">
+                    <Badge className="gap-1.5 border-transparent bg-[var(--slab)] text-[var(--slab-ink)]">
+                      <AvaSeal size={14} className="ck-seal-press" />
+                      <span className="ck-num">{formatTime(recordingTime)}</span> recorded
                     </Badge>
                   </div>
                 </div>
 
-                <div className="flex justify-center gap-4">
+                <p className="text-center text-sm text-muted-foreground">
+                  Watch it back, then submit when you're happy with it.
+                </p>
+
+                <div className="flex flex-wrap justify-center gap-3">
                   <Button onClick={resetRecording} variant="outline" size="lg" className="gap-2 px-6">
                     <RotateCcw className="h-5 w-5" />
                     Re-record
                   </Button>
-                  <Button onClick={handleSubmit} size="lg" className="gap-2 px-8 bg-emerald-600 hover:bg-emerald-700">
+                  <Button onClick={handleSubmit} size="lg" className="gap-2 px-8">
                     <CheckCircle className="h-5 w-5" />
-                    Submit Video
+                    Submit video
                   </Button>
                 </div>
               </motion.div>
             )}
 
-            {/* Submitting State */}
+            {/* Submitting State — a held moment, not a bare spinner */}
             {recordingState === "submitting" && (
               <motion.div
                 key="submitting"
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="flex flex-col items-center justify-center py-16 gap-4"
+                className="flex flex-col items-center justify-center gap-4 py-16"
               >
-                <Loader2 className="h-12 w-12 text-primary animate-spin" />
-                <p className="text-foreground font-medium">Uploading your video...</p>
-                <p className="text-muted-foreground text-sm">This may take a moment</p>
+                <span className="ck-seal-breathe">
+                  <AvaSeal size={32} />
+                </span>
+                <p className="font-display text-lg text-foreground">Sending your video…</p>
+                <p className="text-sm text-muted-foreground">This can take a moment — stay on this page.</p>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Tips */}
-          {recordingState !== "submitting" && (
-            <div className="bg-muted/30 rounded-xl p-5 space-y-3">
-              <h4 className="font-medium text-foreground text-sm">Tips for a great video:</h4>
-              <div className="grid sm:grid-cols-2 gap-3">
+          {/* Tips — helpful before and while composing, out of the way once recording starts */}
+          {(recordingState === "intro" || recordingState === "camera_preview") && (
+            <div className="space-y-3 rounded-xl bg-muted/30 p-5">
+              <h4 className="text-sm font-medium text-foreground">Tips for a great video</h4>
+              <div className="grid gap-3 sm:grid-cols-2">
                 {[
                   "Find good lighting (face a window)",
                   "Choose a quiet location",
@@ -747,7 +766,7 @@ export default function VideoIntroPhase() {
                   "Speak clearly and naturally",
                 ].map((tip, i) => (
                   <div key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
-                    <CheckCircle className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                    <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     <span>{tip}</span>
                   </div>
                 ))}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAvaVoice } from "@/hooks/useAvaVoice";
@@ -6,14 +6,16 @@ import { useVideoInterviewRecorder } from "@/hooks/useVideoInterviewRecorder";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Loader2, Mic, MicOff, Phone, PhoneOff, Volume2, CheckCircle, Download, Clock, Wifi, WifiOff, Video, VideoOff, Camera, RefreshCw, AlertTriangle } from "lucide-react";
+import { Loader2, Mic, Phone, PhoneOff, Volume2, CheckCircle, Clock, Wifi, WifiOff, Camera, RefreshCw, AlertTriangle, ArrowLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
+import { buildCandidateJourney, positionFor } from "@/lib/candidateJourney";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { AvaAvatar, useAvaExpression } from "@/components/AvaAvatar";
-import { PhaseContextCard } from "@/components/PhaseContextCard";
+import { GlyphVoice, GlyphClock, GlyphLetter, GlyphCheckSeal } from "@/components/candidate/glyphs";
 
 interface Message {
   id: string;
@@ -28,6 +30,8 @@ interface JobDetails {
   description: string;
   requirements: string;
   company_name?: string;
+  workflow_steps?: any[] | null;
+  quiz_questions?: any[] | null;
 }
 
 export default function VoiceInterviewPhase() {
@@ -35,6 +39,7 @@ export default function VoiceInterviewPhase() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [job, setJob] = useState<JobDetails | null>(null);
+  const [appPhase, setAppPhase] = useState<string | null>(null);
   const [candidateName, setCandidateName] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [interviewStarted, setInterviewStarted] = useState(false);
@@ -88,54 +93,54 @@ export default function VoiceInterviewPhase() {
     // Ignore empty or whitespace-only transcripts
     const cleanText = text.trim();
     if (!cleanText) return;
-    
+
     const timestamp = Date.now();
-    
+
     setMessages(prev => {
       // If role changed from the current streaming message, mark it complete and start new
       if (currentMessageRoleRef.current && currentMessageRoleRef.current !== role) {
         // Mark previous message as complete and filter out empty messages
-        const updatedPrev = prev.map(m => 
+        const updatedPrev = prev.map(m =>
           m.id === currentMessageIdRef.current ? { ...m, isComplete: true } : m
         ).filter(m => m.content.trim().length > 0);
-        
+
         // Start a new message
         messageCounterRef.current += 1;
         const newId = `msg-${messageCounterRef.current}-${timestamp}`;
         currentMessageIdRef.current = newId;
         currentMessageRoleRef.current = role;
-        
-        return [...updatedPrev, { 
-          id: newId, 
-          role, 
-          content: cleanText, 
-          timestamp, 
-          isComplete: false 
+
+        return [...updatedPrev, {
+          id: newId,
+          role,
+          content: cleanText,
+          timestamp,
+          isComplete: false
         }];
       }
-      
+
       // Same role - check if we have a current streaming message
       if (currentMessageIdRef.current && currentMessageRoleRef.current === role) {
         // Append to existing message with space
-        return prev.map(m => 
-          m.id === currentMessageIdRef.current 
-            ? { ...m, content: m.content + ' ' + cleanText } 
+        return prev.map(m =>
+          m.id === currentMessageIdRef.current
+            ? { ...m, content: m.content + ' ' + cleanText }
             : m
         );
       }
-      
+
       // No current message - start a new one
       messageCounterRef.current += 1;
       const newId = `msg-${messageCounterRef.current}-${timestamp}`;
       currentMessageIdRef.current = newId;
       currentMessageRoleRef.current = role;
-      
-      return [...prev, { 
-        id: newId, 
-        role, 
-        content: cleanText, 
-        timestamp, 
-        isComplete: false 
+
+      return [...prev, {
+        id: newId,
+        role,
+        content: cleanText,
+        timestamp,
+        isComplete: false
       }];
     });
   }, []);
@@ -186,11 +191,11 @@ export default function VoiceInterviewPhase() {
     completionTriggeredRef.current = true;
     clearFallbackEndTimeout();
     setInterviewResult(evaluation);
-    
+
     // Show completion screen IMMEDIATELY with processing state
     setIsProcessingEnd(true);
     setShowCompletionScreen(true);
-    
+
     try {
       // Stop video recording and upload - always try to stop, don't check isRecording state
       // (it may be stale in the closure)
@@ -232,7 +237,7 @@ export default function VoiceInterviewPhase() {
         .eq("id", applicationId);
 
       if (error) throw error;
-      
+
       // Trigger AVA analysis in background (fire-and-forget) - calculates score but NO auto pass/fail
       triggerAvaAnalysis(applicationId!).catch(console.error);
 
@@ -348,7 +353,7 @@ export default function VoiceInterviewPhase() {
   // Real-time subscription for phase resets - ensures immediate refresh when employer resets
   useEffect(() => {
     if (!applicationId) return;
-    
+
     const channel = supabase
       .channel(`voice-interview-phase-updates-${applicationId}`)
       .on('postgres_changes', {
@@ -362,8 +367,8 @@ export default function VoiceInterviewPhase() {
       })
       .subscribe();
 
-    return () => { 
-      supabase.removeChannel(channel); 
+    return () => {
+      supabase.removeChannel(channel);
     };
   }, [applicationId]);
 
@@ -414,7 +419,9 @@ export default function VoiceInterviewPhase() {
             title,
             description,
             requirements,
-            employer_id
+            employer_id,
+            workflow_steps,
+            quiz_questions
           )
         `)
         .eq("id", applicationId)
@@ -429,26 +436,30 @@ export default function VoiceInterviewPhase() {
         return;
       }
 
-      // Get employer profile for company name
+      // Get employer profile for company name — a profile row may legitimately
+      // not exist yet, so this can't be a hard .single() failure.
       const { data: profile } = await supabase
         .from("profiles")
         .select("company_name")
         .eq("user_id", app.jobs.employer_id)
-        .single();
+        .maybeSingle();
 
-      // Get candidate profile
+      // Get candidate profile — same: no row yet is a normal state, not an error.
       const { data: candidateProfile } = await supabase
         .from("profiles")
         .select("full_name")
         .eq("user_id", app.candidate_id)
-        .single();
+        .maybeSingle();
 
       setJob({
         title: app.jobs.title,
         description: app.jobs.description,
         requirements: app.jobs.requirements,
         company_name: profile?.company_name,
+        workflow_steps: (app.jobs.workflow_steps as any[] | null) || [],
+        quiz_questions: (app.jobs.quiz_questions as any[] | null) || [],
       });
+      setAppPhase(app.phase);
       setCandidateName(candidateProfile?.full_name || "Candidate");
       setLanguage(app.voice_interview_language || "en");
       setDuration(app.voice_interview_duration || 10);
@@ -465,10 +476,10 @@ export default function VoiceInterviewPhase() {
     if (!job || !applicationId) return;
     setInterviewStarted(true);
     setInterviewStartTime(Date.now());
-    
+
     // Start voice connection
     await connect();
-    
+
     // Start video recording after connection established
     // We'll start recording once connected via useEffect
   };
@@ -560,6 +571,23 @@ Duration: ${formatTime(elapsedSeconds)}
     }
   };
 
+  // Where the candidate is in the whole journey — derived from the job's real
+  // workflow_steps via the shared candidateJourney builder, so this screen
+  // agrees with every other candidate screen. Never invented.
+  const journey = useMemo(() => {
+    const workflowSteps = (job?.workflow_steps || []) as Array<{ id: string; type: string; title?: string }>;
+    const quizQuestions = job?.quiz_questions;
+    const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
+    const steps = buildCandidateJourney(workflowSteps, { hasQuiz });
+    const { index, total, current } = positionFor(steps, { stepId, phase: appPhase });
+    return { index, total, title: current.title };
+  }, [job?.workflow_steps, job?.quiz_questions, appPhase, stepId]);
+
+  const journeyProgressPct = Math.round(((journey.index + 1) / Math.max(journey.total, 1)) * 100);
+
+  // Which held step the pre-interview flow is showing right now.
+  const preStep: "device" | "ready" = cameraTestPassed ? "ready" : "device";
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -573,122 +601,172 @@ Duration: ${formatTime(elapsedSeconds)}
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{videoEnabled ? 'Video Interview' : 'Voice Interview'}</h1>
-          <p className="text-muted-foreground">
+    <div className="ck-page mx-auto max-w-3xl space-y-6">
+      {/* Journey header — where am I, what's happening now, what's my one next thing */}
+      <header className="ck-reveal space-y-4">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate(`/applications/${applicationId}`)}
+            aria-label="Back to application overview"
+            className="h-11 w-11 shrink-0 text-muted-foreground"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <p className="min-w-0 truncate text-sm font-medium text-muted-foreground">
             {job?.title} {job?.company_name && `at ${job.company_name}`}
           </p>
         </div>
-        <Badge variant="outline" className="border-primary/50 text-primary">
-          {stepId}
-        </Badge>
-      </div>
+
+        <div className="space-y-2.5">
+          <h1 className="font-display ck-ink text-2xl text-foreground sm:text-3xl">
+            {interviewStarted ? "Interview in progress" : "Your voice interview"}
+          </h1>
+
+          <span className="block text-xs font-medium text-muted-foreground">
+            Step <span className="ck-num">{journey.index + 1}</span> of{" "}
+            <span className="ck-num">{journey.total}</span> — {journey.title}
+          </span>
+
+          <Progress value={journeyProgressPct} className="h-1.5 bg-[var(--track)]" />
+
+          <p className="text-sm text-muted-foreground">
+            {interviewStarted
+              ? "Answer naturally, the way you would in person — there's no rush."
+              : `A real conversation about the job — about ${duration} minutes. Take your time.`}
+          </p>
+        </div>
+      </header>
 
       {!interviewStarted ? (
-        /* Pre-interview instructions */
-        <div className="space-y-4">
-          <Card className="border-border bg-card/50">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                {videoEnabled ? <Video className="h-5 w-5 text-primary" /> : <Volume2 className="h-5 w-5 text-primary" />}
-                Before You Begin
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3 text-muted-foreground">
-                <p>You're about to have a {videoEnabled ? 'video interview' : 'voice conversation'} with our professional interviewer.</p>
-                <ul className="list-disc list-inside space-y-2">
-                  <li>Find a quiet place with minimal background noise</li>
-                  <li>Ensure your {videoEnabled ? 'camera and microphone are' : 'microphone is'} working properly</li>
-                  <li>Speak clearly and take your time with responses</li>
-                  <li><strong>Important:</strong> Please wait for the question to finish before you respond</li>
-                  <li>The interview will last approximately <strong>{duration} minutes</strong></li>
-                  <li>Your interview will be <strong>{videoEnabled ? 'video' : 'audio'} recorded</strong> for review</li>
-                  <li>You can end the interview at any time by saying "I'd like to end the interview"</li>
-                </ul>
-              </div>
+        /* Pre-interview: one calm thing at a time */
+        <div className="space-y-5">
+          {/* Arrival essentials — folded to three short glyph-led lines, not a bullet wall */}
+          <div className="ck-reveal grid gap-3 rounded-xl bg-muted/30 p-5 sm:grid-cols-3 sm:gap-4">
+            <div className="flex items-start gap-2.5 text-sm text-muted-foreground">
+              <GlyphClock size={18} className="mt-0.5 shrink-0 text-[var(--jade-bright)]" />
+              <span>Find a quiet place, minimal background noise</span>
+            </div>
+            <div className="flex items-start gap-2.5 text-sm text-muted-foreground">
+              <GlyphLetter size={18} className="mt-0.5 shrink-0 text-[var(--jade-bright)]" />
+              <span>It's recorded and shared with the hiring team for this role</span>
+            </div>
+            <div className="flex items-start gap-2.5 text-sm text-muted-foreground">
+              <GlyphCheckSeal size={18} className="mt-0.5 shrink-0 text-[var(--jade-bright)]" />
+              <span>End any time — just say you'd like to end the interview</span>
+            </div>
+          </div>
 
-              {/* Camera/Microphone Test Section */}
-              {!cameraTestPassed && !cameraEnabled && (
-                <div className="pt-4 border-t border-border">
-                  <Button
-                    onClick={enableCamera}
-                    variant="outline"
-                    className="w-full gap-2"
-                  >
-                    {videoEnabled ? <Camera className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-                    {videoEnabled ? 'Enable Camera & Microphone' : 'Enable Microphone'}
-                  </Button>
-                  <p className="text-xs text-muted-foreground text-center mt-2">
-                    Required before starting the interview
-                  </p>
-                </div>
-              )}
+          {/* The held step: a letterhead moment, not a form */}
+          <div className="ck-card ck-reveal relative overflow-hidden px-5 pb-6 pt-5 text-center sm:px-8 sm:pb-8 sm:pt-6">
+            {/* slim brass top rule */}
+            <span
+              aria-hidden
+              className="absolute left-5 right-5 top-0 h-[2px] rounded-[1px] sm:left-8 sm:right-8"
+              style={{ background: "var(--brass-line)" }}
+            />
 
-              {/* Camera/Microphone Preview UI */}
-              {cameraEnabled && !cameraTestPassed && (
+            {/* the identity mark — carried through both held steps */}
+            <div
+              className="mx-auto flex h-16 w-16 items-center justify-center rounded-full"
+              style={{ background: "color-mix(in srgb, var(--jade-bright) 16%, transparent)" }}
+            >
+              <GlyphVoice size={30} className="text-[var(--jade-bright)]" />
+            </div>
+
+            <AnimatePresence mode="wait">
+              {preStep === "device" ? (
                 <motion.div
-                  initial={{ opacity: 0, y: 10 }}
+                  key="device"
+                  initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="pt-4 border-t border-border"
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.2 }}
+                  className="mt-4 space-y-5"
                 >
-                  <Card className="border-primary/20 bg-primary/5">
-                    <CardContent className="py-6 space-y-4">
-                      {/* Only show video preview if video is enabled */}
-                      {videoEnabled && (
-                        <div className="relative aspect-video max-w-md mx-auto rounded-lg overflow-hidden bg-black">
-                          <video
-                            ref={videoPreviewRef}
-                            autoPlay
-                            playsInline
-                            muted
-                            className="w-full h-full object-cover mirror"
-                            style={{ transform: 'scaleX(-1)' }}
-                          />
-                          <Badge className="absolute top-2 left-2 bg-green-500 text-white">
-                            <Video className="h-3 w-3 mr-1" />
-                            Camera Ready
-                          </Badge>
+                  <div className="space-y-2">
+                    <h2 className="font-display ck-ink text-xl text-foreground sm:text-2xl">
+                      {cameraEnabled ? "Check your camera & mic" : "Enable your camera & mic"}
+                    </h2>
+                    <p className="mx-auto max-w-sm text-sm text-muted-foreground">
+                      {cameraEnabled
+                        ? "Make sure you can see yourself, then say a few words to test your microphone."
+                        : "We'll ask your browser for permission — you'll see a live preview before anything records."}
+                    </p>
+                  </div>
+
+                  {!cameraEnabled ? (
+                    <div className="flex flex-col items-center gap-3">
+                      <Button onClick={enableCamera} size="lg" className="gap-2 px-8">
+                        <Camera className="h-5 w-5" />
+                        Enable camera & microphone
+                      </Button>
+                      {videoError && (
+                        <div
+                          className="max-w-sm rounded-xl px-4 py-3 text-center"
+                          style={{ background: "var(--amber-bg)", border: "1px solid var(--brass-line)" }}
+                        >
+                          <p className="text-[13px] font-medium" style={{ color: "var(--amber-fg)" }}>
+                            We couldn't reach your camera or mic
+                          </p>
+                          <p className="mt-1 text-xs" style={{ color: "var(--amber-fg)", opacity: 0.85 }}>
+                            Check your browser's site permissions, then try again.
+                          </p>
                         </div>
                       )}
-                      
-                      {/* Mic Level Indicator - larger for audio-only mode */}
-                      <div className={`flex items-center justify-center gap-2 ${!videoEnabled ? 'py-8' : ''}`}>
-                        <Mic className={`${videoEnabled ? 'h-4 w-4' : 'h-6 w-6'} text-muted-foreground`} />
-                        <div className={`flex items-end gap-0.5 ${videoEnabled ? 'h-6' : 'h-12'}`}>
+                    </div>
+                  ) : (
+                    <div className="space-y-5">
+                      <div className="relative mx-auto aspect-video w-full max-w-md overflow-hidden rounded-xl border border-border/50 bg-[var(--slab)]">
+                        <video
+                          ref={videoPreviewRef}
+                          autoPlay
+                          playsInline
+                          muted
+                          className="h-full w-full object-cover"
+                          style={{ transform: 'scaleX(-1)' }}
+                        />
+                        <div className="absolute left-3 top-3">
+                          <Badge className="gap-1.5 border-transparent bg-[var(--slab)] text-[var(--slab-ink)]">
+                            <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--jade-bright)]" />
+                            Camera ready
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-center gap-2">
+                        <Mic className="h-4 w-4 text-muted-foreground" />
+                        <div className="flex h-6 items-end gap-0.5">
                           {micLevels.map((level, i) => (
                             <motion.div
                               key={i}
-                              className={`${videoEnabled ? 'w-1.5' : 'w-2'} rounded-full ${level > 15 ? 'bg-green-500' : 'bg-muted-foreground/30'}`}
+                              className={`w-1.5 rounded-full ${level > 15 ? 'bg-[var(--jade-bright)]' : 'bg-muted-foreground/30'}`}
                               animate={{ height: Math.max(4, level / 4 + 4) }}
                               transition={{ duration: 0.05 }}
                             />
                           ))}
                         </div>
-                        <span className="text-xs text-muted-foreground ml-1">
-                          {micLevels.some(l => l > 15) ? "Mic working!" : "Speak to test mic"}
+                        <span className="text-xs text-muted-foreground">
+                          {micLevels.some(l => l > 15) ? "Mic working" : "Speak to test your mic"}
                         </span>
-                      </div>
-                      
-                      <div className="text-center space-y-2">
-                        <h3 className="font-semibold text-foreground">
-                          {videoEnabled ? 'Camera & Mic Test' : 'Microphone Test'}
-                        </h3>
-                        <p className="text-sm text-muted-foreground">
-                          {videoEnabled 
-                            ? 'Check that you can see yourself and speak to test your microphone'
-                            : 'Speak to test your microphone is working properly'}
-                        </p>
                       </div>
 
                       {videoError && (
-                        <p className="text-sm text-red-400 text-center">{videoError}</p>
+                        <div
+                          className="mx-auto max-w-sm rounded-xl px-4 py-3 text-center"
+                          style={{ background: "var(--amber-bg)", border: "1px solid var(--brass-line)" }}
+                        >
+                          <p className="text-[13px] font-medium" style={{ color: "var(--amber-fg)" }}>
+                            We couldn't reach your camera or mic
+                          </p>
+                          <p className="mt-1 text-xs" style={{ color: "var(--amber-fg)", opacity: 0.85 }}>
+                            Check your browser's site permissions, then try again.
+                          </p>
+                        </div>
                       )}
 
-                      <div className="flex gap-2 justify-center pt-2">
+                      <div className="flex flex-wrap justify-center gap-3">
                         <Button
                           variant="outline"
                           onClick={() => {
@@ -698,49 +776,44 @@ Duration: ${formatTime(elapsedSeconds)}
                         >
                           Cancel
                         </Button>
-                        <Button
-                          onClick={confirmCameraWorks}
-                          className="bg-gradient-to-r from-primary to-teal-400 hover:opacity-90"
-                        >
-                          <CheckCircle className="h-4 w-4 mr-2" />
-                          My Setup Works
+                        <Button onClick={confirmCameraWorks} className="gap-2">
+                          <CheckCircle className="h-4 w-4" />
+                          My setup works
                         </Button>
                       </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  )}
                 </motion.div>
-              )}
-
-              {/* Camera/Mic Test Passed */}
-              {cameraTestPassed && (
+              ) : (
                 <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex items-center gap-2 text-sm text-green-400 pt-2"
+                  key="ready"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.2 }}
+                  className="mt-4 space-y-5"
                 >
-                  <CheckCircle className="h-4 w-4" />
-                  {videoEnabled ? 'Camera & microphone ready' : 'Microphone ready'}
+                  <div className="space-y-2">
+                    <h2 className="font-display ck-ink text-xl text-foreground sm:text-2xl">You're all set</h2>
+                    <p className="mx-auto max-w-sm text-sm text-muted-foreground">
+                      Camera and microphone are ready. Whenever you're ready, start the conversation.
+                    </p>
+                  </div>
+                  <div className="flex justify-center">
+                    <Button onClick={startInterview} size="lg" className="gap-2 px-10">
+                      <Phone className="h-5 w-5" />
+                      Start interview
+                    </Button>
+                  </div>
                 </motion.div>
               )}
+            </AnimatePresence>
 
-              <div className="pt-4">
-                <Button
-                  onClick={startInterview}
-                  className="w-full gap-2 bg-gradient-to-r from-primary to-teal-400 hover:opacity-90"
-                  size="lg"
-                  disabled={!cameraTestPassed}
-                >
-                  {videoEnabled ? <Video className="h-5 w-5" /> : <Phone className="h-5 w-5" />}
-                  {videoEnabled ? 'Start Video Interview' : 'Start Voice Interview'}
-                </Button>
-                {!cameraTestPassed && (
-                  <p className="text-xs text-muted-foreground text-center mt-2">
-                    Please enable your {videoEnabled ? 'camera' : 'microphone'} first
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+            {/* quiet reassurance footer */}
+            <p className="mt-6 border-t border-border/60 pt-4 text-xs text-muted-foreground">
+              Only the hiring team for this role can see your recording.
+            </p>
+          </div>
         </div>
       ) : (
         /* Active interview UI */
@@ -776,7 +849,7 @@ Duration: ${formatTime(elapsedSeconds)}
               </motion.div>
             )}
           </AnimatePresence>
-          
+
           {/* Wrapping Up Interview Overlay - shows immediately when user clicks End OR when Ava triggers end */}
           <AnimatePresence>
             {(isEndingInterview || isUserEndingInterview) && !showCompletionScreen && (
@@ -799,12 +872,12 @@ Duration: ${formatTime(elapsedSeconds)}
                     </div>
                   </div>
                   <h2 className="text-xl font-semibold text-foreground">
-                    {isUserEndingInterview && !isEndingInterview 
+                    {isUserEndingInterview && !isEndingInterview
                       ? "Ending Interview..."
                       : "Wrapping Up Interview..."}
                   </h2>
                   <p className="text-muted-foreground text-sm max-w-xs mx-auto">
-                    {isUserEndingInterview && !isEndingInterview 
+                    {isUserEndingInterview && !isEndingInterview
                       ? "Wrapping up. You may have a few closing questions."
                       : "Finishing up. Your responses are being saved."}
                   </p>
@@ -878,7 +951,7 @@ Duration: ${formatTime(elapsedSeconds)}
                     size="md"
                     showStatus={false}
                   />
-                  
+
                   {/* Status Text */}
                   <div>
                     <p className="font-medium text-foreground">
@@ -1087,11 +1160,11 @@ Duration: ${formatTime(elapsedSeconds)}
                           {isUploading ? "Uploading Recording..." : "Processing Interview..."}
                         </h2>
                         <p className="text-muted-foreground">
-                          {isUploading 
-                            ? "Please wait while we save your interview" 
+                          {isUploading
+                            ? "Please wait while we save your interview"
                             : "Preparing your recording for upload"}
                         </p>
-                        
+
                         {/* Warning message - always visible during processing/uploading */}
                         <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
                           <p className="text-amber-400 text-sm font-medium flex items-center justify-center gap-2">
@@ -1102,11 +1175,11 @@ Duration: ${formatTime(elapsedSeconds)}
                             Your interview is being saved. This may take a moment.
                           </p>
                         </div>
-                        
+
                         {/* Progress bar only during upload */}
                         {isUploading && (
                           <div className="w-full max-w-xs mx-auto bg-muted rounded-full h-2 mt-4">
-                            <div 
+                            <div
                               className="bg-gradient-to-r from-primary to-teal-400 h-2 rounded-full transition-all"
                               style={{ width: `${uploadProgress}%` }}
                             />
@@ -1129,7 +1202,7 @@ Duration: ${formatTime(elapsedSeconds)}
                         </p>
                       </div>
                       <div className="flex gap-3 justify-center">
-                        <Button 
+                        <Button
                           onClick={() => navigate(`/applications/${applicationId}`)}
                           className="bg-gradient-to-r from-primary to-teal-400 hover:opacity-90"
                         >

@@ -2,24 +2,20 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { 
-  ArrowLeft, 
+import {
+  ArrowLeft,
   ArrowRight,
-  ClipboardList, 
   CheckCircle,
   Loader2,
-  HelpCircle,
   Clock,
   ShieldAlert
 } from "lucide-react";
@@ -29,7 +25,15 @@ import { parseApplicationNotes, stringifyApplicationNotes } from "@/utils/applic
 import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
-import { PhaseContextCard } from "@/components/PhaseContextCard";
+import { GlyphJourney, GlyphCheckSeal } from "@/components/candidate/glyphs";
+import { buildCandidateJourney, positionFor, DECISION_STAGE_ID } from "@/lib/candidateJourney";
+
+// A slim brass rule across the top of a card — the letterhead mark that
+// opens every considered moment in this phase (Founder's Law: "the
+// dialogues feel empty and boring").
+const BRASS_RULE = (
+  <div className="absolute inset-x-0 top-0 h-[3px]" style={{ background: "var(--brass-line)" }} aria-hidden="true" />
+);
 
 interface QuizQuestion {
   id: string;
@@ -204,7 +208,7 @@ export default function QuizPhase() {
     const quizStep = workflowSteps?.find(s => s.id === stepId || s.type === "quiz");
     
     if (quizStep?.config?.questions) {
-      return quizStep.config.questions;
+      return quizStep.config.questions as QuizQuestion[];
     }
     
     // Fallback to quiz_questions from job
@@ -345,6 +349,24 @@ export default function QuizPhase() {
     : null;
   const currentQuestionOptions = currentQuestion?.options?.filter((option) => option?.trim()) || [];
   const progress = questions.length > 0 ? ((currentQuestionIndex + 1) / questions.length) * 100 : 0;
+
+  // Where the candidate is in the whole journey — derived from the job's real
+  // workflow_steps via the shared candidateJourney builder, so this screen
+  // agrees with every other candidate screen. Never invented.
+  const journeyStep = useMemo(() => {
+    const workflowSteps = (application?.jobs?.workflow_steps || []) as Array<{ id: string; type: string; title?: string }>;
+    const quizQuestions = application?.jobs?.quiz_questions;
+    const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
+    const steps = buildCandidateJourney(workflowSteps, { hasQuiz });
+    const { index, total, current } = positionFor(steps, { stepId, phase: "quiz" });
+    return { index, total, title: current.title };
+  }, [application?.jobs?.workflow_steps, application?.jobs?.quiz_questions, stepId]);
+
+  const journeyProgressPct = Math.round(((journeyStep.index + 1) / Math.max(journeyStep.total, 1)) * 100);
+
+  // Used only for the "what happens next" line on the pre-send screen — the
+  // real pass/fail decision is always made server-side after submit.
+  const isAutoPilotJob = application?.jobs?.processing_mode === "auto";
 
   const getQuestionTimeLimit = useCallback((question: QuizQuestion | null | undefined) => {
     return question?.time_limit_seconds || 30;
@@ -693,46 +715,14 @@ export default function QuizPhase() {
         },
       };
 
-      // Build the full phases list to find the next phase
+      // Build the real journey to find the next stage
       const workflowSteps = application.jobs?.workflow_steps || [];
-      const quizQuestions = application.jobs?.quiz_questions as Json[] | undefined;
+      const quizQuestions = application.jobs?.quiz_questions;
+      const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
 
-      // Extract voice_interview step (goes AFTER review)
       const typedSteps = workflowSteps as Array<{ id: string; type: string; title?: string }>;
-      const voiceInterviewStep = typedSteps.find((step) => step.type === 'voice_interview');
+      const allPhases = buildCandidateJourney(typedSteps, { hasQuiz });
 
-      const allPhases: { id: string; type: string; title: string }[] = [
-        { id: "application", type: "application", title: "Application" },
-      ];
-
-      // Add quiz phase if quiz_questions exist (before workflow steps)
-      if (quizQuestions && quizQuestions.length > 0) {
-        allPhases.push({ id: "quiz", type: "quiz", title: "Quiz" });
-      }
-
-      // Add workflow steps EXCEPT voice_interview (which goes after Review)
-      typedSteps.filter((step) => step.type !== 'voice_interview').forEach((step) => {
-        allPhases.push({ id: step.id, type: step.type, title: step.title || step.type });
-      });
-
-      // Add Review phase
-      allPhases.push({ id: "review", type: "review", title: "Review" });
-
-      // Add voice_interview AFTER Review if it exists
-      if (voiceInterviewStep) {
-        allPhases.push({
-          id: voiceInterviewStep.id,
-          type: "voice_interview",
-          title: voiceInterviewStep.title || "Voice Interview"
-        });
-      }
-      
-      // Add final phases
-      allPhases.push(
-        { id: "interview", type: "interview", title: "Interview" },
-        { id: "hired", type: "hired", title: "Hired" }
-      );
-      
       // Find current step index
       let currentIndex = allPhases.findIndex((p) => p.id === stepId);
       if (currentIndex === -1 && application.phase) {
@@ -743,23 +733,25 @@ export default function QuizPhase() {
 
       let newPhase = application.phase;
       let newStatus = application.status;
-      
+
       // Determine next phase
       let nextPhase: { id: string; type: string; title: string } | null = null;
       if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
         nextPhase = allPhases[currentIndex + 1];
       }
-      
+
       if (isAutoMode) {
         // UNIFIED SCORING: Do NOT make pass/fail decision locally
         // The backend (trigger-ava-analysis) is the SINGLE SOURCE OF TRUTH
         // It will calculate the weighted score and decide pass/fail
-        
+
         // Save phase data but do NOT set status=rejected locally
         // Let the backend autopilot decision handle it
-        
-        // Determine next phase info for UI (if candidate passes)
-        if (nextPhase && nextPhase.type !== "voice_interview" && nextPhase.type !== "review") {
+
+        // Determine next phase info for UI (if candidate passes) — not for
+        // voice_interview (needs employer approval to start) or the closing
+        // decision stage (nothing to click into, just wait).
+        if (nextPhase && nextPhase.type !== "voice_interview" && nextPhase.id !== DECISION_STAGE_ID) {
           setNextPhaseInfo({
             id: nextPhase.id,
             title: nextPhase.title,
@@ -883,10 +875,9 @@ export default function QuizPhase() {
       };
       const route = phaseRoutes[nextStep.type] || nextStep.type;
       navigate(`/applications/${id}/${route}/${nextPhaseInfo.id}`);
-    } else if (nextPhaseInfo.id === "review") {
-      // If next phase is review, go back to application
-      navigate(`/applications/${id}`);
     } else {
+      // Next stage isn't a real workflow step (e.g. the closing decision
+      // stage) — nothing to navigate into, just head back to the overview.
       navigate(`/applications/${id}`);
     }
   };
@@ -924,11 +915,16 @@ export default function QuizPhase() {
 
   if (!application) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Card className="bg-card border-border max-w-md">
-          <CardContent className="p-8 text-center">
-            <h2 className="text-xl font-semibold text-foreground mb-2">Application Not Found</h2>
-            <Button onClick={() => navigate("/applications")} className="mt-4">
+      <div className="flex h-full items-center justify-center">
+        <Card className="relative max-w-md overflow-hidden bg-card border-border">
+          {BRASS_RULE}
+          <CardContent className="space-y-4 p-8 text-center">
+            <h2 className="font-display text-xl text-foreground">We can't find that application</h2>
+            <p className="text-sm text-muted-foreground">
+              It may have moved — head back and pick it up from your list.
+            </p>
+            <Button onClick={() => navigate("/applications")} className="gap-2">
+              <ArrowLeft className="h-4 w-4" />
               Back to Applications
             </Button>
           </CardContent>
@@ -959,22 +955,23 @@ export default function QuizPhase() {
 
   if (questions.length === 0) {
     return (
-      <div className="space-y-6 max-w-3xl mx-auto">
-        <Button 
-          variant="outline" 
-          onClick={() => navigate(`/applications/${id}`)} 
-          className="gap-2"
+      <div className="max-w-3xl mx-auto space-y-6">
+        <Button
+          variant="ghost"
+          onClick={() => navigate(`/applications/${id}`)}
+          className="gap-2 text-muted-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Application
         </Button>
-        
-        <Card className="bg-card border-border">
-          <CardContent className="p-8 text-center">
-            <HelpCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <h2 className="text-xl font-semibold text-foreground mb-2">No Quiz Questions</h2>
-            <p className="text-muted-foreground">
-              This quiz has not been configured yet.
+
+        <Card className="relative overflow-hidden bg-card border-border">
+          {BRASS_RULE}
+          <CardContent className="space-y-2 p-8 text-center">
+            <GlyphJourney size={40} className="mx-auto mb-2 text-muted-foreground" />
+            <h2 className="font-display text-xl text-foreground">Nothing to answer yet</h2>
+            <p className="text-sm text-muted-foreground">
+              This quiz hasn't been set up on our end — there's nothing you need to do here.
             </p>
           </CardContent>
         </Card>
@@ -1007,92 +1004,100 @@ export default function QuizPhase() {
   }
 
   return (
-    <div 
+    <div
       ref={quizContainerRef}
-      className="space-y-6 max-w-3xl mx-auto select-none"
+      className="max-w-3xl mx-auto space-y-6 select-none"
       onCopy={handleCopy}
       onPaste={handlePaste}
       onCut={handleCut}
       onContextMenu={handleContextMenu}
       onKeyDown={handleKeyDown}
     >
-      {/* Anti-cheat indicator */}
-      {violations.length > 0 && (
-        <div className="flex items-center gap-2 text-sm text-warning bg-warning/10 px-3 py-2 rounded-lg border border-warning/20">
-          <ShieldAlert className="h-4 w-4" />
-          <span>{violations.length} violation(s) recorded</span>
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <Button 
-          variant="outline" 
-          onClick={() => navigate(`/applications/${id}`)} 
-          className="gap-2"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Application
-        </Button>
-        
-        <Badge className="bg-primary/20 text-primary border-primary/30 gap-1">
-          <ClipboardList className="h-4 w-4" />
-          Assessment Quiz
-        </Badge>
-      </div>
-
-      {/* Main Quiz Card */}
-      <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ClipboardList className="h-5 w-5 text-primary" />
-            Skills Assessment
-          </CardTitle>
-          <p className="text-muted-foreground">
-            For: {application.jobs?.title}
+      {/* Journey header — where am I, what's happening now, what's next */}
+      <header className="ck-reveal space-y-4">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate(`/applications/${id}`)}
+            aria-label="Back to application overview"
+            className="shrink-0 text-muted-foreground"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <p className="min-w-0 truncate text-sm font-medium text-muted-foreground">
+            {application.jobs?.title || "This role"}
           </p>
-        </CardHeader>
-        <CardContent className="space-y-6">
+        </div>
+
+        <div className="space-y-2.5">
+          <h1 className="font-display ck-ink text-2xl text-foreground sm:text-3xl">
+            Skills check
+          </h1>
+
+          <span className="ck-num block text-xs font-medium text-muted-foreground">
+            Step {journeyStep.index + 1} of {journeyStep.total} — {journeyStep.title}
+          </span>
+
+          <Progress value={journeyProgressPct} className="h-1.5 bg-[var(--track)]" />
+
+          <p className="text-sm text-muted-foreground">
+            {showResults
+              ? "Have a last look, then send your answers in."
+              : "Answer at your own pace — each question keeps its own gentle timer."}
+          </p>
+        </div>
+
+        {violations.length > 0 && (
+          <div className="flex items-center gap-2 rounded-lg border border-warning/20 bg-warning/10 px-3 py-2 text-sm text-warning">
+            <ShieldAlert className="h-4 w-4 shrink-0" />
+            <span>
+              {violations.length} thing{violations.length === 1 ? "" : "s"} flagged during this session
+            </span>
+          </div>
+        )}
+      </header>
+
+      {/* Main quiz card — the letterhead moment: brass rule, then the question itself as the heading */}
+      <Card className="relative overflow-hidden bg-card border-border">
+        {BRASS_RULE}
+        <CardContent className="space-y-6 p-4 pt-6 sm:p-8">
           {!showResults && currentQuestion ? (
             <>
-              {/* Progress and Timer */}
+              {/* Progress within the quiz */}
               <div className="space-y-2">
-                <div className="flex justify-between items-center text-sm">
-                  <div className="flex items-center gap-4">
-                    <span className="text-muted-foreground">Progress</span>
-                    {/* Timer */}
-                    <div className="flex items-center gap-1.5">
-                      <Clock className={`h-4 w-4 ${timeRemaining <= 10 ? "text-red-500" : "text-primary"}`} />
-                      <span className={`font-mono text-base font-semibold ${
-                        timeRemaining <= 10 ? "text-red-500 animate-pulse" : "text-foreground"
-                      }`}>
-                        {timeRemaining}s
-                      </span>
-                    </div>
-                  </div>
-                  <span className="font-medium text-foreground">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="ck-num font-medium text-foreground">
                     Question {currentQuestionIndex + 1} of {questions.length}
                   </span>
+                  <div className="flex items-center gap-1.5">
+                    <Clock className={`h-4 w-4 ${timeRemaining <= 10 ? "text-destructive" : "text-muted-foreground"}`} />
+                    <span className={`ck-num text-base font-semibold ${
+                      timeRemaining <= 10 ? "text-destructive" : "text-foreground"
+                    }`}>
+                      {timeRemaining}s
+                    </span>
+                  </div>
                 </div>
-                <Progress value={progress} className="h-2" />
+                <Progress value={progress} className="h-1.5 bg-[var(--track)]" />
               </div>
 
-              {/* Question */}
-              <div className="bg-muted/30 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-foreground mb-4">
+              {/* Question — the focal moment */}
+              <div className="space-y-5">
+                <h2 className="font-display ck-ink text-xl leading-snug text-foreground sm:text-2xl">
                   {currentQuestion.question}
-                </h3>
-                
+                </h2>
+
                 {getQuestionType(currentQuestion) === 'multi_select' ? (
                   <>
-                    <p className="text-sm text-muted-foreground mb-3">Select all that apply</p>
+                    <p className="text-sm text-muted-foreground">Select all that apply</p>
                     <div className="space-y-3">
                       {currentQuestionOptions.map((option, index) => {
                         const selected = Array.isArray(answers[currentQuestion.id]) && (answers[currentQuestion.id] as number[]).includes(index);
                         return (
                           <div
                             key={index}
-                            className={`flex items-center space-x-3 p-4 rounded-lg border transition-colors cursor-pointer ${
+                            className={`flex items-center space-x-3 rounded-lg border p-4 transition-colors cursor-pointer ${
                               selected
                                 ? "border-primary bg-primary/10"
                                 : "border-border hover:bg-muted/50"
@@ -1117,7 +1122,7 @@ export default function QuizPhase() {
                     {currentQuestionOptions.map((option, index) => (
                       <div
                         key={index}
-                        className={`flex items-center space-x-3 p-4 rounded-lg border transition-colors cursor-pointer ${
+                        className={`flex items-center space-x-3 rounded-lg border p-4 transition-colors cursor-pointer ${
                           answers[currentQuestion.id] === index
                             ? "border-primary bg-primary/10"
                             : "border-border hover:bg-muted/50"
@@ -1125,8 +1130,8 @@ export default function QuizPhase() {
                         onClick={() => handleAnswerSelect(index)}
                       >
                         <RadioGroupItem value={index.toString()} id={`option-${index}`} />
-                        <Label 
-                          htmlFor={`option-${index}`} 
+                        <Label
+                          htmlFor={`option-${index}`}
                           className="flex-1 cursor-pointer text-foreground"
                         >
                           {option}
@@ -1139,19 +1144,23 @@ export default function QuizPhase() {
                     placeholder="Type your answer here..."
                     value={(answers[currentQuestion.id] as string) ?? ""}
                     onChange={(e) => handleTextAnswerChange(e.target.value)}
-                    className="min-h-[150px] bg-background resize-none"
+                    className="min-h-[150px] resize-none border-[var(--line)] bg-[var(--ground)] focus-visible:ring-[var(--brass-line)]"
                     maxLength={2000}
                   />
                 )}
               </div>
 
-              {/* Navigation - Forward only */}
-              <div className="flex justify-end">
-              {currentQuestionIndex < questions.length - 1 ? (
+              {/* Continue — the one primary action on this screen */}
+              <div className="flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-muted-foreground">
+                  Tap a number below to jump to a different question.
+                </p>
+                {currentQuestionIndex < questions.length - 1 ? (
                   <Button
                     onClick={goToNextQuestion}
                     disabled={!isQuestionAnswered(currentQuestion.id, currentQuestion)}
-                    className="gap-2"
+                    size="lg"
+                    className="w-full gap-2 sm:w-auto"
                   >
                     Next
                     <ArrowRight className="h-4 w-4" />
@@ -1160,26 +1169,29 @@ export default function QuizPhase() {
                   <Button
                     onClick={handleFinishQuiz}
                     disabled={!questions.every(q => isQuestionAnswered(q.id, q))}
-                    className="gap-2"
+                    size="lg"
+                    className="w-full gap-2 sm:w-auto"
                   >
-                    Finish Quiz
+                    Finish
                     <CheckCircle className="h-4 w-4" />
                   </Button>
                 )}
               </div>
 
               {/* Question indicators */}
-              <div className="flex justify-center gap-2 flex-wrap">
+              <div className="flex flex-wrap justify-center gap-2">
                 {questions.map((q, index) => (
                   <button
                     key={q.id}
                     onClick={() => setCurrentQuestionIndex(index)}
-                    className={`w-8 h-8 rounded-full text-sm font-medium transition-colors ${
+                    aria-label={`Go to question ${index + 1}`}
+                    aria-current={index === currentQuestionIndex ? "step" : undefined}
+                    className={`ck-num flex h-11 w-11 items-center justify-center rounded-full text-sm font-medium transition-colors ${
                       index === currentQuestionIndex
                         ? "bg-primary text-primary-foreground"
                         : answers[q.id] !== undefined
-                        ? "bg-success/20 text-success"
-                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        ? "border border-primary/40 bg-primary/5 text-primary"
+                        : "border border-border text-muted-foreground hover:border-primary/30"
                     }`}
                   >
                     {index + 1}
@@ -1188,45 +1200,49 @@ export default function QuizPhase() {
               </div>
             </>
           ) : showResults ? (
-            /* Results */
-            <div className="space-y-6">
-              <div className="text-center space-y-4">
-                <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center ${
-                  results?.passed ? "bg-success/20" : "bg-destructive/20"
-                }`}>
-                  <CheckCircle className={`h-10 w-10 ${
-                    results?.passed ? "text-success" : "text-destructive"
-                  }`} />
-                </div>
-                <div>
-                  <h3 className="text-2xl font-bold text-foreground">
-                    {results?.passed ? "Quiz Passed!" : "Quiz Complete"}
-                  </h3>
-                  <p className="text-muted-foreground">
-                    Your answers have been recorded. Thank you for completing the assessment!
+            /* Results — a held moment before sending. The real pass/fail read
+               happens after submit (EvaluationScreen / CandidateStatusScreen),
+               so this stays a calm, neutral checkpoint — never red or green. */
+            <div className="ck-reveal space-y-8 text-center">
+              <div className="space-y-4">
+                <GlyphCheckSeal size={44} className="ck-seal-press text-[var(--brass)]" />
+                <div className="space-y-1.5">
+                  <h2 className="font-display ck-ink text-2xl text-foreground sm:text-3xl">
+                    That's the quiz
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    {isAutoPilotJob
+                      ? "Send your answers and you'll hear back in a moment."
+                      : "Send your answers — the hiring team will review them and get back to you."}
                   </p>
                 </div>
-                
-                {/* Show violation summary if any */}
-                {violations.length > 0 && (
-                  <div className="text-sm text-warning bg-warning/10 px-4 py-2 rounded-lg inline-flex items-center gap-2">
-                    <ShieldAlert className="h-4 w-4" />
-                    {violations.length} monitoring alert(s) will be included in your submission
-                  </div>
-                )}
               </div>
 
-              {/* Actions */}
-              <div className="flex justify-center gap-4">
-                <Button onClick={handleSubmit} disabled={isSubmitting} className="gap-2">
-                  {isSubmitting ? (
+              {violations.length > 0 && (
+                <div className="inline-flex items-center gap-2 rounded-lg bg-warning/10 px-4 py-2 text-sm text-warning">
+                  <ShieldAlert className="h-4 w-4" />
+                  {violations.length} thing{violations.length === 1 ? "" : "s"} flagged — included with your answers
+                </div>
+              )}
+
+              <Button
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                size="lg"
+                className="w-full gap-2 sm:w-auto"
+              >
+                {isSubmitting ? (
+                  <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    Send my answers
                     <CheckCircle className="h-4 w-4" />
-                  )}
-                  Submit Results
-                </Button>
-              </div>
+                  </>
+                )}
+              </Button>
             </div>
           ) : (
             /* Loading state while questions initialize */

@@ -1,18 +1,21 @@
 import { useAuth } from "@/hooks/useAuth";
 import { useCandidateApplications } from "@/hooks/useApplications";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { 
-  Search, Filter, FileText, MapPin, Briefcase, Calendar, ChevronRight, 
-  Play, Clock, Keyboard, Video, MessageSquare, ClipboardList,
-  Users, Mic, Trash2, Download, Sparkles, PartyPopper, Eye, AlertCircle, Check, Lock
+import {
+  Search,
+  MapPin,
+  Briefcase,
+  Calendar,
+  ChevronRight,
+  Trash2,
+  Download,
+  MoreVertical,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
-import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { EmptyStateCard } from "@/components/EmptyStateCard";
 import { supabase } from "@/integrations/supabase/client";
 import type { ApplicationWithJob } from "@/hooks/useApplications";
@@ -26,38 +29,149 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImprovementBlueprintCard } from "@/components/ImprovementBlueprintCard";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
-import { 
-  getApplicationDisplayState, 
-  statusColors, 
-  statusLabels, 
-  phaseActionConfig 
+import {
+  getApplicationDisplayState,
+  statusLabels,
+  type ApplicationDisplayState,
 } from "@/utils/getApplicationDisplayState";
+import { phaseDurationEstimates } from "@/lib/phaseDurations";
+import { GlyphJourney, GlyphLetter } from "@/components/candidate/glyphs";
+import { buildCandidateJourney, positionFor } from "@/lib/candidateJourney";
+
+/* The brand glyph kit's components render plain SVGs, not lucide's
+   ForwardRefExoticComponent shape — EmptyStateCard's props type them as
+   LucideIcon just to size/color a passed-in icon, so this cast is the
+   honest way to hand it a brand glyph instead of a stock lucide mark. */
+const JourneyIdentityGlyph = GlyphJourney as unknown as LucideIcon;
+const LetterIdentityGlyph = GlyphLetter as unknown as LucideIcon;
 
 interface ApplicationCardProps {
   application: ApplicationWithJob;
   onOpenBlueprint?: (applicationId: string) => void;
+  /** The employer's real, publicly-safe company name — resolved via the
+   *  employer_public_branding view, never the job's internal department
+   *  field. Absent (not a placeholder) when it truly isn't on file. */
+  companyName?: string | null;
 }
- 
-function ApplicationCard({ application, onDelete, onOpenBlueprint }: ApplicationCardProps & { onDelete: (id: string) => void }) {
+
+/* ── The journey, derived from the job's own workflow ───────────────────
+   Built from the shared candidateJourney lib, so "Step X of N" here always
+   agrees with the phase screens themselves — no invented step counts. */
+
+function journeyForCard(application: ApplicationWithJob) {
+  const job = application.jobs;
+  const workflowSteps = (job?.workflow_steps as { id: string; type: string; title?: string }[] | null) || [];
+  const quizQuestions = job?.quiz_questions;
+  const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
+  const steps = buildCandidateJourney(workflowSteps, { hasQuiz });
+  const { index } = positionFor(steps, { phase: application.phase, status: application.status });
+  return { steps, index };
+}
+
+/* ── Status, in journey terms — never internal phase/status jargon ────── */
+
+type ChipTone = { label: string; bg: string; fg: string };
+
+function getStatusChip(application: ApplicationWithJob, displayState: ApplicationDisplayState): ChipTone | null {
+  if (displayState.isHired) return { label: "Hired", bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)" };
+  if (application.status === "offered") return { label: "Offer extended", bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)" };
+  if (displayState.isRejected) return { label: "Not selected", bg: "var(--surface-2)", fg: "var(--ink-2)" };
+
+  if (displayState.isWaitingPhase) {
+    if (displayState.interviewConfirmed) return { label: "Interview confirmed", bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)" };
+    if (displayState.interviewNeedsConfirmation) return { label: "Needs your response", bg: "var(--amber-bg)", fg: "var(--amber-fg)" };
+    if (displayState.interviewRescheduleRequested) return { label: "Reschedule requested", bg: "var(--amber-bg)", fg: "var(--amber-fg)" };
+    if (application.status === "interview") return { label: "Interview stage", bg: "var(--amber-bg)", fg: "var(--amber-fg)" };
+    return { label: "In review", bg: "var(--amber-bg)", fg: "var(--amber-fg)" };
+  }
+
+  if (displayState.isPendingReview) {
+    return {
+      label: displayState.isVoiceInterviewComplete ? "Interview complete — in review" : "In review",
+      bg: "var(--amber-bg)",
+      fg: "var(--amber-fg)",
+    };
+  }
+
+  // Action needed is carried by the primary button, not a second chip.
+  if (displayState.showActionButton) return null;
+
+  return { label: statusLabels[application.status] || "In progress", bg: "var(--surface-2)", fg: "var(--ink-2)" };
+}
+
+/** One warm line, only where it adds something the chip and button don't
+ *  already say. */
+function getGuidanceCopy(displayState: ApplicationDisplayState): string | null {
+  if (displayState.showActionButton) {
+    const estimate = phaseDurationEstimates[displayState.phaseType]?.label;
+    return estimate ? `Your turn — about ${estimate}.` : "Your turn — pick this up when you're ready.";
+  }
+  if (displayState.interviewNeedsConfirmation) return "Check your email to confirm the time — we're holding your spot.";
+  if (displayState.interviewRescheduleRequested) return "We've asked to reschedule — sit tight for a new time.";
+  return null;
+}
+
+function getOutcomeCopy(application: ApplicationWithJob, displayState: ApplicationDisplayState): string | null {
+  if (displayState.isHired) return "Congratulations — the team will be in touch about next steps.";
+  if (application.status === "offered") return "An offer's been extended — check your email for the details.";
+  if (displayState.isRejected) return "This one didn't move forward. There's always the next role.";
+  return null;
+}
+
+function StatusChip({ tone }: { tone: ChipTone }) {
+  return (
+    <span
+      className="inline-flex shrink-0 items-center gap-1 rounded-[5px] px-2 py-[3px] text-[10px] font-bold uppercase leading-none tracking-[0.06em]"
+      style={{ background: tone.bg, color: tone.fg }}
+    >
+      {tone.label}
+    </span>
+  );
+}
+
+function JourneyProgress({ index, total, title }: { index: number; total: number; title: string }) {
+  const pct = Math.min(100, Math.max(0, Math.round((index / Math.max(total - 1, 1)) * 100)));
+  return (
+    <div className="mt-3.5">
+      <div className="text-[11px] font-medium" style={{ color: "var(--ink-2)" }}>
+        Step {index + 1} of {total} — {title}
+      </div>
+      <div className="mt-1.5 h-[5px] w-full overflow-hidden rounded-full" style={{ background: "var(--track)" }}>
+        <div
+          className="h-full rounded-full transition-[width] duration-500 ease-out"
+          style={{ width: `${pct}%`, background: "var(--jade)" }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }: ApplicationCardProps & { onDelete: (id: string) => void }) {
   const navigate = useNavigate();
   const [isDeleting, setIsDeleting] = useState(false);
+  const [confirmWithdrawOpen, setConfirmWithdrawOpen] = useState(false);
   const job = application.jobs;
   const phase = application.phase || "application";
-  
+
   // Use shared display state utility - SINGLE SOURCE OF TRUTH
   const displayState = getApplicationDisplayState(application);
-  const actionConfig = phaseActionConfig[displayState.phaseType];
+  const ActionIcon = displayState.actionIcon;
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -66,7 +180,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
         .from("applications")
         .delete()
         .eq("id", application.id);
-      
+
       if (error) throw error;
       toast.success("Application withdrawn successfully");
       onDelete(application.id);
@@ -78,217 +192,188 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
     }
   };
 
-  // Determine if tile should be locked (no navigation)
+  // Determine if the row should navigate — only employer-controlled waits are locked
   const isLocked = displayState.isPendingReview || displayState.isWaitingPhase;
+  const isFinal = displayState.isHired || displayState.isRejected || application.status === "offered";
+
+  const { steps: journeySteps, index: stepIndex } = journeyForCard(application);
+  const currentStepTitle = journeySteps[stepIndex]?.title || "";
+
+  const chip = getStatusChip(application, displayState);
+  const guidance = getGuidanceCopy(displayState);
+  const outcome = getOutcomeCopy(application, displayState);
+
+  const goToDetail = () => {
+    if (!isLocked) navigate(`/applications/${application.id}`);
+  };
+
+  const handleActionClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const stepId = phase;
+    const route = displayState.actionRoute;
+    if (["application", "quiz", "video-intro", "chat-simulation", "chat-interview", "sales-simulation", "voice-interview", "portfolio"].includes(route)) {
+      navigate(`/applications/${application.id}/${route}/${stepId}`);
+    } else {
+      navigate(`/applications/${application.id}/${route}`);
+    }
+  };
 
   return (
-    <Card 
-      className={`bg-card border-border transition-all group relative overflow-hidden ${
-        displayState.isRejected
-          ? "border-border/60 cursor-pointer hover:border-destructive/40"
-          : isLocked
-          ? "border-border/50 opacity-80 cursor-default"
-          : displayState.showActionButton 
-            ? "border-primary/50 hover:border-primary shadow-lg shadow-primary/5 cursor-pointer" 
-            : "hover:border-primary/50 cursor-pointer"
-      }`}
-      onClick={() => {
-        if (!isLocked) {
-          navigate(`/applications/${application.id}`);
+    <div
+      className={`ck-card ck-reveal group relative p-5 ${!isLocked ? "ck-row cursor-pointer" : ""}`}
+      role={!isLocked ? "button" : undefined}
+      tabIndex={!isLocked ? 0 : undefined}
+      onClick={goToDetail}
+      onKeyDown={(e) => {
+        if (isLocked) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          goToDetail();
         }
       }}
     >
-      {/* Rejected stamp overlay */}
-      {displayState.isRejected && (
-        <div className="absolute top-4 right-4 z-10 rotate-12 pointer-events-none">
-          <div className="px-3 py-1.5 rounded border-2 border-destructive/60 bg-destructive/10 backdrop-blur-sm">
-            <span className="text-destructive font-bold text-sm tracking-wider uppercase">
-              Rejected
-            </span>
-          </div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="font-display truncate text-[17px] font-semibold leading-snug" style={{ color: "var(--ink)" }}>
+            {job?.title || "Unknown Position"}
+          </h3>
+          {companyName && (
+            <p className="mt-0.5 truncate text-[13px]" style={{ color: "var(--ink-3)" }}>
+              {companyName}
+            </p>
+          )}
         </div>
+        {chip && <StatusChip tone={chip} />}
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px]" style={{ color: "var(--ink-3)" }}>
+        {job?.location && (
+          <span className="inline-flex min-w-0 items-center gap-1">
+            <MapPin className="h-3.5 w-3.5 shrink-0" />
+            <span className="break-words [overflow-wrap:anywhere]">{job.location}</span>
+          </span>
+        )}
+        {job?.job_type && (
+          <span className="inline-flex min-w-0 items-center gap-1">
+            <Briefcase className="h-3.5 w-3.5 shrink-0" />
+            <span className="break-words [overflow-wrap:anywhere]">{job.job_type}</span>
+          </span>
+        )}
+        <span className="inline-flex min-w-0 items-center gap-1">
+          <Calendar className="h-3.5 w-3.5 shrink-0" />
+          Applied {format(new Date(application.created_at), "MMM d, yyyy")}
+        </span>
+      </div>
+
+      {isFinal
+        ? outcome && (
+            <p className="mt-3.5 text-[13px] leading-snug" style={{ color: "var(--ink-2)" }}>
+              {outcome}
+            </p>
+          )
+        : <JourneyProgress index={stepIndex} total={journeySteps.length} title={currentStepTitle} />}
+
+      {guidance && (
+        <p className="mt-2 text-[12.5px] leading-snug" style={{ color: "var(--ink-3)" }}>
+          {guidance}
+        </p>
       )}
-      
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between">
-          <div className="space-y-3 flex-1">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className={`text-lg font-semibold transition-colors ${displayState.isRejected ? "text-muted-foreground" : "text-foreground group-hover:text-primary"}`}>
-                  {job?.title || "Unknown Position"}
-                </h3>
-                <p className="text-sm text-muted-foreground">{job?.department || "Company"}</p>
-              </div>
-              {/* Status badges with special styling */}
-              {application.status === "hired" && (
-                <Badge className="bg-success/20 text-success border-success/30 gap-1.5 animate-pulse">
-                  <PartyPopper className="h-3.5 w-3.5" />
-                  {statusLabels[application.status]}
-                </Badge>
-              )}
-              {application.status === "offered" && (
-                <Badge className={statusColors[application.status]}>
-                  <Sparkles className="h-3.5 w-3.5 mr-1" />
-                  {statusLabels[application.status]}
-                </Badge>
-              )}
-            </div>
 
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
-              {job?.location && (
-                <div className="flex min-w-0 items-center gap-1">
-                  <MapPin className="h-4 w-4 shrink-0" />
-                  <span className="break-words [overflow-wrap:anywhere]">{job.location}</span>
-                </div>
-              )}
-              {job?.job_type && (
-                <div className="flex min-w-0 items-center gap-1">
-                  <Briefcase className="h-4 w-4 shrink-0" />
-                  <span className="break-words [overflow-wrap:anywhere]">{job.job_type}</span>
-                </div>
-              )}
-              <div className="flex min-w-0 items-center gap-1">
-                <Calendar className="h-4 w-4 shrink-0" />
-                <span className="break-words [overflow-wrap:anywhere]">Applied {format(new Date(application.created_at), "MMM d, yyyy")}</span>
-              </div>
-            </div>
+      <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+        {displayState.showActionButton && (
+          <button
+            type="button"
+            onClick={handleActionClick}
+            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[10px] px-5 text-sm font-semibold transition-[filter] hover:brightness-110 active:scale-[0.98]"
+            style={{ background: "var(--jade)", color: "var(--btn-fg)" }}
+          >
+            {ActionIcon && <ActionIcon className="h-4 w-4" />}
+            {displayState.actionLabel}
+          </button>
+        )}
 
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-4">
-              </div>
+        {displayState.isRejected && onOpenBlueprint && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenBlueprint(application.id);
+            }}
+            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[10px] border px-4 text-sm font-semibold transition-colors hover:bg-[var(--amber-bg)]"
+            style={{ borderColor: "var(--brass-line)", color: "var(--brass)" }}
+          >
+            <Download className="h-4 w-4" />
+            Get Feedback Report
+          </button>
+        )}
 
-              {/* Action Indicator - Clickable button to jump to phase */}
-              <div className="flex flex-wrap items-center justify-end gap-3">
-                {displayState.showActionButton && actionConfig && (
-                  <Button
-                    size="sm"
-                    className="bg-primary text-primary-foreground gap-2 px-4 py-1.5 text-sm font-medium animate-pulse hover:bg-primary/90 transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      // Build the route based on phase type
-                      const stepId = phase; // Use the actual phase ID for step-based routes
-                      const route = actionConfig.route;
-                      // All phase routes use the stepId pattern
-                      if (["application", "quiz", "video-intro", "chat-simulation", "chat-interview", "sales-simulation", "voice-interview", "portfolio"].includes(route)) {
-                        navigate(`/applications/${application.id}/${route}/${stepId}`);
-                      } else {
-                        navigate(`/applications/${application.id}/${route}`);
-                      }
-                    }}
-                  >
-                    {displayState.phaseType === "voice_interview" ? (
-                      displayState.voiceInterviewVideoEnabled ? (
-                        <Video className="h-4 w-4" />
-                      ) : (
-                        <actionConfig.icon className="h-4 w-4" />
-                      )
-                    ) : (
-                      <actionConfig.icon className="h-4 w-4" />
-                    )}
-                    {displayState.actionLabel}
-                  </Button>
-                )}
-                {displayState.isVoiceInterviewComplete && (
-                  <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 gap-1.5 px-3 py-1">
-                    <Mic className="h-3.5 w-3.5" />
-                    Interview Complete - Under Review
-                  </Badge>
-                )}
-                {displayState.isPendingReview && !displayState.isVoiceInterviewComplete && (
-                  <Badge className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30 gap-1.5 px-3 py-1">
-                    <Clock className="h-3.5 w-3.5" />
-                    Awaiting Review
-                  </Badge>
-                )}
-                
-                {/* Interview status badges - show when in interview phase */}
-                {displayState.isWaitingPhase && application.status === "interview" && displayState.interviewNeedsConfirmation && (
-                  <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 gap-1.5 px-3 py-1 animate-pulse">
-                    <AlertCircle className="h-3.5 w-3.5" />
-                    Interview Action Required
-                  </Badge>
-                )}
-                {displayState.isWaitingPhase && application.status === "interview" && displayState.interviewRescheduleRequested && (
-                  <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 gap-1.5 px-3 py-1">
-                    <Clock className="h-3.5 w-3.5" />
-                    Reschedule Pending
-                  </Badge>
-                )}
-                {displayState.isWaitingPhase && application.status === "interview" && displayState.interviewConfirmed && (
-                  <Badge className="bg-success/20 text-success border-success/30 gap-1.5 px-3 py-1">
-                    <Check className="h-3.5 w-3.5" />
-                    Interview Confirmed
-                  </Badge>
-                )}
-                
-                {/* Employer reviewing - only show when not in interview status or no interview scheduled */}
-                {displayState.isWaitingPhase && application.status !== "rejected" && application.status !== "hired" && application.status !== "offered" && application.status !== "interview" && (
-                  <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 gap-1.5 px-3 py-1">
-                    <Eye className="h-3.5 w-3.5" />
-                    Employer Reviewing
-                  </Badge>
-                )}
-                
-                {/* Rejected - show unlock blueprint button */}
-                {displayState.isRejected && onOpenBlueprint && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5 text-xs border-amber-500/50 text-amber-500 hover:bg-amber-500/10 hover:text-amber-400"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onOpenBlueprint(application.id);
-                    }}
-                  >
-                    <Download className="h-3 w-3" />
-                    Get Feedback Report
-                  </Button>
-                )}
-                
-                {/* Delete button */}
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Withdraw Application?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will permanently delete your application for "{job?.title}". 
-                        This action cannot be undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={handleDelete}
-                        disabled={isDeleting}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      >
-                        {isDeleting ? "Withdrawing..." : "Withdraw Application"}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-                
-                {displayState.isRejected ? (
-                  <Eye className="h-5 w-5 text-muted-foreground group-hover:text-destructive transition-colors" />
-                ) : (
-                  <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label="More actions"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full transition-colors hover:bg-[var(--surface-2)]"
+              style={{ color: "var(--ink-3)" }}
+            >
+              <MoreVertical className="h-4 w-4" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+            <DropdownMenuItem
+              onSelect={(e) => {
+                e.preventDefault();
+                setConfirmWithdrawOpen(true);
+              }}
+              className="text-[var(--crit)] focus:bg-[var(--crit-bg)] focus:text-[var(--crit)]"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Withdraw application
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <AlertDialog open={confirmWithdrawOpen} onOpenChange={setConfirmWithdrawOpen}>
+          <AlertDialogContent
+            onClick={(e) => e.stopPropagation()}
+            style={{ borderTop: "3px solid var(--brass-line)" }}
+          >
+            <AlertDialogHeader>
+              <AlertDialogTitle className="font-display text-xl">Withdraw this application?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This removes your application for &ldquo;{job?.title}&rdquo; for good. If you change your mind,
+                you're welcome to apply again with a new code from the employer.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isDeleting ? "Withdrawing..." : "Withdraw Application"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {!isLocked && <ChevronRight className="h-4 w-4 shrink-0" style={{ color: "var(--ink-3)" }} />}
+      </div>
+    </div>
+  );
+}
+
+function StatTile({ label, value, tone, index }: { label: string; value: number; tone?: "jade"; index: number }) {
+  return (
+    <div className="ck-card ck-reveal px-4 py-3.5" style={{ ["--ck-i" as string]: index }}>
+      <div className="text-[10px] font-bold uppercase tracking-[0.1em]" style={{ color: "var(--ink-3)" }}>
+        {label}
+      </div>
+      <div className="ck-num mt-1.5 text-[22px] font-semibold leading-none" style={{ color: tone === "jade" ? "var(--jade)" : "var(--ink)" }}>
+        {value}
+      </div>
+    </div>
   );
 }
 
@@ -299,7 +384,7 @@ export default function Applications() {
   const navigate = useNavigate();
   const { data: applications, isLoading, refetch } = useCandidateApplications();
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [statusFilter] = useState<string | null>(null);
   const [showBlueprintDialog, setShowBlueprintDialog] = useState(false);
   const [blueprintApplicationId, setBlueprintApplicationId] = useState<string | null>(null);
   const [rejectedAnnouncement, setRejectedAnnouncement] = useState<{
@@ -311,7 +396,41 @@ export default function Applications() {
   const handleDeleteApplication = (id: string) => {
     queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
   };
-  
+
+  // The employer's real, public-safe company name. jobs.department is a job
+  // department, not a company — employer_public_branding is the honest
+  // source (RLS keeps raw employer profiles invisible to candidates).
+  const employerIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (applications ?? [])
+            .map((app) => app.jobs?.employer_id)
+            .filter((id): id is string => Boolean(id))
+        )
+      ),
+    [applications]
+  );
+
+  const { data: employerNames } = useQuery({
+    queryKey: ["applications", "employer-branding", employerIds],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employer_public_branding" as any)
+        .select("user_id, company_name")
+        .in("user_id", employerIds);
+
+      if (error) throw error;
+
+      const map: Record<string, string> = {};
+      ((data ?? []) as Array<{ user_id: string; company_name: string | null }>).forEach((row) => {
+        if (row.company_name) map[row.user_id] = row.company_name;
+      });
+      return map;
+    },
+    enabled: employerIds.length > 0,
+  });
+
   const handleOpenBlueprintDialog = (applicationId: string) => {
     setBlueprintApplicationId(applicationId);
     setShowBlueprintDialog(true);
@@ -339,10 +458,11 @@ export default function Applications() {
             const updatedApplicationId = payload.new.id as string;
             const existingApplication = applications?.find((application) => application.id === updatedApplicationId);
 
+            const employerId = existingApplication?.jobs?.employer_id;
             setRejectedAnnouncement({
               applicationId: updatedApplicationId,
               jobTitle: existingApplication?.jobs?.title,
-              companyName: existingApplication?.jobs?.department,
+              companyName: employerId ? employerNames?.[employerId] : undefined,
             });
           }
 
@@ -354,7 +474,7 @@ export default function Applications() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, isEmployer, refetch, applications]);
+  }, [user, isEmployer, refetch, applications, employerNames]);
 
   const filteredApplications = applications?.filter((app) => {
     const matchesSearch = app.jobs?.title?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -375,22 +495,22 @@ export default function Applications() {
 
   if (isEmployer) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Card className="bg-card border-border max-w-md">
-          <CardContent className="p-8 text-center">
-            <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h2 className="text-xl font-semibold text-foreground mb-2">Candidate Access Only</h2>
-            <p className="text-muted-foreground">
-              This page is for job seekers. Use the Applicants section to view applications to your jobs.
-            </p>
-          </CardContent>
-        </Card>
+      <div className="flex h-full items-center justify-center p-6">
+        <div className="ck-card max-w-md p-8 text-center">
+          <GlyphLetter size={40} className="mx-auto mb-4" style={{ color: "var(--ink-3)" }} />
+          <h2 className="font-display text-xl font-semibold" style={{ color: "var(--ink)" }}>
+            Candidate Access Only
+          </h2>
+          <p className="mt-2 text-sm" style={{ color: "var(--ink-3)" }}>
+            This page is for job seekers. Use the Applicants section to view applications to your jobs.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="ck-page space-y-6">
       <CandidateStatusScreen
         state={rejectedAnnouncement ? "rejected" : null}
         jobTitle={rejectedAnnouncement?.jobTitle ?? undefined}
@@ -401,86 +521,68 @@ export default function Applications() {
 
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-foreground">My Applications</h2>
-        <p className="text-muted-foreground mt-1">Track the status of your job applications</p>
+        <h1 className="font-display ck-ink text-[26px] font-semibold leading-tight sm:text-[28px]" style={{ color: "var(--ink)" }}>
+          Your applications
+        </h1>
+        <p className="mt-1.5 text-sm" style={{ color: "var(--ink-3)" }}>
+          Everything you've applied to, and exactly where each one stands.
+        </p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Total Applied</p>
-            <p className="text-2xl font-bold text-foreground">{stats.total}</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Pending</p>
-            <p className="text-2xl font-bold text-yellow-500">{stats.pending}</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">In Progress</p>
-            <p className="text-2xl font-bold text-blue-500">{stats.active}</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Offers/Hired</p>
-            <p className="text-2xl font-bold text-primary">{stats.success}</p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Stats + search only earn their space once there's enough to sift through */}
+      {(applications?.length ?? 0) >= 3 && (
+        <>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatTile index={0} label="Applied" value={stats.total} />
+            <StatTile index={1} label="Awaiting review" value={stats.pending} />
+            <StatTile index={2} label="In progress" value={stats.active} />
+            <StatTile index={3} label="Offers &amp; hires" value={stats.success} tone="jade" />
+          </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input 
-            placeholder="Search applications..." 
-            className="pl-10 bg-card border-border"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-        <Button variant="outline" className="gap-2">
-          <Filter className="h-4 w-4" />
-          Filter by Status
-        </Button>
-      </div>
+          <div className="relative max-w-md">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "var(--ink-3)" }} />
+            <Input
+              placeholder="Search applications..."
+              className="pl-10"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        </>
+      )}
 
       {/* Application List */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         {isLoading ? (
           <>
-            <Skeleton className="h-32 w-full" />
-            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-40 w-full rounded-[14px]" />
+            <Skeleton className="h-40 w-full rounded-[14px]" />
           </>
         ) : filteredApplications && filteredApplications.length > 0 ? (
           filteredApplications.map((application) => (
-            <ApplicationCard 
-              key={application.id} 
-              application={application} 
+            <ApplicationCard
+              key={application.id}
+              application={application}
               onDelete={handleDeleteApplication}
               onOpenBlueprint={handleOpenBlueprintDialog}
+              companyName={application.jobs?.employer_id ? employerNames?.[application.jobs.employer_id] : undefined}
             />
           ))
         ) : (
           <EmptyStateCard
-            icon={Sparkles}
+            icon={JourneyIdentityGlyph}
             title="Ready to Start Your Job Search?"
             description="To apply for a position on HireFlow, you'll need a job application code from an employer. Once you have one, click below to get started."
             action={{
               label: "Enter Job Code",
               onClick: () => navigate("/apply"),
-              icon: Briefcase,
+              icon: LetterIdentityGlyph,
             }}
             tip="Job codes are typically shared by employers via email, job postings, or during initial contact. Ask the employer if you haven't received one yet."
           />
         )}
       </div>
-      
+
       {/* Blueprint Dialog */}
       <Dialog open={showBlueprintDialog} onOpenChange={setShowBlueprintDialog}>
         <DialogContent className="max-w-lg">

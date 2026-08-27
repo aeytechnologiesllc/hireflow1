@@ -40,6 +40,10 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
   const combinedStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+  // The mimeType actually accepted by MediaRecorder for this recording (may be
+  // '' if the browser supported none of our preferred candidates and picked
+  // its own container — see startRecording).
+  const recordedMimeTypeRef = useRef<string>('');
   
   // Refs for mic level monitoring
   const micAnalyserRef = useRef<AnalyserNode | null>(null);
@@ -238,29 +242,25 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
       // Clear previous chunks
       recordedChunksRef.current = [];
 
-      // Determine mime type based on audio-only mode
-      let mimeType: string;
-      if (state.isAudioOnly) {
-        // Audio-only: use webm with opus codec
-        mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-          ? 'audio/webm;codecs=opus'
-          : 'audio/webm';
-      } else {
-        // Video: use webm with video codecs
-        mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
-          ? 'video/webm;codecs=vp9,opus'
-          : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
-          ? 'video/webm;codecs=vp8,opus'
-          : 'video/webm';
-      }
+      // Determine mime type based on audio-only mode. Probe candidates in
+      // preference order — on browsers that support none of them (e.g. iOS
+      // Safari, which supports neither 'video/webm' nor 'audio/webm'),
+      // mimeType stays undefined and we let the browser pick its own
+      // container instead of forcing an unsupported one that throws
+      // NotSupportedError and silently drops the recording.
+      const candidates = state.isAudioOnly
+        ? ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']
+        : ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
+      const mimeType = candidates.find(t => MediaRecorder.isTypeSupported(t));
+      recordedMimeTypeRef.current = mimeType || '';
 
       const recorderOptions: MediaRecorderOptions = state.isAudioOnly
         ? {
-            mimeType,
+            ...(mimeType ? { mimeType } : {}),
             audioBitsPerSecond: 128000, // 128 kbps
           }
         : {
-            mimeType,
+            ...(mimeType ? { mimeType } : {}),
             videoBitsPerSecond: 1500000, // 1.5 Mbps
             audioBitsPerSecond: 128000, // 128 kbps
           };
@@ -299,9 +299,11 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
         return;
       }
 
-      const isAudio = state.isAudioOnly;
       mediaRecorderRef.current.onstop = () => {
-        const mimeType = isAudio ? 'audio/webm' : 'video/webm';
+        // Use the mimeType MediaRecorder actually recorded with, not an
+        // assumed 'audio/webm' / 'video/webm' — the recorder may have fallen
+        // back to a different supported container (see startRecording).
+        const mimeType = recordedMimeTypeRef.current || mediaRecorderRef.current?.mimeType || 'video/mp4';
         const blob = new Blob(recordedChunksRef.current, { type: mimeType });
         setState(s => ({ ...s, isRecording: false }));
         resolve(blob);
@@ -309,7 +311,7 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
 
       mediaRecorderRef.current.stop();
     });
-  }, [state.isAudioOnly]);
+  }, []);
 
   // Upload recording to Supabase Storage
   const uploadRecording = useCallback(async (blob: Blob): Promise<string | null> => {
@@ -323,7 +325,10 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
 
     try {
       const extension = state.isAudioOnly ? 'webm' : 'webm';
-      const contentType = state.isAudioOnly ? 'audio/webm' : 'video/webm';
+      // Reflect what was actually recorded, not an assumed webm container —
+      // see startRecording's mimeType probe (fixes iOS Safari, which
+      // supports neither 'video/webm' nor 'audio/webm').
+      const contentType = recordedMimeTypeRef.current || mediaRecorderRef.current?.mimeType || 'video/mp4';
       const fileName = `${applicationId}/interview-${Date.now()}.${extension}`;
 
       setState(s => ({ ...s, uploadProgress: 20 }));

@@ -1,11 +1,11 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { useUpdateApplication } from "@/hooks/useApplications";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,16 +15,14 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  ArrowLeft, 
+  ArrowLeft,
   ArrowRight,
-  ClipboardList, 
+  ClipboardList,
   CheckCircle,
   Loader2,
-  FileText,
   Upload,
   X,
   File as FileIcon,
-  Send,
   CalendarIcon,
   ShieldAlert,
   Eye
@@ -42,6 +40,18 @@ import CountryCodeSelect from "@/components/CountryCodeSelect";
 import { convertPdfFileToImages, base64ToBlob } from "@/utils/pdfToImage";
 import { isImageResumeUrl, isPdfResumeUrl, isSupportedResumeFile, isSupportedResumeUrl } from "@/utils/resumeFiles";
 import { resolveResumeUrl } from "@/utils/resumeSignedUrl";
+import { GlyphLetter } from "@/components/candidate/glyphs";
+import { buildCandidateJourney, DECISION_STAGE_ID } from "@/lib/candidateJourney";
+
+// A slim brass rule across the top of a card — the letterhead mark
+// (Founder's Law: "the dialogues feel empty and boring").
+const BRASS_RULE = (
+  <div className="absolute inset-x-0 top-0 h-[3px]" style={{ background: "var(--brass-line)" }} aria-hidden="true" />
+);
+
+// Considered field styling — filled var(--ground), var(--line) borders, a
+// gold focus ring instead of the app-wide jade one.
+const FIELD_CLASS = "border-[var(--line)] bg-[var(--ground)] focus-visible:ring-[var(--brass-line)]";
 
 interface AntiCheatViolation {
   type: 'tab_switch' | 'copy_attempt' | 'paste_attempt' | 'cut_attempt' | 'right_click' | 'keyboard_shortcut';
@@ -233,7 +243,7 @@ export default function ApplicationFormPhase() {
   const handleCopy = useCallback((e: React.ClipboardEvent) => {
     e.preventDefault();
     recordViolation('copy_attempt', 'Copy attempted');
-    toast.warning("Copying is disabled during the application", {
+    toast.warning("Copy is turned off here — just type your own words.", {
       icon: <ShieldAlert className="h-4 w-4" />,
     });
   }, [recordViolation]);
@@ -242,7 +252,7 @@ export default function ApplicationFormPhase() {
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
     e.preventDefault();
     recordViolation('paste_attempt', 'Paste attempted');
-    toast.warning("Pasting is disabled during the application", {
+    toast.warning("Paste is turned off here — type your answer directly.", {
       icon: <ShieldAlert className="h-4 w-4" />,
     });
   }, [recordViolation]);
@@ -257,7 +267,7 @@ export default function ApplicationFormPhase() {
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     recordViolation('right_click', 'Right-click attempted');
-    toast.warning("Right-click is disabled during the application", {
+    toast.warning("Right-click is turned off here.", {
       icon: <ShieldAlert className="h-4 w-4" />,
     });
   }, [recordViolation]);
@@ -267,7 +277,7 @@ export default function ApplicationFormPhase() {
     if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x', 'a'].includes(e.key.toLowerCase())) {
       e.preventDefault();
       recordViolation('keyboard_shortcut', `Blocked ${e.key.toUpperCase()} shortcut`);
-      toast.warning("Keyboard shortcuts are disabled during the application", {
+      toast.warning("That shortcut is turned off here.", {
         icon: <ShieldAlert className="h-4 w-4" />,
       });
     }
@@ -322,6 +332,20 @@ export default function ApplicationFormPhase() {
   const isAutoPilot = application?.jobs?.processing_mode === "auto";
   const hasUploadsInProgress = isUploading || Object.values(uploadingQuestions).some(Boolean);
 
+  // Where the candidate is in the whole journey — derived from the job's real
+  // workflow_steps via the shared candidateJourney builder, so this screen
+  // agrees with every other candidate screen. This screen IS the
+  // application stage, so it's always step 1.
+  const journeyStep = useMemo(() => {
+    const workflowSteps = (application?.jobs?.workflow_steps || []) as Array<{ id: string; type: string; title?: string }>;
+    const quizQuestions = application?.jobs?.quiz_questions;
+    const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
+    const steps = buildCandidateJourney(workflowSteps, { hasQuiz });
+    return { index: 0, total: steps.length, title: steps[0].title };
+  }, [application?.jobs?.workflow_steps, application?.jobs?.quiz_questions]);
+
+  const journeyProgressPct = Math.round(((journeyStep.index + 1) / Math.max(journeyStep.total, 1)) * 100);
+
   // Parse notes to check if already submitted
   const notes = application?.notes ? JSON.parse(application.notes) : {};
   const getLatestStoredNotes = useCallback(async () => {
@@ -373,8 +397,8 @@ export default function ApplicationFormPhase() {
     const handleVisibilityChange = () => {
       if (document.hidden) {
         recordViolation('tab_switch', 'User switched to another tab or window');
-        toast.warning("Tab switch detected!", {
-          description: "This activity has been recorded.",
+        toast.warning("Looks like you switched tabs", {
+          description: "That's been noted — stay on this page if you can.",
           icon: <ShieldAlert className="h-4 w-4" />,
         });
       }
@@ -490,12 +514,12 @@ export default function ApplicationFormPhase() {
 
   const handleFileSelect = async (file: File) => {
     if (!isSupportedResumeFile(file)) {
-      toast.error("Please upload a PDF or image file");
+      toast.error("That file type won't work — please upload a PDF or image.");
       return;
     }
 
     if (file.size > 10 * 1024 * 1024) {
-      toast.error("File size must be less than 10MB");
+      toast.error("That file's too big — anything under 10 MB works.");
       return;
     }
 
@@ -549,10 +573,10 @@ export default function ApplicationFormPhase() {
         notes: JSON.stringify(updatedNotes),
       });
 
-      toast.success("Resume uploaded successfully");
+      toast.success("Resume uploaded — you're all set.");
     } catch (error) {
       console.error("Error uploading resume:", error);
-      toast.error("Failed to upload resume");
+      toast.error("That upload didn't go through — please try again.");
       setResumeFile(null);
     } finally {
       setIsUploading(false);
@@ -566,7 +590,7 @@ export default function ApplicationFormPhase() {
 
     if (isResumeUpload) {
       if (!isSupportedResumeFile(file)) {
-        toast.error("Resume uploads must be a PDF or image file");
+        toast.error("That won't work for a resume — please upload a PDF or image.");
         return;
       }
     } else {
@@ -581,13 +605,13 @@ export default function ApplicationFormPhase() {
       ];
       
       if (!allowedTypes.includes(file.type)) {
-        toast.error("Please upload a PDF, Word document, or image file");
+        toast.error("That file type won't work — try a PDF, Word doc, or image.");
         return;
       }
     }
 
     if (file.size > 10 * 1024 * 1024) {
-      toast.error("File size must be less than 10MB");
+      toast.error("That file's too big — anything under 10 MB works.");
       return;
     }
 
@@ -655,10 +679,10 @@ export default function ApplicationFormPhase() {
 
       setQuestionFileUrls(prev => ({ ...prev, [questionId]: fileName }));
       setAnswers(prev => ({ ...prev, [questionId]: fileName }));
-      toast.success("File uploaded successfully");
+      toast.success("File uploaded.");
     } catch (error) {
       console.error("Error uploading file:", error);
-      toast.error("Failed to upload file");
+      toast.error("That upload didn't go through — please try again.");
       setQuestionFiles(prev => {
         const newFiles = { ...prev };
         delete newFiles[questionId];
@@ -685,10 +709,10 @@ export default function ApplicationFormPhase() {
     // Validate required questions (only visible ones)
     visibleQuestions.forEach(q => {
       if (q.required && !answers[q.id]?.trim()) {
-        errors[q.id] = "This field is required";
+        errors[q.id] = "This one's needed to continue";
       }
       if (normalizeQuestionType(q.type) === "email" && answers[q.id] && !isValidEmail(answers[q.id])) {
-        errors[q.id] = "Please enter a valid email address";
+        errors[q.id] = "That doesn't look like a valid email — mind double-checking?";
       }
     });
 
@@ -708,7 +732,7 @@ export default function ApplicationFormPhase() {
     const hasResumeFromFileQuestion = resumeFileQuestion && !!answers[resumeFileQuestion.id];
     
     if (requiresResume && !resumeFile && !hasValidApplicationResume && !usingProfileResume && !hasResumeFromFileQuestion) {
-      errors.resume = "Please upload your resume";
+      errors.resume = "Add your resume to continue — PDF or image, under 10 MB";
     }
 
     setValidationErrors(errors);
@@ -717,12 +741,12 @@ export default function ApplicationFormPhase() {
 
   const handleSubmit = async () => {
     if (!application) {
-      toast.error("Application not loaded yet. Please refresh and try again.");
+      toast.error("Still loading your application — give it a second, then try again.");
       return;
     }
 
     if (hasUploadsInProgress) {
-      toast.error("Please wait for all uploads to finish before submitting.");
+      toast.error("Hang tight — your files are still uploading.");
       return;
     }
 
@@ -730,7 +754,7 @@ export default function ApplicationFormPhase() {
     const errorFields = Object.keys(errors);
     if (errorFields.length > 0) {
       const firstError = errors[errorFields[0]];
-      toast.error(`Please fix: ${firstError}`);
+      toast.error(`One quick thing: ${firstError}`);
       // Scroll to first error field using the fresh errors object
       setTimeout(() => {
         const firstErrorKey = errorFields[0];
@@ -756,7 +780,7 @@ export default function ApplicationFormPhase() {
       let finalResumeImageUrls: string[] = latestNotes.resumeImageUrls || [];
       
       if (usingProfileResume && profile?.resume_url && !latestNotes.resumeImageUrls?.length) {
-        toast.info("Preparing your resume for analysis...");
+        toast.info("Getting your resume ready...");
         
         try {
           if (isImageResumeUrl(profile.resume_url)) {
@@ -792,7 +816,7 @@ export default function ApplicationFormPhase() {
           finalResumeUrl = profile.resume_url;
         } catch (conversionError) {
           console.error("[ApplicationFormPhase] Profile resume conversion failed:", conversionError);
-          toast.error("Could not process your resume. Please upload a PDF or image.");
+          toast.error("We couldn't read that resume — please upload a PDF or image.");
           setIsSubmitting(false);
           setEvaluationState(null);
           return;
@@ -825,58 +849,26 @@ export default function ApplicationFormPhase() {
         ...(finalResumeUrl && !application.resume_url ? { resume_url: finalResumeUrl } : {}),
       });
 
-      // Get workflow steps to find next phase - build full phases list
+      // Get workflow steps to find the next stage in the real journey
       const workflowSteps = application.jobs?.workflow_steps || [];
       const quizQuestions = application.jobs?.quiz_questions;
       const hasQuizQuestions = Array.isArray(quizQuestions) && quizQuestions.length > 0;
-      
 
-      // Extract voice_interview step (goes AFTER review)
       const typedSteps = workflowSteps as Array<{ id: string; type: string; title?: string }>;
-      const voiceInterviewStep = typedSteps.find((step) => step.type === 'voice_interview');
+      const allPhases = buildCandidateJourney(typedSteps, { hasQuiz: hasQuizQuestions });
 
-      const allPhases: { id: string; type: string; title?: string }[] = [
-        { id: "application", type: "application", title: "Application" },
-      ];
-
-      // Add quiz phase if quiz_questions exist
-      if (hasQuizQuestions) {
-        allPhases.push({ id: "quiz", type: "quiz", title: "Quiz" });
-      }
-
-      // Add workflow steps EXCEPT voice_interview (which goes after Review)
-      typedSteps.filter((step) => step.type !== 'voice_interview').forEach((step) => {
-        allPhases.push({ id: step.id, type: step.type, title: step.title || step.type });
-      });
-
-      // Add Review phase
-      allPhases.push({ id: "review", type: "review", title: "Review" });
-
-      // Add voice_interview AFTER Review if it exists
-      if (voiceInterviewStep) {
-        allPhases.push({
-          id: voiceInterviewStep.id,
-          type: "voice_interview",
-          title: voiceInterviewStep.title || "Voice Interview"
-        });
-      }
-      
-      // Add final phases
-      allPhases.push(
-        { id: "interview", type: "interview", title: "Interview" },
-        { id: "hired", type: "hired", title: "Hired" }
-      );
-      
       // Find current step index (application phase)
       const currentIndex = allPhases.findIndex((p) => p.type === "application" || p.id === stepId);
-      
+
       // Determine next phase
       let nextPhase: { id: string; type: string; title?: string } | null = null;
       if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
         nextPhase = allPhases[currentIndex + 1];
       }
 
-      if (nextPhase && nextPhase.type !== "review") {
+      // Not for voice_interview (needs employer approval to start) or the
+      // closing decision stage (nothing to click into, just wait).
+      if (nextPhase && nextPhase.type !== "voice_interview" && nextPhase.id !== DECISION_STAGE_ID) {
         setNextPhaseInfo({ id: nextPhase.id, title: nextPhase.title || nextPhase.type });
       }
 
@@ -891,8 +883,8 @@ export default function ApplicationFormPhase() {
         if (autopilotError) {
           console.error("[ApplicationFormPhase] Autopilot backend error:", autopilotError);
           // Don't block submission - show warning instead of error
-          toast.warning("Application submitted. Analysis is still processing...", {
-            description: "Check back shortly for results.",
+          toast.warning("Application submitted.", {
+            description: "We're still finishing up — check back shortly for your result.",
           });
           queryClient.invalidateQueries({ queryKey: ["applications"] });
           navigate(`/applications/${id}`);
@@ -932,12 +924,12 @@ export default function ApplicationFormPhase() {
         });
 
         if (analysisError) {
-          toast.warning("Application submitted. Ava analysis is still processing...", {
-            description: "The employer can refresh the recommendation shortly if needed.",
+          toast.warning("Application submitted.", {
+            description: "Your review is still being prepared — the hiring team will follow up soon.",
           });
         } else {
-          toast.success("Application submitted successfully!", {
-            description: "Ava prepared the employer review using your submitted materials.",
+          toast.success("Application submitted!", {
+            description: "The hiring team has what they need. Everyone hears back.",
           });
         }
 
@@ -947,7 +939,7 @@ export default function ApplicationFormPhase() {
       }
     } catch (error) {
       console.error("Error submitting application:", error);
-      toast.error("Failed to submit application");
+      toast.error("That didn't go through — please try again.");
       setEvaluationState(null);
     } finally {
       setIsSubmitting(false);
@@ -961,7 +953,7 @@ export default function ApplicationFormPhase() {
 
   if (authLoading || isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="mx-auto max-w-3xl space-y-6">
         <Skeleton className="h-12 w-48" />
         <Skeleton className="h-96 w-full" />
       </div>
@@ -970,13 +962,14 @@ export default function ApplicationFormPhase() {
 
   if (!application) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Card className="bg-card border-border max-w-md">
+      <div className="flex h-full items-center justify-center">
+        <Card className="relative overflow-hidden bg-card border-border max-w-md">
+          {BRASS_RULE}
           <CardContent className="p-8 text-center">
-            <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h2 className="text-xl font-semibold text-foreground mb-2">Application Not Found</h2>
+            <GlyphLetter size={44} className="mx-auto mb-4 text-muted-foreground" />
+            <h2 className="font-display mb-2 text-xl text-foreground">We couldn't find this application</h2>
             <p className="text-muted-foreground">
-              This application does not exist or you don't have access to it.
+              It may have been removed, or you might not have access to it.
             </p>
           </CardContent>
         </Card>
@@ -1008,45 +1001,59 @@ export default function ApplicationFormPhase() {
   }
 
   return (
-    <div 
+    <div
       ref={formContainerRef}
-      className="space-y-6 max-w-3xl mx-auto"
+      className="ck-page mx-auto max-w-3xl space-y-6"
       onContextMenu={handleContextMenu}
     >
-      {/* Anti-cheat indicator */}
-      {violations.length > 0 && (
-        <div className="flex items-center gap-2 text-sm text-warning bg-warning/10 px-3 py-2 rounded-lg border border-warning/20">
-          <ShieldAlert className="h-4 w-4" />
-          <span>{violations.length} violation(s) recorded</span>
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate(`/applications/${id}`)}
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Complete Your Application</h1>
-          <p className="text-muted-foreground">
-            {application.jobs?.title}
+      {/* Journey header — where am I, what's happening now, what's next */}
+      <header className="ck-reveal space-y-4">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate(`/applications/${id}`)}
+            aria-label="Back to application overview"
+            className="shrink-0 text-muted-foreground"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <p className="min-w-0 truncate text-sm font-medium text-muted-foreground">
+            {application.jobs?.title || "This role"}
           </p>
         </div>
-      </div>
 
-      {/* Form */}
-      <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ClipboardList className="h-5 w-5 text-primary" />
-            Application Questions
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
+        <div className="space-y-2.5">
+          <h1 className="font-display ck-ink text-2xl text-foreground sm:text-3xl">
+            Complete your application
+          </h1>
+
+          <span className="block text-xs font-medium text-muted-foreground">
+            Step <span className="ck-num">{journeyStep.index + 1}</span> of{" "}
+            <span className="ck-num">{journeyStep.total}</span> — {journeyStep.title}
+          </span>
+
+          <Progress value={journeyProgressPct} className="h-1.5 bg-[var(--track)]" />
+
+          <p className="text-sm text-muted-foreground">
+            Take your time — you can't break anything here.
+          </p>
+        </div>
+
+        {violations.length > 0 && (
+          <div className="flex items-center gap-2 rounded-lg border border-warning/20 bg-warning/10 px-3 py-2 text-sm text-warning">
+            <ShieldAlert className="h-4 w-4 shrink-0" />
+            <span>
+              {violations.length} thing{violations.length === 1 ? "" : "s"} flagged during this session
+            </span>
+          </div>
+        )}
+      </header>
+
+      {/* Form — the letterhead moment: brass rule up top, considered fields below */}
+      <Card className="relative overflow-hidden bg-card border-border">
+        {BRASS_RULE}
+        <CardContent className="space-y-8 p-4 pt-6 sm:p-8">
           {/* Application Questions - filter out resume questions when requiresResume is true */}
           {questions
             .filter((question) => {
@@ -1132,7 +1139,7 @@ export default function ApplicationFormPhase() {
                   value={answers[question.id] || ""}
                   onChange={(e) => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
                   placeholder="Your answer"
-                  className={validationErrors[question.id] ? "border-destructive" : ""}
+                  className={cn(FIELD_CLASS, validationErrors[question.id] && "border-destructive")}
                   onCopy={handleCopy}
                   onPaste={handlePaste}
                   onCut={handleCut}
@@ -1153,20 +1160,20 @@ export default function ApplicationFormPhase() {
                     }))
                   }
                   placeholder="Your answer"
-                  className={validationErrors[question.id] ? "border-destructive" : ""}
+                  className={cn(FIELD_CLASS, validationErrors[question.id] && "border-destructive")}
                   onCopy={handleCopy}
                   onPaste={handlePaste}
                   onCut={handleCut}
                 />
               )}
-              
+
               {useFallbackInput && (
                 <Input
                   id={fieldId}
                   value={answers[question.id] || ""}
                   onChange={(e) => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
                   placeholder="Your answer"
-                  className={validationErrors[question.id] ? "border-destructive" : ""}
+                  className={cn(FIELD_CLASS, validationErrors[question.id] && "border-destructive")}
                   onCopy={handleCopy}
                   onPaste={handlePaste}
                   onCut={handleCut}
@@ -1180,13 +1187,13 @@ export default function ApplicationFormPhase() {
                   onChange={(e) => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
                   placeholder="Your answer"
                   rows={4}
-                  className={validationErrors[question.id] ? "border-destructive" : ""}
+                  className={cn(FIELD_CLASS, validationErrors[question.id] && "border-destructive")}
                   onCopy={handleCopy}
                   onPaste={handlePaste}
                   onCut={handleCut}
                 />
               )}
-              
+
               {questionType === "email" && (
                 <Input
                   id={fieldId}
@@ -1194,13 +1201,13 @@ export default function ApplicationFormPhase() {
                   value={answers[question.id] || ""}
                   onChange={(e) => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
                   placeholder="email@example.com"
-                  className={validationErrors[question.id] ? "border-destructive" : ""}
+                  className={cn(FIELD_CLASS, validationErrors[question.id] && "border-destructive")}
                   onCopy={handleCopy}
                   onPaste={handlePaste}
                   onCut={handleCut}
                 />
               )}
-              
+
               {questionType === "phone" && (
                 <div className="flex gap-2">
                   <CountryCodeSelect
@@ -1210,12 +1217,12 @@ export default function ApplicationFormPhase() {
                   <Input
                     id={`${fieldId}-phone`}
                     value={answers[question.id] || ""}
-                    onChange={(e) => setAnswers(prev => ({ 
-                      ...prev, 
-                      [question.id]: formatPhoneNumber(e.target.value) 
+                    onChange={(e) => setAnswers(prev => ({
+                      ...prev,
+                      [question.id]: formatPhoneNumber(e.target.value)
                     }))}
                     placeholder="123-456-7890"
-                    className={`flex-1 ${validationErrors[question.id] ? "border-destructive" : ""}`}
+                    className={cn(FIELD_CLASS, "flex-1", validationErrors[question.id] && "border-destructive")}
                     onCopy={handleCopy}
                     onPaste={handlePaste}
                     onCut={handleCut}
@@ -1231,6 +1238,7 @@ export default function ApplicationFormPhase() {
                       variant="outline"
                       className={cn(
                         "w-full justify-start text-left font-normal h-10",
+                        FIELD_CLASS,
                         !answers[question.id] && "text-muted-foreground",
                         validationErrors[question.id] && "border-destructive"
                       )}
@@ -1293,7 +1301,7 @@ export default function ApplicationFormPhase() {
                   {uploadingQuestions[question.id] ? (
                     <div className="flex items-center justify-center gap-2 text-muted-foreground">
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      Uploading...
+                      Uploading — hang tight...
                     </div>
                   ) : questionFiles[question.id] ? (
                     <div className="flex items-center justify-center gap-2">
@@ -1307,7 +1315,7 @@ export default function ApplicationFormPhase() {
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="h-6 w-6"
+                              className="h-8 w-8"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 const file = questionFiles[question.id];
@@ -1330,7 +1338,7 @@ export default function ApplicationFormPhase() {
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="h-6 w-6"
+                              className="h-8 w-8"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setQuestionFiles(prev => {
@@ -1371,7 +1379,7 @@ export default function ApplicationFormPhase() {
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="h-6 w-6"
+                              className="h-8 w-8"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 window.open(questionFileUrls[question.id], '_blank');
@@ -1390,7 +1398,7 @@ export default function ApplicationFormPhase() {
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="h-6 w-6"
+                              className="h-8 w-8"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setQuestionFileUrls(prev => {
@@ -1462,7 +1470,7 @@ export default function ApplicationFormPhase() {
                 {isUploading ? (
                   <div className="flex items-center justify-center gap-2 text-muted-foreground">
                     <Loader2 className="h-5 w-5 animate-spin" />
-                    Uploading...
+                    Uploading your resume — hang tight...
                   </div>
                 ) : resumeFile ? (
                   <div className="flex items-center justify-center gap-2">
@@ -1476,7 +1484,7 @@ export default function ApplicationFormPhase() {
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6"
+                            className="h-8 w-8"
                             onClick={(e) => {
                               e.stopPropagation();
                               const url = URL.createObjectURL(resumeFile);
@@ -1496,7 +1504,7 @@ export default function ApplicationFormPhase() {
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6"
+                            className="h-8 w-8"
                             onClick={(e) => {
                               e.stopPropagation();
                               setResumeFile(null);
@@ -1521,7 +1529,7 @@ export default function ApplicationFormPhase() {
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6"
+                            className="h-8 w-8"
                             onClick={(e) => {
                               e.stopPropagation();
                               void resolveResumeUrl(profile.resume_url).then((s) => { if (s) window.open(s, '_blank'); });
@@ -1540,7 +1548,7 @@ export default function ApplicationFormPhase() {
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6"
+                            className="h-8 w-8"
                             onClick={(e) => {
                               e.stopPropagation();
                               setUsingProfileResume(false);
@@ -1563,7 +1571,7 @@ export default function ApplicationFormPhase() {
                       Click to upload or drag and drop your resume
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      PDF or image, max 10MB
+                      PDF or image, up to 10 MB
                     </p>
                   </div>
                 )}
@@ -1586,7 +1594,9 @@ export default function ApplicationFormPhase() {
 
           {/* Cover Letter */}
           <div className="space-y-2">
-            <Label className="text-foreground">Cover Letter (Optional)</Label>
+            <Label className="text-foreground">
+              Cover letter <span className="font-normal text-muted-foreground">(optional)</span>
+            </Label>
             <Textarea
               value={coverLetter}
               onChange={(e) => setCoverLetter(e.target.value)}
@@ -1595,17 +1605,21 @@ export default function ApplicationFormPhase() {
               onCut={handleCut}
               onContextMenu={handleContextMenu}
               onKeyDown={handleKeyDown}
-              placeholder="Write a brief cover letter..."
+              placeholder="Anything you'd like the hiring team to know..."
               rows={6}
+              className={FIELD_CLASS}
             />
           </div>
 
-          {/* Submit Button */}
-          <div className="flex justify-end pt-4">
+          {/* Continue — the one primary action on this screen */}
+          <div className="flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-muted-foreground">
+              Everything here is saved to your application when you continue.
+            </p>
             <Button
               onClick={handleSubmit}
               disabled={isSubmitting || hasUploadsInProgress}
-              className="gap-2"
+              className="w-full gap-2 sm:w-auto"
               size="lg"
             >
               {isSubmitting ? (
@@ -1620,8 +1634,8 @@ export default function ApplicationFormPhase() {
                 </>
               ) : (
                 <>
-                  <Send className="h-4 w-4" />
-                  Submit Application
+                  Continue
+                  <ArrowRight className="h-4 w-4" />
                 </>
               )}
             </Button>

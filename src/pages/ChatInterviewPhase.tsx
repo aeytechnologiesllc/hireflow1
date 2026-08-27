@@ -1,23 +1,22 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
+import { buildCandidateJourney, positionFor } from "@/lib/candidateJourney";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { 
-  ArrowLeft, 
-  Users, 
+import {
+  ArrowLeft,
+  Users,
   Send,
   CheckCircle,
-  Loader2,
   User,
   Clock,
   MessageSquare
@@ -26,8 +25,8 @@ import { toast } from "sonner";
 import { invokeTriggerAvaAnalysis, triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
-import { parseApplicationNotes, stringifyApplicationNotes } from "@/utils/applicationNotes";
-import { PhaseContextCard } from "@/components/PhaseContextCard";
+import { parseApplicationNotes } from "@/utils/applicationNotes";
+import { AvaSeal } from "@/components/ava/AvaSeal";
 
 interface Message {
   id: string;
@@ -61,6 +60,7 @@ interface ApplicationDetails {
     processing_mode: string | null;
     passing_score: number | null;
     workflow_steps: any[] | null;
+    quiz_questions: any[] | null;
   } | null;
   profiles?: {
     full_name: string | null;
@@ -108,7 +108,7 @@ export default function ChatInterviewPhase() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("applications")
-        .select("*, jobs(title, description, requirements, responsibilities, benefits, skills_required, location, job_type, processing_mode, passing_score, workflow_steps)")
+        .select("*, jobs(title, description, requirements, responsibilities, benefits, skills_required, location, job_type, processing_mode, passing_score, workflow_steps, quiz_questions)")
         .eq("id", id!)
         .single();
 
@@ -277,12 +277,14 @@ export default function ChatInterviewPhase() {
           queryClient.invalidateQueries({ queryKey: ["applications"] });
           queryClient.invalidateQueries({ queryKey: ["chat-interview-application", id] });
 
-          toast.success("Interview completed successfully!");
+          toast.success("Interview sent!", {
+            description: "The hiring team will get back to you — everyone hears back.",
+          });
           setState("completed");
           setTimeout(() => navigate(`/applications/${id}`), 2000);
         } catch (error) {
           console.error("Submit error:", error);
-          toast.error("Failed to submit interview");
+          toast.error("That didn't send — please try again.");
           setState("interviewing");
         } finally {
           setIsSubmitting(false);
@@ -291,6 +293,20 @@ export default function ChatInterviewPhase() {
       runSubmit();
     }
   }, [autoEndTriggered]);
+
+  // Where the candidate is in the whole journey — derived from the job's real
+  // workflow_steps via the shared candidateJourney builder, so this screen
+  // agrees with every other candidate screen. Never invented.
+  const journeyStep = useMemo(() => {
+    const workflowSteps = (application?.jobs?.workflow_steps || []) as Array<{ id: string; type: string; title?: string }>;
+    const quizQuestions = application?.jobs?.quiz_questions;
+    const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
+    const steps = buildCandidateJourney(workflowSteps, { hasQuiz });
+    const { index, total, current } = positionFor(steps, { stepId, phase: application?.phase });
+    return { index, total, title: current.title };
+  }, [application?.jobs?.workflow_steps, application?.jobs?.quiz_questions, application?.phase, stepId]);
+
+  const journeyProgressPct = Math.round(((journeyStep.index + 1) / Math.max(journeyStep.total, 1)) * 100);
 
   // Format elapsed time for display
   const getDuration = () => {
@@ -490,7 +506,7 @@ export default function ChatInterviewPhase() {
 
     } catch (error) {
       console.error("Chat interview error:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to get interview response");
+      toast.error(error instanceof Error ? error.message : "That message didn't send — please try again.");
     } finally {
       setIsTyping(false);
       // Auto-focus the input after Ava responds
@@ -646,8 +662,8 @@ export default function ChatInterviewPhase() {
             setRejectedAppData({ ...application, status: "rejected" });
             setState("rejected");
           } else if (analysisResult?.decision === "advanced" || analysisResult?.decision === "needs_employer_approval") {
-            toast.success("Interview completed!", {
-              description: "Your responses have been recorded. You've advanced to the next phase.",
+            toast.success("Interview sent!", {
+              description: "You've moved on to the next step.",
             });
             setState("completed");
             setTimeout(() => navigate(`/applications/${id}`), 2000);
@@ -663,8 +679,8 @@ export default function ChatInterviewPhase() {
               setRejectedAppData({ ...application, status: "rejected" });
               setState("rejected");
             } else {
-              toast.success("Interview completed!", {
-                description: "Your responses have been recorded.",
+              toast.success("Interview sent!", {
+                description: "The hiring team will get back to you — everyone hears back.",
               });
               setState("completed");
               setTimeout(() => navigate(`/applications/${id}`), 2000);
@@ -681,8 +697,8 @@ export default function ChatInterviewPhase() {
           applicationId: id!,
         }).catch(err => console.error("[ChatInterviewPhase] AVA analysis trigger failed:", err));
         
-        toast.success("Interview completed!", {
-          description: "Your responses have been recorded. The employer will review your interview.",
+        toast.success("Interview sent!", {
+          description: "The hiring team will get back to you — everyone hears back.",
         });
         setState("completed");
         setTimeout(() => navigate(`/applications/${id}`), 2000);
@@ -690,7 +706,7 @@ export default function ChatInterviewPhase() {
       
     } catch (error) {
       console.error("Error submitting interview:", error);
-      toast.error("Failed to submit interview results");
+      toast.error("That didn't send — please try again.");
       setState("interviewing");
     } finally {
       setIsSubmitting(false);
@@ -701,13 +717,13 @@ export default function ChatInterviewPhase() {
   const preventCopy = (e: React.ClipboardEvent) => {
     e.preventDefault();
     logViolation('copy_attempt', 'User attempted to copy content');
-    toast.error("Copy is disabled during the interview");
+    toast.error("Copy is turned off here — just type your own words.");
   };
 
   const preventPaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
     logViolation('paste_attempt', 'User attempted to paste content');
-    toast.error("Paste is disabled during the interview");
+    toast.error("Paste is turned off here — type your answer directly.");
   };
 
   const preventContextMenu = (e: React.MouseEvent) => {
@@ -721,14 +737,14 @@ export default function ChatInterviewPhase() {
       if (e.key.toLowerCase() === 'c') {
         e.preventDefault();
         logViolation('copy_attempt', 'User pressed Ctrl/Cmd+C');
-        toast.error("Copy is disabled during the interview");
+        toast.error("Copy is turned off here — just type your own words.");
       } else if (e.key.toLowerCase() === 'v') {
         e.preventDefault();
         logViolation('paste_attempt', 'User pressed Ctrl/Cmd+V');
-        toast.error("Paste is disabled during the interview");
+        toast.error("Paste is turned off here — type your answer directly.");
       } else if (['p', 'a', 's'].includes(e.key.toLowerCase())) {
         e.preventDefault();
-        toast.error("Keyboard shortcuts are disabled during the interview");
+        toast.error("That shortcut is turned off here.");
       }
     }
     // Block PrintScreen
@@ -756,7 +772,7 @@ export default function ChatInterviewPhase() {
 
   if (authLoading || isLoading) {
     return (
-      <div className="space-y-6 max-w-3xl mx-auto p-6">
+      <div className="mx-auto max-w-3xl space-y-6">
         <Skeleton className="h-12 w-48" />
         <Skeleton className="h-96 w-full" />
       </div>
@@ -765,12 +781,16 @@ export default function ChatInterviewPhase() {
 
   if (!application) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex h-full items-center justify-center">
         <Card className="bg-card border-border max-w-md">
-          <CardContent className="p-8 text-center">
-            <h2 className="text-xl font-semibold text-foreground mb-2">Application Not Found</h2>
-            <Button onClick={() => navigate("/applications")} className="mt-4">
-              Back to Applications
+          <CardContent className="space-y-4 p-8 text-center">
+            <h2 className="font-display text-xl text-foreground">We couldn't find this application</h2>
+            <p className="text-sm text-muted-foreground">
+              It may have been removed, or you might not have access to it.
+            </p>
+            <Button onClick={() => navigate("/applications")} className="gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Back to applications
             </Button>
           </CardContent>
         </Card>
@@ -783,7 +803,7 @@ export default function ChatInterviewPhase() {
     return (
       <PhaseAlreadySubmitted
         applicationId={id!}
-        phaseName="Professional Interview"
+        phaseName="Interview"
         isManualMode={application.jobs?.processing_mode === "manual"}
       />
     );
@@ -805,103 +825,106 @@ export default function ChatInterviewPhase() {
   }
 
   return (
-    <div 
-      className="space-y-6 max-w-3xl mx-auto relative"
+    <div
+      className="ck-page relative mx-auto max-w-3xl space-y-6"
       onCopy={preventCopy}
       onPaste={preventPaste}
       onCut={preventCopy}
       onContextMenu={preventContextMenu}
       onKeyDown={handleKeyDown}
     >
-      {/* Blur overlay when page loses focus */}
+      {/* Blur overlay when page loses focus — a quiet pause, not an alarm */}
       {isBlurred && state === "interviewing" && (
-        <div className="fixed inset-0 z-50 backdrop-blur-xl bg-background/80 flex items-center justify-center">
-          <div className="text-center p-8">
-            <MessageSquare className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-            <h2 className="text-xl font-semibold text-foreground mb-2">Interview Paused</h2>
-            <p className="text-muted-foreground">Click anywhere to continue your interview</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xl">
+          <div className="p-8 text-center">
+            <MessageSquare className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+            <h2 className="font-display mb-2 text-xl text-foreground">Interview paused</h2>
+            <p className="text-muted-foreground">Click anywhere to pick back up</p>
           </div>
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <Button 
-          variant="outline" 
-          onClick={() => navigate(`/applications/${id}`)} 
-          className="gap-2"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Application
-        </Button>
-        
-        <div className="flex items-center gap-3">
+      {/* Journey header — where am I, what's happening now, what's next */}
+      <header className="ck-reveal space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(`/applications/${id}`)}
+              aria-label="Back to application overview"
+              className="h-11 w-11 shrink-0 text-muted-foreground"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <p className="min-w-0 truncate text-sm font-medium text-muted-foreground">
+              {application.jobs?.title || "This role"}
+            </p>
+          </div>
           <ConnectionStatusIndicator />
-          <Badge className="bg-primary/20 text-primary border-primary/30 gap-1">
-            <Users className="h-4 w-4" />
-            Professional Interview
-          </Badge>
         </div>
-      </div>
+
+        <div className="space-y-2.5">
+          <h1 className="font-display ck-ink text-2xl text-foreground sm:text-3xl">
+            {state === "intro" ? "Your interview" : "Interview in progress"}
+          </h1>
+
+          <span className="block text-xs font-medium text-muted-foreground">
+            Step <span className="ck-num">{journeyStep.index + 1}</span> of{" "}
+            <span className="ck-num">{journeyStep.total}</span> — {journeyStep.title}
+          </span>
+
+          <Progress value={journeyProgressPct} className="h-1.5 bg-[var(--track)]" />
+
+          <p className="text-sm text-muted-foreground">
+            {state === "intro"
+              ? "Take your time — you can't break anything. About 10–15 minutes."
+              : "Answer naturally, the way you would in person — there's no rush."}
+          </p>
+        </div>
+      </header>
 
       {/* Main Card */}
       <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-primary" />
-            Professional Interview
-          </CardTitle>
-          <p className="text-muted-foreground">
-            For: {application.jobs?.title}
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6 p-4 pt-6 sm:p-8">
           {state === "intro" && (
-            <div className="space-y-6">
-              <div className="bg-muted/30 rounded-lg p-6 space-y-4">
-                <h3 className="font-semibold text-foreground">How This Works</h3>
-                <ul className="space-y-3 text-muted-foreground text-sm">
+            <div className="ck-reveal space-y-8">
+              <div className="space-y-4 rounded-xl bg-muted/30 p-6">
+                <h3 className="font-display text-lg text-foreground">Before you start</h3>
+                <ul className="space-y-3 text-sm text-muted-foreground">
                   <li className="flex items-start gap-3">
-                    <MessageSquare className="h-4 w-4 mt-0.5 text-primary flex-shrink-0" />
-                    <span>Your interviewer has reviewed your application materials and will conduct a personalized interview</span>
+                    <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <span>The hiring team has read your application and built questions around it</span>
                   </li>
                   <li className="flex items-start gap-3">
-                    <Users className="h-4 w-4 mt-0.5 text-primary flex-shrink-0" />
-                    <span>This is a two-way conversation — feel free to ask questions at any point</span>
+                    <Users className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <span>It's a two-way conversation — ask your own questions whenever you like</span>
                   </li>
                   <li className="flex items-start gap-3">
-                    <Clock className="h-4 w-4 mt-0.5 text-primary flex-shrink-0" />
-                    <span>The interview typically takes 10-15 minutes</span>
-                  </li>
-                  <li className="flex items-start gap-3">
-                    <CheckCircle className="h-4 w-4 mt-0.5 text-primary flex-shrink-0" />
-                    <span>You'll have a chance to ask questions before concluding</span>
+                    <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <span>You'll get a chance to wrap up and ask anything before it ends</span>
                   </li>
                 </ul>
               </div>
-              
-              <div className="text-center">
-                <Button onClick={startInterview} size="lg" className="gap-2">
-                  <MessageSquare className="h-5 w-5" />
-                  Start Interview
-                </Button>
-              </div>
+
+              <Button onClick={startInterview} size="lg" className="w-full gap-2 sm:w-auto">
+                <MessageSquare className="h-5 w-5" />
+                Start the interview
+              </Button>
             </div>
           )}
 
           {(state === "interviewing" || state === "evaluating" || state === "completed") && (
             <>
               {/* Interview Info - Duration Only */}
-              <div className="bg-muted/30 rounded-lg p-3 flex items-center justify-center">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium text-foreground">{getDuration()}</span>
-                </div>
+              <div className="flex items-center justify-center gap-2 rounded-lg bg-muted/30 p-3">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <span className="ck-num text-sm font-medium text-foreground">{getDuration()}</span>
               </div>
 
               {/* Chat Area */}
-              <ScrollArea 
-                className="h-[400px] rounded-lg border border-border p-4 select-none" 
+              <ScrollArea
+                className="h-[400px] rounded-lg border border-border p-4 select-none"
                 style={{ userSelect: 'none' }}
               >
                 <div className="space-y-4">
@@ -937,7 +960,7 @@ export default function ChatInterviewPhase() {
                       )}
                     </div>
                   ))}
-                  
+
                   {isTyping && (
                     <div className="flex gap-3 justify-start">
                       <Avatar className="h-8 w-8">
@@ -959,18 +982,18 @@ export default function ChatInterviewPhase() {
                 </div>
               </ScrollArea>
 
-              {/* Input Area */}
+              {/* Input Area — the one primary action while interviewing */}
               {state === "interviewing" && (
-                <div className="flex gap-2 items-end">
+                <div className="flex items-end gap-2">
                   <Textarea
                     ref={inputRef}
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onPaste={preventPaste}
-                    placeholder="Type your response..."
+                    placeholder="Type your answer..."
                     disabled={isTyping}
                     rows={3}
-                    className="flex-1 resize-none min-h-[80px] bg-secondary/50 border-border"
+                    className="min-h-[80px] flex-1 resize-none bg-secondary/50 border-border"
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
@@ -990,37 +1013,38 @@ export default function ChatInterviewPhase() {
                 </div>
               )}
 
-              {/* End Interview Button */}
+              {/* End Interview — quiet, never competing with the send action */}
               {state === "interviewing" && canEndInterview && (
                 <div className="text-center pt-2">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="ghost"
                     onClick={endInterview}
                     disabled={isTyping}
+                    className="text-muted-foreground"
                   >
-                    End Interview & Submit
+                    End the interview & send my answers
                   </Button>
                 </div>
               )}
 
-              {/* Evaluating State */}
+              {/* Evaluating — a held moment, not a bare spinner */}
               {state === "evaluating" && (
-                <div className="text-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary mb-4" />
-                  <p className="text-foreground font-medium">Evaluating your interview...</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Reviewing your responses
-                  </p>
+                <div className="ck-reveal flex flex-col items-center justify-center gap-4 py-16">
+                  <span className="ck-seal-breathe">
+                    <AvaSeal size={32} />
+                  </span>
+                  <p className="font-display text-lg text-foreground">Reviewing your answers…</p>
+                  <p className="text-sm text-muted-foreground">This can take a moment — stay on this page.</p>
                 </div>
               )}
 
-              {/* Completed State */}
+              {/* Completed — a small seal-press payoff, and what happens next */}
               {state === "completed" && (
-                <div className="text-center py-8">
-                  <CheckCircle className="h-12 w-12 mx-auto text-success mb-4" />
-                  <p className="text-foreground font-medium">Interview Complete!</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Redirecting to your application...
+                <div className="ck-reveal flex flex-col items-center justify-center gap-3 py-16">
+                  <AvaSeal size={40} tilt={-3} className="ck-seal-press" />
+                  <p className="font-display text-lg text-foreground">Interview sent</p>
+                  <p className="text-sm text-muted-foreground">
+                    The hiring team will get back to you — everyone hears back.
                   </p>
                 </div>
               )}

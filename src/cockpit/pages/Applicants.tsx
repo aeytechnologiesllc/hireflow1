@@ -1072,7 +1072,7 @@ export default function CockpitApplicants() {
                 <button
                   className="inline-flex items-center gap-1.5 hover:underline"
                   style={{ color: "var(--brass)" }}
-                  onClick={() => navigate(`/messages?candidate=${selected.id}`)}
+                  onClick={() => navigate(`/messages?candidate=${selected.avatar}`)}
                 >
                   Message them
                   <MessageSquare className="h-3.5 w-3.5" />

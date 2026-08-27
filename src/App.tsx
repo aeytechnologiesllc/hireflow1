@@ -71,7 +71,6 @@ const GuestJobCreator = lazyWithReload(() => import("./pages/GuestJobCreator"));
 const NotFound = lazyWithReload(() => import("./pages/NotFound"));
 const MarketingDemo = lazyWithReload(() => import("./pages/MarketingDemo"));
 const ShowcaseApplyForm = lazyWithReload(() => import("./pages/ShowcaseApplyForm"));
-const CandidateContinue = lazyWithReload(() => import("./pages/CandidateContinue"));
 const CandidatePortalLanding = lazyWithReload(() => import("./pages/CandidatePortalLanding"));
 const CandidateAuth = lazyWithReload(() => import("./pages/CandidateAuth"));
 const VerifyDocument = lazyWithReload(() => import("./pages/VerifyDocument"));
@@ -131,7 +130,6 @@ const App = () => (
                   <Route path="/candidate/auth" element={<CandidateAuth />} />
                   <Route path="/candidate/apply" element={<ApplyWithCode />} />
                   <Route path="/candidate/apply/:roleId/form" element={<ShowcaseApplyForm />} />
-                  <Route path="/candidate/continue" element={<CandidateContinue />} />
                   <Route path="/candidate/job/:id" element={<JobDetails />} />
                   
                   {/* Developer Dashboard (role-based access) */}

@@ -1,19 +1,19 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { 
-  ArrowLeft, 
-  Keyboard, 
-  Timer, 
+import {
+  ArrowLeft,
+  Keyboard,
+  Timer,
   Target,
   Zap,
   CheckCircle,
@@ -28,7 +28,7 @@ import { invokeTriggerAvaAnalysis, triggerAvaAnalysis, evaluatePhaseSubmission }
 import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
-import { PhaseContextCard } from "@/components/PhaseContextCard";
+import { buildCandidateJourney, positionFor, DECISION_STAGE_ID } from "@/lib/candidateJourney";
 
 // Sample typing test paragraphs
 const typingTexts = [
@@ -114,7 +114,7 @@ export default function TypingTestPhase() {
   const handleCopy = useCallback((e: React.ClipboardEvent) => {
     e.preventDefault();
     recordViolation('copy_attempt', 'Copy attempted');
-    toast.warning("Copying is disabled during the typing test", {
+    toast.warning("Copy's turned off here — keep typing your own words.", {
       icon: <ShieldAlert className="h-4 w-4" />,
     });
   }, [recordViolation]);
@@ -123,7 +123,7 @@ export default function TypingTestPhase() {
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
     e.preventDefault();
     recordViolation('paste_attempt', 'Paste attempted');
-    toast.warning("Pasting is disabled during the typing test", {
+    toast.warning("Paste is turned off here — type it yourself.", {
       icon: <ShieldAlert className="h-4 w-4" />,
     });
   }, [recordViolation]);
@@ -138,7 +138,7 @@ export default function TypingTestPhase() {
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     recordViolation('right_click', 'Right-click attempted');
-    toast.warning("Right-click is disabled during the typing test", {
+    toast.warning("Right-click is off during the test.", {
       icon: <ShieldAlert className="h-4 w-4" />,
     });
   }, [recordViolation]);
@@ -148,7 +148,7 @@ export default function TypingTestPhase() {
     if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x', 'a'].includes(e.key.toLowerCase())) {
       e.preventDefault();
       recordViolation('keyboard_shortcut', `Blocked ${e.key.toUpperCase()} shortcut`);
-      toast.warning("Keyboard shortcuts are disabled during the typing test", {
+      toast.warning("That shortcut's off here — just type normally.", {
         icon: <ShieldAlert className="h-4 w-4" />,
       });
     }
@@ -211,6 +211,18 @@ export default function TypingTestPhase() {
     setTargetText(typingTexts[randomIndex]);
   }, []);
 
+  // Where the candidate is in the whole journey — derived from the job's real
+  // workflow_steps via the shared candidateJourney builder, so this screen
+  // agrees with every other candidate screen. Never invented.
+  const journeyStep = useMemo(() => {
+    const workflowSteps = application?.jobs?.workflow_steps || [];
+    const phases = buildCandidateJourney(workflowSteps);
+    const { index, total, current } = positionFor(phases, { stepId, phase: application?.phase });
+    return { index, total, title: current.title };
+  }, [application?.jobs?.workflow_steps, application?.phase, stepId]);
+
+  const journeyProgressPct = Math.round(((journeyStep.index + 1) / Math.max(journeyStep.total, 1)) * 100);
+
   // Timer countdown
   useEffect(() => {
     if (testState === "testing" && timeLeft > 0) {
@@ -239,7 +251,7 @@ export default function TypingTestPhase() {
       if (document.hidden) {
         recordViolation('tab_switch', 'User switched to another tab or window');
       } else {
-        toast.warning("Tab switch detected! This activity has been recorded.", {
+        toast.warning("Looks like you switched away — that's been noted.", {
           duration: 3000,
           icon: <ShieldAlert className="h-4 w-4" />,
         });
@@ -361,45 +373,13 @@ export default function TypingTestPhase() {
         },
       };
 
-      // Build the full phases list to find the next phase
+      // Build the real journey to find the next stage
       const workflowSteps = application.jobs?.workflow_steps || [];
       const quizQuestions = application.jobs?.quiz_questions as Json[] | undefined;
-      
-      // Extract voice_interview step (goes AFTER review)
-      const voiceInterviewStep = workflowSteps.find((step) => step.type === 'voice_interview');
-      
-      const allPhases: { id: string; type: string; title: string }[] = [
-        { id: "application", type: "application", title: "Application" },
-      ];
-      
-      // Add quiz phase if quiz_questions exist (before workflow steps)
-      if (quizQuestions && quizQuestions.length > 0) {
-        allPhases.push({ id: "quiz", type: "quiz", title: "Quiz" });
-      }
-      
-      // Add workflow steps EXCEPT voice_interview (which goes after Review)
-      workflowSteps.filter((step) => step.type !== 'voice_interview').forEach((step) => {
-        allPhases.push({ id: step.id, type: step.type, title: step.title || step.type });
-      });
-      
-      // Add Review phase
-      allPhases.push({ id: "review", type: "review", title: "Review" });
-      
-      // Add voice_interview AFTER Review if it exists
-      if (voiceInterviewStep) {
-        allPhases.push({ 
-          id: voiceInterviewStep.id, 
-          type: "voice_interview", 
-          title: voiceInterviewStep.title || "Voice Interview" 
-        });
-      }
-      
-      // Add final phases
-      allPhases.push(
-        { id: "interview", type: "interview", title: "Interview" },
-        { id: "hired", type: "hired", title: "Hired" }
-      );
-      
+      const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
+
+      const allPhases = buildCandidateJourney(workflowSteps, { hasQuiz });
+
       // Find current step index
       let currentIndex = allPhases.findIndex((p) => p.id === stepId);
       if (currentIndex === -1 && application.phase) {
@@ -410,20 +390,22 @@ export default function TypingTestPhase() {
 
       let newPhase = application.phase;
       let newStatus = application.status;
-      
+
       // Determine next phase
       let nextPhase: { id: string; type: string; title: string } | null = null;
       if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
         nextPhase = allPhases[currentIndex + 1];
       }
-      
+
       if (isAutoMode) {
         // UNIFIED SCORING: Do NOT make pass/fail decision locally
         // The backend (trigger-ava-analysis) is the SINGLE SOURCE OF TRUTH
         // It will calculate the weighted score and decide pass/fail
-        
-        // Determine next phase info for UI (if candidate passes)
-        if (nextPhase && nextPhase.type !== "voice_interview" && nextPhase.type !== "review") {
+
+        // Determine next phase info for UI (if candidate passes) — not for
+        // voice_interview (needs employer approval to start) or the closing
+        // decision stage (nothing to click into, just wait).
+        if (nextPhase && nextPhase.type !== "voice_interview" && nextPhase.id !== DECISION_STAGE_ID) {
           setNextPhaseInfo({
             id: nextPhase.id,
             title: nextPhase.title,
@@ -538,9 +520,9 @@ export default function TypingTestPhase() {
       };
       const route = phaseRoutes[nextStep.type] || nextStep.type;
       navigate(`/applications/${id}/${route}/${nextPhaseInfo.id}`);
-    } else if (nextPhaseInfo.id === "review") {
-      navigate(`/applications/${id}`);
     } else {
+      // Next stage isn't a real workflow step (e.g. the closing decision
+      // stage) — nothing to navigate into, just head back to the overview.
       navigate(`/applications/${id}`);
     }
   };
@@ -577,7 +559,7 @@ export default function TypingTestPhase() {
 
   if (authLoading || isLoading) {
     return (
-      <div className="space-y-6 max-w-4xl mx-auto p-6">
+      <div className="mx-auto max-w-3xl space-y-6 p-6">
         <Skeleton className="h-12 w-48" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -586,12 +568,16 @@ export default function TypingTestPhase() {
 
   if (!application) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Card className="bg-card border-border max-w-md">
+      <div className="flex h-full items-center justify-center p-6">
+        <Card className="max-w-md border-border bg-card">
           <CardContent className="p-8 text-center">
-            <h2 className="text-xl font-semibold text-foreground mb-2">Application Not Found</h2>
-            <Button onClick={() => navigate("/applications")} className="mt-4">
-              Back to Applications
+            <Keyboard className="mx-auto mb-4 h-10 w-10 text-muted-foreground opacity-40" />
+            <h2 className="font-display mb-2 text-xl text-foreground">We couldn't find this application</h2>
+            <p className="mb-4 text-sm text-muted-foreground">
+              It may have been removed, or you might not have access to it.
+            </p>
+            <Button variant="outline" onClick={() => navigate("/applications")}>
+              Back to applications
             </Button>
           </CardContent>
         </Card>
@@ -637,83 +623,114 @@ export default function TypingTestPhase() {
     );
   }
 
+  // Quiet, real-time WPM readout while the clock is running — not a dashboard,
+  // just the one number a nervous typist wants to glance at.
+  const liveWpm = (() => {
+    if (testState !== "testing" || !startTime) return 0;
+    const elapsedMinutes = Math.max((Date.now() - startTime) / 60000, 1 / 60);
+    return Math.max(0, Math.round((typedText.length / 5) / elapsedMinutes));
+  })();
+
+  const headerGuidance =
+    testState === "testing"
+      ? "Keep going — time's the only thing moving right now."
+      : testState === "completed"
+        ? "Take a look below, then submit when you're ready."
+        : "Takes about a minute. Read the passage once, then start when you're set.";
+
   return (
-    <div 
+    <div
       ref={containerRef}
-      className="space-y-6 max-w-4xl mx-auto select-none"
+      className="ck-page mx-auto max-w-3xl space-y-6 select-none"
       onCopy={handleCopy}
       onPaste={handlePaste}
       onCut={handleCut}
       onContextMenu={handleContextMenu}
       onKeyDown={handleKeyDown}
     >
-      {/* Anti-cheat indicator */}
-      {violations.length > 0 && (
-        <div className="flex items-center gap-2 text-sm text-warning bg-warning/10 px-3 py-2 rounded-lg border border-warning/20">
-          <ShieldAlert className="h-4 w-4" />
-          <span>{violations.length} violation(s) recorded</span>
+      {/* Journey header — where am I, what's happening now, what's next */}
+      <header className="ck-reveal space-y-4">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate(`/applications/${id}`)}
+            aria-label="Back to application overview"
+            className="shrink-0 text-muted-foreground"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <p className="min-w-0 truncate text-sm font-medium text-muted-foreground">
+            {application.jobs?.title || "This role"}
+          </p>
         </div>
-      )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <Button 
-          variant="outline" 
-          onClick={() => navigate(`/applications/${id}`)} 
-          className="gap-2"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Application
-        </Button>
-        
-        <Badge className="bg-primary/20 text-primary border-primary/30 gap-1">
-          <Keyboard className="h-4 w-4" />
-          Typing Speed Test
-        </Badge>
-      </div>
+        <div className="space-y-2.5">
+          <h1 className="font-display ck-ink text-2xl text-foreground sm:text-3xl">
+            Typing speed check
+          </h1>
+
+          <span className="block text-xs font-medium text-muted-foreground">
+            Step <span className="ck-num">{journeyStep.index + 1}</span> of{" "}
+            <span className="ck-num">{journeyStep.total}</span> — {journeyStep.title}
+          </span>
+
+          <Progress value={journeyProgressPct} className="h-1.5 bg-[var(--track)]" />
+
+          <p className="text-sm text-muted-foreground">{headerGuidance}</p>
+        </div>
+
+        {violations.length > 0 && (
+          <div className="flex items-center gap-2 rounded-lg border border-warning/20 bg-warning/10 px-3 py-2 text-sm text-warning">
+            <ShieldAlert className="h-4 w-4 shrink-0" />
+            <span>
+              {violations.length} thing{violations.length === 1 ? "" : "s"} flagged during this session
+            </span>
+          </div>
+        )}
+      </header>
 
       {/* Main Test Card */}
       <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Keyboard className="h-5 w-5 text-primary" />
-            Typing Speed Assessment
-          </CardTitle>
-          <p className="text-muted-foreground">
-            For: {application.jobs?.title}
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-6 p-4 pt-6 sm:p-8">
           {/* Intro State */}
           {testState === "intro" && (
             <div className="space-y-6">
-              <div className="bg-muted/30 rounded-lg p-6 space-y-4">
-                <h3 className="font-semibold text-foreground">Instructions</h3>
-                <ul className="space-y-2 text-muted-foreground">
-                  <li className="flex items-start gap-2">
-                    <Timer className="h-4 w-4 mt-1 text-primary" />
-                    <span>You will have 60 seconds to type as much as you can</span>
+              <div className="space-y-4 rounded-lg bg-muted/30 p-6">
+                <h3 className="font-display text-lg text-foreground">How this works</h3>
+                <ul className="space-y-3 text-sm text-muted-foreground">
+                  <li className="flex items-start gap-2.5">
+                    <Timer className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <span>
+                      You'll have <strong className="text-foreground">60 seconds</strong> once you start — type as much of the passage as you can.
+                    </span>
                   </li>
-                  <li className="flex items-start gap-2">
-                    <Target className="h-4 w-4 mt-1 text-primary" />
-                    <span>Target speed: <strong className="text-foreground">{application.jobs?.required_wpm || 40} WPM</strong></span>
+                  <li className="flex items-start gap-2.5">
+                    <Target className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <span>
+                      The shop is looking for around <strong className="text-foreground">{application.jobs?.required_wpm || 40} words a minute</strong>.
+                    </span>
                   </li>
-                  <li className="flex items-start gap-2">
-                    <Zap className="h-4 w-4 mt-1 text-primary" />
-                    <span>Your score combines speed and accuracy</span>
+                  <li className="flex items-start gap-2.5">
+                    <Zap className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <span>Accuracy counts as much as speed — steady beats frantic.</span>
                   </li>
                 </ul>
-                <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-md">
-                  <p className="text-sm text-amber-600 dark:text-amber-400">
-                    <strong>Note:</strong> Copy/paste and right-click are disabled. Tab switching will be recorded.
+                <div className="flex items-start gap-2.5 rounded-md border border-warning/20 bg-warning/10 px-3 py-2.5">
+                  <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                  <p className="text-sm text-warning">
+                    Copy, paste, and right-click are turned off here, and switching tabs gets noted — just you and the keyboard.
                   </p>
                 </div>
               </div>
 
-              <div className="text-center">
-                <Button onClick={startTest} size="lg" className="gap-2">
+              <div className="flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-muted-foreground">
+                  The clock starts the moment you press start.
+                </p>
+                <Button onClick={startTest} size="lg" className="w-full gap-2 sm:w-auto">
                   <Play className="h-5 w-5" />
-                  Start Typing Test
+                  Start typing test
                 </Button>
               </div>
             </div>
@@ -723,28 +740,30 @@ export default function TypingTestPhase() {
           {testState === "testing" && (
             <div className="space-y-6">
               {/* Timer */}
-              <div className="flex items-center justify-between">
-                <Badge 
+              <div className="flex items-center justify-between gap-3">
+                <Badge
                   className={`gap-1 ${
-                    timeLeft <= 10 
-                      ? "bg-destructive/20 text-destructive border-destructive/30" 
-                      : "bg-primary/20 text-primary border-primary/30"
+                    timeLeft <= 10
+                      ? "bg-destructive/15 text-destructive border-destructive/30"
+                      : "bg-primary/15 text-primary border-primary/30"
                   }`}
                 >
-                  <Timer className="h-4 w-4" />
-                  {timeLeft}s remaining
+                  <Timer className="h-3.5 w-3.5" />
+                  {timeLeft}s left
                 </Badge>
                 <span className="text-sm text-muted-foreground">
-                  Words typed: {typedText.trim().split(/\s+/).filter(Boolean).length}
+                  <span className="font-display ck-num text-foreground">{liveWpm}</span> wpm
                 </span>
               </div>
 
-              <Progress value={(60 - timeLeft) / 60 * 100} className="h-2" />
+              <Progress value={(60 - timeLeft) / 60 * 100} className="h-1.5 bg-[var(--track)]" />
 
-              {/* Target Text */}
-              <div className="bg-muted/30 rounded-lg p-4">
-                <p className="text-sm text-muted-foreground mb-2">Type this text:</p>
-                <p className="text-foreground leading-relaxed font-mono">
+              {/* Target Text — the focal point of this screen */}
+              <div className="rounded-lg border border-border bg-muted/30 p-4 sm:p-5">
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  The passage
+                </p>
+                <p className="font-mono leading-relaxed text-foreground">
                   {targetText}
                 </p>
               </div>
@@ -772,8 +791,8 @@ export default function TypingTestPhase() {
               />
 
               <div className="flex justify-end">
-                <Button onClick={handleTestComplete} variant="outline">
-                  Finish Early
+                <Button onClick={handleTestComplete} variant="ghost" size="sm" className="text-muted-foreground">
+                  Finish early
                 </Button>
               </div>
             </div>
@@ -782,65 +801,54 @@ export default function TypingTestPhase() {
           {/* Completed State */}
           {testState === "completed" && results && (
             <div className="space-y-6">
-              {/* Results */}
+              {/* Results — neutral and calm; the real decision comes after you submit */}
               <div className="text-center space-y-4">
-                <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center ${
-                  results.passed ? "bg-success/20" : "bg-destructive/20"
-                }`}>
-                  {results.passed ? (
-                    <CheckCircle className="h-10 w-10 text-success" />
-                  ) : (
-                    <Target className="h-10 w-10 text-destructive" />
-                  )}
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/15">
+                  <CheckCircle className="h-8 w-8 text-primary" />
                 </div>
                 <div>
-                  <h3 className="text-2xl font-bold text-foreground">
-                    {results.passed ? "Great Job!" : "Test Complete"}
-                  </h3>
+                  <h3 className="font-display ck-ink text-2xl text-foreground">Nice work</h3>
                   <p className="text-muted-foreground">
-                    {results.passed
-                      ? isAutoMode
-                        ? "You passed! After you submit, the next phase will unlock automatically."
-                        : "You passed! The employer will review your overall application next."
-                      : results.wpm < (application.jobs?.required_wpm || 35)
-                        ? `Your typing speed of ${results.wpm} WPM did not meet the required ${application.jobs?.required_wpm || 35} WPM threshold.`
-                        : `Your combined score of ${results.score}% did not meet the required threshold.`
-                    }
+                    Submit when you're ready —{" "}
+                    {isAutoMode
+                      ? "you'll see your result right away."
+                      : "the hiring team will review it and follow up."}
                   </p>
                 </div>
               </div>
 
-              {/* Performance Stats */}
-              <div className="grid grid-cols-2 gap-4">
-                <Card className="bg-muted/30 border-border">
-                  <CardContent className="p-4 text-center">
-                    <Zap className="h-6 w-6 mx-auto text-primary mb-2" />
-                    <p className="text-2xl font-bold text-foreground">{results.wpm}</p>
-                    <p className="text-xs text-muted-foreground">Words/Min (target: {application.jobs?.required_wpm || 40})</p>
-                  </CardContent>
-                </Card>
-                <Card className="bg-muted/30 border-border">
-                  <CardContent className="p-4 text-center">
-                    <Target className="h-6 w-6 mx-auto text-primary mb-2" />
-                    <p className="text-2xl font-bold text-foreground">{results.accuracy}%</p>
-                    <p className="text-xs text-muted-foreground">Accuracy</p>
-                  </CardContent>
-                </Card>
+              {/* Performance Stats — one calm row, Fraunces for the numbers */}
+              <div className="grid grid-cols-2 divide-x divide-border rounded-lg border border-border">
+                <div className="p-4 text-center">
+                  <p className="font-display ck-num text-3xl text-foreground">{results.wpm}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    words / min · target {application.jobs?.required_wpm || 40}
+                  </p>
+                </div>
+                <div className="p-4 text-center">
+                  <p className="font-display ck-num text-3xl text-foreground">{results.accuracy}%</p>
+                  <p className="mt-1 text-xs text-muted-foreground">accuracy</p>
+                </div>
               </div>
 
-              {/* Actions */}
-              <div className="flex justify-center gap-4">
-                <Button variant="outline" onClick={resetTest} className="gap-2">
+              {/* Actions — one primary, jade-filled; the redo is a quiet text-link */}
+              <div className="flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
+                <Button variant="ghost" onClick={resetTest} className="gap-2 text-muted-foreground">
                   <RotateCcw className="h-4 w-4" />
-                  Try Again
+                  Try again
                 </Button>
-                <Button onClick={handleSubmit} disabled={isSubmitting} className="gap-2">
+                <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full gap-2 sm:w-auto" size="lg">
                   {isSubmitting ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Submitting...
+                    </>
                   ) : (
-                    <CheckCircle className="h-4 w-4" />
+                    <>
+                      <CheckCircle className="h-4 w-4" />
+                      Submit results
+                    </>
                   )}
-                  Submit Results
                 </Button>
               </div>
             </div>

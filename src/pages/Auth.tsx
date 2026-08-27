@@ -472,7 +472,13 @@ export default function Auth() {
            only the things that are genuinely local to it live here. */
         .auth-jade h1,.auth-jade h2{font-family:'Fraunces',Georgia,serif;font-weight:500;letter-spacing:-0.01em;}
         .auth-jade .auth-card{border-color:var(--hf-border);background:var(--hf-surface);}
-        .auth-jade input{transition:border-color .18s ease, box-shadow .18s ease;}
+        /* Letterhead field: the paper itself, not a raised chip — filled with
+           the same ground as the page, a hairline border, gold on focus. */
+        .auth-jade input{
+          background:var(--ground);
+          border-color:var(--line);
+          transition:border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+        }
         .auth-jade input:focus,.auth-jade input:focus-visible{
           outline:none;
           border-color:var(--hf-gold);
@@ -482,6 +488,22 @@ export default function Auth() {
           --tw-ring-shadow:0 0 #0000;
           --tw-ring-offset-shadow:0 0 #0000;
         }
+        /* HeroBackground's aurora is tuned bright-on-ink: the same tokens that
+           read as a living glow over Night's near-black ground get washed
+           almost flat once its own protective veil sits atop them on Day's
+           pale paper (the veil leans on the background token too, so a light
+           theme re-covers its own glow far harder than a dark one does — the
+           cockpit's ambient layer hit this identical wall, see cockpit.css).
+           Paint one more coat of the same brass/jade tokens above that veil,
+           Day only, so the backdrop keeps the presence the candidate screen
+           already has. Night is untouched — it already reads right. */
+        .auth-jade .hero-lift{position:fixed;inset:0;z-index:0;pointer-events:none;}
+        :root:not(.dark) .auth-jade .hero-lift{
+          background:
+            radial-gradient(ellipse 68vw 42vw at 50% -10%, var(--hf-green-border), transparent 72%),
+            radial-gradient(circle at 4% 2%, var(--hf-green-soft), transparent 58%),
+            radial-gradient(circle at 97% 100%, var(--hf-gold-soft), transparent 55%);
+        }
       `}</style>
       <link
         rel="stylesheet"
@@ -489,6 +511,7 @@ export default function Auth() {
       />
 
       <HeroBackground />
+      <div aria-hidden className="hero-lift" />
 
       <div className="relative z-10 min-h-[100dvh] flex flex-col px-6 py-6 sm:py-8">
         <Link
@@ -545,8 +568,14 @@ export default function Auth() {
             {/* Auth Card */}
             <div
               ref={formRef}
-              className="auth-card border rounded-2xl p-5 sm:p-8 shadow-[0_28px_80px_-16px_rgba(0,0,0,0.6)]"
+              className="auth-card relative border rounded-2xl p-5 sm:p-8 shadow-[0_28px_80px_-16px_rgba(0,0,0,0.6)]"
             >
+            {/* the brass rule across the head of the letterhead */}
+            <span
+              aria-hidden
+              className="absolute left-6 right-6 top-0 h-[2.5px] rounded-full"
+              style={{ background: "var(--brass-line)" }}
+            />
             {/* Google Sign In - compact icon in native app, full button on web */}
             {inWebView ? (
               <div className="flex justify-center mb-4">
@@ -950,13 +979,27 @@ export default function Auth() {
               </motion.div>
             )}
 
-            {/* Footer link - hidden on mobile (employer-only mobile experience) */}
-            <p className="text-center text-sm text-muted-foreground mt-6 hidden sm:block">
-              Are you a job seeker?{" "}
-              <Link to="/candidate" className="text-primary hover:underline">
-                Visit the candidate portal
-              </Link>
-            </p>
+            {/* Quiet reassurance footer — closes the letterhead moment */}
+            <div
+              className="mt-6 pt-4 border-t text-center"
+              style={{ borderColor: "var(--hf-border)" }}
+            >
+              <p className="text-sm" style={{ color: "var(--hf-text-soft)" }}>
+                <span
+                  aria-hidden
+                  className="inline-block h-1.5 w-1.5 rounded-full align-middle mr-1.5 -mt-0.5"
+                  style={{ background: "var(--hf-green)" }}
+                />
+                Your first hire is on us.
+              </p>
+              {/* Footer link - hidden on mobile (employer-only mobile experience) */}
+              <p className="text-xs text-muted-foreground mt-1.5 hidden sm:block">
+                Are you a job seeker?{" "}
+                <Link to="/candidate" className="text-primary hover:underline">
+                  Visit the candidate portal
+                </Link>
+              </p>
+            </div>
             </div>
           </motion.div>
         </div>

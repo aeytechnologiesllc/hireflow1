@@ -3,50 +3,126 @@ import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { 
-  Lightbulb, 
-  Calendar, 
+import {
+  Lightbulb,
+  Calendar,
   ArrowRight,
-  Sparkles,
   ExternalLink,
   X,
-  Mic,
-  Trophy,
-  Star,
-  Crown,
   XCircle,
   RefreshCw,
-  Info,
   CheckCircle,
   Clock,
   Loader2,
   Download,
-  Lock
+  Lock,
 } from "lucide-react";
-import confetti from "canvas-confetti";
 import { format } from "date-fns";
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { CandidateRescheduleRequestDialog } from "@/components/CandidateRescheduleRequestDialog";
+import { AvaSeal } from "@/components/ava/AvaSeal";
 import { useImprovementBlueprint, BLUEPRINT_PRICE_FORMATTED } from "@/hooks/useImprovementBlueprint";
-import { cn } from "@/lib/utils";
 
-// Unified Rejected State Card with integrated blueprint section
+/* ── Shared pieces ──────────────────────────────────────────────────────
+   Every state is the same shell: a quiet icon mark, one Fraunces headline
+   (the moment), one warm sentence, quiet supporting details, and a single
+   jade primary action. No competing cards, no rainbow tones, no confetti —
+   the seal-press payoff carries the celebration. */
+
+type Mood = "jade" | "brass" | "amber" | "crit" | "neutral";
+
+const moodBg: Record<Mood, string> = {
+  jade: "var(--jade-soft)",
+  brass: "var(--amber-bg)", // brass has no soft fill token; amber-bg reads as warm parchment, not alarm
+  amber: "var(--amber-bg)",
+  crit: "var(--crit-bg)",
+  neutral: "var(--surface-2)",
+};
+
+const moodFg: Record<Mood, string> = {
+  jade: "var(--jade-soft-fg)",
+  brass: "var(--brass)",
+  amber: "var(--amber-fg)",
+  crit: "var(--crit)",
+  neutral: "var(--ink-2)",
+};
+
+function StatusMark({ icon: Icon, mood }: { icon: typeof CheckCircle; mood: Mood }) {
+  return (
+    <div
+      className="mx-auto flex h-14 w-14 items-center justify-center rounded-full"
+      style={{ background: moodBg[mood] }}
+    >
+      <Icon className="h-6 w-6" style={{ color: moodFg[mood] }} />
+    </div>
+  );
+}
+
+/** The row-based "Date & time / Duration / Join" card, shared by the
+ *  scheduled and rescheduled states so the new time always reads the same. */
+function InterviewDetailsCard({
+  details,
+  label,
+}: {
+  details: { scheduledAt?: string; meetingLink?: string; durationMinutes?: number };
+  label?: string;
+}) {
+  return (
+    <Card className="border-border bg-secondary/40">
+      <CardContent className="space-y-2.5 p-4">
+        {label && (
+          <p className="text-xs font-medium uppercase tracking-[0.06em]" style={{ color: "var(--ink-3)" }}>
+            {label}
+          </p>
+        )}
+        {details.scheduledAt && (
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-muted-foreground">Date &amp; time</span>
+            <span className="font-display ck-num text-sm font-medium text-foreground">
+              {format(new Date(details.scheduledAt), "EEEE, MMM d 'at' h:mm a")}
+            </span>
+          </div>
+        )}
+        {details.durationMinutes && (
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-muted-foreground">Duration</span>
+            <span className="font-display ck-num text-sm font-medium text-foreground">
+              {details.durationMinutes} minutes
+            </span>
+          </div>
+        )}
+        {details.meetingLink && (
+          <Button
+            variant="outline"
+            className="mt-1 w-full gap-2"
+            onClick={() => window.open(details.meetingLink, "_blank")}
+          >
+            <ExternalLink className="h-4 w-4" />
+            Join meeting
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ── Rejected — with the optional, paid Improvement Blueprint upsell ───── */
+
 function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; applicationId?: string }) {
-  const { 
-    downloadBlueprint, 
-    isGenerating, 
-    purchaseBlueprint, 
+  const {
+    downloadBlueprint,
+    isGenerating,
+    purchaseBlueprint,
     isPurchasing,
     checkPurchaseStatus,
     isCheckingPurchase,
     hasPurchased,
-    verifyPurchase
+    verifyPurchase,
   } = useImprovementBlueprint();
-  
+
   const [searchParams, setSearchParams] = useSearchParams();
   const [hasVerified, setHasVerified] = useState(false);
 
@@ -61,10 +137,10 @@ function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; app
   useEffect(() => {
     const blueprintSuccess = searchParams.get("blueprint_success");
     const sessionId = searchParams.get("session_id");
-    
+
     if (blueprintSuccess === "true" && sessionId && applicationId && !hasVerified) {
       setHasVerified(true);
-      
+
       verifyPurchase(sessionId, applicationId).then((success) => {
         if (success) {
           toast.success("Payment successful! You can now download your blueprint.");
@@ -96,190 +172,80 @@ function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; app
 
   return (
     <Card className="bg-card border-border overflow-hidden">
-      {/* Decorative top gradient */}
-      <div className="h-2 bg-gradient-to-r from-amber-500/50 via-orange-500/50 to-amber-500/50" />
-      
-      <CardContent className="p-8 text-center space-y-6">
-        {/* Icon */}
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: "spring", delay: 0.2 }}
-          className="mx-auto w-20 h-20 rounded-full bg-amber-500/20 flex items-center justify-center"
-        >
-          <Lightbulb className="h-10 w-10 text-amber-500" />
-        </motion.div>
+      <CardContent className="space-y-6 p-8 text-center">
+        <StatusMark icon={XCircle} mood="crit" />
 
-        {/* Headline */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-2"
-        >
-          <h2 className="text-2xl font-bold text-foreground">
-            This Chapter Has Closed
-          </h2>
-          <p className="text-muted-foreground">
-            But your story continues
+        <div className="space-y-2">
+          <h2 className="font-display ck-ink text-2xl text-foreground sm:text-3xl">Not a match this time</h2>
+          <p className="text-sm text-muted-foreground">
+            {jobTitle ? (
+              <>
+                The <span className="font-medium text-foreground">{jobTitle}</span> role wasn&apos;t the right fit
+                — there&apos;s always the next one.
+              </>
+            ) : (
+              "This one wasn't the right fit — there's always the next one."
+            )}
           </p>
-        </motion.div>
+        </div>
 
-        {/* Message */}
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="text-muted-foreground leading-relaxed"
-        >
-          While the <span className="text-foreground font-medium">{jobTitle || "position"}</span> wasn't the right fit this time, 
-          every interview is a stepping stone.
-        </motion.p>
-
-        {/* Blueprint Section - Integrated */}
+        {/* Improvement Blueprint — a paid upsell, so it reads as brass (money), never the primary jade action */}
         {applicationId && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="pt-4 border-t border-border space-y-4"
-          >
-            <div className="flex items-center justify-center gap-2 text-amber-500">
-              <Star className="h-4 w-4 fill-amber-500/30" />
-              <span className="text-sm font-medium">Get Your Improvement Blueprint</span>
-              <Star className="h-4 w-4 fill-amber-500/30" />
+          <div className="space-y-3 border-t border-border pt-6 text-left">
+            <div className="flex items-start gap-3">
+              <Lightbulb className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--brass)" }} />
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-foreground">Improvement Blueprint</p>
+                <p className="text-sm text-muted-foreground">
+                  A personalized coaching guide with concrete steps to strengthen your next application.
+                </p>
+              </div>
             </div>
-            
-            <p className="text-sm text-muted-foreground">
-              A personalized coaching guide with actionable steps to strengthen your next application.
-            </p>
 
             {isCheckingPurchase ? (
-              <div className="flex items-center justify-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
-                <span className="text-sm text-muted-foreground">Loading...</span>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Checking…
               </div>
             ) : hasPurchased ? (
-              <Button 
-                onClick={handleDownload} 
-                disabled={isGenerating}
-                className={cn(
-                  "gap-2",
-                  "bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-500 bg-[length:200%_100%]",
-                  "hover:bg-[position:100%_0] transition-all duration-500",
-                  "text-white font-semibold border-0",
-                  "shadow-lg shadow-amber-500/25"
-                )}
-              >
+              <Button onClick={handleDownload} disabled={isGenerating} className="w-full gap-2">
                 {isGenerating ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Creating Blueprint...
+                    Preparing your blueprint…
                   </>
                 ) : (
                   <>
                     <Download className="h-4 w-4" />
-                    Download Blueprint
+                    Download blueprint
                   </>
                 )}
               </Button>
             ) : (
-              <Button 
-                onClick={handlePurchase} 
+              <Button
+                onClick={handlePurchase}
                 disabled={isPurchasing}
-                className={cn(
-                  "gap-2",
-                  "bg-gradient-to-r from-amber-600 via-amber-500 to-yellow-500 bg-[length:200%_100%]",
-                  "hover:bg-[position:100%_0] transition-all duration-500",
-                  "text-white font-semibold border-0",
-                  "shadow-lg shadow-amber-500/25"
-                )}
+                variant="outline"
+                className="w-full gap-2"
+                style={{ borderColor: "var(--brass-line)", color: "var(--brass)" }}
               >
                 {isPurchasing ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Starting Checkout...
+                    Starting checkout…
                   </>
                 ) : (
                   <>
                     <Lock className="h-4 w-4" />
-                    <Sparkles className="h-4 w-4" />
                     Unlock for {BLUEPRINT_PRICE_FORMATTED}
                   </>
                 )}
               </Button>
             )}
-          </motion.div>
+          </div>
         )}
-
-        {/* Motivational quote */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="pt-4 border-t border-border"
-        >
-          <p className="text-xs text-muted-foreground italic">
-            "Success is not final, failure is not fatal: it is the courage to continue that counts."
-          </p>
-        </motion.div>
       </CardContent>
     </Card>
-  );
-}
-
-function NextStepCallout({
-  title,
-  summary,
-  steps,
-  tone = "blue",
-}: {
-  title: string;
-  summary: string;
-  steps: string[];
-  tone?: "blue" | "emerald" | "amber" | "purple" | "gold";
-}) {
-  const toneStyles = {
-    blue: {
-      wrap: "bg-blue-500/10 border-blue-500/20",
-      icon: "text-blue-400",
-    },
-    emerald: {
-      wrap: "bg-emerald-500/10 border-emerald-500/20",
-      icon: "text-emerald-400",
-    },
-    amber: {
-      wrap: "bg-amber-500/10 border-amber-500/20",
-      icon: "text-amber-400",
-    },
-    purple: {
-      wrap: "bg-purple-500/10 border-purple-500/20",
-      icon: "text-purple-400",
-    },
-    gold: {
-      wrap: "bg-yellow-500/10 border-yellow-500/20",
-      icon: "text-yellow-400",
-    },
-  }[tone];
-
-  return (
-    <div className={cn("rounded-lg border p-4 text-left", toneStyles.wrap)}>
-      <div className="flex items-start gap-2 mb-2">
-        <Info className={cn("h-4 w-4 mt-0.5 shrink-0", toneStyles.icon)} />
-        <p className="text-sm font-medium text-foreground">{title}</p>
-      </div>
-      <p className="text-sm text-muted-foreground leading-relaxed">{summary}</p>
-      {steps.length > 0 && (
-        <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-          {steps.map((step) => (
-            <li key={step} className="flex items-start gap-2">
-              <span className={cn("mt-1 h-1.5 w-1.5 rounded-full shrink-0", tone === "gold" ? "bg-yellow-400" : "bg-current opacity-70")} />
-              <span>{step}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
   );
 }
 
@@ -316,21 +282,21 @@ export function CandidateStatusScreen({
   onRescheduleRequested,
 }: CandidateStatusScreenProps) {
   const queryClient = useQueryClient();
-  
+
   // Interview action states
   const [isConfirming, setIsConfirming] = useState(false);
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
   const [localCandidateResponse, setLocalCandidateResponse] = useState<string | null>(initialCandidateResponse || null);
-  
+
   // Sync with prop changes
   useEffect(() => {
     setLocalCandidateResponse(initialCandidateResponse || null);
   }, [initialCandidateResponse]);
-  
+
   // Handle interview confirmation
   const handleConfirmInterview = async () => {
     if (!interviewId || !applicationId) return;
-    
+
     setIsConfirming(true);
     try {
       const { data, error } = await supabase.functions.invoke("candidate-interview-response", {
@@ -339,21 +305,21 @@ export function CandidateStatusScreen({
           interviewId,
         },
       });
-      
+
       if (!data?.success) {
         throw new Error(data?.error || "Failed to confirm interview");
       }
-      
+
       if (error) throw error;
-      
+
       setLocalCandidateResponse("confirmed");
       toast.success("Interview confirmed!", {
         description: "You're all set. We'll see you at the scheduled time.",
       });
-      
+
       // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ["candidate-interview", applicationId] });
-      
+
       onInterviewConfirmed?.();
     } catch (error: any) {
       console.error("Error confirming interview:", error);
@@ -364,7 +330,7 @@ export function CandidateStatusScreen({
       setIsConfirming(false);
     }
   };
-  
+
   // Handle reschedule success
   const handleRescheduleSuccess = () => {
     setLocalCandidateResponse("reschedule_requested");
@@ -372,91 +338,6 @@ export function CandidateStatusScreen({
     queryClient.invalidateQueries({ queryKey: ["candidate-interview", applicationId] });
     onRescheduleRequested?.();
   };
-  
-  const [showContent, setShowContent] = useState(false);
-
-  useEffect(() => {
-    if (state) {
-      // Delay content animation slightly
-      const timer = setTimeout(() => setShowContent(true), 100);
-      return () => clearTimeout(timer);
-    }
-  }, [state]);
-
-  // Trigger confetti for celebrations
-  useEffect(() => {
-    if (state === "interview_scheduled" && showContent) {
-      // Single burst for interview
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ['#8B5CF6', '#A78BFA', '#C4B5FD', '#60A5FA', '#93C5FD'],
-      });
-    } else if (state === "ava_interview_unlocked" && showContent) {
-      // Premium celebration with emerald/teal colors for Ava Interview
-      confetti({
-        particleCount: 150,
-        spread: 80,
-        origin: { y: 0.6 },
-        colors: ['#10B981', '#14B8A6', '#06B6D4', '#8B5CF6', '#A78BFA'],
-      });
-    } else if (state === "reconsidered" && showContent) {
-      // Celebration for reconsideration - blue/cyan colors for fresh start
-      confetti({
-        particleCount: 120,
-        spread: 75,
-        origin: { y: 0.6 },
-        colors: ['#3B82F6', '#60A5FA', '#93C5FD', '#06B6D4', '#22D3EE'],
-      });
-    } else if (state === "hired" && showContent) {
-      // Epic 5-second multi-burst celebration with golden colors
-      const duration = 5000;
-      const end = Date.now() + duration;
-      let lastCenterBurst = 0;
-
-      const frame = () => {
-        // Golden confetti from left
-        confetti({
-          particleCount: 5,
-          angle: 60,
-          spread: 55,
-          origin: { x: 0, y: 0.6 },
-          colors: ['#F59E0B', '#FBBF24', '#FCD34D', '#FDE68A', '#FFD700'],
-          shapes: ['circle', 'square'],
-          gravity: 0.8,
-        });
-        
-        // Golden confetti from right
-        confetti({
-          particleCount: 5,
-          angle: 120,
-          spread: 55,
-          origin: { x: 1, y: 0.6 },
-          colors: ['#F59E0B', '#FBBF24', '#FCD34D', '#FDE68A', '#FFD700'],
-          shapes: ['circle', 'square'],
-          gravity: 0.8,
-        });
-        
-        // Center burst every 500ms
-        const now = Date.now();
-        if (now - lastCenterBurst > 500) {
-          confetti({
-            particleCount: 30,
-            spread: 100,
-            origin: { x: 0.5, y: 0.4 },
-            colors: ['#F59E0B', '#FBBF24', '#FCD34D', '#FFFFFF', '#FFD700'],
-          });
-          lastCenterBurst = now;
-        }
-
-        if (Date.now() < end) {
-          requestAnimationFrame(frame);
-        }
-      };
-      frame();
-    }
-  }, [state, showContent]);
 
   if (!state) return null;
 
@@ -479,10 +360,10 @@ export function CandidateStatusScreen({
 
         {/* Content */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.9, y: 20 }}
+          initial={{ opacity: 0, scale: 0.96, y: 12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.9, y: 20 }}
-          transition={{ type: "spring", duration: 0.5 }}
+          exit={{ opacity: 0, scale: 0.96, y: 12 }}
+          transition={{ duration: 0.28, ease: [0.2, 0.7, 0.3, 1] }}
           className="relative z-10 w-full max-w-lg px-4"
         >
           {/* Close button */}
@@ -495,193 +376,89 @@ export function CandidateStatusScreen({
             <X className="h-4 w-4" />
           </Button>
 
-          {/* Rejected State - Single unified card */}
+          {/* Rejected State */}
           {state === "rejected" && (
-            <RejectedStateCard 
-              jobTitle={jobTitle} 
-              applicationId={applicationId} 
-            />
+            <RejectedStateCard jobTitle={jobTitle} applicationId={applicationId} />
           )}
 
           {/* Interview Scheduled State */}
           {state === "interview_scheduled" && (
             <Card className="bg-card border-border overflow-hidden">
-              {/* Decorative top gradient */}
-              <div className="h-2 bg-gradient-to-r from-purple-500/50 via-blue-500/50 to-purple-500/50" />
-              
-              <CardContent className="p-8 text-center space-y-6">
-                {/* Icon */}
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1, rotate: [0, -10, 10, -10, 0] }}
-                  transition={{ type: "spring", delay: 0.2 }}
-                  className="mx-auto w-20 h-20 rounded-full bg-purple-500/20 flex items-center justify-center"
-                >
-                  <Calendar className="h-10 w-10 text-purple-500" />
-                </motion.div>
+              <CardContent className="space-y-6 p-8 text-center">
+                <StatusMark icon={Calendar} mood="jade" />
 
-                {/* Headline */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="space-y-2"
-                >
-                  <h2 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
-                    <span>🎉</span> You're Invited to Interview!
+                <div className="space-y-2">
+                  <h2 className="font-display ck-ink text-2xl text-foreground sm:text-3xl">
+                    You&apos;re invited to interview
                   </h2>
-                  <p className="text-purple-400">
-                    {companyName ? `${companyName} wants to meet you` : "Great news!"}
+                  <p className="text-sm text-muted-foreground">
+                    {companyName ? `${companyName} wants to meet you.` : "The hiring team wants to meet you."}
                   </p>
-                </motion.div>
+                </div>
 
-                {/* Interview Details Card */}
-                {interviewDetails && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4 }}
-                  >
-                    <Card className="bg-purple-500/10 border-purple-500/30">
-                      <CardContent className="p-4 space-y-3">
-                        {interviewDetails.scheduledAt && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-muted-foreground">Date & Time</span>
-                            <span className="font-medium text-foreground">
-                              {format(new Date(interviewDetails.scheduledAt), "EEEE, MMM d 'at' h:mm a")}
-                            </span>
-                          </div>
+                {interviewDetails && <InterviewDetailsCard details={interviewDetails} />}
+
+                {/* Show different UI based on candidate response */}
+                {localCandidateResponse === "confirmed" ? (
+                  <div className="rounded-lg p-4 text-left" style={{ background: "var(--jade-soft)" }}>
+                    <div className="mb-1.5 flex items-center gap-2" style={{ color: "var(--jade-soft-fg)" }}>
+                      <CheckCircle className="h-4 w-4" />
+                      <span className="text-sm font-medium">Interview confirmed</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      You&apos;re set — just show up at the scheduled time and use the meeting link above if one was
+                      provided.
+                    </p>
+                  </div>
+                ) : localCandidateResponse === "reschedule_requested" ? (
+                  <div className="rounded-lg p-4 text-left" style={{ background: "var(--amber-bg)" }}>
+                    <div className="mb-1.5 flex items-center gap-2" style={{ color: "var(--amber-fg)" }}>
+                      <Clock className="h-4 w-4" />
+                      <span className="text-sm font-medium">Reschedule requested</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      The employer has your new time options — you don&apos;t need to do anything else until they
+                      reply.
+                    </p>
+                  </div>
+                ) : interviewId && applicationId ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Confirm this time if it works, or ask for a different slot.
+                    </p>
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                      <Button onClick={handleConfirmInterview} disabled={isConfirming} className="flex-1 gap-2">
+                        {isConfirming ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle className="h-4 w-4" />
                         )}
-                        {interviewDetails.durationMinutes && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-muted-foreground">Duration</span>
-                            <span className="font-medium text-foreground">
-                              {interviewDetails.durationMinutes} minutes
-                            </span>
-                          </div>
-                        )}
-                        {interviewDetails.meetingLink && (
-                          <Button
-                            variant="outline"
-                            className="w-full mt-2 gap-2 border-purple-500/30 hover:bg-purple-500/10"
-                            onClick={() => window.open(interviewDetails.meetingLink, "_blank")}
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                            Join Google Meet
-                          </Button>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </motion.div>
+                        Confirm interview
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowRescheduleDialog(true)}
+                        className="flex-1 gap-2"
+                      >
+                        <Calendar className="h-4 w-4" />
+                        Request reschedule
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Open your application when you&apos;re ready to confirm, reschedule, or join.
+                  </p>
                 )}
 
-                {/* Action Buttons or Status Display */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.5 }}
-                  className="space-y-4"
-                >
-                  {/* Show different UI based on candidate response */}
-                  {localCandidateResponse === "confirmed" ? (
-                    // Already confirmed
-                    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-4">
-                      <div className="flex items-center gap-2 text-emerald-400 mb-2">
-                        <CheckCircle className="h-5 w-5" />
-                        <span className="font-medium">Interview Confirmed!</span>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        You're set. Just show up at the scheduled time and use the meeting link if one is provided.
-                      </p>
-                      {interviewDetails?.meetingLink && (
-                        <Button
-                          variant="outline"
-                          className="w-full mt-3 gap-2 border-emerald-500/30 hover:bg-emerald-500/10"
-                          onClick={() => window.open(interviewDetails.meetingLink, "_blank")}
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                          Join Meeting
-                        </Button>
-                      )}
-                    </div>
-                  ) : localCandidateResponse === "reschedule_requested" ? (
-                    // Reschedule requested - waiting for employer
-                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4">
-                      <div className="flex items-center gap-2 text-amber-400 mb-2">
-                        <Clock className="h-5 w-5" />
-                        <span className="font-medium">Reschedule Requested</span>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        The employer has your new time options. You do not need to do anything else until they reply.
-                      </p>
-                    </div>
-                  ) : interviewId && applicationId ? (
-                    // Show action buttons
-                    <div className="space-y-3">
-                      <NextStepCallout
-                        title="What happens next"
-                        summary="The employer is ready to meet with you. Confirm this time if it works, or ask for a different slot if it does not."
-                        steps={[
-                          "Tap Confirm Interview if the time works for you.",
-                          "Use Request Reschedule if you need a new time.",
-                          "If there is a meeting link, join from this page at the scheduled time.",
-                        ]}
-                        tone="purple"
-                      />
-                      
-                      <div className="flex flex-col sm:flex-row gap-3">
-                        <Button
-                          onClick={handleConfirmInterview}
-                          disabled={isConfirming}
-                          className="flex-1 gap-2 bg-emerald-600 hover:bg-emerald-700"
-                        >
-                          {isConfirming ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <CheckCircle className="h-4 w-4" />
-                          )}
-                          Confirm Interview
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => setShowRescheduleDialog(true)}
-                          className="flex-1 gap-2"
-                        >
-                          <Calendar className="h-4 w-4" />
-                          Request Reschedule
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    // Fallback: show old info section
-                    <NextStepCallout
-                      title="What happens next"
-                      summary="Your interview details live on the application page. Open it when you are ready to confirm, reschedule, or join."
-                      steps={[
-                        "Confirm the time if it works for you.",
-                        "Request a reschedule if you need a different slot.",
-                        "Join the meeting when it is time.",
-                      ]}
-                      tone="purple"
-                    />
-                  )}
-                </motion.div>
-
-                {/* Close/Continue button */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.6 }}
-                >
-                  <Button onClick={onClose} variant="outline" className="gap-2">
-                    {localCandidateResponse ? "Close" : "View Application"}
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </motion.div>
+                <Button onClick={onClose} variant="outline" className="gap-2">
+                  {localCandidateResponse ? "Close" : "View application"}
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
               </CardContent>
             </Card>
           )}
-          
+
           {/* Reschedule Dialog */}
           {interviewId && applicationId && interviewDetails?.scheduledAt && (
             <CandidateRescheduleRequestDialog
@@ -694,440 +471,86 @@ export function CandidateStatusScreen({
             />
           )}
 
-          {/* Ava Interview Unlocked State */}
+          {/* Voice Interview Unlocked State */}
           {state === "ava_interview_unlocked" && (
-            <Card className="bg-card border-border overflow-hidden relative">
-              {/* Animated sparkles background */}
-              <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                {[...Array(8)].map((_, i) => (
-                  <motion.div
-                    key={i}
-                    className="absolute"
-                    initial={{ 
-                      x: Math.random() * 100 + "%", 
-                      y: Math.random() * 100 + "%",
-                      opacity: 0,
-                      scale: 0 
-                    }}
-                    animate={{ 
-                      opacity: [0, 1, 0],
-                      scale: [0, 1, 0],
-                      rotate: [0, 180]
-                    }}
-                    transition={{
-                      duration: 2,
-                      repeat: Infinity,
-                      delay: Math.random() * 2,
-                      ease: "easeInOut"
-                    }}
-                  >
-                    <Sparkles className="h-4 w-4 text-emerald-400/50" />
-                  </motion.div>
-                ))}
-              </div>
+            <Card className="bg-card border-border overflow-hidden">
+              <CardContent className="space-y-6 p-8 text-center">
+                <AvaSeal size={44} tilt={-3} className="ck-seal-press mx-auto" />
 
-              {/* Decorative top gradient */}
-              <div className="h-2 bg-gradient-to-r from-emerald-500/50 via-teal-500/50 to-cyan-500/50" />
-              
-              <CardContent className="p-8 text-center space-y-6 relative z-10">
-                {/* Icon */}
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: "spring", delay: 0.2 }}
-                  className="mx-auto w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center"
-                >
-                  <motion.div
-                    animate={{ 
-                      scale: [1, 1.1, 1],
-                    }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                  >
-                    <Mic className="h-10 w-10 text-emerald-400" />
-                  </motion.div>
-                </motion.div>
-
-                {/* Headline */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="space-y-2"
-                >
-                  <h2 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
-                    🎉 Congratulations!
+                <div className="space-y-2">
+                  <h2 className="font-display ck-ink text-2xl text-foreground sm:text-3xl">
+                    You&apos;re moving to a voice interview
                   </h2>
-                  <p className="text-emerald-400 font-semibold text-lg">
-                    You've Been Selected for a Voice Interview!
+                  <p className="text-sm text-muted-foreground">
+                    The hiring team reviewed your application and wants to hear from you directly.
+                    {jobTitle && (
+                      <>
+                        {" "}
+                        Position: <span className="font-medium text-foreground">{jobTitle}</span>.
+                      </>
+                    )}
                   </p>
-                </motion.div>
+                </div>
 
-                {/* Message */}
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.4 }}
-                  className="text-muted-foreground leading-relaxed"
-                >
-                  The employer has reviewed your application and wants to learn more about you.
-                  Your next step is a short voice interview — answer a few questions out loud.
-                </motion.p>
+                <p className="text-sm text-muted-foreground">
+                  Find somewhere quiet, then start when you&apos;re ready — answer naturally, out loud.
+                </p>
 
-                {/* Job info */}
-                {jobTitle && (
-                  <motion.p
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.5 }}
-                    className="text-sm text-muted-foreground"
-                  >
-                    Position: <span className="text-foreground font-medium">{jobTitle}</span>
-                  </motion.p>
-                )}
-
-                <NextStepCallout
-                  title="What happens next"
-                  summary="Nothing else is required right now. When you're ready, open your application and start the voice interview."
-                  steps={[
-                    "Make sure you're in a quiet place before you begin.",
-                    "Use the Start Voice Interview button from your application page.",
-                    "Answer naturally and keep your responses clear and specific.",
-                  ]}
-                  tone="emerald"
-                />
-
-                {/* Action button */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.6 }}
-                >
-                  <Button 
-                    size="lg"
-                    onClick={onClose} 
-                    className="gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
-                  >
-                    Start Voice Interview
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </motion.div>
+                <Button size="lg" onClick={onClose} className="gap-2">
+                  Start voice interview
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
               </CardContent>
             </Card>
           )}
 
-          {/* Hired State - Premium Full-Screen Celebration */}
+          {/* Hired State */}
           {state === "hired" && (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="fixed inset-0 z-50 overflow-hidden"
-            >
-              {/* Premium dark-to-gold gradient background */}
-              <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-amber-950/20 to-slate-900" />
-              
-              {/* Animated floating particles - GPU accelerated */}
-              <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                {[...Array(20)].map((_, i) => (
-                  <motion.div
-                    key={i}
-                    className="absolute will-change-transform"
-                    style={{ 
-                      left: `${Math.random() * 100}%`,
-                      transform: 'translate3d(0, 0, 0)' // Force GPU layer
-                    }}
-                    initial={{ 
-                      y: "110vh",
-                      opacity: 0,
-                    }}
-                    animate={{ 
-                      y: "-10vh",
-                      opacity: [0, 0.8, 0.8, 0],
-                    }}
-                    transition={{
-                      duration: 5 + Math.random() * 4,
-                      repeat: Infinity,
-                      delay: Math.random() * 4,
-                      ease: "linear"
-                    }}
-                  >
-                    {i % 3 === 0 ? (
-                      <Star className="h-4 w-4 text-amber-400/60" />
-                    ) : i % 3 === 1 ? (
-                      <Sparkles className="h-3 w-3 text-yellow-300/50" />
-                    ) : (
-                      <div className="w-2 h-2 rounded-full bg-amber-400/40" />
-                    )}
-                  </motion.div>
-                ))}
-              </div>
+            <Card className="bg-card border-border overflow-hidden">
+              <CardContent className="space-y-6 p-8 text-center">
+                <AvaSeal size={48} tilt={-3} className="ck-seal-press mx-auto" />
 
-              {/* Main celebration content */}
-              <div className="relative z-10 flex items-center justify-center min-h-screen p-6">
-                <motion.div
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ type: "spring", duration: 0.8 }}
-                  className="w-full max-w-lg"
-                >
-                  <Card className="backdrop-blur-xl bg-slate-900/80 border-amber-500/30 shadow-2xl shadow-amber-500/20 overflow-hidden">
-                    {/* Golden top border */}
-                    <div className="h-1.5 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400" />
-                    
-                    <CardContent className="p-8 text-center space-y-6">
-                      {/* Animated trophy icon */}
-                      <motion.div
-                        initial={{ scale: 0, rotate: -180 }}
-                        animate={{ scale: 1, rotate: 0 }}
-                        transition={{ type: "spring", duration: 1, delay: 0.3 }}
-                        className="relative"
-                      >
-                        <div className="mx-auto w-28 h-28 rounded-full bg-gradient-to-br from-amber-400/30 to-yellow-600/30 flex items-center justify-center border-2 border-amber-500/50 shadow-lg shadow-amber-500/30">
-                          <motion.div 
-                            animate={{ 
-                              scale: [1, 1.15, 1],
-                              filter: ["brightness(1)", "brightness(1.4)", "brightness(1)"]
-                            }} 
-                            transition={{ duration: 2, repeat: Infinity }}
-                          >
-                            <Trophy className="h-14 w-14 text-amber-400" />
-                          </motion.div>
-                        </div>
-                        
-                        {/* Floating crown */}
-                        <motion.div
-                          initial={{ y: -10, opacity: 0 }}
-                          animate={{ y: [-5, 5, -5], opacity: 1 }}
-                          transition={{ y: { duration: 2, repeat: Infinity }, opacity: { delay: 0.5 } }}
-                          className="absolute -top-4 left-1/2 -translate-x-1/2"
-                        >
-                          <Crown className="h-8 w-8 text-yellow-400 drop-shadow-lg" />
-                        </motion.div>
-                      </motion.div>
+                <div className="space-y-2">
+                  <h2 className="font-display ck-ink text-3xl text-foreground sm:text-4xl">You&apos;re hired</h2>
+                  <p className="text-sm text-muted-foreground">
+                    as <span className="font-medium text-foreground">{jobTitle || "the role"}</span>
+                    {companyName && <> at {companyName}</>}
+                  </p>
+                </div>
 
-                      {/* Official badge */}
-                      <motion.div
-                        initial={{ y: -20, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        transition={{ delay: 0.5 }}
-                      >
-                        <Badge className="bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-900 font-bold px-4 py-1.5 text-sm border-0 shadow-lg">
-                          ✨ OFFICIAL TEAM MEMBER ✨
-                        </Badge>
-                      </motion.div>
+                <p className="text-sm text-muted-foreground">
+                  Congratulations — the employer will follow up with your start date and any next steps.
+                </p>
 
-                      {/* Headlines with staggered animation */}
-                      <motion.h1 
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.6 }}
-                        className="text-4xl font-extrabold bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-300 bg-clip-text text-transparent"
-                      >
-                        🏆 CONGRATULATIONS! 🏆
-                      </motion.h1>
-                      
-                      <motion.h2
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.7 }}
-                        className="text-2xl font-bold text-white"
-                      >
-                        You're Officially Hired!
-                      </motion.h2>
-
-                      {/* Job & Company */}
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 0.8 }}
-                        className="space-y-1"
-                      >
-                        <p className="text-lg text-amber-200/80">as</p>
-                        <p className="text-2xl font-bold text-amber-100">{jobTitle || "the position"}</p>
-                        {companyName && (
-                          <p className="text-amber-300/70">at {companyName}</p>
-                        )}
-                      </motion.div>
-
-                      {/* Motivational message */}
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 1 }}
-                        className="pt-4 space-y-3"
-                      >
-                        <p className="text-amber-100/90 leading-relaxed">
-                          You have been hired. The employer should send onboarding details, start-date information, and any next forms soon.
-                        </p>
-                        <p className="text-amber-200/70 text-sm italic">
-                          "The beginning is always today." — Mary Shelley
-                        </p>
-                      </motion.div>
-
-                      <NextStepCallout
-                        title="What happens next"
-                        summary="Your application is complete. The only thing left is onboarding from the employer."
-                        steps={[
-                          "Watch for a message with your start date or first-day instructions.",
-                          "Check for any documents or forms you need to complete.",
-                          "Reply quickly if the employer asks for anything else.",
-                        ]}
-                        tone="gold"
-                      />
-
-                      {/* CTA Button */}
-                      <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 1.2 }}
-                        className="pt-2"
-                      >
-                        <Button 
-                          size="lg"
-                          onClick={onClose}
-                          className="gap-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-900 font-bold shadow-lg shadow-amber-500/30 px-8"
-                        >
-                          <Sparkles className="h-5 w-5" />
-                          Start Your Journey
-                          <ArrowRight className="h-5 w-5" />
-                        </Button>
-                      </motion.div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              </div>
-            </motion.div>
+                <Button size="lg" onClick={onClose} className="gap-2">
+                  Continue
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </CardContent>
+            </Card>
           )}
 
-          {/* Reconsidered State - Fresh Start Celebration */}
+          {/* Reconsidered State */}
           {state === "reconsidered" && (
-            <Card className="bg-card border-border overflow-hidden relative">
-              {/* Animated sparkles background */}
-              <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                {[...Array(6)].map((_, i) => (
-                  <motion.div
-                    key={i}
-                    className="absolute"
-                    initial={{ 
-                      x: Math.random() * 100 + "%", 
-                      y: Math.random() * 100 + "%",
-                      opacity: 0,
-                      scale: 0 
-                    }}
-                    animate={{ 
-                      opacity: [0, 1, 0],
-                      scale: [0, 1, 0],
-                      rotate: [0, 180]
-                    }}
-                    transition={{
-                      duration: 2,
-                      repeat: Infinity,
-                      delay: Math.random() * 2,
-                      ease: "easeInOut"
-                    }}
-                  >
-                    <Sparkles className="h-4 w-4 text-blue-400/50" />
-                  </motion.div>
-                ))}
-              </div>
+            <Card className="bg-card border-border overflow-hidden">
+              <CardContent className="space-y-6 p-8 text-center">
+                <StatusMark icon={RefreshCw} mood="jade" />
 
-              {/* Decorative top gradient */}
-              <div className="h-2 bg-gradient-to-r from-blue-500/50 via-cyan-500/50 to-blue-500/50" />
-              
-              <CardContent className="p-8 text-center space-y-6 relative z-10">
-                {/* Icon */}
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1, rotate: [0, -10, 10, -10, 0] }}
-                  transition={{ type: "spring", delay: 0.2 }}
-                  className="mx-auto w-20 h-20 rounded-full bg-blue-500/20 flex items-center justify-center"
-                >
-                  <motion.div
-                    animate={{ 
-                      scale: [1, 1.1, 1],
-                    }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                  >
-                    <Sparkles className="h-10 w-10 text-blue-400" />
-                  </motion.div>
-                </motion.div>
-
-                {/* Headline */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="space-y-2"
-                >
-                  <h2 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
-                    🎉 Great News!
+                <div className="space-y-2">
+                  <h2 className="font-display ck-ink text-2xl text-foreground sm:text-3xl">
+                    You&apos;re back in the running
                   </h2>
-                  <p className="text-blue-400 font-semibold text-lg">
-                    You're Being Reconsidered!
-                  </p>
-                </motion.div>
-
-                {/* Message */}
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.4 }}
-                  className="text-muted-foreground leading-relaxed"
-                >
-                  The employer has decided to give you another chance for{" "}
-                  <span className="text-foreground font-medium">{jobTitle || "this position"}</span>. 
-                  Your application has been reset so you can start fresh from the beginning.
-                </motion.p>
-
-                {/* Instructions */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.5 }}
-                  className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4"
-                >
                   <p className="text-sm text-muted-foreground">
-                    Your application has been reopened, and you can start over from the beginning.
+                    The employer is giving{" "}
+                    <span className="font-medium text-foreground">{jobTitle || "this application"}</span> another
+                    look. Your application has been reset, so you&apos;ll start again from the beginning.
                   </p>
-                </motion.div>
+                </div>
 
-                <NextStepCallout
-                  title="What happens next"
-                  summary="You are being given another chance, so the application has been reset for you."
-                  steps={[
-                    "Open the application again from the job page.",
-                    "Complete every step from the beginning.",
-                    "Submit when you are ready.",
-                  ]}
-                  tone="blue"
-                />
-
-                {/* Action button */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.6 }}
-                >
-                  <Button 
-                    size="lg"
-                    onClick={onClose} 
-                    className="gap-2 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
-                  >
-                    Restart Application
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </motion.div>
-
-                {/* Motivational quote */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.7 }}
-                  className="pt-4 border-t border-border"
-                >
-                  <p className="text-sm text-muted-foreground italic">
-                    "Every setback is a setup for a comeback."
-                  </p>
-                </motion.div>
+                <Button size="lg" onClick={onClose} className="gap-2">
+                  Restart application
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
               </CardContent>
             </Card>
           )}
@@ -1135,65 +558,21 @@ export function CandidateStatusScreen({
           {/* Interview Cancelled State */}
           {state === "interview_cancelled" && (
             <Card className="bg-card border-border overflow-hidden">
-              {/* Decorative top gradient - amber/warning */}
-              <div className="h-2 bg-gradient-to-r from-amber-500/50 via-orange-500/50 to-amber-500/50" />
-              
-              <CardContent className="p-8 text-center space-y-6">
-                {/* Icon */}
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: "spring", delay: 0.2 }}
-                  className="mx-auto w-20 h-20 rounded-full bg-amber-500/20 flex items-center justify-center"
-                >
-                  <XCircle className="h-10 w-10 text-amber-500" />
-                </motion.div>
+              <CardContent className="space-y-6 p-8 text-center">
+                <StatusMark icon={XCircle} mood="amber" />
 
-                {/* Headline */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="space-y-2"
-                >
-                  <h2 className="text-2xl font-bold text-foreground">
-                    Interview Cancelled
-                  </h2>
-                  <p className="text-amber-400">
-                    The employer has cancelled your scheduled interview
+                <div className="space-y-2">
+                  <h2 className="font-display ck-ink text-2xl text-foreground sm:text-3xl">Interview cancelled</h2>
+                  <p className="text-sm text-muted-foreground">
+                    The employer cancelled your scheduled interview. You don&apos;t need to do anything — watch for
+                    a new time if they reach out again.
                   </p>
-                </motion.div>
+                </div>
 
-                {/* What's Next Section */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.4 }}
-                  className="text-left"
-                >
-                  <NextStepCallout
-                    title="What happens next"
-                    summary="The interview is off for now. You do not need to take any action unless the employer reaches out again."
-                    steps={[
-                      "Keep an eye on your messages for an update.",
-                      "The employer may send a new interview time later.",
-                      "You can close this screen for now.",
-                    ]}
-                    tone="amber"
-                  />
-                </motion.div>
-
-                {/* Action button */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
-                >
-                  <Button onClick={onClose} variant="outline" className="gap-2">
-                    Got It
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </motion.div>
+                <Button onClick={onClose} variant="outline" className="gap-2">
+                  Got it
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
               </CardContent>
             </Card>
           )}
@@ -1201,98 +580,22 @@ export function CandidateStatusScreen({
           {/* Interview Rescheduled State */}
           {state === "interview_rescheduled" && (
             <Card className="bg-card border-border overflow-hidden">
-              {/* Decorative top gradient - blue/info */}
-              <div className="h-2 bg-gradient-to-r from-blue-500/50 via-purple-500/50 to-blue-500/50" />
-              
-              <CardContent className="p-8 text-center space-y-6">
-                {/* Icon */}
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1, rotate: [0, -10, 10, 0] }}
-                  transition={{ type: "spring", delay: 0.2 }}
-                  className="mx-auto w-20 h-20 rounded-full bg-blue-500/20 flex items-center justify-center"
-                >
-                  <RefreshCw className="h-10 w-10 text-blue-500" />
-                </motion.div>
+              <CardContent className="space-y-6 p-8 text-center">
+                <StatusMark icon={RefreshCw} mood="amber" />
 
-                {/* Headline */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="space-y-2"
-                >
-                  <h2 className="text-2xl font-bold text-foreground">
-                    Interview Rescheduled
-                  </h2>
-                  <p className="text-blue-400">
-                    The employer has changed your interview time
+                <div className="space-y-2">
+                  <h2 className="font-display ck-ink text-2xl text-foreground sm:text-3xl">Interview rescheduled</h2>
+                  <p className="text-sm text-muted-foreground">
+                    The employer changed your interview time. Review it below and confirm from the interview card.
                   </p>
-                </motion.div>
+                </div>
 
-                {/* New Interview Details Card */}
-                {interviewDetails && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4 }}
-                  >
-                    <Card className="bg-blue-500/10 border-blue-500/30">
-                      <CardContent className="p-4 space-y-3">
-                        <p className="text-sm font-medium text-blue-400">📅 New Time:</p>
-                        {interviewDetails.scheduledAt && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-muted-foreground">Date & Time</span>
-                            <span className="font-medium text-foreground">
-                              {format(new Date(interviewDetails.scheduledAt), "EEEE, MMM d 'at' h:mm a")}
-                            </span>
-                          </div>
-                        )}
-                        {interviewDetails.durationMinutes && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-muted-foreground">Duration</span>
-                            <span className="font-medium text-foreground">
-                              {interviewDetails.durationMinutes} minutes
-                            </span>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                )}
+                {interviewDetails && <InterviewDetailsCard details={interviewDetails} label="New time" />}
 
-                {/* Guidance */}
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.5 }}
-                  className="text-muted-foreground text-sm"
-                >
-                  The interview time changed. Please review the new time below and confirm it from the interview card.
-                </motion.p>
-
-                <NextStepCallout
-                  title="What happens next"
-                  summary="Only the schedule changed. The interview is still active."
-                  steps={[
-                    "Review the new date and time.",
-                    "Confirm the new slot if it works for you.",
-                    "Request a reschedule if you cannot make it.",
-                  ]}
-                  tone="blue"
-                />
-
-                {/* Action button */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.6 }}
-                >
-                  <Button onClick={onClose} className="gap-2">
-                    View Interview Details
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </motion.div>
+                <Button onClick={onClose} className="gap-2">
+                  Review new time
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
               </CardContent>
             </Card>
           )}

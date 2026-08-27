@@ -1,50 +1,49 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { parseApplicationNotes, isPhaseSkipped as checkPhaseSkipped } from "@/utils/applicationNotes";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Progress } from "@/components/ui/progress";
 import { format } from "date-fns";
-import { 
-  ArrowLeft, 
-  FileCheck, 
-  ClipboardList, 
-  Keyboard, 
-  Video, 
-  MessageSquare, 
-  Eye, 
-  Users, 
-  CheckCircle,
-  ListChecks,
+import {
+  ArrowLeft,
+  FileCheck,
+  ClipboardList,
+  Keyboard,
+  Video,
+  MessageSquare,
+  Eye,
   Clock,
   Play,
   Loader2,
-  FileText,
   MapPin,
   Briefcase,
   Calendar,
   AlertCircle,
-  FastForward,
-  Hand,
   Mic,
   FileUp
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Tables, Json } from "@/integrations/supabase/types";
-import { ImprovementBlueprintCard } from "@/components/ImprovementBlueprintCard";
-import { useProfile } from "@/hooks/useProfile";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
+import { GlyphLetter, GlyphCheckSeal } from "@/components/candidate/glyphs";
+
+// A slim brass rule across the top of a card — the letterhead mark
+// (Founder's Law: "the dialogues feel empty and boring").
+const BRASS_RULE = (
+  <div className="absolute inset-x-0 top-0 h-[3px]" style={{ background: "var(--brass-line)" }} aria-hidden="true" />
+);
 
 import { CandidateInterviewConfirmationCard } from "@/components/CandidateInterviewConfirmationCard";
 import { useDocumentRequests, DocumentRequestWithDetails } from "@/hooks/useDocumentRequests";
 import { DocumentRequestCard } from "@/components/documents/DocumentRequestCard";
 import { DocumentUploadDialog } from "@/components/documents/DocumentUploadDialog";
-import { CandidateJourneyProgress } from "@/components/CandidateJourneyProgress";
+import { phaseDurationEstimates } from "@/lib/phaseDurations";
+import { buildCandidateJourney, positionFor } from "@/lib/candidateJourney";
 
 interface WorkflowStep {
   id: string;
@@ -70,26 +69,16 @@ const stepTypeIcons: Record<string, any> = {
   chat_interview: MessageSquare,
   sales_simulation: Briefcase,
   portfolio_upload: FileCheck,
-  voice_interview: Video,
-  review: Eye,
-  interview: Users,
-  hired: CheckCircle,
+  voice_interview: Mic,
+  // The one honest closing stage — "the hiring team decides" — replaces the
+  // old synthetic review/interview/hired legs.
+  decision: Eye,
 };
 
-import { 
-  candidatePhaseStatusLabels, 
-  phaseActionMessages as terminologyPhaseActionMessages 
+import {
+  candidatePhaseDisplayNames,
+  phaseActionMessages as terminologyPhaseActionMessages
 } from "@/lib/terminology";
-
-const phaseStatusLabels: Record<string, { label: string; color: string; icon: any }> = {
-  pending: { ...candidatePhaseStatusLabels.pending, icon: Clock },
-  in_progress: { ...candidatePhaseStatusLabels.in_progress, icon: Play },
-  completed: { ...candidatePhaseStatusLabels.completed, icon: CheckCircle },
-  awaiting_action: { ...candidatePhaseStatusLabels.awaiting_action, icon: Play },
-  under_review: { ...candidatePhaseStatusLabels.under_review, icon: Clock },
-  employer_reviewing: { ...candidatePhaseStatusLabels.employer_reviewing, icon: Eye },
-  rejected: { ...candidatePhaseStatusLabels.rejected, icon: AlertCircle },
-};
 
 // Use centralized phase action messages
 const phaseActionMessages = terminologyPhaseActionMessages;
@@ -98,8 +87,6 @@ export default function CandidateApplicationDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, role, loading: authLoading } = useAuth();
-  const { data: profile } = useProfile();
-  const queryClient = useQueryClient();
   const [activePhaseAction, setActivePhaseAction] = useState<string | null>(null);
   const [uploadDialogRequest, setUploadDialogRequest] = useState<DocumentRequestWithDetails | null>(null);
   
@@ -223,13 +210,17 @@ export default function CandidateApplicationDetail() {
                 .eq("id", id)
                 .single();
               
-              const workflowSteps = (app?.jobs as { workflow_steps?: WorkflowStep[] } | null)?.workflow_steps;
+              const workflowSteps = (app?.jobs as unknown as { workflow_steps?: WorkflowStep[] } | null)?.workflow_steps;
               const voiceInterviewStep = workflowSteps?.find((s: any) => s.type === 'voice_interview');
               
               if (voiceInterviewStep && newPhase === voiceInterviewStep.id) {
                 setStatusScreen("ava_interview_unlocked");
               } else {
-                toast.success(`You've been advanced to the ${newPhase} phase!`, {
+                const stepTitle =
+                  workflowSteps?.find((s: any) => s.id === newPhase)?.title ||
+                  candidatePhaseDisplayNames[newPhase as string] ||
+                  "the next step";
+                toast.success(`You're on to ${stepTitle}.`, {
                   description: "Check your next steps below.",
                 });
               }
@@ -282,9 +273,9 @@ export default function CandidateApplicationDetail() {
           ) {
             // Update interview details with new time
             setInterviewDetails({
-              scheduledAt: newData.scheduled_at,
-              meetingLink: newData.meeting_link || undefined,
-              durationMinutes: newData.duration_minutes || undefined,
+              scheduledAt: newData.scheduled_at as string,
+              meetingLink: (newData.meeting_link as string) || undefined,
+              durationMinutes: (newData.duration_minutes as number) || undefined,
             });
             setStatusScreen("interview_rescheduled");
           }
@@ -292,8 +283,8 @@ export default function CandidateApplicationDetail() {
           // Update the ref with latest interview data
           if (newData) {
             previousInterviewRef.current = {
-              scheduled_at: newData.scheduled_at,
-              status: newData.status,
+              scheduled_at: newData.scheduled_at as string,
+              status: newData.status as string,
             };
           }
         }
@@ -360,65 +351,29 @@ export default function CandidateApplicationDetail() {
     }
   }, [candidateInterview]);
 
-  // Build phases from workflow
+  // Build phases from the job's real workflow via the shared candidateJourney
+  // builder, so this screen agrees with every other candidate screen — just
+  // the real steps, plus the one honest closing "Decision" stage. Nothing
+  // synthetic beyond that (no standalone Review/Interview/Hired legs).
   const phases = (() => {
     const workflowSteps = application?.jobs?.workflow_steps as WorkflowStep[] | undefined;
     const quizQuestions = application?.jobs?.quiz_questions as Json[] | undefined;
-    
-    const allPhases: { id: string; title: string; icon: any; type: string }[] = [
-      { id: "application", title: "Application", icon: FileCheck, type: "application" },
-    ];
+    const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
 
-    // Add Quiz phase if quiz_questions exist
-    if (quizQuestions && quizQuestions.length > 0) {
-      allPhases.push({
-        id: "quiz",
-        title: "Timed Quiz",
-        icon: ClipboardList,
-        type: "quiz",
-      });
-    }
-
-    // Extract voice_interview step (goes after Review)
-    const voiceInterviewStep = workflowSteps?.find(s => s.type === 'voice_interview');
-    
-    if (workflowSteps && workflowSteps.length > 0) {
-      // Add workflow steps EXCEPT voice_interview (which goes after Review)
-      workflowSteps.filter(s => s.type !== 'voice_interview').forEach((step) => {
-        allPhases.push({
-          id: step.id,
-          title: step.title,
-          icon: stepTypeIcons[step.type] || ClipboardList,
-          type: step.type,
-        });
-      });
-    }
-
-    // No explicit Review phase - employer reviews/approves before Ava Interview or Interview
-    
-    // Add Ava Interview AFTER review if it exists in workflow
-    if (voiceInterviewStep) {
-      allPhases.push({
-        id: voiceInterviewStep.id,
-        title: "Voice Interview",
-        icon: Mic,
-        type: "voice_interview",
-      });
-    }
-    
-    allPhases.push(
-      { id: "interview", title: "Interview", icon: Users, type: "interview" },
-      { id: "hired", title: "Hired", icon: CheckCircle, type: "hired" }
-    );
-
-    return allPhases;
+    return buildCandidateJourney(workflowSteps, { hasQuiz }).map((step) => ({
+      ...step,
+      icon: stepTypeIcons[step.type] || ClipboardList,
+    }));
   })();
 
-  // Find current phase index
-  const currentPhaseIndex = phases.findIndex(
-    (p) => p.id === application?.phase || p.type === application?.phase
-  );
-  const effectivePhaseIndex = currentPhaseIndex >= 0 ? currentPhaseIndex : 0;
+  // Find current phase index — falls back to `status` when `phase` is one of
+  // the pre-journey literals ("review"/"interview"/"hired") still sitting on
+  // older applications, so those honestly land on the closing Decision stage
+  // instead of snapping back to step 1.
+  const effectivePhaseIndex = positionFor(phases, {
+    phase: application?.phase,
+    status: application?.status,
+  }).index;
 
   // Parse notes to check for phase data and employer-skipped phases
   // Uses safe parser that handles string, object, or null and never loses data
@@ -453,8 +408,8 @@ export default function CandidateApplicationDetail() {
       return !!notes.portfolioResult;
     } else if (phaseType === "voice_interview") {
       return !!application?.voice_interview_result;
-    } else if (phaseType === "review" || phaseType === "interview" || phaseType === "hired" || phaseType === "journey_start") {
-      return true; // Employer-driven phases don't have candidate data
+    } else if (phaseType === "decision") {
+      return true; // The closing, employer-driven stage has no candidate data
     }
     return !!notes[phaseId];
   }, [notes, application?.voice_interview_result]);
@@ -463,8 +418,8 @@ export default function CandidateApplicationDetail() {
   const isImplicitlySkipped = useCallback((phaseIndex: number, phaseId: string, phaseType: string) => {
     // If phase is at or after current, not skipped
     if (phaseIndex >= effectivePhaseIndex) return false;
-    // Employer-driven phases can't be "skipped" in this sense
-    if (phaseType === "review" || phaseType === "interview" || phaseType === "hired" || phaseType === "journey_start") return false;
+    // The closing, employer-driven stage can't be "skipped" in this sense
+    if (phaseType === "decision") return false;
     // If it has data, it was completed not skipped
     if (hasPhaseData(phaseId, phaseType)) return false;
     // If explicitly skipped, not implicitly
@@ -532,25 +487,10 @@ export default function CandidateApplicationDetail() {
     return "upcoming";
   };
 
-  // Calculate completed phase indexes for journey progress
-  const completedPhaseIndexes = useMemo(() => {
-    const completed: number[] = [];
-    for (let i = 0; i < effectivePhaseIndex; i++) {
-      const phase = phases[i];
-      // A phase is completed if it's before current AND has data (or was skipped)
-      if (hasPhaseData(phase.id, phase.type) || isEmployerSkipped(phase.id, phase.type)) {
-        completed.push(i);
-      }
-    }
-    return completed;
-  }, [phases, effectivePhaseIndex, hasPhaseData, isEmployerSkipped]);
-
   // Calculate progress percentage
   const progressPercentage = ((effectivePhaseIndex + 1) / phases.length) * 100;
 
   const job = application?.jobs;
-  const isManualMode = job?.processing_mode === "manual";
-  const passingScore = job?.passing_score || 60;
 
   // Handle starting a phase action (quiz, typing test, etc.)
   const handleStartPhase = (phaseId: string, phaseType: string) => {
@@ -594,12 +534,13 @@ export default function CandidateApplicationDetail() {
 
   if (role === "employer") {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Card className="bg-card border-border max-w-md">
+      <div className="flex h-full items-center justify-center">
+        <Card className="relative overflow-hidden bg-card border-border max-w-md">
+          {BRASS_RULE}
           <CardContent className="p-8 text-center">
-            <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h2 className="text-xl font-semibold text-foreground mb-2">Candidate View Only</h2>
-            <p className="text-muted-foreground">
+            <GlyphLetter size={44} className="mx-auto mb-4 text-muted-foreground" />
+            <h2 className="font-display mb-2 text-xl font-medium text-foreground">Candidate View Only</h2>
+            <p className="text-sm text-muted-foreground">
               This page is for candidates. Use the Applicants section to manage applications.
             </p>
           </CardContent>
@@ -611,21 +552,28 @@ export default function CandidateApplicationDetail() {
   if (authLoading || isLoading) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-12 w-48" />
-        <Skeleton className="h-48 w-full" />
-        <Skeleton className="h-64 w-full" />
+        <Skeleton className="h-9 w-40" />
+        <Skeleton className="h-56 w-full rounded-xl" />
+        <Skeleton className="h-40 w-full rounded-xl" />
       </div>
     );
   }
 
   if (!application) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Card className="bg-card border-border max-w-md">
-          <CardContent className="p-8 text-center">
-            <h2 className="text-xl font-semibold text-foreground mb-2">Application Not Found</h2>
-            <p className="text-muted-foreground">The application you're looking for doesn't exist.</p>
-            <Button onClick={() => navigate("/applications")} className="mt-4">
+      <div className="flex h-full items-center justify-center">
+        <Card className="relative overflow-hidden bg-card border-border max-w-md">
+          {BRASS_RULE}
+          <CardContent className="space-y-4 p-8 text-center">
+            <GlyphLetter size={44} className="mx-auto text-muted-foreground" />
+            <div className="space-y-1.5">
+              <h2 className="font-display text-xl font-medium text-foreground">We can't find that application</h2>
+              <p className="text-sm text-muted-foreground">
+                It may have moved — head back and pick it up from your list.
+              </p>
+            </div>
+            <Button onClick={() => navigate("/applications")} className="gap-2">
+              <ArrowLeft className="h-4 w-4" />
               Back to Applications
             </Button>
           </CardContent>
@@ -638,6 +586,25 @@ export default function CandidateApplicationDetail() {
   const applicationStatus = application.status;
   const isRejected = applicationStatus === "rejected";
   const isHired = applicationStatus === "hired";
+
+  // GUIDED: the one status line that answers "what's happening right now" and,
+  // where there's something to do, "what's the one next thing".
+  const currentStatus = getPhaseStatus(effectivePhaseIndex);
+  const isTerminalPhaseType = currentPhase.type === "decision";
+  const isPendingHeld = currentStatus === "pending" || currentStatus === "employer_reviewing";
+  const showCta = !isRejected && !isHired && currentStatus === "awaiting_action" && !isTerminalPhaseType;
+
+  let guidanceMessage = "The hiring team will get back to you — everyone hears back.";
+  let guidanceIcon: "clock" | null = null;
+  if (!isPendingHeld && !isTerminalPhaseType) {
+    const duration = phaseDurationEstimates[currentPhase.type];
+    if (duration?.isCandidateAction) {
+      guidanceMessage = `About ${duration.label.replace(/ min$/, " minutes")}.`;
+      guidanceIcon = "clock";
+    } else {
+      guidanceMessage = "Take your time — you can't break anything.";
+    }
+  }
 
   return (
     <>
@@ -656,118 +623,154 @@ export default function CandidateApplicationDetail() {
       />
 
       <div className="space-y-6">
-        {/* Header */}
-      <div className="flex items-center justify-between">
-        <Button variant="outline" onClick={() => navigate("/applications")} className="gap-2">
+        {/* Quiet back link — navigation, not the moment on this screen */}
+        <Button
+          variant="ghost"
+          onClick={() => navigate("/applications")}
+          className="min-h-[44px] -ml-3 gap-2 text-muted-foreground hover:text-foreground"
+        >
           <ArrowLeft className="h-4 w-4" />
           Back to Applications
         </Button>
-      </div>
 
-      {/* Job Info Card */}
-      <Card className="bg-card border-border">
-        <CardContent className="p-6">
-          <div className="flex min-w-0 items-start justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <h1 className="break-words text-2xl font-bold text-foreground [overflow-wrap:anywhere]">{job?.title}</h1>
-              <p className="mt-1 break-words text-muted-foreground [overflow-wrap:anywhere]">{job?.department || "Company"}</p>
-              
-              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
-                {job?.location && (
-                  <div className="flex min-w-0 items-center gap-1">
-                    <MapPin className="h-4 w-4 shrink-0" />
-                    <span className="break-words [overflow-wrap:anywhere]">{job.location}</span>
-                  </div>
-                )}
-                {job?.job_type && (
-                  <div className="flex min-w-0 items-center gap-1">
-                    <Briefcase className="h-4 w-4 shrink-0" />
-                    <span className="break-words [overflow-wrap:anywhere]">{job.job_type}</span>
-                  </div>
-                )}
-                <div className="flex min-w-0 items-center gap-1">
-                  <Calendar className="h-4 w-4 shrink-0" />
-                  <span className="break-words [overflow-wrap:anywhere]">Applied {format(new Date(application.created_at), "MMM d, yyyy")}</span>
+        {/* The one panel: who you applied to, and exactly where you stand — the letterhead moment */}
+        <Card className="relative overflow-hidden bg-card border-border ck-reveal">
+          {BRASS_RULE}
+          <CardContent className="p-5 sm:p-6">
+            <h1 className="font-display break-words text-2xl font-semibold text-foreground [overflow-wrap:anywhere]">
+              {job?.title}
+            </h1>
+            <p className="mt-1 break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">
+              {job?.department || "Company"}
+            </p>
+
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
+              {job?.location && (
+                <span className="flex min-w-0 items-center gap-1">
+                  <MapPin className="h-3.5 w-3.5 shrink-0" />
+                  <span className="break-words [overflow-wrap:anywhere]">{job.location}</span>
+                </span>
+              )}
+              {job?.job_type && (
+                <span className="flex min-w-0 items-center gap-1">
+                  <Briefcase className="h-3.5 w-3.5 shrink-0" />
+                  <span className="break-words [overflow-wrap:anywhere]">{job.job_type}</span>
+                </span>
+              )}
+              <span className="flex min-w-0 items-center gap-1">
+                <Calendar className="h-3.5 w-3.5 shrink-0" />
+                <span className="break-words [overflow-wrap:anywhere]">
+                  Applied {format(new Date(application.created_at), "MMM d, yyyy")}
+                </span>
+              </span>
+            </div>
+
+            {isRejected ? (
+              <div className="mt-5 flex flex-wrap items-start justify-between gap-3 border-t border-[var(--hair)] pt-5">
+                <div className="flex min-w-0 items-start gap-2.5">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--crit)]" />
+                  <p className="min-w-0 break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">
+                    This opportunity wasn&apos;t the right match this time.
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setStatusScreen("rejected")}
+                  className="shrink-0 text-foreground"
+                >
+                  View details
+                </Button>
+              </div>
+            ) : isHired ? (
+              <div className="mt-5 flex items-center gap-3 border-t border-[var(--hair)] pt-5">
+                <GlyphCheckSeal size={26} className="ck-seal-press shrink-0 text-[var(--brass)]" />
+                <div className="min-w-0">
+                  <p className="font-display text-base font-medium text-foreground sm:text-lg">You&apos;re hired</p>
+                  <p className="mt-0.5 break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">
+                    Congratulations — the employer will be in touch with next steps.
+                  </p>
                 </div>
               </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            ) : phases.length > 0 ? (
+              <div className="mt-5 border-t border-[var(--hair)] pt-5">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+                  <p className="font-display text-base font-medium text-foreground sm:text-lg">
+                    <span className="ck-num">Step {effectivePhaseIndex + 1}</span> of{" "}
+                    <span className="ck-num">{phases.length}</span> — {currentPhase.title}
+                  </p>
+                  {isPendingHeld && (
+                    <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      <Eye className="h-3.5 w-3.5" />
+                      Under review
+                    </span>
+                  )}
+                </div>
 
-      {/* Journey Progress - shows step X of Y and estimated time */}
-      {!isRejected && !isHired && phases.length > 0 && (
-        <CandidateJourneyProgress
-          phases={phases}
-          currentPhaseIndex={effectivePhaseIndex}
-          completedPhases={completedPhaseIndexes}
-        />
-      )}
+                <div
+                  className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[var(--track)]"
+                  role="progressbar"
+                  aria-valuenow={Math.round(progressPercentage)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label="Application progress"
+                >
+                  <div
+                    className="h-full rounded-full bg-[var(--jade)] transition-[width] duration-500 ease-out"
+                    style={{ width: `${progressPercentage}%` }}
+                  />
+                </div>
 
-      {/* Interview Confirmation Card - for candidate to confirm/reschedule */}
-      {candidateInterview && (
-        <CandidateInterviewConfirmationCard
-          interview={candidateInterview}
-          applicationId={id!}
-        />
-      )}
-
-      {/* Application Status - Rejected (simplified, details in modal) */}
-      {isRejected && (
-        <Card className="bg-destructive/10 border-destructive/40">
-          <CardContent className="p-4 flex items-center justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />
-              <div>
-                <h3 className="font-semibold text-destructive">Application Closed</h3>
-                <p className="text-sm text-muted-foreground">
-                  This opportunity wasn't the right match this time.
+                <p className="mt-3 flex items-center gap-1.5 text-sm text-muted-foreground">
+                  {guidanceIcon === "clock" && <Clock className="h-3.5 w-3.5 shrink-0" />}
+                  {guidanceMessage}
                 </p>
+
+                {showCta && (
+                  <Button
+                    onClick={() => handleStartPhase(currentPhase.id, currentPhase.type)}
+                    disabled={activePhaseAction === currentPhase.id}
+                    size="lg"
+                    className="mt-4 w-full gap-2 sm:w-auto"
+                  >
+                    {activePhaseAction === currentPhase.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Play className="h-4 w-4" />
+                    )}
+                    {phaseActionMessages[currentPhase.type]?.buttonText || "Continue"}
+                  </Button>
+                )}
               </div>
-            </div>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setStatusScreen("rejected")}
-              className="shrink-0"
-            >
-              View Details
-            </Button>
+            ) : null}
           </CardContent>
         </Card>
-      )}
 
-      {isHired && (
-        <>
-          <Card className="bg-success/10 border-success/40">
-            <CardContent className="p-4 flex items-start gap-3">
-              <CheckCircle className="h-5 w-5 text-success mt-0.5" />
-              <div>
-                <h3 className="font-semibold text-success">You&apos;re Hired!</h3>
-                <p className="text-sm text-muted-foreground">
-                  Congratulations! This application has been marked as hired. The employer will contact you
-                  with next steps.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Interview Confirmation Card - for candidate to confirm/reschedule */}
+        {candidateInterview && (
+          <div className="ck-reveal" style={{ ["--ck-i" as string]: 1 }}>
+            <CandidateInterviewConfirmationCard
+              interview={candidateInterview}
+              applicationId={id!}
+            />
+          </div>
+        )}
 
-          {/* Document Requests Section for Hired Candidates */}
-          {(() => {
+        {/* Document Requests Section for Hired Candidates */}
+        {isHired &&
+          (() => {
             const applicationDocRequests = documentRequests.filter(
               (req) => req.application_id === id
             );
             const pendingRequests = applicationDocRequests.filter(
               (req) => req.status === "pending" || req.status === "rejected"
             );
-            const completedRequests = applicationDocRequests.filter(
-              (req) => req.status === "submitted" || req.status === "reviewed" || req.status === "approved"
-            );
-            
+
             if (applicationDocRequests.length === 0) return null;
-            
+
             return (
-              <Card className="bg-card border-border">
+              <Card className="relative overflow-hidden bg-card border-border ck-reveal" style={{ ["--ck-i" as string]: 1 }}>
+                {BRASS_RULE}
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <FileUp className="h-5 w-5 text-primary" />
@@ -781,13 +784,13 @@ export default function CandidateApplicationDetail() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {pendingRequests.length > 0 && (
-                    <div className="p-3 rounded-lg bg-primary/10 border border-primary/20 mb-4">
+                    <div className="mb-4 rounded-lg border border-primary/20 bg-primary/10 p-3">
                       <p className="text-sm text-foreground">
-                        <strong>Action Required:</strong> Please upload the following documents to complete your onboarding.
+                        <strong>Action needed:</strong> upload these to finish your onboarding.
                       </p>
                     </div>
                   )}
-                  
+
                   {applicationDocRequests.map((request) => (
                     <DocumentRequestCard
                       key={request.id}
@@ -800,154 +803,58 @@ export default function CandidateApplicationDetail() {
               </Card>
             );
           })()}
-        </>
-      )}
 
-      {/* Progress Overview */}
-      <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ListChecks className="h-5 w-5 text-primary" />
-            Phase Breakdown
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Progress Bar */}
-          <div className="space-y-2">
-            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-sm">
-              <span className="min-w-0 break-words text-muted-foreground [overflow-wrap:anywhere]">Progress</span>
-              <span className="min-w-0 break-words font-medium text-foreground [overflow-wrap:anywhere]">
-                {effectivePhaseIndex + 1} of {phases.length} phases
-              </span>
-            </div>
-            <Progress value={progressPercentage} className="h-3" />
-          </div>
-
-          {/* Phase Timeline */}
-          <div className="space-y-3">
+        {/* Every step, listed quietly — the full picture, no competing CTAs */}
+        <div className="ck-reveal" style={{ ["--ck-i" as string]: 2 }}>
+          <p className="px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Your steps
+          </p>
+          <div className="mt-3 divide-y divide-border rounded-xl border border-border bg-card">
             {phases.map((phase, index) => {
               const status = getPhaseStatus(index);
               const Icon = phase.icon;
-              const statusInfo = phaseStatusLabels[status] || phaseStatusLabels.pending;
-              const StatusIcon = statusInfo.icon;
               const isCurrent = index === effectivePhaseIndex;
               const isCompleted = index < effectivePhaseIndex;
+              const skipped =
+                isCompleted &&
+                (isEmployerSkipped(phase.id, phase.type) || isImplicitlySkipped(index, phase.id, phase.type));
+
+              let statusText = "Upcoming";
+              if (skipped) statusText = "Skipped";
+              else if (isCompleted) statusText = "Completed";
+              else if (isCurrent) {
+                statusText =
+                  status === "rejected" ? "Not passed" : isPendingHeld ? "Under review" : "Up next";
+              }
 
               return (
-                <div
-                  key={phase.id}
-                  className={`flex flex-col gap-4 rounded-lg p-4 transition-all sm:flex-row sm:items-center ${
-                    isCurrent
-                      ? "bg-primary/10 border-2 border-primary"
-                      : isCompleted
-                      ? "bg-success/5 border border-success/20"
-                      : "bg-muted/30 border border-border"
-                  }`}
-                >
-                  {/* Phase Icon */}
-                  <div
-                    className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                      isCompleted
-                        ? "bg-success/20"
+                <div key={phase.id} className="flex items-center gap-3 px-4 py-3">
+                  <Icon
+                    className={`h-4 w-4 shrink-0 ${
+                      skipped
+                        ? "text-[var(--brass-line)]"
+                        : isCompleted
+                        ? "text-[var(--jade)]"
                         : isCurrent
-                        ? "bg-primary/20"
-                        : "bg-muted"
+                        ? status === "rejected"
+                          ? "text-[var(--crit)]"
+                          : "text-foreground"
+                        : "text-muted-foreground"
+                    }`}
+                  />
+                  <span
+                    className={`min-w-0 flex-1 truncate text-sm [overflow-wrap:anywhere] ${
+                      isCurrent ? "font-medium text-foreground" : "text-muted-foreground"
                     }`}
                   >
-                    <Icon
-                      className={`h-6 w-6 ${
-                        isCompleted
-                          ? "text-success"
-                          : isCurrent
-                          ? "text-primary"
-                          : "text-muted-foreground"
-                      }`}
-                    />
-                  </div>
-
-                  {/* Phase Info */}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      <h3
-                        className={`min-w-0 break-words font-semibold leading-tight [overflow-wrap:anywhere] ${
-                          isCurrent ? "text-primary" : isCompleted ? "text-success" : "text-muted-foreground"
-                        }`}
-                      >
-                        {phase.title}
-                      </h3>
-                      {isCurrent && (
-                        <Badge className={statusInfo.color}>
-                          <StatusIcon className="h-3 w-3 mr-1" />
-                          {statusInfo.label}
-                        </Badge>
-                      )}
-                      {isCompleted && (
-                        (isEmployerSkipped(phase.id, phase.type) || isImplicitlySkipped(index, phase.id, phase.type)) ? (
-                          <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30">
-                            <FastForward className="h-3 w-3 mr-1" />
-                            Skipped
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-success/20 text-success border-success/30">
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            Completed
-                          </Badge>
-                        )
-                      )}
-                    </div>
-                    
-                    {isCurrent && status === "awaiting_action" && phase.type !== "application" && phase.type !== "review" && phase.type !== "interview" && phase.type !== "hired" && (
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {phaseActionMessages[phase.type]?.description || "Complete this phase to continue your application journey."}
-                      </p>
-                    )}
-                    
-                    {isCurrent && status === "pending" && isManualMode && (
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Your submission is being reviewed by the employer.
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Action Button - show for actionable phases that are awaiting action */}
-                  {isCurrent &&
-                    status === "awaiting_action" &&
-                    application.status !== "rejected" &&
-                    phase.type !== "review" &&
-                    phase.type !== "interview" &&
-                    phase.type !== "hired" && (
-                      <Button
-                        onClick={() => handleStartPhase(phase.id, phase.type)}
-                        disabled={activePhaseAction === phase.id}
-                        className="gap-2 animate-pulse"
-                        size="lg"
-                      >
-                        {activePhaseAction === phase.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Play className="h-4 w-4" />
-                        )}
-                        {phaseActionMessages[phase.type]?.buttonText || "Start"}
-                      </Button>
-                    )}
-
-                  {isCurrent && status === "pending" && !isRejected && (
-                    <div className="flex shrink-0 items-center gap-2 text-yellow-500 sm:ml-auto">
-                      <Clock className="h-5 w-5" />
-                      <span className="text-sm font-medium">Awaiting Review</span>
-                    </div>
-                  )}
-
-                  {isCompleted && (
-                    <CheckCircle className="h-6 w-6 flex-shrink-0 text-success sm:ml-auto" />
-                  )}
+                    {phase.title}
+                  </span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{statusText}</span>
                 </div>
               );
             })}
           </div>
-        </CardContent>
-      </Card>
-
+        </div>
       </div>
 
       {/* Document Upload Dialog */}

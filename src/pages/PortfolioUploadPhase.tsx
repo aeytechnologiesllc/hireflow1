@@ -27,6 +27,7 @@ import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { compressImage, needsCompression } from "@/utils/imageCompression";
 import { PhaseContextCard } from "@/components/PhaseContextCard";
+import { buildCandidateJourney, DECISION_STAGE_ID } from "@/lib/candidateJourney";
 interface ApplicationDetails {
   id: string;
   candidate_id: string;
@@ -337,42 +338,10 @@ export default function PortfolioUploadPhase() {
       
       const workflowSteps = application.jobs?.workflow_steps as Array<{ id: string; type: string; title?: string }> || [];
       const quizQuestions = application.jobs?.quiz_questions as Json[] | undefined;
+      const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
 
-      // Extract voice_interview step (goes AFTER review)
-      const voiceInterviewStep = workflowSteps.find((step) => step.type === 'voice_interview');
+      const allPhases = buildCandidateJourney(workflowSteps, { hasQuiz });
 
-      const allPhases: { id: string; type: string; title?: string }[] = [
-        { id: "application", type: "application", title: "Application" },
-      ];
-
-      // Add quiz phase if quiz_questions exist
-      if (quizQuestions && quizQuestions.length > 0) {
-        allPhases.push({ id: "quiz", type: "quiz", title: "Quiz" });
-      }
-
-      // Add workflow steps EXCEPT voice_interview (which goes after Review)
-      workflowSteps.filter((step) => step.type !== 'voice_interview').forEach((step) => {
-        allPhases.push({ id: step.id, type: step.type, title: step.title || step.type });
-      });
-      
-      // Add Review phase
-      allPhases.push({ id: "review", type: "review", title: "Review" });
-      
-      // Add voice_interview AFTER Review if it exists
-      if (voiceInterviewStep) {
-        allPhases.push({ 
-          id: voiceInterviewStep.id, 
-          type: "voice_interview", 
-          title: voiceInterviewStep.title || "Voice Interview"
-        });
-      }
-      
-      // Add final phases
-      allPhases.push(
-        { id: "interview", type: "interview", title: "Interview" },
-        { id: "hired", type: "hired", title: "Hired" }
-      );
-      
       let currentIndex = allPhases.findIndex((p) => p.id === stepId);
       if (currentIndex === -1 && application.phase) {
         currentIndex = allPhases.findIndex(
@@ -399,8 +368,9 @@ export default function PortfolioUploadPhase() {
           } else {
             newPhase = nextPhase.id;
 
-            // DON'T show "Start Next Phase" button if next phase is review (only in auto mode)
-            if (nextPhase.type !== "review") {
+            // DON'T show "Start Next Phase" button if next stage is the
+            // closing decision stage (only in auto mode) — nothing to click into.
+            if (nextPhase.id !== DECISION_STAGE_ID) {
               setNextPhaseInfo({
                 id: nextPhase.id,
                 title: nextPhase.title || nextPhase.type,
