@@ -144,10 +144,12 @@
   .sub b{color:var(--ink)}
   .dim{font-size:12px;color:var(--ink-3)}
 
-  /* ── Hero (Night) ── */
-  .hero{padding:clamp(56px,8vw,96px) 0 clamp(56px,7vw,84px);min-height:calc(88svh - 62px);display:flex;align-items:center}
-  .hero-grid{display:grid;grid-template-columns:1.08fr .92fr;gap:clamp(28px,5vw,64px);align-items:center;width:100%}
-  @media(max-width:960px){.hero-grid{grid-template-columns:1fr}}
+  /* ── Hero (Night) — one column; the night's work now plays out below, scrubbed by scroll ── */
+  .hero{padding:clamp(56px,8vw,96px) 0 clamp(40px,6vw,64px);min-height:calc(72svh - 62px);display:flex;align-items:center}
+  .hero-in{width:100%;max-width:820px;margin-inline:auto}
+  .sub-mob{display:none}
+  .watch-link{display:none}
+  .scroll-cue{display:none}
   .hero h1{font-size:clamp(36px,5.6vw,62px)}
   .hero h1 .t{color:var(--jade-bright);white-space:nowrap;font-variant-numeric:tabular-nums}
   .hero .sub{margin-top:18px}
@@ -160,37 +162,54 @@
   .ava-line p b{color:var(--ink);font-style:normal;font-weight:600}
   .ctas{display:flex;gap:12px;margin-top:26px;flex-wrap:wrap}
 
-  /* The night ledger — Ava's shift, ticking live */
-  .tlcard{background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;box-shadow:var(--shadow-md);
-    padding:22px 24px 18px;position:relative}
-  .tlcard::before{content:"";position:absolute;top:10px;left:22px;right:22px;height:2px;background:var(--brass-line);border-radius:1px}
-  .tl-h{display:flex;align-items:center;gap:8px;color:var(--ink-3);margin:6px 0 6px}
-  .tl-h .live{margin-left:auto;color:var(--jade-soft-fg);display:inline-flex;align-items:center;gap:6px;letter-spacing:.1em}
-  .tl-h .live i{width:6px;height:6px;border-radius:50%;background:var(--jade-bright);animation:pulse 2.4s ease-in-out infinite}
+  /* ── The night shift — a pinned story the scroll scrubs (JS adds .scrub).
+     Without JS, or with reduced motion, the scenes read stacked, finished. ── */
+  .story{padding:0;position:relative}
+  .story-pin{padding:clamp(40px,6vw,72px) 0 clamp(24px,4vw,48px)}
+  .story-kick{display:flex;align-items:center;justify-content:center;gap:8px;color:var(--ink-3);margin:0 0 6px}
+  .story-kick i{width:6px;height:6px;border-radius:50%;background:var(--jade-bright);animation:pulse 2.4s ease-in-out infinite}
   @keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
-  .tl{list-style:none;margin:0;padding:0}
-  .tstep{display:flex;gap:14px;align-items:flex-start;padding:13px 0;border-top:1px solid var(--line-soft);
-    transition:opacity .45s var(--ease)}
-  .tstep:first-child{border-top:0}
-  .tt{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:19px;letter-spacing:-.02em;color:var(--brass);
-    font-variant-numeric:tabular-nums;min-width:86px;line-height:1.35}
-  .tstep:last-child .tt{color:var(--jade-bright)}
-  .tstep b{display:block;font-size:14px;font-weight:600;color:var(--ink)}
-  .tstep small{display:block;font-size:12.5px;color:var(--ink-3);margin-top:2px;line-height:1.45}
-  .tseal{width:32px;height:32px;margin-left:auto;flex-shrink:0;align-self:center}
-  .tseal svg{width:32px;height:32px;display:block;transform:rotate(-5deg);filter:drop-shadow(0 1px 2px var(--seal-shadow))}
-  .tl-f{border-top:1px solid var(--line-soft);padding-top:13px;margin-top:2px;font-size:13px;color:var(--ink-2);
-    display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-  .tl-f b{color:var(--ink)}
-  .tl-f .dim{margin-left:auto}
-  .anim .tstep{opacity:.3}
-  .anim .tstep.on{opacity:1}
-  .anim .tseal svg{opacity:0}
-  .anim .tstep.on .tseal svg{animation:sealpress .46s var(--press) .1s both}
-  @keyframes sealpress{
-    0%{opacity:0;transform:scale(1.9) rotate(-14deg)}
-    55%{opacity:1;transform:scale(.88) rotate(-3deg)}
-    100%{opacity:1;transform:scale(1) rotate(-5deg)}}
+  .scene{padding:clamp(26px,4vw,40px) 18px}
+  .sc-in{display:flex;flex-direction:column;align-items:center;text-align:center;width:100%;max-width:560px;margin-inline:auto}
+  .sc-t{margin:0 0 8px;font-family:Fraunces,Georgia,serif;font-weight:600;font-size:clamp(38px,7vw,56px);
+    letter-spacing:-.03em;line-height:1;color:var(--brass);font-variant-numeric:tabular-nums}
+  .sc3 .sc-t{color:var(--jade-bright)}
+  .sc-h{margin:0 0 24px;font-family:Fraunces,Georgia,serif;font-weight:600;font-size:clamp(19px,3vw,24px);
+    letter-spacing:-.015em;color:var(--ink)}
+  .app-card{width:min(100%,340px);background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;
+    box-shadow:var(--shadow-md);padding:16px 18px;text-align:left}
+  .ac-h{display:flex;align-items:center;gap:7px;color:var(--ink-3)}
+  .ac-h::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--jade-bright)}
+  .ac-n{font-size:16px;font-weight:600;color:var(--ink);margin-top:10px}
+  .ac-m{font-size:13px;color:var(--ink-3);margin-top:3px}
+  .ac-r{font-size:13px;color:var(--ink-2);line-height:1.5;margin-top:12px;padding-top:12px;border-top:1px solid var(--line-soft)}
+  .wave{display:flex;align-items:center;justify-content:center;gap:4px;height:60px;margin:2px 0 20px}
+  .wave i{width:4px;height:46px;border-radius:2px;background:var(--jade-bright);will-change:transform}
+  .wave i:nth-child(odd){height:26px}
+  .wave i:nth-child(3n){height:54px}
+  .wave i:nth-child(4n){height:18px}
+  .wave i:nth-child(5n){height:38px}
+  .script{margin:0;max-width:26ch;font-family:Fraunces,Georgia,serif;font-style:italic;
+    font-size:clamp(18px,2.8vw,22px);line-height:1.5;color:var(--ink)}
+  .seal-card{position:relative;width:min(100%,360px);display:flex;align-items:center;gap:16px;background:var(--surface);
+    border:1px solid var(--line-soft);border-radius:14px;box-shadow:var(--shadow-md);padding:18px 20px;text-align:left}
+  .scr-name{font-size:15px;font-weight:600;color:var(--ink)}
+  .scr-why{font-size:13px;color:var(--ink-2);line-height:1.5;margin-top:4px}
+  .scr-score{margin-left:auto;flex-shrink:0;text-align:right;font-family:Fraunces,Georgia,serif;font-size:40px;
+    font-weight:600;color:var(--jade);line-height:.85;font-variant-numeric:tabular-nums}
+  .scr-score .lbl{display:block;color:var(--ink-3);margin-top:6px;letter-spacing:.08em}
+  .story-seal{position:absolute;top:-18px;right:-10px;width:52px;height:52px;transform:rotate(-5deg)}
+  .story-seal svg{width:52px;height:52px;display:block;filter:drop-shadow(0 1px 2px var(--seal-shadow))}
+  .story-sign .ava-line{margin:0;justify-content:center}
+  @media(min-width:701px){.scene.story-sign{display:none!important}}
+  /* pinned mode: the tall scroller + the sticky 100svh stage */
+  .story.scrub{height:280vh;height:280svh}
+  @media(max-width:700px){.story.scrub{height:320vh;height:320svh}}
+  .story.scrub .story-pin{position:sticky;top:0;height:100vh;height:100svh;padding:0;overflow:hidden}
+  .story.scrub .story-kick{position:absolute;top:76px;left:0;right:0}
+  .story.scrub .scene{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    padding:70px 18px 20px;opacity:0;visibility:hidden;pointer-events:none}
+  .story.scrub .sc-in{will-change:transform}
 
   /* ── Dawn strip — the theme crossfades across this scroll. The copy sits
      at the TOP so the ink-flip moment happens over empty, lightening sky. ── */
@@ -208,6 +227,12 @@
     font-family:Fraunces,Georgia,serif;font-style:italic;font-size:clamp(15px,2vw,17px);
     line-height:1.55;color:var(--ink-2);opacity:0;transform:translate3d(-50%,12px,0)}
   .beat .bt{font-style:normal;font-weight:600;color:var(--brass);font-variant-numeric:tabular-nums}
+  /* on a phone the dawn is shorter and each beat owns the eye */
+  @media(max-width:700px){
+    .dawn{min-height:92svh;padding-top:40px}
+    .beat{font-size:18px;line-height:1.45;width:min(90%,420px)}
+    .beat .bt{display:block;font-size:27px;letter-spacing:-.02em;margin-bottom:6px}
+  }
 
   /* ── The morning read — app window demo ── */
   .demo-head{max-width:720px}
@@ -374,6 +399,33 @@
     transition:opacity .6s ease var(--d,0s),transform .6s var(--ease) var(--d,0s)}
   .anim .io.in{opacity:1;transform:none}
 
+  /* ── Phone pass (≤700px): its own design — tighter rhythm, bigger targets ── */
+  @media(max-width:700px){
+    section{padding:52px 0}
+    .sub{font-size:15px}
+    .hero{min-height:0;padding:clamp(32px,9vw,44px) 0 10px}
+    .sub-desk{display:none}
+    .sub-mob{display:block;font-size:18px;line-height:1.55;margin-top:14px}
+    .hero .ava-line{display:none}
+    .hero .ctas{margin-top:22px;flex-direction:column;align-items:stretch}
+    .hero .alt-cta{display:none}
+    .watch-link{display:block;text-align:center;margin-top:4px;padding:12px;font-size:14px;font-weight:600;
+      color:var(--ink-2);text-decoration:underline;text-underline-offset:3px}
+    .scroll-cue{display:block;margin:26px 0 0;text-align:center;font-size:12px;color:var(--ink-3);letter-spacing:.05em}
+    .btn{min-height:44px}
+    .nav .btn.go{min-height:44px}
+    .racts{gap:8px}
+    .racts .btn{min-height:44px;flex:1}
+    .steps{margin-top:26px}
+    .step{padding:20px 18px}
+    .bigstats{gap:22px;margin-top:28px}
+    .faq{margin-top:26px}
+    .faq summary{min-height:44px}
+    .cta .ctas{flex-direction:column;align-items:stretch}
+    .foot-links a{padding:8px 0}
+    .window{margin-top:24px}
+  }
+
   @media (prefers-reduced-motion: reduce){
     *,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}
     html{scroll-behavior:auto}
@@ -382,6 +434,15 @@
     .wrow:hover,.step:hover,.btn:hover,.btn:active{transform:none}
     .wrow:hover .rseal svg{transform:rotate(var(--tilt))}
     .step:hover .stseal svg{transform:rotate(5deg)}
+    /* the story never pins or scrubs — scenes stack, finished */
+    .story.scrub{height:auto}
+    .story.scrub .story-pin{position:static;height:auto;padding:clamp(40px,6vw,72px) 0 clamp(24px,4vw,48px);overflow:visible}
+    .story.scrub .story-kick{position:static}
+    .story.scrub .scene{position:static;display:block;padding:clamp(26px,4vw,40px) 18px;pointer-events:auto}
+    .story.scrub .scene,.story.scrub .sc-in,.story.scrub .ac-row,.story.scrub .wave i,
+    .story.scrub .script .w,.story.scrub .story-seal,.story.scrub .story-kick{
+      opacity:1!important;visibility:visible!important;transform:none!important}
+    .story.scrub .story-seal{transform:rotate(-5deg)!important}
   }
 </style>
 </head>
@@ -418,7 +479,7 @@
       <a href="#answered">No ghosting</a>
       <a href="#faq">FAQ</a>
     </nav>
-    <a class="btn go" href="#cta" style="margin-left:8px">Try free</a>
+    <a class="btn go" href="/auth" target="_parent" style="margin-left:8px">Try free</a>
   </div>
 </header>
 
@@ -426,34 +487,69 @@
 
   <!-- ── NIGHT · the hero ── -->
   <section class="hero" aria-label="While you slept">
-    <div class="wrap hero-grid">
-      <div>
-        <span class="eyebrow lbl hi" style="--d:.05s"><i></i>While you slept</span>
-        <h1 class="ink" style="--d:.12s">Your best applicant applied at <span class="t">11:47&#8202;pm</span>.</h1>
-        <p class="sub hi" style="--d:.3s">She was interviewed by 11:51 — a real conversation about the actual job,
-          not a form. By midnight she was scored, sealed, and waiting for your morning coffee.
-          <b>You were asleep the whole time.</b></p>
-        <div class="ava-line hi" style="--d:.42s">
-          <svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg>
-          <p>&ldquo;Hey — I&#8217;m here to help you hire.&rdquo;&nbsp;<b>— Ava</b></p>
-        </div>
-        <div class="ctas hi" style="--d:.52s">
-          <a class="btn go lg" href="#cta">Try free — first hire at no cost</a>
-          <a class="btn lg" href="#morning">Watch how it works</a>
+    <div class="wrap hero-in">
+      <span class="eyebrow lbl hi" style="--d:.05s"><i></i>While you slept</span>
+      <h1 class="ink" style="--d:.12s">Your best applicant applied at <span class="t">11:47&#8202;pm</span>.</h1>
+      <p class="sub sub-desk hi" style="--d:.3s">She was interviewed by 11:51 — a real conversation about the actual job,
+        not a form. By midnight she was scored, sealed, and waiting for your morning coffee.
+        <b>You were asleep the whole time.</b></p>
+      <p class="sub sub-mob hi" style="--d:.3s">Interviewed by 11:51. Sealed by midnight. <b>You were asleep.</b></p>
+      <div class="ava-line hi" style="--d:.42s">
+        <svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg>
+        <p>&ldquo;Hey — I&#8217;m here to help you hire.&rdquo;&nbsp;<b>— Ava</b></p>
+      </div>
+      <div class="ctas hi" style="--d:.52s">
+        <a class="btn go lg" href="/auth" target="_parent">Try free — first hire at no cost</a>
+        <a class="btn lg alt-cta" href="#morning">Watch how it works</a>
+        <a class="watch-link" href="#morning">Watch how it works</a>
+      </div>
+      <p class="scroll-cue hi" style="--d:.6s" aria-hidden="true">scroll — she&#8217;s working &darr;</p>
+    </div>
+  </section>
+
+  <!-- ── NIGHT · the night shift, scene by scene — scroll scrubs it, forward and back ── -->
+  <section class="story" id="story" aria-label="Tonight, at your shop — the night shift, scene by scene">
+    <div class="story-pin" id="story-pin">
+      <p class="story-kick lbl"><i></i>Tonight, at your shop</p>
+      <div class="scene sc1" id="sc1">
+        <div class="sc-in">
+          <p class="sc-t">11:47&#8202;pm</p>
+          <h3 class="sc-h">She applies.</h3>
+          <div class="app-card">
+            <div class="ac-row ac-h lbl">New application</div>
+            <div class="ac-row ac-n">Danielle Okafor</div>
+            <div class="ac-row ac-m">Part-Time Mechanic &middot; Decatur &middot; mornings</div>
+            <div class="ac-row ac-r">From her phone, eleven minutes after her shift ended.</div>
+          </div>
         </div>
       </div>
-      <div class="tlcard hi" style="--d:.35s" aria-label="Overnight timeline">
-        <div class="tl-h"><span class="lbl">Tonight, at your shop</span><span class="live lbl"><i></i>Ava is on</span></div>
-        <ol class="tl" id="tl">
-          <li class="tstep"><span class="tt">11:47 pm</span>
-            <div><b>She applies</b><small>From her phone, after her shift ends.</small></div></li>
-          <li class="tstep"><span class="tt">11:51 pm</span>
-            <div><b>Ava interviews her</b><small>Eight minutes, by voice. Skills, availability, the questions you&#8217;d ask.</small></div></li>
-          <li class="tstep"><span class="tt">11:59 pm</span>
-            <div><b>Sealed for the morning</b><small>Scored, evidence attached, waiting on your desk.</small></div>
-            <span class="tseal"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg></span></li>
-        </ol>
-        <div class="tl-f"><span><b>Nobody got ghosted tonight.</b> Everyone hears back.</span><span class="dim">Illustrative demo</span></div>
+      <div class="scene sc2" id="sc2">
+        <div class="sc-in">
+          <p class="sc-t">11:51&#8202;pm</p>
+          <h3 class="sc-h">Ava interviews her.</h3>
+          <div class="wave" id="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <p class="script" id="script"><span class="w">&ldquo;I</span> <span class="w">always</span> <span class="w">torque</span> <span class="w">in</span> <span class="w">a</span> <span class="w">star</span> <span class="w">pattern&nbsp;&mdash;</span> <span class="w">hundred</span> <span class="w">foot-pounds.&rdquo;</span></p>
+        </div>
+      </div>
+      <div class="scene sc3" id="sc3">
+        <div class="sc-in">
+          <p class="sc-t">11:59&#8202;pm</p>
+          <h3 class="sc-h">Sealed for your morning.</h3>
+          <div class="seal-card">
+            <div><div class="scr-name">Danielle Okafor</div>
+              <div class="scr-why">Named the right torque sequence unprompted.</div></div>
+            <div class="scr-score"><span id="story-score" data-count="92">92</span><span class="lbl">Sealed</span></div>
+            <span class="story-seal" id="story-seal" aria-hidden="true"><svg viewBox="0 0 100 100"><use href="#wax-sm"/></svg></span>
+          </div>
+        </div>
+      </div>
+      <div class="scene sc4 story-sign" id="sc4">
+        <div class="sc-in">
+          <div class="ava-line">
+            <svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg>
+            <p>&ldquo;Hey — I&#8217;m here to help you hire.&rdquo;&nbsp;<b>— Ava</b></p>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -498,7 +594,7 @@
           <div class="rowlist">
             <div class="wrow">
               <div class="rid"><div class="rav">DO</div><div class="rseal"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg></div></div>
-              <div class="rwho"><div class="rname">Darnell Okafor</div><div class="rmeta">Decatur · mornings</div></div>
+              <div class="rwho"><div class="rname">Danielle Okafor</div><div class="rmeta">Decatur · mornings</div></div>
               <div class="rwhy">Named the right torque sequence unprompted. <b>Can start Monday.</b></div>
               <div class="rscore"><span data-count="92">92</span><span class="lbl">Sealed</span></div>
               <div class="racts"><button class="btn" type="button">Pass</button><button class="btn go" type="button">Interview</button></div>
@@ -658,7 +754,7 @@
       <h2 class="io" style="--d:.08s">Hiring, handled.</h2>
       <p class="sub io" style="--d:.16s">Post the job tonight. Read the shortlist with tomorrow&#8217;s coffee.</p>
       <div class="ctas io" style="--d:.22s">
-        <a class="btn go lg" href="https://hireflownow.com" >Try free — first hire at no cost</a>
+        <a class="btn go lg" href="/auth" target="_parent">Try free — first hire at no cost</a>
         <a class="btn lg" href="#morning">Watch how it works</a>
       </div>
       <div class="ava-line io" style="--d:.3s">
@@ -677,8 +773,8 @@
     </a>
     <span>© 2026 HireFlow · hireflownow.com</span>
     <nav class="foot-links" aria-label="Legal">
-      <a href="#">Privacy</a>
-      <a href="#">Terms</a>
+      <a href="/privacy" target="_parent">Privacy</a>
+      <a href="/terms" target="_parent">Terms</a>
     </nav>
   </div>
 </footer>
@@ -727,11 +823,75 @@
   var clock=d.getElementById("clock"),clockT=d.getElementById("clock-t"),lastLabel="",lastCO=-1;
   var BEATS=[].slice.call(d.querySelectorAll(".beat")).map(function(el){
     return[el,parseFloat(el.getAttribute("data-c"))];});
+  var BW=0.115; /* beat band width — wider on a phone so one is always in view */
+
+  /* ── The night shift: a pinned stage scrubbed by scroll. Everything below is a
+     pure function of the section's local progress p — scroll up and it rewinds. ── */
+  var story=d.getElementById("story"),pin=d.getElementById("story-pin"),sTop=0,sH=1,pinH=1,lastP=-1;
+  var SCRUB=!!(story&&pin&&!RM);
+  if(SCRUB)story.classList.add("scrub");
+  function cl(x){return x<0?0:x>1?1:x}
+  function sm(x){x=cl(x);return x*x*(3-2*x)}
+  function seg(p,a,b){return cl((p-a)/(b-a))}
+  function back(x){var c=1.70158,y=cl(x)-1;return 1+(c+1)*y*y*y+c*y*y} /* the site's press curve, as f(p) */
+  var SC=null;
+  if(SCRUB){
+    var pick=function(id){var el=d.getElementById(id);return[el,el.querySelector(".sc-in")];};
+    SC={s1:pick("sc1"),s2:pick("sc2"),s3:pick("sc3"),s4:pick("sc4"),
+      kick:story.querySelector(".story-kick"),
+      rows:[].slice.call(story.querySelectorAll(".ac-row")),
+      bars:[].slice.call(story.querySelectorAll(".wave i")),
+      words:[].slice.call(story.querySelectorAll(".script .w")),
+      score:d.getElementById("story-score"),seal:d.getElementById("story-seal"),lastN:-1};
+  }
+  function scene(pair,o,ty){
+    pair[0].style.opacity=o.toFixed(3);
+    pair[0].style.visibility=o<0.004?"hidden":"visible";
+    pair[1].style.transform="translate3d(0,"+ty.toFixed(1)+"px,0)";
+  }
+  function applyStory(p){
+    var i;
+    /* 11:47 — she applies: the card rises, its lines land one by one */
+    var o1=sm(seg(p,0,0.05))*(1-sm(seg(p,0.26,0.32)));
+    scene(SC.s1,o1,(1-sm(seg(p,0.02,0.15)))*36-sm(seg(p,0.26,0.32))*30);
+    for(i=0;i<SC.rows.length;i++){
+      var ro=sm(seg(p,0.05+i*0.03,0.14+i*0.03));
+      SC.rows[i].style.opacity=ro.toFixed(3);
+      SC.rows[i].style.transform="translate3d(0,"+((1-ro)*12).toFixed(1)+"px,0)";
+    }
+    /* 11:51 — the interview: bars wake left to right, words arrive with the scroll */
+    var o2=sm(seg(p,0.30,0.36))*(1-sm(seg(p,0.575,0.635)));
+    scene(SC.s2,o2,(1-sm(seg(p,0.30,0.38)))*26-sm(seg(p,0.575,0.635))*26);
+    var w=seg(p,0.31,0.60);
+    for(i=0;i<SC.bars.length;i++){
+      var gi=sm(seg(w,i*0.018,0.22+i*0.018));           /* staggered wake */
+      var rip=0.5+0.5*Math.sin(w*14+i*0.9);             /* deterministic ripple */
+      SC.bars[i].style.transform="scaleY("+(0.12+gi*(0.28+0.72*rip)).toFixed(3)+")";
+    }
+    var wr=seg(p,0.35,0.545)*SC.words.length;
+    for(i=0;i<SC.words.length;i++)SC.words[i].style.opacity=cl(wr-i).toFixed(2);
+    /* 11:59 — sealed: the score counts with the scroll, the seal presses past and settles */
+    var o3=sm(seg(p,0.62,0.675))*(1-sm(seg(p,0.90,0.985)));
+    scene(SC.s3,o3,(1-sm(seg(p,0.62,0.70)))*28-sm(seg(p,0.88,1))*0.32*vh);
+    var n=Math.round(92*(1-Math.pow(1-seg(p,0.64,0.80),3)));
+    if(n!==SC.lastN){SC.lastN=n;SC.score.textContent=n;}
+    var sl=seg(p,0.78,0.88),sb=back(sl);
+    SC.seal.style.opacity=cl(sl*2.5).toFixed(3);
+    SC.seal.style.transform="scale("+(1.9-0.9*sb).toFixed(3)+") rotate("+(-14+9*sb).toFixed(1)+"deg)";
+    /* hand-off: Ava signs off (phone), the header lets go, and the dawn is already rising */
+    var o4=sm(seg(p,0.90,0.97));
+    scene(SC.s4,o4,(1-o4)*14);
+    SC.kick.style.opacity=(1-sm(seg(p,0.86,0.94))).toFixed(2);
+  }
+
   function measure(){
     vh=innerHeight;
+    BW=innerWidth<=700?0.16:0.115;
+    var y0=window.scrollY||window.pageYOffset;
     var r=dawn.getBoundingClientRect();
-    dTop=r.top+(window.scrollY||window.pageYOffset);dH=r.height;
-    mTop=morning.getBoundingClientRect().top+(window.scrollY||window.pageYOffset);
+    dTop=r.top+y0;dH=r.height;
+    mTop=morning.getBoundingClientRect().top+y0;
+    if(story){var s=story.getBoundingClientRect();sTop=s.top+y0;sH=s.height;pinH=pin.offsetHeight||vh;}
   }
   function applyT(t){
     var e=t*t*(3-2*t); /* smoothstep — the sky eases, it doesn't snap */
@@ -751,7 +911,7 @@
     }
     /* the night's work ticks by — each beat owns a band of the same progress */
     for(var j=0;j<BEATS.length;j++){
-      var bd=(t-BEATS[j][1])/0.115,bo=1-Math.min(1,Math.abs(bd));bo=bo*bo*(3-2*bo);
+      var bd=(t-BEATS[j][1])/BW,bo=1-Math.min(1,Math.abs(bd));bo=bo*bo*(3-2*bo);
       BEATS[j][0].style.opacity=bo.toFixed(3);
       BEATS[j][0].style.transform="translate3d(-50%,"+(-bd*12).toFixed(1)+"px,0)";
     }
@@ -759,17 +919,26 @@
   function frame(){
     ticking=false;
     var y=window.scrollY||window.pageYOffset;
-    var start=dTop-vh*0.5,end=dTop+dH-vh*0.55;
-    var t=(y-start)/(end-start);t=t<0?0:t>1?1:t;
+    var p=0;
+    if(SCRUB){
+      p=cl((y-sTop)/Math.max(1,sH-pinH));
+      if(Math.abs(p-lastP)>0.0012||lastP<0){lastP=p;applyStory(p);}
+    }
+    /* the dawn starts inside the story's hand-off band — no dead sky after the seal */
+    var start=SCRUB?sTop+(sH-pinH)*0.94:dTop-vh*0.5;
+    var end=dTop+dH-vh*0.55;
+    var t=cl((y-start)/(end-start));
     if(Math.abs(t-lastT)>0.0015||lastT<0){lastT=t;applyT(t);}
-    /* the clock rides the scroll — 11:47 pm → 7:02 am, the dawn strip carrying the night */
+    /* the clock rides the scroll — 11:47 pm → 7:02 am, agreeing with the story's timestamps */
     if(clock){
-      var p1=start>0?y/start:1;p1=p1<0?0:p1>1?1:p1;
+      var m1;
+      if(SCRUB){m1=p<0.30?4*(p/0.30):p<0.62?4+8*((p-0.30)/0.32):12;}
+      else{var p1=start>0?cl(y/start):1;m1=12*p1;}
       var ce=Math.max(end+1,mTop-vh*0.42);
-      var p3=(y-end)/(ce-end);p3=p3<0?0:p3>1?1:p3;
+      var p3=cl((y-end)/(ce-end));
       /* shaped so the chip agrees with each sky beat as it passes (1:20 / 3:47 / 5:36) */
       var ts=t<0.37?t*0.546:t<0.57?0.202+(t-0.37)*1.833:t<0.77?0.569+(t-0.57)*1.359:0.840+(t-0.77)*0.696;
-      var total=(23*60+47+Math.round(12*p1+401*ts+22*p3))%1440;
+      var total=(23*60+47+Math.round(m1+401*ts+22*p3))%1440;
       var h=Math.floor(total/60)%12||12,m=total%60;
       var label=h+":"+(m<10?"0":"")+m+" "+(total>=720?"pm":"am");
       if(label!==lastLabel){lastLabel=label;clockT.textContent=label;}
@@ -779,10 +948,10 @@
   }
   function onScroll(){if(!ticking){ticking=true;requestAnimationFrame(frame);}}
   addEventListener("scroll",onScroll,{passive:true});
-  addEventListener("resize",function(){measure();lastT=-1;onScroll();},{passive:true});
+  addEventListener("resize",function(){measure();lastT=-1;lastP=-1;onScroll();},{passive:true});
   measure();frame();
   /* late layout shifts (fonts) move the dawn strip — re-measure once settled */
-  addEventListener("load",function(){measure();lastT=-1;onScroll();});
+  addEventListener("load",function(){measure();lastT=-1;lastP=-1;onScroll();});
 
   /* ── Ava's overnight ticker: 41 reads, 3 keeps ── */
   var ticker=d.getElementById("ticker");
@@ -834,21 +1003,6 @@
       es.forEach(function(e){if(e.isIntersecting){e.target.classList.add("in");io.unobserve(e.target);}});
     },{threshold:.18,rootMargin:"0px 0px -36px 0px"});
     d.querySelectorAll(".io").forEach(function(el){io.observe(el);});
-  }
-
-  /* ── Hero ledger: the night ticks by, seals press, then it replays ── */
-  var steps=[].slice.call(d.querySelectorAll("#tl .tstep")),tlTimers=[];
-  if(steps.length){
-    if(!ANIM){steps.forEach(function(s){s.classList.add("on");});}
-    else{
-      var runTl=function(){
-        tlTimers.forEach(clearTimeout);tlTimers=[];
-        steps.forEach(function(s){s.classList.remove("on");});
-        steps.forEach(function(s,i){tlTimers.push(setTimeout(function(){s.classList.add("on");},700+i*1300));});
-        tlTimers.push(setTimeout(runTl,700+steps.length*1300+2900));
-      };
-      runTl();
-    }
   }
 
   /* ── The demo: rows land, seals press one by one, scores count.
