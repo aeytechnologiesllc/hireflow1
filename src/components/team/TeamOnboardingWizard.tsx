@@ -7,13 +7,13 @@ import {
   CheckCircle2,
   MessageSquare,
   Shield,
-  Sparkles,
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { AvaSeal } from "@/components/ava/AvaSeal";
 
 interface TeamOnboardingWizardProps {
   companyName: string;
@@ -273,7 +273,7 @@ export default function TeamOnboardingWizard(props: TeamOnboardingWizardProps) {
               <div className="flex items-center justify-between gap-3">
                 <div className="space-y-1">
                   <Badge variant="outline" className="gap-1 border-primary/30 text-primary">
-                    <Sparkles className="h-3 w-3" />
+                    <AvaSeal size={12} />
                     Team onboarding
                   </Badge>
                   <p className="text-sm text-muted-foreground">
@@ -371,10 +371,10 @@ export default function TeamOnboardingWizard(props: TeamOnboardingWizardProps) {
                     {permissionItems.map((item) => (
                       <div
                         key={item.label}
-                        className={`rounded-2xl border p-4 ${item.enabled ? "border-emerald-500/25 bg-emerald-500/8" : "border-border bg-muted/30"}`}
+                        className={`rounded-2xl border p-4 ${item.enabled ? "border-primary/25 bg-primary/8" : "border-border bg-muted/30"}`}
                       >
                         <div className="flex items-center gap-2">
-                          <CheckCircle2 className={`h-4 w-4 ${item.enabled ? "text-emerald-500" : "text-muted-foreground"}`} />
+                          <CheckCircle2 className={`h-4 w-4 ${item.enabled ? "text-primary" : "text-muted-foreground"}`} />
                           <span className={`font-medium ${item.enabled ? "text-foreground" : "text-muted-foreground"}`}>
                             {item.label}
                           </span>

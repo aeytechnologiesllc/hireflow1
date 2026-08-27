@@ -173,7 +173,7 @@ const TypewriterText = ({ text, delay = 0 }: { text: string; delay?: number }) =
         <motion.span
           animate={{ opacity: [1, 0] }}
           transition={{ duration: 0.5, repeat: Infinity }}
-          className="inline-block w-0.5 h-[1em] bg-amber-400 ml-0.5 align-text-bottom"
+          className="inline-block w-0.5 h-[1em] bg-[var(--brass)] ml-0.5 align-text-bottom"
         />
       )}
     </span>
@@ -357,7 +357,7 @@ export default function PremiumCelebration({
                 setIsVisible(false);
                 onComplete?.();
               }}
-              className="mt-8 px-8 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-semibold rounded-full shadow-lg shadow-amber-500/25 transition-all duration-300 hover:scale-105"
+              className="mt-8 px-8 py-3 bg-[var(--brass)] hover:bg-[var(--hf-gold-hover)] text-[var(--btn-fg)] font-semibold rounded-full shadow-lg shadow-[var(--hf-shadow-gold)] transition-all duration-300 hover:scale-105"
             >
               <motion.span
                 animate={{ opacity: [1, 0.7, 1] }}

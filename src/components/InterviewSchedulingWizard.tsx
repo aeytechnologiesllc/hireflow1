@@ -785,8 +785,8 @@ export default function InterviewSchedulingWizard({
                         {/* Google Calendar Connection */}
                         <div className="p-4 rounded-lg border border-border bg-card">
                           <div className="flex items-start gap-4">
-                            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-green-500 flex items-center justify-center">
-                              <CalendarIcon className="h-6 w-6 text-white" />
+                            <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ background: "var(--gradient-primary)" }}>
+                              <CalendarIcon className="h-6 w-6" style={{ color: "hsl(var(--primary-foreground))" }} />
                             </div>
                             <div className="flex-1">
                               <h3 className="font-semibold text-foreground">Google Calendar Integration</h3>

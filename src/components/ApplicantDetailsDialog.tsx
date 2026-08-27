@@ -16,8 +16,9 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
   MapPin, Briefcase, Mail, Phone, Linkedin, 
-  Globe, FileText, Sparkles, Loader2
+  Globe, FileText, Loader2
 } from "lucide-react";
+import { AvaSeal } from "@/components/ava/AvaSeal";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -118,7 +119,7 @@ export default function ApplicantDetailsDialog({
               </Badge>
               {(application.ai_score !== null && application.ai_score !== undefined) && (
                 <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-primary" />
+                  <AvaSeal size={16} />
                   <span className="text-sm font-medium text-primary">
                     Ava Score: {application.ai_score}%
                   </span>
@@ -233,7 +234,7 @@ export default function ApplicantDetailsDialog({
             {application.ai_analysis && (
               <div className="space-y-2">
                 <h3 className="font-semibold text-foreground flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-primary" />
+                  <AvaSeal size={16} />
                   Ava's Recommendation
                 </h3>
                 <Card className="bg-primary/5 border-primary/20">
@@ -255,7 +256,7 @@ export default function ApplicantDetailsDialog({
           {!application.ai_analysis && (
             <Button onClick={handleAnalyze} disabled={isAnalyzing}>
               {isAnalyzing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              <Sparkles className="mr-2 h-4 w-4" />
+              <AvaSeal size={16} className="mr-2" />
               Generate Recommendation
             </Button>
           )}

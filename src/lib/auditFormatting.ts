@@ -52,35 +52,35 @@ export function formatAuditActionLabel(action: string): string {
  */
 export const AUDIT_ACTION_COLORS: Record<string, string> = {
   // Creation/Send
-  created: "bg-blue-500",
-  document_created: "bg-blue-500",
+  created: "bg-primary",
+  document_created: "bg-primary",
   sent: "bg-primary",
-  
+
   // Viewing
-  viewed: "bg-slate-500",
-  document_viewed: "bg-slate-500",
-  
+  viewed: "bg-muted-foreground",
+  document_viewed: "bg-muted-foreground",
+
   // Editing
-  edited: "bg-amber-500",
-  
+  edited: "bg-brass",
+
   // Signing flow
-  signing_session_started: "bg-indigo-500",
-  electronic_consent_confirmed: "bg-violet-500",
-  candidate_signed: "bg-emerald-500",
-  employer_review_confirmed: "bg-cyan-500",
-  employer_countersigned: "bg-emerald-600",
-  document_completed: "bg-green-600",
-  completed: "bg-green-600",
-  
+  signing_session_started: "bg-muted-foreground",
+  electronic_consent_confirmed: "bg-muted-foreground",
+  candidate_signed: "bg-primary",
+  employer_review_confirmed: "bg-muted-foreground",
+  employer_countersigned: "bg-primary",
+  document_completed: "bg-success",
+  completed: "bg-success",
+
   // Terminal events
-  declined: "bg-red-500",
-  document_declined: "bg-red-500",
-  voided: "bg-red-600",
-  document_voided: "bg-red-600",
-  
+  declined: "bg-destructive",
+  document_declined: "bg-destructive",
+  voided: "bg-destructive",
+  document_voided: "bg-destructive",
+
   // Download
-  downloaded: "bg-purple-500",
-  document_downloaded: "bg-purple-500",
+  downloaded: "bg-muted-foreground",
+  document_downloaded: "bg-muted-foreground",
 };
 
 /**

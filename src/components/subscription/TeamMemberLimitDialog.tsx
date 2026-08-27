@@ -8,7 +8,7 @@ import {
   ResponsiveDialogDescription,
   ResponsiveDialogFooter,
 } from "@/components/ui/responsive-dialog";
-import { Users, Sparkles } from "lucide-react";
+import { Users, ArrowUpCircle } from "lucide-react";
 
 interface TeamMemberLimitDialogProps {
   open: boolean;
@@ -49,8 +49,12 @@ export function TeamMemberLimitDialog({
         </ResponsiveDialogHeader>
 
         <ResponsiveDialogFooter className="flex-col gap-2 sm:flex-col">
-          <Button onClick={handleUpgrade} className="w-full gap-2">
-            <Sparkles className="h-4 w-4" />
+          <Button
+            variant="outline"
+            onClick={handleUpgrade}
+            className="w-full gap-2 bg-transparent border-[var(--brass-line)] text-[var(--brass)] hover:bg-[var(--hf-gold-soft)]"
+          >
+            <ArrowUpCircle className="h-4 w-4" />
             Upgrade Plan
           </Button>
           <Button

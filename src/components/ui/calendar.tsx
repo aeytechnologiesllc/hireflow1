@@ -90,8 +90,8 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
         day: cn(buttonVariants({ variant: "ghost" }), "h-9 w-9 p-0 font-normal aria-selected:opacity-100 focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0"),
         day_range_end: "day-range-end",
         day_selected:
-          "bg-emerald-500 text-white hover:bg-emerald-600 hover:text-white focus:bg-emerald-500 focus:text-white ring-0 outline-none",
-        day_today: "bg-muted/50 text-foreground font-semibold ring-1 ring-emerald-500/50",
+          "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground ring-0 outline-none",
+        day_today: "bg-muted/50 text-foreground font-semibold ring-1 ring-primary/50",
         day_outside:
           "day-outside text-muted-foreground opacity-50 aria-selected:bg-accent/50 aria-selected:text-muted-foreground aria-selected:opacity-30",
         day_disabled: "text-muted-foreground opacity-50",

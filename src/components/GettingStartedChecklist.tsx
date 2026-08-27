@@ -13,8 +13,8 @@ import {
   Users,
   Calendar,
   ChevronRight,
-  Sparkles,
 } from "lucide-react";
+import { AvaSeal } from "@/components/ava/AvaSeal";
 
 interface GettingStartedChecklistProps {
   hasJobs: boolean;
@@ -97,7 +97,7 @@ export function GettingStartedChecklist({
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-              <Rocket className="h-5 w-5 text-white" />
+              <Rocket className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
               <CardTitle className="text-lg">Getting Started</CardTitle>
@@ -217,7 +217,7 @@ export function GettingStartedChecklist({
 
           {/* Quick tip */}
           <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg p-2">
-            <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
+            <AvaSeal size={14} className="shrink-0" />
             <span>
               Ava will automatically screen candidates so you can focus on the best ones
             </span>

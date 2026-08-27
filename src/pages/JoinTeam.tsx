@@ -358,10 +358,10 @@ export default function JoinTeam() {
                   variant="outline"
                   className={
                     invitation.permission_level === "full_admin"
-                      ? "bg-red-500/10 text-red-500 border-red-500/20"
+                      ? "bg-destructive/10 text-destructive border-destructive/20"
                       : invitation.permission_level === "limited"
-                      ? "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"
-                      : "bg-blue-500/10 text-blue-500 border-blue-500/20"
+                      ? "bg-[var(--warning)]/10 text-[var(--warning)] border-[var(--warning)]/20"
+                      : "bg-primary/10 text-primary border-primary/20"
                   }
                 >
                   {permissionLabel}
@@ -395,7 +395,7 @@ export default function JoinTeam() {
               ].map((perm) => (
                 <div key={perm.label} className="flex items-center gap-2">
                   {perm.allowed ? (
-                    <Check className="h-4 w-4 text-green-500" />
+                    <Check className="h-4 w-4 text-primary" />
                   ) : (
                     <X className="h-4 w-4 text-muted-foreground" />
                   )}

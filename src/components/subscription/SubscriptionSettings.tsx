@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import {
   Crown,
-  Sparkles,
+  ArrowUpCircle,
   Loader2,
   Check,
   CreditCard,
@@ -128,7 +128,7 @@ export default function SubscriptionSettings() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-emerald-400" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -161,7 +161,7 @@ export default function SubscriptionSettings() {
         >
           {/* Animated gradient orbs */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full blur-[100px] animate-pulse" />
-          <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/15 rounded-full blur-[80px]" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-[var(--brass)] rounded-full blur-[80px]" style={{ opacity: 0.15 }} />
           
           <div className="relative z-10">
             <div className="text-center mb-6">
@@ -171,7 +171,7 @@ export default function SubscriptionSettings() {
                 transition={{ delay: 0.2 }}
                 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2"
               >
-                <Sparkles className="h-6 w-6 text-primary" />
+                <ArrowUpCircle className="h-6 w-6 text-[var(--brass)]" />
                 {isTrialing ? "Choose Your Plan" : "Upgrade Your Plan"}
               </motion.h3>
               <p className="text-muted-foreground mt-2">Unlock the full power of HireFlow</p>
@@ -212,9 +212,9 @@ export default function SubscriptionSettings() {
                 transition={{ delay: 0.3 }}
                 whileHover={{ scale: 1.02 }}
                 className={`p-5 rounded-xl border transition-all ${
-                  subscription?.plan_type === "growth" 
-                    ? "border-primary/50 bg-primary/5 shadow-[0_0_20px_rgba(16,185,129,0.15)]" 
-                    : "border-border bg-card/50 hover:border-primary/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.1)]"
+                  subscription?.plan_type === "growth"
+                    ? "border-primary/50 bg-primary/5 shadow-[0_0_20px_hsl(var(--primary)/0.15)]"
+                    : "border-border bg-card/50 hover:border-primary/30 hover:shadow-[0_0_15px_hsl(var(--primary)/0.1)]"
                 }`}
               >
                 <div className="space-y-4">
@@ -245,7 +245,8 @@ export default function SubscriptionSettings() {
                   </ul>
                   {subscription?.plan_type !== "growth" && subscription?.plan_type !== "business" && subscription?.plan_type !== "enterprise" && (
                     <Button
-                      className="w-full bg-card border border-primary/50 text-foreground hover:bg-card/80"
+                      variant="outline"
+                      className="w-full bg-transparent border-[var(--brass-line)] text-[var(--brass)] hover:bg-[var(--hf-gold-soft)]"
                       onClick={() => handleUpgrade("growth")}
                       disabled={loading !== null}
                     >
@@ -263,12 +264,12 @@ export default function SubscriptionSettings() {
                 whileHover={{ scale: 1.02 }}
                 className={`p-5 rounded-xl border relative ${
                   subscription?.plan_type === "business" || subscription?.plan_type === "enterprise"
-                    ? "border-purple-500/50 bg-purple-500/5 shadow-[0_0_20px_rgba(168,85,247,0.15)]"
-                    : "border-purple-500/30 bg-gradient-to-b from-purple-500/10 to-transparent shadow-[0_0_25px_rgba(168,85,247,0.2)]"
+                    ? "border-[var(--brass-line)] bg-[var(--hf-gold-soft)] shadow-[0_0_20px_hsl(var(--warning)/0.15)]"
+                    : "border-[var(--brass-line)]/60 bg-gradient-to-b from-[var(--hf-gold-soft)] to-transparent shadow-[0_0_25px_hsl(var(--warning)/0.2)]"
                 }`}
               >
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <span className="bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs px-3 py-1 rounded-full flex items-center gap-1 shadow-lg">
+                  <span className="bg-[var(--brass)] text-[var(--btn-fg)] text-xs px-3 py-1 rounded-full flex items-center gap-1 shadow-lg">
                     <Mic className="h-3 w-3" /> AVA Voice
                   </span>
                 </div>
@@ -276,7 +277,7 @@ export default function SubscriptionSettings() {
                   <div className="flex items-center justify-between">
                     <h4 className="font-semibold text-foreground">Business</h4>
                     {(subscription?.plan_type === "business" || subscription?.plan_type === "enterprise") && (
-                      <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30">Current</Badge>
+                      <Badge className="bg-[var(--hf-gold-soft)] text-[var(--brass)] border-[var(--brass-line)]">Current</Badge>
                     )}
                   </div>
                   <div className="flex items-baseline">
@@ -291,14 +292,15 @@ export default function SubscriptionSettings() {
                   <ul className="space-y-2 text-sm">
                     {["Unlimited Jobs", "Unlimited Applicants", "Team Portal", "Advanced Analytics", "AVA Voice Assistant", "Voice Interviews", "30 Voice Minutes/mo"].map((feature) => (
                       <li key={feature} className="flex items-center gap-2">
-                        <Check className="h-4 w-4 text-purple-400 flex-shrink-0" />
+                        <Check className="h-4 w-4 text-[var(--brass)] flex-shrink-0" />
                         <span className="text-muted-foreground">{feature}</span>
                       </li>
                     ))}
                   </ul>
                   {subscription?.plan_type !== "business" && subscription?.plan_type !== "enterprise" && (
                     <Button
-                      className="w-full gap-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white"
+                      variant="outline"
+                      className="w-full gap-2 bg-transparent border-[var(--brass-line)] text-[var(--brass)] hover:bg-[var(--hf-gold-soft)]"
                       onClick={() => handleUpgrade("business")}
                       disabled={loading !== null}
                     >
@@ -318,7 +320,7 @@ export default function SubscriptionSettings() {
       <div className="p-6 rounded-xl border border-border bg-card/50">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-gradient-to-br from-primary/20 to-teal-500/20 border border-primary/30">
+            <div className="p-2 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/30">
               <Crown className="h-6 w-6 text-primary" />
             </div>
             <div>
@@ -328,8 +330,8 @@ export default function SubscriptionSettings() {
                   className={
                     isPaid 
                       ? "bg-primary/20 text-primary border-primary/30" 
-                      : isTrialing 
-                        ? "bg-blue-500/20 text-blue-400 border-blue-500/30" 
+                      : isTrialing
+                        ? "bg-secondary text-secondary-foreground border-border"
                         : "bg-destructive/20 text-destructive border-destructive/30"
                   }
                 >
@@ -469,7 +471,7 @@ function UsageStat({
         <span className="text-sm text-muted-foreground">{label}</span>
       </div>
       <div className="flex items-baseline gap-1">
-        <span className={`text-xl font-bold ${isLow ? "text-amber-400" : isNearLimit ? "text-amber-400" : "text-foreground"}`}>
+        <span className={`text-xl font-bold ${isLow ? "text-[var(--brass)]" : isNearLimit ? "text-[var(--brass)]" : "text-foreground"}`}>
           {current}
         </span>
         {isAvailable ? (
@@ -483,7 +485,7 @@ function UsageStat({
       {!isUnlimited && !isAvailable && (
         <Progress
           value={percentage}
-          className={`h-1.5 mt-2 ${isNearLimit ? "[&>div]:bg-amber-400" : "[&>div]:bg-primary"}`}
+          className={`h-1.5 mt-2 ${isNearLimit ? "[&>div]:bg-[var(--brass)]" : "[&>div]:bg-primary"}`}
         />
       )}
     </div>

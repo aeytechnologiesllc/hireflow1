@@ -10,12 +10,12 @@ import {
   Keyboard,
   Video,
   MessageSquare,
-  Bot,
   Upload,
   Mic,
   Lightbulb,
   Users,
 } from "lucide-react";
+import { GlyphLetter } from "@/components/candidate/glyphs";
 
 type PhaseType =
   | "quiz"
@@ -103,7 +103,7 @@ const phaseInfoMap: Record<PhaseType, PhaseInfo> = {
     ],
   },
   chat_interview: {
-    icon: Bot,
+    icon: GlyphLetter,
     title: "Interview Conversation",
     description:
       "Have a text-based conversation about your experience and qualifications. Ava will guide you through interview questions.",
@@ -231,7 +231,7 @@ export function PhaseContextCard({ phaseType, className = "" }: PhaseContextCard
                   {/* Tips */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                      <Lightbulb className="h-4 w-4 text-amber-500" />
+                      <Lightbulb className="h-4 w-4 text-brass" />
                       Quick Tips
                     </div>
                     <ul className="space-y-1.5 pl-6">

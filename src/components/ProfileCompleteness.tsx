@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
-import { CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
+import { CheckCircle2, AlertCircle } from "lucide-react";
 import type { Profile } from "@/hooks/useProfile";
+import { GlyphCheckSeal } from "@/components/candidate/glyphs";
 
 interface ProfileCompletenessProps {
   profile: Profile | null;
@@ -96,10 +97,10 @@ export function ProfileCompleteness({ profile, compact = false }: ProfileComplet
   const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
   const getColor = () => {
-    if (percentage === 100) return "hsl(var(--primary))";
-    if (percentage >= 75) return "hsl(var(--primary))";
-    if (percentage >= 50) return "hsl(142.1 76.2% 36.3%)"; // green-600
-    if (percentage >= 25) return "hsl(45.4 93.4% 47.5%)"; // yellow-500
+    if (percentage === 100) return "var(--jade)";
+    if (percentage >= 75) return "var(--jade)";
+    if (percentage >= 50) return "var(--jade-bright)";
+    if (percentage >= 25) return "var(--brass)";
     return "hsl(var(--destructive))";
   };
 
@@ -175,7 +176,7 @@ export function ProfileCompleteness({ profile, compact = false }: ProfileComplet
               animate={{ scale: 1 }}
               transition={{ delay: 0.8, type: "spring", stiffness: 200 }}
             >
-              <Sparkles className="h-6 w-6 text-primary" />
+              <GlyphCheckSeal className="h-6 w-6 text-primary" />
             </motion.div>
           ) : (
             <span className="text-xl font-bold text-foreground">{percentage}%</span>

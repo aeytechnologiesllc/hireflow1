@@ -83,7 +83,7 @@ const HoverPreview = memo(({
     <div
       className={cn(
         "absolute border-2 border-dashed rounded pointer-events-none",
-        currentStepInfo.type === "candidate" ? "border-blue-500/70 bg-blue-500/15" : "border-emerald-500/70 bg-emerald-500/15"
+        currentStepInfo.type === "candidate" ? "border-secondary-foreground/70 bg-secondary/40" : "border-primary/70 bg-primary/15"
       )}
       style={{
         left: `${x}%`,
@@ -96,7 +96,7 @@ const HoverPreview = memo(({
     >
       <span className={cn(
         "absolute inset-0 flex items-center justify-center text-xs font-medium",
-        currentStepInfo.type === "candidate" ? "text-blue-600" : "text-emerald-600"
+        currentStepInfo.type === "candidate" ? "text-secondary-foreground" : "text-primary"
       )}>
         {currentStepInfo.label}
       </span>
@@ -123,8 +123,8 @@ const SignatureFieldOverlay = memo(({
 }) => {
   const FieldIcon = field.type === "candidate" ? User : Building2;
   const fieldColor = field.type === "candidate" 
-    ? "border-blue-500 bg-blue-500/10" 
-    : "border-emerald-500 bg-emerald-500/10";
+    ? "border-secondary-foreground bg-secondary/40" 
+    : "border-primary bg-primary/10";
   
   return (
     <div
@@ -155,11 +155,11 @@ const SignatureFieldOverlay = memo(({
           <>
             <FieldIcon className={cn(
               "h-3 w-3 flex-shrink-0",
-              field.type === "candidate" ? "text-blue-600" : "text-emerald-600"
+              field.type === "candidate" ? "text-secondary-foreground" : "text-primary"
             )} />
             <span className={cn(
               "text-xs font-medium truncate",
-              field.type === "candidate" ? "text-blue-700" : "text-emerald-700"
+              field.type === "candidate" ? "text-secondary-foreground" : "text-primary"
             )}>
               {field.label}
             </span>
@@ -318,8 +318,8 @@ export function PdfSignaturePlacer({
 
   const getFieldColor = (type: "candidate" | "employer") => {
     return type === "candidate" 
-      ? "border-blue-500 bg-blue-500/10" 
-      : "border-emerald-500 bg-emerald-500/10";
+      ? "border-secondary-foreground bg-secondary/40"
+      : "border-primary bg-primary/10";
   };
 
   const getFieldIcon = (type: "candidate" | "employer") => {
@@ -372,7 +372,7 @@ export function PdfSignaturePlacer({
               </Badge>
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-emerald-600">
+            <div className="flex items-center gap-2 text-primary">
               <CheckCircle2 className="h-4 w-4" />
               <span className="text-sm font-medium">All fields placed</span>
             </div>
@@ -396,7 +396,7 @@ export function PdfSignaturePlacer({
       {/* PDF Container */}
       <div className="rounded-lg border border-border overflow-hidden bg-muted/30">
         {/* PDF Content - Maximized height */}
-        <div className="overflow-auto max-h-[calc(80vh-160px)] flex justify-center p-2 bg-zinc-100 dark:bg-zinc-900">
+        <div className="overflow-auto max-h-[calc(80vh-160px)] flex justify-center p-2 bg-muted">
           {loading && !error && (
             <div className="flex items-center justify-center h-64">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -488,8 +488,8 @@ export function PdfSignaturePlacer({
                   className={cn(
                     "gap-1",
                     field.type === "candidate" 
-                      ? "border-blue-500 text-blue-600" 
-                      : "border-emerald-500 text-emerald-600"
+                      ? "border-secondary-foreground text-secondary-foreground" 
+                      : "border-primary text-primary"
                   )}
                 >
                   <FieldIcon className="h-3 w-3" />

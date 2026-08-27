@@ -29,10 +29,10 @@ export const applicationStatusLabels: Record<string, string> = {
  * Used in: All status badges across the app
  */
 export const applicationStatusColors: Record<string, string> = {
-  in_progress: "bg-orange-500/20 text-orange-500",
-  pending: "bg-yellow-500/20 text-yellow-500",
-  reviewing: "bg-blue-500/20 text-blue-500",
-  interview: "bg-purple-500/20 text-purple-500",
+  in_progress: "bg-warning/20 text-warning",
+  pending: "bg-brass/20 text-brass",
+  reviewing: "bg-primary/20 text-primary",
+  interview: "bg-secondary text-secondary-foreground",
   offered: "bg-primary/20 text-primary",
   hired: "bg-success/20 text-success",
   rejected: "bg-destructive/20 text-destructive",
@@ -112,12 +112,12 @@ export function getCandidatePhaseDisplayName(phaseType: string): string {
  * Used in: CandidateApplicationDetail phase list
  */
 export const candidatePhaseStatusLabels: Record<string, { label: string; color: string }> = {
-  pending: { label: "Pending", color: "bg-yellow-500/20 text-yellow-500 border-yellow-500/30" },
-  in_progress: { label: "In Progress", color: "bg-blue-500/20 text-blue-500 border-blue-500/30" },
+  pending: { label: "Pending", color: "bg-brass/20 text-brass border-brass/30" },
+  in_progress: { label: "In Progress", color: "bg-primary/20 text-primary border-primary/30" },
   completed: { label: "Completed", color: "bg-success/20 text-success border-success/30" },
   awaiting_action: { label: "Ready for You", color: "bg-primary/20 text-primary border-primary/30" },
-  under_review: { label: "Under Review", color: "bg-yellow-500/20 text-yellow-500 border-yellow-500/30" },
-  employer_reviewing: { label: "Under Review", color: "bg-amber-500/20 text-amber-500 border-amber-500/30" },
+  under_review: { label: "Under Review", color: "bg-brass/20 text-brass border-brass/30" },
+  employer_reviewing: { label: "Under Review", color: "bg-brass/20 text-brass border-brass/30" },
   rejected: { label: "Not Passed", color: "bg-destructive/20 text-destructive border-destructive/30" },
   skipped: { label: "Skipped", color: "bg-muted/50 text-muted-foreground border-muted/30" },
 };
@@ -141,10 +141,10 @@ export const interviewStatusLabels: Record<string, string> = {
  * Interview status badge colors
  */
 export const interviewStatusColors: Record<string, string> = {
-  scheduled: "bg-blue-500/20 text-blue-500",
+  scheduled: "bg-primary/20 text-primary",
   completed: "bg-success/20 text-success",
   cancelled: "bg-destructive/20 text-destructive",
-  no_show: "bg-yellow-500/20 text-yellow-500",
+  no_show: "bg-brass/20 text-brass",
 };
 
 // ============================================
@@ -168,7 +168,7 @@ export const teamStatusLabels: Record<string, string> = {
  * Team status badge colors
  */
 export const teamStatusColors: Record<string, string> = {
-  pending: "bg-yellow-500/20 text-yellow-500",
+  pending: "bg-brass/20 text-brass",
   accepted: "bg-success/20 text-success",
   declined: "bg-destructive/20 text-destructive",
   expired: "bg-muted/50 text-muted-foreground",
@@ -194,7 +194,7 @@ export const documentStatusLabels: Record<string, string> = {
  * Document status badge colors
  */
 export const documentStatusColors: Record<string, string> = {
-  pending: "bg-yellow-500/20 text-yellow-500",
+  pending: "bg-brass/20 text-brass",
   signed: "bg-success/20 text-success",
   declined: "bg-destructive/20 text-destructive",
 };

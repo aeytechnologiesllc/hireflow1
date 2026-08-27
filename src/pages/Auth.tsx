@@ -51,11 +51,11 @@ const PasswordRequirements = ({ password }: { password: string }) => {
       {requirements.map((req, i) => (
         <div key={i} className="flex items-center gap-2 text-xs transition-all duration-200">
           {req.met ? (
-            <Check className="h-3.5 w-3.5 text-emerald-500" />
+            <Check className="h-3.5 w-3.5 text-primary" />
           ) : (
             <Circle className="h-3.5 w-3.5 text-muted-foreground" />
           )}
-          <span className={req.met ? "text-emerald-500" : "text-muted-foreground"}>
+          <span className={req.met ? "text-primary" : "text-muted-foreground"}>
             {req.label}
           </span>
         </div>
@@ -990,7 +990,7 @@ export default function Auth() {
                   className="inline-block h-1.5 w-1.5 rounded-full align-middle mr-1.5 -mt-0.5"
                   style={{ background: "var(--hf-green)" }}
                 />
-                Your first hire is on us.
+                Your first three applicants are on us.
               </p>
               {/* Footer link - hidden on mobile (employer-only mobile experience) */}
               <p className="text-xs text-muted-foreground mt-1.5 hidden sm:block">

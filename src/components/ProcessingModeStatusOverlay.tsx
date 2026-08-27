@@ -15,17 +15,17 @@ const overlayCopy = {
     title: "AUTOPILOT ENGAGED",
     subtitle: "Ava is now in control",
     icon: Rocket,
-    shell: "from-purple-500 to-fuchsia-600",
-    glow: "from-purple-500/20 via-fuchsia-500/10 to-transparent",
-    ring: "border-fuchsia-400/30",
+    shell: "from-primary to-primary/70",
+    glow: "from-primary/20 via-primary/10 to-transparent",
+    ring: "border-primary/30",
   },
   manual: {
     title: "YOU HAVE FULL CONTROL",
     subtitle: "Every decision is yours",
     icon: Hand,
-    shell: "from-orange-500 to-amber-600",
-    glow: "from-orange-500/20 via-amber-500/10 to-transparent",
-    ring: "border-orange-400/30",
+    shell: "from-brass to-brass/70",
+    glow: "from-brass/20 via-brass/10 to-transparent",
+    ring: "border-brass/30",
   },
 } as const;
 

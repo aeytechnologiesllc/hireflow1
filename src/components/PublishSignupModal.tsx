@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { motion } from "framer-motion";
-import { Loader2, Sparkles, Check, Circle, PartyPopper, ArrowRight, Briefcase, Eye, EyeOff } from "lucide-react";
+import { Loader2, Check, Circle, PartyPopper, ArrowRight, Briefcase, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { resolvePostAuthDestination } from "@/lib/authRouting";
 import { z } from "zod";
-import avaOrb from "@/assets/ava-orb.png";
+import { AvaSeal } from "@/components/ava/AvaSeal";
 import PremiumCelebration from "@/components/animations/PremiumCelebration";
 
 const VALID_TLDS = ['com', 'org', 'net', 'edu', 'gov', 'io', 'co', 'us', 'uk', 'ca', 'au', 'de', 'fr', 'es', 'it', 'nl', 'be', 'ch', 'at', 'jp', 'cn', 'kr', 'in', 'br', 'mx', 'ru', 'info', 'biz', 'dev', 'app', 'tech', 'online', 'ai', 'me', 'tv', 'cc', 'xyz', 'club', 'site', 'store', 'blog'];
@@ -83,11 +83,11 @@ const PasswordRequirements = ({ password }: { password: string }) => {
       {requirements.map((req, i) => (
         <div key={i} className="flex items-center gap-2 text-xs">
           {req.met ? (
-            <Check className="h-3 w-3 text-emerald-500" />
+            <Check className="h-3 w-3 text-primary" />
           ) : (
             <Circle className="h-3 w-3 text-muted-foreground" />
           )}
-          <span className={req.met ? "text-emerald-500" : "text-muted-foreground"}>
+          <span className={req.met ? "text-primary" : "text-muted-foreground"}>
             {req.label}
           </span>
         </div>
@@ -232,7 +232,7 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
       <Dialog open={isOpen && !showCelebration} onOpenChange={(open) => !open && onClose()}>
         <DialogContent className="max-w-md p-0 overflow-hidden bg-background border-border">
         {/* Header with celebration */}
-        <div className="bg-gradient-to-br from-emerald-500/20 via-purple-500/10 to-background p-6 border-b border-border">
+        <div className="bg-gradient-to-br from-primary/20 via-accent/10 to-background p-6 border-b border-border">
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -242,10 +242,10 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
               animate={{ rotate: [0, 10, -10, 0] }}
               transition={{ duration: 2, repeat: Infinity }}
             >
-              <img src={avaOrb} alt="AVA" className="w-14 h-14 object-contain" />
+              <AvaSeal size={56} title="AVA" />
             </motion.div>
             <div>
-              <div className="flex items-center gap-2 text-emerald-500 mb-1">
+              <div className="flex items-center gap-2 text-primary mb-1">
                 <PartyPopper className="h-4 w-4" />
                 <span className="text-sm font-medium">Your job is ready!</span>
               </div>
@@ -269,7 +269,7 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
               transition={{ duration: 1.5, repeat: Infinity }}
               className="ml-auto"
             >
-              <Sparkles className="h-5 w-5 text-emerald-500" />
+              <AvaSeal size={20} />
             </motion.div>
           </div>
 
@@ -287,7 +287,7 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
                 transition={{ delay: i * 0.1 }}
                 className="flex items-center gap-2 text-sm"
               >
-                <Check className="h-4 w-4 text-emerald-500" />
+                <Check className="h-4 w-4 text-primary" />
                 <span className="text-muted-foreground">{benefit}</span>
               </motion.div>
             ))}

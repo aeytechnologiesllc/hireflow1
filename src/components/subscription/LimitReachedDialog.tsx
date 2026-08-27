@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Crown, Sparkles, Check, Loader2, AlertTriangle } from "lucide-react";
+import { Crown, ArrowUpCircle, Check, Loader2, AlertTriangle } from "lucide-react";
 
 interface LimitReachedDialogProps {
   open: boolean;
@@ -165,6 +165,7 @@ export function LimitReachedDialog({
               <Button
                 size="sm"
                 variant="outline"
+                className="bg-transparent border-[var(--brass-line)] text-[var(--brass)] hover:bg-[var(--hf-gold-soft)]"
                 onClick={() => handleUpgrade("growth")}
                 disabled={loading !== null}
               >
@@ -208,15 +209,16 @@ export function LimitReachedDialog({
               </div>
               <Button
                 size="sm"
+                variant="outline"
                 onClick={() => handleUpgrade("business")}
                 disabled={loading !== null}
-                className="gap-1"
+                className="gap-1 bg-transparent border-[var(--brass-line)] text-[var(--brass)] hover:bg-[var(--hf-gold-soft)]"
               >
                 {loading === "business" ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    <Sparkles className="h-3.5 w-3.5" />
+                    <ArrowUpCircle className="h-3.5 w-3.5" />
                     Upgrade
                   </>
                 )}

@@ -16,10 +16,9 @@ import { supabase, SUPABASE_URL } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import { cn, formatFileSize } from "@/lib/utils";
-import { 
-  FileText, 
-  Sparkles, 
-  ChevronRight, 
+import {
+  FileText,
+  ChevronRight,
   ChevronLeft,
   Send,
   User,
@@ -29,7 +28,6 @@ import {
   PenTool,
   Check,
   Loader2,
-  Wand2,
   MapPin,
   Phone,
   Mail,
@@ -40,6 +38,7 @@ import {
   File,
   AlertTriangle
 } from "lucide-react";
+import { AvaSeal } from "@/components/ava/AvaSeal";
 import type { ApplicationForDocument } from "@/hooks/useApplicationsForDocuments";
 import { PdfSignaturePlacer, type SignatureFieldWithPosition } from "./PdfSignaturePlacer";
 import { DocumentValidationChecklist, DocumentValidationSummary } from "./DocumentValidationChecklist";
@@ -107,7 +106,7 @@ const DOCUMENT_TYPES = [
   { 
     value: "ip_assignment", 
     label: "IP Assignment Agreement",
-    icon: Sparkles,
+    icon: FileText,
     description: "Intellectual property rights transfer"
   },
   { 
@@ -829,10 +828,12 @@ export function DocumentWizard({
                   "w-16 h-16 rounded-2xl flex items-center justify-center transition-colors",
                   documentSource === "generate" ? "bg-primary/20" : "bg-secondary group-hover:bg-primary/10"
                 )}>
-                  <Sparkles className={cn(
-                    "h-8 w-8",
-                    documentSource === "generate" ? "text-primary" : "text-muted-foreground group-hover:text-primary"
-                  )} />
+                  <AvaSeal
+                    size={32}
+                    className={cn(
+                      documentSource === "generate" ? "" : "opacity-70 group-hover:opacity-100"
+                    )}
+                  />
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold mb-1">Generate with AI</h3>
@@ -1164,11 +1165,11 @@ export function DocumentWizard({
                     onChange={(e) => setCompanyEmail(e.target.value)}
                     placeholder="hr@company.com"
                     className={cn(
-                      isFreeEmailDomain(companyEmail) && "border-amber-500"
+                      isFreeEmailDomain(companyEmail) && "border-[var(--warning)]"
                     )}
                   />
                   {isFreeEmailDomain(companyEmail) && (
-                    <p className="text-xs text-amber-600 flex items-center gap-1 mt-1">
+                    <p className="text-xs text-[var(--warning)] flex items-center gap-1 mt-1">
                       <AlertTriangle className="h-3 w-3" />
                       Free email domains are not recommended for official documents
                     </p>
@@ -1223,17 +1224,17 @@ export function DocumentWizard({
             ) : (
               <div className="text-center space-y-6">
                 <div className="w-24 h-24 mx-auto rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-                  <Sparkles className="h-12 w-12 text-primary" />
+                  <AvaSeal size={48} />
                 </div>
                 <div>
                   <h3 className="text-xl font-semibold mb-2">Ready to Generate</h3>
                   <p className="text-muted-foreground max-w-md">
-                    Our AI will create a professional{" "}
+                    Ava will create a professional{" "}
                     {DOCUMENT_TYPES.find(t => t.value === documentType)?.label} based on your inputs.
                   </p>
                 </div>
                 <Button size="lg" onClick={generateDocument} className="gap-2">
-                  <Wand2 className="h-5 w-5" />
+                  <AvaSeal size={18} />
                   Generate Document
                 </Button>
               </div>
@@ -1426,8 +1427,8 @@ export function DocumentWizard({
               <div className="space-y-4">
                 <h3 className="font-semibold">Signature Fields</h3>
                 
-                <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                  <p className="text-xs text-blue-600 dark:text-blue-400">
+                <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
+                  <p className="text-xs text-primary">
                     <strong>Signing Order:</strong> Candidate signs first, then employer countersigns.
                   </p>
                 </div>
@@ -1517,7 +1518,7 @@ export function DocumentWizard({
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <>
-                        <Sparkles className="h-4 w-4 mr-2" />
+                        <AvaSeal size={16} className="mr-2" />
                         Regenerate
                       </>
                     )}
@@ -1527,7 +1528,7 @@ export function DocumentWizard({
               <Textarea
                 value={generatedContent}
                 onChange={(e) => setGeneratedContent(e.target.value)}
-                className="min-h-[400px] max-h-[500px] font-mono text-xs bg-white dark:bg-secondary/30"
+                className="min-h-[400px] max-h-[500px] font-mono text-xs bg-card"
                 placeholder="Document content will appear here..."
               />
               <p className="text-xs text-muted-foreground">
@@ -1539,8 +1540,8 @@ export function DocumentWizard({
             <div className="space-y-4">
               <h3 className="font-semibold">Signature Fields</h3>
               
-              <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                <p className="text-xs text-blue-600 dark:text-blue-400">
+              <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
+                <p className="text-xs text-primary">
                   <strong>Signing Order:</strong> Candidate signs first, then employer countersigns.
                 </p>
               </div>
@@ -1620,7 +1621,7 @@ export function DocumentWizard({
               {documentSource === "upload" ? (
                 <Upload className="h-4 w-4 md:h-5 md:w-5 text-primary" />
               ) : (
-                <Wand2 className="h-4 w-4 md:h-5 md:w-5 text-primary" />
+                <AvaSeal size={20} />
               )}
             </div>
             <div>
@@ -1707,7 +1708,7 @@ export function DocumentWizard({
               </>
             ) : getCurrentStepId() === "generate" ? (
               <>
-                <Wand2 className="h-4 w-4 mr-1 md:mr-2" />
+                <AvaSeal size={16} className="mr-1 md:mr-2" />
                 Generate
               </>
             ) : (
@@ -1757,7 +1758,7 @@ function AILoadingAnimation() {
             ease: "easeInOut",
           }}
         >
-          <Sparkles className="h-12 w-12 text-primary" />
+          <AvaSeal size={48} />
         </motion.div>
         
         {/* Orbiting particles */}

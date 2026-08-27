@@ -15,13 +15,13 @@ import {
   Keyboard,
   Timer,
   Target,
-  Zap,
   CheckCircle,
   Loader2,
   Play,
   RotateCcw,
   ShieldAlert
 } from "lucide-react";
+import { GlyphClock } from "@/components/candidate/glyphs";
 import { toast } from "sonner";
 import { parseApplicationNotes, stringifyApplicationNotes } from "@/utils/applicationNotes";
 import { invokeTriggerAvaAnalysis, triggerAvaAnalysis, evaluatePhaseSubmission } from "@/utils/triggerAvaAnalysis";
@@ -712,7 +712,7 @@ export default function TypingTestPhase() {
                     </span>
                   </li>
                   <li className="flex items-start gap-2.5">
-                    <Zap className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <GlyphClock className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     <span>Accuracy counts as much as speed — steady beats frantic.</span>
                   </li>
                 </ul>

@@ -28,7 +28,6 @@ import {
   ArrowUp,
   ArrowDown,
   Check,
-  Sparkles,
   Mic,
   FileText,
   ListChecks,
@@ -51,10 +50,12 @@ import {
   Clock,
   X,
   Plus,
+  PlusCircle,
   GripVertical,
 } from "lucide-react";
 import { AvaOrb } from "@/components/ava/AvaOrb";
 import { HeroBackground } from "@/components/ava/HeroBackground";
+import { AvaSeal } from "@/components/ava/AvaSeal";
 import { CountUp } from "@/cockpit/components/CountUp";
 
 const DISPLAY = "'Fraunces', Georgia, serif";
@@ -410,7 +411,7 @@ function IntroStep({ brief, setBrief }: { brief: Record<string, string>; setBrie
           className="mt-4 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em]"
           style={{ borderColor: "hsl(var(--primary) / 0.3)", color: "hsl(var(--ck-brass))" }}
         >
-          <Sparkles className="h-3 w-3" /> Ava · Hiring assistant
+          <AvaSeal size={12} /> Ava · Hiring assistant
         </motion.span>
         <motion.h1
           initial={reduce ? false : { opacity: 0, y: 14 }}
@@ -452,7 +453,7 @@ function IntroStep({ brief, setBrief }: { brief: Record<string, string>; setBrie
           </div>
         </div>
         <p className="mt-3 flex items-center gap-1.5 text-[11px]" style={{ color: "hsl(var(--muted-foreground))" }}>
-          <Sparkles className="h-3 w-3" style={{ color: "hsl(var(--ck-brass))" }} />
+          <AvaSeal size={12} />
           Tip: try a different role (Cleaner · Developer · Office Admin) to see Ava adapt the questions &amp; plan.
         </p>
       </motion.div>
@@ -496,7 +497,7 @@ function FollowUpStep({
           className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold"
           style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--ck-mint))", border: "1px solid hsl(var(--primary) / 0.22)" }}
         >
-          <Sparkles className="h-2.5 w-2.5" /> Tailored to a {label} role
+          <AvaSeal size={10} /> Tailored to a {label} role
         </span>
       </div>
 
@@ -605,7 +606,7 @@ function RigorStep({
         style={{ background: "hsl(var(--primary) / 0.08)", border: "1px solid hsl(var(--primary) / 0.3)" }}
       >
         <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full" style={{ background: "hsl(var(--primary) / 0.2)", color: "hsl(var(--ck-brass-bright))" }}>
-          <Sparkles className="h-3.5 w-3.5" />
+          <AvaSeal size={14} />
         </span>
         <p className="text-sm leading-relaxed" style={{ color: "hsl(var(--foreground))" }}>
           I'd screen this at <strong style={{ color: "hsl(var(--ck-brass-bright))" }}>{recLabel}</strong>. {rationale}
@@ -856,7 +857,7 @@ function PhaseRow({
             )}
 
             <div className="mt-2.5 flex items-start gap-2 rounded-lg px-3 py-2" style={{ background: "hsl(var(--ck-surface-2))" }}>
-              <Sparkles className="mt-0.5 h-3 w-3 shrink-0" style={{ color: "hsl(var(--ck-brass))" }} />
+              <AvaSeal size={12} className="mt-0.5 shrink-0" />
               <span className="text-xs italic leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
                 {phase.rationale}
               </span>
@@ -1132,7 +1133,7 @@ export default function AvaFlowPreview() {
   const addPhase = () =>
     setPhases((arr) => [
       ...arr,
-      { id: `custom-${Date.now()}`, kind: "Custom step", icon: Sparkles, accent: "brass", title: "New screening step", candidate: "Describe what candidates will do here.", rationale: "Add your own step — I'll fold it into the score.", count: "Custom", duration: "—" },
+      { id: `custom-${Date.now()}`, kind: "Custom step", icon: PlusCircle, accent: "brass", title: "New screening step", candidate: "Describe what candidates will do here.", rationale: "Add your own step — I'll fold it into the score.", count: "Custom", duration: "—" },
     ]);
 
   return (
@@ -1237,7 +1238,7 @@ export default function AvaFlowPreview() {
               style={{ background: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))", boxShadow: "0 0 28px hsl(var(--primary) / 0.22)" }}
             >
               {nextLabel}
-              {step === 2 ? <Sparkles className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}
+              {step === 2 ? <AvaSeal size={16} /> : <ArrowRight className="h-4 w-4" />}
             </button>
           )}
         </footer>

@@ -25,40 +25,44 @@ const sizeConfig = {
   xl: { container: "w-56 h-56", barHeight: 96, barWidth: 8, gap: 6 },
 };
 
+// Wax-seal language: the disc is always jade (the seal itself), and each
+// expression only changes the brass/jade balance of the ring glow and bars —
+// never a hue swap. This replaces the old orb, which shifted through
+// blue/amber/emerald/teal per state.
 const expressionColors: Record<AvaExpression, { primary: string; glow: string; bg: string }> = {
-  neutral: { 
-    primary: "from-muted-foreground/40 to-muted-foreground/60", 
+  neutral: {
+    primary: "from-muted-foreground/40 to-muted-foreground/60",
     glow: "bg-muted-foreground/20",
     bg: "from-muted/30 to-muted/50"
   },
-  listening: { 
-    primary: "from-blue-400 to-blue-600", 
-    glow: "bg-blue-500/30",
-    bg: "from-blue-500/10 to-blue-600/20"
+  listening: {
+    primary: "from-primary/60 to-primary",
+    glow: "bg-primary/30",
+    bg: "from-primary/10 to-primary/20"
   },
-  thinking: { 
-    primary: "from-amber-400 to-amber-600", 
-    glow: "bg-amber-500/30",
-    bg: "from-amber-500/10 to-amber-600/20"
+  thinking: {
+    primary: "from-brass/70 to-brass",
+    glow: "bg-brass/30",
+    bg: "from-brass/10 to-brass/20"
   },
-  speaking: { 
-    primary: "from-emerald-400 to-emerald-600", 
-    glow: "bg-emerald-500/30",
-    bg: "from-emerald-500/10 to-emerald-600/20"
+  speaking: {
+    primary: "from-primary/70 to-primary",
+    glow: "bg-primary/30",
+    bg: "from-primary/10 to-primary/20"
   },
-  encouraging: { 
-    primary: "from-emerald-300 to-teal-500", 
-    glow: "bg-teal-500/40",
-    bg: "from-teal-500/10 to-emerald-600/20"
+  encouraging: {
+    primary: "from-brass to-primary",
+    glow: "bg-primary/40",
+    bg: "from-brass/10 to-primary/20"
   },
 };
 
 const statusColors: Record<AvaExpression, string> = {
   neutral: "bg-muted-foreground/50",
-  listening: "bg-blue-500",
-  thinking: "bg-amber-500",
-  speaking: "bg-emerald-500",
-  encouraging: "bg-teal-500",
+  listening: "bg-primary",
+  thinking: "bg-brass",
+  speaking: "bg-primary",
+  encouraging: "bg-brass",
 };
 
 const statusLabels: Record<AvaExpression, string> = {
@@ -251,7 +255,7 @@ export function AvaAvatar({
             {[0, 1, 2].map((i) => (
               <motion.div
                 key={i}
-                className="w-1.5 h-1.5 bg-amber-400 rounded-full"
+                className="w-1.5 h-1.5 bg-brass rounded-full"
                 animate={{ y: [0, -3, 0] }}
                 transition={{
                   duration: 0.6,
@@ -266,7 +270,7 @@ export function AvaAvatar({
         {/* Listening indicator - subtle ring pulse */}
         {expression === "listening" && (
           <motion.div
-            className="absolute inset-0 rounded-full border-2 border-blue-400/50"
+            className="absolute inset-0 rounded-full border-2 border-primary/50"
             animate={{
               scale: [1, 1.1, 1],
               opacity: [0.5, 0.2, 0.5],

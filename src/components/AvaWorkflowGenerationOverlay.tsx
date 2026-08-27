@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, Circle, Loader2 } from "lucide-react";
-import avaOrb from "@/assets/ava-orb.png";
 
 export type OverlayGenerationStage = "drafting" | "screening" | "finalizing";
 
@@ -552,7 +551,7 @@ export default function AvaWorkflowGenerationOverlay({
               transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
             />
 
-            {/* AVA orb */}
+            {/* AVA seal — wax seal pressed onto the page, replacing the retired orb */}
             <motion.div
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -563,11 +562,28 @@ export default function AvaWorkflowGenerationOverlay({
                 transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
               >
                 <div className="relative w-20 h-20">
-                  <img
-                    src={avaOrb}
-                    alt="AVA"
-                    className="w-full h-full object-contain drop-shadow-[0_0_25px_hsl(var(--primary)/0.5)]"
-                  />
+                  <svg
+                    viewBox="0 0 100 100"
+                    role="img"
+                    aria-label="Ava"
+                    className="w-full h-full drop-shadow-[0_0_25px_hsl(var(--primary)/0.5)]"
+                    style={{ filter: "drop-shadow(0 1px 2px var(--seal-shadow))" }}
+                  >
+                    <circle cx="50" cy="50" r="46" fill="var(--seal-disc)" />
+                    <circle cx="50" cy="50" r="31" fill="none" stroke="var(--seal-ring)" strokeWidth="6" />
+                    <text
+                      x="50"
+                      y="52"
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      fontFamily="Fraunces, Georgia, serif"
+                      fontSize="52"
+                      fontWeight="700"
+                      fill="var(--seal-ring)"
+                    >
+                      A
+                    </text>
+                  </svg>
                 </div>
               </motion.div>
             </motion.div>
@@ -624,7 +640,7 @@ export default function AvaWorkflowGenerationOverlay({
                   className="flex items-center gap-3"
                 >
                   {item.state === "done" ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-300 shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
                   ) : item.state === "active" ? (
                     <Loader2 className="h-4 w-4 text-primary shrink-0 animate-spin" />
                   ) : (

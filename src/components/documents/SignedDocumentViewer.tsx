@@ -937,7 +937,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                     Finalized Audit Trail
                   </Badge>
                 ) : (
-                  <Badge className="bg-blue-500/20 text-blue-600 dark:text-blue-400 font-medium">
+                  <Badge className="bg-primary/20 text-primary font-medium">
                     <Clock className="h-3 w-3 mr-1.5" />
                     Signing in Progress
                   </Badge>
@@ -1035,7 +1035,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                               )}
                               {/* VPN/Proxy Warning - Informational Only */}
                               {(log.details as Record<string, unknown>)?.connectionWarning && (
-                                <div className="flex items-center gap-2 text-amber-500 col-span-2">
+                                <div className="flex items-center gap-2 text-[var(--warning)] col-span-2">
                                   <AlertTriangle className="h-3 w-3" />
                                   <span>{String((log.details as Record<string, unknown>).connectionWarning)}</span>
                                 </div>

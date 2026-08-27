@@ -217,19 +217,19 @@ export function EditTeamMemberDialog({ open, onOpenChange, member }: EditTeamMem
                   level: "full_admin" as PermissionLevel,
                   title: "Full Admin",
                   description: "Can create, edit, delete jobs",
-                  color: "bg-red-500/10 text-red-500",
+                  color: "bg-destructive/10 text-destructive",
                 },
                 {
                   level: "limited" as PermissionLevel,
                   title: "Limited Access",
                   description: "Can manage applicants only",
-                  color: "bg-yellow-500/10 text-yellow-500",
+                  color: "bg-[var(--warning)]/10 text-[var(--warning)]",
                 },
                 {
                   level: "view_only" as PermissionLevel,
                   title: "View Only",
                   description: "Can only view, no actions",
-                  color: "bg-blue-500/10 text-blue-500",
+                  color: "bg-primary/10 text-primary",
                 },
               ].map((option) => (
                 <button

@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Check, Trophy, Sparkles, Heart } from "lucide-react";
+import { Check, Trophy, Heart, Loader2 } from "lucide-react";
 
 export type OrbMode = "success" | "processing" | "empathy" | "celebration";
 
@@ -10,54 +10,59 @@ interface PremiumOrbProps {
   className?: string;
 }
 
+/**
+ * The orb is retired. What renders here now is the wax-seal language —
+ * a pressed disc, not a glowing sphere — using the same --seal-* / jade /
+ * brass tokens as AvaSeal, recoloured per mode instead of per gradient.
+ */
 const modeConfig = {
   success: {
-    gradient: "from-emerald-400 via-teal-400 to-cyan-400",
-    glowColor: "rgba(16, 185, 129, 0.4)",
-    accentColor: "rgba(251, 191, 36, 0.6)",
+    disc: "var(--seal-disc)",
+    ring: "var(--seal-ring)",
+    glow: "var(--jade)",
     icon: Check,
-    pulseIntensity: 1.1,
+    pulseIntensity: 1.06,
   },
   celebration: {
-    gradient: "from-amber-400 via-yellow-400 to-orange-400",
-    glowColor: "rgba(251, 191, 36, 0.5)",
-    accentColor: "rgba(245, 158, 11, 0.7)",
+    disc: "var(--brass)",
+    ring: "var(--brass-line)",
+    glow: "var(--brass)",
     icon: Trophy,
-    pulseIntensity: 1.12,
+    pulseIntensity: 1.08,
   },
   processing: {
-    gradient: "from-violet-400 via-purple-400 to-indigo-400",
-    glowColor: "rgba(139, 92, 246, 0.4)",
-    accentColor: "rgba(99, 102, 241, 0.5)",
-    icon: Sparkles,
-    pulseIntensity: 1.05,
+    disc: "var(--seal-disc)",
+    ring: "var(--seal-ring)",
+    glow: "var(--jade)",
+    icon: Loader2,
+    pulseIntensity: 1.03,
   },
   empathy: {
-    gradient: "from-slate-400 via-purple-300 to-violet-300",
-    glowColor: "rgba(148, 163, 184, 0.3)",
-    accentColor: "rgba(139, 92, 246, 0.3)",
+    disc: "var(--ink-3)",
+    ring: "var(--seal-ring)",
+    glow: "var(--ink-3)",
     icon: Heart,
-    pulseIntensity: 1.03,
+    pulseIntensity: 1.02,
   },
 };
 
-export function PremiumOrb({ 
-  mode, 
-  size = 140, 
+export function PremiumOrb({
+  mode,
+  size = 140,
   showIcon = true,
-  className = "" 
+  className = "",
 }: PremiumOrbProps) {
   const config = modeConfig[mode];
   const Icon = config.icon;
-  const iconSize = size * 0.35;
-  
+  const iconSize = size * 0.32;
+
   const isIntense = mode === "celebration" || mode === "success";
 
   return (
-    <div 
+    <div
       className={`relative ${className}`}
-      style={{ 
-        width: size, 
+      style={{
+        width: size,
         height: size,
         willChange: "transform",
         transform: "translateZ(0)",
@@ -67,7 +72,7 @@ export function PremiumOrb({
       <motion.div
         className="absolute inset-0 rounded-full"
         style={{
-          background: `radial-gradient(circle, ${config.glowColor} 0%, transparent 70%)`,
+          background: `radial-gradient(circle, color-mix(in srgb, ${config.glow} 35%, transparent) 0%, transparent 70%)`,
           transform: "scale(2)",
           willChange: "opacity",
         }}
@@ -89,7 +94,7 @@ export function PremiumOrb({
               key={i}
               className="absolute inset-0 rounded-full"
               style={{
-                border: `2px solid ${config.accentColor}`,
+                border: `2px solid ${config.ring}`,
                 willChange: "transform, opacity",
               }}
               initial={{ scale: 0.5, opacity: 0.7 }}
@@ -105,39 +110,12 @@ export function PremiumOrb({
         </>
       )}
 
-      {/* Orbiting particles for processing */}
-      {mode === "processing" && (
-        <motion.div
-          className="absolute inset-0"
-          style={{ willChange: "transform" }}
-          animate={{ rotate: 360 }}
-          transition={{
-            duration: 10,
-            repeat: Infinity,
-            ease: "linear",
-          }}
-        >
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="absolute w-2 h-2 rounded-full bg-primary/60"
-              style={{
-                top: "50%",
-                left: "50%",
-                marginTop: -4,
-                marginLeft: -4,
-                transform: `rotate(${i * 120}deg) translateX(${size * 0.55}px)`,
-              }}
-            />
-          ))}
-        </motion.div>
-      )}
-
-      {/* Main orb */}
+      {/* Main seal disc */}
       <motion.div
-        className={`absolute inset-0 rounded-full bg-gradient-to-br ${config.gradient} shadow-2xl`}
+        className="absolute inset-0 rounded-full"
         style={{
-          boxShadow: `0 0 40px ${config.glowColor}, inset 0 -8px 20px rgba(0,0,0,0.2)`,
+          background: config.disc,
+          boxShadow: `0 1px 2px var(--seal-shadow), 0 10px 26px -12px color-mix(in srgb, ${config.glow} 55%, transparent)`,
           willChange: "transform",
         }}
         animate={{
@@ -149,16 +127,14 @@ export function PremiumOrb({
           ease: "linear",
         }}
       >
-        {/* Inner highlight - static, no animation */}
-        <div 
-          className="absolute top-[15%] left-[20%] w-[30%] h-[20%] rounded-full bg-white/40"
-          style={{ filter: "blur(4px)" }}
-        />
-        
-        {/* Secondary highlight - static */}
-        <div 
-          className="absolute top-[25%] left-[25%] w-[15%] h-[10%] rounded-full bg-white/60"
-          style={{ filter: "blur(2px)" }}
+        {/* The pressed ring, the same double-ring the seal always carries */}
+        <div
+          className="absolute rounded-full"
+          style={{
+            inset: "18%",
+            border: `2px solid ${config.ring}`,
+            opacity: 0.85,
+          }}
         />
       </motion.div>
 
@@ -176,35 +152,39 @@ export function PremiumOrb({
           }}
         >
           <motion.div
-            animate={mode === "celebration" ? {
-              rotate: [0, -3, 3, -3, 0],
-              y: [0, -2, 0],
-            } : {}}
+            animate={
+              mode === "celebration"
+                ? { rotate: [0, -3, 3, -3, 0], y: [0, -2, 0] }
+                : mode === "processing"
+                ? { rotate: 360 }
+                : {}
+            }
             transition={{
-              duration: 2,
+              duration: mode === "processing" ? 1.4 : 2,
               repeat: Infinity,
-              ease: "linear",
+              ease: mode === "processing" ? "linear" : "linear",
             }}
           >
-            <Icon 
-              size={iconSize} 
-              className="text-white drop-shadow-lg" 
+            <Icon
+              size={iconSize}
+              style={{ color: "var(--seal-ring)" }}
               strokeWidth={2.5}
             />
           </motion.div>
         </motion.div>
       )}
 
-      {/* Rising sparkles - reduced from 8 to 4 */}
+      {/* Rising motes for celebration */}
       {mode === "celebration" && (
         <div className="absolute inset-0 overflow-visible pointer-events-none">
           {[0, 1, 2, 3].map((i) => (
             <motion.div
               key={i}
-              className="absolute w-1.5 h-1.5 rounded-full bg-amber-300"
+              className="absolute w-1.5 h-1.5 rounded-full"
               style={{
                 left: `${25 + i * 15}%`,
                 bottom: "20%",
+                background: "var(--brass-line)",
                 willChange: "transform, opacity",
               }}
               animate={{

@@ -71,11 +71,11 @@ export function SaveProgressPrompt({
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-lg mx-auto">
       <Card className="border-border bg-card overflow-hidden">
-        <div className="h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
+        <div className="h-1.5 bg-primary" />
         <CardContent className="p-6 sm:p-8 space-y-6">
           <div className="text-center space-y-2">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/15">
-              <CheckCircle2 className="h-7 w-7 text-emerald-500" />
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/15">
+              <CheckCircle2 className="h-7 w-7 text-primary" />
             </div>
             <h2 className="text-2xl font-semibold text-foreground">Application received</h2>
             <p className="text-sm text-muted-foreground">

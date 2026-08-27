@@ -143,11 +143,11 @@ export default function VoiceCreditsSection() {
   };
 
   return (
-    <div className="p-6 rounded-xl border border-purple-500/30 bg-gradient-to-b from-purple-500/5 to-transparent">
+    <div className="p-6 rounded-xl border border-[var(--brass-line)] bg-gradient-to-b from-[var(--hf-gold-soft)] to-transparent">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-purple-500/20 border border-purple-500/30">
-            <Mic className="h-5 w-5 text-purple-400" />
+          <div className="p-2 rounded-lg bg-[var(--hf-gold-soft)] border border-[var(--brass-line)]">
+            <Mic className="h-5 w-5 text-[var(--brass)]" />
           </div>
           <div>
             <h3 className="font-semibold text-foreground">Voice Minutes</h3>
@@ -155,7 +155,7 @@ export default function VoiceCreditsSection() {
           </div>
         </div>
         <div className="text-right">
-          <div className="text-2xl font-bold text-purple-400">
+          <div className="text-2xl font-bold text-[var(--brass)]">
             {formatMinutes(voiceCredits.totalMinutesAvailable)}
           </div>
           <p className="text-xs text-muted-foreground">available</p>
@@ -167,10 +167,10 @@ export default function VoiceCreditsSection() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center gap-2"
+          className="mb-4 p-3 rounded-lg bg-[var(--amber-bg)] border border-[var(--brass-line)] flex items-center gap-2"
         >
-          <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0" />
-          <p className="text-sm text-amber-200">
+          <AlertTriangle className="h-4 w-4 text-[hsl(var(--warning))] flex-shrink-0" />
+          <p className="text-sm text-[var(--amber-fg)]">
             Low balance! Purchase more minutes to avoid service interruption.
           </p>
         </motion.div>
@@ -189,7 +189,7 @@ export default function VoiceCreditsSection() {
                 </span>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-purple-400 font-medium">{formatMinutes(credit.minutes_remaining)}</span>
+                <span className="text-[var(--brass)] font-medium">{formatMinutes(credit.minutes_remaining)}</span>
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                   <Clock className="h-3 w-3" />
                   Exp {format(new Date(credit.expires_at), "MMM d")}
@@ -208,7 +208,7 @@ export default function VoiceCreditsSection() {
           {canPurchase ? (
             <Button
               variant="outline"
-              className="w-full flex items-center justify-between h-auto py-4 border-purple-500/30 hover:bg-purple-500/10 hover:border-purple-500/50"
+              className="w-full flex items-center justify-between h-auto py-4 border-[var(--brass-line)] hover:bg-[var(--hf-gold-soft)] hover:border-[var(--brass-line)]"
               onClick={handlePurchase}
               disabled={loading !== null}
             >
@@ -217,7 +217,7 @@ export default function VoiceCreditsSection() {
               ) : (
                 <>
                   <div className="flex items-center gap-2">
-                    <span className="text-lg font-bold text-purple-400">{pricing.voiceCredits.minutes}</span>
+                    <span className="text-lg font-bold text-[var(--brass)]">{pricing.voiceCredits.minutes}</span>
                     <span className="text-muted-foreground">minutes</span>
                   </div>
                   <span className="font-medium text-foreground">{pricing.voiceCredits.priceFormatted}</span>

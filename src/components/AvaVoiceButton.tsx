@@ -3,7 +3,8 @@ import EmbeddedCheckoutDialog from "./subscription/EmbeddedCheckoutDialog";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, Lock, Clock, Sparkles, ShoppingCart } from "lucide-react";
+import { Loader2, Lock, Clock, ShoppingCart } from "lucide-react";
+import { AvaSeal } from "@/components/ava/AvaSeal";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useAvaVoice } from "@/hooks/useAvaVoice";
@@ -244,7 +245,7 @@ export default function AvaVoiceButton() {
     
     switch (voiceAccessState) {
       case 'exhausted':
-        return cn(baseStyles, "border-amber-500/50");
+        return cn(baseStyles, "border-[var(--brass)]/50");
       case 'locked':
       case 'expired':
         return cn(baseStyles, "opacity-60");
@@ -265,11 +266,11 @@ export default function AvaVoiceButton() {
     if (voiceAccessState === 'exhausted') {
       return (
         <div className="flex items-center justify-center">
-          <Clock className="h-4 w-4 text-amber-500" />
+          <Clock className="h-4 w-4 text-[var(--brass)]" />
         </div>
       );
     }
-    
+
     if (isConnecting) {
       return (
         <div className="flex items-center justify-center">
@@ -285,7 +286,7 @@ export default function AvaVoiceButton() {
           {[0, 1, 2, 3].map((i) => (
             <motion.div
               key={i}
-              className="w-1 bg-emerald-400 rounded-full"
+              className="w-1 bg-[var(--jade-bright)] rounded-full"
               animate={{ height: [6, 14, 10, 16, 6][i % 5] }}
               transition={{ 
                 duration: 0.2, 
@@ -328,19 +329,19 @@ export default function AvaVoiceButton() {
       return { animate: undefined, transition: undefined }; // No glow for locked state
     }
     if (voiceAccessState === 'exhausted') {
-      // Amber glow for exhausted
+      // Brass glow for exhausted (this state is about buying more minutes)
       return {
         animate: {
           boxShadow: [
-            "0 0 20px 2px hsla(38, 92%, 50%, 0.5)",
-            "0 0 35px 4px hsla(38, 92%, 50%, 0.75)",
-            "0 0 20px 2px hsla(38, 92%, 50%, 0.5)"
+            "0 0 20px 2px var(--hf-gold-soft)",
+            "0 0 35px 4px var(--hf-gold-border)",
+            "0 0 20px 2px var(--hf-gold-soft)"
           ]
         },
         transition: pulsingGlow.transition
       };
     }
-    // Green glow for active states
+    // Jade glow for active states
     return pulsingGlow;
   };
 
@@ -388,7 +389,7 @@ export default function AvaVoiceButton() {
               ease: "easeInOut"
             }}
             style={{
-              border: "2px solid hsl(142.1 76.2% 36.3%)",
+              border: "2px solid var(--jade)",
             }}
           />
         )}
@@ -428,12 +429,12 @@ export default function AvaVoiceButton() {
             <DialogTitle className="flex items-center gap-2">
               {voiceAccessState === 'exhausted' ? (
                 <>
-                  <Clock className="h-5 w-5 text-amber-500" />
+                  <Clock className="h-5 w-5 text-[var(--brass)]" />
                   Voice Minutes Exhausted
                 </>
               ) : voiceAccessState === 'trial_exhausted' ? (
                 <>
-                  <Sparkles className="h-5 w-5 text-primary" />
+                  <AvaSeal size={20} />
                   Upgrade for More Voice Minutes
                 </>
               ) : (
@@ -513,7 +514,8 @@ export default function AvaVoiceButton() {
                 <Button
                   onClick={handleUpgrade}
                   disabled={isUpgrading}
-                  className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                  variant="outline"
+                  className="w-full border-[var(--brass-line)] text-[var(--brass)] hover:bg-[var(--amber-bg)]"
                 >
                   {isUpgrading ? (
                     <>

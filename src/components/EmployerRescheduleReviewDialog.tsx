@@ -230,8 +230,8 @@ export function EmployerRescheduleReviewDialog({
 
           {/* Candidate's Note */}
           {candidateNote && (
-            <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4">
-              <p className="text-xs text-amber-500 uppercase tracking-wide mb-1">Candidate's Note</p>
+            <div className="bg-[var(--amber-bg)] border border-[var(--brass-line)] rounded-lg p-4">
+              <p className="text-xs text-[var(--amber-fg)] uppercase tracking-wide mb-1">Candidate's Note</p>
               <p className="text-sm text-foreground italic">"{candidateNote}"</p>
             </div>
           )}

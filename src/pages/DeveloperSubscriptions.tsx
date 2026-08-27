@@ -167,10 +167,10 @@ export default function DeveloperSubscriptions() {
 
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
-      case 'active': return 'bg-green-500/10 text-green-400 border-green-500/20';
-      case 'trialing': return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
-      case 'canceled': return 'bg-red-500/10 text-red-400 border-red-500/20';
-      case 'expired': return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20';
+      case 'active': return 'bg-success/10 text-success border-success/20';
+      case 'trialing': return 'bg-accent/40 text-accent-foreground border-accent';
+      case 'canceled': return 'bg-destructive/10 text-destructive border-destructive/20';
+      case 'expired': return 'bg-[var(--brass)]/10 text-[var(--brass)] border-[var(--brass)]/20';
       default: return 'bg-muted text-muted-foreground border-border';
     }
   };
@@ -202,9 +202,9 @@ export default function DeveloperSubscriptions() {
     >
       {/* Stats Cards */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
+        <Card className="bg-gradient-to-br from-success/10 to-success/5 border-success/20">
           <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-green-400">
+            <CardDescription className="flex items-center gap-2 text-success">
               <CreditCard className="h-4 w-4" />
               Active Subscriptions
             </CardDescription>
@@ -216,9 +216,9 @@ export default function DeveloperSubscriptions() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+        <Card className="bg-gradient-to-br from-accent/40 to-accent/10 border-accent">
           <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-blue-400">
+            <CardDescription className="flex items-center gap-2 text-accent-foreground">
               <Clock className="h-4 w-4" />
               Trialing
             </CardDescription>
@@ -230,9 +230,9 @@ export default function DeveloperSubscriptions() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-orange-500/10 to-orange-600/5 border-orange-500/20">
+        <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
           <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-orange-400">
+            <CardDescription className="flex items-center gap-2 text-primary">
               <Users className="h-4 w-4" />
               Total Subscriptions
             </CardDescription>
@@ -244,9 +244,9 @@ export default function DeveloperSubscriptions() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20">
+        <Card className="bg-gradient-to-br from-secondary/60 to-secondary/20 border-secondary">
           <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-purple-400">
+            <CardDescription className="flex items-center gap-2 text-secondary-foreground">
               <DollarSign className="h-4 w-4" />
               Monthly Revenue
             </CardDescription>
@@ -261,20 +261,20 @@ export default function DeveloperSubscriptions() {
 
       {/* Status Breakdown */}
       <motion.div variants={itemVariants} className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-center">
-          <p className="text-2xl font-bold text-green-400">{stats?.active || 0}</p>
+        <div className="p-4 rounded-xl bg-success/10 border border-success/20 text-center">
+          <p className="text-2xl font-bold text-success">{stats?.active || 0}</p>
           <p className="text-sm text-muted-foreground">Active</p>
         </div>
-        <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-center">
-          <p className="text-2xl font-bold text-blue-400">{stats?.trialing || 0}</p>
+        <div className="p-4 rounded-xl bg-accent/40 border border-accent text-center">
+          <p className="text-2xl font-bold text-accent-foreground">{stats?.trialing || 0}</p>
           <p className="text-sm text-muted-foreground">Trialing</p>
         </div>
-        <div className="p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-center">
-          <p className="text-2xl font-bold text-yellow-400">{stats?.expired || 0}</p>
+        <div className="p-4 rounded-xl bg-[var(--brass)]/10 border border-[var(--brass)]/20 text-center">
+          <p className="text-2xl font-bold text-[var(--brass)]">{stats?.expired || 0}</p>
           <p className="text-sm text-muted-foreground">Expired</p>
         </div>
-        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-center">
-          <p className="text-2xl font-bold text-red-400">{stats?.canceled || 0}</p>
+        <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-center">
+          <p className="text-2xl font-bold text-destructive">{stats?.canceled || 0}</p>
           <p className="text-sm text-muted-foreground">Canceled</p>
         </div>
       </motion.div>
@@ -284,7 +284,7 @@ export default function DeveloperSubscriptions() {
         <Card className="bg-card/50 border-border/50">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-orange-400" />
+              <TrendingUp className="h-5 w-5 text-primary" />
               Subscription Trend (30 days)
             </CardTitle>
           </CardHeader>
@@ -321,7 +321,7 @@ export default function DeveloperSubscriptions() {
         <Card className="bg-card/50 border-border/50">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <CreditCard className="h-5 w-5 text-orange-400" />
+              <CreditCard className="h-5 w-5 text-primary" />
               Plan Distribution
             </CardTitle>
           </CardHeader>
@@ -344,7 +344,7 @@ export default function DeveloperSubscriptions() {
           <CardHeader>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <CardTitle className="text-lg flex items-center gap-2">
-                <CreditCard className="h-5 w-5 text-orange-400" />
+                <CreditCard className="h-5 w-5 text-primary" />
                 All Subscriptions
               </CardTitle>
               <div className="flex gap-2">

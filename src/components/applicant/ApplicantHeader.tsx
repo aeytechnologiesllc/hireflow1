@@ -21,7 +21,7 @@ interface ApplicantHeaderProps {
 // Get score color based on AI score
 function getScoreColor(score: number): string {
   if (score >= 80) return "text-primary border-primary/50 bg-primary/10";
-  if (score >= 60) return "text-amber-500 border-amber-500/50 bg-amber-500/10";
+  if (score >= 60) return "text-[hsl(var(--warning))] border-[hsl(var(--warning))]/50 bg-[hsl(var(--warning))]/10";
   return "text-destructive border-destructive/50 bg-destructive/10";
 }
 

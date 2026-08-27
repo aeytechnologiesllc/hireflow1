@@ -448,7 +448,7 @@ export default function JobDetails() {
                   ) : applicantLimitReached ? (
                     <>
                       <div className="text-center">
-                        <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto mb-2" />
+                        <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-[var(--brass)]" />
                         <h3 className="text-lg font-semibold text-foreground">Not Accepting Applications</h3>
                         <p className="text-sm text-muted-foreground mt-1">
                           This employer is not currently accepting new applications

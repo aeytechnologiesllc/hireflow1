@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useState, useEffect } from "react";
+import { AvaSeal } from "@/components/ava/AvaSeal";
 
 interface FirstJobTooltipProps {
   show: boolean;
@@ -51,8 +52,8 @@ export default function FirstJobTooltip({ show, onDismiss }: FirstJobTooltipProp
           className="w-full"
         >
           <div className="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-left shadow-sm">
-            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/12 text-primary">
-              <Sparkles className="h-4 w-4" />
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center">
+              <AvaSeal size={24} />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-foreground">Autopilot is active</p>
