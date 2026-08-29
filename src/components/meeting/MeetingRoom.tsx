@@ -77,8 +77,9 @@ async function fetchRoomCredentials(interviewId: string): Promise<RoomCredential
     body: { interviewId },
   });
 
-  if (!error && data?.url && data?.token) {
-    return { ok: true, url: data.url as string, token: data.token as string };
+  const roomUrl = data?.roomUrl ?? data?.url; // edge fn returns roomUrl
+  if (!error && roomUrl && data?.token) {
+    return { ok: true, url: roomUrl as string, token: data.token as string };
   }
 
   let payload: any = data ?? null;
