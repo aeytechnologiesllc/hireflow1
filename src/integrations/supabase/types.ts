@@ -18,10 +18,13 @@ export type Database = {
         Row: {
           ai_analysis: string | null
           ai_score: number | null
+          ai_scorecard: Json | null
           candidate_id: string
           cover_letter: string | null
           created_at: string
           employer_notes: string | null
+          external_application_id: string | null
+          external_provider: string | null
           id: string
           job_id: string
           notes: string | null
@@ -31,6 +34,7 @@ export type Database = {
           rejected_by_type: string | null
           resume_score: number | null
           resume_url: string | null
+          source: string
           status: Database["public"]["Enums"]["application_status"]
           updated_at: string
           voice_interview_duration: number | null
@@ -44,10 +48,13 @@ export type Database = {
         Insert: {
           ai_analysis?: string | null
           ai_score?: number | null
+          ai_scorecard?: Json | null
           candidate_id: string
           cover_letter?: string | null
           created_at?: string
           employer_notes?: string | null
+          external_application_id?: string | null
+          external_provider?: string | null
           id?: string
           job_id: string
           notes?: string | null
@@ -57,6 +64,7 @@ export type Database = {
           rejected_by_type?: string | null
           resume_score?: number | null
           resume_url?: string | null
+          source?: string
           status?: Database["public"]["Enums"]["application_status"]
           updated_at?: string
           voice_interview_duration?: number | null
@@ -70,10 +78,13 @@ export type Database = {
         Update: {
           ai_analysis?: string | null
           ai_score?: number | null
+          ai_scorecard?: Json | null
           candidate_id?: string
           cover_letter?: string | null
           created_at?: string
           employer_notes?: string | null
+          external_application_id?: string | null
+          external_provider?: string | null
           id?: string
           job_id?: string
           notes?: string | null
@@ -83,6 +94,7 @@ export type Database = {
           rejected_by_type?: string | null
           resume_score?: number | null
           resume_url?: string | null
+          source?: string
           status?: Database["public"]["Enums"]["application_status"]
           updated_at?: string
           voice_interview_duration?: number | null
@@ -99,6 +111,13 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "published_jobs_public"
             referencedColumns: ["id"]
           },
         ]
@@ -523,6 +542,63 @@ export type Database = {
           },
         ]
       }
+      google_indexing_notifications: {
+        Row: {
+          created_at: string
+          employer_id: string | null
+          error_message: string | null
+          google_response: Json | null
+          id: string
+          job_id: string | null
+          notification_type: string
+          reason: string | null
+          requested_by: string | null
+          status: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          employer_id?: string | null
+          error_message?: string | null
+          google_response?: Json | null
+          id?: string
+          job_id?: string | null
+          notification_type: string
+          reason?: string | null
+          requested_by?: string | null
+          status: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          employer_id?: string | null
+          error_message?: string | null
+          google_response?: Json | null
+          id?: string
+          job_id?: string | null
+          notification_type?: string
+          reason?: string | null
+          requested_by?: string | null
+          status?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_indexing_notifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_indexing_notifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "published_jobs_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       interviews: {
         Row: {
           ai_feedback: string | null
@@ -532,9 +608,13 @@ export type Database = {
           candidate_response: string | null
           created_at: string
           duration_minutes: number | null
+          employer_windows: Json | null
           id: string
           interview_type: string | null
           meeting_link: string | null
+          meeting_provider: string | null
+          meeting_room_name: string | null
+          meeting_room_url: string | null
           notes: string | null
           proposed_times: Json | null
           scheduled_at: string
@@ -549,9 +629,13 @@ export type Database = {
           candidate_response?: string | null
           created_at?: string
           duration_minutes?: number | null
+          employer_windows?: Json | null
           id?: string
           interview_type?: string | null
           meeting_link?: string | null
+          meeting_provider?: string | null
+          meeting_room_name?: string | null
+          meeting_room_url?: string | null
           notes?: string | null
           proposed_times?: Json | null
           scheduled_at: string
@@ -566,9 +650,13 @@ export type Database = {
           candidate_response?: string | null
           created_at?: string
           duration_minutes?: number | null
+          employer_windows?: Json | null
           id?: string
           interview_type?: string | null
           meeting_link?: string | null
+          meeting_provider?: string | null
+          meeting_room_name?: string | null
+          meeting_room_url?: string | null
           notes?: string | null
           proposed_times?: Json | null
           scheduled_at?: string
@@ -596,11 +684,20 @@ export type Database = {
           department: string | null
           description: string
           employer_id: string
+          exclude_from_feed: boolean
           experience_level: string | null
           id: string
+          is_remote: boolean
           job_code: string | null
           job_type: string | null
+          latitude: number | null
           location: string | null
+          location_city: string | null
+          location_country: string | null
+          location_country_code: string | null
+          location_region: string | null
+          locations: Json | null
+          longitude: number | null
           passing_score: number | null
           processing_mode: string | null
           quiz_questions: Json | null
@@ -611,6 +708,7 @@ export type Database = {
           salary_currency: string | null
           salary_max: number | null
           salary_min: number | null
+          salary_period: string | null
           skills_required: string[] | null
           status: Database["public"]["Enums"]["job_status"]
           title: string
@@ -628,11 +726,20 @@ export type Database = {
           department?: string | null
           description: string
           employer_id: string
+          exclude_from_feed?: boolean
           experience_level?: string | null
           id?: string
+          is_remote?: boolean
           job_code?: string | null
           job_type?: string | null
+          latitude?: number | null
           location?: string | null
+          location_city?: string | null
+          location_country?: string | null
+          location_country_code?: string | null
+          location_region?: string | null
+          locations?: Json | null
+          longitude?: number | null
           passing_score?: number | null
           processing_mode?: string | null
           quiz_questions?: Json | null
@@ -643,6 +750,7 @@ export type Database = {
           salary_currency?: string | null
           salary_max?: number | null
           salary_min?: number | null
+          salary_period?: string | null
           skills_required?: string[] | null
           status?: Database["public"]["Enums"]["job_status"]
           title: string
@@ -660,11 +768,20 @@ export type Database = {
           department?: string | null
           description?: string
           employer_id?: string
+          exclude_from_feed?: boolean
           experience_level?: string | null
           id?: string
+          is_remote?: boolean
           job_code?: string | null
           job_type?: string | null
+          latitude?: number | null
           location?: string | null
+          location_city?: string | null
+          location_country?: string | null
+          location_country_code?: string | null
+          location_region?: string | null
+          locations?: Json | null
+          longitude?: number | null
           passing_score?: number | null
           processing_mode?: string | null
           quiz_questions?: Json | null
@@ -675,6 +792,7 @@ export type Database = {
           salary_currency?: string | null
           salary_max?: number | null
           salary_min?: number | null
+          salary_period?: string | null
           skills_required?: string[] | null
           status?: Database["public"]["Enums"]["job_status"]
           title?: string
@@ -764,6 +882,27 @@ export type Database = {
           title?: string
           type?: Database["public"]["Enums"]["notification_type"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      private_rate_limit: {
+        Row: {
+          bucket: string
+          hits: number
+          identifier: string
+          window_start: string
+        }
+        Insert: {
+          bucket: string
+          hits?: number
+          identifier: string
+          window_start: string
+        }
+        Update: {
+          bucket?: string
+          hits?: number
+          identifier?: string
+          window_start?: string
         }
         Relationships: []
       }
@@ -1197,16 +1336,35 @@ export type Database = {
       }
     }
     Views: {
+      employer_public_branding: {
+        Row: {
+          company_logo: string | null
+          company_name: string | null
+          user_id: string | null
+        }
+        Insert: {
+          company_logo?: string | null
+          company_name?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          company_logo?: string | null
+          company_name?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       published_jobs_public: {
         Row: {
           application_deadline: string | null
           application_questions: Json | null
-          created_at: string
+          created_at: string | null
           department: string | null
-          description: string
-          employer_id: string
+          description: string | null
+          employer_id: string | null
+          exclude_from_feed: boolean | null
           experience_level: string | null
-          id: string
+          id: string | null
           is_remote: boolean | null
           job_code: string | null
           job_type: string | null
@@ -1227,8 +1385,74 @@ export type Database = {
           salary_min: number | null
           salary_period: string | null
           skills_required: string[] | null
-          title: string
+          title: string | null
           workflow_steps: Json | null
+        }
+        Insert: {
+          application_deadline?: string | null
+          application_questions?: never
+          created_at?: string | null
+          department?: string | null
+          description?: string | null
+          employer_id?: string | null
+          exclude_from_feed?: boolean | null
+          experience_level?: string | null
+          id?: string | null
+          is_remote?: boolean | null
+          job_code?: string | null
+          job_type?: string | null
+          latitude?: number | null
+          location?: string | null
+          location_city?: string | null
+          location_country?: string | null
+          location_country_code?: string | null
+          location_region?: string | null
+          locations?: Json | null
+          longitude?: number | null
+          quiz_questions?: never
+          require_resume?: boolean | null
+          requirements?: string | null
+          responsibilities?: string | null
+          salary_currency?: string | null
+          salary_max?: number | null
+          salary_min?: number | null
+          salary_period?: string | null
+          skills_required?: string[] | null
+          title?: string | null
+          workflow_steps?: never
+        }
+        Update: {
+          application_deadline?: string | null
+          application_questions?: never
+          created_at?: string | null
+          department?: string | null
+          description?: string | null
+          employer_id?: string | null
+          exclude_from_feed?: boolean | null
+          experience_level?: string | null
+          id?: string | null
+          is_remote?: boolean | null
+          job_code?: string | null
+          job_type?: string | null
+          latitude?: number | null
+          location?: string | null
+          location_city?: string | null
+          location_country?: string | null
+          location_country_code?: string | null
+          location_region?: string | null
+          locations?: Json | null
+          longitude?: number | null
+          quiz_questions?: never
+          require_resume?: boolean | null
+          requirements?: string | null
+          responsibilities?: string | null
+          salary_currency?: string | null
+          salary_max?: number | null
+          salary_min?: number | null
+          salary_period?: string | null
+          skills_required?: string[] | null
+          title?: string | null
+          workflow_steps?: never
         }
         Relationships: []
       }
@@ -1247,6 +1471,23 @@ export type Database = {
         Args: { target_user_id: string }
         Returns: boolean
       }
+      can_view_applicant_profile: {
+        Args: { p_profile_user_id: string; p_viewer_id: string }
+        Returns: boolean
+      }
+      check_rate_limit: {
+        Args: {
+          p_bucket: string
+          p_identifier: string
+          p_limit: number
+          p_window_secs: number
+        }
+        Returns: Json
+      }
+      did_candidate_apply_to_job: {
+        Args: { p_job_id: string; p_user_id: string }
+        Returns: boolean
+      }
       document_workflow_count_for_user: {
         Args: { target_user_id: string }
         Returns: number
@@ -1256,6 +1497,7 @@ export type Database = {
         Returns: number
       }
       email_exists: { Args: { p_email: string }; Returns: boolean }
+      ensure_profile_exists: { Args: { p_user_id: string }; Returns: undefined }
       get_team_member_permissions: {
         Args: { _employer_id: string; _user_id: string }
         Returns: {
@@ -1280,11 +1522,26 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_active_team_member_for_job: {
+        Args: {
+          p_job_id: string
+          p_require_create_jobs?: boolean
+          p_require_delete_jobs?: boolean
+          p_require_manage_pipeline?: boolean
+          p_user_id: string
+        }
+        Returns: boolean
+      }
+      is_job_owner: {
+        Args: { p_job_id: string; p_user_id: string }
+        Returns: boolean
+      }
       is_team_member: {
         Args: { _employer_id: string; _user_id: string }
         Returns: boolean
       }
       job_limit_for_user: { Args: { target_user_id: string }; Returns: number }
+      prune_rate_limits: { Args: never; Returns: undefined }
       subscription_plan_for_limits: {
         Args: { target_user_id: string }
         Returns: string

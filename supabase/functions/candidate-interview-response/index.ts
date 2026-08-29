@@ -17,7 +17,24 @@ interface ReschedulePayload {
   candidateNote?: string;
 }
 
-type RequestPayload = ConfirmPayload | ReschedulePayload;
+interface PickSlotPayload {
+  action: "pick_slot";
+  interviewId: string;
+  slotStart: string;
+}
+
+interface RepickSlotPayload {
+  action: "repick_slot";
+  interviewId: string;
+  slotStart: string;
+}
+
+type RequestPayload = ConfirmPayload | ReschedulePayload | PickSlotPayload | RepickSlotPayload;
+
+interface EmployerWindow {
+  start: string;
+  durationMinutes?: number;
+}
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -66,6 +83,9 @@ Deno.serve(async (req) => {
         id,
         application_id,
         scheduled_at,
+        duration_minutes,
+        candidate_response,
+        employer_windows,
         applications(
           id,
           candidate_id,
@@ -124,6 +144,66 @@ Deno.serve(async (req) => {
       notificationTitle = "Reschedule Requested";
       const timesCount = payload.proposedTimes?.length || 0;
       notificationMessage = `${candidateName} has requested to reschedule their interview for ${jobTitle} and proposed ${timesCount} alternative time(s).`;
+    } else if (payload.action === "pick_slot" || payload.action === "repick_slot") {
+      const windows: EmployerWindow[] = Array.isArray(interview.employer_windows)
+        ? (interview.employer_windows as EmployerWindow[])
+        : [];
+
+      const matchedWindow = windows.find((w) => w?.start === payload.slotStart);
+      if (!matchedWindow) {
+        return new Response(JSON.stringify({ error: "That time is no longer offered. Please choose one of the current windows." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (payload.action === "repick_slot") {
+        if (interview.candidate_response !== "confirmed") {
+          return new Response(JSON.stringify({ error: "Only a confirmed interview can be moved to a different time." }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (windows.length <= 1) {
+          return new Response(JSON.stringify({ error: "No alternative times are available for this interview." }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        const currentScheduledAt = new Date(interview.scheduled_at as string).getTime();
+        const twelveHoursMs = 12 * 60 * 60 * 1000;
+        if (Date.now() >= currentScheduledAt - twelveHoursMs) {
+          return new Response(JSON.stringify({ error: "It's too close to the scheduled time to move this interview. Please contact the employer directly." }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      const duration = matchedWindow.durationMinutes || interview.duration_minutes || 60;
+      updateData = {
+        scheduled_at: payload.slotStart,
+        duration_minutes: duration,
+        candidate_response: "confirmed",
+        proposed_times: null,
+        candidate_note: null,
+      };
+
+      const formattedSlot = new Date(payload.slotStart).toLocaleString("en-US", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+
+      if (payload.action === "pick_slot") {
+        notificationTitle = "Interview Time Picked";
+        notificationMessage = `${candidateName} picked a time for their interview for ${jobTitle}: ${formattedSlot}.`;
+      } else {
+        notificationTitle = "Interview Moved";
+        notificationMessage = `${candidateName} moved their interview for ${jobTitle} to ${formattedSlot}.`;
+      }
     } else {
       return new Response(JSON.stringify({ error: "Invalid action" }), {
         status: 400,

@@ -68,6 +68,7 @@ const ChatSimulationPhase = lazyWithReload(() => import("./pages/ChatSimulationP
 const ChatInterviewPhase = lazyWithReload(() => import("./pages/ChatInterviewPhase"));
 const SalesSimulationPhase = lazyWithReload(() => import("./pages/SalesSimulationPhase"));
 const VoiceInterviewPhase = lazyWithReload(() => import("./pages/VoiceInterviewPhase"));
+const InterviewRoom = lazyWithReload(() => import("./pages/InterviewRoom"));
 const PortfolioUploadPhase = lazyWithReload(() => import("./pages/PortfolioUploadPhase"));
 const CreateJob = lazyWithReload(() => import("./pages/AvaCreateJob"));
 const CreateJobLegacy = lazyWithReload(() => import("./pages/CreateJob"));
@@ -156,6 +157,7 @@ const App = () => (
                     <Route path="/applicants" element={<Applicants />} />
                     <Route path="/applicants/:id" element={<ApplicantDetails />} />
                     <Route path="/interviews" element={<Interviews />} />
+                    <Route path="/interviews/:id/room" element={<InterviewRoom />} />
                     <Route path="/messages" element={<Messages />} />
                     <Route path="/documents" element={<Documents />} />
                     <Route path="/more" element={<More />} />
@@ -175,6 +177,7 @@ const App = () => (
                     <Route path="/applications/:id/sales-simulation/:stepId" element={<SalesSimulationPhase />} />
                     <Route path="/applications/:id/voice-interview/:stepId" element={<VoiceInterviewPhase />} />
                     <Route path="/applications/:id/portfolio/:stepId" element={<PortfolioUploadPhase />} />
+                    <Route path="/applications/:appId/interview-room" element={<InterviewRoom />} />
                     <Route path="/notifications" element={<Notifications />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/profile" element={<Profile />} />

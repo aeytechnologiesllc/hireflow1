@@ -1,14 +1,29 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { addDays, format, isSameDay, isToday, startOfDay, startOfWeek } from "date-fns";
-import { AlertCircle, HelpCircle, ShieldCheck, type LucideIcon } from "lucide-react";
+import { AlertCircle, HelpCircle, ShieldCheck, Video, type LucideIcon } from "lucide-react";
+import { toast } from "sonner";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { EmployerRescheduleReviewDialog } from "@/components/EmployerRescheduleReviewDialog";
-import { useInterviews, type InterviewWithDetails } from "@/hooks/useInterviews";
+import { useInterviews, useUpdateInterview, type InterviewWithDetails } from "@/hooks/useInterviews";
+import { supabase } from "@/integrations/supabase/client";
+import { notifyInterviewCancelled } from "@/utils/emailNotifications";
 import CkAvatar from "../components/Avatar";
+import { ActionDialog } from "../components/ActionDialog";
 import { PageHeader } from "../components/PageHeader";
 import { useCockpitCandidates, useCockpitInterviews } from "../hooks/useCockpitData";
 import type { CandidateStage } from "../data";
+
+/**
+ * Scheduling v2 (employer_windows / meeting_provider / meeting_room_*) landed
+ * on the live table just ahead of the generated Supabase types — read it off
+ * the row with a narrow local shape rather than waiting on a regen.
+ */
+interface SchedulingV2Row {
+  employer_windows: unknown;
+  meeting_provider: string | null;
+  meeting_room_url: string | null;
+}
 
 /**
  * The week ahead.
@@ -26,12 +41,14 @@ const TILTS = [-6, 4, -3, 5, -4];
 /** Monday-first, because nobody schedules an interview on a Sunday. */
 const WEEK_OPTS = { weekStartsOn: 1 as const };
 
-type Response = "confirmed" | "reschedule_requested" | "pending";
+type Response = "confirmed" | "reschedule_requested" | "awaiting_pick" | "pending";
 
 interface Session {
   id: string;
   /** Application id — the key the applicant record is keyed by. Null in the showcase dataset. */
   applicationId: string | null;
+  /** Candidate's user id — needed to address a notification to them. Null in the showcase dataset. */
+  candidateId: string | null;
   name: string;
   role: string;
   /** Real timestamp. Null only when the source has no dated row to offer. */
@@ -46,6 +63,11 @@ interface Session {
   questions: string[];
   candidateNote: string | null;
   proposedTimes: Array<{ datetime: string }>;
+  /** How many windows the employer offered when handing the pick to the candidate. */
+  windowsOffered: number;
+  /** 'daily' -> an in-app call room; anything else with a link is a legacy external meeting_link. */
+  meetingProvider: string | null;
+  meetingLink: string | null;
 }
 
 function firstName(full: string) {
@@ -66,6 +88,7 @@ function typeLabel(type: string | null) {
 function readResponse(value: string | null): Response {
   if (value === "confirmed") return "confirmed";
   if (value === "reschedule_requested") return "reschedule_requested";
+  if (value === "awaiting_pick") return "awaiting_pick";
   return "pending";
 }
 
@@ -74,9 +97,12 @@ function fromRow(row: InterviewWithDetails): Session {
   const raw = Array.isArray(row.proposed_times)
     ? (row.proposed_times as unknown as Array<{ datetime?: string }>)
     : [];
+  const v2 = row as unknown as SchedulingV2Row;
+  const windows = Array.isArray(v2.employer_windows) ? v2.employer_windows : [];
   return {
     id: row.id,
     applicationId: row.applications?.id ?? null,
+    candidateId: row.applications?.candidate_id ?? null,
     name: profile?.full_name ?? profile?.email ?? "Candidate",
     role: row.applications?.jobs?.title ?? "Role",
     at: new Date(row.scheduled_at),
@@ -90,6 +116,11 @@ function fromRow(row: InterviewWithDetails): Session {
     proposedTimes: raw
       .filter((t) => !!t?.datetime)
       .map((t) => ({ datetime: t.datetime as string })),
+    windowsOffered: windows.length,
+    meetingProvider: v2.meeting_provider ?? null,
+    // The room route resolves the Daily room from the interview id itself; this
+    // is only for the legacy path, where the link the wizard saved is the join.
+    meetingLink: row.meeting_link ?? null,
   };
 }
 
@@ -149,8 +180,18 @@ export default function CockpitInterviews() {
   const { data: rows = [] } = useInterviews();
   const { candidates } = useCockpitCandidates();
   const [reviewing, setReviewing] = useState<Session | null>(null);
+  const [cancelling, setCancelling] = useState<Session | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const updateInterview = useUpdateInterview();
 
   const today = useMemo(() => startOfDay(new Date()), []);
+  /* A 30s clock, just to re-check the 15-minutes-out join window without a
+     hard reload — nothing else on the page depends on it. */
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
 
   /* Real rows carry dates, notes and Ava's questions. The cockpit hook is the
      fallback for the showcase dataset, which has times but no timestamps. */
@@ -165,6 +206,7 @@ export default function CockpitInterviews() {
       fallback.push({
         id: it.id,
         applicationId: it.id,
+        candidateId: null,
         name: it.name,
         role: it.role,
         at: null,
@@ -176,10 +218,36 @@ export default function CockpitInterviews() {
         questions: [],
         candidateNote: null,
         proposedTimes: [],
+        windowsOffered: 0,
+        meetingProvider: null,
+        meetingLink: null,
       });
     });
     return fallback;
   }, [rows, interviews.upcoming]);
+
+  /* News, once: the first time a row renders as confirmed, it reads as "Name
+     picked <time>" instead of the usual meta line. Remembered per interview in
+     localStorage so a reload or a later visit does not replay it. */
+  const [justPicked, setJustPicked] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    let changed = false;
+    const next = new Set<string>();
+    sessions.forEach((s) => {
+      if (s.response !== "confirmed") return;
+      const key = `ck-interview-picked:${s.id}`;
+      try {
+        if (!window.localStorage.getItem(key)) {
+          next.add(s.id);
+          window.localStorage.setItem(key, "1");
+          changed = true;
+        }
+      } catch {
+        // Private mode / storage blocked — the row just never gets the "picked" treatment.
+      }
+    });
+    if (changed) setJustPicked((prev) => new Set([...prev, ...next]));
+  }, [sessions]);
 
   const upcoming = useMemo(
     () => sessions.filter((s) => s.status === "scheduled" && (!s.at || s.at >= today)),
@@ -223,6 +291,47 @@ export default function CockpitInterviews() {
 
   const openRecord = (s: Session) =>
     navigate(s.applicationId ? `/applicants/${s.applicationId}` : "/applicants");
+
+  const canJoinDaily = (s: Session) =>
+    s.response === "confirmed" && s.meetingProvider === "daily" && !!s.at && s.at.getTime() - now <= 15 * 60 * 1000;
+
+  const confirmCancel = async () => {
+    if (!cancelling) return;
+    const target = cancelling;
+    setIsCancelling(true);
+    try {
+      await updateInterview.mutateAsync({ id: target.id, status: "cancelled" });
+
+      if (target.candidateId) {
+        const { error: notifyErr } = await supabase.from("notifications").insert({
+          user_id: target.candidateId,
+          type: "interview",
+          title: "Interview Cancelled",
+          message: `Your interview for ${target.role} has been cancelled.`,
+          link: `/applications`,
+        });
+        if (notifyErr) console.error("Could not notify candidate of cancellation:", notifyErr);
+
+        try {
+          await notifyInterviewCancelled(
+            target.candidateId,
+            target.role,
+            target.at ? format(target.at, "EEEE, MMMM d, yyyy 'at' h:mm a") : undefined,
+          );
+        } catch (emailErr) {
+          console.error("Failed to send cancellation email:", emailErr);
+        }
+      }
+
+      toast.success(`Cancelled — ${firstName(target.name)} will be told right away.`);
+      setCancelling(null);
+    } catch (err) {
+      console.error("Error cancelling interview:", err);
+      toast.error("Could not cancel that interview");
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   const subtitle =
     needsCall > 0
@@ -383,22 +492,29 @@ export default function CockpitInterviews() {
             <div className="space-y-2">
               {upcoming.map((s, i) => {
                 const confirm = s.response === "reschedule_requested";
+                const awaitingPick = s.response === "awaiting_pick";
+                const picked = s.response === "confirmed" && justPicked.has(s.id);
+                const joinable = canJoinDaily(s);
                 /* The chip beside the name already carries the state, so the
                    line under it says what happens next instead of saying the
                    same word twice. A confirmed time needs nothing further from
                    me, and nothing here promises a reminder we do not send — the
                    only mail that goes out is the one at booking. */
-                const meta = [
-                  s.minutes ? `${s.minutes} min` : null,
-                  typeLabel(s.type),
-                  confirm
-                    ? "they asked for a different time — your slot is still held"
-                    : s.response === "pending"
-                      ? "I sent them the time by email"
-                      : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ");
+                const meta = picked
+                  ? `${firstName(s.name)} picked ${s.at ? format(s.at, "EEE h:mm aaa") : ""}`
+                  : [
+                      s.minutes ? `${s.minutes} min` : null,
+                      typeLabel(s.type),
+                      confirm
+                        ? "they asked for a different time — your slot is still held"
+                        : awaitingPick
+                          ? `${s.windowsOffered} ${s.windowsOffered === 1 ? "time" : "times"} offered`
+                          : s.response === "pending"
+                            ? "I sent them the time by email"
+                            : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ");
 
                 return (
                   <div
@@ -447,18 +563,20 @@ export default function CockpitInterviews() {
                             <Chip tone="amber">Needs confirm</Chip>
                           ) : s.response === "confirmed" ? (
                             <Chip tone="live">Confirmed</Chip>
+                          ) : awaitingPick ? (
+                            <Chip tone="mut">Awaiting pick</Chip>
                           ) : (
                             <Chip tone="mut">Awaiting reply</Chip>
                           )}
                         </span>
                         <span
                           className="mt-0.5 block text-[12px] leading-[1.35]"
-                          style={{ color: "var(--ink-3)" }}
+                          style={picked ? { color: "var(--jade-soft-fg)", fontWeight: 600 } : { color: "var(--ink-3)" }}
                         >
                           {/* A confirmed row with no duration or type on it
                               leaves meta empty — the role must not trail a
                               separator into nothing. */}
-                          {meta ? `${s.role} · ${meta}` : s.role}
+                          {picked ? meta : meta ? `${s.role} · ${meta}` : s.role}
                         </span>
                       </span>
                     </button>
@@ -472,6 +590,36 @@ export default function CockpitInterviews() {
                           Review times
                         </button>
                       )}
+                      {s.response === "confirmed" && s.meetingProvider === "daily" && (
+                        <button
+                          className="ck-btn ck-btn-primary !py-2 !text-[12px]"
+                          disabled={!joinable}
+                          title={joinable ? undefined : "Opens 15 minutes before the start time"}
+                          onClick={() => navigate(`/interviews/${s.id}/room`)}
+                        >
+                          <Video className="mr-1 inline h-3.5 w-3.5" aria-hidden />
+                          Join interview
+                        </button>
+                      )}
+                      {s.response === "confirmed" && s.meetingProvider !== "daily" && s.meetingLink && (
+                        <a
+                          className="ck-btn ck-btn-primary !py-2 !text-[12px]"
+                          href={s.meetingLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <Video className="mr-1 inline h-3.5 w-3.5" aria-hidden />
+                          Join interview
+                        </a>
+                      )}
+                      {/* Quiet on purpose — this is the one irreversible move on the page. */}
+                      <button
+                        className="ck-btn ck-btn-ghost !py-2 !text-[12px]"
+                        style={{ color: "var(--ink-3)" }}
+                        onClick={() => setCancelling(s)}
+                      >
+                        Cancel
+                      </button>
                     </div>
                   </div>
                 );
@@ -625,6 +773,21 @@ export default function CockpitInterviews() {
           onMessageCandidate={() => navigate("/messages")}
         />
       )}
+
+      <ActionDialog
+        open={!!cancelling}
+        title={cancelling ? `Cancel the interview with ${firstName(cancelling.name)}?` : ""}
+        description={
+          cancelling
+            ? `${firstName(cancelling.name)} will be told politely right away.`
+            : ""
+        }
+        confirmLabel="Cancel interview"
+        tone="danger"
+        busy={isCancelling}
+        onConfirm={() => void confirmCancel()}
+        onClose={() => !isCancelling && setCancelling(null)}
+      />
     </div>
   );
 }

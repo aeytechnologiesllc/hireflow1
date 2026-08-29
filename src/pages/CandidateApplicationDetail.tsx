@@ -772,6 +772,7 @@ export default function CandidateApplicationDetail() {
             <CandidateInterviewConfirmationCard
               interview={candidateInterview}
               applicationId={id!}
+              employerName={employerBranding}
             />
           </div>
         )}

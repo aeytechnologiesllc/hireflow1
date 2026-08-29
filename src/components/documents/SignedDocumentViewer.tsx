@@ -764,8 +764,8 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                       <div className="flex items-center gap-3">
                         <Shield className="h-6 w-6 text-primary" />
                         <div>
-                          <p className="font-semibold text-foreground">Legally Binding Document</p>
-                          <p className="text-xs text-muted-foreground">Electronically signed and verified</p>
+                          <p className="font-semibold text-foreground">Signed and Time-Stamped</p>
+                          <p className="text-xs text-muted-foreground">SHA-256 verified</p>
                         </div>
                       </div>
                       <div className="text-right text-xs text-muted-foreground">

@@ -886,15 +886,12 @@ serve(async (req) => {
               },
               body: JSON.stringify({
                 action: "create_event",
-                access_token: parameters.google_access_token,
-                refresh_token: googleRefreshToken,
-                event: {
-                  summary: `Interview: ${candidateProfile?.full_name || 'Candidate'} for ${(app.jobs as any).title}`,
-                  description: `Interview with ${candidateProfile?.full_name || 'candidate'} for the ${(app.jobs as any).title} position at ${employerProfile?.company_name || 'Company'}`,
-                  start: scheduledDate.toISOString(),
-                  end: endDate.toISOString(),
-                  attendees: candidateProfile?.email ? [candidateProfile.email] : []
-                },
+                accessToken: parameters.google_access_token,
+                summary: `Interview: ${candidateProfile?.full_name || 'Candidate'} for ${(app.jobs as any).title}`,
+                description: `Interview with ${candidateProfile?.full_name || 'candidate'} for the ${(app.jobs as any).title} position at ${employerProfile?.company_name || 'Company'}`,
+                startTime: scheduledDate.toISOString(),
+                endTime: endDate.toISOString(),
+                attendees: candidateProfile?.email ? [candidateProfile.email] : [],
                 createMeetLink: true
               })
             });

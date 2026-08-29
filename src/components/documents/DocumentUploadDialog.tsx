@@ -8,7 +8,6 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { SecurityBadge } from "./SecurityBadge";
 import { DocumentRequestWithDetails, getDocumentTypeLabel, useUpdateDocumentRequest } from "@/hooks/useDocumentRequests";
@@ -22,9 +21,7 @@ import {
   FileText,
   X,
   Check,
-  Lock,
   Shield,
-  ShieldCheck,
   Loader2,
   Calendar,
   AlertCircle,
@@ -38,14 +35,12 @@ interface DocumentUploadDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-type UploadPhase = "idle" | "uploading" | "encrypting" | "securing" | "complete";
+type UploadPhase = "idle" | "uploading" | "complete";
 
 const phaseConfig: Record<UploadPhase, { icon: React.ElementType; label: string; color: string }> = {
   idle: { icon: Upload, label: "Ready to upload", color: "text-muted-foreground" },
-  uploading: { icon: Loader2, label: "Uploading document...", color: "text-primary" },
-  encrypting: { icon: Lock, label: "Encrypting your document...", color: "text-primary" },
-  securing: { icon: Shield, label: "Securing storage...", color: "text-primary" },
-  complete: { icon: ShieldCheck, label: "Complete! Your document is protected", color: "text-success" },
+  uploading: { icon: Loader2, label: "Uploading securely…", color: "text-primary" },
+  complete: { icon: Check, label: "Upload complete", color: "text-success" },
 };
 
 const ACCEPTED_TYPES = [
@@ -70,7 +65,6 @@ export function DocumentUploadDialog({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [phase, setPhase] = useState<UploadPhase>("idle");
-  const [progress, setProgress] = useState(0);
   const [isDragOver, setIsDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -130,46 +124,24 @@ export function DocumentUploadDialog({
     }
   };
 
-  const simulatePhase = (phaseName: UploadPhase, duration: number): Promise<void> => {
-    return new Promise((resolve) => {
-      setPhase(phaseName);
-      setTimeout(resolve, duration);
-    });
-  };
-
   const handleUpload = async () => {
     if (!selectedFile || !request || !user) return;
 
     setError(null);
-    setProgress(0);
 
     try {
-      // Phase 1: Uploading
+      // Uploading. The Supabase storage SDK doesn't expose real progress events for
+      // this upload call, so we show a single honest "uploading" state rather than
+      // fabricating intermediate percentages.
       setPhase("uploading");
       const fileExt = selectedFile.name.split(".").pop();
       const fileName = `${user.id}/${request.id}/${Date.now()}.${fileExt}`;
-
-      // Simulate progress during upload
-      const progressInterval = setInterval(() => {
-        setProgress((prev) => Math.min(prev + 10, 40));
-      }, 100);
 
       const { error: uploadError } = await supabase.storage
         .from("requested-documents")
         .upload(fileName, selectedFile);
 
-      clearInterval(progressInterval);
-      setProgress(40);
-
       if (uploadError) throw uploadError;
-
-      // Phase 2: Encrypting
-      await simulatePhase("encrypting", 1200);
-      setProgress(65);
-
-      // Phase 3: Securing
-      await simulatePhase("securing", 800);
-      setProgress(85);
 
       // Store just the file path (without bucket prefix) for createSignedUrl
       const storagePath = fileName;
@@ -197,7 +169,6 @@ export function DocumentUploadDialog({
         console.error("Failed to create employer notification:", notifError);
       }
 
-      setProgress(100);
       setPhase("complete");
 
       // Wait a bit then close
@@ -212,7 +183,6 @@ export function DocumentUploadDialog({
       console.error("Upload error:", err);
       setError(err.message || "Failed to upload document. Please try again.");
       setPhase("idle");
-      setProgress(0);
     }
   };
 
@@ -220,7 +190,6 @@ export function DocumentUploadDialog({
     setSelectedFile(null);
     setPreviewUrl(null);
     setPhase("idle");
-    setProgress(0);
     setError(null);
     setIsDragOver(false);
     onOpenChange(false);
@@ -411,13 +380,10 @@ export function DocumentUploadDialog({
                 {phaseInfo.label}
               </p>
 
-              {/* Progress bar */}
-              <Progress value={progress} className="h-2" />
-
               {/* Security message */}
               <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                 <Shield className="h-4 w-4" />
-                <span>Your document is protected with bank-level encryption</span>
+                <span>Your document is stored securely in private storage</span>
               </div>
             </motion.div>
           )}

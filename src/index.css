@@ -848,3 +848,63 @@ button:not(.ck-btn):not(.cand-btn-primary):not(.cand-btn-ghost):not(:disabled):n
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   DIALOG BASE — the letterhead standard
+   Owned by src/components/ui/{dialog,alert-dialog,sheet}.tsx. Replaces the
+   flat 1px-bordered "AI template" look with the same treatment as the auth
+   letterhead card (CandidateAuth.tsx .auth-card): no structural border, an
+   elevated surface, one deep soft shadow, and a brass hairline top rule.
+   Token-only — every colour referenced below already exists in the :root /
+   .dark blocks above; the only things genuinely new are the overlay scrim
+   token and the two settle keyframes. Both are theme-aware.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Ink-toned scrim instead of flat black, so the lifted sheet reads as
+     paper above the room. --slab is the one dark jade-black that stays
+     dark in both themes (unlike --ink, which flips to light in Night). */
+  --dialog-overlay: color-mix(in srgb, var(--slab) 65%, transparent);
+}
+
+.dark {
+  --dialog-overlay: color-mix(in srgb, var(--slab) 78%, transparent);
+}
+
+.hf-modal-overlay {
+  background: var(--dialog-overlay);
+}
+
+/* Centered dialogs (Dialog / AlertDialog): a calm settle instead of the
+   generic shadcn zoom + slide-from-top. prefers-reduced-motion is already
+   handled globally above (animation-duration forced to 0.01ms), so no
+   separate override is needed here. */
+@keyframes hf-modal-pop-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) translateY(0) scale(1);
+  }
+}
+
+@keyframes hf-modal-pop-out {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) translateY(8px) scale(0.985);
+  }
+}
+
+.hf-modal-pop[data-state="open"] {
+  animation: hf-modal-pop-in 180ms ease-out both;
+}
+
+.hf-modal-pop[data-state="closed"] {
+  animation: hf-modal-pop-out 140ms ease-in both;
+}

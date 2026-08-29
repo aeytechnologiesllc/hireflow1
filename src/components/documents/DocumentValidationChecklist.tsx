@@ -254,7 +254,7 @@ export function DocumentValidationChecklist({
               Ready to Send
             </p>
             <p className="text-xs text-primary/80">
-              This document meets professional and legal standards
+              Everything's in place — all required fields present and ready to send
             </p>
           </div>
         </div>
