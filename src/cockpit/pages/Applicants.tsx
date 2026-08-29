@@ -17,6 +17,7 @@ import { ActionDialog } from "../components/ActionDialog";
 import { ShareKitDialog } from "../components/ShareKitDialog";
 import { CountUp } from "../components/CountUp";
 import { HiringDocumentPromptDialog } from "@/components/HiringDocumentPromptDialog";
+import { DocumentPreviewDialog } from "../components/DocumentPreviewDialog";
 import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
 import { SearchInput, FilterSelect, type FilterOption } from "../components/controls";
 import {
@@ -260,10 +261,13 @@ function EvidenceTiles({
   candidate,
   app,
   className,
+  onOpenResume,
 }: {
   candidate: Candidate;
   app?: AppRecord;
   className: string;
+  /** Opens the resume in the in-app DocumentPreviewDialog — the whole tile is the target. */
+  onOpenResume?: () => void;
 }) {
   const turns = transcriptOf(app);
   const minutes = interviewMinutes(turns);
@@ -312,21 +316,22 @@ function EvidenceTiles({
       )}
 
       {resumeUrl && (
-        <div className={tile} style={tileStyle}>
+        // The whole tile is the target, not just a link inside it — opens the
+        // resume in-app first, on Ava's letterhead, never a bare new tab.
+        <button
+          type="button"
+          onClick={onOpenResume}
+          className={`${tile} ck-lift text-left transition-transform duration-150 hover:border-[var(--hair)] active:scale-[0.98]`}
+          style={{ ...tileStyle, cursor: "pointer" }}
+        >
           <Label color="var(--ink-3)">Resume</Label>
           <div className="ck-num mt-1.5 text-[20px] font-semibold leading-[1.15]" style={{ color: "var(--ink)" }}>
             On file
           </div>
-          <a
-            href={resumeUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-[3px] inline-block text-[11px] font-semibold hover:underline"
-            style={{ color: "var(--brass)" }}
-          >
-            Open
-          </a>
-        </div>
+          <span className="mt-[3px] inline-block text-[11px] font-semibold" style={{ color: "var(--brass)" }}>
+            View
+          </span>
+        </button>
       )}
     </div>
   );
@@ -545,6 +550,14 @@ export default function CockpitApplicants() {
   const [hirePrompt, setHirePrompt] = useState<Candidate | null>(null);
   const [scheduleCand, setScheduleCand] = useState<Candidate | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  const [resumePreview, setResumePreview] = useState<Candidate | null>(null);
+  // The guided moment after a move to Interview — "want to propose times now?"
+  // — scoped to the candidate it belongs to, so it never survives a different
+  // selection.
+  const [interviewMoment, setInterviewMoment] = useState<Candidate | null>(null);
+  // A brief pulse on "Set up interview" after "Later" — the visible hint for
+  // where scheduling lives, without forcing the wizard on anyone.
+  const [scheduleHintId, setScheduleHintId] = useState<string | null>(null);
 
   // Map application id → the live record (candidate.id === application.id in
   // both schema modes), so the read can quote the transcript it came from.
@@ -610,7 +623,18 @@ export default function CockpitApplicants() {
   // Reset to page 1 whenever the filters or the tab change.
   useEffect(() => { setPage(1); }, [search, stageFilter, scoreFilter, roleIdFilter, bucket]);
   // A selection from another tab is not on this one.
-  useEffect(() => { setSelectedId(null); }, [bucket, roleIdFilter]);
+  useEffect(() => {
+    setSelectedId(null);
+    setInterviewMoment(null);
+    setScheduleHintId(null);
+  }, [bucket, roleIdFilter]);
+
+  // The hint pulse is a moment, not a standing state — it fades on its own.
+  useEffect(() => {
+    if (!scheduleHintId) return;
+    const t = setTimeout(() => setScheduleHintId(null), 5600);
+    return () => clearTimeout(t);
+  }, [scheduleHintId]);
 
   const totalPages = Math.max(1, Math.ceil(listCandidates.length / PAGE_SIZE));
   const pageClamped = Math.min(page, totalPages);
@@ -653,8 +677,13 @@ export default function CockpitApplicants() {
   const openReject = (c: Candidate) => setActionDialog({ type: "reject", cand: c });
   const confirmAdvance = async () => {
     if (!actionDialog) return;
-    await advance(actionDialog.cand.id, statusOf(actionDialog.cand.id));
+    const cand = actionDialog.cand;
+    // Read the target stage before advancing — status flips the moment the
+    // mutation lands, so this is the last point it's still knowable.
+    const movingToInterview = advanceTargetLabel(statusOf(cand.id)) === "Interview";
+    await advance(cand.id, statusOf(cand.id));
     setActionDialog(null);
+    if (movingToInterview) setInterviewMoment(cand);
   };
   const confirmHire = async () => {
     if (!actionDialog) return;
@@ -937,6 +966,7 @@ export default function CockpitApplicants() {
               candidate={selected}
               app={appById[selected.id]}
               className="mt-3 hidden grid-cols-1 gap-2.5 min-[1160px]:grid"
+              onOpenResume={() => setResumePreview(selected)}
             />
           )}
         </div>
@@ -1034,7 +1064,9 @@ export default function CockpitApplicants() {
                         </button>
                       )}
                       <button
-                        className="ck-btn ck-btn-primary !py-2 !text-[12.5px]"
+                        className={`ck-btn ck-btn-primary !py-2 !text-[12.5px]${
+                          scheduleHintId === selected.id ? " ck-node-pulse" : ""
+                        }`}
                         onClick={() => setScheduleCand(selected)}
                       >
                         Set up interview
@@ -1044,6 +1076,45 @@ export default function CockpitApplicants() {
                 </div>
               </div>
 
+              {/* the guided next step after a move to Interview — introduces
+                  the wizard in Ava's voice, or dismisses to a quiet hint on
+                  the button above */}
+              {interviewMoment?.id === selected.id && (
+                <div
+                  className="ck-reveal mb-3 flex flex-wrap items-center gap-3 rounded-[10px] border px-4 py-3"
+                  style={{ borderColor: "var(--jade-soft-fg)", background: "var(--jade-soft)" }}
+                >
+                  <span className="ck-seal ck-seal-press shrink-0">
+                    <AvaSeal size={22} />
+                  </span>
+                  <p className="min-w-0 flex-1 text-[13px] leading-[1.5]" style={{ color: "var(--jade-soft-fg)" }}>
+                    Moved to interviews. Want to propose times to {firstName(selected.name)} now?
+                  </p>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      className="ck-btn ck-btn-primary !py-1.5 !text-[12px]"
+                      onClick={() => {
+                        setScheduleCand(selected);
+                        setInterviewMoment(null);
+                      }}
+                    >
+                      Propose times
+                    </button>
+                    <button
+                      type="button"
+                      className="ck-btn ck-btn-ghost !py-1.5 !text-[12px]"
+                      onClick={() => {
+                        setInterviewMoment(null);
+                        setScheduleHintId(selected.id);
+                      }}
+                    >
+                      Later
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <AvasRead key={selected.id} candidate={selected} app={appById[selected.id]} />
               <Timeline candidate={selected} app={appById[selected.id]} />
 
@@ -1051,6 +1122,7 @@ export default function CockpitApplicants() {
                 candidate={selected}
                 app={appById[selected.id]}
                 className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-3 min-[1160px]:hidden"
+                onOpenResume={() => setResumePreview(selected)}
               />
 
               <div className="mt-3 flex flex-wrap gap-4 text-[12px]">
@@ -1163,6 +1235,13 @@ export default function CockpitApplicants() {
           onSkip={() => setHirePrompt(null)}
         />
       )}
+      <DocumentPreviewDialog
+        open={!!resumePreview}
+        sourceUrl={resumePreview ? (appById[resumePreview.id]?.resume_url ?? null) : null}
+        candidateName={resumePreview?.name ?? ""}
+        label="Resume"
+        onClose={() => setResumePreview(null)}
+      />
       {scheduleCand && (
         <InterviewSchedulingWizard
           open={!!scheduleCand}

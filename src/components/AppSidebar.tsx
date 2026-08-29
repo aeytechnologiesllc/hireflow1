@@ -26,6 +26,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { prefetchForPath } from "@/lib/prefetchRoutes";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import hireflowLogo from "@/assets/app-icon-new.png";
@@ -50,6 +51,13 @@ function NavItem({ icon: Icon, label, to, badge, highlight, collapsed, onNavigat
     <Link
       to={to}
       onClick={onNavigate}
+      // Warm the route's lazy chunk before the click lands — hover,
+      // initial touch/mouse-down, and keyboard focus all fire it, so
+      // whichever happens first starts the fetch. No-ops for routes that
+      // are already eager-loaded.
+      onMouseEnter={() => prefetchForPath(to)}
+      onPointerDown={() => prefetchForPath(to)}
+      onFocus={() => prefetchForPath(to)}
       className={cn(
         "group relative flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-300",
         isActive

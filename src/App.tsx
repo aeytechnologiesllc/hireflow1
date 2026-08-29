@@ -12,6 +12,7 @@ import AppLayout from "@/components/AppLayout";
 import DeveloperLayout from "@/components/DeveloperLayout";
 import { OrbLoader } from "@/components/ava/OrbLoader";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
+import { routeImporters } from "@/lib/prefetchRoutes";
 
 // Core pages loaded eagerly for instant navigation
 import Dashboard from "./pages/Dashboard";
@@ -43,18 +44,21 @@ function lazyWithReload(factory: Parameters<typeof lazy>[0]) {
   );
 }
 
-// All other pages lazy-loaded to reduce initial bundle
-const Interviews = lazyWithReload(() => import("./pages/Interviews"));
-const Team = lazyWithReload(() => import("./pages/Team"));
-const Analytics = lazyWithReload(() => import("./pages/Analytics"));
-const Settings = lazyWithReload(() => import("./pages/Settings"));
-const Profile = lazyWithReload(() => import("./pages/Profile"));
-const Notifications = lazyWithReload(() => import("./pages/Notifications"));
-const TeamPortal = lazyWithReload(() => import("./pages/TeamPortal"));
+// All other pages lazy-loaded to reduce initial bundle.
+// Routes that are also reachable from a nav item share their import()
+// thunk with src/lib/prefetchRoutes.ts, so there's one module path either
+// way — see that file for why.
+const Interviews = lazyWithReload(routeImporters["/interviews"]);
+const Team = lazyWithReload(routeImporters["/team"]);
+const Analytics = lazyWithReload(routeImporters["/analytics"]);
+const Settings = lazyWithReload(routeImporters["/settings"]);
+const Profile = lazyWithReload(routeImporters["/profile"]);
+const Notifications = lazyWithReload(routeImporters["/notifications"]);
+const TeamPortal = lazyWithReload(routeImporters["/team-portal"]);
 const JoinTeam = lazyWithReload(() => import("./pages/JoinTeam"));
-const ApplyWithCode = lazyWithReload(() => import("./pages/ApplyWithCode"));
+const ApplyWithCode = lazyWithReload(routeImporters["/apply"]);
 const JobDetails = lazyWithReload(() => import("./pages/JobDetails"));
-const Applications = lazyWithReload(() => import("./pages/Applications"));
+const Applications = lazyWithReload(routeImporters["/applications"]);
 const CandidateApplicationDetail = lazyWithReload(() => import("./pages/CandidateApplicationDetail"));
 const ApplicationFormPhase = lazyWithReload(() => import("./pages/ApplicationFormPhase"));
 const TypingTestPhase = lazyWithReload(() => import("./pages/TypingTestPhase"));

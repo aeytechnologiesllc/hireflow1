@@ -18,6 +18,7 @@ import {
   Moon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { prefetchForPath } from "@/lib/prefetchRoutes";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCockpitAccount } from "./hooks/useCockpitData";
 import { useUnreadCount } from "@/hooks/useNotifications";
@@ -148,6 +149,14 @@ function Sidebar() {
             <Link
               key={item.to}
               to={item.to}
+              // Warm the route's lazy chunk before the click lands — on
+              // hover, on the initial touch/mouse-down, and on keyboard
+              // focus, so whichever signal comes first starts the fetch.
+              // No-ops for already-eager routes (routeImporters won't have
+              // an entry for them).
+              onMouseEnter={() => prefetchForPath(item.to)}
+              onPointerDown={() => prefetchForPath(item.to)}
+              onFocus={() => prefetchForPath(item.to)}
               // The label is display:none in the rail, so the name has to be
               // carried by aria-label or the link goes unnamed.
               aria-label={item.label}
@@ -245,6 +254,9 @@ function NotificationBell({ compact }: { compact?: boolean }) {
     <button
       aria-label={unread > 0 ? `Notifications (${unread} unread)` : "Notifications"}
       onClick={() => navigate("/notifications")}
+      onMouseEnter={() => prefetchForPath("/notifications")}
+      onPointerDown={() => prefetchForPath("/notifications")}
+      onFocus={() => prefetchForPath("/notifications")}
       className="relative flex shrink-0 items-center justify-center rounded-lg"
       style={{
         width: 36,

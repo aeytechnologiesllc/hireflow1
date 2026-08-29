@@ -189,7 +189,7 @@
   transition: filter 0.18s cubic-bezier(0.4, 0, 0.2, 1), background 0.18s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.18s cubic-bezier(0.4, 0, 0.2, 1), transform 0.12s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
 }
-.ck-btn:not(:disabled):active { transform: translateY(0.5px); }
+.ck-btn:not(:disabled):active { transform: translateY(0.5px) scale(0.97); }
 
 /* The action colour is jade — it is what Ava vouches for. Brass is reserved for
    things that cost money, and those are outlined, never filled. */
@@ -346,7 +346,7 @@
 }
 .ck-lift:active { transform: translateY(-1px); }
 .ck-btn:not(:disabled):hover { transform: translateY(-1px); }
-.ck-btn:not(:disabled):active { transform: translateY(0.5px); }
+.ck-btn:not(:disabled):active { transform: translateY(0.5px) scale(0.97); }
 
 /* ── Ambient depth — ONE cheap, living jade aurora layer ──────
    Two soft radial blobs that drift/scale very slowly behind the cockpit to
@@ -365,8 +365,9 @@
   }
   .ck-lift:hover,
   .ck-lift:active,
-  .ck-btn:not(:disabled):hover,
-  .ck-btn:not(:disabled):active { transform: none; }
+  .ck-btn:not(:disabled):hover { transform: none; }
+  /* Press feedback stays even with motion reduced — see the later, more
+     specific reduced-motion block for .ck-btn:active. */
 }
 
 /* keep cockpit numbers crisp */
@@ -554,7 +555,7 @@
     transform 90ms cubic-bezier(0.2, 0.7, 0.3, 1),
     box-shadow 140ms cubic-bezier(0.2, 0.7, 0.3, 1); }
 .ck-btn:not(:disabled):hover { transform: translateY(-1px); }
-.ck-btn:not(:disabled):active { transform: translateY(1px); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3); filter: none; }
+.ck-btn:not(:disabled):active { transform: translateY(0.5px) scale(0.97); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3); filter: none; transition-duration: 110ms; }
 
 /* The seal tilts a little further and pops when its row is hovered. */
 .ck-card:hover .ck-seal svg,
@@ -565,7 +566,12 @@
   .ck-ambient i, .ck-ambient::after { animation: none; }
   .ck-card, .ck-row, .ck-btn, .ck-seal svg { transition: none; }
   .ck-card.ck-act:hover, .ck-row:hover,
-  .ck-btn:not(:disabled):hover, .ck-btn:not(:disabled):active { transform: none; }
+  .ck-btn:not(:disabled):hover { transform: none; }
+  /* The lift/drift is decorative and goes away, but a press still needs to be
+     felt: keep the scale-down as an instant, un-animated state change (the
+     transition:none above already removes the animation) rather than
+     dropping press feedback entirely. */
+  .ck-btn:not(:disabled):active { transform: scale(0.97); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3); }
   /* Killing the transition alone still lets the pop land — instantly, which is
      worse. Zero the transform itself so the seal never jumps. */
   .ck-card:hover .ck-seal svg,

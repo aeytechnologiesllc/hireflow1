@@ -1,8 +1,10 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { ChevronRight, CalendarDays, Briefcase } from "lucide-react";
+import { ChevronRight, CalendarDays, Briefcase, Check, Copy } from "lucide-react";
+import { toast } from "sonner";
 import { clearDraft } from "@/lib/avaEngine/draft";
+import { candidateApplyUrl } from "@/lib/showcaseApply";
 import AvaSeal from "@/components/ava/AvaSeal";
 import CkAvatar from "../components/Avatar";
 import { CountUp } from "../components/CountUp";
@@ -188,13 +190,122 @@ function SealedRow({
   );
 }
 
+/**
+ * The very first thing a new owner sees on this screen, ever. No morning
+ * read exists yet — there is nothing to read. So the whole content area
+ * becomes one letterhead-style moment: Ava's mark, her voice, one door in.
+ * Nothing else on the page competes for the click.
+ */
+function FirstJobGuide({ onStart }: { onStart: () => void }) {
+  return (
+    <section
+      className="ck-card ck-reveal flex flex-col items-start gap-5 p-8 text-left md:p-12"
+      style={{ ["--ck-i" as string]: 1, borderTop: "3px solid var(--hf-gold-border)" }}
+    >
+      <span className="ck-seal-breathe">
+        <AvaSeal size={48} />
+      </span>
+      <div className="max-w-[56ch]">
+        <h2
+          className="font-display"
+          style={{ fontSize: "clamp(22px, 2.6vw, 30px)", lineHeight: 1.2, color: "var(--hf-text)", fontWeight: 500 }}
+        >
+          Let&rsquo;s post your first job.
+        </h2>
+        <p className="mt-3 text-[15px] leading-[1.6]" style={{ color: "var(--hf-text-soft)" }}>
+          Tell me who you need and I&rsquo;ll handle the rest — writing the posting, screening every
+          applicant, and sealing the ones worth your time right here.
+        </p>
+      </div>
+      <button className="ck-btn ck-btn-primary !px-6 !py-3 !text-[15px]" onClick={onStart}>
+        Post your first job
+        <ChevronRight className="h-4 w-4" />
+      </button>
+    </section>
+  );
+}
+
+/**
+ * A job exists but nobody has applied yet — the in-between moment. The
+ * owner's one job here is to get the link in front of people; Ava's is to
+ * wait. One primary action (copy the link), one natural next step (see it
+ * the way a candidate would).
+ */
+function LiveJobGuide({
+  job,
+  onView,
+}: {
+  job: { id: string; title: string; roleCode: string | null };
+  onView: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const applyUrl = job.roleCode ? candidateApplyUrl(job.roleCode) : `${window.location.origin}/candidate/job/${job.id}`;
+
+  const copy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(applyUrl);
+      setCopied(true);
+      toast.success("Link copied");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Could not copy");
+    }
+  }, [applyUrl]);
+
+  return (
+    <section
+      className="ck-card ck-reveal flex flex-col items-start gap-5 p-8 text-left md:p-12"
+      style={{ ["--ck-i" as string]: 1, borderTop: "3px solid var(--hf-gold-border)" }}
+    >
+      <span className="ck-seal-breathe">
+        <AvaSeal size={48} />
+      </span>
+      <div className="max-w-[56ch]">
+        <h2
+          className="font-display"
+          style={{ fontSize: "clamp(22px, 2.6vw, 30px)", lineHeight: 1.2, color: "var(--hf-text)", fontWeight: 500 }}
+        >
+          {job.title} is live.
+        </h2>
+        <p className="mt-3 text-[15px] leading-[1.6]" style={{ color: "var(--hf-text-soft)" }}>
+          Share this link anywhere people will see it. The moment someone applies, I read them and
+          seal them right here — scored, with the evidence behind it.
+        </p>
+      </div>
+      <div
+        className="flex w-full max-w-[56ch] flex-wrap items-center gap-3 rounded-[10px] px-4 py-3"
+        style={{ background: "var(--hf-surface-strong)", border: "1px solid var(--line)" }}
+      >
+        <span
+          className="min-w-0 flex-1 truncate text-[13px]"
+          style={{ color: "var(--hf-text)", fontFamily: "ui-monospace, SFMono-Regular, monospace" }}
+        >
+          {applyUrl}
+        </span>
+        <button className="ck-btn ck-btn-primary shrink-0 !py-2 !text-[13px]" onClick={() => void copy()}>
+          {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+          {copied ? "Copied" : "Copy link"}
+        </button>
+      </div>
+      <button
+        type="button"
+        className="text-[13px] font-semibold transition-opacity hover:opacity-75"
+        style={{ color: "var(--hf-gold)" }}
+        onClick={onView}
+      >
+        See it the way a candidate does →
+      </button>
+    </section>
+  );
+}
+
 export default function CockpitDashboard() {
   const navigate = useNavigate();
   const { account, profile } = useCockpitAccount();
   const { candidates, applications, isLoading } = useCockpitCandidates();
   const { advance, reject, isUpdating } = useCockpitActions();
   const { interviews } = useCockpitInterviews();
-  const { jobs } = useCockpitJobsData();
+  const { jobs, isLoading: jobsLoading } = useCockpitJobsData();
 
   /* Both decisions reach the candidate by email. This is the screen an owner
      skims half-awake, so neither one goes through on a single stray click —
@@ -204,6 +315,12 @@ export default function CockpitDashboard() {
   // "Also today" is only worth a section when there is something real in it.
   const nextInterview = interviews.upcoming[0] ?? null;
   const liveJob = jobs.find((j) => j.status === "live") ?? null;
+
+  // No jobs at all vs. a job with nobody in it yet are two different first
+  // moments — the first needs Ava's pitch, the second needs the link.
+  const featuredJob = liveJob ?? jobs[0] ?? null;
+  const hasNoJobs = !jobsLoading && jobs.length === 0;
+  const hasJobsNoApplicants = !jobsLoading && jobs.length > 0 && candidates.length === 0;
 
   const now = useMemo(() => new Date(), []);
   const who = greetingName(profile?.full_name, account.name);
@@ -252,7 +369,7 @@ export default function CockpitDashboard() {
     setActionDialog(null);
   };
 
-  if (isLoading) {
+  if (isLoading || jobsLoading) {
     return (
       <div className="space-y-4">
         <div className="ck-reveal h-[52px] rounded-xl" style={{ background: "var(--hf-surface)", opacity: 0.55 }} />
@@ -284,31 +401,19 @@ export default function CockpitDashboard() {
             {format(now, "EEEE, MMM d")}
           </span>
         </div>
-        <button className="ck-btn ck-btn-primary !py-2 !text-[13.5px]" onClick={startRole}>
-          + New job
-        </button>
+        {!hasNoJobs && (
+          <button className="ck-btn ck-btn-primary !py-2 !text-[13.5px]" onClick={startRole}>
+            + New job
+          </button>
+        )}
       </header>
 
-      {candidates.length === 0 ? (
-        /* ── Nothing has come in yet. Say so plainly. ─────── */
-        <section className="ck-card ck-reveal p-6 md:p-8" style={{ ["--ck-i" as string]: 1 }}>
-          <h2 className="font-display text-[20px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
-            Nobody has applied yet.
-          </h2>
-          <p className="mt-2 max-w-[52ch] text-[14px]" style={{ color: "var(--hf-text-soft)" }}>
-            Publish a role and share its link. The moment someone applies, Ava screens them and
-            they show up here — already read, already scored.
-          </p>
-          <div className="mt-5 flex flex-wrap gap-2">
-            <button className="ck-btn ck-btn-primary" onClick={startRole}>
-              Post your first job
-            </button>
-            <button className="ck-btn ck-btn-outline" onClick={() => navigate("/jobs")}>
-              See your jobs
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        </section>
+      {hasNoJobs ? (
+        /* ── The very first moment. One door in, nothing else asking. ── */
+        <FirstJobGuide onStart={startRole} />
+      ) : hasJobsNoApplicants && featuredJob ? (
+        /* ── The job is out there. Ava is just waiting on the world. ── */
+        <LiveJobGuide job={featuredJob} onView={() => navigate(`/candidate/job/${featuredJob.id}`)} />
       ) : (
         <>
           {/* ── What Ava did, in one line. Only once she has read someone. ── */}
