@@ -168,16 +168,28 @@ Deno.serve(async (req) => {
       });
 
       if (!createRoomResponse.ok) {
+        // Both participants often arrive at the same moment: each saw 404,
+        // both POST, and the loser gets "room already exists". That is
+        // success for our purposes — re-fetch the room the winner created.
         const errorBody = await createRoomResponse.text();
-        console.error("Daily room creation failed:", createRoomResponse.status, errorBody);
-        return new Response(JSON.stringify({ error: "Failed to create video room" }), {
-          status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        const retryGet = await fetch(`${DAILY_API_BASE}/rooms/${roomName}`, {
+          method: "GET",
+          headers: dailyHeaders,
         });
+        if (retryGet.ok) {
+          const existingRoom = await retryGet.json();
+          roomUrl = existingRoom.url;
+        } else {
+          console.error("Daily room creation failed:", createRoomResponse.status, errorBody);
+          return new Response(JSON.stringify({ error: "Failed to create video room" }), {
+            status: 502,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      } else {
+        const createdRoom = await createRoomResponse.json();
+        roomUrl = createdRoom.url;
       }
-
-      const createdRoom = await createRoomResponse.json();
-      roomUrl = createdRoom.url;
     } else {
       const errorBody = await getRoomResponse.text();
       console.error("Daily room lookup failed:", getRoomResponse.status, errorBody);
