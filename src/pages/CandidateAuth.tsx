@@ -15,6 +15,11 @@ import { HeroBackground } from "@/components/ava/HeroBackground";
 import { Wordmark } from "@/cockpit/components/Wordmark";
 import { GlyphLetter } from "@/components/candidate/glyphs";
 
+// Google OAuth isn't enabled on the Supabase backend yet (authorize endpoint
+// returns 400) — keep the UI hidden until credentials exist. Flip
+// VITE_GOOGLE_AUTH_ENABLED=true once it's live; no logic here changes.
+const GOOGLE_AUTH_ENABLED = import.meta.env.VITE_GOOGLE_AUTH_ENABLED === "true";
+
 const isWebView = () => {
   if (typeof window === "undefined") return false;
   const ua = navigator.userAgent || "";
@@ -484,8 +489,10 @@ export default function CandidateAuth() {
                 </motion.div>
               ) : (
                 <>
-                  {/* Google Sign In Button - hidden in WebView where Google blocks OAuth */}
-                  {!inWebView && (
+                  {/* Google Sign In Button - hidden in WebView where Google blocks OAuth,
+                      and gated behind GOOGLE_AUTH_ENABLED until Supabase has Google OAuth
+                      credentials configured (authorize endpoint currently 400s). */}
+                  {GOOGLE_AUTH_ENABLED && !inWebView && (
                     <>
                       <Button
                         type="button"
