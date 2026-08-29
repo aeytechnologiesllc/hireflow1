@@ -182,6 +182,7 @@ export default function CockpitInterviews() {
   const [reviewing, setReviewing] = useState<Session | null>(null);
   const [cancelling, setCancelling] = useState<Session | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [markingId, setMarkingId] = useState<string | null>(null);
   const updateInterview = useUpdateInterview();
 
   const today = useMemo(() => startOfDay(new Date()), []);
@@ -263,6 +264,18 @@ export default function CockpitInterviews() {
     [sessions],
   );
 
+  /* A 'scheduled' row whose day has already passed — the candidate never
+     picked, or nobody marked what happened — falls out of both `upcoming`
+     (>= today) and `completed` (needs a completed/no_show status). Without
+     this it just vanishes; surface it instead so it gets resolved. */
+  const overdue = useMemo(
+    () =>
+      sessions
+        .filter((s) => s.status === "scheduled" && s.at && s.at < today)
+        .sort((a, b) => (a.at?.getTime() ?? 0) - (b.at?.getTime() ?? 0)),
+    [sessions, today],
+  );
+
   const noShows = useMemo(() => sessions.filter((s) => s.status === "no_show").length, [sessions]);
   const needsCall = useMemo(
     () => upcoming.filter((s) => s.response === "reschedule_requested").length,
@@ -333,6 +346,25 @@ export default function CockpitInterviews() {
     }
   };
 
+  /* For an overdue row: the employer says what actually happened rather
+     than letting it sit unresolved. */
+  const markOutcome = async (target: Session, status: "completed" | "no_show") => {
+    setMarkingId(target.id);
+    try {
+      await updateInterview.mutateAsync({ id: target.id, status });
+      toast.success(
+        status === "no_show"
+          ? `Marked as no-show — ${firstName(target.name)}`
+          : `Marked completed — ${firstName(target.name)}`,
+      );
+    } catch (err) {
+      console.error("Error marking interview outcome:", err);
+      toast.error("Could not update that interview");
+    } finally {
+      setMarkingId(null);
+    }
+  };
+
   const subtitle =
     needsCall > 0
       ? `${needsCall} ${needsCall === 1 ? "time needs" : "times need"} your call — I have the rest handled.`
@@ -385,7 +417,7 @@ export default function CockpitInterviews() {
         }
       />
 
-      {upcoming.length === 0 && completed.length === 0 ? (
+      {upcoming.length === 0 && completed.length === 0 && overdue.length === 0 ? (
         /* ── Nobody is on the calendar. Say so, and point at the one move. ── */
         <section className="ck-card ck-reveal p-6 md:p-8">
           <h2 className="font-display text-[20px]" style={{ color: "var(--ink)", fontWeight: 500 }}>
@@ -462,6 +494,7 @@ export default function CockpitInterviews() {
                       ) : (
                         slots.map((s) => {
                           const confirm = s.response === "reschedule_requested";
+                          const awaitingPick = s.response === "awaiting_pick";
                           return (
                             <button
                               key={s.id}
@@ -470,12 +503,16 @@ export default function CockpitInterviews() {
                               className="mt-[7px] block w-full px-2 py-[5px] text-left text-[11px] font-semibold leading-[1.35]"
                               style={{
                                 borderRadius: 6,
-                                background: confirm ? "var(--amber-bg)" : "var(--jade-soft)",
-                                color: confirm ? "var(--amber-fg)" : "var(--jade-soft-fg)",
+                                background: confirm ? "var(--amber-bg)" : awaitingPick ? "var(--surface-2)" : "var(--jade-soft)",
+                                color: confirm ? "var(--amber-fg)" : awaitingPick ? "var(--ink-2)" : "var(--jade-soft-fg)",
                               }}
                             >
                               {format(s.at as Date, "h:mm aaa")} &middot; {firstName(s.name)}
                               {confirm ? " · confirm" : ""}
+                              {/* awaiting_pick shows the earliest offered window as a
+                                  placeholder — the candidate has not chosen yet, so say
+                                  so quietly rather than let it read as a confirmed time. */}
+                              {awaitingPick ? " · picks soon" : ""}
                             </button>
                           );
                         })
@@ -629,6 +666,86 @@ export default function CockpitInterviews() {
             <p className="text-[13.5px]" style={{ color: "var(--ink-2)" }}>
               Nothing coming up &mdash; everyone you have already met is below.
             </p>
+          )}
+
+          {/* ── Needs attention: the day came and went with nobody saying what
+                happened — a no-show never marked, or a pick that never came. ── */}
+          {overdue.length > 0 && (
+            <section className="space-y-2">
+              <SectionTitle>Needs attention</SectionTitle>
+              {overdue.map((s, i) => (
+                <div
+                  key={s.id}
+                  className="ck-card ck-reveal flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3"
+                  style={{ ["--ck-i" as string]: i, borderRadius: 10 }}
+                >
+                  <div className="min-w-[104px] shrink-0">
+                    <div
+                      className="text-[10px] font-bold uppercase leading-[1.2] tracking-[0.1em]"
+                      style={{ color: "var(--amber-fg)" }}
+                    >
+                      {s.at ? format(s.at, "EEE d") : "Past"}
+                    </div>
+                    <div
+                      className="font-display tnum mt-[3px] whitespace-nowrap leading-none"
+                      style={{ fontSize: 22, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.02em" }}
+                    >
+                      {s.at ? format(s.at, "h:mm aaa") : s.timeLabel}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => openRecord(s)}
+                    className="flex min-w-0 flex-1 basis-full items-center gap-3.5 text-left sm:basis-0"
+                  >
+                    <CkAvatar who={s.name} size={40} />
+                    <span className="min-w-0">
+                      <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                        <span
+                          className="truncate text-[14px] font-semibold leading-[1.3]"
+                          style={{ color: "var(--ink)" }}
+                        >
+                          {s.name}
+                        </span>
+                        <Chip tone="amber">Time passed</Chip>
+                      </span>
+                      <span className="mt-0.5 block text-[12px] leading-[1.35]" style={{ color: "var(--ink-3)" }}>
+                        {s.role} · time passed — mark what happened
+                      </span>
+                    </span>
+                  </button>
+
+                  <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
+                    <button className="ck-btn ck-btn-outline !py-2 !text-[12px]" onClick={() => openRecord(s)}>
+                      Details
+                    </button>
+                    <button
+                      className="ck-btn ck-btn-outline !py-2 !text-[12px]"
+                      disabled={markingId === s.id}
+                      onClick={() => void markOutcome(s, "completed")}
+                    >
+                      Mark completed
+                    </button>
+                    <button
+                      className="ck-btn ck-btn-outline !py-2 !text-[12px]"
+                      disabled={markingId === s.id}
+                      onClick={() => void markOutcome(s, "no_show")}
+                    >
+                      No-show
+                    </button>
+                    {/* Quiet on purpose — this is the one irreversible move on the page. */}
+                    <button
+                      className="ck-btn ck-btn-ghost !py-2 !text-[12px]"
+                      style={{ color: "var(--ink-3)" }}
+                      onClick={() => setCancelling(s)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </section>
           )}
 
           {/* ── The brief, and the record ─────────────────────── */}

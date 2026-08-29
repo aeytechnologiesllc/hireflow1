@@ -5,6 +5,7 @@ type NotificationType =
   | "phase_advanced"
   | "new_message"
   | "interview_scheduled"
+  | "interview_pick_time"
   | "interview_cancelled"
   | "interview_rescheduled"
   | "interview_reminder"
@@ -35,6 +36,8 @@ interface NotificationData {
   company_name?: string;
   rejection_reason?: string;
   proposed_times?: string;
+  proposed_times_list?: string[];
+  window_count?: string;
   candidate_note?: string;
   minutes_remaining?: string;
   active_jobs_count?: string;
@@ -174,6 +177,24 @@ export async function notifyInterviewScheduled(
     job_title: jobTitle,
     interview_date: interviewDate,
     interview_time: interviewTime,
+    company_name: companyName,
+  });
+}
+
+/**
+ * Notify candidate that the employer proposed several interview windows
+ * and they need to pick one
+ */
+export async function notifyInterviewPickTime(
+  candidateId: string,
+  jobTitle: string,
+  proposedTimes: string[],
+  companyName?: string
+): Promise<void> {
+  await sendNotificationEmail("interview_pick_time", candidateId, {
+    job_title: jobTitle,
+    proposed_times_list: proposedTimes,
+    window_count: proposedTimes.length.toString(),
     company_name: companyName,
   });
 }

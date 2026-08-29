@@ -101,6 +101,8 @@ export function CandidateInterviewConfirmationCard({
 
   const windows = useMemo(() => parseEmployerWindows(interview.employer_windows), [interview.employer_windows]);
   const hasWindows = windows.length > 0;
+  // Only ever offer times that haven't already passed.
+  const futureWindows = useMemo(() => windows.filter((w) => isFuture(new Date(w.start))), [windows]);
 
   // Use local state for immediate UI feedback
   const candidateResponse = localCandidateResponse || "pending";
@@ -239,8 +241,12 @@ export function CandidateInterviewConfirmationCard({
   };
 
   // "Can't make it?" — free re-pick if other windows remain and we're well out.
+  // Compare as epoch millis, not raw strings: Postgres re-serializes timestamptz
+  // with a "+00:00" suffix while employer_windows keeps JS's "...Z" strings, so a
+  // string comparison here would never match the currently-picked window.
+  const effectiveScheduledAtMs = new Date(effectiveScheduledAt).getTime();
   const otherFutureWindows = windows.filter(
-    (w) => w.start !== effectiveScheduledAt && isFuture(new Date(w.start))
+    (w) => new Date(w.start).getTime() !== effectiveScheduledAtMs && isFuture(new Date(w.start))
   );
   const hoursToStart = differenceInHours(scheduledDate, now);
   const canFreeRepick =
@@ -345,17 +351,30 @@ export function CandidateInterviewConfirmationCard({
           {/* Slot picker */}
           {isAwaitingPick && (
             <div className="mb-4">
-              {windows.length > 0 ? (
-                renderSlotGrid("pick_slot", windows)
+              {futureWindows.length > 0 ? (
+                <>
+                  {renderSlotGrid("pick_slot", futureWindows)}
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-3">
+                    <Globe className="h-3 w-3" />
+                    <span>Times shown in your local timezone ({getTimezoneAbbreviation()})</span>
+                  </div>
+                </>
               ) : (
-                <p className="text-sm text-muted-foreground">
-                  Those times have passed — the employer will follow up with new ones.
-                </p>
+                <div className="rounded-xl border border-border bg-card p-4">
+                  <p className="text-sm text-foreground">
+                    Those times have passed. Let us know what works for you instead.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowRescheduleDialog(true)}
+                    className="gap-2 mt-3"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Ask for new times
+                  </Button>
+                </div>
               )}
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-3">
-                <Globe className="h-3 w-3" />
-                <span>Times shown in your local timezone ({getTimezoneAbbreviation()})</span>
-              </div>
             </div>
           )}
 

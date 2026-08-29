@@ -32,6 +32,7 @@ type NotificationType =
   | "phase_advanced"
   | "new_message"
   | "interview_scheduled"
+  | "interview_pick_time"
   | "interview_cancelled"
   | "interview_rescheduled"
   | "interview_reminder"
@@ -65,6 +66,8 @@ interface NotificationRequest {
     company_name?: string;
     rejection_reason?: string;
     proposed_times?: string;
+    proposed_times_list?: string[];
+    window_count?: string;
     candidate_note?: string;
     minutes_remaining?: string;
     active_jobs_count?: string;
@@ -154,6 +157,25 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
       ),
     },
     
+    // CANDIDATE-FACING
+    interview_pick_time: {
+      subject: `Pick a time for your interview — ${data.job_title}`,
+      html: wrapEmail(
+        "Pick a Time for Your Interview",
+        `<p>The hiring team for <strong>${data.job_title}</strong> has proposed ${data.window_count || "a few"} time${data.window_count === "1" ? "" : "s"} for your interview. Pick whichever works best for you:</p>
+         ${
+           data.proposed_times_list && data.proposed_times_list.length > 0
+             ? `<ul style="color: #333; padding-left: 20px; margin: 16px 0;">
+                 ${data.proposed_times_list.map((t) => `<li style="margin-bottom: 6px;">${t}</li>`).join("")}
+               </ul>`
+             : ""
+         }
+         <p style="color: #666;">Head to your application to choose a time — it only takes a second.</p>`,
+        "Pick a Time",
+        `${baseUrl}/applications`
+      ),
+    },
+
     // CANDIDATE-FACING
     interview_cancelled: {
       subject: `Interview Cancelled: ${data.job_title}`,
@@ -329,6 +351,7 @@ const getPreferenceField = (type: NotificationType): string => {
     phase_advanced: "email_phase_updates",
     new_message: "email_messages",
     interview_scheduled: "email_interview_reminders",
+    interview_pick_time: "email_interview_reminders",
     interview_cancelled: "email_interview_reminders",
     interview_rescheduled: "email_interview_reminders",
     interview_reminder: "email_interview_reminders",

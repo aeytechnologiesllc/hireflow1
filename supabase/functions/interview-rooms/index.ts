@@ -149,6 +149,34 @@ Deno.serve(async (req) => {
     if (getRoomResponse.ok) {
       const existingRoom = await getRoomResponse.json();
       roomUrl = existingRoom.url;
+
+      // A reschedule moves scheduled_at, which moves the derived nbf/exp —
+      // the room in Daily may still be gated for the old window. Bring it
+      // in line with the freshly computed values before handing out a token.
+      const existingNbf = existingRoom?.config?.nbf;
+      const existingExp = existingRoom?.config?.exp;
+      if (existingNbf !== nbfSeconds || existingExp !== expSeconds) {
+        try {
+          const updateRoomResponse = await fetch(`${DAILY_API_BASE}/rooms/${roomName}`, {
+            method: "POST",
+            headers: dailyHeaders,
+            body: JSON.stringify({
+              properties: {
+                nbf: nbfSeconds,
+                exp: expSeconds,
+              },
+            }),
+          });
+          if (!updateRoomResponse.ok) {
+            const errorBody = await updateRoomResponse.text();
+            console.error("Failed to update Daily room nbf/exp:", updateRoomResponse.status, errorBody);
+          }
+        } catch (updateErr) {
+          // Not fatal — the token we mint below carries the fresh exp
+          // regardless of whether the room's own gate got updated.
+          console.error("Error updating Daily room nbf/exp:", updateErr);
+        }
+      }
     } else if (getRoomResponse.status === 404) {
       const createRoomResponse = await fetch(`${DAILY_API_BASE}/rooms`, {
         method: "POST",

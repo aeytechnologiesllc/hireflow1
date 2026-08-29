@@ -573,14 +573,28 @@ export default function InterviewSchedulingWizard({
         .single();
 
       if (appData) {
-        const { notifyInterviewScheduled } = await import("@/utils/emailNotifications");
-        await notifyInterviewScheduled(
-          appData.candidate_id,
-          (appData.jobs as { title?: string } | null)?.title || jobTitle || "Position",
-          interviewDateLabel,
-          interviewTimeLabel,
-          undefined
-        );
+        const resolvedJobTitle = (appData.jobs as { title?: string } | null)?.title || jobTitle || "Position";
+        if (exactTimeMode) {
+          const { notifyInterviewScheduled } = await import("@/utils/emailNotifications");
+          await notifyInterviewScheduled(
+            appData.candidate_id,
+            resolvedJobTitle,
+            interviewDateLabel,
+            interviewTimeLabel,
+            undefined
+          );
+        } else {
+          const { notifyInterviewPickTime } = await import("@/utils/emailNotifications");
+          const proposedTimes = sortedSelectedWindows.map(
+            (w) => `${format(w.day, "EEEE, MMMM d")} · ${formatTimeToAMPM(w.time)}`
+          );
+          await notifyInterviewPickTime(
+            appData.candidate_id,
+            resolvedJobTitle,
+            proposedTimes,
+            undefined
+          );
+        }
       }
 
       // Invalidate interview queries so ApplicantDetails updates

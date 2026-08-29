@@ -86,6 +86,7 @@ Deno.serve(async (req) => {
         duration_minutes,
         candidate_response,
         employer_windows,
+        status,
         applications(
           id,
           candidate_id,
@@ -109,6 +110,14 @@ Deno.serve(async (req) => {
       console.error("Permission denied: user is not the candidate");
       return new Response(JSON.stringify({ error: "You are not authorized to modify this interview" }), {
         status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // A cancelled (or otherwise inactive) interview is never revivable by the candidate.
+    if (interview.status !== "scheduled") {
+      return new Response(JSON.stringify({ error: "interview_not_active" }), {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -157,28 +166,64 @@ Deno.serve(async (req) => {
         });
       }
 
-      if (payload.action === "repick_slot") {
-        if (interview.candidate_response !== "confirmed") {
-          return new Response(JSON.stringify({ error: "Only a confirmed interview can be moved to a different time." }), {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
+      // Postgres re-serializes timestamptz with a "+00:00" suffix while
+      // employer_windows keeps the original JS "...Z" strings — always
+      // compare as epoch millis, never as raw strings.
+      const matchedStartMs = new Date(matchedWindow.start).getTime();
+      if (!(matchedStartMs > Date.now())) {
+        return new Response(JSON.stringify({ error: "slot_in_past" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Guards depend on the interview's STATE, not which action name the
+      // client sent — pick_slot and repick_slot are otherwise identical.
+      const isAlreadyConfirmed = interview.candidate_response === "confirmed";
+      const currentScheduledAtMs = interview.scheduled_at
+        ? new Date(interview.scheduled_at as string).getTime()
+        : NaN;
+      const isSameSlot = isAlreadyConfirmed && matchedStartMs === currentScheduledAtMs;
+
+      if (isSameSlot) {
+        // Picking the slot the candidate is already confirmed on is a no-op
+        // success — not a "moved their interview" event for the employer.
+        return new Response(JSON.stringify({
+          success: true,
+          interview: {
+            id: interview.id,
+            application_id: interview.application_id,
+            scheduled_at: interview.scheduled_at,
+            duration_minutes: interview.duration_minutes,
+            candidate_response: interview.candidate_response,
+            employer_windows: interview.employer_windows,
+            status: interview.status,
+          },
+          proposedTimesCount: 0,
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (isAlreadyConfirmed) {
+        // Moving off a confirmed slot to a genuinely different one: repick
+        // rules apply regardless of which action name was sent.
         if (windows.length <= 1) {
           return new Response(JSON.stringify({ error: "No alternative times are available for this interview." }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
-        const currentScheduledAt = new Date(interview.scheduled_at as string).getTime();
         const twelveHoursMs = 12 * 60 * 60 * 1000;
-        if (Date.now() >= currentScheduledAt - twelveHoursMs) {
+        if (Date.now() >= currentScheduledAtMs - twelveHoursMs) {
           return new Response(JSON.stringify({ error: "It's too close to the scheduled time to move this interview. Please contact the employer directly." }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
       }
+      // else: first pick (candidate_response is "awaiting_pick" or similar) — no 12h rule.
 
       const duration = matchedWindow.durationMinutes || interview.duration_minutes || 60;
       updateData = {
@@ -197,12 +242,12 @@ Deno.serve(async (req) => {
         minute: "2-digit",
       });
 
-      if (payload.action === "pick_slot") {
-        notificationTitle = "Interview Time Picked";
-        notificationMessage = `${candidateName} picked a time for their interview for ${jobTitle}: ${formattedSlot}.`;
-      } else {
+      if (isAlreadyConfirmed) {
         notificationTitle = "Interview Moved";
         notificationMessage = `${candidateName} moved their interview for ${jobTitle} to ${formattedSlot}.`;
+      } else {
+        notificationTitle = "Interview Time Picked";
+        notificationMessage = `${candidateName} picked a time for their interview for ${jobTitle}: ${formattedSlot}.`;
       }
     } else {
       return new Response(JSON.stringify({ error: "Invalid action" }), {
