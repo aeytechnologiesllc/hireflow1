@@ -188,6 +188,63 @@
     70%{transform:translate3d(-7px,-27px,0);opacity:.55}100%{transform:translate3d(4px,-9px,0);opacity:.8}}
   @keyframes mote2{0%{transform:translate3d(0,0,0);opacity:.35}40%{transform:translate3d(-11px,10px,0);opacity:.85}
     75%{transform:translate3d(8px,19px,0);opacity:.5}100%{transform:translate3d(-4px,7px,0);opacity:.7}}
+
+  /* ── Desktop hero cluster (≥1024px only) — the night shift, visible: two
+     more applicants at depth behind Danielle. Below 1024px .hero-cluster is
+     display:contents (transparent to layout — .hook lands exactly where it
+     always has) and the two new layers are display:none, so the phone/tablet
+     hero is pixel-identical to before. ── */
+  .hero-cluster{display:contents}
+  .cluster-mid,.cluster-back{display:none}
+  .night-card{position:relative;background:var(--surface);border:1px solid var(--line-soft);
+    border-radius:14px;box-shadow:var(--shadow-md);padding:15px 17px 17px;text-align:left;
+    will-change:transform,opacity}
+  .night-card--mid{width:min(100%,300px);transform:scale(.85);opacity:.82;filter:blur(1px)}
+  .night-card--back{width:min(100%,260px);transform:scale(.7);opacity:.62;filter:blur(2px)}
+  .hk-time.nc-done{color:var(--jade-bright)}
+  .nc-seal-chip{display:inline-flex;align-items:center;gap:6px;margin-top:13px;padding:4px 10px 4px 5px;
+    border-radius:999px;background:var(--surface-2);border:1px solid var(--line-soft);
+    font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+  .nc-seal-chip svg{width:16px;height:16px;flex-shrink:0;filter:drop-shadow(0 1px 2px var(--seal-shadow))}
+  /* a calm, slow waveform — 16 bars, CSS-only, never touched by the scroll */
+  .nc-wave{display:flex;align-items:flex-end;justify-content:flex-start;gap:3px;height:26px;margin-top:12px}
+  .nc-wave i{width:3px;border-radius:2px;background:var(--jade-bright);opacity:.75;
+    animation:ncwave 2.8s ease-in-out infinite alternate}
+  .nc-wave i:nth-child(1){height:8px;animation-delay:-2.5s}
+  .nc-wave i:nth-child(2){height:14px;animation-delay:-2.2s}
+  .nc-wave i:nth-child(3){height:19px;animation-delay:-1.9s}
+  .nc-wave i:nth-child(4){height:11px;animation-delay:-1.6s}
+  .nc-wave i:nth-child(5){height:21px;animation-delay:-2.4s}
+  .nc-wave i:nth-child(6){height:15px;animation-delay:-1.3s}
+  .nc-wave i:nth-child(7){height:9px;animation-delay:-1s}
+  .nc-wave i:nth-child(8){height:22px;animation-delay:-2.1s}
+  .nc-wave i:nth-child(9){height:13px;animation-delay:-.7s}
+  .nc-wave i:nth-child(10){height:17px;animation-delay:-1.8s}
+  .nc-wave i:nth-child(11){height:8px;animation-delay:-.4s}
+  .nc-wave i:nth-child(12){height:20px;animation-delay:-1.5s}
+  .nc-wave i:nth-child(13){height:12px;animation-delay:-2.7s}
+  .nc-wave i:nth-child(14){height:18px;animation-delay:-1.1s}
+  .nc-wave i:nth-child(15){height:10px;animation-delay:-.2s}
+  .nc-wave i:nth-child(16){height:16px;animation-delay:-2s}
+  @keyframes ncwave{from{transform:scaleY(.45)}to{transform:scaleY(1)}}
+  /* each layer bobs on its own slow period — never in sync with Danielle's */
+  .cm-bob{animation:cmbob 5.2s ease-in-out infinite alternate}
+  @keyframes cmbob{from{transform:translate3d(0,-5px,0)}to{transform:translate3d(0,5px,0)}}
+  .cb-bob{animation:cbbob 7.8s ease-in-out infinite alternate}
+  @keyframes cbbob{from{transform:translate3d(0,-4px,0)}to{transform:translate3d(0,4px,0)}}
+  @media(min-width:1024px){
+    .hero-in{max-width:1240px;grid-template-columns:minmax(0,1fr) minmax(420px,560px);gap:clamp(36px,5vw,76px)}
+    .hero-cluster{display:block;position:relative;width:100%;min-height:420px}
+    .hero-cluster .hook{position:absolute;inset:0;z-index:3}
+    .cluster-mid,.cluster-back{display:block;position:absolute;pointer-events:none}
+    .cluster-mid{top:4%;right:0;width:60%;max-width:290px;z-index:2}
+    .cluster-back{bottom:3%;right:-4%;width:52%;max-width:250px;z-index:1}
+  }
+  @media(min-width:1280px){
+    .hero-in{max-width:1300px;grid-template-columns:minmax(0,1fr) minmax(460px,600px)}
+    .cluster-mid{right:4%}
+    .cluster-back{right:0}
+  }
   .sub-mob{display:none}
   .watch-link{display:none}
   .scroll-cue{display:none}
@@ -499,6 +556,11 @@
     .hook-bob,.hook-tilt,.hk-seal svg,.hk-sheen::before,.hk-av i{animation:none!important}
     .mote{display:none}
     .hook-par{transform:none!important;opacity:1!important}
+    /* the desktop cluster: no bob, no waveform, no staged entrance — the
+       constellation renders composed and static, all three cards visible */
+    .cm-bob,.cb-bob,.nc-wave i{animation:none!important}
+    .cm-par,.cb-par{transform:none!important;opacity:1!important}
+    .cluster-mid,.cluster-back{animation:none!important;opacity:1!important}
     /* the story never pins or scrubs — scenes stack, finished */
     .story.scrub{height:auto}
     .story.scrub .story-pin{position:static;height:auto;padding:clamp(40px,6vw,72px) 0 clamp(24px,4vw,48px);overflow:visible}
@@ -572,23 +634,61 @@
         <p class="scroll-cue hi" style="--d:.6s" aria-hidden="true">scroll — she&#8217;s working &darr;</p>
       </div>
       <!-- the hook: her application, physically here, floating in the night.
-           It rises away on scroll and hands off to scene 1 below. -->
-      <div class="hook hi" style="--d:.55s" aria-hidden="true">
-        <div class="hook-par" id="hook-par">
-          <div class="hook-bob"><div class="hook-tilt">
-            <div class="hook-card">
-              <span class="hk-sheen"></span>
-              <div class="hk-top">
-                <span class="hk-av">DO<i></i></span>
-                <div><div class="hk-name">Danielle Okafor</div>
-                  <div class="hk-time">applied &middot; 11:47&#8202;pm</div></div>
+           It rises away on scroll and hands off to scene 1 below.
+           ≥1024px only: .hero-cluster gives it two neighbours at depth — the
+           same night shift, made visible. Below 1024px .hero-cluster is
+           display:contents (invisible to layout), so .hook lands exactly
+           where it always has and the phone/tablet hero is untouched. -->
+      <div class="hero-cluster">
+        <div class="hook hi" style="--d:.55s" aria-hidden="true">
+          <div class="hook-par" id="hook-par">
+            <div class="hook-bob"><div class="hook-tilt">
+              <div class="hook-card">
+                <span class="hk-sheen"></span>
+                <div class="hk-top">
+                  <span class="hk-av">DO<i></i></span>
+                  <div><div class="hk-name">Danielle Okafor</div>
+                    <div class="hk-time">applied &middot; 11:47&#8202;pm</div></div>
+                </div>
+                <div class="hk-meta">Part-Time Mechanic &middot; from her phone</div>
+                <span class="hk-seal"><svg viewBox="0 0 100 100"><use href="#wax-sm"/></svg></span>
               </div>
-              <div class="hk-meta">Part-Time Mechanic &middot; from her phone</div>
-              <span class="hk-seal"><svg viewBox="0 0 100 100"><use href="#wax-sm"/></svg></span>
+              <span class="mote m1"></span><span class="mote m2"></span>
+              <span class="mote m3"></span><span class="mote m4"></span>
+            </div></div>
+          </div>
+        </div>
+        <!-- mid layer (≥1024px): Marisol Reyes, mid-interview — the same
+             "3:47am, Marisol asked about the scanner" beat lower on the page. -->
+        <div class="cluster-mid hi" style="--d:1.2s" aria-hidden="true" id="cluster-mid">
+          <div class="cm-par" id="cm-par">
+            <div class="cm-bob">
+              <div class="night-card night-card--mid">
+                <div class="hk-top">
+                  <span class="hk-av">MR</span>
+                  <div><div class="hk-name">Marisol Reyes</div>
+                    <div class="hk-time">interviewing &middot; 3:47&#8202;am</div></div>
+                </div>
+                <div class="nc-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              </div>
             </div>
-            <span class="mote m1"></span><span class="mote m2"></span>
-            <span class="mote m3"></span><span class="mote m4"></span>
-          </div></div>
+          </div>
+        </div>
+        <!-- back layer (≥1024px): Tyrone Baptiste, already sealed — the dawn
+             beat's "5:36am — a third sealed for your morning." -->
+        <div class="cluster-back hi" style="--d:2s" aria-hidden="true" id="cluster-back">
+          <div class="cb-par" id="cb-par">
+            <div class="cb-bob">
+              <div class="night-card night-card--back">
+                <div class="hk-top">
+                  <span class="hk-av">TB</span>
+                  <div><div class="hk-name">Tyrone Baptiste</div>
+                    <div class="hk-time nc-done">sealed &middot; 5:36&#8202;am</div></div>
+                </div>
+                <span class="nc-seal-chip"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg>Sealed &middot; 81</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -987,19 +1087,32 @@
     SC.railEl.style.opacity=(1-sm(seg(p,0.88,0.96))).toFixed(2);
   }
 
-  /* ── The hook card: floats in the hero, leans to the pointer (desktop),
-     and rises away with the scroll to hand off to scene 1. Its wrappers are
-     nested so this transform never fights the bob/tilt keyframes. ── */
-  var hookPar=d.getElementById("hook-par"),hero=d.getElementById("hero");
-  var hkEnd=1,hpx=0,hpy=0,lastHook="";
+  /* ── The hook cluster: Danielle floats front-and-centre, unchanged; on
+     desktop (≥1024px) Marisol and Tyrone float at depth behind her. All three
+     lean to the pointer (front strongest, back weakest) and rise away with
+     the scroll to hand off to scene 1 — back layers reach fully-lifted sooner
+     (smaller kx), so the parting reads as depth, not three cards in lockstep.
+     Each wraps its own bob/tilt keyframes one level down, so this transform
+     never fights them. ── */
+  var hero=d.getElementById("hero");
+  var hkEnd=1,hpx=0,hpy=0;
+  var CLUSTER=[
+    {el:d.getElementById("hook-par"),pm:1,ay:46,kx:1,last:""},
+    {el:d.getElementById("cm-par"),pm:.6,ay:34,kx:.82,last:""},
+    {el:d.getElementById("cb-par"),pm:.36,ay:26,kx:.62,last:""}
+  ].filter(function(c){return c.el;});
   function applyHook(y){
-    var k=sm(cl(y/hkEnd));
-    var st="translate3d("+hpx.toFixed(1)+"px,"+(hpy-k*46).toFixed(1)+"px,0)|"+(1-k).toFixed(3);
-    if(st===lastHook)return;lastHook=st;
-    hookPar.style.transform=st.slice(0,st.indexOf("|"));
-    hookPar.style.opacity=(1-k).toFixed(3);
+    var k0=cl(y/hkEnd);
+    for(var i=0;i<CLUSTER.length;i++){
+      var c=CLUSTER[i],k=sm(cl(k0/c.kx));
+      var tx=(hpx*c.pm).toFixed(1),ty=((hpy*c.pm)-k*c.ay).toFixed(1),op=(1-k).toFixed(3);
+      var st=tx+","+ty+","+op;
+      if(st===c.last)continue;c.last=st;
+      c.el.style.transform="translate3d("+tx+"px,"+ty+"px,0)";
+      c.el.style.opacity=op;
+    }
   }
-  if(hookPar&&hero&&!RM&&matchMedia("(pointer:fine)").matches){
+  if(CLUSTER.length&&hero&&!RM&&matchMedia("(pointer:fine)").matches){
     hero.addEventListener("pointermove",function(e){
       if(innerWidth<=700)return;
       var r=hero.getBoundingClientRect();
@@ -1053,7 +1166,7 @@
       p=cl((y-sTop)/Math.max(1,sH-pinH));
       if(Math.abs(p-lastP)>0.0012||lastP<0){lastP=p;applyStory(p);}
     }
-    if(hookPar&&!RM)applyHook(y);
+    if(CLUSTER.length&&!RM)applyHook(y);
     /* the dawn starts inside the story's hand-off band — no dead sky after the seal */
     var start=SCRUB?sTop+(sH-pinH)*0.94:dTop-vh*0.5;
     var end=dTop+dH-vh*0.55;

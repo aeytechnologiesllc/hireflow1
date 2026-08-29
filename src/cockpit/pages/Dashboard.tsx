@@ -401,9 +401,9 @@ export default function CockpitDashboard() {
             <div className="ck-card-flat ck-reveal flex flex-wrap items-center justify-between gap-3 px-4 py-3">
               <p className="text-[13.5px]" style={{ color: "var(--hf-text-soft)" }}>
                 <span style={{ color: "var(--hf-text)", fontWeight: 600 }}>
-                  {passedOver} didn&rsquo;t make the cut
+                  {passedOver} {passedOver === 1 ? "looks" : "look"} like a pass to Ava
                 </span>{" "}
-                — every one already got a polite reply in your name.
+                — your call. The moment you confirm, a polite reply goes out in your name.
               </p>
               <button
                 className="text-[13px]"

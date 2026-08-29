@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Users, Shield, Briefcase, Check, X, Loader2 } from "lucide-react";
-import { StaggeredBarsLoader } from "@/components/animations/StaggeredBarsLoader";
+import BrandLoader from "@/components/BrandLoader";
 import { motion } from "framer-motion";
 
 interface InvitationData {
@@ -287,11 +287,8 @@ export default function JoinTeam() {
 
   if (loading) {
     return (
-      <div className="dark min-h-screen flex items-center justify-center bg-[hsl(220,18%,10%)] text-white">
-        <div className="flex flex-col items-center gap-4">
-          <StaggeredBarsLoader size="lg" />
-          <p className="text-muted-foreground">Loading invitation...</p>
-        </div>
+      <div className="dark">
+        <BrandLoader message="Loading invitation..." />
       </div>
     );
   }

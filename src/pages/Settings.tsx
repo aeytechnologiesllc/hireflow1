@@ -35,6 +35,7 @@ export default function Settings() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const isEmployer = role === "employer";
+  const isDeveloper = role === "developer";
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isSendingTestPush, setIsSendingTestPush] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -331,41 +332,45 @@ export default function Settings() {
                   Your email address is used for authentication and cannot be changed.
                 </p>
               </div>
-              <div className="space-y-2">
-                <Label>Account ID</Label>
-                <Input 
-                  value={user?.id?.slice(0, 8) + "..." || ""} 
-                  className="bg-background font-mono text-sm" 
-                  disabled 
-                />
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-foreground">Test Push Notification</p>
-                  <p className="text-sm text-muted-foreground">Send a test push to your device</p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={isSendingTestPush}
-                  onClick={async () => {
-                    setIsSendingTestPush(true);
-                    try {
-                      await sendTestNotification();
-                      toast.success("Test notification sent! Check your device.");
-                    } catch {
-                      toast.error("Failed to send test notification");
-                    } finally {
-                      setIsSendingTestPush(false);
-                    }
-                  }}
-                >
-                  {isSendingTestPush ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Bell className="h-4 w-4 mr-2" />}
-                  {isSendingTestPush ? "Sending..." : "Send Test"}
-                </Button>
-              </div>
-              <Separator />
+              {isDeveloper && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Account ID</Label>
+                    <Input
+                      value={user?.id?.slice(0, 8) + "..." || ""}
+                      className="bg-background font-mono text-sm"
+                      disabled
+                    />
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-foreground">Test Push Notification</p>
+                      <p className="text-sm text-muted-foreground">Send a test push to your device</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={isSendingTestPush}
+                      onClick={async () => {
+                        setIsSendingTestPush(true);
+                        try {
+                          await sendTestNotification();
+                          toast.success("Test notification sent! Check your device.");
+                        } catch {
+                          toast.error("Failed to send test notification");
+                        } finally {
+                          setIsSendingTestPush(false);
+                        }
+                      }}
+                    >
+                      {isSendingTestPush ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Bell className="h-4 w-4 mr-2" />}
+                      {isSendingTestPush ? "Sending..." : "Send Test"}
+                    </Button>
+                  </div>
+                  <Separator />
+                </>
+              )}
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium text-foreground">Sign Out</p>
@@ -461,31 +466,6 @@ export default function Settings() {
                   onCheckedChange={(checked) => handlePrefChange("email_phase_updates", checked)}
                   disabled={prefsLoading || updatePrefs.isPending || !localPrefs.email_notifications_enabled}
                 />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Privacy Settings */}
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-lg">Privacy</CardTitle>
-              <CardDescription>Manage your privacy preferences</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 px-5 sm:px-6">
-              <div className="flex items-center justify-between gap-4 pr-1">
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-foreground">Profile Visibility</p>
-                  <p className="text-sm text-muted-foreground">Allow employers to find your profile</p>
-                </div>
-                <Switch className="shrink-0 ml-3" defaultChecked />
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between gap-4 pr-1">
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-foreground">Activity Status</p>
-                  <p className="text-sm text-muted-foreground">Show when you're actively looking for jobs</p>
-                </div>
-                <Switch className="shrink-0 ml-3" defaultChecked />
               </div>
             </CardContent>
           </Card>

@@ -39,8 +39,10 @@
   padding: 0.75rem 1.25rem;
   font-size: 0.875rem;
   font-weight: 600;
-  background: linear-gradient(180deg, hsl(38 58% 58%), hsl(38 52% 46%));
-  color: hsl(150 30% 12%);
+  /* Jade, not brass — this is a free action (apply/continue), and brass is
+     reserved for anything that costs money. */
+  background: linear-gradient(180deg, hsl(152 46% 52%), hsl(152 46% 40%));
+  color: hsl(150 30% 10%);
   border: none;
   transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), filter 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }

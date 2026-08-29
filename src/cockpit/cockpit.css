@@ -625,18 +625,30 @@
   border-radius: 2px;
   background: var(--slab-ink-2);
   height: 12px;
+  transform-origin: bottom;
   animation:
     ck-tick-in 300ms cubic-bezier(0.2, 0.7, 0.3, 1) both,
-    ck-tick-idle 3.2s ease-in-out infinite;
-  animation-delay: calc(var(--i) * 45ms + 500ms), calc(var(--i) * 140ms + 1.6s);
+    ck-tick-idle 3.2s ease-in-out infinite,
+    ck-tick-breathe 2.4s ease-in-out infinite;
+  animation-delay: calc(var(--i) * 45ms + 500ms), calc(var(--i) * 140ms + 1.6s), calc(var(--i) * 190ms);
 }
 .ck-ticker i:nth-child(3n)  { height: 16px; }
 .ck-ticker i:nth-child(4n)  { height: 9px; }
 .ck-ticker i:nth-child(5n)  { height: 14px; }
 @keyframes ck-tick-in   { from { opacity: 0; transform: scaleY(0.3); } to { opacity: 0.55; transform: scaleY(1); } }
 @keyframes ck-tick-idle { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+/* A calm, slow height sway on top of the idle shimmer, so the ticker reads
+   as a breathing equalizer rather than a fixed bar chart. Small amplitude,
+   staggered per bar via --i — never a party visualizer. */
+@keyframes ck-tick-breathe { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.82); } }
+
+/* "Still reading" tab — a barely-there breathing pulse so the state reads
+   as ongoing work, not a frozen count. */
+@keyframes ck-reading-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.62; } }
+.ck-reading-pulse { animation: ck-reading-pulse 3s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
   .ck-page, .ck-ink, .ck-seal-press { animation: none; }
   .ck-ticker i { animation: none; opacity: 0.7; }
+  .ck-reading-pulse { animation: none; }
 }

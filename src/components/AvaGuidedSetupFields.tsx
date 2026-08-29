@@ -14,20 +14,26 @@ import {
 interface AvaGuidedSetupFieldsProps {
   value: GuidedJobSetup;
   onChange: <K extends keyof GuidedJobSetup>(field: K, nextValue: GuidedJobSetup[K]) => void;
+  /** Hide the "Ava setup" title + subline — use when a parent heading already covers it. */
+  hideTitle?: boolean;
 }
 
 export function AvaGuidedSetupFields({
   value = DEFAULT_GUIDED_JOB_SETUP,
   onChange,
+  hideTitle = false,
 }: AvaGuidedSetupFieldsProps) {
+  const Wrapper = hideTitle ? "fieldset" : "div";
   return (
-    <div className="space-y-5 rounded-xl border border-primary/20 bg-primary/5 p-4">
-      <div className="space-y-1">
-        <h3 className="text-sm font-semibold text-foreground">Ava setup</h3>
-        <p className="text-xs text-muted-foreground">
-          These answers help Ava write the role and build the right screening plan automatically.
-        </p>
-      </div>
+    <Wrapper className="space-y-5 rounded-xl border border-primary/20 bg-primary/5 p-4">
+      {!hideTitle && (
+        <div className="space-y-1">
+          <h3 className="text-sm font-semibold text-foreground">Ava setup</h3>
+          <p className="text-xs text-muted-foreground">
+            These answers help Ava write the role and build the right screening plan automatically.
+          </p>
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
@@ -196,6 +202,6 @@ export function AvaGuidedSetupFields({
           onCheckedChange={(nextChecked) => onChange("customer_facing", nextChecked)}
         />
       </div>
-    </div>
+    </Wrapper>
   );
 }

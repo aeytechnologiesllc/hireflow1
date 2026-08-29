@@ -41,6 +41,27 @@ function isAllowedTeamPath(pathname: string) {
   return TEAM_ALLOWED_PATH_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
+// Routes under this shared AppLayout tree that are genuinely candidate-facing
+// (the candidate's own application flow, or role-aware shared pages). Every
+// other route here (/dashboard, /jobs, /applicants, /interviews, /messages,
+// /documents, /more, /team, /team-portal, /analytics, ...) is an employer
+// cockpit page that reads employer-scoped data — a pure candidate hitting one
+// of those just sees the employer UI with empty states, so send them home.
+const CANDIDATE_ALLOWED_PATH_PREFIXES = [
+  "/apply",
+  "/job",
+  "/applications",
+  "/notifications",
+  "/settings",
+  "/profile",
+];
+
+function isAllowedCandidatePath(pathname: string) {
+  return CANDIDATE_ALLOWED_PATH_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
+}
+
 export default function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -244,7 +265,28 @@ export default function AppLayout() {
     }
   }, [loading, user, shouldRedirectTeamMember, navigate]);
 
-  const isCandidateRoute = location.pathname.startsWith("/candidate");
+  // A pure candidate (no employer/team_member role — `role` already resolves
+  // multi-role users to their highest-priority role, so `role === "candidate"`
+  // means no employer/team_member row exists for them) who lands on an
+  // employer cockpit route — a stale bookmark, a typed URL — should be sent
+  // back to their own portal instead of shown the employer UI with empty
+  // states. Only fires once the role has actually resolved, so employers see
+  // no extra flicker while auth is still loading.
+  const shouldRedirectCandidate =
+    role === "candidate" && !isAllowedCandidatePath(location.pathname);
+
+  useEffect(() => {
+    if (!loading && user && shouldRedirectCandidate) {
+      navigate("/applications", { replace: true });
+    }
+  }, [loading, user, shouldRedirectCandidate, navigate]);
+
+  // Candidate-facing routes aren't all under /candidate — the application
+  // flow lives at /applications/* — so the loading-screen variant has to
+  // check both, or a candidate waiting on auth/subscription state sees
+  // employer copy ("Preparing your dashboard...").
+  const isCandidateRoute =
+    location.pathname.startsWith("/candidate") || location.pathname.startsWith("/applications");
   const loadingVariant = isCandidateRoute ? "candidate" : "employer";
   const isGuestDraftSignal =
     !isCandidateRoute &&
@@ -286,6 +328,10 @@ export default function AppLayout() {
   }
 
   if (shouldRedirectTeamMember) {
+    return <AuthLoadingScreen variant={loadingVariant} />;
+  }
+
+  if (shouldRedirectCandidate) {
     return <AuthLoadingScreen variant={loadingVariant} />;
   }
 

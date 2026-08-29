@@ -77,8 +77,8 @@ import {
   Edit2
 } from "lucide-react";
 import { toast } from "sonner";
-import hireflowLogo from "@/assets/hireflow-logo.png";
 import { AvaSeal } from "@/components/ava/AvaSeal";
+import { Wordmark } from "@/cockpit/components/Wordmark";
 import { GlyphClock } from "@/components/candidate/glyphs";
 import PublishSignupModal from "@/components/PublishSignupModal";
 import AvaWorkflowGenerationOverlay, {
@@ -629,9 +629,8 @@ export default function GuestJobCreator() {
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-[hsl(220,18%,10%)]/90 backdrop-blur-md border-b border-border">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <img src={hireflowLogo} alt="HireFlow" className="w-10 h-10 rounded-lg object-cover" />
-            <span className="text-xl font-bold text-foreground">HireFlow</span>
+          <Link to="/" className="flex items-center">
+            <Wordmark size={32} />
           </Link>
           <Link to="/auth">
             <Button variant="ghost" className="text-muted-foreground hover:text-foreground">
@@ -679,6 +678,12 @@ export default function GuestJobCreator() {
               </Button>
             )}
           </div>
+
+          {currentStep < 3 && (
+            <p className="text-sm text-muted-foreground -mt-2">
+              Free to try — your first three applicants are on us. Nothing is published until you say so.
+            </p>
+          )}
 
           {/* Progress Steps - Matches CreateJob exactly */}
           <div className="flex items-center justify-between px-4 overflow-x-auto">
@@ -825,6 +830,7 @@ export default function GuestJobCreator() {
                         customer_facing: formData.customer_facing,
                       }}
                       onChange={handleGuidedSetupChange}
+                      hideTitle
                     />
                   </CardContent>
                 </Card>

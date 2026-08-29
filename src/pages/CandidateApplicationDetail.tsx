@@ -135,6 +135,25 @@ export default function CandidateApplicationDetail() {
     enabled: !!id && !!user && !authLoading,
   });
 
+  // The employer's real, public-safe company name. jobs.department is a job
+  // department, not a company — employer_public_branding is the honest
+  // source (RLS keeps raw employer profiles invisible to candidates).
+  const employerId = application?.jobs?.employer_id;
+  const { data: employerBranding } = useQuery({
+    queryKey: ["candidate-application", "employer-branding", employerId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employer_public_branding" as any)
+        .select("company_name")
+        .eq("user_id", employerId!)
+        .maybeSingle();
+
+      if (error) throw error;
+      return (data as { company_name: string | null } | null)?.company_name ?? null;
+    },
+    enabled: !!employerId,
+  });
+
   // Fetch interview details when needed (for status screen)
   const fetchInterviewDetails = async (applicationId: string) => {
     const { data } = await supabase
@@ -491,6 +510,7 @@ export default function CandidateApplicationDetail() {
   const progressPercentage = ((effectivePhaseIndex + 1) / phases.length) * 100;
 
   const job = application?.jobs;
+  const companyName = employerBranding || "This employer";
 
   // Handle starting a phase action (quiz, typing test, etc.)
   const handleStartPhase = (phaseId: string, phaseType: string) => {
@@ -612,7 +632,7 @@ export default function CandidateApplicationDetail() {
       <CandidateStatusScreen
         state={statusScreen}
         jobTitle={job?.title}
-        companyName={job?.department}
+        companyName={companyName}
         interviewDetails={interviewDetails || undefined}
         onClose={() => setStatusScreen(null)}
         interviewId={candidateInterview?.id}
@@ -641,7 +661,7 @@ export default function CandidateApplicationDetail() {
               {job?.title}
             </h1>
             <p className="mt-1 break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">
-              {job?.department || "Company"}
+              {companyName}
             </p>
 
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">

@@ -209,7 +209,16 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
 
   const handleActionClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const stepId = phase;
+    // The phase page resolves "Step X of N" by matching this route param
+    // against a real workflow step id (see candidateJourney.positionFor,
+    // checked before it ever falls back to `phase`). `application.phase`
+    // itself defaults to the literal "application" until the backend
+    // advances it, so using it here sent candidates deep into their
+    // journey to a URL matching the very first step — hence "Step 1 of 3 —
+    // Application" heading a voice-interview screen. journeyForCard already
+    // resolves the candidate's true current step via phase + status; use
+    // its real id instead.
+    const stepId = journeySteps[stepIndex]?.id || phase;
     const route = displayState.actionRoute;
     if (["application", "quiz", "video-intro", "chat-simulation", "chat-interview", "sales-simulation", "voice-interview", "portfolio"].includes(route)) {
       navigate(`/applications/${application.id}/${route}/${stepId}`);

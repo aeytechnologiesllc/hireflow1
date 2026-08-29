@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import {
-  Check,
   AlertCircle,
   ChevronLeft,
   ChevronRight,
@@ -16,6 +15,7 @@ import AvaSeal from "@/components/ava/AvaSeal";
 import CkAvatar from "../components/Avatar";
 import { ActionDialog } from "../components/ActionDialog";
 import { ShareKitDialog } from "../components/ShareKitDialog";
+import { CountUp } from "../components/CountUp";
 import { HiringDocumentPromptDialog } from "@/components/HiringDocumentPromptDialog";
 import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
 import { SearchInput, FilterSelect, type FilterOption } from "../components/controls";
@@ -270,7 +270,11 @@ function EvidenceTiles({
   const quiz = quizResultOf(app);
   const resumeUrl = app?.resume_url ?? null;
 
-  const hasVoice = turns.length > 0 || candidate.voice != null;
+  // A voice score with no saved transcript has nothing to show — the tile
+  // used to render anyway and read "Completed — No transcript saved", which
+  // looks like something broke. Only show the tile when there's a real
+  // transcript to point to.
+  const hasVoice = turns.length > 0;
   const hasQuiz = quiz != null || candidate.quiz != null;
   if (!hasVoice && !hasQuiz && !resumeUrl) return null;
 
@@ -290,7 +294,7 @@ function EvidenceTiles({
             {minutes != null ? `${minutes} min` : "Completed"}
           </div>
           <div className="mt-[3px] text-[11px]" style={{ color: "var(--ink-3)" }}>
-            {turns.length > 0 ? "Transcript ready" : "No transcript saved"}
+            Transcript ready
           </div>
         </div>
       )}
@@ -366,7 +370,9 @@ function AvasRead({ candidate, app }: { candidate: Candidate; app?: AppRecord })
       />
 
       <div className="mt-1.5 flex items-center gap-[11px]">
-        <AvaSeal size={24} />
+        <span className="ck-seal ck-seal-press">
+          <AvaSeal size={24} />
+        </span>
         <span className="min-w-0">
           <Label color="var(--jade-soft-fg)">Ava&rsquo;s read</Label>
           <span className="mt-[3px] block text-[11px]" style={{ color: "var(--ink-3)" }}>
@@ -380,7 +386,7 @@ function AvasRead({ candidate, app }: { candidate: Candidate; app?: AppRecord })
             className="ck-num ml-auto shrink-0 text-[38px] font-semibold leading-[0.85]"
             style={{ color: "var(--jade)" }}
           >
-            {candidate.overall}
+            <CountUp value={candidate.overall} duration={700} delay={150} />
             <span className="text-[13px]" style={{ color: "var(--ink-3)" }}>
               /100
             </span>
@@ -430,39 +436,26 @@ function AvasRead({ candidate, app }: { candidate: Candidate; app?: AppRecord })
             </p>
           )}
 
-          {(candidate.strengths.length > 0 || worthAsking) && (
+          {/* Her working is said once, above, in full sentences — re-splitting
+              it into a checklist here just repeated the same insight. What's
+              worth a second callout is the one thing the paragraph doesn't
+              already say: whether the score itself is worth raising. */}
+          {worthAsking && (
             <>
               <div className="my-3 h-px" style={{ background: "var(--line-soft)" }} />
               <ul className="flex flex-col gap-2">
-                {candidate.strengths.slice(0, 3).map((s) => (
-                  <li
-                    key={s}
-                    className="flex items-start gap-2.5 text-[13px] leading-[1.45]"
-                    style={{ color: "var(--ink-2)" }}
-                  >
-                    <Check
-                      className="mt-[2px] h-3.5 w-3.5 shrink-0"
-                      strokeWidth={2.5}
-                      style={{ color: "var(--jade)" }}
-                      aria-hidden
-                    />
-                    <span>{s}</span>
-                  </li>
-                ))}
-                {worthAsking && (
-                  <li
-                    className="flex items-start gap-2.5 text-[13px] leading-[1.45]"
-                    style={{ color: "var(--ink-2)" }}
-                  >
-                    <AlertCircle
-                      className="mt-[2px] h-3.5 w-3.5 shrink-0"
-                      strokeWidth={2.3}
-                      style={{ color: "var(--amber-fg)" }}
-                      aria-hidden
-                    />
-                    <span>{worthAsking}</span>
-                  </li>
-                )}
+                <li
+                  className="flex items-start gap-2.5 text-[13px] leading-[1.45]"
+                  style={{ color: "var(--ink-2)" }}
+                >
+                  <AlertCircle
+                    className="mt-[2px] h-3.5 w-3.5 shrink-0"
+                    strokeWidth={2.3}
+                    style={{ color: "var(--amber-fg)" }}
+                    aria-hidden
+                  />
+                  <span>{worthAsking}</span>
+                </li>
               </ul>
             </>
           )}
@@ -874,7 +867,7 @@ export default function CockpitApplicants() {
                 aria-selected={bucket === t.key}
                 aria-controls="ck-applicant-list"
                 onClick={() => setBucket(t.key)}
-                className="pb-2 text-[12px] transition-colors"
+                className={`pb-2 text-[12px] transition-colors${t.key === "reading" ? " ck-reading-pulse" : ""}`}
                 style={
                   bucket === t.key
                     ? { color: "var(--ink)", fontWeight: 700, boxShadow: "inset 0 -2px 0 var(--jade)" }
@@ -1051,7 +1044,7 @@ export default function CockpitApplicants() {
                 </div>
               </div>
 
-              <AvasRead candidate={selected} app={appById[selected.id]} />
+              <AvasRead key={selected.id} candidate={selected} app={appById[selected.id]} />
               <Timeline candidate={selected} app={appById[selected.id]} />
 
               <EvidenceTiles

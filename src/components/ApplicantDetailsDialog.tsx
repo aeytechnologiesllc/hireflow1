@@ -19,6 +19,7 @@ import {
   Globe, FileText, Loader2
 } from "lucide-react";
 import { AvaSeal } from "@/components/ava/AvaSeal";
+import { CountUp } from "@/cockpit/components/CountUp";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -119,9 +120,11 @@ export default function ApplicantDetailsDialog({
               </Badge>
               {(application.ai_score !== null && application.ai_score !== undefined) && (
                 <div className="flex items-center gap-2">
-                  <AvaSeal size={16} />
+                  <span className="ck-seal ck-seal-press">
+                    <AvaSeal size={16} />
+                  </span>
                   <span className="text-sm font-medium text-primary">
-                    Ava Score: {application.ai_score}%
+                    Ava Score: <CountUp value={application.ai_score} duration={700} suffix="%" />
                   </span>
                 </div>
               )}

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { CheckCircle, XCircle } from "lucide-react";
-import { StaggeredBarsLoader } from "@/components/animations/StaggeredBarsLoader";
+import BrandLoader from "@/components/BrandLoader";
 
 const FIXED_REDIRECT_URI = `${window.location.origin}/oauth/google/callback`;
 
@@ -82,15 +82,17 @@ export default function OAuthGoogleCallback() {
     handleCallback();
   }, [navigate]);
 
+  if (status === "loading") {
+    return (
+      <div className="dark">
+        <BrandLoader message={message} />
+      </div>
+    );
+  }
+
   return (
     <div className="dark min-h-[100dvh] flex items-center justify-center bg-background text-foreground">
       <div className="text-center space-y-4 p-8">
-        {status === "loading" && (
-          <div className="flex flex-col items-center gap-4">
-            <StaggeredBarsLoader size="lg" />
-            <p className="text-lg text-muted-foreground">{message}</p>
-          </div>
-        )}
         {status === "success" && (
           <>
             <CheckCircle className="h-12 w-12 text-primary mx-auto" />
