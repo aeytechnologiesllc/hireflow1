@@ -660,92 +660,88 @@
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   CONSTELLATION JOURNEY RAIL — Applicants panel, JourneyStrip.
-   2026-08-29. The founder's pick from the direction mockups: the applicant's
-   real workflow steps as a night-sky band she travels across, orb to orb, to
-   the brass seal. This is the ONE colorful element in the applicant panel —
-   the --rail-* hues below are sanctioned for this rail only; do not spend
+   GEMLINE JOURNEY RAIL — Applicants panel, JourneyStrip.
+   2026-08-29. Reskinned from the founder's original Constellation pick to
+   Gemline (direction 01 of the mockup gallery): the applicant's real
+   workflow steps as gems strung on one continuous, flowing track — no
+   night-sky porthole, the rail sits straight on the panel surface in both
+   themes. This is still the ONE colorful element in the applicant panel —
+   the --gem-* tokens below are sanctioned for this rail only; do not spend
    them anywhere else in the cockpit (see the theme-lock note in Matrix).
    Everything here is additive — no existing rule above this block is touched.
    ══════════════════════════════════════════════════════════════════════════ */
 
 :root {
-  /* the rail's own night sky — a deep slab-jade ground that reads as "night"
-     inside the ivory Day card, framed rather than blended into the page */
-  --rail-sky: #0C2A21;
-  --rail-sky-inset: rgba(6, 20, 15, 0.55);
-  --rail-path: #F2E6BE;
-  --rail-path-glow: rgba(232, 201, 122, 0.45);
+  /* the curated journey spectrum the track flows through and every cleared
+     gem draws its fill from — deep jade leading through mint and teal to the
+     warm gold that hands off into the brass Decision seal. Deep jade and the
+     mint/teal midtones read the same in both themes; gold is tuned per theme
+     below so it neither washes out on ivory nor undersells on ink. */
+  --gem-jade: #0F6B4F;
+  --gem-mint: #1C9A72;
+  --gem-teal: #1F7A78;
+  --gem-gold: #B8860B;
 
-  /* the sanctioned journey spectrum — one hue per step *type* */
-  --rail-jade: #4FBF95;
-  --rail-aqua: #56C8D8;
-  --rail-periwinkle: #8FA8F0;
-  --rail-violet: #B69CF0;
-  --rail-gold: #E8C97A;
+  /* the glyph ink that reads best against each stop — checked against both
+     themes' resolved colors, not guessed: jade and (Day) teal are dark
+     enough to need an ivory glyph, mint and gold are light enough for ink. */
+  --gem-ink-jade: #F4EFE3;
+  --gem-ink-mint: #14100a;
+  --gem-ink-teal: #F4EFE3;
+  --gem-ink-gold: #14100a;
+
+  /* untraveled track — a whisper of the page's own ink, so the groove reads
+     as "muted" on ivory Day and on near-black Night without a second token */
+  --rail-track-base: color-mix(in srgb, var(--ink) 9%, transparent);
 }
 .dark {
-  /* Night blends deeper: the band sits only slightly lighter than the page
-     itself (not a bright card-on-card block), so it still reads as its own
-     space without breaking the near-black ground it's floating on. */
-  --rail-sky: #16261F;
-  --rail-sky-inset: rgba(0, 0, 0, 0.3);
+  --gem-mint: #3FCE97;
+  --gem-teal: #2FA3A0;
+  --gem-gold: #E0B96A;
+  --gem-ink-teal: #14100a;
 }
 
 .ck-rail-outer { margin-bottom: 14px; }
 
 .ck-rail-band {
   position: relative;
-  overflow: hidden;
-  border-radius: 16px;
-  padding: 20px 20px 14px;
-  min-height: 104px;
-  background: var(--rail-sky);
-  box-shadow:
-    inset 0 0 0 1px var(--rail-sky-inset),
-    inset 0 2px 10px rgba(0, 0, 0, 0.35);
-  transition: background-color 0.5s ease;
-}
-.dark .ck-rail-band {
-  box-shadow:
-    inset 0 0 0 1px rgba(244, 239, 227, 0.07),
-    inset 0 1px 0 rgba(244, 239, 227, 0.04);
+  overflow: visible;
+  padding: 14px 2px 4px;
+  min-height: 96px;
+  background: transparent;
 }
 
-/* ── the night sky: ~20 fixed, static stars, twinkling subtly and staggered ── */
-.ck-rail-sky { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
-.ck-rail-star {
+/* ── the track: one continuous rounded rail — a muted groove underneath, and
+   a traveled fill that flows a slow gradient loop through the curated
+   spectrum. Straight bars rather than a drawn SVG line: nodes always sit in
+   a single flex row (narrow panels shrink them rather than wrap), so the
+   track never needs to bend. ── */
+.ck-rail-track,
+.ck-rail-track-fill {
   position: absolute;
-  border-radius: 50%;
-  background: #F4EFE3;
-  opacity: 0.3;
-  animation-name: ck-rail-twinkle;
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
+  height: 10px;
+  border-radius: 999px;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  transform-origin: left center;
 }
-@keyframes ck-rail-twinkle {
-  0%, 100% { opacity: 0.2; }
-  50% { opacity: 0.6; }
+.ck-rail-track { background: var(--rail-track-base); }
+.ck-rail-track-fill {
+  background: linear-gradient(90deg, var(--gem-jade), var(--gem-mint), var(--gem-teal), var(--gem-gold));
+  background-size: 240% 100%;
+  animation: ck-rail-flow 8s linear infinite;
+  box-shadow: 0 0 14px -3px color-mix(in srgb, var(--gem-mint) 55%, transparent);
+  transition: transform 0.9s cubic-bezier(0.22, 1.36, 0.36, 1);
 }
-@media (prefers-reduced-motion: reduce) {
-  .ck-rail-star { animation: none; opacity: 0.34; }
-}
-
-/* ── the path: one SVG line, orb to orb; the traveled portion draws itself ── */
-.ck-rail-svg { position: absolute; top: 0; left: 0; overflow: visible; pointer-events: none; z-index: 1; }
-.ck-rail-path {
-  fill: none;
-  stroke: var(--rail-path);
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  filter: drop-shadow(0 0 4px var(--rail-path-glow));
-  transition: stroke-dashoffset 0.9s cubic-bezier(0.22, 1.36, 0.36, 1);
+@keyframes ck-rail-flow {
+  to { background-position: -240% 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .ck-rail-path { transition: none; }
+  .ck-rail-track-fill { animation: none; transition: none; }
 }
 
-/* ── the orbs ── */
+/* ── the gems ── */
 .ck-rail-nodes {
   position: relative;
   z-index: 2;
@@ -771,30 +767,32 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: rgba(244, 239, 227, 0.06);
-  border: 1.5px solid rgba(244, 239, 227, 0.22);
-  color: rgba(244, 239, 227, 0.55);
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  border: 1.5px solid var(--line);
+  color: var(--ink-3);
   transition: background-color 0.4s ease, border-color 0.4s ease, box-shadow 0.5s ease, color 0.4s ease;
 }
 .ck-rail-glyph { width: 17px; height: 17px; }
 
 .ck-rail-node.is-cleared .ck-rail-dot {
   border-color: transparent;
-  background: radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.55), var(--node-color, var(--rail-jade)) 66%);
-  color: #14100a;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14) inset, 0 0 18px 1px var(--node-color, var(--rail-jade));
+  background: radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.4), var(--node-color, var(--gem-jade)) 68%);
+  color: var(--node-ink, #14100a);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.14) inset,
+    0 0 16px 2px color-mix(in srgb, var(--node-color, var(--gem-jade)) 55%, transparent);
 }
 .ck-rail-node.is-current .ck-rail-dot {
-  border-color: var(--node-color, var(--rail-jade));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-color, var(--rail-jade)) 32%, transparent);
+  border-color: var(--node-color, var(--gem-jade));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-color, var(--gem-jade)) 32%, transparent);
 }
-/* breathing halo behind the current orb */
+/* breathing halo behind the current gem */
 .ck-rail-node.is-current .ck-rail-dot::after {
   content: "";
   position: absolute;
   inset: -9px;
   border-radius: 50%;
-  background: radial-gradient(circle, var(--node-color, var(--rail-jade)) 0%, transparent 70%);
+  background: radial-gradient(circle, var(--node-color, var(--gem-jade)) 0%, transparent 70%);
   opacity: 0.45;
   animation: ck-rail-halo 2.6s ease-in-out infinite;
   z-index: -1;
@@ -808,7 +806,9 @@
   .ck-rail-node.is-current .ck-rail-dot::after { animation: none; opacity: 0.4; }
 }
 
-/* the small ivory check badge on a cleared orb */
+/* the small ivory check badge on a cleared gem — fixed ivory/ink, same
+   reasoning as the traveler chip below: it has to read against ANY gem
+   color, not the page ground, so it deliberately does not invert with theme */
 .ck-rail-check {
   position: absolute;
   top: -3px;
@@ -823,9 +823,10 @@
 }
 
 /* Decision: no tinted fill of its own — it's the brass wax seal (AvaSeal),
-   same mark as everywhere else Ava signs her work. Just a brass halo when
-   she's sitting there waiting on the call, and the seal-press stamp when a
-   move lands her on it (ck-seal-press, replayed via a remount key). */
+   same mark as everywhere else Ava signs her work, and the gold end of the
+   gradient hands off into it naturally. Just a brass halo when she's sitting
+   there waiting on the call, and the seal-press stamp when a move lands her
+   on it (ck-seal-press, replayed via a remount key). */
 .ck-rail-node.is-decision .ck-rail-dot { background: transparent; border-color: transparent; box-shadow: none; }
 .ck-rail-node.is-decision.is-cleared .ck-rail-dot,
 .ck-rail-node.is-decision.is-current .ck-rail-dot { background: transparent; box-shadow: none; }
@@ -836,21 +837,21 @@
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.01em;
-  color: rgba(244, 239, 227, 0.5);
+  color: var(--ink-3);
   line-height: 1.25;
   transition: color 0.4s ease;
 }
 .ck-rail-node.is-cleared .ck-rail-label,
-.ck-rail-node.is-current .ck-rail-label { color: rgba(244, 239, 227, 0.9); }
+.ck-rail-node.is-current .ck-rail-label { color: var(--ink); }
 
-/* the receipt under a cleared orb — score, wpm, minutes, whatever's on file */
+/* the receipt under a cleared gem — score, wpm, minutes, whatever's on file */
 .ck-rail-receipt {
   margin-top: 3px;
   min-height: 13px;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.02em;
-  color: rgba(244, 239, 227, 0.58);
+  color: var(--ink-3);
   opacity: 0;
   transform: translateY(-3px);
   transition: opacity 0.35s ease, transform 0.35s ease;
@@ -870,18 +871,21 @@
 }
 
 .ck-rail-node:focus-visible .ck-rail-dot {
-  outline: 2px solid rgba(244, 239, 227, 0.7);
+  outline: 2px solid var(--jade);
   outline-offset: 3px;
 }
 
-/* ── the traveler: the applicant's initials, riding the rail ── */
+/* ── the traveler: the applicant's initials, riding the track's edge with a
+   slight tilt while moving. Position (translate) lives on the outer chip;
+   the tilt keyframe lives on the inner body, so the two transforms never
+   fight each other. ── */
 .ck-rail-chip {
   position: absolute;
-  top: 0;
+  top: -2px;
   left: 0;
   z-index: 3;
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   transition: transform 0.9s cubic-bezier(0.22, 1.36, 0.36, 1);
   pointer-events: none;
   will-change: transform;
@@ -889,27 +893,40 @@
 @media (prefers-reduced-motion: reduce) {
   .ck-rail-chip { transition: none; }
 }
+.ck-rail-chip-body { transform-origin: 50% 50%; }
+.ck-rail-chip-body.is-moving {
+  animation: ck-rail-chip-tilt var(--chip-tilt-duration, 0.7s) cubic-bezier(0.22, 1.36, 0.36, 1) both;
+}
+@keyframes ck-rail-chip-tilt {
+  0%   { transform: rotate(0); }
+  28%  { transform: rotate(-11deg); }
+  68%  { transform: rotate(3deg); }
+  100% { transform: rotate(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ck-rail-chip-body.is-moving { animation: none; }
+}
 .ck-rail-chip-core {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   /* fixed ivory-disc / ink-initials treatment — deliberately does not invert
-     with theme, so the chip stays legible on the rail's night ground either way */
+     with theme, so the chip stays legible against any gem color it passes */
   background: #F4EFE3;
   color: #1B160F;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 800;
   letter-spacing: 0.01em;
-  box-shadow: 0 8px 16px -6px rgba(0, 0, 0, 0.5), 0 0 0 3px var(--rail-sky);
+  box-shadow: 0 8px 16px -6px rgba(0, 0, 0, 0.5), 0 0 0 3px var(--ground);
 }
 
-/* ── narrow panel: shrink to fit, never scroll — nodes flex evenly instead
+/* ── narrow panel: shrink to fit, never scroll — gems flex evenly instead
      of overflowing, so the band never forces the page to scroll sideways ── */
 @media (max-width: 560px) {
-  .ck-rail-band { padding: 16px 12px 10px; }
+  .ck-rail-band { padding: 10px 0 8px; }
   .ck-rail-nodes { gap: 0; }
   .ck-rail-node { width: auto; flex: 1 1 0; min-width: 0; }
   .ck-rail-dot { width: 32px; height: 32px; }

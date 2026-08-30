@@ -554,24 +554,16 @@ function Timeline({ candidate, app }: { candidate: Candidate; app?: AppRecord })
   );
 }
 
-/* ── Constellation rail — visual mapping only ────────────────────────────
-   Each step *type* (not each job) gets one hue off the sanctioned journey
-   spectrum, and one glyph. This is the ONE colorful thing in the applicant
-   panel — the hues live as --rail-* tokens in cockpit.css and are never
-   reused elsewhere in the cockpit. Decision doesn't get a hue at all: it's
-   the brass wax seal, same mark as everywhere else Ava signs her work. */
-const RAIL_HUE_BY_TYPE: Record<string, string> = {
-  application: "var(--rail-jade)",
-  quiz: "var(--rail-aqua)",
-  typing_test: "var(--rail-periwinkle)",
-  portfolio_upload: "var(--rail-periwinkle)",
-  video_intro: "var(--rail-violet)",
-  video_message: "var(--rail-violet)",
-  chat_simulation: "var(--rail-violet)",
-  chat_interview: "var(--rail-violet)",
-  sales_simulation: "var(--rail-violet)",
-  voice_interview: "var(--rail-gold)",
-};
+/* ── Gemline rail — visual mapping only ──────────────────────────────────
+   Every step's glyph is still fixed to its type (unchanged), but the *color*
+   is no longer per-type — it's read straight off the step's position on the
+   track: index 0 sits at the deep-jade end, the last step (Decision) sits at
+   the gold end, and everything between is interpolated along the same
+   curated spectrum the flowing track fill draws from. This is the ONE
+   colorful thing in the applicant panel — the --gem-* tokens live in
+   cockpit.css and are never reused elsewhere in the cockpit. Decision
+   doesn't get a fill of its own: it's the brass wax seal, and the gold end
+   of the gradient hands off into it naturally. */
 const RAIL_ICON_BY_TYPE: Record<string, typeof Mail> = {
   application: Mail,
   quiz: ListChecks,
@@ -584,18 +576,37 @@ const RAIL_ICON_BY_TYPE: Record<string, typeof Mail> = {
   sales_simulation: MessageCircle,
   voice_interview: AudioLines,
 };
-const railHue = (type: string): string => RAIL_HUE_BY_TYPE[type] ?? "var(--rail-jade)";
 const railIcon = (type: string): typeof Mail => RAIL_ICON_BY_TYPE[type] ?? Mail;
 
-/** Fixed star field for the rail's night sky — 20 points, two sizes, hand-
- *  placed once rather than randomized so the sky doesn't reshuffle on every
- *  render (and stays identical between server/first client render). */
-const RAIL_STARS: ReadonlyArray<readonly [number, number, 0 | 1]> = [
-  [4, 24, 1], [9, 70, 0], [14, 40, 0], [19, 15, 0], [24, 82, 1],
-  [29, 52, 0], [34, 28, 0], [39, 74, 0], [44, 18, 1], [49, 62, 0],
-  [54, 36, 0], [59, 86, 1], [64, 22, 0], [69, 56, 0], [74, 44, 0],
-  [79, 12, 1], [84, 68, 0], [89, 32, 0], [94, 78, 1], [97, 50, 0],
-];
+/** The curated spectrum, named stop by stop — the actual hex values live once,
+ *  as --gem-* tokens in cockpit.css (themed via .dark), so this only ever
+ *  picks *where* a node sits and which neighboring stop its glyph should read
+ *  against. `color-mix()` does the blending live in the browser, so a gem's
+ *  fill stays correct across a theme flip with no re-render required. */
+const GEM_STOPS = ["jade", "mint", "teal", "gold"] as const;
+const GEM_INK: Record<(typeof GEM_STOPS)[number], string> = {
+  jade: "var(--gem-ink-jade)",
+  mint: "var(--gem-ink-mint)",
+  teal: "var(--gem-ink-teal)",
+  gold: "var(--gem-ink-gold)",
+};
+
+/** Where step `index` of `total` sits on the spectrum: a fill blended between
+ *  its two neighboring stops, and the ink (deep ink or ivory) of whichever
+ *  stop it sits closer to — picked for contrast, not for looks. */
+function gemPosition(index: number, total: number): { color: string; ink: string } {
+  const segCount = GEM_STOPS.length - 1;
+  const t = total > 1 ? index / (total - 1) : 0;
+  const scaled = Math.min(segCount, Math.max(0, t * segCount));
+  const seg = Math.min(segCount - 1, Math.floor(scaled));
+  const local = scaled - seg;
+  const a = GEM_STOPS[seg];
+  const b = GEM_STOPS[seg + 1];
+  return {
+    color: `color-mix(in srgb, var(--gem-${b}) ${(local * 100).toFixed(1)}%, var(--gem-${a}))`,
+    ink: GEM_INK[local < 0.5 ? a : b],
+  };
+}
 
 function reducedMotion(): boolean {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -675,22 +686,22 @@ function JourneyStrip({ candidate, app }: { candidate: Candidate; app?: AppRecor
               : "Just applied";
         })();
 
-  // ── Constellation rail geometry + replay ──────────────────────────────
-  // The DOM does the measuring (flex layout decides where each orb actually
-  // lands), so the path and the traveler chip are positioned imperatively
-  // off real node centers rather than guessed from CSS. `visualIndex` is the
-  // *animated* read of where she is — it starts at the first orb on every
-  // mount (a fresh candidate opened) and races the real `position.index`,
-  // lighting orbs in sequence as it goes; `position.index` itself (used by
-  // `nodeState`/`resultFor` above) never lies, so tooltips and receipts are
-  // always accurate even mid-flight.
+  // ── Gemline rail geometry + replay ────────────────────────────────────
+  // The DOM does the measuring (flex layout decides where each gem actually
+  // lands), so the track fill and the traveler chip are positioned
+  // imperatively off real node centers rather than guessed from CSS.
+  // `visualIndex` is the *animated* read of where she is — it starts at the
+  // first gem on every mount (a fresh candidate opened) and races the real
+  // `position.index`, lighting gems in sequence as it goes; `position.index`
+  // itself (used by `nodeState`/`resultFor` above) never lies, so tooltips
+  // and receipts are always accurate even mid-flight.
   const zoneRef = useRef<HTMLDivElement | null>(null);
-  const svgRef = useRef<SVGSVGElement | null>(null);
-  const pathRef = useRef<SVGPathElement | null>(null);
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const fillRef = useRef<HTMLDivElement | null>(null);
   const chipRef = useRef<HTMLDivElement | null>(null);
+  const chipBodyRef = useRef<HTMLDivElement | null>(null);
   const dotRefs = useRef<Array<HTMLDivElement | null>>([]);
   const pointsRef = useRef<Array<{ x: number; y: number }>>([]);
-  const pathLenRef = useRef(0);
   const mountedRef = useRef(false);
   const visualIndexRef = useRef(0);
   const timersRef = useRef<number[]>([]);
@@ -709,16 +720,19 @@ function JourneyStrip({ candidate, app }: { candidate: Candidate; app?: AppRecor
       return { x: r.left + r.width / 2 - zoneRect.left, y: r.top + r.height / 2 - zoneRect.top };
     });
     pointsRef.current = pts;
-    if (svgRef.current) {
-      svgRef.current.setAttribute("width", String(Math.max(1, zoneRect.width)));
-      svgRef.current.setAttribute("height", String(Math.max(1, zoneRect.height)));
-    }
-    if (pathRef.current && pts.length > 0) {
-      const d = `M ${pts.map((p) => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" L ")}`;
-      pathRef.current.setAttribute("d", d);
-      const len = pathRef.current.getTotalLength();
-      pathLenRef.current = len;
-      pathRef.current.style.strokeDasharray = String(len);
+    const track = trackRef.current;
+    const fill = fillRef.current;
+    if (track && fill && pts.length > 0) {
+      const y = pts[0].y;
+      const x0 = pts[0].x;
+      const x1 = pts[pts.length - 1].x;
+      const width = Math.max(0, x1 - x0);
+      [track, fill].forEach((el) => {
+        el.style.left = `${x0}px`;
+        el.style.top = `${y}px`;
+        el.style.width = `${width}px`;
+        el.style.marginTop = "-5px"; // half the 10px track height
+      });
     }
   };
 
@@ -729,7 +743,7 @@ function JourneyStrip({ candidate, app }: { candidate: Candidate; app?: AppRecor
     const p = pts[clamped];
     const chip = chipRef.current;
     if (p && chip) {
-      const half = (chip.offsetWidth || 30) / 2;
+      const half = (chip.offsetWidth || 34) / 2;
       const x = p.x - half;
       const y = p.y - half;
       if (forceInstant) {
@@ -742,19 +756,17 @@ function JourneyStrip({ candidate, app }: { candidate: Candidate; app?: AppRecor
         chip.style.transform = `translate(${x}px, ${y}px)`;
       }
     }
-    const path = pathRef.current;
-    const len = pathLenRef.current;
-    if (path && len) {
-      const frac = pts.length > 1 ? Math.max(0, clamped) / (pts.length - 1) : 0;
-      const val = (len * (1 - frac)).toFixed(1);
+    const fill = fillRef.current;
+    if (fill && pts.length > 1) {
+      const frac = Math.max(0, clamped) / (pts.length - 1);
       if (forceInstant) {
-        const prev = path.style.transition;
-        path.style.transition = "none";
-        path.style.strokeDashoffset = val;
-        void path.getBoundingClientRect();
-        path.style.transition = prev;
+        const prev = fill.style.transition;
+        fill.style.transition = "none";
+        fill.style.transform = `scaleX(${frac})`;
+        void fill.getBoundingClientRect();
+        fill.style.transition = prev;
       } else {
-        path.style.strokeDashoffset = val;
+        fill.style.transform = `scaleX(${frac})`;
       }
     }
   };
@@ -788,12 +800,28 @@ function JourneyStrip({ candidate, app }: { candidate: Candidate; app?: AppRecor
       return;
     }
 
-    // rest at the starting orb, instantly, before the glide begins
+    // rest at the starting gem, instantly, before the glide begins
     applyVisual(start, true);
 
     const hops = Math.abs(target - start);
     const duration = Math.min(950, Math.max(520, 420 + hops * 140));
     const dir = target > start ? 1 : -1;
+
+    // the traveler leans into the whole glide, not per hop — one tilt, timed
+    // to the same duration the chip itself is moving for
+    const body = chipBodyRef.current;
+    if (body) {
+      body.style.setProperty("--chip-tilt-duration", `${duration}ms`);
+      body.classList.remove("is-moving");
+      void body.offsetWidth;
+      body.classList.add("is-moving");
+      const tiltEnd = window.setTimeout(() => {
+        if (genRef.current !== gen) return;
+        body.classList.remove("is-moving");
+      }, duration + 60);
+      timersRef.current.push(tiltEnd);
+    }
+
     for (let k = 1; k <= hops; k++) {
       const idx = start + dir * k;
       const delay = Math.round((k / hops) * duration);
@@ -845,26 +873,8 @@ function JourneyStrip({ candidate, app }: { candidate: Candidate; app?: AppRecor
   return (
     <div className="ck-rail-outer">
       <div className="ck-rail-band" ref={zoneRef}>
-        <div className="ck-rail-sky" aria-hidden="true">
-          {RAIL_STARS.map(([left, top, big], i) => (
-            <span
-              key={i}
-              className="ck-rail-star"
-              style={{
-                left: `${left}%`,
-                top: `${top}%`,
-                width: big ? "2.4px" : "1.6px",
-                height: big ? "2.4px" : "1.6px",
-                animationDelay: `${(i % 7) * 0.55}s`,
-                animationDuration: `${6 + (i % 5) * 0.4}s`,
-              }}
-            />
-          ))}
-        </div>
-
-        <svg className="ck-rail-svg" ref={svgRef} aria-hidden="true">
-          <path ref={pathRef} className="ck-rail-path" />
-        </svg>
+        <div className="ck-rail-track" ref={trackRef} aria-hidden="true" />
+        <div className="ck-rail-track-fill" ref={fillRef} aria-hidden="true" />
 
         <div className="ck-rail-nodes" role="list" aria-label="Where they are in the job's process">
           {steps.map((step, i) => {
@@ -877,6 +887,7 @@ function JourneyStrip({ candidate, app }: { candidate: Candidate; app?: AppRecor
             const tag = state === "current" ? (isDecision ? "She's here — your call" : "She's here") : null;
             const tip = [step.title, tag, result].filter(Boolean).join(" · ");
             const Icon = railIcon(step.type);
+            const gem = gemPosition(i, steps.length);
 
             return (
               <div
@@ -892,7 +903,10 @@ function JourneyStrip({ candidate, app }: { candidate: Candidate; app?: AppRecor
                 ]
                   .filter(Boolean)
                   .join(" ")}
-                style={{ ["--node-color" as string]: isDecision ? "var(--brass)" : railHue(step.type) }}
+                style={{
+                  ["--node-color" as string]: isDecision ? "var(--brass)" : gem.color,
+                  ["--node-ink" as string]: gem.ink,
+                }}
               >
                 <div className="ck-rail-dot" ref={(el) => { dotRefs.current[i] = el; }}>
                   {isDecision ? (
@@ -940,7 +954,9 @@ function JourneyStrip({ candidate, app }: { candidate: Candidate; app?: AppRecor
         </div>
 
         <div className="ck-rail-chip" ref={chipRef} aria-hidden="true">
-          <span className="ck-rail-chip-core">{initials}</span>
+          <div className="ck-rail-chip-body" ref={chipBodyRef}>
+            <span className="ck-rail-chip-core">{initials}</span>
+          </div>
         </div>
       </div>
 
