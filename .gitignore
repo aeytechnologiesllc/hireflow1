@@ -30,3 +30,6 @@ LOCAL_SETUP.md
 .vercel
 output/
 supabase/.temp/
+
+# Local verification harness output (scripts/app_shots.mjs) — never committed
+screenshots-verify/

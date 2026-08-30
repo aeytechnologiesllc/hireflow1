@@ -268,16 +268,19 @@
   .rail-receipt.show.is-sealed{padding:2px 9px;border-radius:999px;background:var(--brass);color:#1B160F;
     font-weight:800}
 
-  /* ── the traveler — Danielle's initials, riding the track's edge with a
-     slight tilt while moving. Fixed ivory disc, deliberately not theme-tied,
-     so it reads against any gem color it crosses. ── */
-  .rail-chip{position:absolute;right:-2px;top:calc(50% - 19px);z-index:3;width:clamp(38px,4vw,48px);height:clamp(38px,4vw,48px);
+  /* ── the traveler — Danielle herself, a small ivory nameplate riding the
+     track's edge with a slight tilt while moving. Fixed ivory pill,
+     deliberately not theme-tied, so it reads against any gem color it
+     crosses. Auto-sized to its own text, so placeChip() centers it off
+     its real measured width AND height (not a shared "half" — see below). ── */
+  .rail-chip{position:absolute;right:-2px;top:50%;transform:translateY(-50%);z-index:3;
     transition:transform .9s var(--press),opacity .5s ease;pointer-events:none;will-change:transform;opacity:0}
   .rail-chip-body{transform-origin:50% 50%}
   .rail-chip-body.is-moving{animation:rail-chip-tilt .7s var(--press) both}
   @keyframes rail-chip-tilt{0%{transform:rotate(0)}28%{transform:rotate(-11deg)}68%{transform:rotate(3deg)}100%{transform:rotate(0)}}
-  .rail-chip-core{display:flex;align-items:center;justify-content:center;width:100%;height:100%;border-radius:50%;
-    background:#F4EFE3;color:#1B160F;font-size:clamp(11.5px,1.1vw,14px);font-weight:800;letter-spacing:.01em;
+  .rail-chip-core{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;
+    padding:6px 13px;border-radius:999px;background:#F4EFE3;color:#1B160F;
+    font-family:Inter,-apple-system,sans-serif;font-size:12px;font-weight:700;letter-spacing:.01em;
     box-shadow:0 8px 18px -6px rgba(0,0,0,.55),0 0 0 3px var(--ground)}
 
   /* two motes riding with her — children of the chip, so they travel free */
@@ -305,6 +308,75 @@
   .rail-murmur i:nth-child(5){animation-delay:-.5s}
   @keyframes rail-murmur-bar{0%,100%{transform:scaleY(.5)}50%{transform:scaleY(2.4)}}
 
+  /* ── the stage bubble — ONE reusable letterhead surface, anchored above
+     whichever gem she's on, playing that phase's micro-scene. JS sets
+     left/top in px to the gem's measured center (see placeBubble()); the
+     class-based transform below owns the show/fold choreography (a scale
+     + fade toward the gem, never a hard cut) so it never fights the JS
+     positioning. Desktop only — see the max-width:1023 and
+     prefers-reduced-motion overrides. ── */
+  .rail-bubble{position:absolute;left:0;top:0;z-index:4;width:278px;max-width:82vw;pointer-events:none;
+    opacity:0;transform:translate(-50%,-96%) scale(.92);transform-origin:50% 100%;
+    transition:opacity .22s ease,transform .22s var(--press)}
+  .rail-bubble.show{opacity:1;transform:translate(-50%,-100%) scale(1)}
+  .rail-bubble-in{position:relative;background:color-mix(in srgb,var(--surface) 90%,transparent);
+    -webkit-backdrop-filter:blur(10px) saturate(1.12);backdrop-filter:blur(10px) saturate(1.12);
+    border-radius:13px;padding:9px 14px;box-shadow:0 16px 32px -18px rgba(0,0,0,.6),inset 0 1px 0 rgba(244,239,227,.07);
+    color:var(--ink-2);font-size:12px;line-height:1.4;min-height:18px}
+  .rail-bubble-stem{position:absolute;left:139px;bottom:-6px;margin-left:-7px;width:14px;height:14px;
+    background:color-mix(in srgb,var(--surface) 90%,transparent);clip-path:polygon(50% 100%,0 0,100% 0);
+    filter:drop-shadow(0 3px 3px rgba(0,0,0,.22))}
+
+  /* per-vignette content — small type, tokens only, no icons/emoji */
+  .bb-line{opacity:0;transform:translateY(4px);animation:bb-line-in .38s var(--ease) forwards}
+  @keyframes bb-line-in{to{opacity:1;transform:none}}
+  .bb-name{font-size:13px;font-weight:700;color:var(--ink);letter-spacing:.015em}
+  .bb-sub{margin-top:3px;font-size:11px;color:var(--ink-3)}
+
+  .bb-q{font-size:12px;color:var(--ink);font-weight:600;margin:0 0 6px}
+  .bb-opts{display:flex;flex-direction:column;gap:4px}
+  .bb-opt{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-3);transition:color .3s ease}
+  .bb-opt-dot{width:13px;height:13px;border-radius:50%;border:1.5px solid var(--line);flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;color:var(--btn-fg);
+    transition:background-color .3s ease,border-color .3s ease}
+  .bb-opt-dot svg{width:8px;height:8px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;
+    stroke-linejoin:round;opacity:0;transform:scale(.5);transition:opacity .25s ease,transform .25s var(--press)}
+  .bb-opt.correct{color:var(--ink)}
+  .bb-opt.correct .bb-opt-dot{background:var(--jade);border-color:var(--jade)}
+  .bb-opt.correct .bb-opt-dot svg{opacity:1;transform:scale(1)}
+
+  .bb-type-row{display:flex;align-items:baseline}
+  .bb-type{display:inline-block;overflow:hidden;white-space:nowrap;border-right:2px solid var(--brass);
+    font-size:10.8px;color:var(--ink);width:0;max-width:100%;
+    animation:bb-type-w 1.1s steps(39,end) forwards,bb-caret .8s step-end infinite}
+  @keyframes bb-type-w{to{width:39ch}}
+  @keyframes bb-caret{50%{border-color:transparent}}
+
+  .bb-metric,.bb-stamp{position:absolute;top:9px;right:11px;font-size:10.5px;font-weight:800;
+    font-variant-numeric:tabular-nums}
+  .bb-metric{color:var(--brass);opacity:0;animation:bb-fade-in .3s ease .12s forwards}
+  @keyframes bb-fade-in{to{opacity:1}}
+  .bb-stamp{color:var(--btn-fg);background:var(--jade);padding:2px 7px;border-radius:999px;
+    opacity:0;transform:scale(.6);transition:opacity .25s var(--press),transform .25s var(--press)}
+  .bb-stamp.show{opacity:1;transform:scale(1)}
+
+  .bb-chat{display:flex;flex-direction:column;gap:6px}
+  .bb-msg{max-width:86%;padding:6px 10px;border-radius:10px;font-size:11.5px;line-height:1.4;
+    opacity:0;transform:translateY(4px);animation:bb-line-in .32s var(--ease) forwards}
+  .bb-msg.left{align-self:flex-start;background:color-mix(in srgb,var(--ink) 8%,transparent);color:var(--ink-2);
+    border-bottom-left-radius:3px}
+  .bb-msg.right{align-self:flex-end;background:color-mix(in srgb,var(--jade) 22%,transparent);color:var(--ink);
+    border-bottom-right-radius:3px}
+
+  .bb-voice{display:flex;flex-direction:column;gap:9px}
+  .bb-wave{display:flex;align-items:flex-end;justify-content:center;gap:2.5px;height:22px}
+  .bb-wave i{width:2.5px;border-radius:1px;height:6px;background:var(--gem-teal);flex-shrink:0;
+    animation:rail-murmur-bar 1s ease-in-out infinite}
+  .bb-voice-line{display:block;overflow:hidden;white-space:nowrap;font-size:11.5px;font-style:italic;
+    color:var(--ink-2);font-family:Fraunces,Georgia,serif;width:0;max-width:100%;
+    animation:bb-type-w2 1.1s steps(30,end) .1s forwards}
+  @keyframes bb-type-w2{to{width:30ch}}
+
   /* ── the narration — one Fraunces italic line above the track, the
      hero's own voice naming what's happening as she travels it. Crossfades
      (300ms) between beats; holds the closing line while sealed. This is
@@ -330,7 +402,8 @@
     .hero-rail{width:100%;margin-top:clamp(30px,5vh,54px)}
     .rail-panel{width:100%}
     .rail-narration{text-align:right;font-size:clamp(20px,1.7vw,26px);font-weight:400;
-      color:var(--ink);margin:0 6px 24px;letter-spacing:0}
+      color:var(--ink);margin:0 6px 115px;letter-spacing:0} /* tall enough to clear the
+      Quiz/Chat vignettes (the tallest bubbles, ~97px) — see placeBubble()/BUBBLES below */
   }
   @media(min-width:1280px){.hero-in{max-width:1300px}}
 
@@ -346,9 +419,9 @@
     .rail-node{width:auto;flex:1 1 0;min-width:0}
     .rail-nodes{gap:0}
     .rail-label,.rail-receipt{display:none}
-    .rail-chip{width:27px;height:27px;top:calc(50% - 12.5px)}
-    .rail-chip-core{font-size:9px}
+    .rail-chip-core{font-size:9.5px;padding:4px 9px}
     .rail-firefly{display:none}
+    .rail-bubble{display:none!important} /* bubbles OFF entirely — the narration line carries the story here */
   }
   .sub-mob{display:none}
   .watch-link{display:none}
@@ -664,6 +737,7 @@
     .rail-node.is-current .rail-dot::after{animation:none!important}
     .rail-track{animation:none!important} /* JS sets the chip's resting opacity directly for RM */
     .rail-firefly{animation:none!important;opacity:.35!important}
+    .rail-bubble{display:none!important} /* no bubbles under reduced motion — sealed end-state only */
     /* the story never pins or scrubs — scenes stack, finished */
     .story.scrub{height:auto}
     .story.scrub .story-pin{position:static;height:auto;padding:clamp(40px,6vw,72px) 0 clamp(24px,4vw,48px);overflow:visible}
@@ -822,8 +896,15 @@
                 <span class="rail-receipt show is-sealed" id="rail-receipt-5">92 &middot; SEALED</span>
               </div>
             </div>
+            <!-- the stage bubble: one reusable letterhead surface, JS moves it to
+                 whichever gem is current and swaps its content per phase (desktop
+                 only — search "playVignette" below) -->
+            <div class="rail-bubble" id="rail-bubble">
+              <div class="rail-bubble-stem"></div>
+              <div class="rail-bubble-in" id="rail-bubble-in"></div>
+            </div>
             <div class="rail-chip" id="rail-chip">
-              <div class="rail-chip-body" id="rail-chip-body"><span class="rail-chip-core">DO</span></div>
+              <div class="rail-chip-body" id="rail-chip-body"><span class="rail-chip-core">Danielle</span></div>
               <span class="rail-firefly f1"></span>
               <span class="rail-firefly f2"></span>
             </div>
@@ -1359,14 +1440,17 @@
     var murmur=d.getElementById("rail-murmur");
     var timeDecision=d.getElementById("rail-time-decision");
     var narrEl=d.getElementById("rail-narration");
+    var bubbleEl=d.getElementById("rail-bubble"),bubbleInEl=d.getElementById("rail-bubble-in");
     if(!panel||!trackEl||!fillEl||!chipEl||nodeEls.length!==6)return;
 
     var RECEIPTS=[null,"84%","72 wpm","done","8 min","92 · SEALED"];
-    /* ms from loop start — she arrives at each gem in turn; the last hop
-       lingers a little longer so the voice gem's murmur has room to breathe
-       before she moves on to be sealed */
-    var ARR=[800,2000,3200,4400,5600,7700];
-    var MURMUR=[5600,7600],SEAL_POP=8200,HOLD_END=11500,LOOP_MS=12100;
+    /* ms from loop start — she arrives at each gem in turn; each of the
+       first five gems gets a ~2.1s dwell for its stage-bubble vignette to
+       play (see BUBBLES/playVignette below); Decision gets a short settle
+       beat before the seal presses */
+    var ARR=[700,2800,4900,7000,9100,11200];
+    var SEAL_POP=11700,HOLD_END=15700,LOOP_MS=16300;
+    var MURMUR=[ARR[4]+50,ARR[5]-150]; /* the on-dot murmur — mobile/no-bubble fallback only */
 
     /* the narration beats — the hero's own voice, naming what's happening
        as she crosses each gem; "the screening runs itself" covers the three
@@ -1391,6 +1475,112 @@
       },300);
     }
 
+    /* ── the stage bubble — the founder's own idea: "something pops up...
+       like they get to the quiz and the little screen is typing." One
+       reusable element, moved and re-filled per gem, never more than one
+       on stage. Desktop only (bubblesEnabled() below); mobile and reduced
+       motion both fall back to the narration line alone. ── */
+    var CHECK_SVG='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.3 4.3L19 7.4"/></svg>';
+    var BUBBLES=[
+      function(){ /* 0 — Applied: her application materializes */
+        return '<div class="bb-line" style="animation-delay:0s"><div class="bb-name">Danielle Okafor</div></div>'+
+          '<div class="bb-line" style="animation-delay:.16s"><div class="bb-sub">Part-Time Mechanic &middot; from her phone</div></div>';
+      },
+      function(){ /* 1 — Quiz: a question, three options, the correct one ticks */
+        return '<div class="bb-q">Which tool torques a head bolt?</div>'+
+          '<div class="bb-opts">'+
+            '<div class="bb-opt" data-opt="0"><span class="bb-opt-dot">'+CHECK_SVG+'</span>Torque wrench</div>'+
+            '<div class="bb-opt" data-opt="1"><span class="bb-opt-dot">'+CHECK_SVG+'</span>Impact driver</div>'+
+            '<div class="bb-opt" data-opt="2"><span class="bb-opt-dot">'+CHECK_SVG+'</span>Pipe wrench</div>'+
+          '</div><span class="bb-stamp" id="bbStamp">84%</span>';
+      },
+      function(){ /* 2 — Typing test: a sentence types itself, wpm climbs */
+        return '<div class="bb-type-row"><span class="bb-type">Customer is waiting on the brake quote&hellip;</span></div>'+
+          '<span class="bb-metric" id="bbWpm">0 wpm</span>';
+      },
+      function(){ /* 3 — Chat sim: two lines of conversation */
+        return '<div class="bb-chat">'+
+          '<div class="bb-msg left" style="animation-delay:0s">My car&#8217;s making a grinding noise.</div>'+
+          '<div class="bb-msg right" style="animation-delay:.55s">Let&#8217;s get you in today &mdash; morning or afternoon?</div>'+
+        '</div>';
+      },
+      function(){ /* 4 — Voice interview: the murmur, grown up, plus a line of the transcript */
+        var bars='';for(var i=0;i<14;i++)bars+='<i style="animation-delay:'+(-((i%7)*0.13)).toFixed(2)+'s"></i>';
+        return '<div class="bb-voice"><div class="bb-wave">'+bars+'</div>'+
+          '<div class="bb-voice-line">&mdash; Walk me through a brake job.</div></div>';
+      }
+    ];
+    var bubbleTimers=[];
+    function clearBubbleTimers(){bubbleTimers.forEach(clearTimeout);bubbleTimers=[];}
+    function afterMount(index){
+      if(index===1){
+        bubbleTimers.push(window.setTimeout(function(){
+          var opt=bubbleInEl.querySelector('.bb-opt[data-opt="0"]');
+          if(opt)opt.classList.add("correct");
+        },700));
+        bubbleTimers.push(window.setTimeout(function(){
+          var st=d.getElementById("bbStamp");
+          if(st)st.classList.add("show");
+        },1000));
+      }else if(index===2){
+        var wpmEl=d.getElementById("bbWpm");
+        if(wpmEl){
+          var wt0=null;
+          function step(now){
+            if(!bubbleInEl.contains(wpmEl))return; /* content swapped/cleared — stop counting */
+            if(wt0===null)wt0=now;
+            var p=Math.min(1,(now-wt0)/900);
+            wpmEl.textContent=Math.round(72*p)+" wpm";
+            if(p<1)requestAnimationFrame(step);
+          }
+          requestAnimationFrame(step);
+        }
+      }
+    }
+    function bubblesEnabled(){return !RM&&innerWidth>=1024;}
+    function placeBubble(index){
+      if(!bubbleEl||!points[index])return;
+      var p=points[index];
+      var dotH=(dotEls[index]&&dotEls[index].offsetHeight)||56;
+      var bw=bubbleEl.offsetWidth||278;
+      var zoneW=zone.getBoundingClientRect().width;
+      var pad=8,half=bw/2;
+      var cx=Math.max(half+pad,Math.min(zoneW-half-pad,p.x));
+      var stemOffset=Math.max(-(half-16),Math.min(half-16,p.x-cx)); /* nudge the stem, not the whole
+        bubble, back toward the true gem x when the body had to clamp off an edge */
+      bubbleEl.style.left=cx+"px";
+      bubbleEl.style.top=(p.y-dotH/2-12)+"px";
+      var stemEl=bubbleEl.querySelector(".rail-bubble-stem");
+      if(stemEl)stemEl.style.left=(half+stemOffset)+"px";
+    }
+    var bubbleShowTimer=null,bubbleFoldTimer=null;
+    function hideBubble(instant){
+      if(bubbleShowTimer){clearTimeout(bubbleShowTimer);bubbleShowTimer=null;}
+      if(bubbleFoldTimer){clearTimeout(bubbleFoldTimer);bubbleFoldTimer=null;}
+      clearBubbleTimers();
+      if(!bubbleEl)return;
+      bubbleEl.classList.remove("show");
+      if(instant){
+        var prev=bubbleEl.style.transition;bubbleEl.style.transition="none";
+        bubbleEl.offsetWidth;bubbleEl.style.transition=prev;
+      }
+    }
+    function playVignette(index){
+      if(bubbleShowTimer){clearTimeout(bubbleShowTimer);bubbleShowTimer=null;}
+      if(bubbleFoldTimer){clearTimeout(bubbleFoldTimer);bubbleFoldTimer=null;}
+      if(!bubbleEl||!bubbleInEl||!BUBBLES[index]||!bubblesEnabled())return;
+      bubbleShowTimer=window.setTimeout(function(){
+        placeBubble(index);
+        bubbleInEl.innerHTML=BUBBLES[index]();
+        bubbleEl.classList.add("show");
+        afterMount(index);
+      },250); /* she arrives, then the bubble catches up — never simultaneous */
+      var dwell=(ARR[index+1]!==undefined?ARR[index+1]:ARR[index]+2000)-ARR[index];
+      bubbleFoldTimer=window.setTimeout(function(){
+        bubbleEl.classList.remove("show"); /* folds toward the gem as she departs */
+      },Math.max(450,dwell-220)); /* 220ms — matches the fold transition's own duration exactly */
+    }
+
     var points=[],chipIndex=0;
 
     function measure(){
@@ -1410,7 +1600,9 @@
     function placeChip(index,instant){
       var p=points[Math.max(0,Math.min(index,points.length-1))];
       if(!p)return;
-      var half=(chipEl.offsetWidth||38)/2,x=p.x-half,y=p.y-half;
+      /* the nameplate is a pill, not a circle — center off its real measured
+         width AND height separately, not a shared "half" */
+      var hw=(chipEl.offsetWidth||70)/2,hh=(chipEl.offsetHeight||26)/2,x=p.x-hw,y=p.y-hh;
       chipEl.style.right="auto";chipEl.style.left="0";chipEl.style.top="0";
       if(instant){
         var prev=chipEl.style.transition;chipEl.style.transition="none";
@@ -1452,6 +1644,7 @@
       paintFill(newIndex,false);
       chipBody.classList.remove("is-moving");chipBody.offsetWidth;chipBody.classList.add("is-moving");
       if(newIndex!==5)setNarration(narrFor(newIndex)); /* the Decision line waits for the actual seal below */
+      if(newIndex<5)playVignette(newIndex);else hideBubble(false); /* no bubble ever competes with the seal */
     }
     function render(ts){
       var idx=-1; /* -1: hasn't arrived anywhere yet — holds the blank opening
@@ -1461,7 +1654,9 @@
         for(var k=firedIndex+1;k<=idx;k++)arrive(k);
         firedIndex=idx;
       }
-      murmur.classList.toggle("show",ts>=MURMUR[0]&&ts<MURMUR[1]);
+      /* the small on-dot murmur is a mobile/no-bubble fallback — on desktop
+         the enlarged version lives inside the Voice vignette bubble instead */
+      murmur.classList.toggle("show",!bubblesEnabled()&&ts>=MURMUR[0]&&ts<MURMUR[1]);
       if(ts>=SEAL_POP&&!sealed){ /* the "92 · SEALED" chip pops just after the press settles */
         sealed=true;
         nodeEls[5].classList.remove("is-current");
@@ -1485,6 +1680,8 @@
       timeDecision.style.opacity="0";
       placeChip(0,true);paintFill(0,true);
       chipEl.style.opacity="0"; /* invisible through the blank opening beat — arrive(0) fades her in */
+      hideBubble(true);
+      if(bubbleInEl)bubbleInEl.innerHTML="";
       panel.classList.remove("leaving");
       panel.offsetHeight; /* force the reflow — commits the reset with no transition */
       panel.classList.remove("notransition");
