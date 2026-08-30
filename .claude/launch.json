@@ -12,6 +12,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["--yes", "serve", "design/preview", "-l", "4321", "--no-clipboard"],
       "port": 4321
+    },
+    {
+      "name": "landing-preview",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "serve", "public", "-l", "4502", "--no-clipboard"],
+      "port": 4502
     }
   ]
 }
