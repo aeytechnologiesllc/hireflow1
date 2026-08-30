@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HireFlow — the build-out plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --ground:#F0EBDF; --ground-2:#E9E2D2; --surface:#FCFAF4; --surface-2:#E4DCC7;
+    --line:#D6CDB6; --line-soft:#E2DAC6; --hair:#C6B893;
+    --ink:#14201B; --ink-2:#3F4B45; --ink-3:#5C655E;
+    --slab:#0C2A21; --slab-ink:#F2EFE5; --slab-ink-2:#A9C6B8;
+    --jade:#0F6B4F; --jade-bright:#3FCE97; --jade-soft:#DCEDE3; --jade-soft-fg:#0A5340;
+    --brass:#8A6420; --brass-line:#C9A45E; --brass-soft:#F2E3C2;
+    --amber-bg:#F6E7C6; --amber-fg:#7A5410;
+    --crit:#A8352A; --crit-bg:#F4DEDA;
+    --shadow-sm:0 1px 1px rgba(20,32,27,.05),0 1px 3px -1px rgba(20,32,27,.11);
+    --shadow-md:0 1px 2px rgba(20,32,27,.06),0 10px 22px -14px rgba(20,32,27,.34);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);
+    font-family:Inter,-apple-system,sans-serif;font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:960px;margin:0 auto;padding:44px 30px 70px}
+
+  .eyebrow{font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--brass);margin:0 0 10px}
+  h1{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:34px;line-height:1.1;letter-spacing:-.025em;margin:0 0 8px}
+  .lede{font-size:15px;color:var(--ink-2);margin:0;max-width:66ch}
+
+  .chip{font-size:10px;font-weight:700;letter-spacing:.07em;padding:3px 9px;border-radius:5px;
+    display:inline-block;line-height:1.4;text-transform:uppercase;white-space:nowrap;vertical-align:middle}
+  .chip.me{background:var(--jade-soft);color:var(--jade-soft-fg)}
+  .chip.you{background:var(--amber-bg);color:var(--amber-fg)}
+  .chip.wait{background:var(--surface-2);color:var(--ink-2)}
+  .chip.test{background:var(--brass-soft);color:var(--brass);border:1px solid var(--brass-line)}
+
+  .legend{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0 8px;align-items:center;font-size:12px;color:var(--ink-3)}
+
+  .phase{margin-top:28px;background:var(--surface);border:1px solid var(--line-soft);border-radius:12px;
+    box-shadow:var(--shadow-sm);overflow:hidden}
+  .ph-h{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:16px 22px;border-bottom:1px solid var(--line-soft);background:var(--surface)}
+  .ph-n{font-family:Fraunces,Georgia,serif;font-size:15px;font-weight:700;color:var(--brass)}
+  .ph-t{font-family:Fraunces,Georgia,serif;font-size:20px;font-weight:600;letter-spacing:-.015em}
+  .ph-s{margin-left:auto;font-size:12px;color:var(--ink-3)}
+  .ph-b{padding:14px 22px 18px}
+  .task{display:grid;grid-template-columns:auto 1fr;gap:12px;padding:9px 0;border-bottom:1px solid var(--line-soft);align-items:baseline}
+  .task:last-child{border-bottom:none}
+  .task .chip{justify-self:start;min-width:52px;text-align:center}
+  .task p{margin:0;font-size:13.5px;color:var(--ink-2)}
+  .task p b{color:var(--ink)}
+  .task .tst{display:block;margin-top:4px;font-size:12px;color:var(--ink-3)}
+  .task .tst b{color:var(--brass);font-weight:700;font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+
+  .slabbox{background:var(--slab);border-radius:11px;padding:16px 20px;margin-top:28px;box-shadow:var(--shadow-md)}
+  .slabbox h2{font-family:Fraunces,Georgia,serif;font-size:18px;font-weight:600;color:var(--slab-ink);margin:0 0 10px;letter-spacing:-.01em}
+  .slabbox ul{margin:0;padding-left:18px;color:var(--slab-ink-2);font-size:13.5px;line-height:1.7}
+  .slabbox li b{color:var(--slab-ink)}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:28px}
+  @media(max-width:760px){.two{grid-template-columns:1fr}}
+  .aut{background:var(--surface);border:1px solid var(--line-soft);border-radius:12px;padding:16px 20px;box-shadow:var(--shadow-sm)}
+  .aut h2{font-family:Fraunces,Georgia,serif;font-size:17px;font-weight:600;margin:0 0 10px;letter-spacing:-.01em}
+  .aut ul{margin:0;padding-left:18px;font-size:13px;color:var(--ink-2);line-height:1.7}
+  .aut li b{color:var(--ink)}
+  .aut.you-box{border-color:var(--brass-line);box-shadow:var(--shadow-md)}
+  .foot{margin-top:26px;font-size:12px;color:var(--ink-3);line-height:1.6;max-width:80ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">HireFlow · Execution plan · drafted Aug 26</p>
+  <h1>From this mockup to a product taking money</h1>
+  <p class="lede">Seven phases, zero to six. Each task is tagged with who does it, and every phase ends with a test that proves it worked — no phase is "done" on my say-so, only on a passing check you could watch.</p>
+
+  <div class="legend">
+    <span class="chip me">ME</span> I do it fully autonomously
+    <span class="chip you">YOU</span> needs your hands or your yes
+    <span class="chip wait">WAIT</span> a third party's clock
+    <span class="chip test">TEST</span> how we prove it
+  </div>
+
+  <div class="phase">
+    <div class="ph-h"><span class="ph-n">PHASE 0</span><span class="ph-t">Unlock — keys &amp; accounts</span><span class="ph-s">~1–2 hrs of your time · unblocks everything</span></div>
+    <div class="ph-b">
+      <div class="task"><span class="chip you">YOU</span><p><b>Stripe live keys.</b> Log into Stripe, flip to live mode, copy the publishable + secret key. I'll walk you through it click-by-click; you paste them where I say (Vercel + Supabase). This is the single biggest blocker — production is running a test key today.
+        <span class="tst"><b>Test</b> — I re-download the live site's code and confirm a live key ships; then one real $1 charge on your own card, refunded, end to end.</span></p></div>
+      <div class="task"><span class="chip you">YOU</span><p><b>Facebook Business account.</b> Create HireFlow's Business Manager under your Facebook login, submit business verification, add a payment card. I prepare every field's exact value; you click. <span class="chip wait">WAIT</span> Meta's verification takes days — start now so it's ready when we need it.
+        <span class="tst"><b>Test</b> — account shows "verified"; a $5 throwaway ad passes review.</span></p></div>
+      <div class="task"><span class="chip you">YOU</span><p><b>Lock the prices.</b> $19 post · $99 with Ava interviews · $59/$99/$149 boosts — or your numbers. One text from you settles it; I create the Stripe products from it.</p></div>
+      <div class="task"><span class="chip you">YOU</span><p><b>Google Search Console.</b> Ten minutes with your Google login to verify hireflownow.com so Google starts trusting the fixed job listings.</p></div>
+      <div class="task"><span class="chip me">ME</span><p><b>Everything else with keys</b> — Supabase secrets, edge-function config, price IDs — I set through the tools I already have.</p></div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="ph-h"><span class="ph-n">PHASE 1</span><span class="ph-t">Launch repairs — the app can take money and be found</span><span class="ph-s">me, ~3–4 days, starts immediately</span></div>
+    <div class="ph-b">
+      <div class="task"><span class="chip me">ME</span><p><b>Company name, city, state, salary become required</b> before any job can publish; backfill the four live jobs; pull the "Remote Personal Assistant" listing out of the feed (it matches a scam pattern that gets whole feeds rejected).
+        <span class="tst"><b>Test</b> — publish attempt without a company name is blocked; live feed shows real business names on every job.</span></p></div>
+      <div class="task"><span class="chip me">ME</span><p><b>Fix the job feed + Google data</b> — correct date format, fresh dates, state field, salary, per-job include switch, real employer names in the structured data.
+        <span class="tst"><b>Test</b> — feed passes the aggregators' validators; a job page fetched as Googlebot shows a complete, non-"Confidential" listing.</span></p></div>
+      <div class="task"><span class="chip me">ME</span><p><b>Stripe hardening</b> — delete the silent test-key fallback so a missing key fails loudly; consolidate the eight edge functions onto one modern Stripe version.
+        <span class="tst"><b>Test</b> — checkout with a missing key shows an error, never a quiet test charge; webhook test events all process.</span></p></div>
+      <div class="task"><span class="chip me">ME</span><p><b>AI model migration</b> (the October deadline): every model name moves to config; job writing + scoring to the current GPT tier, document analysis to current Gemini, voice to the new realtime model that's also ~3× cheaper per minute.
+        <span class="tst"><b>Test</b> — one full candidate journey on production: apply → Ava screens → voice interview → seal, on the new models, transcript checked by hand.</span></p></div>
+      <div class="task"><span class="chip me">ME</span><p><b>Platform housekeeping</b> — pin Node 24 before Vercel's Oct 1 cutoff, move edge functions off the legacy Supabase keys, close the open email-checker and the unauthenticated AI endpoints, turn on Vercel analytics + free error tracking.
+        <span class="tst"><b>Test</b> — deploy succeeds on Node 24; the open endpoints now demand a login; errors from a forced crash appear in the tracker.</span></p></div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="ph-h"><span class="ph-n">PHASE 2</span><span class="ph-t">The new look goes into the real app</span><span class="ph-s">me, ~2 weeks, surface by surface — runs alongside Phase 3–4 waits</span></div>
+    <div class="ph-b">
+      <div class="task"><span class="chip me">ME</span><p><b>One token system.</b> The mockup's type / spacing / color / shadow / motion tokens replace the four competing systems in the code. The orb retires; the seal component goes in (code-drawn, theme-aware, badge-on-people only).</p></div>
+      <div class="task"><span class="chip me">ME</span><p><b>Rebuild in this order:</b> shell &amp; nav → Dashboard (the overnight sort) → Applicants → Jobs → Interviews → Messages → Documents → Analytics → then the landing page as a real page on the same tokens (the iframe dies). Day / Night / System everywhere, ambient background included.
+        <span class="tst"><b>Test</b> — my screenshot loop on every surface: both themes, three widths, before anything deploys. You get each surface on a preview link for a yes/no on your phone — never a big-bang reveal.</span></p></div>
+      <div class="task"><span class="chip you">YOU</span><p><b>Per-surface yes/no.</b> One look, one word, per screen. Your only design work.</p></div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="ph-h"><span class="ph-n">PHASE 3</span><span class="ph-t">The pricing engine</span><span class="ph-s">me, ~1 week, after prices lock</span></div>
+    <div class="ph-b">
+      <div class="task"><span class="chip me">ME</span><p><b>Per-job checkout</b> replaces the subscription: $19 post / $99 with interviews, 30-day term, boost add-ons with <b>authorize-now-capture-on-live</b>; free trial logic retired (nothing free can post a job — that also clears Indeed's partner bar for later).
+        <span class="tst"><b>Test</b> — Stripe test-clock runs of every path: pay, cap-hit, overage, boost approved, boost rejected → hold auto-released at 24h.</span></p></div>
+      <div class="task"><span class="chip me">ME</span><p><b>Caps wired to the meters that already exist</b> — 50 screenings / 50 voice interviews included, +$10 per extra 25 screenings, voice minutes through the existing $15/50-min credit system, warnings at 80%.
+        <span class="tst"><b>Test</b> — a seeded job crosses each cap; the nag, the block, and the top-up each fire exactly once.</span></p></div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="ph-h"><span class="ph-n">PHASE 4</span><span class="ph-t">Distribution — free lane live, Boost proven then built</span><span class="ph-s">me + third-party clocks</span></div>
+    <div class="ph-b">
+      <div class="task"><span class="chip me">ME</span><p><b>Submit the repaired feed</b> to Adzuna, Jooble, Talent.com, PostJobFree. I draft every submission; the two that must come from your email address go out with your one-tap OK. <span class="chip wait">WAIT</span> 1–3 weeks for humans to switch us on.
+        <span class="tst"><b>Test</b> — screenshot of a customer job live on each network, under their business name, before that network's name ever appears in our UI.</span></p></div>
+      <div class="task"><span class="chip you">YOU</span><p><b>The $150 Boost experiment</b> — before any Boost code is written, we hand-run one real ad for the mechanic job from the new Business account: your card, 15-mile radius, straight to the job page. If a real local applicant costs under ~$25, Boost gets built; if not, we learned it for $150.
+        <span class="tst"><b>Test</b> — the "Came from" column shows ad-sourced applicants; we compute the real cost per applicant.</span></p></div>
+      <div class="task"><span class="chip me">ME</span><p><b>Build Ava Boost</b> (if the test passes): ad built from pre-approved templates via Meta's API, reach estimate shown before purchase, in-review → live → charge state machine, auto-fix on rejection. <span class="chip wait">WAIT</span> Meta app review for API access — applied for early in Phase 0.
+        <span class="tst"><b>Test</b> — a $5/day staging boost goes hold → review → live → charge, then a deliberately-rejectable ad goes hold → released, untouched money verified in Stripe.</span></p></div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="ph-h"><span class="ph-n">PHASE 5</span><span class="ph-t">The audit loop — thirty passes minimum, exits only at zero</span><span class="ph-s">me, autonomous, the quality gate for the whole build</span></div>
+    <div class="ph-b">
+      <div class="task"><span class="chip me">ME</span><p><b>The rule, exactly as you set it:</b> the finished app gets audited by <b>independent passes — thirty minimum</b> — and the loop does not end until a full audit round comes back with <b>zero issues</b>. If pass 30 still finds problems, there is a pass 31, 32, 40 — the loop closes itself, not the calendar.</p></div>
+      <div class="task"><span class="chip me">ME</span><p><b>Each round = a squad of independent auditors, one lens each,</b> across the real production app (not the mockup): visual fidelity to the locked system &middot; both themes &middot; three widths &middot; every button actually wired &middot; every cross-tab link lands &middot; payment paths (pay, cap, overage, hold, release, refund) &middot; the candidate journey end-to-end &middot; the feed and every live listing &middot; data consistency between tabs &middot; security (no open endpoints, no leaked keys) &middot; performance &middot; copy &middot; accessibility &middot; error states &middot; Night mode &middot; phone.
+        <span class="tst"><b>Test</b> — every finding is logged with its fix and re-verified in the next round; nothing is closed by hand-waving. You get the round-by-round score: "Round 3: 14 found, 14 fixed. Round 4: 5 found…" until the round that reads <b>zero</b>.</span></p></div>
+      <div class="task"><span class="chip me">ME</span><p><b>Regression protection:</b> anything fixed once gets a permanent check so a later change can't quietly break it again — the loop only ever shrinks.</p></div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="ph-h"><span class="ph-n">PHASE 6</span><span class="ph-t">Pre-launch proof</span><span class="ph-s">me ~2 days + 30 min of your thumbs</span></div>
+    <div class="ph-b">
+      <div class="task"><span class="chip me">ME</span><p><b>Full dress rehearsal on production</b> with the internal test account: sign up → job → publish (real charge, refunded) → 3 seeded applicants through voice → seal → interview confirm → offer letter → "hired" paperwork. Every tab, both themes, desktop + phone. All runtime errors watched for 48 hours.</p></div>
+      <div class="task"><span class="chip you">YOU</span><p><b>Your 30-minute phone pass.</b> You do the whole journey as a stranger would. What annoys you gets fixed before a dollar of marketing.</p></div>
+    </div>
+  </div>
+
+  <div class="two">
+    <div class="aut">
+      <h2>How far I go alone</h2>
+      <ul>
+        <li><b>All code, all deploys</b> — the repo auto-deploys on push; I verify each deploy live.</li>
+        <li><b>Database + edge functions</b> — through the connected Supabase tools.</li>
+        <li><b>Every visual verification</b> — my screenshot-critique-fix loop, both themes, three widths, on every surface before you see it.</li>
+        <li><b>All test suites</b> — checkout paths, caps, feed validation, candidate journeys — written and run by me, results reported with output, never "trust me."</li>
+        <li><b>All drafts</b> — emails, ad copy, pricing-page words — ready for your one-tap approval where your name is on it.</li>
+      </ul>
+    </div>
+    <div class="aut you-box">
+      <h2>The complete list of what needs you</h2>
+      <ul>
+        <li><b>Stripe live keys</b> + one real $1 test charge (refunded)</li>
+        <li><b>Facebook Business setup</b> + payment card (guided, ~30 min + Meta's wait)</li>
+        <li><b>$150 ad experiment budget</b></li>
+        <li><b>Search Console login</b> (~10 min)</li>
+        <li><b>Lock the three prices</b> (one text)</li>
+        <li><b>Per-surface yes/no</b> as the theme lands</li>
+        <li><b>Approve outgoing emails</b> sent in your name</li>
+        <li><b>The 30-minute phone pass</b> at the end</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="slabbox">
+    <h2>Order of operations, plainly</h2>
+    <ul>
+      <li><b>This week:</b> you do Phase 0 (the four unlocks) · I run all of Phase 1 in parallel — repairs don't wait on keys.</li>
+      <li><b>Weeks 2–3:</b> theme rollout surface-by-surface · feed submissions cooking · pricing engine once numbers lock · Meta verification finishing.</li>
+      <li><b>Week 3–4:</b> the $150 ad experiment · Boost build if it passes · <b>the audit loop runs until a round reads zero</b> · dress rehearsal · your phone pass · open the doors.</li>
+    </ul>
+  </div>
+
+  <p class="foot">Standing rules baked into all of it: no green fill bigger than a banner · the seal only on people · every claim in the UI screenshot-provable · the audit loop exits only at zero · caps warn before they block · nothing charges until it delivers (holds release themselves) · and no channel gets named to a customer until their own job is live on it.</p>
+
+</div>
+</body>
+</html>

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import {
@@ -11,6 +11,13 @@ import {
   MessageSquare,
   CheckCircle2,
   XCircle,
+  Mail,
+  ListChecks,
+  Keyboard,
+  MessageCircle,
+  AudioLines,
+  Video,
+  FileText,
 } from "lucide-react";
 import AvaSeal from "@/components/ava/AvaSeal";
 import CkAvatar from "../components/Avatar";
@@ -547,6 +554,53 @@ function Timeline({ candidate, app }: { candidate: Candidate; app?: AppRecord })
   );
 }
 
+/* ── Constellation rail — visual mapping only ────────────────────────────
+   Each step *type* (not each job) gets one hue off the sanctioned journey
+   spectrum, and one glyph. This is the ONE colorful thing in the applicant
+   panel — the hues live as --rail-* tokens in cockpit.css and are never
+   reused elsewhere in the cockpit. Decision doesn't get a hue at all: it's
+   the brass wax seal, same mark as everywhere else Ava signs her work. */
+const RAIL_HUE_BY_TYPE: Record<string, string> = {
+  application: "var(--rail-jade)",
+  quiz: "var(--rail-aqua)",
+  typing_test: "var(--rail-periwinkle)",
+  portfolio_upload: "var(--rail-periwinkle)",
+  video_intro: "var(--rail-violet)",
+  video_message: "var(--rail-violet)",
+  chat_simulation: "var(--rail-violet)",
+  chat_interview: "var(--rail-violet)",
+  sales_simulation: "var(--rail-violet)",
+  voice_interview: "var(--rail-gold)",
+};
+const RAIL_ICON_BY_TYPE: Record<string, typeof Mail> = {
+  application: Mail,
+  quiz: ListChecks,
+  typing_test: Keyboard,
+  portfolio_upload: FileText,
+  video_intro: Video,
+  video_message: Video,
+  chat_simulation: MessageCircle,
+  chat_interview: MessageCircle,
+  sales_simulation: MessageCircle,
+  voice_interview: AudioLines,
+};
+const railHue = (type: string): string => RAIL_HUE_BY_TYPE[type] ?? "var(--rail-jade)";
+const railIcon = (type: string): typeof Mail => RAIL_ICON_BY_TYPE[type] ?? Mail;
+
+/** Fixed star field for the rail's night sky — 20 points, two sizes, hand-
+ *  placed once rather than randomized so the sky doesn't reshuffle on every
+ *  render (and stays identical between server/first client render). */
+const RAIL_STARS: ReadonlyArray<readonly [number, number, 0 | 1]> = [
+  [4, 24, 1], [9, 70, 0], [14, 40, 0], [19, 15, 0], [24, 82, 1],
+  [29, 52, 0], [34, 28, 0], [39, 74, 0], [44, 18, 1], [49, 62, 0],
+  [54, 36, 0], [59, 86, 1], [64, 22, 0], [69, 56, 0], [74, 44, 0],
+  [79, 12, 1], [84, 68, 0], [89, 32, 0], [94, 78, 1], [97, 50, 0],
+];
+
+function reducedMotion(): boolean {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 /**
  * Which phase she's on, and what's left — the job's real steps plus the
  * closing "Decision" stage, built the same way the candidate side builds
@@ -621,42 +675,254 @@ function JourneyStrip({ candidate, app }: { candidate: Candidate; app?: AppRecor
               : "Just applied";
         })();
 
-  return (
-    <div className="mb-3.5">
-      <div className="flex items-center" role="list" aria-label="Where they are in the job's process">
-        {steps.map((step, i) => {
-          const state = nodeState(i);
-          const isDecision = step.id === DECISION_STAGE_ID;
-          const rejected = isDecision && candidate.stage === "Rejected";
-          const result = resultFor(step, state);
-          const tag = state === "current" ? (isDecision ? "She's here — your call" : "She's here") : null;
-          const tip = [step.title, tag, result].filter(Boolean).join(" · ");
+  // ── Constellation rail geometry + replay ──────────────────────────────
+  // The DOM does the measuring (flex layout decides where each orb actually
+  // lands), so the path and the traveler chip are positioned imperatively
+  // off real node centers rather than guessed from CSS. `visualIndex` is the
+  // *animated* read of where she is — it starts at the first orb on every
+  // mount (a fresh candidate opened) and races the real `position.index`,
+  // lighting orbs in sequence as it goes; `position.index` itself (used by
+  // `nodeState`/`resultFor` above) never lies, so tooltips and receipts are
+  // always accurate even mid-flight.
+  const zoneRef = useRef<HTMLDivElement | null>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const pathRef = useRef<SVGPathElement | null>(null);
+  const chipRef = useRef<HTMLDivElement | null>(null);
+  const dotRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const pointsRef = useRef<Array<{ x: number; y: number }>>([]);
+  const pathLenRef = useRef(0);
+  const mountedRef = useRef(false);
+  const visualIndexRef = useRef(0);
+  const timersRef = useRef<number[]>([]);
+  const genRef = useRef(0);
 
-          return (
-            <div
-              key={step.id}
-              role="listitem"
-              tabIndex={0}
-              aria-label={tip}
-              className={`group relative flex items-center outline-none ${i < steps.length - 1 ? "flex-1" : ""}`}
-            >
-              <div className="relative flex shrink-0 flex-col items-center">
+  const [visualIndex, setVisualIndex] = useState(0);
+  const [sealBeat, setSealBeat] = useState(0);
+
+  const measure = () => {
+    const zone = zoneRef.current;
+    if (!zone) return;
+    const zoneRect = zone.getBoundingClientRect();
+    const pts = dotRefs.current.map((el) => {
+      if (!el) return { x: 0, y: 0 };
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2 - zoneRect.left, y: r.top + r.height / 2 - zoneRect.top };
+    });
+    pointsRef.current = pts;
+    if (svgRef.current) {
+      svgRef.current.setAttribute("width", String(Math.max(1, zoneRect.width)));
+      svgRef.current.setAttribute("height", String(Math.max(1, zoneRect.height)));
+    }
+    if (pathRef.current && pts.length > 0) {
+      const d = `M ${pts.map((p) => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" L ")}`;
+      pathRef.current.setAttribute("d", d);
+      const len = pathRef.current.getTotalLength();
+      pathLenRef.current = len;
+      pathRef.current.style.strokeDasharray = String(len);
+    }
+  };
+
+  const applyVisual = (index: number, instant: boolean) => {
+    const forceInstant = instant || reducedMotion();
+    const pts = pointsRef.current;
+    const clamped = Math.max(0, Math.min(index, pts.length - 1));
+    const p = pts[clamped];
+    const chip = chipRef.current;
+    if (p && chip) {
+      const half = (chip.offsetWidth || 30) / 2;
+      const x = p.x - half;
+      const y = p.y - half;
+      if (forceInstant) {
+        const prev = chip.style.transition;
+        chip.style.transition = "none";
+        chip.style.transform = `translate(${x}px, ${y}px)`;
+        void chip.getBoundingClientRect();
+        chip.style.transition = prev;
+      } else {
+        chip.style.transform = `translate(${x}px, ${y}px)`;
+      }
+    }
+    const path = pathRef.current;
+    const len = pathLenRef.current;
+    if (path && len) {
+      const frac = pts.length > 1 ? Math.max(0, clamped) / (pts.length - 1) : 0;
+      const val = (len * (1 - frac)).toFixed(1);
+      if (forceInstant) {
+        const prev = path.style.transition;
+        path.style.transition = "none";
+        path.style.strokeDashoffset = val;
+        void path.getBoundingClientRect();
+        path.style.transition = prev;
+      } else {
+        path.style.strokeDashoffset = val;
+      }
+    }
+  };
+
+  // Drives the whole show: measures geometry, then walks `visualIndex` from
+  // where she was (or the very first orb, on a fresh mount) to where she
+  // really is now — one orb at a time, so cleared orbs light up in sequence
+  // as the chip passes them. Runs synchronously before paint so a candidate
+  // who's already at Decision never flashes at orb one first.
+  useLayoutEffect(() => {
+    measure();
+
+    const target = position.index;
+    const isFirst = !mountedRef.current;
+    const start = isFirst ? (reducedMotion() ? target : 0) : visualIndexRef.current;
+    mountedRef.current = true;
+
+    timersRef.current.forEach((t) => window.clearTimeout(t));
+    timersRef.current = [];
+    const gen = ++genRef.current;
+
+    const landDecision = () => {
+      if (steps[target]?.id === DECISION_STAGE_ID) setSealBeat((n) => n + 1);
+    };
+
+    if (reducedMotion() || target === start) {
+      setVisualIndex(target);
+      visualIndexRef.current = target;
+      applyVisual(target, true);
+      landDecision();
+      return;
+    }
+
+    // rest at the starting orb, instantly, before the glide begins
+    applyVisual(start, true);
+
+    const hops = Math.abs(target - start);
+    const duration = Math.min(950, Math.max(520, 420 + hops * 140));
+    const dir = target > start ? 1 : -1;
+    for (let k = 1; k <= hops; k++) {
+      const idx = start + dir * k;
+      const delay = Math.round((k / hops) * duration);
+      const t = window.setTimeout(() => {
+        if (genRef.current !== gen) return;
+        setVisualIndex(idx);
+        visualIndexRef.current = idx;
+        if (idx === target) landDecision();
+      }, delay);
+      timersRef.current.push(t);
+    }
+
+    return () => {
+      timersRef.current.forEach((t) => window.clearTimeout(t));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [position.index]);
+
+  // Each tick of visualIndex glides the chip + draws the path via CSS
+  // transition (the actual animation the eye sees).
+  useEffect(() => {
+    applyVisual(visualIndex, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visualIndex]);
+
+  // Re-measure (instantly, no replay) when the band's own width changes —
+  // a sidebar collapsing, a window resize, an orientation flip.
+  useEffect(() => {
+    const zone = zoneRef.current;
+    if (!zone || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      measure();
+      applyVisual(visualIndexRef.current, true);
+    });
+    ro.observe(zone);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The visual (animated) read of a node's state — real truth (`nodeState`)
+  // once the traveler has actually reached it, "upcoming" until then, so
+  // orbs light up in step with the chip rather than all at once.
+  const visualState = (i: number): "completed" | "current" | "upcoming" => (i > visualIndex ? "upcoming" : nodeState(i));
+
+  const initials = getInitials(candidate.name);
+
+  dotRefs.current = [];
+
+  return (
+    <div className="ck-rail-outer">
+      <div className="ck-rail-band" ref={zoneRef}>
+        <div className="ck-rail-sky" aria-hidden="true">
+          {RAIL_STARS.map(([left, top, big], i) => (
+            <span
+              key={i}
+              className="ck-rail-star"
+              style={{
+                left: `${left}%`,
+                top: `${top}%`,
+                width: big ? "2.4px" : "1.6px",
+                height: big ? "2.4px" : "1.6px",
+                animationDelay: `${(i % 7) * 0.55}s`,
+                animationDuration: `${6 + (i % 5) * 0.4}s`,
+              }}
+            />
+          ))}
+        </div>
+
+        <svg className="ck-rail-svg" ref={svgRef} aria-hidden="true">
+          <path ref={pathRef} className="ck-rail-path" />
+        </svg>
+
+        <div className="ck-rail-nodes" role="list" aria-label="Where they are in the job's process">
+          {steps.map((step, i) => {
+            const state = nodeState(i);
+            const vState = visualState(i);
+            const isDecision = step.id === DECISION_STAGE_ID;
+            const rejected = isDecision && candidate.stage === "Rejected";
+            const result = resultFor(step, state);
+            const visualResult = resultFor(step, vState);
+            const tag = state === "current" ? (isDecision ? "She's here — your call" : "She's here") : null;
+            const tip = [step.title, tag, result].filter(Boolean).join(" · ");
+            const Icon = railIcon(step.type);
+
+            return (
+              <div
+                key={step.id}
+                role="listitem"
+                tabIndex={0}
+                aria-label={tip}
+                className={[
+                  "ck-rail-node group",
+                  isDecision ? "is-decision" : "",
+                  vState === "completed" ? "is-cleared" : "",
+                  vState === "current" ? "is-current" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                style={{ ["--node-color" as string]: isDecision ? "var(--brass)" : railHue(step.type) }}
+              >
+                <div className="ck-rail-dot" ref={(el) => { dotRefs.current[i] = el; }}>
+                  {isDecision ? (
+                    <span key={`seal-${sealBeat}`} className="ck-seal ck-seal-press">
+                      <AvaSeal size={26} tilt={rejected ? -4 : 0} />
+                    </span>
+                  ) : (
+                    <Icon className="ck-rail-glyph" strokeWidth={2} />
+                  )}
+                  {vState === "completed" && !isDecision && (
+                    <span className="ck-rail-check">
+                      <Check className="h-full w-full" strokeWidth={3} />
+                    </span>
+                  )}
+                </div>
+
+                <span className="ck-rail-label">{step.title}</span>
                 <span
-                  aria-hidden
                   className={[
-                    "flex h-5 w-5 items-center justify-center rounded-full border transition-transform duration-150 group-hover:scale-110",
-                    state === "current" ? "ck-node-pulse" : "",
-                  ].join(" ")}
-                  style={
-                    state === "completed"
-                      ? { background: rejected ? "var(--crit)" : "var(--jade)", borderColor: rejected ? "var(--crit)" : "var(--jade)" }
-                      : state === "current"
-                        ? { background: "var(--surface)", borderColor: "var(--jade)", boxShadow: "0 0 0 3px var(--jade-soft)" }
-                        : { background: "var(--surface-2)", borderColor: "var(--line)" }
-                  }
+                    "ck-rail-receipt",
+                    visualResult ? "show" : "",
+                    // the pill treatment is the seal's own stamp ("92 · Hired") —
+                    // reserve it for the actual verdict, not the longer
+                    // call-to-action sentence shown while she's still waiting
+                    isDecision && outcome ? "is-sealed" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
                 >
-                  {state === "completed" && <Check className="h-3 w-3" strokeWidth={3} style={{ color: "var(--surface)" }} />}
-                  {state === "current" && <span className="h-[7px] w-[7px] rounded-full" style={{ background: "var(--jade)" }} />}
+                  {visualResult ?? ""}
                 </span>
 
                 {/* hover / keyboard-focus tooltip — names the phase and, once there's
@@ -669,18 +935,15 @@ function JourneyStrip({ candidate, app }: { candidate: Candidate; app?: AppRecor
                   {tip}
                 </span>
               </div>
+            );
+          })}
+        </div>
 
-              {i < steps.length - 1 && (
-                <span
-                  aria-hidden
-                  className="mx-1 h-[2px] flex-1 rounded-full"
-                  style={{ background: i < position.index ? "var(--jade)" : "var(--line)" }}
-                />
-              )}
-            </div>
-          );
-        })}
+        <div className="ck-rail-chip" ref={chipRef} aria-hidden="true">
+          <span className="ck-rail-chip-core">{initials}</span>
+        </div>
       </div>
+
       <p className="mt-[7px] text-[11px]" style={{ color: "var(--ink-3)" }}>
         {summary}
       </p>
@@ -1271,7 +1534,10 @@ export default function CockpitApplicants() {
                 </div>
               )}
 
-              <JourneyStrip candidate={selected} app={appById[selected.id]} />
+              {/* keyed distinctly from the sibling `key={selected.id}` below (AvasRead) —
+                  two siblings sharing one key value is a React key collision, not a
+                  harmless coincidence, and it broke reconciliation between candidates */}
+              <JourneyStrip key={`journey-${selected.id}`} candidate={selected} app={appById[selected.id]} />
               <AvasRead key={selected.id} candidate={selected} app={appById[selected.id]} />
               <Timeline candidate={selected} app={appById[selected.id]} />
 

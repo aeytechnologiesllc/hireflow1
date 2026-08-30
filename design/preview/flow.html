@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HireFlow — from signup to hired: who does what, when money moves</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --ground:#F0EBDF; --ground-2:#E9E2D2; --surface:#FCFAF4; --surface-2:#E4DCC7;
+    --line:#D6CDB6; --line-soft:#E2DAC6; --hair:#C6B893;
+    --ink:#14201B; --ink-2:#3F4B45; --ink-3:#5C655E;
+    --slab:#0C2A21; --slab-ink:#F2EFE5; --slab-ink-2:#A9C6B8;
+    --jade:#0F6B4F; --jade-bright:#3FCE97; --jade-soft:#DCEDE3; --jade-soft-fg:#0A5340;
+    --brass:#8A6420; --brass-line:#C9A45E; --brass-soft:#F2E3C2;
+    --amber-bg:#F6E7C6; --amber-fg:#7A5410;
+    --crit:#A8352A; --crit-bg:#F4DEDA;
+    --btn-fg:#F7F4EB;
+    --shadow-sm:0 1px 1px rgba(20,32,27,.05),0 1px 3px -1px rgba(20,32,27,.11);
+    --shadow-md:0 1px 2px rgba(20,32,27,.06),0 10px 22px -14px rgba(20,32,27,.34);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);
+    font-family:Inter,-apple-system,sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding:44px 32px 60px}
+
+  .eyebrow{font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--brass);margin:0 0 10px}
+  h1{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:34px;line-height:1.1;letter-spacing:-.025em;margin:0 0 8px}
+  .lede{font-size:15px;color:var(--ink-2);margin:0;max-width:64ch}
+
+  .chip{font-size:10px;font-weight:700;letter-spacing:.07em;padding:4px 10px;border-radius:5px;
+    display:inline-block;line-height:1;text-transform:uppercase;white-space:nowrap}
+  .chip.free{background:var(--surface-2);color:var(--ink-2)}
+  .chip.pay{background:var(--brass-soft);color:var(--brass);border:1px solid var(--brass-line)}
+  .chip.hold{background:var(--amber-bg);color:var(--amber-fg)}
+  .chip.live{background:var(--jade-soft);color:var(--jade-soft-fg)}
+  .chip.no{background:var(--crit-bg);color:var(--crit)}
+
+  /* one-time setup callout */
+  .once{display:flex;align-items:center;gap:14px;background:var(--slab);border-radius:11px;
+    padding:13px 18px;margin:26px 0 30px;box-shadow:var(--shadow-md)}
+  .once-l{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--jade-bright);
+    flex-shrink:0;line-height:1.4}
+  .once-t{font-size:13px;color:var(--slab-ink-2);line-height:1.5}
+  .once-t b{color:var(--slab-ink)}
+
+  /* stages */
+  .flow{position:relative;padding-left:56px}
+  .flow::before{content:"";position:absolute;left:19px;top:14px;bottom:14px;width:2px;background:var(--hair)}
+  .stage{position:relative;margin-bottom:16px;background:var(--surface);border:1px solid var(--line-soft);
+    border-radius:12px;box-shadow:var(--shadow-sm);padding:16px 20px}
+  .stage.money{border-color:var(--brass-line);box-shadow:var(--shadow-md)}
+  .stage::before{content:attr(data-n);position:absolute;left:-56px;top:14px;width:40px;height:40px;
+    border-radius:999px;background:var(--slab);color:var(--brass-line);
+    font-family:Fraunces,Georgia,serif;font-weight:700;font-size:18px;
+    display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-sm)}
+  .st-h{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+  .st-t{font-family:Fraunces,Georgia,serif;font-size:19px;font-weight:600;letter-spacing:-.015em;line-height:1.2}
+  .st-who{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+  .st-h .chip{margin-left:auto}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:720px){.cols{grid-template-columns:1fr}}
+  .col-l{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:5px}
+  .col p{margin:0;font-size:13px;color:var(--ink-2);line-height:1.55}
+  .col p b{color:var(--ink)}
+  .branch{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+  @media(max-width:720px){.branch{grid-template-columns:1fr}}
+  .b{border-radius:9px;padding:11px 14px;font-size:12.5px;line-height:1.5}
+  .b.ok{background:var(--jade-soft);color:var(--jade-soft-fg)}
+  .b.ok b{color:var(--jade-soft-fg)}
+  .b.bad{background:var(--ground-2);color:var(--ink-2);border:1px dashed var(--line)}
+  .b .bt{font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;display:block;margin-bottom:4px}
+
+  /* money strip */
+  .strip{margin-top:30px;background:var(--surface);border:1px solid var(--line-soft);border-radius:12px;
+    padding:18px 22px;box-shadow:var(--shadow-sm)}
+  .strip-t{font-family:Fraunces,Georgia,serif;font-size:17px;font-weight:600;margin:0 0 12px;letter-spacing:-.01em}
+  .srow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--ink-2)}
+  .srow .arr{color:var(--ink-3)}
+  .foot{margin-top:22px;font-size:12px;color:var(--ink-3);line-height:1.6;max-width:78ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">HireFlow · How a customer flows through the product</p>
+  <h1>From signup to hired — and exactly when money moves</h1>
+  <p class="lede">Prices shown are working examples, not locked. Two charge points in the whole journey: publish, and boost — and the boost is only charged once the ad is actually live.</p>
+
+  <div class="once">
+    <span class="once-l">One-time<br>before launch<br>(us, never them)</span>
+    <span class="once-t"><b>HireFlow's own Facebook business account</b> gets verified once, our ad templates get pre-approved, Stripe goes live. Every customer's boosts run from this one account, forever. <b>No customer ever creates, verifies, or connects an ad account.</b></span>
+  </div>
+
+  <div class="flow">
+
+    <div class="stage" data-n="1">
+      <div class="st-h"><span class="st-t">Sign up</span><span class="st-who">· customer, 2 min</span><span class="chip free">Free · instant</span></div>
+      <div class="cols">
+        <div class="col"><div class="col-l">What they do</div><p>Create an account and enter <b>business name, address, phone</b> — required, no exceptions.</p></div>
+        <div class="col"><div class="col-l">Behind the scenes</div><p>That's our vetting, not Facebook's. Ava sanity-checks the details in seconds. Nothing is pending, nobody waits.</p></div>
+      </div>
+    </div>
+
+    <div class="stage" data-n="2">
+      <div class="st-h"><span class="st-t">Create the job</span><span class="st-who">· customer + Ava, 5 min</span><span class="chip free">Free · instant</span></div>
+      <div class="cols">
+        <div class="col"><div class="col-l">What they do</div><p>Tell Ava about the role. She writes the post, the screening questions, and the interview flow.</p></div>
+        <div class="col"><div class="col-l">Behind the scenes</div><p>Drafting costs us pennies. The expensive AI hasn't started yet — that's the point. A suspicious listing gets held for review here; a normal one never does.</p></div>
+      </div>
+    </div>
+
+    <div class="stage money" data-n="3">
+      <div class="st-h"><span class="st-t">Publish</span><span class="st-who">· customer taps once</span><span class="chip pay">Charge №1 — e.g. $99 · 30 days</span></div>
+      <div class="cols">
+        <div class="col"><div class="col-l">What they do</div><p>Tap <b>Publish</b>, pay in the app. That's the whole job posting, done.</p></div>
+        <div class="col"><div class="col-l">Behind the scenes</div><p>Live instantly on their hosted page + Google, Adzuna, Jooble, Talent.com. <b>Ava now screens and voice-interviews every applicant</b> — the fee they just paid is what funds her. Cost and revenue arrive together.</p></div>
+      </div>
+    </div>
+
+    <div class="stage money" data-n="4">
+      <div class="st-h"><span class="st-t">Boost — optional</span><span class="st-who">· customer taps once</span><span class="chip hold">Card held — not charged yet</span></div>
+      <div class="cols">
+        <div class="col"><div class="col-l">What they do</div><p>See a real reach estimate — <b>&ldquo;up to ~8,000 people near your shop&rdquo;</b> (Facebook's own numbers) — pick 3, 5 or 7 days (e.g. $59 / $99 / $149) and tap Boost.</p></div>
+        <div class="col"><div class="col-l">Behind the scenes</div><p>Card is <b>authorized, not charged</b>. Software builds the ad from our pre-approved template — their business name in the ad, running from <b>our</b> ad account. They never touch Facebook.</p></div>
+      </div>
+    </div>
+
+    <div class="stage" data-n="5">
+      <div class="st-h"><span class="st-t">Facebook reviews the ad</span><span class="st-who">· automatic, minutes–24 h</span><span class="chip mut" style="background:var(--surface-2);color:var(--ink-2)">Per-ad review, never per-business</span></div>
+      <div class="branch">
+        <div class="b ok"><span class="bt">Approved → live</span><b>Now the hold becomes the charge.</b> The customer's screen flips from &ldquo;Boost in review&rdquo; to &ldquo;Boost live — reaching people nearby.&rdquo;</div>
+        <div class="b bad"><span class="bt">Rejected</span>Ava fixes the wording or image and resubmits automatically. Still not live in 24 h? <b>The hold is released — they never paid</b> — and the job keeps running on the free networks.</div>
+      </div>
+    </div>
+
+    <div class="stage" data-n="6">
+      <div class="st-h"><span class="st-t">Applicants → sealed → hired</span><span class="st-who">· Ava works, they decide</span><span class="chip live">Included in the publish fee</span></div>
+      <div class="cols">
+        <div class="col"><div class="col-l">What they do</div><p>Wake up to the sealed shortlist. Interview. Say &ldquo;hired&rdquo; — the offer letter and paperwork send themselves.</p></div>
+        <div class="col"><div class="col-l">Behind the scenes</div><p>Every applicant screened and voice-interviewed within usage caps, every rejection answered politely in their name. Job expires at 30 days or when the role is filled — same rhythm as Indeed.</p></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="strip">
+    <p class="strip-t">The money line, end to end</p>
+    <div class="srow">
+      <span class="chip free">Sign up · $0</span><span class="arr">→</span>
+      <span class="chip free">Create job · $0</span><span class="arr">→</span>
+      <span class="chip pay">Publish · pay once</span><span class="arr">→</span>
+      <span class="chip hold">Boost · card held</span><span class="arr">→</span>
+      <span class="chip live">Ad live · charge lands</span><span class="arr">→</span>
+      <span class="chip no">Ad never runs · hold released, $0</span>
+    </div>
+  </div>
+
+  <p class="foot">Of a $149 boost, roughly a third goes to actual ad spend; the rest covers Ava's screening of the extra applicants the boost brings in, payment fees, and margin — sold as one flat price for an outcome, which is also what keeps us clear of Facebook's rules about managing other people's ad budgets. Prices are placeholders until you lock them.</p>
+
+</div>
+</body>
+</html>

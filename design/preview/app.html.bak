@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HireFlow — full app mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --ground:#F0EBDF; --ground-2:#E9E2D2; --sidebar:#E7E0CE; --surface:#FCFAF4; --surface-2:#E4DCC7;
+    --line:#D6CDB6; --line-soft:#E2DAC6; --hair:#C6B893;
+    --ink:#14201B; --ink-2:#3F4B45; --ink-3:#5C655E;
+    --slab:#0C2A21; --slab-ink:#F2EFE5; --slab-ink-2:#A9C6B8;
+    --jade:#0F6B4F; --jade-bright:#3FCE97; --jade-soft:#DCEDE3; --jade-soft-fg:#0A5340;
+    --brass:#8A6420; --brass-line:#C9A45E;
+    --amber-bg:#F6E7C6; --amber-fg:#7A5410;
+    --crit:#A8352A; --crit-bg:#F4DEDA;
+    --btn-fg:#F7F4EB;
+    --shadow-sm:0 1px 2px rgba(20,32,27,.06);
+    --shadow-md:0 1px 2px rgba(20,32,27,.05),0 8px 20px -14px rgba(20,32,27,.3);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#17140F; --ground-2:#1C1813; --sidebar:#120F0B; --surface:#221D17; --surface-2:#2C2620;
+      --line:rgba(244,239,227,.15); --line-soft:rgba(244,239,227,.085); --hair:rgba(201,164,94,.42);
+      --ink:#F4EFE3; --ink-2:#C3BBA9; --ink-3:#948B7C;
+      --slab:#0B2A21; --slab-ink:#F2EFE5; --slab-ink-2:#A9C6B8;
+      --jade:#4FBF95; --jade-bright:#67E3AF; --jade-soft:rgba(79,191,149,.15); --jade-soft-fg:#6ADCAA;
+      --brass:#E0B96A; --brass-line:rgba(224,185,106,.55);
+      --amber-bg:rgba(224,170,80,.16); --amber-fg:#E4B76E;
+      --crit:#D9715F; --crit-bg:rgba(217,113,95,.14);
+      --btn-fg:#17140F;
+      --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+      --shadow-md:0 1px 2px rgba(0,0,0,.4),0 10px 26px -16px rgba(0,0,0,.8);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#17140F; --ground-2:#1C1813; --sidebar:#120F0B; --surface:#221D17; --surface-2:#2C2620;
+    --line:rgba(244,239,227,.15); --line-soft:rgba(244,239,227,.085); --hair:rgba(201,164,94,.42);
+    --ink:#F4EFE3; --ink-2:#C3BBA9; --ink-3:#948B7C;
+    --slab:#0B2A21; --slab-ink:#F2EFE5; --slab-ink-2:#A9C6B8;
+    --jade:#4FBF95; --jade-bright:#67E3AF; --jade-soft:rgba(79,191,149,.15); --jade-soft-fg:#6ADCAA;
+    --brass:#E0B96A; --brass-line:rgba(224,185,106,.55);
+    --amber-bg:rgba(224,170,80,.16); --amber-fg:#E4B76E;
+    --crit:#D9715F; --crit-bg:rgba(217,113,95,.14);
+    --btn-fg:#17140F;
+    --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+    --shadow-md:0 1px 2px rgba(0,0,0,.4),0 10px 26px -16px rgba(0,0,0,.8);
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--ground);color:var(--ink);font-family:Inter,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;font-size:14px}
+  button{font:inherit}
+
+  .bar{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    padding:9px 16px;background:var(--sidebar);border-bottom:1px solid var(--line)}
+  .bar-t{font-size:12px;color:var(--ink-2)} .bar-t b{color:var(--ink)}
+  .seg{display:flex;gap:2px;background:var(--surface-2);padding:2px;border-radius:8px;margin-left:auto}
+  .seg button{font-size:12px;font-weight:600;cursor:pointer;border:0;background:transparent;
+    color:var(--ink-3);padding:5px 11px;border-radius:6px;min-height:30px}
+  .seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink)}
+  .seg button:focus-visible{outline:2px solid var(--jade);outline-offset:2px}
+
+  .app{display:flex;min-height:calc(100vh - 51px)}
+  .side{width:220px;flex-shrink:0;background:var(--sidebar);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;padding:18px 0}
+  @media(max-width:900px){.side{width:64px}.side .brand-name,.side .nav span.lbl,.side .acct-i,.side .brand-rule{display:none}
+    .side .nav a{justify-content:center;padding:10px 0}.side .brand{justify-content:center;padding:0}.side .acct{justify-content:center}}
+  .brand{display:flex;align-items:center;gap:9px;padding:0 18px}
+  .brand-mark{width:26px;height:26px;border-radius:8px;background:var(--slab);display:flex;
+    align-items:center;justify-content:center;box-shadow:var(--shadow-sm);flex-shrink:0}
+  .brand-name{font-family:Fraunces,Georgia,serif;font-size:18px;font-weight:600;letter-spacing:-.02em}
+  .brand-rule{height:1px;background:var(--hair);margin:14px 18px}
+  .nav{display:flex;flex-direction:column;gap:1px;padding:0 10px}
+  .nav a{display:flex;align-items:center;gap:10px;padding:8px 11px;border-radius:7px;color:var(--ink-3);
+    text-decoration:none;font-size:13px;font-weight:500;min-height:37px;cursor:pointer}
+  .nav a:hover{background:var(--surface);color:var(--ink-2)}
+  .nav a[aria-current]{background:var(--surface);color:var(--ink);font-weight:600;
+    box-shadow:inset 2px 0 0 var(--jade),var(--shadow-sm)}
+  .nav a:focus-visible{outline:2px solid var(--jade);outline-offset:-2px}
+  .nav .cnt{margin-left:auto;font-size:10.5px;font-weight:700;color:var(--btn-fg);background:var(--jade);
+    padding:1px 7px;border-radius:999px}
+  @media(max-width:900px){.nav .cnt{display:none}}
+  .acct{margin:auto 10px 0;display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:8px;
+    border:1px solid var(--line);background:var(--surface)}
+  .acct-av{width:26px;height:26px;border-radius:999px;background:var(--surface-2);display:flex;align-items:center;
+    justify-content:center;font-size:10.5px;font-weight:700;color:var(--ink-2);flex-shrink:0}
+  .acct-i .n{font-size:12px;font-weight:600;line-height:1.2}
+  .acct-i .s{font-size:10.5px;color:var(--ink-3)}
+
+  .main{flex-grow:1;min-width:0;padding:18px 26px 40px;max-width:1120px}
+  @media(max-width:700px){.main{padding:14px 14px 36px}}
+
+  .tab{display:none}
+  .tab.on{display:block}
+
+  /* shared head */
+  .head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+  .h1{font-family:Fraunces,Georgia,serif;font-size:22px;font-weight:600;letter-spacing:-.02em;margin:0}
+  .head-sub{font-size:13px;color:var(--ink-3)}
+  .head-act{margin-left:auto;display:flex;gap:8px}
+  .btn{font-size:12.5px;font-weight:600;cursor:pointer;border-radius:8px;min-height:36px;
+    padding:8px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);
+    display:inline-flex;align-items:center;gap:7px}
+  .btn.go{background:var(--jade);border-color:var(--jade);color:var(--btn-fg)}
+  .btn.dark{background:var(--slab);border-color:var(--slab);color:var(--slab-ink)}
+  .btn.boost{border-color:var(--brass-line);color:var(--brass)}
+  .btn{transition:filter .12s ease,border-color .12s ease,transform .06s ease}
+  .btn:hover{filter:brightness(1.04)}
+  .btn:active{transform:scale(.97)}
+  .btn:focus-visible{outline:2px solid var(--jade);outline-offset:2px}
+  ::selection{background:var(--jade-soft)}
+  .wrow,.aprow,.thr,.mcard{transition:border-color .12s ease,box-shadow .12s ease}
+  .wrow:hover{border-color:var(--hair)}
+  @media (prefers-reduced-motion: reduce){.btn{transition:none}.btn:active{transform:none}}
+
+  /* chips */
+  .chip{font-size:9.5px;font-weight:700;letter-spacing:.06em;padding:3px 8px;border-radius:4px;white-space:nowrap}
+  .chip.live{background:var(--jade-soft);color:var(--jade-soft-fg)}
+  .chip.amber{background:var(--amber-bg);color:var(--amber-fg)}
+  .chip.mut{background:var(--surface-2);color:var(--ink-2)}
+  .chip.crit{background:var(--crit-bg);color:var(--crit)}
+
+  /* cards + rows */
+  .card{background:var(--surface);border:1px solid var(--line-soft);border-radius:11px;box-shadow:var(--shadow-sm)}
+  .rowlist{display:flex;flex-direction:column;gap:8px}
+  .wrow{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--line-soft);
+    border-radius:11px;padding:13px 16px;box-shadow:var(--shadow-sm)}
+  .rid{position:relative;width:40px;height:40px;flex-shrink:0}
+  .rav{width:40px;height:40px;border-radius:10px;background:var(--surface-2);display:flex;
+    align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--ink-2)}
+  .rseal{position:absolute;right:-8px;bottom:-8px;width:24px;height:24px}
+  .rseal svg{width:24px;height:24px;display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3))}
+  .wrow:nth-child(1) .rseal svg,.aprow:nth-child(1) .rseal svg{transform:rotate(-6deg)}
+  .wrow:nth-child(2) .rseal svg,.aprow:nth-child(2) .rseal svg{transform:rotate(4deg)}
+  .wrow:nth-child(3) .rseal svg,.aprow:nth-child(3) .rseal svg{transform:rotate(-3deg)}
+  .rname{font-size:14.5px;font-weight:600}
+  .rmeta{font-size:12px;color:var(--ink-3);margin-top:2px}
+  .rscore{font-family:Fraunces,Georgia,serif;font-size:23px;font-weight:600;color:var(--jade);
+    line-height:1;font-variant-numeric:tabular-nums;min-width:40px;text-align:right}
+
+  /* ══ DASHBOARD ══ */
+  .night{background:var(--slab);border-radius:11px;display:flex;align-items:center;gap:13px;
+    padding:11px 16px;box-shadow:var(--shadow-sm);margin-bottom:12px}
+  .night-seal{width:30px;height:30px;flex-shrink:0}
+  .night-t{font-size:13.5px;color:var(--slab-ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .night-t b{color:var(--slab-ink)} .night-t .n{font-family:Fraunces,Georgia,serif;font-weight:600;color:var(--jade-bright)}
+  .night-stats{display:flex;gap:16px;flex-shrink:0;margin-left:auto;padding-left:16px;border-left:1px solid rgba(242,239,229,.14)}
+  @media(max-width:760px){.night-stats{display:none}}
+  .ns{text-align:right}
+  .ns-v{font-family:Fraunces,Georgia,serif;font-size:16px;font-weight:600;color:var(--slab-ink);line-height:1}
+  .ns-l{font-size:9px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--slab-ink-2);margin-top:3px}
+  .rwho{min-width:146px;flex-shrink:0}
+  .rwhy{flex-grow:1;min-width:0;font-size:13px;color:var(--ink-2);line-height:1.5;
+    border-left:2px solid var(--line-soft);padding-left:13px}
+  .rwhy b{color:var(--ink)}
+  @media(max-width:720px){.rwhy{border-left:0;padding-left:0;width:100%}}
+  .racts{display:flex;gap:7px;flex-shrink:0}
+  .rest{margin-top:10px;display:flex;align-items:center;gap:10px;padding:9px 15px;
+    border:1px dashed var(--line);border-radius:10px;color:var(--ink-3);font-size:12.5px}
+  .rest b{color:var(--ink-2)}
+  .rest a{color:var(--brass);font-weight:600;text-decoration:none;margin-left:auto;cursor:pointer}
+  .sect-t{font-family:Fraunces,Georgia,serif;font-size:16px;font-weight:600;margin:16px 0 8px}
+  .mini{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  @media(max-width:720px){.mini{grid-template-columns:1fr}}
+  .mcard{display:flex;align-items:center;gap:11px;background:var(--surface);border:1px solid var(--line-soft);
+    border-radius:10px;padding:11px 14px}
+  .mic{width:30px;height:30px;border-radius:8px;background:var(--surface-2);display:flex;align-items:center;
+    justify-content:center;color:var(--ink-2);flex-shrink:0}
+  .mt{font-size:12.5px;font-weight:600;line-height:1.3} .ms{font-size:11.5px;color:var(--ink-3);margin-top:1px}
+
+  /* ══ APPLICANTS ══ */
+  .split{display:flex;gap:14px;align-items:flex-start}
+  @media(max-width:980px){.split{flex-direction:column}}
+  .aplist{width:360px;flex-shrink:0}
+  @media(max-width:980px){
+    .aplist{width:100%}
+    .aplist .rowlist{flex-direction:row;overflow-x:auto;gap:8px;padding-bottom:2px}
+    .aprow{flex-shrink:0;border:1px solid var(--line-soft);background:var(--surface)}
+    .aprow .why{display:none}
+  }
+  .aptabs{display:flex;gap:16px;padding:0 4px;margin-bottom:9px}
+  .aptab{font-size:12.5px;font-weight:500;color:var(--ink-3);padding-bottom:8px;border:0;background:none;cursor:pointer}
+  .aptab[aria-selected="true"]{color:var(--ink);font-weight:700;box-shadow:inset 0 -2px 0 var(--jade)}
+  .aprow{display:flex;gap:11px;padding:11px 12px;border-radius:10px;border:1px solid transparent;cursor:pointer;align-items:center}
+  .aprow:hover{background:var(--surface)}
+  .aprow.sel{background:var(--surface);border-color:var(--hair);box-shadow:var(--shadow-sm)}
+  .aprow .rid{width:36px;height:36px}.aprow .rav{width:36px;height:36px;font-size:12px;border-radius:9px}
+  .aprow .rseal{width:21px;height:21px;right:-7px;bottom:-7px}.aprow .rseal svg{width:21px;height:21px}
+  .aprow .nm{font-size:13.5px;font-weight:600}
+  .aprow .why{font-size:11.5px;color:var(--ink-3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .aprow .sc{font-family:Fraunces,Georgia,serif;font-size:17px;font-weight:600;color:var(--jade);margin-left:auto;flex-shrink:0}
+  .insp{flex-grow:1;min-width:0}
+  .insp-h{display:flex;align-items:flex-start;gap:14px;margin-bottom:13px;flex-wrap:wrap}
+  .insp-nm{font-family:Fraunces,Georgia,serif;font-size:24px;font-weight:600;letter-spacing:-.02em;line-height:1.05}
+  .insp-sub{font-size:12.5px;color:var(--ink-3);margin-top:5px}
+  .read{background:var(--surface);border:1px solid var(--line-soft);border-top:3px solid var(--brass-line);
+    border-radius:12px;padding:16px 19px;box-shadow:var(--shadow-sm)}
+  .read-h{display:flex;align-items:center;gap:11px}
+  .read-seal{width:30px;height:30px;flex-shrink:0}
+  .read-l{font-size:10px;font-weight:700;letter-spacing:.17em;text-transform:uppercase;color:var(--jade-soft-fg)}
+  .read-l small{display:block;font-size:11px;letter-spacing:0;text-transform:none;font-weight:400;color:var(--ink-3);margin-top:3px}
+  .read-sc{margin-left:auto;font-family:Fraunces,Georgia,serif;font-size:36px;font-weight:600;color:var(--jade);line-height:.9}
+  .read-sc span{font-size:13px;color:var(--ink-3)}
+  .read-p{font-size:14px;line-height:1.6;color:var(--ink);max-width:60ch;margin:12px 0 0}
+  .read-rule{height:1px;background:var(--line-soft);margin:13px 0 11px}
+  .ev{display:flex;flex-direction:column;gap:8px}
+  .ev-i{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--ink-2);line-height:1.45}
+  .ev-i svg{margin-top:2px;flex-shrink:0}
+  .ev-i b{color:var(--ink);font-weight:600}
+  .tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+  @media(max-width:640px){.tiles{grid-template-columns:1fr}}
+  .tile{border:1px solid var(--line-soft);background:var(--surface);border-radius:10px;padding:12px 14px}
+  .tile-l{font-size:9.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+  .tile-v{font-family:Fraunces,Georgia,serif;font-size:19px;font-weight:600;margin-top:6px}
+  .tile-s{font-size:11.5px;color:var(--ink-3);margin-top:3px}
+
+  /* ══ JOBS ══ */
+  .job{display:flex;align-items:center;gap:16px;padding:15px 18px}
+  .job-t{font-size:15px;font-weight:600}
+  .job-m{font-size:12px;color:var(--ink-3);margin-top:3px}
+  .job-net{display:flex;gap:5px;margin-left:auto;flex-shrink:0;align-items:center}
+  @media(max-width:820px){.job-net{display:none}}
+  .netdot{font-size:11px;color:var(--ink-2);background:var(--surface-2);border-radius:5px;padding:3px 8px}
+  .job .racts{margin-left:14px}
+  .job-stat{min-width:70px;text-align:right;flex-shrink:0}
+  .job-stat .v{font-family:Fraunces,Georgia,serif;font-size:19px;font-weight:600}
+  .job-stat .l{font-size:10px;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase;margin-top:2px}
+
+  /* ══ INTERVIEWS ══ */
+  .week{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:14px}
+  @media(max-width:720px){.week{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  .day{background:var(--surface);border:1px solid var(--line-soft);border-radius:10px;padding:10px 12px;min-height:86px}
+  .day.today{border-color:var(--jade);box-shadow:inset 0 2px 0 var(--jade)}
+  .day-h{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+  .day.today .day-h{color:var(--jade)}
+  .slot{margin-top:7px;font-size:11.5px;line-height:1.35;background:var(--jade-soft);color:var(--jade-soft-fg);
+    border-radius:6px;padding:5px 8px;font-weight:600}
+  .slot.hold{background:var(--amber-bg);color:var(--amber-fg)}
+  .iv{align-items:center}
+  .iv-when{min-width:86px;flex-shrink:0}
+  .iv-when .d{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--brass)}
+  .iv-when .t{font-family:Fraunces,Georgia,serif;font-size:18px;font-weight:600;margin-top:2px}
+
+  /* ══ MESSAGES ══ */
+  .msg-split{display:flex;gap:14px;align-items:flex-start}
+  @media(max-width:980px){.msg-split{flex-direction:column}}
+  .threads{width:320px;flex-shrink:0}
+  @media(max-width:980px){.threads{width:100%}}
+  .thr{display:flex;gap:11px;padding:11px 12px;border-radius:10px;cursor:pointer;align-items:flex-start;border:1px solid transparent}
+  .thr:hover{background:var(--surface)}
+  .thr.sel{background:var(--surface);border-color:var(--hair);box-shadow:var(--shadow-sm)}
+  .thr .rav{width:34px;height:34px;font-size:11.5px;border-radius:9px}
+  .thr .nm{font-size:13px;font-weight:600}
+  .thr .pv{font-size:11.5px;color:var(--ink-3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}
+  .thr .tm{margin-left:auto;font-size:10.5px;color:var(--ink-3);flex-shrink:0}
+  .convo{flex-grow:1;min-width:0}
+  .bubbles{display:flex;flex-direction:column;gap:9px;padding:16px 18px}
+  .bub{max-width:70%;padding:10px 13px;border-radius:12px;font-size:13px;line-height:1.5}
+  .bub.them{background:var(--surface-2);color:var(--ink);border-bottom-left-radius:4px;align-self:flex-start}
+  .bub.us{background:var(--jade);color:var(--btn-fg);border-bottom-right-radius:4px;align-self:flex-end}
+  .bub .who{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.7;margin-bottom:3px}
+  .draft{margin:0 18px 16px;border:1px dashed var(--brass-line);border-radius:11px;padding:12px 14px;background:var(--ground-2)}
+  .draft-h{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:700;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--brass);margin-bottom:7px}
+  .draft-p{font-size:13px;color:var(--ink-2);line-height:1.5;margin:0 0 10px}
+  .draft .racts{justify-content:flex-end}
+
+  /* ══ DOCUMENTS ══ */
+  .doc .mic{border-radius:9px}
+  .doc-t{font-size:13.5px;font-weight:600}
+  .doc-m{font-size:11.5px;color:var(--ink-3);margin-top:2px}
+
+  /* ══ ANALYTICS ══ */
+  .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
+  .stats .tile-v{font-size:27px;letter-spacing:-.02em}
+  .saved{background:var(--slab);border-radius:11px;display:flex;align-items:center;gap:13px;
+    padding:12px 16px;box-shadow:var(--shadow-sm);margin-bottom:14px}
+  .saved-seal{width:28px;height:28px;flex-shrink:0}
+  .saved-t{font-size:13.5px;color:var(--slab-ink-2);min-width:0}
+  .saved-t b{color:var(--slab-ink)} .saved-t .n{font-family:Fraunces,Georgia,serif;font-weight:600;color:var(--jade-bright)}
+  .days{display:flex;gap:8px;padding:13px 16px;align-items:flex-end}
+  .dcol{flex:1;text-align:center}
+  .dbar{border-radius:5px 5px 2px 2px;background:var(--jade);opacity:.75;margin:0 auto 6px;max-width:44px}
+  .dcol .dv{font-family:Fraunces,Georgia,serif;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
+  .dcol .dl{font-size:9.5px;color:var(--ink-3);letter-spacing:.05em;text-transform:uppercase;margin-top:2px}
+  .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  @media(max-width:860px){.grid2{grid-template-columns:1fr}}
+  @media(max-width:820px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  .bars{padding:16px 18px}
+  .bar-row{display:flex;align-items:center;gap:12px;margin-top:10px}
+  .bar-row:first-child{margin-top:0}
+  .bar-l{width:150px;font-size:12.5px;color:var(--ink-2);flex-shrink:0}
+  .bar-track{flex-grow:1;height:13px;border-radius:5px;background:var(--ground-2);overflow:hidden;position:relative}
+  .bar-fill{height:100%;border-radius:5px;background:var(--jade);opacity:.8}
+  .bar-v{width:34px;text-align:right;font-family:Fraunces,Georgia,serif;font-size:15px;font-weight:600;flex-shrink:0;font-variant-numeric:tabular-nums}
+  .funnel{display:flex;gap:8px;padding:13px 16px;align-items:flex-end}
+  .fstep{flex:1;text-align:center}
+  .fbar{border-radius:6px 6px 3px 3px;background:var(--surface-2);border:1px solid var(--line-soft);margin-bottom:7px}
+  .fbar.hot{background:var(--jade);border-color:var(--jade);opacity:.9}
+  .fstep .fv{font-family:Fraunces,Georgia,serif;font-size:16px;font-weight:600}
+  .fstep .fl{font-size:10px;color:var(--ink-3);letter-spacing:.05em;text-transform:uppercase;margin-top:2px}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="wax-sm">
+      <circle cx="50" cy="50" r="46" fill="#0F6B4F"/>
+      <circle cx="50" cy="50" r="31" fill="none" stroke="#C9A45E" stroke-width="6"/>
+      <text x="50" y="52" text-anchor="middle" dominant-baseline="central"
+            font-family="Fraunces, Georgia, serif" font-size="52" font-weight="700" fill="#C9A45E">A</text>
+    </g>
+  </defs>
+</svg>
+
+<div class="bar">
+  <span class="bar-t"><b>HireFlow — full mockup.</b> Every tab in the left rail is real. Click through.</span>
+  <div class="seg" role="group" aria-label="Theme">
+    <button type="button" data-set="light" aria-pressed="false">Day</button>
+    <button type="button" data-set="dark" aria-pressed="false">Night</button>
+    <button type="button" data-set="system" aria-pressed="true">System</button>
+  </div>
+</div>
+
+<div class="app">
+  <nav class="side">
+    <div class="brand">
+      <span class="brand-mark"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--jade)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18 L9 7 L14 15 L20 6"/></svg></span>
+      <span class="brand-name">HireFlow</span>
+    </div>
+    <div class="brand-rule"></div>
+    <div class="nav" id="nav">
+      <a data-tab="dashboard" aria-current="page"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="lbl">Dashboard</span></a>
+      <a data-tab="applicants"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20"/><circle cx="10" cy="8" r="3.5"/><path d="M19 20v-1.5a3.5 3.5 0 0 0-2.5-3.35"/></svg><span class="lbl">Applicants</span><span class="cnt">3</span></a>
+      <a data-tab="jobs"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6"/></svg><span class="lbl">Jobs</span></a>
+      <a data-tab="interviews"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg><span class="lbl">Interviews</span></a>
+      <a data-tab="messages"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-11.9 7.8L3 21l1.7-6.1A8.5 8.5 0 1 1 21 11.5z"/></svg><span class="lbl">Messages</span><span class="cnt">2</span></a>
+      <a data-tab="documents"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg><span class="lbl">Documents</span></a>
+      <a data-tab="analytics"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V10"/><path d="M10 19V5"/><path d="M16 19v-6"/><path d="M22 19H2"/></svg><span class="lbl">Analytics</span></a>
+    </div>
+    <div class="acct">
+      <span class="acct-av">RG</span>
+      <span class="acct-i"><span class="n" style="display:block">Ridgeway Garage</span><span class="s">Atlanta, GA</span></span>
+    </div>
+  </nav>
+
+  <div class="main">
+
+    <!-- ══ DASHBOARD ══ -->
+    <div class="tab on" id="tab-dashboard">
+      <div class="head">
+        <h1 class="h1">Good morning, Ray.</h1>
+        <span class="head-sub">Tuesday, Aug 26</span>
+        <div class="head-act"><button class="btn dark" type="button">+ New job</button></div>
+      </div>
+
+      <div class="night">
+        <svg class="night-seal" viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg>
+        <div class="night-t"><b>Ava worked last night.</b> Read <span class="n">41</span> &middot; voice-interviewed all &middot; sealed <span class="n">3</span>.</div>
+        <div class="night-stats">
+          <div class="ns"><div class="ns-v">0 min</div><div class="ns-l">Your time</div></div>
+          <div class="ns"><div class="ns-v">0</div><div class="ns-l">Left waiting</div></div>
+        </div>
+      </div>
+
+      <div class="rowlist">
+        <div class="wrow">
+          <div class="rid"><div class="rav">DO</div><div class="rseal"><svg viewBox="0 0 100 100"><use href="#wax-sm"/></svg></div></div>
+          <div class="rwho"><div class="rname">Darnell Okafor</div><div class="rmeta">Decatur &middot; mornings</div></div>
+          <div class="rwhy">Named the right torque sequence unprompted. <b>Starts Monday</b>.</div>
+          <div class="rscore">92</div>
+          <div class="racts"><button class="btn" type="button">Pass</button><button class="btn go" type="button">Interview</button></div>
+        </div>
+        <div class="wrow">
+          <div class="rid"><div class="rav">MR</div><div class="rseal"><svg viewBox="0 0 100 100"><use href="#wax-sm"/></svg></div></div>
+          <div class="rwho"><div class="rname">Marisol Reyes</div><div class="rmeta">East Atlanta &middot; flexible</div></div>
+          <div class="rwhy">Strong diagnostics. Smart questions about <b>your scanner</b>.</div>
+          <div class="rscore">88</div>
+          <div class="racts"><button class="btn" type="button">Pass</button><button class="btn go" type="button">Interview</button></div>
+        </div>
+        <div class="wrow">
+          <div class="rid"><div class="rav">TB</div><div class="rseal"><svg viewBox="0 0 100 100"><use href="#wax-sm"/></svg></div></div>
+          <div class="rwho"><div class="rname">Tyrone Baptiste</div><div class="rmeta">Kirkwood <span class="chip amber">TRAINING</span></div></div>
+          <div class="rwhy"><b>Best interview of the batch</b>. A bet worth meeting.</div>
+          <div class="rscore">81</div>
+          <div class="racts"><button class="btn" type="button">Pass</button><button class="btn go" type="button">Interview</button></div>
+        </div>
+      </div>
+
+      <div class="rest">
+        <span><b>38 didn't make the cut</b> — every one already got a polite reply in your name.</span>
+        <a data-go="applicants">Review them →</a>
+      </div>
+
+      <div class="sect-t">Also today</div>
+      <div class="mini">
+        <div class="mcard"><span class="mic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg></span>
+          <div><div class="mt">Darnell suggested Wed&nbsp;9am</div><div class="ms">Tap to confirm — the slot is held</div></div></div>
+        <div class="mcard"><span class="mic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-11.9 7.8L3 21l1.7-6.1A8.5 8.5 0 1 1 21 11.5z"/></svg></span>
+          <div><div class="mt">Marisol replied overnight</div><div class="ms">Saturday-shift question — draft ready</div></div></div>
+        <div class="mcard"><span class="mic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6"/></svg></span>
+          <div><div class="mt">Job is live on Google</div><div class="ms">6 days up &middot; 41 applied &middot; feed healthy</div></div></div>
+      </div>
+
+      <div class="rest" style="margin-top:14px">
+        <span><b>Your record:</b> Weekend Cashier — hired Keisha M. in 11 days &middot; this job — day 6, 3 sealed.</span>
+        <a data-go="analytics">See analytics →</a>
+      </div>
+    </div>
+
+    <!-- ══ APPLICANTS ══ -->
+    <div class="tab" id="tab-applicants">
+      <div class="head">
+        <h1 class="h1">Part-Time Mechanic</h1>
+        <span class="head-sub">41 applied &middot; <span style="color:var(--jade);font-weight:600">3 sealed</span></span>
+        <div class="head-act"><button class="btn" type="button">Filter</button><button class="btn dark" type="button">Share job</button></div>
+      </div>
+      <div class="split">
+        <div class="aplist">
+          <div class="aptabs">
+            <button class="aptab" aria-selected="true" type="button">Sealed &middot; 3</button>
+            <button class="aptab" aria-selected="false" type="button">Didn&#39;t make it &middot; 38</button>
+          </div>
+          <div class="rowlist" style="gap:6px">
+            <div class="aprow sel">
+              <div class="rid"><div class="rav">DO</div><div class="rseal"><svg viewBox="0 0 100 100"><use href="#wax-sm"/></svg></div></div>
+              <div style="min-width:0"><div class="nm">Darnell Okafor</div><div class="why">Torque sequence unprompted &middot; own tools</div></div>
+              <div class="sc">92</div>
+            </div>
+            <div class="aprow">
+              <div class="rid"><div class="rav">MR</div><div class="rseal"><svg viewBox="0 0 100 100"><use href="#wax-sm"/></svg></div></div>
+              <div style="min-width:0"><div class="nm">Marisol Reyes</div><div class="why">Dealership diagnostics &middot; scanner questions</div></div>
+              <div class="sc">88</div>
+            </div>
+            <div class="aprow">
+              <div class="rid"><div class="rav">TB</div><div class="rseal"><svg viewBox="0 0 100 100"><use href="#wax-sm"/></svg></div></div>
+              <div style="min-width:0"><div class="nm">Tyrone Baptiste</div><div class="why">Career changer &middot; best interview</div></div>
+              <div class="sc">81</div>
+            </div>
+          </div>
+        </div>
+        <div class="insp">
+          <div class="insp-h">
+            <div>
+              <div class="insp-nm">Darnell Okafor</div>
+              <div class="insp-sub">Applied 4 days ago &middot; Decatur, GA &middot; Available mornings</div>
+            </div>
+            <div class="head-act"><button class="btn" type="button">Pass</button><button class="btn go" type="button">Set up interview</button></div>
+          </div>
+          <div class="read">
+            <div class="read-h">
+              <svg class="read-seal" viewBox="0 0 100 100"><use href="#wax-sm"/></svg>
+              <span class="read-l">Ava&#39;s read<small>8-minute voice interview, weighed against the job</small></span>
+              <span class="read-sc">92<span>/100</span></span>
+            </div>
+            <p class="read-p">He has done this exact job before — six years of brakes, oil and tires at two independent shops, with his own tools. He walked through a brake-pad replacement without hesitating.</p>
+            <blockquote style="margin:12px 0 0;padding:10px 14px;border-left:3px solid var(--brass-line);background:var(--ground-2);border-radius:0 9px 9px 0">
+              <span style="font-family:Fraunces,Georgia,serif;font-style:italic;font-size:14.5px;line-height:1.5;color:var(--ink)">&ldquo;I always torque in a star pattern — hundred foot-pounds on those.&rdquo;</span>
+              <span style="display:block;font-size:11px;color:var(--ink-3);margin-top:5px">From his voice interview, 3:42 &middot; tap to hear it</span>
+            </blockquote>
+            <div class="read-rule"></div>
+            <div class="ev">
+              <div class="ev-i"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--jade)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span>Named the right torque sequence unprompted — <b>voice, 3:42</b></span></div>
+              <div class="ev-i"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--jade)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span>Owns his tools, no start-up cost — <b>answer 4</b></span></div>
+              <div class="ev-i"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--amber-fg)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5"/><path d="M12 16.5v.01"/><circle cx="12" cy="12" r="9"/></svg><span>Left his last shop after 8 months — <b>worth asking</b></span></div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:12px;padding:9px 14px;background:var(--ground-2);border-radius:9px;font-size:11.5px;color:var(--ink-2);flex-wrap:wrap">
+            <b style="color:var(--ink)">Applied Fri 9:14pm</b><span style="color:var(--line)">→</span>
+            <span>Voice interview Sat 10:02am</span><span style="color:var(--line)">→</span>
+            <span style="color:var(--jade-soft-fg);font-weight:600">Sealed Sat 10:11am</span><span style="color:var(--line)">→</span>
+            <span style="color:var(--amber-fg);font-weight:600">Interview Wed 9:00am</span>
+          </div>
+          <div class="tiles">
+            <div class="tile"><div class="tile-l">Voice interview</div><div class="tile-v">8 min</div><div class="tile-s">Transcript ready</div></div>
+            <div class="tile"><div class="tile-l">Skills check</div><div class="tile-v" style="color:var(--jade)">9 / 10</div><div class="tile-s">Missed one on hybrids</div></div>
+            <div class="tile"><div class="tile-l">Resume</div><div class="tile-v">2 pages</div><div class="tile-s" style="color:var(--brass);font-weight:600">Open</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ JOBS ══ -->
+    <div class="tab" id="tab-jobs">
+      <div class="head">
+        <h1 class="h1">Jobs</h1>
+        <span class="head-sub">1 live &middot; 1 draft &middot; 1 filled</span>
+        <div class="head-act"><button class="btn dark" type="button">+ New job</button></div>
+      </div>
+      <div class="stats" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+        <div class="tile"><div class="tile-l">Job views this week</div><div class="tile-v">218</div><div class="tile-s">Across every listing</div></div>
+        <div class="tile"><div class="tile-l">View &rarr; apply</div><div class="tile-v" style="color:var(--jade)">19%</div><div class="tile-s">41 of 218 applied</div></div>
+        <div class="tile"><div class="tile-l">Your last fill</div><div class="tile-v">11 days</div><div class="tile-s">Weekend Cashier, July</div></div>
+      </div>
+      <div class="rowlist">
+        <div class="wrow job">
+          <div style="min-width:0">
+            <div class="job-t">Part-Time Mechanic <span class="chip live">LIVE</span></div>
+            <div class="job-m">Posted 6 days ago &middot; $22&ndash;26/hr &middot; 218 views &middot; interviews Wed &amp; Thu</div>
+          </div>
+          <div class="job-net">
+            <span class="netdot">Google</span><span class="netdot">Adzuna</span><span class="netdot">Jooble</span><span class="netdot">Talent.com</span>
+          </div>
+          <div class="job-stat"><div class="v">41</div><div class="l">Applied</div></div>
+          <div class="job-stat"><div class="v" style="color:var(--jade)">3</div><div class="l">Sealed</div></div>
+          <div class="racts"><button class="btn boost" type="button">Boost &middot; $199</button><button class="btn go" type="button">Open</button></div>
+        </div>
+        <div class="wrow job">
+          <div style="min-width:0">
+            <div class="job-t">Service Writer <span class="chip amber">DRAFT</span></div>
+            <div class="job-m">Ava drafted the post and screening flow &middot; needs your pay range &middot; ~2 min to finish</div>
+          </div>
+          <div class="racts" style="margin-left:auto"><button class="btn go" type="button">Finish &amp; publish</button></div>
+        </div>
+        <div class="wrow job">
+          <div style="min-width:0">
+            <div class="job-t">Weekend Cashier <span class="chip mut">FILLED</span></div>
+            <div class="job-m">Hired Keisha M. in July &middot; 28 applied &middot; filled in 11 days</div>
+          </div>
+          <div class="racts" style="margin-left:auto"><button class="btn" type="button">Rehire template</button></div>
+        </div>
+      </div>
+      <div class="rest" style="margin-top:12px">
+        <span><b>Where your jobs go:</b> published once here, listed automatically under your business name. No boards to log into.</span>
+      </div>
+    </div>
+
+    <!-- ══ INTERVIEWS ══ -->
+    <div class="tab" id="tab-interviews">
+      <div class="head">
+        <h1 class="h1">Interviews</h1>
+        <span class="head-sub">This week &middot; Ava schedules around your bay hours</span>
+        <div class="head-act"><button class="btn" type="button">Set my hours</button></div>
+      </div>
+      <div class="week">
+        <div class="day"><div class="day-h">Mon 25</div></div>
+        <div class="day today"><div class="day-h">Tue 26 &middot; today</div></div>
+        <div class="day"><div class="day-h">Wed 27</div><div class="slot hold">9:00 &middot; Darnell &middot; confirm</div></div>
+        <div class="day"><div class="day-h">Thu 28</div><div class="slot">10:30 &middot; Marisol</div></div>
+        <div class="day"><div class="day-h">Fri 29</div></div>
+      </div>
+      <div class="rowlist">
+        <div class="wrow iv">
+          <div class="iv-when"><div class="d">Wed 27</div><div class="t">9:00 am</div></div>
+          <div class="rid"><div class="rav">DO</div><div class="rseal"><svg viewBox="0 0 100 100"><use href="#wax-sm"/></svg></div></div>
+          <div class="rwho" style="min-width:0;flex-grow:1"><div class="rname">Darnell Okafor <span class="chip amber">NEEDS CONFIRM</span></div>
+            <div class="rmeta">45 min at the shop &middot; he suggested this slot &middot; your calendar is held</div></div>
+          <div class="racts"><button class="btn" type="button">Move</button><button class="btn go" type="button">Confirm</button></div>
+        </div>
+        <div class="wrow iv">
+          <div class="iv-when"><div class="d">Thu 28</div><div class="t">10:30 am</div></div>
+          <div class="rid"><div class="rav">MR</div><div class="rseal"><svg viewBox="0 0 100 100"><use href="#wax-sm"/></svg></div></div>
+          <div class="rwho" style="min-width:0;flex-grow:1"><div class="rname">Marisol Reyes <span class="chip live">CONFIRMED</span></div>
+            <div class="rmeta">45 min at the shop &middot; reminder texts go out the night before</div></div>
+          <div class="racts"><button class="btn" type="button">Move</button><button class="btn" type="button">Details</button></div>
+        </div>
+      </div>
+      <div class="grid2" style="margin-top:16px">
+        <div>
+          <div class="sect-t" style="margin-top:0">Darnell&#39;s brief — ready for Wednesday</div>
+          <div class="read" style="padding:14px 17px">
+            <div class="ev">
+              <div class="ev-i"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--jade)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span><b>Ask:</b> why he left Pep Boys after 8 months</span></div>
+              <div class="ev-i"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--jade)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span><b>Verify:</b> ASE cert in person &middot; own metric + SAE sets</span></div>
+              <div class="ev-i"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--jade)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span><b>He&#39;ll ask you:</b> which diagnostic scanner you run</span></div>
+              <div class="ev-i"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--amber-fg)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5"/><path d="M12 16.5v.01"/><circle cx="12" cy="12" r="9"/></svg><span><b>Watch for:</b> wants 25+ hrs — role is 20</span></div>
+            </div>
+            <div class="read-rule"></div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:11.5px;color:var(--ink-3)">Printed copy in Documents.</span>
+              <a data-go="documents" style="margin-left:auto;font-size:12px;font-weight:600;color:var(--brass);text-decoration:none;cursor:pointer">Open the full brief →</a>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="sect-t" style="margin-top:0">Recently completed</div>
+          <div class="rowlist" style="gap:6px">
+            <div class="wrow" style="padding:11px 15px">
+              <div class="iv-when" style="min-width:70px"><div class="d">Jul 14</div></div>
+              <div style="min-width:0"><div class="rname" style="font-size:13.5px">Keisha M. <span class="chip live">HIRED</span></div>
+                <div class="rmeta">Weekend Cashier &middot; started Jul 21 &middot; still with you</div></div>
+            </div>
+            <div class="wrow" style="padding:11px 15px">
+              <div class="iv-when" style="min-width:70px"><div class="d">Jul 12</div></div>
+              <div style="min-width:0"><div class="rname" style="font-size:13.5px">Andre W. <span class="chip mut">PASSED</span></div>
+                <div class="rmeta">Weekend Cashier &middot; you passed after the interview &middot; Ava sent the note</div></div>
+            </div>
+          </div>
+          <div class="rest" style="margin-top:8px">
+            <span><b>No-shows so far: 0.</b> Ava texts a reminder the night before and the morning of.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ MESSAGES ══ -->
+    <div class="tab" id="tab-messages">
+      <div class="head">
+        <h1 class="h1">Messages</h1>
+        <span class="head-sub">Ava answers first &middot; you approve anything that matters</span>
+      </div>
+      <div class="msg-split">
+        <div class="threads">
+          <div style="display:flex;gap:6px;margin-bottom:9px">
+            <span class="chip mut" style="font-size:10.5px;padding:5px 10px">ALL</span>
+            <span class="chip amber" style="font-size:10.5px;padding:5px 10px">NEEDS YOU &middot; 2</span>
+            <span class="chip live" style="font-size:10.5px;padding:5px 10px">AVA HANDLED &middot; 39</span>
+          </div>
+          <div class="rowlist" style="gap:6px">
+          <div class="thr sel">
+            <div class="rid" style="width:34px;height:34px"><div class="rav">MR</div><div class="rseal" style="width:19px;height:19px;right:-6px;bottom:-6px"><svg viewBox="0 0 100 100" style="width:19px;height:19px"><use href="#wax-sm"/></svg></div></div>
+            <div style="min-width:0"><div class="nm">Marisol Reyes</div><div class="pv">Is the Saturday shift required?</div></div>
+            <span class="tm">7:12 am</span>
+          </div>
+          <div class="thr">
+            <div class="rid" style="width:34px;height:34px"><div class="rav">DO</div><div class="rseal" style="width:19px;height:19px;right:-6px;bottom:-6px"><svg viewBox="0 0 100 100" style="width:19px;height:19px"><use href="#wax-sm"/></svg></div></div>
+            <div style="min-width:0"><div class="nm">Darnell Okafor</div><div class="pv">Wednesday 9 works great for me</div></div>
+            <span class="tm">Yesterday</span>
+          </div>
+          <div class="thr">
+            <div class="rav">JP</div>
+            <div style="min-width:0"><div class="nm">Jerome Pryce</div><div class="pv">Thanks for letting me know — appreciate the reply</div></div>
+            <span class="tm">Yesterday</span>
+          </div>
+          </div>
+          <div class="rest" style="margin-top:8px;padding:8px 12px">
+            <span style="font-size:11.5px"><b>38 more</b> handled by Ava &middot; polite, in your name</span>
+          </div>
+        </div>
+        <div class="convo card">
+          <div style="display:flex;align-items:center;gap:11px;padding:13px 18px;border-bottom:1px solid var(--line-soft)">
+            <div class="rid" style="width:34px;height:34px"><div class="rav" style="width:34px;height:34px;font-size:11.5px;border-radius:9px">MR</div><div class="rseal" style="width:19px;height:19px;right:-6px;bottom:-6px"><svg viewBox="0 0 100 100" style="width:19px;height:19px"><use href="#wax-sm"/></svg></div></div>
+            <div style="min-width:0">
+              <div style="font-size:13.5px;font-weight:600">Marisol Reyes</div>
+              <div style="font-size:11.5px;color:var(--ink-3)">Part-Time Mechanic &middot; sealed &middot; interview Thu 10:30</div>
+            </div>
+            <button class="btn" type="button" style="margin-left:auto;min-height:32px;padding:6px 12px;font-size:12px">View application</button>
+          </div>
+          <div class="bubbles">
+            <div class="bub them"><div class="who">Marisol &middot; 7:12 am</div>Hi! Quick question before Thursday — is the Saturday shift required, or is that optional overtime?</div>
+            <div class="bub us"><div class="who">Ava &middot; on your behalf &middot; 7:13 am</div>Great question — let me check with Ray and get right back to you.</div>
+          </div>
+          <div class="draft">
+            <div class="draft-h"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>Ava drafted this — send it?</div>
+            <p class="draft-p">&ldquo;Saturdays are rotating — one in three, and you&#39;d know the month ahead. Does that work for you?&rdquo;</p>
+            <div class="racts"><button class="btn" type="button">Edit</button><button class="btn go" type="button">Send</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ DOCUMENTS ══ -->
+    <div class="tab" id="tab-documents">
+      <div class="head">
+        <h1 class="h1">Documents</h1>
+        <span class="head-sub">Everything for this hire, in one drawer</span>
+        <div class="head-act"><button class="btn dark" type="button">+ Request a document</button></div>
+      </div>
+      <div class="sect-t" style="margin-top:0">Darnell Okafor &middot; interview Wednesday</div>
+      <div class="rowlist">
+        <div class="wrow doc">
+          <span class="mic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg></span>
+          <div style="min-width:0"><div class="doc-t">Interview brief — Darnell Okafor</div><div class="doc-m">One page &middot; what to ask, what to verify &middot; ready for Wednesday</div></div>
+          <span class="chip live" style="margin-left:auto">READY</span>
+          <div class="racts"><button class="btn go" type="button">Open</button></div>
+        </div>
+        <div class="wrow doc">
+          <span class="mic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></span>
+          <div style="min-width:0"><div class="doc-t">ASE certification — Darnell Okafor</div><div class="doc-m">Uploaded by candidate &middot; expiry checked &middot; valid to 2027</div></div>
+          <span class="chip live" style="margin-left:auto">VERIFIED</span>
+          <div class="racts"><button class="btn" type="button">View</button></div>
+        </div>
+      </div>
+      <div class="sect-t">Hiring packet &middot; ready when you are</div>
+      <div class="rowlist">
+        <div class="wrow doc">
+          <span class="mic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></span>
+          <div style="min-width:0"><div class="doc-t">Offer letter — draft</div><div class="doc-m">Ava filled the template from the job &middot; needs pay + start date</div></div>
+          <span class="chip amber" style="margin-left:auto">NEEDS YOU</span>
+          <div class="racts"><button class="btn go" type="button">Finish</button></div>
+        </div>
+        <div class="wrow doc">
+          <span class="mic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 10h8M8 14h5"/></svg></span>
+          <div style="min-width:0"><div class="doc-t">W-4 &amp; I-9 packet</div><div class="doc-m">Sends automatically the moment you hire someone</div></div>
+          <span class="chip mut" style="margin-left:auto">ON HIRE</span>
+          <div class="racts"><button class="btn" type="button">Preview</button></div>
+        </div>
+      </div>
+      <div class="rest" style="margin-top:12px">
+        <span><b>Packet: 2 of 4 ready.</b> Finish the offer letter and everything sends itself the moment you say &ldquo;hired.&rdquo;</span>
+      </div>
+    </div>
+
+    <!-- ══ ANALYTICS ══ -->
+    <div class="tab" id="tab-analytics">
+      <div class="head">
+        <h1 class="h1">Analytics</h1>
+        <span class="head-sub">Part-Time Mechanic &middot; day 6</span>
+      </div>
+      <div class="saved">
+        <svg class="saved-seal" viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg>
+        <div class="saved-t"><b>Ava saved you <span class="n">5 hrs 28 min</span> this week</b> — 41 voice interviews, 38 replies written, 3 briefs prepared.</div>
+      </div>
+      <div class="stats">
+        <div class="tile"><div class="tile-l">Applied</div><div class="tile-v">41</div><div class="tile-s">6 days</div></div>
+        <div class="tile"><div class="tile-l">Interviewed by Ava</div><div class="tile-v" style="color:var(--jade)">41</div><div class="tile-s">100% — nobody skipped</div></div>
+        <div class="tile"><div class="tile-l">Sealed</div><div class="tile-v">3</div><div class="tile-s">Avg score 87</div></div>
+        <div class="tile"><div class="tile-l">Your time spent</div><div class="tile-v">12 min</div><div class="tile-s">Total, all week</div></div>
+      </div>
+      <div class="grid2">
+        <div>
+          <div class="sect-t" style="margin-top:4px">Applications by day</div>
+          <div class="card days">
+            <div class="dcol"><div class="dbar" style="height:22px"></div><div class="dv">3</div><div class="dl">Thu</div></div>
+            <div class="dcol"><div class="dbar" style="height:40px"></div><div class="dv">6</div><div class="dl">Fri</div></div>
+            <div class="dcol"><div class="dbar" style="height:58px"></div><div class="dv">9</div><div class="dl">Sat</div></div>
+            <div class="dcol"><div class="dbar" style="height:70px"></div><div class="dv">11</div><div class="dl">Sun</div></div>
+            <div class="dcol"><div class="dbar" style="height:52px"></div><div class="dv">8</div><div class="dl">Mon</div></div>
+            <div class="dcol"><div class="dbar" style="height:28px"></div><div class="dv">4</div><div class="dl">Tue</div></div>
+          </div>
+        </div>
+        <div>
+          <div class="sect-t" style="margin-top:4px">Filling this role</div>
+          <div class="card bars">
+            <div class="bar-row"><span class="bar-l">Weekend Cashier <span style="color:var(--ink-3)">(July)</span></span><div class="bar-track"><div class="bar-fill" style="width:26%;background:var(--brass-line)"></div></div><span class="bar-v">11d</span></div>
+            <div class="bar-row"><span class="bar-l">This job so far</span><div class="bar-track"><div class="bar-fill" style="width:14%"></div></div><span class="bar-v">6d</span></div>
+            <div style="font-size:11.5px;color:var(--ink-3);margin-top:10px;line-height:1.5">Three sealed by day 6 — on pace to beat your last fill. Interviews are Wednesday and Thursday.</div>
+          </div>
+        </div>
+      </div>
+      <div class="sect-t">Where they came from</div>
+      <div class="card bars">
+        <div class="bar-row"><span class="bar-l">Google</span><div class="bar-track"><div class="bar-fill" style="width:34%"></div></div><span class="bar-v">14</span></div>
+        <div class="bar-row"><span class="bar-l">Door &amp; counter QR</span><div class="bar-track"><div class="bar-fill" style="width:27%"></div></div><span class="bar-v">11</span></div>
+        <div class="bar-row"><span class="bar-l">Job feed partners</span><div class="bar-track"><div class="bar-fill" style="width:22%"></div></div><span class="bar-v">9</span></div>
+        <div class="bar-row"><span class="bar-l">Direct link</span><div class="bar-track"><div class="bar-fill" style="width:17%"></div></div><span class="bar-v">7</span></div>
+      </div>
+      <div class="sect-t">The funnel</div>
+      <div class="card funnel">
+        <div class="fstep"><div class="fbar" style="height:58px"></div><div class="fv">41</div><div class="fl">Applied</div></div>
+        <div class="fstep"><div class="fbar" style="height:58px"></div><div class="fv">41</div><div class="fl">Interviewed</div></div>
+        <div class="fstep"><div class="fbar" style="height:26px"></div><div class="fv">12</div><div class="fl">Skills passed</div></div>
+        <div class="fstep"><div class="fbar hot" style="height:15px"></div><div class="fv" style="color:var(--jade)">3</div><div class="fl">Sealed</div></div>
+        <div class="fstep"><div class="fbar" style="height:6px;background:transparent;border-style:dashed"></div><div class="fv">&mdash;</div><div class="fl">Hired</div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  (function(){
+    var r=document.documentElement,b=[].slice.call(document.querySelectorAll('.seg button'));
+    function a(m){if(m==='system')r.removeAttribute('data-theme');else r.setAttribute('data-theme',m);
+      b.forEach(function(x){x.setAttribute('aria-pressed',String(x.dataset.set===m));});
+      try{localStorage.setItem('hf-theme',m);}catch(e){}}
+    b.forEach(function(x){x.addEventListener('click',function(){a(x.dataset.set);});});
+    var s='system';try{s=localStorage.getItem('hf-theme')||'system';}catch(e){}a(s);
+
+    function go(tab){
+      document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('on',t.id==='tab-'+tab);});
+      document.querySelectorAll('#nav a').forEach(function(n){
+        if(n.dataset.tab===tab)n.setAttribute('aria-current','page');else n.removeAttribute('aria-current');
+      });
+    }
+    document.querySelectorAll('#nav a').forEach(function(n){
+      n.addEventListener('click',function(e){e.preventDefault();go(n.dataset.tab);});
+    });
+    document.querySelectorAll('[data-go]').forEach(function(n){
+      n.addEventListener('click',function(e){e.preventDefault();go(n.dataset.go);});
+    });
+  })();
+</script>
+</body>
+</html>

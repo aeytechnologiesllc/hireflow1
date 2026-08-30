@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HireFlow — Ivory &amp; Ink</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  /* ══ IVORY & INK — DAY ══════════════════════════════════════════════
+     Same ivory you picked. The difference is the INK SLAB: Ava's panel is
+     now a deep jade block sunk into the paper. That contrast is the thing
+     you can photograph — it's the shot that goes in an ad.              */
+  :root{
+    --ground:#F0EBDF;
+    --ground-2:#E9E2D2;
+    --sidebar:#E7E0CE;
+    --surface:#FCFAF4;
+    --surface-2:#E4DCC7;
+    --line:#D6CDB6;
+    --line-soft:#E2DAC6;
+    --hair:#C6B893;
+    --ink:#14201B;
+    --ink-2:#3F4B45;
+    --ink-3:#5C655E;
+
+    --slab:#0C2A21;          /* the signature */
+    --slab-2:#0F352A;
+    --slab-line:rgba(233,255,244,.14);
+    --slab-ink:#F2EFE5;
+    --slab-ink-2:#A9C6B8;
+
+    --jade:#0F6B4F;
+    --jade-bright:#3FCE97;
+    --jade-chip-bg:#DCEDE3;
+    --jade-chip-fg:#0A5340;
+    --brass:#8A6420;
+    --brass-line:#C9A45E;
+    --amber-bg:#F6E7C6;
+    --amber-fg:#7A5410;
+    --btn-fg:#F7F4EB;
+    --shadow-sm:0 1px 2px rgba(20,32,27,.06);
+    --shadow-md:0 1px 2px rgba(20,32,27,.05),0 10px 26px -16px rgba(20,32,27,.35);
+    --shadow-slab:0 2px 4px rgba(12,42,33,.14),0 26px 50px -26px rgba(12,42,33,.6);
+  }
+  /* ══ NIGHT — the ivory becomes the ink ══ */
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#17140F;
+      --ground-2:#1C1813;
+      --sidebar:#120F0B;
+      --surface:#221D17;
+      --surface-2:#2C2620;
+      --line:rgba(244,239,227,.15);
+      --line-soft:rgba(244,239,227,.085);
+      --hair:rgba(201,164,94,.42);
+      --ink:#F4EFE3;
+      --ink-2:#C3BBA9;
+      --ink-3:#948B7C;
+
+      --slab:#0B2A21;
+      --slab-2:#0E342A;
+      --slab-line:rgba(233,255,244,.16);
+      --slab-ink:#F2EFE5;
+      --slab-ink-2:#A9C6B8;
+
+      --jade:#4FBF95;
+      --jade-bright:#67E3AF;
+      --jade-chip-bg:rgba(79,191,149,.15);
+      --jade-chip-fg:#6ADCAA;
+      --brass:#E0B96A;
+      --brass-line:rgba(224,185,106,.5);
+      --amber-bg:rgba(224,170,80,.16);
+      --amber-fg:#E4B76E;
+      --btn-fg:#17140F;
+      --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+      --shadow-md:0 1px 2px rgba(0,0,0,.4),0 14px 34px -18px rgba(0,0,0,.85);
+      --shadow-slab:0 2px 4px rgba(0,0,0,.5),0 28px 56px -26px rgba(0,0,0,.9);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#17140F; --ground-2:#1C1813; --sidebar:#120F0B;
+    --surface:#221D17; --surface-2:#2C2620;
+    --line:rgba(244,239,227,.15); --line-soft:rgba(244,239,227,.085);
+    --hair:rgba(201,164,94,.42);
+    --ink:#F4EFE3; --ink-2:#C3BBA9; --ink-3:#948B7C;
+    --slab:#0B2A21; --slab-2:#0E342A; --slab-line:rgba(233,255,244,.16);
+    --slab-ink:#F2EFE5; --slab-ink-2:#A9C6B8;
+    --jade:#4FBF95; --jade-bright:#67E3AF;
+    --jade-chip-bg:rgba(79,191,149,.15); --jade-chip-fg:#6ADCAA;
+    --brass:#E0B96A; --brass-line:rgba(224,185,106,.5);
+    --amber-bg:rgba(224,170,80,.16); --amber-fg:#E4B76E;
+    --btn-fg:#17140F;
+    --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+    --shadow-md:0 1px 2px rgba(0,0,0,.4),0 14px 34px -18px rgba(0,0,0,.85);
+    --shadow-slab:0 2px 4px rgba(0,0,0,.5),0 28px 56px -26px rgba(0,0,0,.9);
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--ground);color:var(--ink);
+    font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    -webkit-font-smoothing:antialiased;
+    transition:background .18s ease,color .18s ease;
+  }
+
+  .bar{
+    position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    padding:11px 20px;background:var(--sidebar);border-bottom:1px solid var(--line);
+  }
+  .bar-t{font-size:12.5px;font-weight:500;color:var(--ink-2)}
+  .bar-t b{color:var(--ink);font-weight:600}
+  .seg{display:flex;gap:2px;background:var(--surface-2);padding:3px;border-radius:9px;margin-left:auto}
+  .seg button{
+    font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;border:0;background:transparent;
+    color:var(--ink-3);padding:7px 14px;border-radius:7px;min-height:36px;
+  }
+  .seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-sm)}
+  .seg button:focus-visible{outline:2px solid var(--jade);outline-offset:2px}
+
+  .app{display:flex;min-height:calc(100vh - 59px)}
+
+  /* ── sidebar ── */
+  .side{width:236px;flex-shrink:0;background:var(--sidebar);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:24px 0}
+  .brand{display:flex;align-items:center;gap:11px;padding:0 22px 8px}
+  .brand-mark{
+    width:30px;height:30px;border-radius:9px;background:var(--slab);
+    display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-sm);
+  }
+  .brand-name{font-family:Fraunces,Georgia,serif;font-size:21px;font-weight:600;letter-spacing:-.018em}
+  .brand-rule{height:1px;background:var(--hair);margin:18px 22px 20px}
+  .nav{display:flex;flex-direction:column;gap:2px;padding:0 12px}
+  .nav a{
+    display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:8px;
+    color:var(--ink-3);text-decoration:none;font-size:13.5px;font-weight:500;min-height:42px;
+  }
+  .nav a:hover{background:var(--surface);color:var(--ink-2)}
+  .nav a[aria-current]{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:inset 2px 0 0 var(--jade),var(--shadow-sm)}
+  .nav a:focus-visible{outline:2px solid var(--jade);outline-offset:-2px}
+  .count{margin-left:auto;font-size:11px;font-weight:700;color:var(--btn-fg);background:var(--jade);padding:2px 8px;border-radius:999px}
+  .acct{margin:auto 12px 0;display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:9px;border:1px solid var(--line);background:var(--surface)}
+  .acct-av{width:29px;height:29px;border-radius:999px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;color:var(--ink-2)}
+
+  .main{flex-grow:1;display:flex;flex-direction:column;min-width:0}
+  .head{padding:26px 32px 22px;border-bottom:1px solid var(--line);display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap}
+  .eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.19em;text-transform:uppercase;color:var(--brass);margin-bottom:9px}
+  .title{font-family:Fraunces,Georgia,serif;font-size:clamp(26px,3.6vw,36px);font-weight:600;letter-spacing:-.025em;line-height:1.06}
+  .meta{display:flex;align-items:center;gap:13px;margin-top:11px;font-size:13px;color:var(--ink-2);flex-wrap:wrap}
+  .meta .sep{color:var(--line)}
+  .meta .good{color:var(--jade);font-weight:600}
+  .acts{display:flex;gap:9px}
+  .btn{
+    display:inline-flex;align-items:center;gap:7px;padding:11px 17px;border-radius:9px;
+    font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--line);
+    background:var(--surface);color:var(--ink);min-height:44px;font-family:inherit;box-shadow:var(--shadow-sm);
+  }
+  .btn.primary{background:var(--slab);color:var(--slab-ink);border-color:var(--slab)}
+  .btn.go{background:var(--jade);color:var(--btn-fg);border-color:var(--jade)}
+  .btn:focus-visible{outline:2px solid var(--jade);outline-offset:2px}
+
+  .body{flex-grow:1;display:flex;min-height:0}
+  @media(max-width:960px){.body{flex-direction:column}}
+
+  /* ── list ── */
+  .list{width:436px;flex-shrink:0;border-right:1px solid var(--line);display:flex;flex-direction:column;background:var(--ground-2)}
+  @media(max-width:960px){.list{width:100%;border-right:0;border-bottom:1px solid var(--line)}}
+  .tabs{display:flex;gap:20px;padding:16px 24px 0;flex-wrap:wrap}
+  .tab{font-size:12.5px;font-weight:500;color:var(--ink-3);padding-bottom:11px;cursor:pointer;background:none;border:0;font-family:inherit;min-height:38px}
+  .tab[aria-selected="true"]{color:var(--ink);font-weight:700;box-shadow:inset 0 -2px 0 var(--jade)}
+  .rows{display:flex;flex-direction:column;gap:9px;padding:15px 16px}
+  .row{display:flex;gap:13px;padding:15px 16px;border-radius:12px;border:1px solid transparent;cursor:pointer}
+  .row:hover{background:var(--surface);border-color:var(--line-soft)}
+  .row.sel{background:var(--surface);border-color:var(--hair);box-shadow:var(--shadow-md)}
+  .av{width:40px;height:40px;flex-shrink:0;border-radius:11px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--ink)}
+  .row.sel .av{background:var(--slab);color:var(--slab-ink)}
+  .row-b{flex-grow:1;min-width:0}
+  .row-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+  .nm{font-size:15px;font-weight:600;letter-spacing:-.005em}
+  .sc{font-family:Fraunces,Georgia,serif;font-size:19px;font-weight:600;color:var(--jade);font-variant-numeric:tabular-nums;line-height:1}
+  .row-d{font-size:12.5px;color:var(--ink-2);line-height:1.46;margin-top:5px}
+  .chips{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+  .chip{font-size:10px;font-weight:700;letter-spacing:.07em;padding:3px 8px;border-radius:5px}
+  .chip.j{background:var(--jade-chip-bg);color:var(--jade-chip-fg)}
+  .chip.n{background:var(--surface-2);color:var(--ink-2)}
+  .chip.a{background:var(--amber-bg);color:var(--amber-fg)}
+  .rule{height:1px;background:var(--line-soft);margin:9px 6px}
+  .row.past{opacity:1}
+  .row.past .nm{font-weight:500;color:var(--ink-2)}
+  .row.past .sc{font-weight:500;color:var(--ink-3)}
+  .row.past .row-d{color:var(--ink-3)}
+  .row.past .av{color:var(--ink-3)}
+
+  /* ── inspector ── */
+  .insp{flex-grow:1;min-width:0;display:flex;flex-direction:column;padding:28px 32px}
+  .insp-h{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:24px}
+  .insp-nm{font-family:Fraunces,Georgia,serif;font-size:clamp(28px,3.8vw,40px);font-weight:600;letter-spacing:-.028em;line-height:1.02}
+  .insp-sub{font-size:13px;color:var(--ink-3);margin-top:9px}
+
+  /* ★ THE SIGNATURE — a jade slab sunk into the paper ★ */
+  .slab{
+    background:var(--slab);border-radius:18px;padding:28px 30px;
+    box-shadow:var(--shadow-slab);position:relative;overflow:hidden;
+    border:1px solid var(--slab-line);
+  }
+  .slab::after{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(680px 300px at 88% -18%,rgba(63,206,151,.16),transparent 62%);
+  }
+  .slab-h{display:flex;align-items:center;gap:12px;position:relative;z-index:1}
+  .orb{
+    width:44px;height:44px;border-radius:999px;flex-shrink:0;
+    background:radial-gradient(circle at 34% 28%,var(--jade-bright),#0E6B4E 58%,#062A20 100%);
+    box-shadow:0 0 0 1px rgba(63,206,151,.35),0 0 26px rgba(63,206,151,.42),inset -3px -5px 12px rgba(0,0,0,.55);
+  }
+  .slab-l{font-size:10.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--jade-bright)}
+  .slab-l small{display:block;font-size:11.5px;letter-spacing:.02em;text-transform:none;font-weight:400;color:var(--slab-ink-2);margin-top:4px}
+  .slab-sc{
+    margin-left:auto;font-family:Fraunces,Georgia,serif;font-size:60px;font-weight:600;
+    color:var(--slab-ink);line-height:.86;font-variant-numeric:tabular-nums;letter-spacing:-.04em;
+  }
+  .slab-sc span{font-size:19px;color:var(--slab-ink-2);letter-spacing:0}
+  .slab-p{
+    font-size:16px;line-height:1.62;color:var(--slab-ink);max-width:60ch;margin:20px 0 0;
+    position:relative;z-index:1;
+  }
+  .slab-rule{height:1px;background:var(--slab-line);margin:22px 0 18px;position:relative;z-index:1}
+  .ev{display:flex;flex-direction:column;gap:11px;position:relative;z-index:1}
+  .ev-i{display:flex;gap:11px;align-items:flex-start;font-size:14px;color:var(--slab-ink-2);line-height:1.5}
+  .ev-i svg{margin-top:3px;flex-shrink:0}
+  .ev-i b{color:var(--slab-ink);font-weight:500}
+
+  .tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:20px}
+  @media(max-width:640px){.tiles{grid-template-columns:1fr}}
+  .tile{border:1px solid var(--line-soft);background:var(--surface);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow-sm)}
+  .tile-l{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+  .tile-v{font-family:Fraunces,Georgia,serif;font-size:24px;font-weight:600;margin-top:9px;letter-spacing:-.02em}
+  .tile-s{font-size:12.5px;color:var(--ink-3);margin-top:5px}
+  .foot{margin-top:auto;padding-top:22px;border-top:1px solid var(--line-soft);display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink-3)}
+
+  @media(max-width:760px){
+    .side{display:none}
+    .head{padding:20px 18px 18px}
+    .insp{padding:22px 18px}
+    .rows{padding:12px}
+    .slab{padding:22px 20px;border-radius:16px}
+    .slab-sc{font-size:46px}
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <span class="bar-t"><b>Ivory &amp; Ink</b> — same paper you picked, now with something to remember it by.</span>
+  <div class="seg" role="group" aria-label="Theme">
+    <button type="button" data-set="light" aria-pressed="false">Day</button>
+    <button type="button" data-set="dark" aria-pressed="false">Night</button>
+    <button type="button" data-set="system" aria-pressed="true">System</button>
+  </div>
+</div>
+
+<div class="app">
+
+  <nav class="side">
+    <div class="brand">
+      <span class="brand-mark"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#3FCE97" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18 L9 7 L14 15 L20 6"/></svg></span>
+      <span class="brand-name">HireFlow</span>
+    </div>
+    <div class="brand-rule"></div>
+    <div class="nav">
+      <a href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Dashboard</a>
+      <a href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6"/></svg>Jobs</a>
+      <a href="#" aria-current="page"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20"/><circle cx="10" cy="8" r="3.5"/><path d="M19 20v-1.5a3.5 3.5 0 0 0-2.5-3.35"/></svg>Applicants<span class="count">12</span></a>
+      <a href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-11.9 7.8L3 21l1.7-6.1A8.5 8.5 0 1 1 21 11.5z"/></svg>Messages</a>
+      <a href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>Documents</a>
+      <a href="#"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V10"/><path d="M10 19V5"/><path d="M16 19v-6"/><path d="M22 19H2"/></svg>Analytics</a>
+    </div>
+    <div class="acct">
+      <span class="acct-av">RG</span>
+      <span>
+        <span style="display:block;font-size:12.5px;font-weight:600">Ridgeway Garage</span>
+        <span style="display:block;font-size:11px;color:var(--ink-3)">Atlanta, GA</span>
+      </span>
+    </div>
+  </nav>
+
+  <div class="main">
+
+    <div class="head">
+      <div>
+        <div class="eyebrow">Applicants</div>
+        <div class="title">Part-Time Mechanic</div>
+        <div class="meta">
+          <span>12 applied</span><span class="sep">·</span>
+          <span class="good">3 worth meeting</span><span class="sep">·</span>
+          <span>Posted 6 days ago</span>
+        </div>
+      </div>
+      <div class="acts">
+        <button class="btn" type="button"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v3l-6 6v6l-4 2v-8L4 7z"/></svg>Filter</button>
+        <button class="btn primary" type="button"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>Share this job</button>
+      </div>
+    </div>
+
+    <div class="body">
+
+      <div class="list">
+        <div class="tabs" role="tablist">
+          <button class="tab" role="tab" aria-selected="true">Worth meeting · 3</button>
+          <button class="tab" role="tab" aria-selected="false">Reviewing · 5</button>
+          <button class="tab" role="tab" aria-selected="false">Passed · 4</button>
+        </div>
+        <div class="rows">
+
+          <div class="row sel">
+            <span class="av">DO</span>
+            <div class="row-b">
+              <div class="row-top"><span class="nm">Darnell Okafor</span><span class="sc">92</span></div>
+              <div class="row-d">6 years on brakes and oil changes. Own tools. Can start Monday.</div>
+              <div class="chips"><span class="chip j">VOICE DONE</span><span class="chip n">ASE CERTIFIED</span></div>
+            </div>
+          </div>
+
+          <div class="row">
+            <span class="av">MR</span>
+            <div class="row-b">
+              <div class="row-top"><span class="nm">Marisol Reyes</span><span class="sc">88</span></div>
+              <div class="row-d">4 years at a dealership. Strong on diagnostics, lighter on tires.</div>
+              <div class="chips"><span class="chip j">VOICE DONE</span></div>
+            </div>
+          </div>
+
+          <div class="row">
+            <span class="av">TB</span>
+            <div class="row-b">
+              <div class="row-top"><span class="nm">Tyrone Baptiste</span><span class="sc">81</span></div>
+              <div class="row-d">Career changer, 1 year experience. Interviewed extremely well.</div>
+              <div class="chips"><span class="chip a">NEEDS TRAINING</span></div>
+            </div>
+          </div>
+
+          <div class="rule"></div>
+
+          <div class="row past">
+            <span class="av">KW</span>
+            <div class="row-b">
+              <div class="row-top"><span class="nm">Kayla Whitmore</span><span class="sc">64</span></div>
+              <div class="row-d">Still finishing her certification. Asked to be considered in spring.</div>
+            </div>
+          </div>
+
+          <div class="row past">
+            <span class="av">JP</span>
+            <div class="row-b">
+              <div class="row-top"><span class="nm">Jerome Pryce</span><span class="sc">58</span></div>
+              <div class="row-d">Looking for full-time hours. This role is part-time.</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="insp">
+        <div class="insp-h">
+          <div>
+            <div class="insp-nm">Darnell Okafor</div>
+            <div class="insp-sub">Applied 4 days ago · Decatur, GA · Available mornings</div>
+          </div>
+          <div class="acts">
+            <button class="btn" type="button">Pass</button>
+            <button class="btn go" type="button">Set up interview</button>
+          </div>
+        </div>
+
+        <div class="slab">
+          <div class="slab-h">
+            <span class="orb"></span>
+            <span class="slab-l">Ava&#39;s read<small>Eight minutes of interview, weighed against the job</small></span>
+            <span class="slab-sc">92<span>/100</span></span>
+          </div>
+          <p class="slab-p">He has done this exact job before — six years of brakes, oil and tires at two independent shops, with his own tools. He walked through a brake-pad replacement without hesitating and asked what diagnostic scanner you run.</p>
+          <div class="slab-rule"></div>
+          <div class="ev">
+            <div class="ev-i"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3FCE97" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span>Named the right torque sequence unprompted — <b>voice interview, 3:42</b></span></div>
+            <div class="ev-i"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3FCE97" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9 17.5 20 6.5"/></svg><span>Owns his own tools, no start-up cost to you — <b>application answer 4</b></span></div>
+            <div class="ev-i"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#E2B368" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5"/><path d="M12 16.5v.01"/><circle cx="12" cy="12" r="9"/></svg><span>Left his last shop after 8 months — <b>worth asking about</b></span></div>
+          </div>
+        </div>
+
+        <div class="tiles">
+          <div class="tile"><div class="tile-l">Voice interview</div><div class="tile-v">8 min</div><div class="tile-s">Full transcript ready</div></div>
+          <div class="tile"><div class="tile-l">Skills check</div><div class="tile-v" style="color:var(--jade)">9 / 10</div><div class="tile-s">Missed one on hybrids</div></div>
+          <div class="tile"><div class="tile-l">Resume</div><div class="tile-v">2 pages</div><div class="tile-s" style="color:var(--brass);font-weight:600">Open</div></div>
+        </div>
+
+        <div class="foot">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-11.9 7.8L3 21l1.7-6.1A8.5 8.5 0 1 1 21 11.5z"/></svg>
+          <span>Ava messaged him about Tuesday at 9am — no reply yet</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  (function(){
+    var root=document.documentElement;
+    var btns=[].slice.call(document.querySelectorAll('.seg button'));
+    function apply(m){
+      if(m==='system') root.removeAttribute('data-theme'); else root.setAttribute('data-theme',m);
+      btns.forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.set===m));});
+      try{localStorage.setItem('hf-theme',m);}catch(e){}
+    }
+    btns.forEach(function(b){b.addEventListener('click',function(){apply(b.dataset.set);});});
+    var s='system'; try{s=localStorage.getItem('hf-theme')||'system';}catch(e){}
+    apply(s);
+  })();
+</script>
+</body>
+</html>

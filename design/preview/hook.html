@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HireFlow — the overnight sort</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --ground:#F0EBDF; --ground-2:#E9E2D2; --sidebar:#E7E0CE; --surface:#FCFAF4; --surface-2:#E4DCC7;
+    --line:#D6CDB6; --line-soft:#E2DAC6; --hair:#C6B893;
+    --ink:#14201B; --ink-2:#3F4B45; --ink-3:#5C655E;
+    --slab:#0C2A21; --slab-ink:#F2EFE5; --slab-ink-2:#A9C6B8;
+    --jade:#0F6B4F; --jade-bright:#3FCE97; --brass:#8A6420; --brass-line:#C9A45E;
+    --amber-bg:#F6E7C6; --amber-fg:#7A5410;
+    --btn-fg:#F7F4EB;
+    --shadow-sm:0 1px 2px rgba(20,32,27,.06);
+    --shadow-md:0 1px 2px rgba(20,32,27,.05),0 8px 20px -14px rgba(20,32,27,.3);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#17140F; --ground-2:#1C1813; --sidebar:#120F0B; --surface:#221D17; --surface-2:#2C2620;
+      --line:rgba(244,239,227,.15); --line-soft:rgba(244,239,227,.085); --hair:rgba(201,164,94,.42);
+      --ink:#F4EFE3; --ink-2:#C3BBA9; --ink-3:#948B7C;
+      --slab:#0B2A21; --slab-ink:#F2EFE5; --slab-ink-2:#A9C6B8;
+      --jade:#4FBF95; --jade-bright:#67E3AF; --brass:#E0B96A; --brass-line:rgba(224,185,106,.55);
+      --amber-bg:rgba(224,170,80,.16); --amber-fg:#E4B76E;
+      --btn-fg:#17140F;
+      --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+      --shadow-md:0 1px 2px rgba(0,0,0,.4),0 10px 26px -16px rgba(0,0,0,.8);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#17140F; --ground-2:#1C1813; --sidebar:#120F0B; --surface:#221D17; --surface-2:#2C2620;
+    --line:rgba(244,239,227,.15); --line-soft:rgba(244,239,227,.085); --hair:rgba(201,164,94,.42);
+    --ink:#F4EFE3; --ink-2:#C3BBA9; --ink-3:#948B7C;
+    --slab:#0B2A21; --slab-ink:#F2EFE5; --slab-ink-2:#A9C6B8;
+    --jade:#4FBF95; --jade-bright:#67E3AF; --brass:#E0B96A; --brass-line:rgba(224,185,106,.55);
+    --amber-bg:rgba(224,170,80,.16); --amber-fg:#E4B76E;
+    --btn-fg:#17140F;
+    --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+    --shadow-md:0 1px 2px rgba(0,0,0,.4),0 10px 26px -16px rgba(0,0,0,.8);
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--ground);color:var(--ink);font-family:Inter,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+
+  .bar{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    padding:9px 16px;background:var(--sidebar);border-bottom:1px solid var(--line)}
+  .bar-t{font-size:12px;color:var(--ink-2)} .bar-t b{color:var(--ink)}
+  .bar-btn{font:inherit;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--line);
+    background:var(--surface);color:var(--ink);padding:6px 12px;border-radius:7px;min-height:32px}
+  .bar-btn:focus-visible{outline:2px solid var(--jade);outline-offset:2px}
+  .seg{display:flex;gap:2px;background:var(--surface-2);padding:2px;border-radius:8px;margin-left:auto}
+  .seg button{font:inherit;font-size:12px;font-weight:600;cursor:pointer;border:0;background:transparent;
+    color:var(--ink-3);padding:5px 11px;border-radius:6px;min-height:30px}
+  .seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink)}
+  .seg button:focus-visible{outline:2px solid var(--jade);outline-offset:2px}
+
+  .app{display:flex;min-height:calc(100vh - 51px)}
+  .side{width:216px;flex-shrink:0;background:var(--sidebar);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;padding:18px 0}
+  @media(max-width:860px){.side{display:none}}
+  .brand{display:flex;align-items:center;gap:9px;padding:0 18px}
+  .brand-mark{width:26px;height:26px;border-radius:8px;background:var(--slab);display:flex;
+    align-items:center;justify-content:center;box-shadow:var(--shadow-sm);flex-shrink:0}
+  .brand-name{font-family:Fraunces,Georgia,serif;font-size:18px;font-weight:600;letter-spacing:-.02em}
+  .brand-rule{height:1px;background:var(--hair);margin:14px 18px 14px}
+  .nav{display:flex;flex-direction:column;gap:1px;padding:0 10px}
+  .nav a{display:flex;align-items:center;gap:10px;padding:8px 11px;border-radius:7px;color:var(--ink-3);
+    text-decoration:none;font-size:13px;font-weight:500;min-height:37px}
+  .nav a[aria-current]{background:var(--surface);color:var(--ink);font-weight:600;
+    box-shadow:inset 2px 0 0 var(--jade),var(--shadow-sm)}
+  .nav .cnt{margin-left:auto;font-size:10.5px;font-weight:700;color:var(--btn-fg);background:var(--jade);
+    padding:1px 7px;border-radius:999px}
+
+  .main{flex-grow:1;min-width:0;padding:18px 26px 40px;max-width:1060px}
+  @media(max-width:860px){.main{padding:14px 14px 36px}}
+
+  /* ── header row: greeting + the sort, ONE line ── */
+  .head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  .h1{font-family:Fraunces,Georgia,serif;font-size:22px;font-weight:600;letter-spacing:-.02em;margin:0}
+  .head-sub{font-size:13px;color:var(--ink-3)}
+  .head-job{margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--brass)}
+  @media(max-width:640px){.head-job{display:none}}
+
+  /* ── the overnight line: slim, dense, does the hook in 56px ── */
+  .night{
+    margin-top:12px;background:var(--slab);border-radius:11px;
+    display:flex;align-items:center;gap:14px;padding:11px 16px;
+    box-shadow:var(--shadow-sm);overflow:hidden;position:relative;
+  }
+  .night-seal{width:30px;height:30px;flex-shrink:0}
+  .night-t{font-size:13.5px;color:var(--slab-ink-2);line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1}
+  .night-t b{color:var(--slab-ink);font-weight:600}
+  .night-t .n{font-family:Fraunces,Georgia,serif;font-weight:600;color:var(--jade-bright)}
+  /* the sort strip: 41 ticks collapsing to 3, inline, tiny */
+  .sort{margin-left:auto;display:flex;align-items:center;gap:3px;flex-shrink:0}
+  @media(max-width:1120px){.sort{display:none}}
+  .sort i{width:4px;height:18px;border-radius:2px;background:rgba(242,239,229,.3)}
+  .running .sort i{animation:tickfade .45s ease forwards;animation-delay:var(--d)}
+  @keyframes tickfade{to{opacity:.14;height:7px}}
+  .sort i.keep{background:var(--jade-bright)}
+  .running .sort i.keep{animation:tickkeep .45s ease forwards;animation-delay:var(--d)}
+  @keyframes tickkeep{to{opacity:1;height:16px}}
+  .night-stats{display:flex;gap:16px;flex-shrink:0;margin-left:16px;padding-left:16px;border-left:1px solid rgba(242,239,229,.14)}
+  @media(max-width:760px){.night-stats{display:none}}
+  .ns{text-align:right}
+  .ns-v{font-family:Fraunces,Georgia,serif;font-size:16px;font-weight:600;color:var(--slab-ink);line-height:1;font-variant-numeric:tabular-nums}
+  .ns-l{font-size:9.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--slab-ink-2);margin-top:3px}
+
+  /* ── the three: full-width WORK rows, actions inline ── */
+  .rows{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+  .row{
+    display:flex;align-items:center;gap:14px;background:var(--surface);
+    border:1px solid var(--line-soft);border-radius:11px;padding:15px 18px;
+    box-shadow:var(--shadow-sm);position:relative;
+  }
+  @media(max-width:720px){.row{flex-wrap:wrap;gap:10px}}
+  .running .row{opacity:0;animation:rowin .4s ease forwards}
+  .running .row:nth-child(1){animation-delay:.5s}
+  .running .row:nth-child(2){animation-delay:.62s}
+  .running .row:nth-child(3){animation-delay:.74s}
+  @keyframes rowin{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+
+  .rid{position:relative;width:42px;height:42px;flex-shrink:0}
+  .rav{width:42px;height:42px;border-radius:11px;background:var(--surface-2);display:flex;
+    align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--ink-2)}
+  .rseal{position:absolute;right:-9px;bottom:-9px;width:26px;height:26px}
+  .rseal svg{width:26px;height:26px;display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3))}
+  .running .rseal svg{opacity:0;transform:scale(2.1) rotate(-14deg);animation:press .38s cubic-bezier(.2,1.4,.4,1) forwards}
+  .running .row:nth-child(1) .rseal svg{animation-delay:.95s}
+  .running .row:nth-child(2) .rseal svg{animation-delay:1.12s}
+  .running .row:nth-child(3) .rseal svg{animation-delay:1.29s}
+  @keyframes press{55%{opacity:1}100%{opacity:1;transform:scale(1) rotate(-6deg)}}
+
+  .rwho{min-width:146px;flex-shrink:0}
+  .rname{font-size:15.5px;font-weight:600;letter-spacing:-.005em}
+  .rmeta{font-size:12px;color:var(--ink-3);margin-top:2px}
+  .rwhy{flex-grow:1;min-width:0;font-size:13px;color:var(--ink-2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+    border-left:2px solid var(--line-soft);padding-left:13px}
+  .rwhy b{color:var(--ink);font-weight:600}
+  @media(max-width:720px){.rwhy{border-left:0;padding-left:0;width:100%}}
+  .rscore{font-family:Fraunces,Georgia,serif;font-size:25px;font-weight:600;color:var(--jade);
+    line-height:1;font-variant-numeric:tabular-nums;flex-shrink:0;min-width:44px;text-align:right}
+  .racts{display:flex;gap:7px;flex-shrink:0}
+  .rbtn{font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;border-radius:8px;min-height:36px;
+    padding:8px 13px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+  .rbtn.go{background:var(--jade);border-color:var(--jade);color:var(--btn-fg)}
+  .rbtn:focus-visible{outline:2px solid var(--jade);outline-offset:2px}
+  .rtag{font-size:9px;font-weight:700;letter-spacing:.06em;padding:2px 6px;border-radius:4px;
+    background:var(--amber-bg);color:var(--amber-fg);margin-left:5px;vertical-align:1px}
+
+  /* ── the rest of the pile: collapsed, one line ── */
+  .rest{
+    margin-top:10px;display:flex;align-items:center;gap:10px;padding:10px 16px;
+    border:1px dashed var(--line);border-radius:10px;color:var(--ink-3);font-size:12.5px;
+  }
+  .rest b{color:var(--ink-2);font-weight:600}
+  .rest a{color:var(--brass);font-weight:600;text-decoration:none;margin-left:auto}
+  .rest a:focus-visible{outline:2px solid var(--jade);outline-offset:2px;border-radius:4px}
+
+  /* below: today's other work, immediately visible ── */
+  .sect{margin-top:22px}
+  .sect-h{display:flex;align-items:baseline;gap:10px}
+  .sect-t{font-family:Fraunces,Georgia,serif;font-size:16px;font-weight:600;letter-spacing:-.01em}
+  .sect-s{font-size:12px;color:var(--ink-3)}
+  .mini{margin-top:9px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  @media(max-width:720px){.mini{grid-template-columns:1fr}}
+  .mcard{display:flex;align-items:center;gap:11px;background:var(--surface);border:1px solid var(--line-soft);
+    border-radius:10px;padding:11px 14px}
+  .mic{width:30px;height:30px;border-radius:8px;background:var(--surface-2);display:flex;align-items:center;
+    justify-content:center;color:var(--ink-2);flex-shrink:0}
+  .mt{font-size:12.5px;font-weight:600;line-height:1.3}
+  .ms{font-size:11.5px;color:var(--ink-3);margin-top:1px}
+
+  @media (prefers-reduced-motion: reduce){
+    .running .row,.running .rseal svg,.running .sort i{animation:none!important;opacity:1!important;transform:none!important}
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="wax">
+      <path d="M95.22,50.00 C95.30,54.15 93.66,58.32 92.66,62.53 C91.67,66.73 91.55,71.76 89.26,75.23 C86.96,78.70 82.24,80.55 78.89,83.34 C75.54,86.14 72.91,90.05 69.17,91.99 C65.44,93.92 60.70,94.68 56.46,94.95 C52.22,95.22 47.99,94.12 43.73,93.61 C39.47,93.09 34.63,93.60 30.88,91.87 C27.12,90.14 24.43,86.09 21.21,83.23 C17.99,80.37 13.80,78.18 11.55,74.71 C9.29,71.24 8.64,66.55 7.68,62.43 C6.72,58.31 6.05,54.22 5.80,50.00 C5.55,45.78 5.47,41.41 6.18,37.13 C6.90,32.86 7.63,27.79 10.09,24.35 C12.56,20.91 17.41,19.00 20.96,16.49 C24.51,13.97 27.66,11.36 31.40,9.26 C35.13,7.17 39.14,5.04 43.37,3.91 C47.61,2.79 52.51,1.86 56.83,2.52 C61.14,3.17 65.42,5.67 69.25,7.85 C73.08,10.03 76.29,12.89 79.83,15.58 C83.36,18.27 88.39,20.33 90.46,24.00 C92.53,27.67 91.43,33.27 92.22,37.60 C93.02,41.94 95.15,45.85 95.22,50.00 Z" fill="#0F6B4F"/>
+      <circle cx="50" cy="50" r="34" fill="none" stroke="#C9A45E" stroke-width="2.4" opacity=".95"/>
+      <text x="50" y="51" text-anchor="middle" dominant-baseline="central"
+            font-family="Fraunces, Georgia, serif" font-size="38" font-weight="600" fill="#C9A45E">A</text>
+    </g>
+    <g id="wax-sm">
+      <circle cx="50" cy="50" r="46" fill="#0F6B4F"/>
+      <circle cx="50" cy="50" r="31" fill="none" stroke="#C9A45E" stroke-width="6"/>
+      <text x="50" y="52" text-anchor="middle" dominant-baseline="central"
+            font-family="Fraunces, Georgia, serif" font-size="52" font-weight="700" fill="#C9A45E">A</text>
+    </g>
+  </defs>
+</svg>
+
+<div class="bar">
+  <span class="bar-t"><b>The overnight sort, v2</b> — same hook, none of your screen taken hostage.</span>
+  <button class="bar-btn" id="replay" type="button">↻ Replay</button>
+  <div class="seg" role="group" aria-label="Theme">
+    <button type="button" data-set="light" aria-pressed="false">Day</button>
+    <button type="button" data-set="dark" aria-pressed="false">Night</button>
+    <button type="button" data-set="system" aria-pressed="true">System</button>
+  </div>
+</div>
+
+<div class="app">
+  <nav class="side">
+    <div class="brand">
+      <span class="brand-mark">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3FCE97" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18 L9 7 L14 15 L20 6"/></svg>
+      </span>
+      <span class="brand-name">HireFlow</span>
+    </div>
+    <div class="brand-rule"></div>
+    <div class="nav">
+      <a href="#"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Dashboard</a>
+      <a href="#" aria-current="page"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20"/><circle cx="10" cy="8" r="3.5"/></svg>Applicants<span class="cnt">3</span></a>
+      <a href="#"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6"/></svg>Jobs</a>
+      <a href="#"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-11.9 7.8L3 21l1.7-6.1A8.5 8.5 0 1 1 21 11.5z"/></svg>Messages</a>
+    </div>
+  </nav>
+
+  <div class="main">
+
+    <div class="head">
+      <h1 class="h1">Good morning, Ray.</h1>
+      <span class="head-sub">Tuesday, Aug 26</span>
+      <span class="head-job">Part-Time Mechanic</span>
+    </div>
+
+    <div class="night" id="stage">
+      <svg class="night-seal" viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg>
+      <div class="night-t">
+        <b>Ava worked last night.</b> Read <span class="n">41</span> &middot; voice-interviewed all &middot; sealed <span class="n">3</span>.
+      </div>
+      <div class="sort" id="sortstrip" aria-hidden="true"></div>
+      <div class="night-stats">
+        <div class="ns"><div class="ns-v">0 min</div><div class="ns-l">Your time</div></div>
+        <div class="ns"><div class="ns-v">0</div><div class="ns-l">Left waiting</div></div>
+      </div>
+    </div>
+
+    <div class="rows">
+      <div class="row">
+        <div class="rid">
+          <div class="rav">DO</div>
+          <div class="rseal"><svg viewBox="0 0 100 100"><use href="#wax-sm"/></svg></div>
+        </div>
+        <div class="rwho">
+          <div class="rname">Darnell Okafor</div>
+          <div class="rmeta">Decatur &middot; mornings</div>
+        </div>
+        <div class="rwhy">Named the right torque sequence unprompted. <b>Starts Monday</b>.</div>
+        <div class="rscore">92</div>
+        <div class="racts">
+          <button class="rbtn" type="button">Pass</button>
+          <button class="rbtn go" type="button">Interview</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="rid">
+          <div class="rav">MR</div>
+          <div class="rseal"><svg viewBox="0 0 100 100"><use href="#wax-sm"/></svg></div>
+        </div>
+        <div class="rwho">
+          <div class="rname">Marisol Reyes</div>
+          <div class="rmeta">East Atlanta &middot; flexible</div>
+        </div>
+        <div class="rwhy">Strong diagnostics. Smart questions about <b>your scanner</b>.</div>
+        <div class="rscore">88</div>
+        <div class="racts">
+          <button class="rbtn" type="button">Pass</button>
+          <button class="rbtn go" type="button">Interview</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="rid">
+          <div class="rav">TB</div>
+          <div class="rseal"><svg viewBox="0 0 100 100"><use href="#wax-sm"/></svg></div>
+        </div>
+        <div class="rwho">
+          <div class="rname">Tyrone Baptiste</div>
+          <div class="rmeta">Kirkwood &middot; weekends too <span class="rtag">TRAINING</span></div>
+        </div>
+        <div class="rwhy"><b>Best interview of the batch</b>. A bet worth meeting.</div>
+        <div class="rscore">81</div>
+        <div class="racts">
+          <button class="rbtn" type="button">Pass</button>
+          <button class="rbtn go" type="button">Interview</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="rest">
+      <span><b>38 didn't make the cut</b> — every one already got a polite reply in your name.</span>
+      <a href="#">Review them →</a>
+    </div>
+
+    <div class="sect">
+      <div class="sect-h">
+        <span class="sect-t">Also today</span>
+        <span class="sect-s">two things need you, one is good news</span>
+      </div>
+      <div class="mini">
+        <div class="mcard">
+          <span class="mic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg></span>
+          <div><div class="mt">Darnell suggested Wed&nbsp;9am</div><div class="ms">Tap to confirm — the slot is held</div></div>
+        </div>
+        <div class="mcard">
+          <span class="mic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-11.9 7.8L3 21l1.7-6.1A8.5 8.5 0 1 1 21 11.5z"/></svg></span>
+          <div><div class="mt">Marisol replied overnight</div><div class="ms">"Is the Saturday shift required?" — draft ready</div></div>
+        </div>
+        <div class="mcard">
+          <span class="mic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6"/></svg></span>
+          <div><div class="mt">Job is live on Google</div><div class="ms">6 days up · 41 applied · feed healthy</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  (function(){
+    var r=document.documentElement,b=[].slice.call(document.querySelectorAll('.seg button'));
+    function a(m){if(m==='system')r.removeAttribute('data-theme');else r.setAttribute('data-theme',m);
+      b.forEach(function(x){x.setAttribute('aria-pressed',String(x.dataset.set===m));});
+      try{localStorage.setItem('hf-theme',m);}catch(e){}}
+    b.forEach(function(x){x.addEventListener('click',function(){a(x.dataset.set);});});
+    var s='system';try{s=localStorage.getItem('hf-theme')||'system';}catch(e){}a(s);
+
+    // sort strip: 41 ticks, 3 keepers
+    var strip=document.getElementById('sortstrip');
+    var keep=[7,19,33];
+    for(var i=0;i<41;i++){
+      var t=document.createElement('i');
+      if(keep.indexOf(i)>=0)t.className='keep';
+      t.style.setProperty('--d',(0.08+i*0.018).toFixed(2)+'s');
+      strip.appendChild(t);
+    }
+    var body=document.body;
+    function run(){body.classList.remove('running');void body.offsetWidth;body.classList.add('running');}
+    document.getElementById('replay').addEventListener('click',run);
+    setTimeout(run,300);
+  })();
+</script>
+</body>
+</html>

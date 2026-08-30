@@ -1,0 +1,48 @@
+{
+  "artboards": [
+    { "file": "Diagnosis.dc.html", "x": 0, "y": 0, "w": 1440, "h": 840, "title": "Why it reads green" },
+    { "file": "Main.dc.html", "x": 0, "y": 1160, "w": 1440, "h": 900, "title": "A — Ink" },
+    { "file": "DirectionB.dc.html", "x": 1560, "y": 1160, "w": 1440, "h": 900, "title": "B — Paper" },
+    { "file": "DirectionC.dc.html", "x": 3120, "y": 1160, "w": 1440, "h": 900, "title": "C — Ember" },
+    { "file": "PhoneInk.dc.html", "x": 0, "y": 2280, "w": 390, "h": 844, "title": "A on a phone" },
+    { "file": "Dialog.dc.html", "x": 510, "y": 2280, "w": 900, "h": 640, "title": "A — a dialog" }
+  ],
+  "annotations": [
+    {
+      "id": "note-diagnosis",
+      "x": 1560,
+      "y": 60,
+      "w": 460,
+      "text": "Start here.\n\nThis board shows why the app feels like a green bath. It isn't the accent — it's that the page, the sidebar, the cards and even the hairlines are all green too.\n\nThe three directions below all keep your green. They differ in where the green is ALLOWED to live.\n\nSame screen, same people, same words on all three — so the only thing you're judging is color."
+    },
+    {
+      "id": "note-dir-a",
+      "x": 0,
+      "y": 880,
+      "w": 440,
+      "text": "A — INK\n\nWalls go neutral warm-charcoal. Green is reserved for one thing: Ava, and good news. Brass stays the color of anything you click.\n\nWhy: the quietest room makes the green loudest. Closest to premium software.\n\nTradeoff: it's restrained. If you want the app to feel warm the second it opens, this is the coolest of the three."
+    },
+    {
+      "id": "note-dir-b",
+      "x": 1560,
+      "y": 880,
+      "w": 440,
+      "text": "B — PAPER\n\nFlip it: warm ivory page, deep green as the ink. This is your app icon's own color turned into the whole product.\n\nWhy: solves the green problem by inversion, and it reads in sunlight — which matters when a mechanic checks his phone in the lot.\n\nTradeoff: biggest departure from what's shipped, and it needs a night version built alongside."
+    },
+    {
+      "id": "note-dir-c",
+      "x": 3120,
+      "y": 880,
+      "w": 440,
+      "text": "C — EMBER\n\nWarm dark walls, and a real second color: orange. Green means \"Ava says this is good\", orange means \"this is waiting on you\".\n\nWhy: two colors give the screen tension and tell you where to look. The most alive of the three.\n\nTradeoff: two accents take discipline. Used loosely it gets busy, and orange is a strong flavor to commit the brand to."
+    },
+    {
+      "id": "note-phone",
+      "x": 1500,
+      "y": 2280,
+      "w": 440,
+      "text": "These two are Direction A only, so you can judge it where it actually gets used — on a phone, and in a dialog.\n\nThe dialog is here because you called those out. Notice the panel is grey now, not green; green appears once, where Ava speaks."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

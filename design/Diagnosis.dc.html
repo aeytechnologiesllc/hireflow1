@@ -1,0 +1,178 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+  <style>
+    body { margin: 0; font-family: Inter, -apple-system, "Segoe UI", sans-serif; }
+    a { color: #EDCA74; text-decoration: none; }
+    a:hover { color: #F4D78D; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 840px; display: flex; flex-direction: column; background: #0A0A0A; color: #F2EEE6; overflow: hidden;">
+
+  <div style="padding: 34px 44px 26px;">
+    <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #837D72; margin-bottom: 11px;">The actual problem</div>
+    <div style="font-family: Fraunces, Georgia, serif; font-size: 36px; font-weight: 600; letter-spacing: -0.018em; line-height: 1.1;">Green isn&#39;t the problem. Green <span style="font-style: italic; color: #46E096;">everywhere</span> is.</div>
+    <div style="font-size: 15px; color: #B8B2A6; margin-top: 13px; max-width: 96ch; line-height: 1.55;">
+      Right now every single surface in the app is tinted green — the page, the sidebar, the cards, even the hairlines between them. Then the accent that&#39;s supposed to stand out is green too. When the highlight is the same color as the wall behind it, nothing can stand out, so the whole screen flattens into one note.
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; min-height: 0;">
+
+    <!-- CURRENT -->
+    <div style="background: #090C0A; padding: 30px 44px; display: flex; flex-direction: column; border-right: 1px solid rgba(255,255,255,0.09);">
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+        <div style="width: 7px; height: 7px; border-radius: 999px; background: #FF6B6B;"></div>
+        <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #FF8F8F;">Today</span>
+      </div>
+      <div style="font-family: Fraunces, Georgia, serif; font-size: 21px; font-weight: 600;">Six greens stacked on each other</div>
+      <div style="font-size: 13.5px; color: #8C9990; margin-top: 7px; line-height: 1.5;">Every value below is hue 150 — green — including the borders.</div>
+
+      <div style="display: flex; flex-direction: column; gap: 9px; margin-top: 22px;">
+
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="width: 74px; height: 42px; border-radius: 8px; background: #090C0A; border: 1px solid rgba(255,255,255,0.16); flex-shrink: 0;"></div>
+          <div style="flex-grow: 1;">
+            <div style="font-size: 13.5px; font-weight: 600;">Page background</div>
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #7E8B83; margin-top: 2px;">hsl(150 14% 4%)</div>
+          </div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #FF8F8F;">green</div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="width: 74px; height: 42px; border-radius: 8px; background: #060908; border: 1px solid rgba(255,255,255,0.16); flex-shrink: 0;"></div>
+          <div style="flex-grow: 1;">
+            <div style="font-size: 13.5px; font-weight: 600;">Sidebar</div>
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #7E8B83; margin-top: 2px;">hsl(150 16% 3%)</div>
+          </div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #FF8F8F;">green</div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="width: 74px; height: 42px; border-radius: 8px; background: #101412; border: 1px solid rgba(255,255,255,0.16); flex-shrink: 0;"></div>
+          <div style="flex-grow: 1;">
+            <div style="font-size: 13.5px; font-weight: 600;">Cards &amp; dialogs</div>
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #7E8B83; margin-top: 2px;">hsl(150 12% 7%)</div>
+          </div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #FF8F8F;">green</div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="width: 74px; height: 42px; border-radius: 8px; background: #171C1A; border: 1px solid rgba(255,255,255,0.16); flex-shrink: 0;"></div>
+          <div style="flex-grow: 1;">
+            <div style="font-size: 13.5px; font-weight: 600;">Raised surfaces</div>
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #7E8B83; margin-top: 2px;">hsl(150 11% 10%)</div>
+          </div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #FF8F8F;">green</div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="width: 74px; height: 42px; border-radius: 8px; background: #262C29; border: 1px solid rgba(255,255,255,0.16); flex-shrink: 0;"></div>
+          <div style="flex-grow: 1;">
+            <div style="font-size: 13.5px; font-weight: 600;">Hairlines &amp; borders</div>
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #7E8B83; margin-top: 2px;">hsl(150 8% 16%)</div>
+          </div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #FF8F8F;">green</div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="width: 74px; height: 42px; border-radius: 8px; background: #46E096; flex-shrink: 0;"></div>
+          <div style="flex-grow: 1;">
+            <div style="font-size: 13.5px; font-weight: 600;">The accent &mdash; meant to stand out</div>
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #7E8B83; margin-top: 2px;">#46E096</div>
+          </div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #FF8F8F;">green</div>
+        </div>
+
+      </div>
+
+      <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.09); font-size: 13.5px; color: #8C9990; line-height: 1.55;">
+        Add the Ava orb, which is also green, and there is no color left to signal &ldquo;look here.&rdquo;
+      </div>
+    </div>
+
+    <!-- PROPOSED -->
+    <div style="background: #100F0E; padding: 30px 44px; display: flex; flex-direction: column;">
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+        <div style="width: 7px; height: 7px; border-radius: 999px; background: #46E096;"></div>
+        <span style="font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #46E096;">The fix</span>
+      </div>
+      <div style="font-family: Fraunces, Georgia, serif; font-size: 21px; font-weight: 600;">Neutral walls. Green earns its place.</div>
+      <div style="font-size: 13.5px; color: #837D72; margin-top: 7px; line-height: 1.5;">The room goes quiet, so one color can speak.</div>
+
+      <div style="display: flex; flex-direction: column; gap: 9px; margin-top: 22px;">
+
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="width: 74px; height: 42px; border-radius: 8px; background: #100F0E; border: 1px solid rgba(255,255,255,0.16); flex-shrink: 0;"></div>
+          <div style="flex-grow: 1;">
+            <div style="font-size: 13.5px; font-weight: 600;">Page background</div>
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #837D72; margin-top: 2px;">#100F0E</div>
+          </div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #837D72;">neutral</div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="width: 74px; height: 42px; border-radius: 8px; background: #0B0A0A; border: 1px solid rgba(255,255,255,0.16); flex-shrink: 0;"></div>
+          <div style="flex-grow: 1;">
+            <div style="font-size: 13.5px; font-weight: 600;">Sidebar</div>
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #837D72; margin-top: 2px;">#0B0A0A</div>
+          </div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #837D72;">neutral</div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="width: 74px; height: 42px; border-radius: 8px; background: #191817; border: 1px solid rgba(255,255,255,0.16); flex-shrink: 0;"></div>
+          <div style="flex-grow: 1;">
+            <div style="font-size: 13.5px; font-weight: 600;">Cards &amp; dialogs</div>
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #837D72; margin-top: 2px;">#191817</div>
+          </div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #837D72;">neutral</div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="width: 74px; height: 42px; border-radius: 8px; background: #201F1D; border: 1px solid rgba(255,255,255,0.16); flex-shrink: 0;"></div>
+          <div style="flex-grow: 1;">
+            <div style="font-size: 13.5px; font-weight: 600;">Raised surfaces</div>
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #837D72; margin-top: 2px;">#201F1D</div>
+          </div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #837D72;">neutral</div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="width: 74px; height: 42px; border-radius: 8px; background: #EDCA74; flex-shrink: 0;"></div>
+          <div style="flex-grow: 1;">
+            <div style="font-size: 13.5px; font-weight: 600;">Brass &mdash; things you click</div>
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #837D72; margin-top: 2px;">#EDCA74</div>
+          </div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #EDCA74;">action</div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="width: 74px; height: 42px; border-radius: 8px; background: #46E096; flex-shrink: 0;"></div>
+          <div style="flex-grow: 1;">
+            <div style="font-size: 13.5px; font-weight: 600;">Green &mdash; Ava, and good news only</div>
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #837D72; margin-top: 2px;">#46E096</div>
+          </div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #46E096;">signal</div>
+        </div>
+
+      </div>
+
+      <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.09); font-size: 13.5px; color: #B8B2A6; line-height: 1.55;">
+        Same green you already own &mdash; it just stops being the wallpaper and starts meaning <span style="color: #46E096;">&ldquo;Ava found something.&rdquo;</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

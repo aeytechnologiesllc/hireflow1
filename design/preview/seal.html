@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ava's Seal — HireFlow brand direction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --ground:#F0EBDF; --ground-2:#E9E2D2; --surface:#FCFAF4; --surface-2:#E4DCC7;
+    --line:#D6CDB6; --line-soft:#E2DAC6; --hair:#C6B893;
+    --ink:#14201B; --ink-2:#3F4B45; --ink-3:#5C655E;
+    --slab:#0C2A21; --slab-ink:#F2EFE5; --slab-ink-2:#A9C6B8;
+    --jade:#0F6B4F; --jade-bright:#3FCE97; --brass:#8A6420; --brass-line:#C9A45E;
+    --shadow-md:0 1px 2px rgba(20,32,27,.05),0 10px 26px -16px rgba(20,32,27,.35);
+    --shadow-slab:0 2px 4px rgba(12,42,33,.14),0 26px 50px -26px rgba(12,42,33,.6);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#17140F; --ground-2:#1C1813; --surface:#221D17; --surface-2:#2C2620;
+      --line:rgba(244,239,227,.15); --line-soft:rgba(244,239,227,.085); --hair:rgba(201,164,94,.42);
+      --ink:#F4EFE3; --ink-2:#C3BBA9; --ink-3:#948B7C;
+      --slab:#0B2A21; --slab-ink:#F2EFE5; --slab-ink-2:#A9C6B8;
+      --jade:#4FBF95; --jade-bright:#67E3AF; --brass:#E0B96A; --brass-line:rgba(224,185,106,.55);
+      --shadow-md:0 1px 2px rgba(0,0,0,.4),0 14px 34px -18px rgba(0,0,0,.85);
+      --shadow-slab:0 2px 4px rgba(0,0,0,.5),0 28px 56px -26px rgba(0,0,0,.9);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#17140F; --ground-2:#1C1813; --surface:#221D17; --surface-2:#2C2620;
+    --line:rgba(244,239,227,.15); --line-soft:rgba(244,239,227,.085); --hair:rgba(201,164,94,.42);
+    --ink:#F4EFE3; --ink-2:#C3BBA9; --ink-3:#948B7C;
+    --slab:#0B2A21; --slab-ink:#F2EFE5; --slab-ink-2:#A9C6B8;
+    --jade:#4FBF95; --jade-bright:#67E3AF; --brass:#E0B96A; --brass-line:rgba(224,185,106,.55);
+    --shadow-md:0 1px 2px rgba(0,0,0,.4),0 14px 34px -18px rgba(0,0,0,.85);
+    --shadow-slab:0 2px 4px rgba(0,0,0,.5),0 28px 56px -26px rgba(0,0,0,.9);
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--ground);color:var(--ink);font-family:Inter,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+  img{display:block;max-width:100%}
+
+  .bar{
+    position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    padding:11px 20px;background:var(--ground-2);border-bottom:1px solid var(--line);
+  }
+  .bar-t{font-size:12.5px;color:var(--ink-2)} .bar-t b{color:var(--ink)}
+  .seg{display:flex;gap:2px;background:var(--surface-2);padding:3px;border-radius:9px;margin-left:auto}
+  .seg button{font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;border:0;background:transparent;color:var(--ink-3);padding:7px 14px;border-radius:7px;min-height:36px}
+  .seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink)}
+  .seg button:focus-visible{outline:2px solid var(--jade);outline-offset:2px}
+
+  .wrap{max-width:1180px;margin:0 auto;padding:56px 24px 110px}
+  @media(max-width:640px){.wrap{padding:34px 16px 80px}}
+
+  .eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--brass);margin:0 0 14px}
+  h1{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:clamp(38px,6vw,66px);line-height:1.0;letter-spacing:-.035em;margin:0 0 20px;text-wrap:balance}
+  h1 em{font-style:italic;color:var(--jade)}
+  .lede{font-size:clamp(16.5px,2.1vw,19px);line-height:1.58;color:var(--ink-2);max-width:60ch;margin:0}
+
+  section{margin-top:74px}
+  h2{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:clamp(24px,3.2vw,32px);line-height:1.14;letter-spacing:-.024em;margin:0 0 10px}
+  .sub{color:var(--ink-3);font-size:14.5px;margin:0 0 26px;max-width:62ch;line-height:1.55}
+
+  .hero-macro{border-radius:20px;overflow:hidden;box-shadow:var(--shadow-slab);border:1px solid var(--line-soft)}
+  .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+  .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+  @media(max-width:780px){.grid2,.grid3{grid-template-columns:1fr}}
+  figure{margin:0}
+  figure img{border-radius:14px;box-shadow:var(--shadow-md);border:1px solid var(--line-soft);width:100%}
+  figcaption{font-size:12.5px;color:var(--ink-3);margin-top:10px;line-height:1.5}
+  figcaption b{color:var(--ink);font-weight:600}
+
+  /* mark plate */
+  .marks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+  @media(max-width:780px){.marks{grid-template-columns:1fr}}
+  .mark-card{background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;padding:22px;box-shadow:var(--shadow-md)}
+  .mark-big{height:150px;display:flex;align-items:center;justify-content:center}
+  .mark-big img{height:132px;width:auto}
+  .mark-sizes{display:flex;align-items:center;gap:16px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line-soft)}
+  .mark-sizes img{width:auto}
+  .s48{height:48px}.s32{height:32px}.s24{height:24px}.s16{height:16px}
+  .mark-n{font-size:12.5px;font-weight:600;color:var(--ink);margin-top:14px}
+  .mark-d{font-size:12.5px;color:var(--ink-3);margin-top:4px;line-height:1.5}
+
+  /* in-context strip */
+  .ctx{display:flex;align-items:center;gap:12px;background:var(--ground-2);border:1px solid var(--line);border-radius:12px;padding:14px 18px}
+  .ctx img{height:26px;width:auto}
+  .ctx-n{font-family:Fraunces,Georgia,serif;font-size:20px;font-weight:600;letter-spacing:-.018em}
+
+  /* ad mock */
+  .ad{
+    position:relative;border-radius:18px;overflow:hidden;box-shadow:var(--shadow-slab);
+    border:1px solid var(--line-soft);
+  }
+  .ad img{width:100%}
+  .ad-copy{
+    position:absolute;left:6%;top:50%;transform:translateY(-50%);max-width:44%;
+    color:#14201B;text-shadow:0 1px 20px rgba(255,250,240,.55);
+  }
+  .ad-copy h3{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:clamp(18px,3.4vw,44px);line-height:1.02;letter-spacing:-.03em;margin:0 0 10px}
+  .ad-copy p{font-size:clamp(11px,1.4vw,17px);color:#3F4B45;margin:0;line-height:1.45}
+  @media(max-width:700px){.ad-copy{max-width:52%;left:5%}}
+
+  .note{
+    background:var(--slab);color:var(--slab-ink);border-radius:16px;padding:26px 30px;
+    box-shadow:var(--shadow-slab);
+  }
+  .note h3{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:21px;margin:0 0 12px;letter-spacing:-.02em}
+  .note p{margin:0 0 11px;font-size:15px;line-height:1.6;color:var(--slab-ink-2);max-width:64ch}
+  .note p:last-child{margin-bottom:0}
+  .note b{color:var(--slab-ink);font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <span class="bar-t"><b>Ava's Seal</b> — brand direction, generated at 4K</span>
+  <div class="seg" role="group" aria-label="Theme">
+    <button type="button" data-set="light" aria-pressed="false">Day</button>
+    <button type="button" data-set="dark" aria-pressed="false">Night</button>
+    <button type="button" data-set="system" aria-pressed="true">System</button>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <p class="eyebrow">The mark · the mechanic · the hook</p>
+  <h1>Ava reads all 41.<br>She <em>seals</em> the 3.</h1>
+  <p class="lede">
+    Not an orb. A seal — the oldest mark in the world for &ldquo;I vouch for this.&rdquo; It's a logo,
+    a product feature and an ad campaign at the same time, and no hiring app on earth is using it.
+  </p>
+
+  <section>
+    <h2>The mark</h2>
+    <p class="sub">Deep jade wax, brass ring, brass A, pressed into ivory cotton paper. This is the hero frame — the one that goes on the landing page and stops the scroll.</p>
+    <div class="hero-macro"><img src="assets/h12-macro.png" alt="Macro photograph of a deep jade wax seal bearing a brass letter A, pressed into ivory paper"></div>
+  </section>
+
+  <section>
+    <h2>The same mark, drawn as vector</h2>
+    <p class="sub">Real SVG, not a shrunk photo — so it stays razor sharp in the sidebar at 16px and on a billboard. Three cuts; my pick is the first.</p>
+    <div class="marks">
+      <div class="mark-card">
+        <div class="mark-big"><img src="assets/v1-seal-a.svg" alt="Seal mark with serif A"></div>
+        <div class="mark-sizes">
+          <img class="s48" src="assets/v1-seal-a.svg" alt=""><img class="s32" src="assets/v1-seal-a.svg" alt=""><img class="s24" src="assets/v1-seal-a.svg" alt=""><img class="s16" src="assets/v1-seal-a.svg" alt="">
+        </div>
+        <div class="mark-n">Cut 1 — Pressed</div>
+        <div class="mark-d">Solid wax, brass ring, serif A. Closest to the photograph. My pick.</div>
+      </div>
+      <div class="mark-card">
+        <div class="mark-big"><img src="assets/v2-monoline.svg" alt="Monoline seal mark"></div>
+        <div class="mark-sizes">
+          <img class="s48" src="assets/v2-monoline.svg" alt=""><img class="s32" src="assets/v2-monoline.svg" alt=""><img class="s24" src="assets/v2-monoline.svg" alt=""><img class="s16" src="assets/v2-monoline.svg" alt="">
+        </div>
+        <div class="mark-n">Cut 2 — Monoline</div>
+        <div class="mark-d">Outline only. Lightest, best for dense toolbars, weakest at tiny sizes.</div>
+      </div>
+      <div class="mark-card">
+        <div class="mark-big"><img src="assets/v3-heraldic.svg" alt="Heraldic seal mark"></div>
+        <div class="mark-sizes">
+          <img class="s48" src="assets/v3-heraldic.svg" alt=""><img class="s32" src="assets/v3-heraldic.svg" alt=""><img class="s24" src="assets/v3-heraldic.svg" alt=""><img class="s16" src="assets/v3-heraldic.svg" alt="">
+        </div>
+        <div class="mark-n">Cut 3 — Struck</div>
+        <div class="mark-d">Bolder, more geometric. Strongest silhouette, least like the wax.</div>
+      </div>
+    </div>
+    <div class="ctx" style="margin-top:18px">
+      <img src="assets/v1-seal-a.svg" alt=""><span class="ctx-n">HireFlow</span>
+      <span style="margin-left:auto;font-size:12.5px;color:var(--ink-3)">how it sits in the sidebar, actual size</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>The hook</h2>
+    <p class="sub">One frame that tells the whole story with no copy: the pile nobody wants to read, and the three she vouched for.</p>
+    <div class="grid2">
+      <figure>
+        <img src="assets/h4-stack.png" alt="A tall stack of plain applications beside three sealed ivory envelopes">
+        <figcaption><b>The desk.</b> Warm, human, real. The brass seal press sits in shot. Best all-round ad image.</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/h8-rising.png" alt="Three sealed cards standing in a sea of scattered paper">
+        <figcaption><b>Out of the pile.</b> The most dramatic — reads instantly at thumbnail size on a feed.</figcaption>
+      </figure>
+    </div>
+    <div class="grid3" style="margin-top:16px">
+      <figure>
+        <img src="assets/h5-press.png" alt="Macro of a brass seal press lifting from fresh wax">
+        <figcaption><b>The press.</b> The moment Ava decides.</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/h6-tray.png" alt="Three sealed cards on jade velvet">
+        <figcaption><b>The shortlist.</b> Presented like jewellery.</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/h7-night.png" alt="A shop back office at night with a lamp, a stack of paper and three sealed cards">
+        <figcaption><b>Overnight.</b> She works while the shop is shut.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Dropped into an ad</h2>
+    <p class="sub">Same photograph, headline in the empty half. This is the landing page hero and the Facebook ad, unchanged.</p>
+    <div class="ad">
+      <img src="assets/h11-ultrawide.png" alt="Wide shot: crumpled applications on the left, three sealed cards on the right">
+      <div class="ad-copy">
+        <h3>41 applied.<br>3 are worth<br>your Tuesday.</h3>
+        <p>Ava reads every one, interviews every one, and seals the ones you should meet.</p>
+      </div>
+    </div>
+    <div class="grid2" style="margin-top:16px">
+      <figure>
+        <img src="assets/h9-copyspace.png" alt="One sealed card with empty space to the left for copy">
+        <figcaption><b>Built with a hole in it.</b> The left half is empty on purpose — that's where the headline goes.</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/h10-vertical.png" alt="Vertical composition for phone-shaped ads">
+        <figcaption><b>Phone shape.</b> Same story, cut for Stories and Reels.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section>
+    <div class="note">
+      <h3>Why a seal, and not another mark</h3>
+      <p>
+        An orb is what every AI product on earth uses, which is exactly why it reads as generic —
+        it means nothing. A seal already means something to everyone before you explain it:
+        <b>somebody with authority looked at this and put their name on it.</b> That is literally
+        Ava's job.
+      </p>
+      <p>
+        It also gives you a <b>mechanic, not just a logo</b>. &ldquo;Ava sealed 3 of 41&rdquo; is a
+        real sentence in the product, a real number on the dashboard, and a real line in an ad.
+        The seal can press down on screen the moment she finishes a candidate. You can print it on
+        the window flyer. You can emboss it on a business card.
+      </p>
+      <p>
+        And it belongs to the ivory world you already picked — wax on paper. The dark jade against
+        warm ivory is the contrast that photographs, which is the thing you said you need before
+        you spend money on ads.
+      </p>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  (function(){
+    var r=document.documentElement,b=[].slice.call(document.querySelectorAll('.seg button'));
+    function a(m){if(m==='system')r.removeAttribute('data-theme');else r.setAttribute('data-theme',m);
+      b.forEach(function(x){x.setAttribute('aria-pressed',String(x.dataset.set===m));});
+      try{localStorage.setItem('hf-theme',m);}catch(e){}}
+    b.forEach(function(x){x.addEventListener('click',function(){a(x.dataset.set);});});
+    var s='system';try{s=localStorage.getItem('hf-theme')||'system';}catch(e){}a(s);
+  })();
+</script>
+</body>
+</html>
