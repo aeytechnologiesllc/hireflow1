@@ -176,13 +176,10 @@
      every receipt shown, 92 · SEALED, 11:59 pm — is simply what's on screen:
      the strongest single frame, held still. ── */
   .hero-rail{margin-top:26px}
-  .rail-panel{position:relative;padding:22px clamp(16px,3vw,28px) 18px;border-radius:18px;
-    background:color-mix(in srgb,var(--surface) 62%,transparent);
-    -webkit-backdrop-filter:blur(14px) saturate(1.15);backdrop-filter:blur(14px) saturate(1.15);
-    box-shadow:0 20px 46px -26px rgba(0,0,0,.6),inset 0 1px 0 rgba(244,239,227,.05)}
-  .rail-panel::before{content:"";position:absolute;top:0;left:22px;right:22px;height:1.5px;
-    background:linear-gradient(90deg,transparent,var(--brass-line) 16%,var(--brass-line) 84%,transparent);
-    opacity:.8}
+  /* No card. The rail floats directly on the night — gems, track, chip and
+     labels read as constellations over the ambient ground glow already
+     behind the whole hero, not a UI panel pasted on top of it. */
+  .rail-panel{position:relative}
 
   /* ── the gem spectrum — the exact spectrum sanctioned in cockpit.css
      (Night/.dark values, since the hero always renders over the night ground),
@@ -197,23 +194,30 @@
      the fallback values below are only what shows before JS measures, or if
      it never runs. ── */
   .rail-zone{position:relative;padding:6px 2px 2px;min-height:104px}
-  .rail-track,.rail-track-fill{position:absolute;left:0;right:0;top:calc(50% - 5px);height:10px;
+  /* a soft light-pool grounding the track in the night, not printed on it */
+  .rail-glow{position:absolute;left:-4%;right:-4%;top:50%;height:170px;transform:translateY(-50%);
+    background:radial-gradient(ellipse 60% 100% at 50% 50%,rgba(79,191,149,.15),transparent 72%);
+    filter:blur(38px);pointer-events:none;z-index:0}
+  .rail-track,.rail-track-fill{position:absolute;left:0;right:0;top:calc(50% - 6px);height:12px;
     border-radius:999px;transform-origin:left center}
-  .rail-track{background:color-mix(in srgb,var(--ink) 10%,transparent)}
+  .rail-track{background:color-mix(in srgb,var(--ink) 10%,transparent);animation:rail-draw .8s var(--ease) both}
+  @keyframes rail-draw{from{transform:scaleX(0)}to{transform:scaleX(1)}}
   .rail-track-fill{width:100%;transform:scaleX(1);
     background:linear-gradient(90deg,var(--gem-jade),var(--gem-mint),var(--gem-teal),var(--gem-gold));
     background-size:240% 100%;animation:rail-flow 8s linear infinite;
-    box-shadow:0 0 16px -3px color-mix(in srgb,var(--gem-mint) 55%,transparent);
+    box-shadow:0 0 16px -3px color-mix(in srgb,var(--gem-mint) 55%,transparent),
+      0 20px 28px -14px color-mix(in srgb,var(--gem-mint) 45%,transparent);
     transition:transform .9s var(--press)}
   @keyframes rail-flow{to{background-position:-240% 0}}
 
   .rail-nodes{position:relative;z-index:2;display:flex;justify-content:space-between;gap:4px}
-  .rail-node{position:relative;display:flex;flex-direction:column;align-items:center;width:80px;
+  .rail-node{position:relative;display:flex;flex-direction:column;align-items:center;width:clamp(80px,7.6vw,104px);
     flex:0 0 auto;text-align:center}
-  .rail-dot{position:relative;display:flex;align-items:center;justify-content:center;width:48px;height:48px;
+  .rail-dot{position:relative;display:flex;align-items:center;justify-content:center;
+    width:clamp(48px,4.4vw,60px);height:clamp(48px,4.4vw,60px);
     border-radius:50%;background:color-mix(in srgb,var(--ink) 6%,transparent);border:1.5px solid var(--line);
     color:var(--ink-3);transition:background-color .4s ease,border-color .4s ease,box-shadow .5s ease,color .4s ease}
-  .rail-glyph{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;
+  .rail-glyph{width:clamp(20px,1.9vw,26px);height:clamp(20px,1.9vw,26px);fill:none;stroke:currentColor;stroke-width:2;
     stroke-linecap:round;stroke-linejoin:round}
   .rail-node.is-popping .rail-dot{animation:rail-pop .5s var(--press) both}
   @keyframes rail-pop{0%{transform:scale(.5);opacity:0}58%{transform:scale(1.14);opacity:1}100%{transform:scale(1);opacity:1}}
@@ -229,7 +233,7 @@
     opacity:.45;animation:rail-halo 2.6s ease-in-out infinite;z-index:-1;pointer-events:none}
   @keyframes rail-halo{0%,100%{opacity:.26;transform:scale(.88)}50%{opacity:.58;transform:scale(1.16)}}
 
-  .rail-check{position:absolute;top:-3px;right:-3px;width:16px;height:16px;border-radius:50%;
+  .rail-check{position:absolute;top:-3px;right:-3px;width:clamp(16px,1.3vw,19px);height:clamp(16px,1.3vw,19px);border-radius:50%;
     background:#F4EFE3;color:#14100a;padding:3px;box-shadow:0 1px 2px rgba(0,0,0,.4);opacity:0;transform:scale(0)}
   .rail-node.is-cleared .rail-check{opacity:1;transform:scale(1);transition:opacity .2s ease .1s,transform .32s var(--press) .1s}
   .rail-check svg{width:100%;height:100%;display:block}
@@ -240,7 +244,7 @@
      `rowseal` keyframe, here as `rail-seal-press`). */
   .rail-node.is-decision .rail-dot{background:transparent;border-color:transparent;box-shadow:none}
   .rail-node.is-decision.is-current .rail-dot::after{background:radial-gradient(circle,var(--brass) 0%,transparent 70%)}
-  .rail-seal{width:28px;height:28px;display:block;filter:drop-shadow(0 1px 2px var(--seal-shadow));opacity:.55;
+  .rail-seal{width:clamp(26px,2.4vw,32px);height:clamp(26px,2.4vw,32px);display:block;filter:drop-shadow(0 1px 2px var(--seal-shadow));opacity:.55;
     transition:opacity .4s ease}
   .rail-node.is-cleared .rail-seal{opacity:1}
   .rail-node.is-sealing .rail-seal{animation:rail-seal-press .46s var(--press) both}
@@ -251,13 +255,13 @@
   .rail-node.is-sealing .rail-seal-rip{animation:rail-seal-rip .85s ease-out}
   @keyframes rail-seal-rip{0%{opacity:.85;transform:scale(.6)}30%{opacity:.4}100%{opacity:0;transform:scale(2.3)}}
 
-  .rail-label{margin-top:10px;font-size:11px;font-weight:600;letter-spacing:.01em;color:var(--ink-3);
-    line-height:1.25;transition:color .4s ease}
+  .rail-label{margin-top:11px;font-size:clamp(11px,1vw,13.5px);font-weight:700;letter-spacing:.05em;color:var(--ink-2);
+    line-height:1.3;transition:color .4s ease}
   .rail-node.is-cleared .rail-label,.rail-node.is-current .rail-label{color:var(--ink)}
-  .rail-time{display:block;margin-top:2px;font-size:10px;color:var(--ink-3);font-variant-numeric:tabular-nums;
+  .rail-time{display:block;margin-top:3px;font-size:clamp(10px,.9vw,12px);color:var(--brass);font-variant-numeric:tabular-nums;
     transition:opacity .3s ease}
 
-  .rail-receipt{margin-top:4px;min-height:14px;font-size:10.5px;font-weight:700;letter-spacing:.02em;
+  .rail-receipt{margin-top:5px;min-height:16px;font-size:clamp(10.5px,1vw,13px);font-weight:700;letter-spacing:.02em;
     color:var(--ink-3);opacity:0;transform:translateY(-3px);transition:opacity .35s ease,transform .35s ease;
     font-variant-numeric:tabular-nums}
   .rail-receipt.show{opacity:1;transform:translateY(0)}
@@ -267,14 +271,27 @@
   /* ── the traveler — Danielle's initials, riding the track's edge with a
      slight tilt while moving. Fixed ivory disc, deliberately not theme-tied,
      so it reads against any gem color it crosses. ── */
-  .rail-chip{position:absolute;right:-2px;top:calc(50% - 15px);z-index:3;width:38px;height:38px;
-    transition:transform .9s var(--press);pointer-events:none;will-change:transform}
+  .rail-chip{position:absolute;right:-2px;top:calc(50% - 19px);z-index:3;width:clamp(38px,4vw,48px);height:clamp(38px,4vw,48px);
+    transition:transform .9s var(--press),opacity .5s ease;pointer-events:none;will-change:transform;opacity:0}
   .rail-chip-body{transform-origin:50% 50%}
   .rail-chip-body.is-moving{animation:rail-chip-tilt .7s var(--press) both}
   @keyframes rail-chip-tilt{0%{transform:rotate(0)}28%{transform:rotate(-11deg)}68%{transform:rotate(3deg)}100%{transform:rotate(0)}}
-  .rail-chip-core{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;
-    background:#F4EFE3;color:#1B160F;font-size:11.5px;font-weight:800;letter-spacing:.01em;
+  .rail-chip-core{display:flex;align-items:center;justify-content:center;width:100%;height:100%;border-radius:50%;
+    background:#F4EFE3;color:#1B160F;font-size:clamp(11.5px,1.1vw,14px);font-weight:800;letter-spacing:.01em;
     box-shadow:0 8px 18px -6px rgba(0,0,0,.55),0 0 0 3px var(--ground)}
+
+  /* two motes riding with her — children of the chip, so they travel free */
+  .rail-firefly{position:absolute;width:3px;height:3px;border-radius:50%;pointer-events:none;
+    filter:blur(1px);background:var(--jade-bright);animation:firefly-drift 4.6s ease-in-out infinite}
+  .rail-firefly.f1{top:-15px;left:7px}
+  .rail-firefly.f2{background:var(--brass);width:2.5px;height:2.5px;top:32px;left:-11px;
+    animation-duration:5.8s;animation-delay:-2.3s}
+  @keyframes firefly-drift{
+    0%,100%{transform:translate(0,0);opacity:.3}
+    30%{transform:translate(6px,-9px);opacity:.75}
+    60%{transform:translate(-6px,4px);opacity:.4}
+    85%{transform:translate(4px,8px);opacity:.65}
+  }
 
   /* the voice interview's tiny murmur — a few bars beside the gem while she's
      on it, echoing the app's own waveform (Applicants.tsx interview view) */
@@ -288,41 +305,34 @@
   .rail-murmur i:nth-child(5){animation-delay:-.5s}
   @keyframes rail-murmur-bar{0%,100%{transform:scaleY(.5)}50%{transform:scaleY(2.4)}}
 
-  .rail-mobile-status{display:none;margin:14px 2px 0;font-size:12.5px;font-weight:600;color:var(--ink-2)}
+  /* ── the narration — one Fraunces italic line above the track, the
+     hero's own voice naming what's happening as she travels it. Crossfades
+     (300ms) between beats; holds the closing line while sealed. This is
+     the whole "status" — mobile and desktop share it, no separate line. ── */
+  .rail-narration{margin:0 2px 14px;text-align:center;font-family:Fraunces,Georgia,serif;font-style:italic;
+    font-size:14.5px;font-weight:500;color:var(--ink-2);min-height:1.3em;opacity:1;
+    transition:opacity .3s ease;letter-spacing:.005em}
+  .rail-narration.fade-out{opacity:0}
 
-  /* ── the pills + replay — quiet, tactile, from the mockup ── */
-  .rail-controls{margin-top:18px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
-  .rail-pills{display:flex;gap:5px;background:var(--surface-2);padding:4px;border-radius:999px}
-  .rail-pill{padding:8px 14px;border-radius:999px;font-size:12px;font-weight:600;color:var(--ink-3);
-    white-space:nowrap;transition:color .3s ease,background-color .3s ease,transform .12s ease}
-  .rail-pill:active{transform:scale(.97)}
-  .rail-pill.active{background:color-mix(in srgb,var(--ink) 9%,var(--surface-2));color:var(--ink);box-shadow:var(--shadow-sm)}
-  .rail-replay{display:flex;align-items:center;gap:7px;padding:8px 14px;border-radius:999px;font-size:12px;
-    font-weight:600;color:var(--ink-2);background:var(--surface-2);
-    transition:color .25s ease,transform .12s ease,background-color .25s ease}
-  .rail-replay:hover{color:var(--ink)}
-  .rail-replay:active{transform:scale(.97)}
-  .rail-replay-glyph{display:inline-block;font-size:13px;transition:transform .5s var(--press)}
-  .rail-replay.spinning .rail-replay-glyph{transform:rotate(-330deg)}
+  .rail-caption{margin:22px 4px 0;text-align:center;font-family:Fraunces,Georgia,serif;font-style:italic;
+    font-size:clamp(14px,1.1vw,16px);color:var(--ink)}
 
-  .rail-caption{margin:16px 4px 0;text-align:center;font-family:Fraunces,Georgia,serif;font-style:italic;
-    font-size:14px;color:var(--ink)}
-
-  /* the loop boundary: .leaving fades the whole rail out (600ms), then the JS
-     resets state underneath while still invisible (.notransition kills every
-     transition for that one instant), so the next loop's entrance is the
-     only thing anyone ever sees move */
-  .rail-panel.leaving .rail-zone{opacity:0;transition:opacity .6s ease}
+  /* the loop boundary: .leaving dims the gems/track/narration for a beat
+     (never to a full blackout — the rail keeps breathing, doesn't vanish),
+     then the JS resets state underneath while dimmed (.notransition kills
+     every transition for that one instant), so the next loop's entrance is
+     the only thing anyone ever sees move */
+  .rail-panel.leaving .rail-zone,.rail-panel.leaving .rail-narration{opacity:.18;transition:opacity .6s ease}
   .rail-panel.notransition,.rail-panel.notransition *{transition:none!important}
 
   @media(min-width:1024px){
     .hero-in{display:flex;flex-direction:column;max-width:1240px}
-    .hero-rail{width:88%;max-width:1000px;margin-inline:auto;margin-top:0;flex:1;
-      display:flex;flex-direction:column;justify-content:center;min-height:300px}
+    .hero-rail{width:100%;margin-top:clamp(30px,5vh,54px)}
     .rail-panel{width:100%}
+    .rail-narration{text-align:right;font-size:clamp(20px,1.7vw,26px);font-weight:400;
+      color:var(--ink);margin:0 6px 24px;letter-spacing:0}
   }
   @media(min-width:1280px){.hero-in{max-width:1300px}}
-  @media(min-width:1440px){.hero-rail{width:86%}}
 
   /* ── the rail, compact: below the desktop layout, gems shrink and every
      per-node label/receipt/timestamp hides in favor of one status line under
@@ -336,11 +346,9 @@
     .rail-node{width:auto;flex:1 1 0;min-width:0}
     .rail-nodes{gap:0}
     .rail-label,.rail-receipt{display:none}
-    .rail-chip,.rail-chip-core{width:27px;height:27px}
-    .rail-chip{top:calc(50% - 12.5px)}
+    .rail-chip{width:27px;height:27px;top:calc(50% - 12.5px)}
     .rail-chip-core{font-size:9px}
-    .rail-mobile-status{display:block}
-    .rail-controls{margin-top:14px}
+    .rail-firefly{display:none}
   }
   .sub-mob{display:none}
   .watch-link{display:none}
@@ -618,7 +626,6 @@
     .hero{min-height:calc(100svh - 62px);align-items:stretch;padding:clamp(26px,7vw,40px) 0 16px}
     .hero-in{max-width:none}
     .hero-rail{margin-top:18px}
-    .rail-panel{padding:18px 14px 14px}
     .rail-zone{min-height:74px}
     .sub-desk{display:none}
     .sub-mob{display:block;font-size:18px;line-height:1.55;margin-top:14px}
@@ -655,6 +662,8 @@
        still — and the flowing gradient / breathing halo hold too */
     .rail-track-fill{animation:none!important;background-size:100% 100%!important}
     .rail-node.is-current .rail-dot::after{animation:none!important}
+    .rail-track{animation:none!important} /* JS sets the chip's resting opacity directly for RM */
+    .rail-firefly{animation:none!important;opacity:.35!important}
     /* the story never pins or scrubs — scenes stack, finished */
     .story.scrub{height:auto}
     .story.scrub .story-pin{position:static;height:auto;padding:clamp(40px,6vw,72px) 0 clamp(24px,4vw,48px);overflow:visible}
@@ -751,15 +760,21 @@
         <p class="scroll-cue hi" style="--d:.6s" aria-hidden="true">scroll — she&#8217;s working &darr;</p>
       </div>
       <!-- the Gemline Journey Rail: the product's own applicant-journey track,
-           as the hero visual — Danielle's real six phases, self-playing once
-           per loop (search "GEMLINE RAIL" in the script below). Rises away on
+           AS the hero's own visual — floating directly on the night, no card
+           behind it. Danielle's real six phases, self-playing once per loop
+           (search "GEMLINE RAIL" in the script below), forever, ambient —
+           nothing to click. One narrating line crosses above the track,
+           reading her progress in the hero's own voice. Rises away on
            scroll to hand off to scene 1, same as the card it replaced.
            Reduced motion (or no JS): the loop never starts, so this markup's
            own resting values are the whole picture — every gem sealed, every
-           receipt shown, 92 · SEALED at 11:59 pm — held still. -->
+           receipt shown, 92 · SEALED at 11:59 pm, the closing narration line
+           — held still. -->
       <div class="hero-rail" id="theater">
         <div class="rail-panel">
+          <p class="rail-narration" id="rail-narration" aria-hidden="true">11:59&#8202;pm &mdash; sealed: 92.</p>
           <div class="rail-zone" id="rail-zone" aria-hidden="true">
+            <div class="rail-glow"></div>
             <div class="rail-track"></div>
             <div class="rail-track-fill" id="rail-fill"></div>
             <div class="rail-nodes" id="rail-nodes">
@@ -807,18 +822,11 @@
                 <span class="rail-receipt show is-sealed" id="rail-receipt-5">92 &middot; SEALED</span>
               </div>
             </div>
-            <div class="rail-chip" id="rail-chip"><div class="rail-chip-body" id="rail-chip-body"><span class="rail-chip-core">DO</span></div></div>
-          </div>
-
-          <p class="rail-mobile-status" id="rail-mobile-status" aria-hidden="true">Decision &middot; 92 &middot; SEALED &middot; 11:59&#8202;pm</p>
-
-          <div class="rail-controls">
-            <div class="rail-pills" role="group" aria-label="Jump to a stage of Danielle&#8217;s journey" id="rail-pills">
-              <button class="rail-pill" type="button" data-stage="applied">Just applied</button>
-              <button class="rail-pill" type="button" data-stage="mid">Mid-journey</button>
-              <button class="rail-pill active" type="button" data-stage="sealed">Sealed</button>
+            <div class="rail-chip" id="rail-chip">
+              <div class="rail-chip-body" id="rail-chip-body"><span class="rail-chip-core">DO</span></div>
+              <span class="rail-firefly f1"></span>
+              <span class="rail-firefly f2"></span>
             </div>
-            <button class="rail-replay" type="button" id="rail-replay">Replay <span class="rail-replay-glyph" aria-hidden="true">&#8635;</span></button>
           </div>
         </div>
         <p class="rail-caption">Every applicant rides the same track. You just make the final call.</p>
@@ -1329,16 +1337,16 @@
   /* ── GEMLINE RAIL: the applicant's own journey track, played once per loop
      — a single central rAF timeline (absolute clock, so beats can't drift)
      that lights each gem, pops its receipt, presses the seal, holds, then
-     resets clean and replays. CSS owns the motion; JS toggles classes,
-     writes receipt/status text, and positions the track fill + traveler
-     chip off measured gem centers — the same technique the cockpit's own
-     JourneyStrip uses (search "ck-rail" in cockpit.css / Applicants.tsx).
-     Three pills jump straight to a stage — "exactly like the mockup" — and
-     always work, even under reduced motion (instantly, no travel); only the
-     ambient loop and the travel animation itself are gated on motion
-     preference. Reduced motion: the loop never starts, so the markup's own
-     resting values — every gem sealed, 92 · SEALED at 11:59 pm — are simply
-     what's on screen, held still. ── */
+     resets clean and replays, forever. CSS owns the motion; JS toggles
+     classes, writes receipt/narration text, and positions the track fill +
+     traveler chip off measured gem centers — the same technique the
+     cockpit's own JourneyStrip uses (search "ck-rail" in cockpit.css /
+     Applicants.tsx). Purely ambient — a single ivory line of narration
+     above the track is the whole "interface"; there is no pill row or
+     replay control to operate. Reduced motion: the loop never starts, so
+     the markup's own resting values — every gem sealed, 92 · SEALED at
+     11:59 pm, the closing narration line — are simply what's on screen,
+     held still. ── */
   (function(){
     var railRoot=d.getElementById("theater"),zone=d.getElementById("rail-zone");
     if(!railRoot||!zone)return;
@@ -1350,22 +1358,40 @@
     var chipEl=d.getElementById("rail-chip"),chipBody=d.getElementById("rail-chip-body");
     var murmur=d.getElementById("rail-murmur");
     var timeDecision=d.getElementById("rail-time-decision");
-    var mobileStatus=d.getElementById("rail-mobile-status");
-    var pillsWrap=d.getElementById("rail-pills");
-    var pills=pillsWrap?[].slice.call(pillsWrap.querySelectorAll(".rail-pill")):[];
-    var replayBtn=d.getElementById("rail-replay");
+    var narrEl=d.getElementById("rail-narration");
     if(!panel||!trackEl||!fillEl||!chipEl||nodeEls.length!==6)return;
 
     var RECEIPTS=[null,"84%","72 wpm","done","8 min","92 · SEALED"];
-    var LABELS=["Applied","Quiz","Typing test","Chat sim","Voice interview","Decision"];
-    var STAGE_CLEARED={applied:0,mid:3,sealed:5};
     /* ms from loop start — she arrives at each gem in turn; the last hop
        lingers a little longer so the voice gem's murmur has room to breathe
        before she moves on to be sealed */
     var ARR=[800,2000,3200,4400,5600,7700];
     var MURMUR=[5600,7600],SEAL_POP=8200,HOLD_END=11500,LOOP_MS=12100;
 
-    var points=[],chipIndex=0,userInteracted=false,replayGen=0;
+    /* the narration beats — the hero's own voice, naming what's happening
+       as she crosses each gem; "the screening runs itself" covers the three
+       quiet mid-journey gems as one beat, and the Decision line only lands
+       once she's actually sealed (see arrive()/render() below) */
+    var NARR=["11:47 pm — she applies.","the screening runs itself.",
+      "11:51 — a real conversation.","11:59 — sealed: 92."];
+    function narrFor(i){
+      if(i<=0)return NARR[0];
+      if(i<=3)return NARR[1];
+      return NARR[2]; /* i===4, voice */
+    }
+    var narrTimer=null;
+    function setNarration(text,instant){
+      if(!narrEl||narrEl.getAttribute("data-cur")===text)return;
+      narrEl.setAttribute("data-cur",text);
+      if(narrTimer){clearTimeout(narrTimer);narrTimer=null;}
+      if(instant||RM){narrEl.textContent=text;narrEl.classList.remove("fade-out");return;}
+      narrEl.classList.add("fade-out");
+      narrTimer=window.setTimeout(function(){
+        narrEl.textContent=text;narrEl.classList.remove("fade-out");narrTimer=null;
+      },300);
+    }
+
+    var points=[],chipIndex=0;
 
     function measure(){
       var zr=zone.getBoundingClientRect();
@@ -1377,7 +1403,7 @@
         var y=points[0].y,x0=points[0].x,x1=points[points.length-1].x;
         [trackEl,fillEl].forEach(function(el){
           el.style.right="auto";el.style.left=x0+"px";el.style.top=y+"px";
-          el.style.width=Math.max(0,x1-x0)+"px";el.style.marginTop="-5px";
+          el.style.width=Math.max(0,x1-x0)+"px";el.style.marginTop="-6px";
         });
       }
     }
@@ -1406,16 +1432,9 @@
       if(show&&RECEIPTS[i]){el.textContent=RECEIPTS[i];el.classList.add("show");}
       else if(!show)el.classList.remove("show");
     }
-    function mobileText(i,withReceipt){
-      if(i===0)return"Applied · 11:47 pm";
-      if(i===4)return withReceipt?"Voice interview · 8 min":"Voice interview · 11:51 pm";
-      if(i===5)return withReceipt?"Decision · 92 · SEALED · 11:59 pm":"Decision";
-      return(withReceipt&&RECEIPTS[i])?LABELS[i]+" · "+RECEIPTS[i]:LABELS[i];
-    }
-    function syncMobile(i,withReceipt){if(mobileStatus)mobileStatus.textContent=i<0?"":mobileText(i,withReceipt);}
-    function setActivePill(key){pills.forEach(function(b){b.classList.toggle("active",b.getAttribute("data-stage")===key);});}
 
-    /* ── the ambient/replay timeline: one hop at a time, arrival-triggered ── */
+    /* ── the ambient timeline: one hop at a time, arrival-triggered, loops
+       forever — no pills, no replay button, nothing to click ── */
     var firedIndex=-1,sealed=false,leaving=false;
     function arrive(newIndex){
       if(newIndex>0){
@@ -1424,14 +1443,15 @@
         nodeEls[prev].classList.add("is-cleared","is-popping");
         setReceipt(prev,true);
         (function(pv){window.setTimeout(function(){nodeEls[pv].classList.remove("is-popping");},520);})(prev);
+      }else{
+        chipEl.style.opacity="1"; /* she fades in as she sets off — no popping */
       }
       nodeEls[newIndex].classList.add("is-current");
-      if(newIndex===3)setActivePill("mid"); /* the pills track her progress during the ambient/replay run too */
       if(newIndex===5)nodeEls[5].classList.add("is-sealing"); /* the seal press + ripple both key off this */
       placeChip(newIndex,false);
       paintFill(newIndex,false);
       chipBody.classList.remove("is-moving");chipBody.offsetWidth;chipBody.classList.add("is-moving");
-      syncMobile(newIndex,false);
+      if(newIndex!==5)setNarration(narrFor(newIndex)); /* the Decision line waits for the actual seal below */
     }
     function render(ts){
       var idx=-1; /* -1: hasn't arrived anywhere yet — holds the blank opening
@@ -1448,8 +1468,10 @@
         nodeEls[5].classList.add("is-cleared");
         setReceipt(5,true);
         timeDecision.style.opacity="1";
-        syncMobile(5,true);
-        setActivePill("sealed");
+        setNarration(NARR[3]);
+        /* she steps back once the seal presses home — the wax seal is the
+           payoff, not her chip parked on top of it for the whole hold */
+        window.setTimeout(function(){chipEl.style.opacity="0";},450);
       }
       if(ts>=HOLD_END&&!leaving){leaving=true;panel.classList.add("leaving");}
     }
@@ -1462,73 +1484,21 @@
       murmur.classList.remove("show");
       timeDecision.style.opacity="0";
       placeChip(0,true);paintFill(0,true);
+      chipEl.style.opacity="0"; /* invisible through the blank opening beat — arrive(0) fades her in */
       panel.classList.remove("leaving");
       panel.offsetHeight; /* force the reflow — commits the reset with no transition */
       panel.classList.remove("notransition");
       firedIndex=-1;sealed=false;leaving=false;
-      syncMobile(-1,false);
-      setActivePill("applied");
+      setNarration("",true);
     }
-
-    /* ── pill jump: instant snap to a checkpoint (target both cleared AND
-       current, exactly like the mockup) — animated on click, instant under
-       reduced motion. Always wired; this is real interactive UI, never
-       gated behind the motion preference. ── */
-    function jumpToStage(key,animate){
-      userInteracted=true;replayGen++;
-      panel.classList.remove("leaving"); /* a click mid-fade (the ambient loop's
-        reset beat) must cancel that fade — otherwise the rail stays invisible */
-      setActivePill(key);
-      var target=STAGE_CLEARED[key];
-      for(var i=0;i<6;i++){
-        var cleared=i<=target;
-        nodeEls[i].classList.toggle("is-cleared",cleared);
-        nodeEls[i].classList.toggle("is-current",i===target);
-        nodeEls[i].classList.remove("is-sealing");
-        setReceipt(i,cleared);
-      }
-      murmur.classList.remove("show");
-      if(target===5){
-        timeDecision.style.opacity="1";
-        if(animate)nodeEls[5].classList.add("is-sealing");
-      }else timeDecision.style.opacity="0";
-      placeChip(target,!animate);
-      paintFill(target,!animate);
-      if(animate){chipBody.classList.remove("is-moving");chipBody.offsetWidth;chipBody.classList.add("is-moving");}
-      syncMobile(target,target===5);
-    }
-    function runReplay(){
-      userInteracted=true;var myGen=++replayGen;
-      resetInstant();
-      var rt0=null;
-      function rtick(now){
-        if(myGen!==replayGen)return; /* superseded by a pill click or another replay */
-        if(rt0===null)rt0=now;
-        var ts=now-rt0;
-        if(ts>=HOLD_END){render(HOLD_END-1);return;} /* land on the held, sealed frame and stop */
-        render(ts);
-        requestAnimationFrame(rtick);
-      }
-      requestAnimationFrame(rtick);
-    }
-
-    pills.forEach(function(btn){
-      btn.addEventListener("click",function(){jumpToStage(btn.getAttribute("data-stage"),!RM);});
-    });
-    if(replayBtn)replayBtn.addEventListener("click",function(){
-      if(RM){jumpToStage("sealed",false);return;}
-      replayBtn.classList.remove("spinning");replayBtn.offsetWidth;replayBtn.classList.add("spinning");
-      runReplay();
-    });
 
     measure();
     if(RM){
-      placeChip(5,true);paintFill(5,true);syncMobile(5,true);
+      placeChip(5,true);paintFill(5,true);setNarration(NARR[3],true);chipEl.style.opacity="0";
     }else{
       resetInstant();
       var t0=null,lastTs=-1;
       var tick=function(now){
-        if(userInteracted)return; /* a pill/replay click stops the ambient loop for good */
         if(t0===null)t0=now;
         var ts=(now-t0)%LOOP_MS;
         if(ts<lastTs)resetInstant(); /* wrapped */
