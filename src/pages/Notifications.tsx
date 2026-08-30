@@ -183,7 +183,7 @@ export default function Notifications() {
               <Bell className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
               <h3 className="text-xl font-semibold text-foreground mb-2">No notifications</h3>
               <p className="text-muted-foreground max-w-md mx-auto">
-                When you receive new messages, application updates, or interview invitations, they'll appear here.
+                Application updates and interview invitations will appear here. Messages live in their own tab.
               </p>
             </CardContent>
           </Card>

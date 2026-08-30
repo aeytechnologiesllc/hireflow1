@@ -316,6 +316,8 @@ function shortName(full: string) {
   return `${parts[0]} ${parts[parts.length - 1][0]}.`;
 }
 
+const SHOW_CLOSED_KEY = "hf-jobs-show-closed";
+
 export default function CockpitJobs() {
   const navigate = useNavigate();
   const { jobs, rawJobs, applications, isLoading } = useCockpitJobsData();
@@ -325,6 +327,27 @@ export default function CockpitJobs() {
   const [place, setPlace] = useState("all");
   const [sort, setSort] = useState<SortKey>("recent");
   const [kitJob, setKitJob] = useState<JobRow | null>(null);
+  // Closed roles are done — they stay out of the way by default. Whoever wants
+  // them back can ask, and we remember the ask.
+  const [showClosed, setShowClosed] = useState(() => {
+    try {
+      return localStorage.getItem(SHOW_CLOSED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleShowClosed = useCallback(() => {
+    setShowClosed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(SHOW_CLOSED_KEY, next ? "1" : "0");
+      } catch {
+        // localStorage unavailable — the toggle still works for this visit.
+      }
+      return next;
+    });
+  }, []);
 
   const startRole = useCallback(() => {
     clearDraft();
@@ -430,19 +453,43 @@ export default function CockpitJobs() {
     return [...set].sort();
   }, [jobs]);
 
-  const visible = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const rows = jobs.filter((j) => {
-      if (status !== "all" && j.status !== status) return false;
+  const matchesSearch = useCallback(
+    (j: JobRow) => {
+      const q = query.trim().toLowerCase();
       if (place !== "all" && j.location !== place) return false;
       if (!q) return true;
       return `${j.title} ${j.location} ${j.pay} ${j.roleCode ?? ""}`.toLowerCase().includes(q);
-    });
-    // "Newest" is the order the hooks already return, so it needs no sort.
-    if (sort === "applicants") return [...rows].sort((a, b) => b.applicants - a.applicants);
-    if (sort === "title") return [...rows].sort((a, b) => a.title.localeCompare(b.title));
-    return rows;
-  }, [jobs, query, status, place, sort]);
+    },
+    [query, place],
+  );
+
+  // "Newest" is the order the hooks already return, so it needs no sort.
+  const sortRows = useCallback(
+    (rows: JobRow[]) => {
+      if (sort === "applicants") return [...rows].sort((a, b) => b.applicants - a.applicants);
+      if (sort === "title") return [...rows].sort((a, b) => a.title.localeCompare(b.title));
+      return rows;
+    },
+    [sort],
+  );
+
+  // Closed roles are done, so the default view leaves them out. Explicitly
+  // choosing the "Closed" pill still shows them; otherwise the quiet toggle
+  // below the list appends them in their own muted section.
+  const visible = useMemo(() => {
+    const filtered = jobs.filter((j) => (status === "all" || j.status === status) && matchesSearch(j));
+    if (status === "closed") return { active: sortRows(filtered), closed: [] as JobRow[] };
+    const active = filtered.filter((j) => j.status !== "closed");
+    const closed = showClosed ? filtered.filter((j) => j.status === "closed") : [];
+    return { active: sortRows(active), closed: sortRows(closed) };
+  }, [jobs, status, matchesSearch, sortRows, showClosed]);
+
+  // How many closed roles the current search/location filters hide, so the
+  // toggle's count is honest even when it's collapsed.
+  const hiddenClosedCount = useMemo(
+    () => (status === "all" ? jobs.filter((j) => j.status === "closed" && matchesSearch(j)).length : 0),
+    [jobs, status, matchesSearch],
+  );
 
   const filtering = query.trim() !== "" || status !== "all" || place !== "all";
 
@@ -565,10 +612,10 @@ export default function CockpitJobs() {
           )}
 
           {/* ── The roles ────────────────────────────────────── */}
-          {visible.length === 0 ? (
+          {visible.active.length === 0 && visible.closed.length === 0 ? (
             <div className="ck-card-flat px-4 py-8 text-center">
               <p className="text-[13.5px]" style={{ color: "var(--ink-2)" }}>
-                No roles match that.
+                {hiddenClosedCount > 0 ? "No open roles match that." : "No roles match that."}
               </p>
               <button
                 type="button"
@@ -584,7 +631,7 @@ export default function CockpitJobs() {
             </div>
           ) : (
             <div className="flex flex-col gap-2">
-              {visible.map((job, i) => (
+              {visible.active.map((job, i) => (
                 <JobListRow
                   key={job.id}
                   job={job}
@@ -595,6 +642,35 @@ export default function CockpitJobs() {
                   onBoost={() => setKitJob(job)}
                 />
               ))}
+            </div>
+          )}
+
+          {/* ── Closed roles, tucked away by default ─────────── */}
+          {status === "all" && hiddenClosedCount > 0 && (
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={toggleShowClosed}
+                className="self-start text-[12px] font-semibold uppercase tracking-[0.06em] transition-opacity hover:opacity-75"
+                style={{ color: "var(--ink-3)" }}
+              >
+                {showClosed ? "Hide closed" : `Show closed (${hiddenClosedCount})`}
+              </button>
+              {showClosed && visible.closed.length > 0 && (
+                <div className="flex flex-col gap-2" style={{ opacity: 0.6 }}>
+                  {visible.closed.map((job, i) => (
+                    <JobListRow
+                      key={job.id}
+                      job={job}
+                      index={i}
+                      extras={extras.get(job.id) ?? { when: `${job.dateLabel} ${job.date}`, hiredName: null }}
+                      onOpen={() => navigate(`/applicants?roleId=${job.id}`)}
+                      onEdit={() => navigate(`/jobs/edit/${job.id}`)}
+                      onBoost={() => setKitJob(job)}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

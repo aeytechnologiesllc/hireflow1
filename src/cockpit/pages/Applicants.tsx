@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import {
   AlertCircle,
+  Check,
   ChevronLeft,
   ChevronRight,
   Play,
@@ -31,6 +32,13 @@ import {
 import { getInitials, parseApplicationNotes } from "../lib/mappers";
 import { candidateApplyUrl } from "@/lib/showcaseApply";
 import { clearDraft } from "@/lib/avaEngine/draft";
+import {
+  buildCandidateJourney,
+  positionFor,
+  DECISION_STAGE_ID,
+  type WorkflowStepLike,
+  type CandidateJourneyStep,
+} from "@/lib/candidateJourney";
 import type { Candidate, CandidateStage } from "../data";
 
 /**
@@ -64,12 +72,19 @@ type Bucket = "sealed" | "reading" | "passed";
 interface AppRecord {
   id: string;
   status?: string;
+  /** Real step id (or a pre-journey literal) once the candidate is mid-workflow —
+   *  the most specific signal `positionFor` reads to place them on the strip. */
+  phase?: string | null;
   created_at?: string;
   updated_at?: string;
   notes?: string | null;
   resume_url?: string | null;
   voice_interview_recording_url?: string | null;
   voice_interview_transcript?: unknown;
+  /** The job this application belongs to — already joined by `useEmployerApplications`
+   *  (`jobs!inner(*)`), so `workflow_steps`/`quiz_questions` ride along for free.
+   *  Absent in showcase mode, where the journey strip degrades to Application → Decision. */
+  jobs?: { workflow_steps?: unknown; quiz_questions?: unknown } | null;
 }
 
 interface TranscriptTurn {
@@ -528,6 +543,147 @@ function Timeline({ candidate, app }: { candidate: Candidate; app?: AppRecord })
           {step}
         </span>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Which phase she's on, and what's left — the job's real steps plus the
+ * closing "Decision" stage, built the same way the candidate side builds
+ * them (`buildCandidateJourney` off `jobs.workflow_steps`, positioned with
+ * `positionFor`), so the two sides never disagree about where someone stands.
+ *
+ * Sits above Ava's letterhead on purpose: this is context, not a verdict —
+ * one row of nodes, one line summarizing them. The score still does the
+ * talking below it.
+ */
+function JourneyStrip({ candidate, app }: { candidate: Candidate; app?: AppRecord }) {
+  const workflowSteps = app?.jobs?.workflow_steps as WorkflowStepLike[] | undefined;
+  const quizQuestions = app?.jobs?.quiz_questions as unknown[] | undefined;
+  // The job's own config decides whether there's a quiz stage at all — not
+  // whether this particular candidate happened to take one.
+  const hasQuiz = (Array.isArray(quizQuestions) && quizQuestions.length > 0) || candidate.quiz != null;
+
+  const steps = buildCandidateJourney(workflowSteps, { hasQuiz });
+  const position = positionFor(steps, { phase: app?.phase, status: app?.status });
+  const decided = candidate.stage === "Hired" || candidate.stage === "Rejected";
+  const outcome = candidate.stage === "Hired" ? "Hired" : candidate.stage === "Rejected" ? "Passed" : null;
+  // What the buttons in the action row above actually do right now — the
+  // Decision node's tooltip names it, so the strip and the buttons agree.
+  const advanceLabel = advanceTargetLabel(app?.status);
+
+  const turns = transcriptOf(app);
+  const minutes = interviewMinutes(turns);
+  const quiz = quizResultOf(app);
+
+  const nodeState = (i: number): "completed" | "current" | "upcoming" => {
+    if (steps[i].id === DECISION_STAGE_ID && decided) return "completed";
+    if (i < position.index) return "completed";
+    if (i === position.index) return "current";
+    return "upcoming";
+  };
+
+  // The result behind a step, when the record has one — quiz score, interview
+  // length, the outcome of the decision. Only ever what's actually on file.
+  const resultFor = (step: CandidateJourneyStep, state: "completed" | "current" | "upcoming"): string | null => {
+    if (step.id === DECISION_STAGE_ID) {
+      if (outcome) return outcome;
+      if (state !== "current") return null;
+      if (app?.status === "offered") return "Hire, or take back the offer";
+      return advanceLabel ? `Pass, or move to ${advanceLabel}` : "Pass, or move forward";
+    }
+    if (state === "upcoming") return null;
+    if (step.type === "quiz") {
+      if (quiz) return `${quiz.correct}/${quiz.total}${quiz.passed === true ? " · passed" : quiz.passed === false ? " · did not pass" : ""}`;
+      if (candidate.quiz != null) return `${candidate.quiz}%`;
+      return "Completed";
+    }
+    if (step.type === "voice_interview") return minutes != null ? `${minutes} min · transcript ready` : "Completed";
+    return state === "completed" ? "Completed" : null;
+  };
+
+  const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
+  const phrase = (step: CandidateJourneyStep) => (step.id === DECISION_STAGE_ID ? "your decision" : `the ${lower(step.title)}`);
+  const summary =
+    decided && outcome
+      ? `Completed every phase · decision: ${outcome}`
+      : (() => {
+          // At index 0 they're sitting on the Application stage itself — the
+          // very existence of this application record means they already did
+          // it, so "next" means the stage after it, not the application again.
+          const atStart = position.index === 0;
+          const prev = atStart ? null : steps[position.index - 1];
+          const next = atStart ? steps[1] : position.current;
+          return prev
+            ? `Completed the ${lower(prev.title)} · next: ${phrase(next)}`
+            : next
+              ? `Just applied · next: ${phrase(next)}`
+              : "Just applied";
+        })();
+
+  return (
+    <div className="mb-3.5">
+      <div className="flex items-center" role="list" aria-label="Where they are in the job's process">
+        {steps.map((step, i) => {
+          const state = nodeState(i);
+          const isDecision = step.id === DECISION_STAGE_ID;
+          const rejected = isDecision && candidate.stage === "Rejected";
+          const result = resultFor(step, state);
+          const tag = state === "current" ? (isDecision ? "She's here — your call" : "She's here") : null;
+          const tip = [step.title, tag, result].filter(Boolean).join(" · ");
+
+          return (
+            <div
+              key={step.id}
+              role="listitem"
+              tabIndex={0}
+              aria-label={tip}
+              className={`group relative flex items-center outline-none ${i < steps.length - 1 ? "flex-1" : ""}`}
+            >
+              <div className="relative flex shrink-0 flex-col items-center">
+                <span
+                  aria-hidden
+                  className={[
+                    "flex h-5 w-5 items-center justify-center rounded-full border transition-transform duration-150 group-hover:scale-110",
+                    state === "current" ? "ck-node-pulse" : "",
+                  ].join(" ")}
+                  style={
+                    state === "completed"
+                      ? { background: rejected ? "var(--crit)" : "var(--jade)", borderColor: rejected ? "var(--crit)" : "var(--jade)" }
+                      : state === "current"
+                        ? { background: "var(--surface)", borderColor: "var(--jade)", boxShadow: "0 0 0 3px var(--jade-soft)" }
+                        : { background: "var(--surface-2)", borderColor: "var(--line)" }
+                  }
+                >
+                  {state === "completed" && <Check className="h-3 w-3" strokeWidth={3} style={{ color: "var(--surface)" }} />}
+                  {state === "current" && <span className="h-[7px] w-[7px] rounded-full" style={{ background: "var(--jade)" }} />}
+                </span>
+
+                {/* hover / keyboard-focus tooltip — names the phase and, once there's
+                    one, its result (quiz score, interview done, the decision itself) */}
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute bottom-[calc(100%+7px)] left-1/2 z-10 w-max max-w-[190px] -translate-x-1/2 rounded-[7px] px-2.5 py-[7px] text-center text-[11px] leading-[1.4] opacity-0 shadow-[var(--hf-shadow-raised)] transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100"
+                  style={{ background: "var(--ink)", color: "var(--ground)" }}
+                >
+                  {tip}
+                </span>
+              </div>
+
+              {i < steps.length - 1 && (
+                <span
+                  aria-hidden
+                  className="mx-1 h-[2px] flex-1 rounded-full"
+                  style={{ background: i < position.index ? "var(--jade)" : "var(--line)" }}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-[7px] text-[11px]" style={{ color: "var(--ink-3)" }}>
+        {summary}
+      </p>
     </div>
   );
 }
@@ -1115,6 +1271,7 @@ export default function CockpitApplicants() {
                 </div>
               )}
 
+              <JourneyStrip candidate={selected} app={appById[selected.id]} />
               <AvasRead key={selected.id} candidate={selected} app={appById[selected.id]} />
               <Timeline candidate={selected} app={appById[selected.id]} />
 

@@ -51,6 +51,9 @@ const CANDIDATE_ALLOWED_PATH_PREFIXES = [
   "/apply",
   "/job",
   "/applications",
+  // /messages renders the same shared page for both roles — the candidate's
+  // sidebar links here and their unread badge depends on it being reachable.
+  "/messages",
   "/notifications",
   "/settings",
   "/profile",
