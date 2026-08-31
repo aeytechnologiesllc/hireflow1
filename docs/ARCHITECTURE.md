@@ -11,7 +11,27 @@ The `_repo` app serves two Supabase shapes from one codebase:
 
 Detection: `detectSchemaMode()` in `src/cockpit/data/showcaseSource.ts` — cached per session.
 
-**Canonical for project `yqklrkpptnhubsnijqze`:** showcase (`roles` / `candidates` / `applications`). The `jobs` table is absent on this project.
+> ⚠️ **This line was wrong until 2026-08-31 and it is load-bearing — verify before
+> changing it.** It previously claimed showcase (`roles` / `candidates`) was
+> canonical and that `jobs` was absent. The opposite is true, and an agent that
+> believed it would build against tables that do not exist.
+
+**Canonical for project `yqklrkpptnhubsnijqze`:** **hireflow1** (`jobs` /
+`applications` / `profiles` / `user_roles`). Verified against the live database on
+2026-08-31: `public.jobs` and `public.applications` exist; **`public.roles` and
+`public.candidates` do not exist at all.**
+
+Confirm before relying on either shape — it is one query:
+
+```sql
+select table_name from information_schema.tables
+where table_schema = 'public' and table_name in ('jobs','roles','candidates','applications');
+```
+
+Because `detectSchemaMode()` falls back rather than throwing, code written against
+the wrong shape takes the wrong branch **silently** instead of failing loudly. That
+is the same trap as the wrong Supabase project ref documented at the top of
+`CLAUDE.md`.
 
 ## Layer map
 

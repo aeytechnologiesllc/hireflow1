@@ -112,16 +112,6 @@ export default function Auth() {
   // Check for redirect parameter (e.g., from guest job creation)
   const redirectTo = searchParams.get("redirect");
 
-  // Hero orb size (px). `AvaOrb`'s `size` is a NUMBER — it drives the canvas
-  // width/height AND particle-density math — so we can't hand it a CSS clamp()
-  // string. Instead we compute a responsive numeric size:
-  //  • Desktop (lg): a clearly larger fixed 280px hero (was ORB_SIZE.lg = 208).
-  //  • Mobile: 220px, but capped to (viewport − 80px) so the orb can never
-  //    overflow horizontally or push the sign-in card off-screen even on a
-  //    ~320px device. (Page container uses px-6 ⇒ 48px of side padding; the
-  //    extra margin keeps a comfortable gutter.) Was ORB_SIZE.md = 112.
-  const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 1024;
-  const orbSize = isMobile ? Math.min(220, viewportWidth - 80) : 280;
 
   // Scroll submit button into view when keyboard opens on mobile
   const scrollFormIntoView = useCallback(() => {

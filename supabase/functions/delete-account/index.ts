@@ -108,9 +108,10 @@ async function deleteRowsByIds(
   column: string,
   ids: string[],
 ) {
-  if (!ids.length) return;
+  if (!ids.length) return [];
 
   const uniqueIds = [...new Set(ids)];
+  const failures: string[] = [];
 
   for (let index = 0; index < uniqueIds.length; index += STORAGE_REMOVE_BATCH_SIZE) {
     const batch = uniqueIds.slice(index, index + STORAGE_REMOVE_BATCH_SIZE);
@@ -120,10 +121,14 @@ async function deleteRowsByIds(
       .in(column, batch);
 
     if (error) {
-      console.log(`Note: Could not delete from ${table}.${column}[]:`, error.message);
-      break;
+      // Report and keep going. This used to log a note and `break`, which
+      // abandoned every remaining batch — so one transient error silently left
+      // most of a deleted user's rows in place.
+      failures.push(`${table}.${column}[] (batch ${index / STORAGE_REMOVE_BATCH_SIZE}): ${error.message}`);
     }
   }
+
+  return failures;
 }
 
 async function cleanupUserStorage(
@@ -245,37 +250,68 @@ serve(async (req) => {
       }
     }
 
-    await deleteRowsByIds(supabaseAdmin, 'blueprint_purchases', 'application_id', relatedApplicationIds);
-    await deleteRowsByIds(supabaseAdmin, 'interviews', 'application_id', relatedApplicationIds);
-    await deleteRowsByIds(supabaseAdmin, 'document_packages', 'application_id', relatedApplicationIds);
-
-    for (const operation of deleteOperations) {
-      for (const column of operation.columns) {
-        const { error } = await supabaseAdmin
-          .from(operation.table)
-          .delete()
-          .eq(column, user.id);
-
-        if (error) {
-          console.log(`Note: Could not delete from ${operation.table}.${column}:`, error.message);
-        }
-      }
-    }
-
-    await cleanupUserStorage(supabaseAdmin, user.id);
-
-    // Delete the auth user (this is the key step - removes from auth.users)
+    // ---------------------------------------------------------------------
+    // Order matters. This used to purge profiles/user_roles/etc FIRST and call
+    // deleteUser() LAST, so a failure on that last call left a signed-in auth
+    // user with no profile and no role: a zombie account its owner could still
+    // log into but could do nothing with, and which no longer had a company
+    // name, so any job it published was silently dropped from the feed.
+    //
+    // Nothing in the schema forced that order — no foreign key references
+    // auth.users at all (verified 2026-08-31), so there is no cascade to
+    // sequence around. Deleting the auth user FIRST makes the failure mode
+    // non-destructive: if it fails we return before touching a single row and
+    // the account is left whole, so the user can simply try again.
+    // ---------------------------------------------------------------------
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id);
 
     if (deleteError) {
-      console.error('Error deleting auth user:', deleteError);
+      console.error('Error deleting auth user (no data was removed):', deleteError);
       return new Response(
         JSON.stringify({ error: 'Failed to delete account' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Successfully deleted user:', user.id);
+    // The account is now gone from the user's point of view. Everything below
+    // is residue cleanup: it can no longer strand them, but a silent failure
+    // here means we kept personal data after a deletion request, so each one is
+    // collected and reported rather than swallowed into a console.log.
+    const residue: string[] = [];
+
+    // PostgrestFilterBuilder is thenable but not a real Promise (no catch/finally),
+    // so this takes PromiseLike rather than Promise.
+    const purge = async (label: string, run: () => PromiseLike<{ error: { message: string } | null }>) => {
+      const { error } = await run();
+      if (error) {
+        residue.push(`${label}: ${error.message}`);
+      }
+    };
+
+    for (const table of ['blueprint_purchases', 'interviews', 'document_packages'] as const) {
+      residue.push(...(await deleteRowsByIds(supabaseAdmin, table, 'application_id', relatedApplicationIds)));
+    }
+
+    for (const operation of deleteOperations) {
+      for (const column of operation.columns) {
+        await purge(`${operation.table}.${column}`, () =>
+          supabaseAdmin.from(operation.table).delete().eq(column, user.id)
+        );
+      }
+    }
+
+    await cleanupUserStorage(supabaseAdmin, user.id);
+
+    if (residue.length > 0) {
+      // Loud on purpose: the account is deleted, but rows survived it. This is a
+      // data-retention problem that needs a human, not a note in the noise.
+      console.error(
+        `delete-account: user ${user.id} was deleted but ${residue.length} table(s) still hold their data:`,
+        residue.join(' | ')
+      );
+    } else {
+      console.log('Successfully deleted user and all associated data:', user.id);
+    }
 
     return new Response(
       JSON.stringify({ success: true }),

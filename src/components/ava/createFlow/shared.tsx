@@ -4,6 +4,11 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import {
   Check,
+  FileText,
+  MessagesSquare,
+  SlidersHorizontal,
+  Workflow,
+  ClipboardCheck,
   ArrowUp,
   ArrowDown,
   Pencil,
@@ -12,10 +17,11 @@ import {
   Plus,
   GripVertical,
 } from "lucide-react";
-import { AvaOrb } from "@/components/ava/AvaOrb";
 import { AvaGlyph } from "@/components/ava/AvaGlyph";
 
 export const DISPLAY = "'Fraunces', Georgia, serif";
+
+import { GemRail } from "@/components/rail/GemRail";
 
 export const STEPS = ["Brief", "Follow-ups", "Rigor", "Ava builds", "Review plan", "Publish"] as const;
 
@@ -45,36 +51,54 @@ export function useWide() {
   return wide;
 }
 
-export function StepRail({ step }: { step: number }) {
+/**
+ * StepRail — the create-job flow's progress rail.
+ *
+ * The same Gemline rail as the landing hero and the Applicants JourneyStrip,
+ * through the one shared <GemRail>: same gems, same glyphs, same jade → mint →
+ * teal → gold spectrum, same traveler chip, same walk. It replaced both a plain
+ * pill stepper and the 248px orb that used to sit above it, so the progress
+ * chrome the screen already needed is what carries the brand moment.
+ *
+ * The job being built is the traveller — it rides Brief → Publish exactly as a
+ * candidate rides their own journey — and Publish is Ava's seal, the same mark
+ * she signs everything else with.
+ */
+const STEP_GLYPHS: Record<(typeof STEPS)[number], LucideIcon> = {
+  "Brief": FileText,
+  "Follow-ups": MessagesSquare,
+  "Rigor": SlidersHorizontal,
+  "Ava builds": Workflow, // never a wand/sparkle — see the no-generic-ai-icons guard
+  "Review plan": ClipboardCheck,
+  "Publish": Check, // unused — Publish renders the seal
+};
+
+export function StepRail({
+  step,
+  traveler,
+  receipts,
+}: {
+  step: number;
+  traveler?: string;
+  /** The line under each gem — only ever what's actually decided so far. */
+  receipts?: Partial<Record<(typeof STEPS)[number], string | null>>;
+}) {
   return (
-    <div className="flex items-center justify-center gap-1.5 sm:gap-2">
-      {STEPS.map((label, i) => {
-        const active = i === step;
-        const done = i < step;
-        return (
-          <div key={label} className="flex items-center gap-1.5 sm:gap-2">
-            <div
-              className="flex items-center gap-2 rounded-full px-2.5 py-1 transition-colors duration-500"
-              style={{ background: active ? "hsl(var(--primary) / 0.14)" : "transparent" }}
-            >
-              <span
-                className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px] font-bold transition-colors duration-500"
-                style={{
-                  background: done ? "hsl(var(--ck-jade))" : active ? "hsl(var(--primary))" : "hsl(var(--muted))",
-                  color: done || active ? "hsl(var(--primary-foreground))" : "hsl(var(--muted-foreground))",
-                }}
-              >
-                {done ? <Check className="h-3 w-3" /> : i + 1}
-              </span>
-              <span className="hidden text-xs font-medium md:inline" style={{ color: active ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))" }}>
-                {label}
-              </span>
-            </div>
-            {i < STEPS.length - 1 && <span className="h-px w-3 sm:w-5" style={{ background: "hsl(var(--border))" }} />}
-          </div>
-        );
-      })}
-    </div>
+    <GemRail
+      nodes={STEPS.map((label, i) => ({
+        id: label,
+        label,
+        icon: STEP_GLYPHS[label],
+        receipt: receipts?.[label] ?? null,
+        decision: i === STEPS.length - 1,
+        // "Live" is the verdict of this journey, so it gets the seal's own brass
+        // pill — the same treatment Hired/Passed gets on a candidate's rail.
+        sealed: label === "Publish",
+      }))}
+      current={step}
+      traveler={traveler}
+      ariaLabel="Where you are in building this job"
+    />
   );
 }
 
@@ -235,9 +259,6 @@ export function BuildStep({
 
   return (
     <div className="flex flex-col items-center text-center">
-      <motion.div initial={reduce ? false : { scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.55, type: "spring", bounce: 0.2 }}>
-        <AvaOrb size={248} amp={0.34} flow={0.95} spin={0.12} reflection={false} />
-      </motion.div>
       <h2 className="mt-2 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500, color: "hsl(var(--foreground))" }}>Building your hiring flow…</h2>
       <p className="mt-2 text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>
         {role} · <span style={{ color: "hsl(var(--ck-brass))" }}>{rigorLabel} rigor</span>

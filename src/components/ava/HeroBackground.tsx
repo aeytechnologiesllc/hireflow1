@@ -10,8 +10,9 @@
  *
  * Design notes:
  *  - Aurora = pure CSS transform/opacity on radial-gradient blobs (GPU-composited,
- *    no blur filters, no WebGL) — so it can coexist with the WebGL <AvaOrb> on the
- *    same page without burning a second GL context.
+ *    no blur filters, no WebGL). This was originally so it could share a page with
+ *    the WebGL orb without burning a second GL context; the orb is retired, and the
+ *    approach stays because it is simply the cheaper way to draw this.
  *  - Constellation = ONE lightweight 2D canvas (~half-res, throttled to ~30fps,
  *    paused when the tab is hidden) — cheap and subtle.
  *  - Reduced-motion: both the aurora animation and the canvas are disabled; a

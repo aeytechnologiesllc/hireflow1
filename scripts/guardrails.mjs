@@ -347,6 +347,127 @@ const guards = [
       return bad.length ? { ok: false, detail: bad } : { ok: true };
     },
   },
+
+  {
+    id: "orb-stays-retired",
+    why:
+      "The Ava orb is retired — the mark is the wax seal. The orb nevertheless kept " +
+      "rendering at 240-248px through the whole employer create-job flow, where it read " +
+      "as a black hole punched into the ivory paper, and it dragged a 458 KB Three.js " +
+      "chunk into the bundle. Its QA pages (/orb-audit, /orb-preview) were also public on " +
+      "hireflownow.com, so a stranger could land on a page auditing a mark the product no " +
+      "longer uses. The create-job flow now carries the Gemline rail instead, and voice " +
+      "mode uses AvaVoicePulse. None of it may come back.",
+    async run() {
+      const bad = [];
+
+      // The component and its QA pages must stay deleted.
+      for (const gone of [
+        "src/components/ava/AvaOrb.tsx",
+        "src/components/ava/orbSizes.ts",
+        "src/pages/OrbAudit.tsx",
+        "src/pages/OrbPreview.tsx",
+      ]) {
+        if ((await read(gone)) != null) bad.push(`${gone} is back — the orb is retired`);
+      }
+
+      // Nothing may render or import it. Comments are fine; JSX and imports are not.
+      const files = await sources([".ts", ".tsx"]);
+      bad.push(...hits(files, /<AvaOrb[\s/>]/));
+      bad.push(...hits(files, /from\s+["'][^"']*\/(AvaOrb|orbSizes)["']/));
+
+      // And the routes that served the QA pages must stay gone.
+      const app = await read("src/App.tsx");
+      if (app && /path="\/orb-(audit|preview)"/.test(app)) {
+        bad.push("src/App.tsx still registers an /orb-audit or /orb-preview route");
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
+  {
+    id: "create-flow-uses-the-gemline-rail",
+    why:
+      "The create-job flow's progress rail is the same Gemline rail as the landing hero " +
+      "and the Applicants JourneyStrip — one visual, three places, sharing ck-rail-* in " +
+      "cockpit.css and gemPosition() in lib/gemRail.ts. It replaced both a plain pill " +
+      "stepper and the orb above it, so the chrome the screen already needed carries the " +
+      "brand moment. If StepRail stops using GemRail, that convergence has been undone.",
+    async run() {
+      const bad = [];
+      const shared = await read("src/components/ava/createFlow/shared.tsx");
+      if (shared == null) return { ok: false, detail: ["createFlow/shared.tsx is missing"] };
+      if (!/<GemRail/.test(shared)) {
+        bad.push("createFlow/shared.tsx: StepRail no longer renders <GemRail>");
+      }
+      const rail = await read("src/components/rail/GemRail.tsx");
+      if (rail == null) {
+        bad.push("src/components/rail/GemRail.tsx is missing");
+      } else {
+        if (!/gemPosition/.test(rail)) bad.push("GemRail no longer uses gemPosition() — the gem spectrum has forked");
+        if (!/ck-rail-/.test(rail)) bad.push("GemRail no longer uses the ck-rail-* styles — the rail has forked from the cockpit's");
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
+  {
+    id: "account-deletion-removes-auth-user-first",
+    why:
+      "delete-account purged profiles/user_roles FIRST and called deleteUser() LAST, so a " +
+      "failure on that last call left a signed-in auth user with no profile and no role — a " +
+      "zombie account its owner could log into but do nothing with, and whose jobs were " +
+      "silently dropped from the feed for having no company name. No foreign key references " +
+      "auth.users, so nothing forces that order. Auth deletion must come first, which makes " +
+      "the failure non-destructive.",
+    async run() {
+      const FN = "supabase/functions/delete-account/index.ts";
+      const src = await read(FN);
+      if (src == null) return { ok: false, detail: [`${FN} is missing`] };
+      const bad = [];
+
+      const authDelete = src.indexOf("auth.admin.deleteUser");
+      const rowPurge = src.indexOf("for (const operation of deleteOperations)");
+      if (authDelete === -1) {
+        bad.push(`${FN} no longer calls auth.admin.deleteUser`);
+      } else if (rowPurge === -1) {
+        bad.push(`${FN} no longer purges deleteOperations — check this guard still matches the code`);
+      } else if (authDelete > rowPurge) {
+        bad.push(
+          `${FN} deletes app rows before the auth user again — a failed deleteUser() will strand the account`
+        );
+      }
+
+      // The residue failures must stay loud; a console.log buries a data-retention bug.
+      if (/console\.log\(`Note: Could not delete from/.test(src)) {
+        bad.push(`${FN} swallows row-deletion failures into console.log — they must be collected and reported`);
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
+  {
+    id: "architecture-doc-names-the-live-schema",
+    why:
+      "docs/ARCHITECTURE.md claimed in bold that showcase (roles/candidates) was canonical " +
+      "for yqklrkpptnhubsnijqze and that the jobs table was absent. The live database is the " +
+      "opposite: jobs and applications exist, roles and candidates do not. Because " +
+      "detectSchemaMode() falls back rather than throwing, code written from that doc takes " +
+      "the wrong branch silently — the same trap as the dead project ref in CLAUDE.md.",
+    async run() {
+      const doc = await read("docs/ARCHITECTURE.md");
+      if (doc == null) return { ok: false, detail: ["docs/ARCHITECTURE.md is missing"] };
+      const bad = [];
+      if (/The `jobs` table is absent on this project/.test(doc)) {
+        bad.push("docs/ARCHITECTURE.md still claims the jobs table is absent — it exists; roles/candidates do not");
+      }
+      if (!/\*\*Canonical for project `yqklrkpptnhubsnijqze`:\*\* \*\*hireflow1\*\*/.test(doc)) {
+        bad.push("docs/ARCHITECTURE.md no longer names hireflow1 as the canonical schema for the live project");
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
 ];
 
 /* --------------------------------------------------------------------- main */

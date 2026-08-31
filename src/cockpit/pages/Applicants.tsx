@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import {
@@ -37,7 +37,7 @@ import {
   avaAdvanceRec,
 } from "../hooks/useCockpitData";
 import { getInitials, parseApplicationNotes } from "../lib/mappers";
-import { gemPosition } from "../lib/gemRail";
+import { GemRail } from "@/components/rail/GemRail";
 import { candidateApplyUrl } from "@/lib/showcaseApply";
 import { clearDraft } from "@/lib/avaEngine/draft";
 import {
@@ -728,284 +728,43 @@ function JourneyStrip({ candidate, app }: { candidate: Candidate; app?: AppRecor
               : "Just applied";
         })();
 
-  // ── Gemline rail geometry + replay ────────────────────────────────────
-  // The DOM does the measuring (flex layout decides where each gem actually
-  // lands), so the track fill and the traveler chip are positioned
-  // imperatively off real node centers rather than guessed from CSS.
-  // `visualIndex` is the *animated* read of where she is — it starts at the
-  // first gem on every mount (a fresh candidate opened) and races the real
-  // `position.index`, lighting gems in sequence as it goes; `position.index`
-  // itself (used by `nodeState`/`resultFor` above) never lies, so tooltips
-  // and receipts are always accurate even mid-flight.
-  const zoneRef = useRef<HTMLDivElement | null>(null);
-  const trackRef = useRef<HTMLDivElement | null>(null);
-  const fillRef = useRef<HTMLDivElement | null>(null);
-  const chipRef = useRef<HTMLDivElement | null>(null);
-  const chipBodyRef = useRef<HTMLDivElement | null>(null);
-  const dotRefs = useRef<Array<HTMLDivElement | null>>([]);
-  const pointsRef = useRef<Array<{ x: number; y: number }>>([]);
-  const mountedRef = useRef(false);
-  const visualIndexRef = useRef(0);
-  const timersRef = useRef<number[]>([]);
-  const genRef = useRef(0);
-
-  const [visualIndex, setVisualIndex] = useState(0);
-  const [sealBeat, setSealBeat] = useState(0);
-
-  const measure = () => {
-    const zone = zoneRef.current;
-    if (!zone) return;
-    const zoneRect = zone.getBoundingClientRect();
-    const pts = dotRefs.current.map((el) => {
-      if (!el) return { x: 0, y: 0 };
-      const r = el.getBoundingClientRect();
-      return { x: r.left + r.width / 2 - zoneRect.left, y: r.top + r.height / 2 - zoneRect.top };
-    });
-    pointsRef.current = pts;
-    const track = trackRef.current;
-    const fill = fillRef.current;
-    if (track && fill && pts.length > 0) {
-      const y = pts[0].y;
-      const x0 = pts[0].x;
-      const x1 = pts[pts.length - 1].x;
-      const width = Math.max(0, x1 - x0);
-      [track, fill].forEach((el) => {
-        el.style.left = `${x0}px`;
-        el.style.top = `${y}px`;
-        el.style.width = `${width}px`;
-        el.style.marginTop = "-5px"; // half the 10px track height
-      });
-    }
-  };
-
-  const applyVisual = (index: number, instant: boolean) => {
-    const forceInstant = instant || reducedMotion();
-    const pts = pointsRef.current;
-    const clamped = Math.max(0, Math.min(index, pts.length - 1));
-    const p = pts[clamped];
-    const chip = chipRef.current;
-    if (p && chip) {
-      const half = (chip.offsetWidth || 34) / 2;
-      const x = p.x - half;
-      const y = p.y - half;
-      if (forceInstant) {
-        const prev = chip.style.transition;
-        chip.style.transition = "none";
-        chip.style.transform = `translate(${x}px, ${y}px)`;
-        void chip.getBoundingClientRect();
-        chip.style.transition = prev;
-      } else {
-        chip.style.transform = `translate(${x}px, ${y}px)`;
-      }
-    }
-    const fill = fillRef.current;
-    if (fill && pts.length > 1) {
-      const frac = Math.max(0, clamped) / (pts.length - 1);
-      if (forceInstant) {
-        const prev = fill.style.transition;
-        fill.style.transition = "none";
-        fill.style.transform = `scaleX(${frac})`;
-        void fill.getBoundingClientRect();
-        fill.style.transition = prev;
-      } else {
-        fill.style.transform = `scaleX(${frac})`;
-      }
-    }
-  };
-
-  // Drives the whole show: measures geometry, then walks `visualIndex` from
-  // where she was (or the very first orb, on a fresh mount) to where she
-  // really is now — one orb at a time, so cleared orbs light up in sequence
-  // as the chip passes them. Runs synchronously before paint so a candidate
-  // who's already at Decision never flashes at orb one first.
-  useLayoutEffect(() => {
-    measure();
-
-    const target = position.index;
-    const isFirst = !mountedRef.current;
-    const start = isFirst ? (reducedMotion() ? target : 0) : visualIndexRef.current;
-    mountedRef.current = true;
-
-    timersRef.current.forEach((t) => window.clearTimeout(t));
-    timersRef.current = [];
-    const gen = ++genRef.current;
-
-    const landDecision = () => {
-      if (steps[target]?.id === DECISION_STAGE_ID) setSealBeat((n) => n + 1);
-    };
-
-    if (reducedMotion() || target === start) {
-      setVisualIndex(target);
-      visualIndexRef.current = target;
-      applyVisual(target, true);
-      landDecision();
-      return;
-    }
-
-    // rest at the starting gem, instantly, before the glide begins
-    applyVisual(start, true);
-
-    const hops = Math.abs(target - start);
-    const duration = Math.min(950, Math.max(520, 420 + hops * 140));
-    const dir = target > start ? 1 : -1;
-
-    // the traveler leans into the whole glide, not per hop — one tilt, timed
-    // to the same duration the chip itself is moving for
-    const body = chipBodyRef.current;
-    if (body) {
-      body.style.setProperty("--chip-tilt-duration", `${duration}ms`);
-      body.classList.remove("is-moving");
-      void body.offsetWidth;
-      body.classList.add("is-moving");
-      const tiltEnd = window.setTimeout(() => {
-        if (genRef.current !== gen) return;
-        body.classList.remove("is-moving");
-      }, duration + 60);
-      timersRef.current.push(tiltEnd);
-    }
-
-    for (let k = 1; k <= hops; k++) {
-      const idx = start + dir * k;
-      const delay = Math.round((k / hops) * duration);
-      const t = window.setTimeout(() => {
-        if (genRef.current !== gen) return;
-        setVisualIndex(idx);
-        visualIndexRef.current = idx;
-        if (idx === target) landDecision();
-      }, delay);
-      timersRef.current.push(t);
-    }
-
-    return () => {
-      timersRef.current.forEach((t) => window.clearTimeout(t));
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [position.index]);
-
-  // Each tick of visualIndex glides the chip + draws the path via CSS
-  // transition (the actual animation the eye sees).
-  useEffect(() => {
-    applyVisual(visualIndex, false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visualIndex]);
-
-  // Re-measure (instantly, no replay) when the band's own width changes —
-  // a sidebar collapsing, a window resize, an orientation flip.
-  useEffect(() => {
-    const zone = zoneRef.current;
-    if (!zone || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => {
-      measure();
-      applyVisual(visualIndexRef.current, true);
-    });
-    ro.observe(zone);
-    return () => ro.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // The visual (animated) read of a node's state — real truth (`nodeState`)
-  // once the traveler has actually reached it, "upcoming" until then, so
-  // orbs light up in step with the chip rather than all at once.
-  const visualState = (i: number): "completed" | "current" | "upcoming" => (i > visualIndex ? "upcoming" : nodeState(i));
-
+  // The rail itself is <GemRail> — the one shared renderer, also used by the
+  // create-job flow's StepRail and mirrored by the landing hero. Everything
+  // above stays here, because it is candidate logic: which phases this job has,
+  // where she actually is, and what each gem's receipt says. The component owns
+  // only the drawing, the measuring and the walk.
   const initials = getInitials(candidate.name);
 
-  dotRefs.current = [];
+  const railNodes = steps.map((step, i) => {
+    const state = nodeState(i);
+    const isDecision = step.id === DECISION_STAGE_ID;
+    const rejected = isDecision && candidate.stage === "Rejected";
+    const result = resultFor(step, state);
+    const tag = state === "current" ? (isDecision ? "She's here — your call" : "She's here") : null;
+    return {
+      id: step.id,
+      label: step.title,
+      icon: railIcon(step.type),
+      receipt: result,
+      // the pill treatment is the seal's own stamp ("92 · Hired") — reserved for
+      // the actual verdict, not the call-to-action shown while she's waiting
+      sealed: Boolean(isDecision && outcome),
+      decision: isDecision,
+      sealTilt: rejected ? -4 : 0,
+      color: isDecision ? "var(--brass)" : undefined,
+      tooltip: [step.title, tag, result].filter(Boolean).join(" · "),
+    };
+  });
 
   return (
-    <div className="ck-rail-outer">
-      <div className="ck-rail-band" ref={zoneRef}>
-        <div className="ck-rail-track" ref={trackRef} aria-hidden="true" />
-        <div className="ck-rail-track-fill" ref={fillRef} aria-hidden="true" />
-
-        <div className="ck-rail-nodes" role="list" aria-label="Where they are in the job's process">
-          {steps.map((step, i) => {
-            const state = nodeState(i);
-            const vState = visualState(i);
-            const isDecision = step.id === DECISION_STAGE_ID;
-            const rejected = isDecision && candidate.stage === "Rejected";
-            const result = resultFor(step, state);
-            const visualResult = resultFor(step, vState);
-            const tag = state === "current" ? (isDecision ? "She's here — your call" : "She's here") : null;
-            const tip = [step.title, tag, result].filter(Boolean).join(" · ");
-            const Icon = railIcon(step.type);
-            const gem = gemPosition(i, steps.length);
-
-            return (
-              <div
-                key={step.id}
-                role="listitem"
-                tabIndex={0}
-                aria-label={tip}
-                className={[
-                  "ck-rail-node group",
-                  isDecision ? "is-decision" : "",
-                  vState === "completed" ? "is-cleared" : "",
-                  vState === "current" ? "is-current" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                style={{
-                  ["--node-color" as string]: isDecision ? "var(--brass)" : gem.color,
-                  ["--node-ink" as string]: gem.ink,
-                }}
-              >
-                <div className="ck-rail-dot" ref={(el) => { dotRefs.current[i] = el; }}>
-                  {isDecision ? (
-                    <span key={`seal-${sealBeat}`} className="ck-seal ck-seal-press">
-                      <AvaSeal size={26} tilt={rejected ? -4 : 0} />
-                    </span>
-                  ) : (
-                    <Icon className="ck-rail-glyph" strokeWidth={2} />
-                  )}
-                  {vState === "completed" && !isDecision && (
-                    <span className="ck-rail-check">
-                      <Check className="h-full w-full" strokeWidth={3} />
-                    </span>
-                  )}
-                </div>
-
-                <span className="ck-rail-label">{step.title}</span>
-                <span
-                  className={[
-                    "ck-rail-receipt",
-                    visualResult ? "show" : "",
-                    // the pill treatment is the seal's own stamp ("92 · Hired") —
-                    // reserve it for the actual verdict, not the longer
-                    // call-to-action sentence shown while she's still waiting
-                    isDecision && outcome ? "is-sealed" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                >
-                  {visualResult ?? ""}
-                </span>
-
-                {/* hover / keyboard-focus tooltip — names the phase and, once there's
-                    one, its result (quiz score, interview done, the decision itself) */}
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute bottom-[calc(100%+7px)] left-1/2 z-10 w-max max-w-[190px] -translate-x-1/2 rounded-[7px] px-2.5 py-[7px] text-center text-[11px] leading-[1.4] opacity-0 shadow-[var(--hf-shadow-raised)] transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100"
-                  style={{ background: "var(--ink)", color: "var(--ground)" }}
-                >
-                  {tip}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="ck-rail-chip" ref={chipRef} aria-hidden="true">
-          <div className="ck-rail-chip-body" ref={chipBodyRef}>
-            <span className="ck-rail-chip-core">{initials}</span>
-          </div>
-        </div>
-      </div>
-
-      <p className="mt-[7px] text-[11px]" style={{ color: "var(--ink-3)" }}>
-        {summary}
-      </p>
-    </div>
+    <GemRail
+      nodes={railNodes}
+      current={position.index}
+      traveler={initials}
+      summary={summary}
+      ariaLabel="Where they are in the job's process"
+      focusable
+    />
   );
 }
 

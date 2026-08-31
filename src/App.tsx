@@ -89,9 +89,9 @@ const DeveloperSubscriptions = lazyWithReload(() => import("./pages/DeveloperSub
 const DeveloperJobs = lazyWithReload(() => import("./pages/DeveloperJobs"));
 const DeveloperActivity = lazyWithReload(() => import("./pages/DeveloperActivity"));
 const DeveloperSettings = lazyWithReload(() => import("./pages/DeveloperSettings"));
-const OrbPreview = lazyWithReload(() => import("./pages/OrbPreview"));
 const AvaFlowPreview = lazyWithReload(() => import("./pages/AvaFlowPreview"));
-const OrbAudit = lazyWithReload(() => import("./pages/OrbAudit"));
+
+
 
 // Standard premium loading state — a properly sized, centered Ava orb.
 function LazyFallback() {
@@ -188,10 +188,20 @@ const App = () => (
                   
                   {/* Marketing Demo (full-screen, no layout) */}
                   <Route path="/marketing-demo" element={<MarketingDemo />} />
-                  <Route path="/orb-preview" element={<OrbPreview />} />
+
+                  {/* Founder review prototype — canned data, no backend calls. Stays
+                      reachable in production so it can be opened from a phone. */}
                   <Route path="/ava-preview" element={<AvaFlowPreview />} />
-                  <Route path="/orb-audit" element={<OrbAudit />} />
-                  <Route path="/preview/loading" element={<AuthLoadingScreen variant="employer" />} />
+
+                  {/* Dev-only. `import.meta.env.DEV` is statically replaced with false
+                      at build time, so this is dead code the bundler drops and the route
+                      is never reachable on hireflownow.com. React Router skips
+                      non-element children, which makes the inline conditional legal
+                      inside <Routes>. (The /orb-preview and /orb-audit QA pages that
+                      used to live here are gone — the orb they audited is retired.) */}
+                  {import.meta.env.DEV && (
+                    <Route path="/preview/loading" element={<AuthLoadingScreen variant="employer" />} />
+                  )}
                   
                   {/* Document Verification (public, outside AppLayout) */}
                   <Route path="/verify/:documentCode" element={<VerifyDocument />} />

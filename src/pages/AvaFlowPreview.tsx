@@ -6,7 +6,7 @@
  * Pure visual/motion prototype: canned data + setTimeout only, NO backend /
  * OpenAI calls. It lets the founder SEE the flow, design, and motion before real
  * logic is wired. Reuses the real Deep Jade tokens, Fraunces/Inter fonts, and the
- * actual <AvaOrb> component.
+ * app's own Gemline rail and seal (the orb it once used is retired).
  *
  * The follow-up questions, Ava's reasoning, the rigor recommendation, and the
  * generated plan all ADAPT to the role typed in the brief via a small rule-based
@@ -53,12 +53,13 @@ import {
   PlusCircle,
   GripVertical,
 } from "lucide-react";
-import { AvaOrb } from "@/components/ava/AvaOrb";
 import { HeroBackground } from "@/components/ava/HeroBackground";
 import { AvaSeal } from "@/components/ava/AvaSeal";
 import { CountUp } from "@/cockpit/components/CountUp";
 
 const DISPLAY = "'Fraunces', Georgia, serif";
+
+import { StepRail } from "@/components/ava/createFlow/shared";
 
 const STEPS = ["Brief", "Follow-ups", "Rigor", "Ava builds", "Review plan", "Publish"] as const;
 
@@ -324,39 +325,6 @@ const FOCUS_CSS = `
   }
 `;
 
-function StepRail({ step }: { step: number }) {
-  return (
-    <div className="flex items-center justify-center gap-1.5 sm:gap-2">
-      {STEPS.map((label, i) => {
-        const active = i === step;
-        const done = i < step;
-        return (
-          <div key={label} className="flex items-center gap-1.5 sm:gap-2">
-            <div
-              className="flex items-center gap-2 rounded-full px-2.5 py-1 transition-colors duration-500"
-              style={{ background: active ? "hsl(var(--primary) / 0.14)" : "transparent" }}
-            >
-              <span
-                className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px] font-bold transition-colors duration-500"
-                style={{
-                  background: done ? "hsl(var(--ck-jade))" : active ? "hsl(var(--primary))" : "hsl(var(--muted))",
-                  color: done || active ? "hsl(var(--primary-foreground))" : "hsl(var(--muted-foreground))",
-                }}
-              >
-                {done ? <Check className="h-3 w-3" /> : i + 1}
-              </span>
-              <span className="hidden text-xs font-medium md:inline" style={{ color: active ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))" }}>
-                {label}
-              </span>
-            </div>
-            {i < STEPS.length - 1 && <span className="h-px w-3 sm:w-5" style={{ background: "hsl(var(--border))" }} />}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 function BriefField({
   icon: Icon,
   label,
@@ -402,7 +370,6 @@ function IntroStep({ brief, setBrief }: { brief: Record<string, string>; setBrie
     <div className="grid items-center gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:gap-14">
       <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
         <motion.div initial={reduce ? false : { scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}>
-          <AvaOrb size={240} reflection={false} />
         </motion.div>
         <motion.span
           initial={reduce ? false : { opacity: 0, y: 10 }}
@@ -486,7 +453,6 @@ function FollowUpStep({
   return (
     <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
       <motion.div initial={reduce ? false : { scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}>
-        <AvaOrb size={wide ? 248 : 208} reflection={false} amp={0.26} flow={0.72} />
       </motion.div>
 
       <div className="mt-1 flex flex-col items-center gap-2">
@@ -593,7 +559,6 @@ function RigorStep({
   const recLabel = RIGOR_OPTIONS.find((o) => o.id === recommended)?.label ?? "Standard";
   return (
     <div className="mx-auto max-w-3xl text-center">
-      <AvaOrb size={84} reflection={false} amp={0.24} flow={0.7} />
       <h2 className="mt-4 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500, color: "hsl(var(--foreground))" }}>
         How thoroughly should I screen?
       </h2>
@@ -687,7 +652,6 @@ function BuildStep({ onDone, role, rigorLabel, reasoning }: { onDone: () => void
   return (
     <div className="flex flex-col items-center text-center">
       <motion.div initial={reduce ? false : { scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 1, type: "spring", bounce: 0.25 }}>
-        <AvaOrb size={248} amp={0.34} flow={0.95} spin={0.12} reflection={false} />
       </motion.div>
 
       <h2 className="mt-2 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500, color: "hsl(var(--foreground))" }}>
@@ -953,7 +917,6 @@ function PublishStep({ count }: { count: number }) {
   return (
     <div className="mx-auto flex max-w-md flex-col items-center text-center">
       <motion.div initial={reduce ? false : { scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.9, type: "spring", bounce: 0.4 }}>
-        <AvaOrb size={168} reflection={false} amp={0.26} flow={0.7} />
       </motion.div>
 
       <motion.span
@@ -1057,6 +1020,16 @@ export default function AvaFlowPreview() {
     work: "Run daily operations, lead a small team, own the till and open/close.",
   });
 
+  // The prototype exists to show the real flow, so its rail carries the same
+  // traveller and receipts the wired one does — from its own canned state.
+  const previewTraveler = brief.role
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
+
   const family = useMemo(() => detectFamily(brief), [brief]);
   const playbook = PLAYBOOKS[family];
   const followUps = useMemo(() => playbook.followUps(answers), [playbook, answers]);
@@ -1156,7 +1129,14 @@ export default function AvaFlowPreview() {
           <ArrowLeft className="h-3.5 w-3.5" /> Exit
         </Link>
         <div className="hidden flex-1 sm:block">
-          <StepRail step={step} />
+          <StepRail step={step} traveler={previewTraveler} receipts={{
+              "Brief": brief.role.trim() ? "Set" : null,
+              "Follow-ups": step > 1 ? "answered" : null,
+              "Rigor": rigorTouched || step > 2 ? RIGOR_OPTIONS.find((o) => o.id === rigor)?.label ?? null : null,
+              "Ava builds": phases.length ? `${phases.length} phases` : null,
+              "Review plan": step > 4 ? "Approved" : null,
+              "Publish": step === 5 ? "Live" : null,
+            }} />
         </div>
         <span
           className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider"
@@ -1168,7 +1148,14 @@ export default function AvaFlowPreview() {
       </header>
 
       <div className="relative z-10 px-4 pb-2 sm:hidden">
-        <StepRail step={step} />
+        <StepRail step={step} traveler={previewTraveler} receipts={{
+              "Brief": brief.role.trim() ? "Set" : null,
+              "Follow-ups": step > 1 ? "answered" : null,
+              "Rigor": rigorTouched || step > 2 ? RIGOR_OPTIONS.find((o) => o.id === rigor)?.label ?? null : null,
+              "Ava builds": phases.length ? `${phases.length} phases` : null,
+              "Review plan": step > 4 ? "Approved" : null,
+              "Publish": step === 5 ? "Live" : null,
+            }} />
       </div>
 
       <main className="relative z-10 flex flex-1 items-center justify-center px-4 py-6 sm:px-6 sm:py-10">

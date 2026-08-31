@@ -30,7 +30,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { AvaOrb } from "@/components/ava/AvaOrb";
 import { AvaGlyph } from "@/components/ava/AvaGlyph";
 import { HeroBackground } from "@/components/ava/HeroBackground";
 import { CountUp } from "@/cockpit/components/CountUp";
@@ -321,6 +320,29 @@ export default function AvaCreateJob() {
   // Voice flow keeps Ava mounted across intake (0) → build (3) → review (4), so she's never cut off.
   const voiceLed = inputMode === "voice" && !publishedCode && (step === 0 || step === 3 || step === 4);
 
+  // The chip that rides the rail is the job being built — initials of the role
+  // the employer typed, the same way the applicant rail carries a candidate's.
+  // Empty until there is a role, so the chip never shows a placeholder.
+  const travelerInitials = briefFields.role
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
+
+  // What each gem has to show for itself so far. Only real state — an empty
+  // receipt is honest, an invented one is not.
+  const stepReceipts = {
+    // The role is already the traveller chip; a long title here wraps the rail.
+    "Brief": briefFields.role.trim() ? "Set" : null,
+    "Follow-ups": followUps.length ? `${Object.keys(chipAnswers).length} of ${followUps.length}` : null,
+    "Rigor": rigorTouched || step > 2 ? RIGOR_OPTIONS.find((o) => o.id === rigor)?.label ?? null : null,
+    "Ava builds": reviewCards.length ? `${reviewCards.length} phases` : null,
+    "Review plan": step > 4 ? "Approved" : null,
+    "Publish": publishedCode ? "Live" : null,
+  };
+
   const canContinueBrief = briefFields.role.trim().length > 1 && briefFields.location.trim() && briefFields.pay.trim() && briefFields.work.trim();
   const teamCreateBlocked = teamPermissions?.isTeamMember && !teamPermissions.canCreateJobs;
   const jobLimitBlocked = !isWithinLimit("jobs");
@@ -418,7 +440,7 @@ export default function AvaCreateJob() {
         <Link to="/jobs" className="inline-flex items-center gap-1.5 text-xs font-medium transition-opacity hover:opacity-100" style={{ color: "hsl(var(--muted-foreground))" }}>
           <ArrowLeft className="h-3.5 w-3.5" /> Jobs
         </Link>
-        {!(step === 0 && inputMode === "voice") && <div className="hidden flex-1 sm:block"><StepRail step={step} /></div>}
+        {!(step === 0 && inputMode === "voice") && <div className="hidden flex-1 sm:block"><StepRail step={step} traveler={travelerInitials} receipts={stepReceipts} /></div>}
         {genSource && (
           <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: genSource === "openai" ? "hsl(var(--ck-mint))" : "hsl(var(--muted-foreground))" }}>
             {genSource === "openai" ? "AI generated" : "Template fallback"}
@@ -426,7 +448,7 @@ export default function AvaCreateJob() {
         )}
       </header>
 
-      {!(step === 0 && inputMode === "voice") && <div className="relative z-10 px-4 pb-2 sm:hidden"><StepRail step={step} /></div>}
+      {!(step === 0 && inputMode === "voice") && <div className="relative z-10 px-4 pb-2 sm:hidden"><StepRail step={step} traveler={travelerInitials} receipts={stepReceipts} /></div>}
 
       <main className="relative z-10 flex min-h-0 flex-1 justify-center overflow-y-auto px-4 py-6 sm:px-6 sm:py-10">
         <div className="my-auto w-full max-w-5xl">
@@ -462,7 +484,6 @@ export default function AvaCreateJob() {
               {step === 0 && inputMode === "form" && (
                 <div className="grid items-center gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:gap-14">
                   <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
-                    <AvaOrb size={240} reflection={false} />
                     <span className="mt-4 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ borderColor: "hsl(var(--primary) / 0.3)", color: "hsl(var(--ck-brass))" }}>
                       <AvaGlyph size={12} /> Ava · Hiring assistant
                     </span>
@@ -526,7 +547,6 @@ export default function AvaCreateJob() {
                 const picked = chipAnswers[fu.id] ?? fu.def;
                 return (
                   <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
-                    <AvaOrb size={wide ? 248 : 208} reflection={false} amp={0.26} flow={0.72} />
                     <span className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--ck-brass))" }}>Ava · Question {fuIndex + 1} of {followUps.length}</span>
                     <span className="mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold" style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--ck-mint))", border: "1px solid hsl(var(--primary) / 0.22)" }}>
                       <AvaGlyph size={11} /> Tailored to a {playbook.label} role
@@ -548,7 +568,6 @@ export default function AvaCreateJob() {
 
               {step === 2 && (
                 <div className="mx-auto max-w-3xl text-center">
-                  <AvaOrb size={wide ? 224 : 184} reflection={false} amp={0.24} flow={0.7} />
                   <h2 className="mt-4 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>How thoroughly should I screen?</h2>
                   <div className="mx-auto mt-5 flex max-w-xl items-start gap-3 rounded-2xl p-4 text-left" style={{ background: "hsl(var(--primary) / 0.08)", border: "1px solid hsl(var(--primary) / 0.3)" }}>
                     <AvaGlyph size={16} className="mt-1 shrink-0" />
@@ -620,7 +639,6 @@ export default function AvaCreateJob() {
 
               {step === 5 && publishedCode && (
                 <div className="mx-auto flex max-w-md flex-col items-center text-center">
-                  <AvaOrb size={248} reflection={false} amp={0.26} flow={0.7} />
                   <span className="mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ background: "hsl(var(--ck-jade) / 0.16)", color: "hsl(var(--ck-mint))" }}>
                     <Check className="h-3 w-3" /> Your role is live
                   </span>

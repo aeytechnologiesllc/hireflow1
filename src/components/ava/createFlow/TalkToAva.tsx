@@ -6,7 +6,7 @@
  */
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import { Keyboard, Loader2, Check, Pencil, AlertCircle } from "lucide-react";
-import { AvaOrb } from "@/components/ava/AvaOrb";
+import AvaVoicePulse from "@/components/ava/AvaVoicePulse";
 import { useAvaVoice } from "@/hooks/useAvaVoice";
 import {
   briefHasAnyData,
@@ -233,7 +233,7 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
 
   const OrbVisual = (
     <div aria-hidden style={{ transform: `scale(${orb.scale})`, filter: orb.glow, transition: "transform 0.8s ease, filter 0.8s ease" }}>
-      <AvaOrb size={orbSize} reflection={false} amp={0.26} flow={0.72} getIntensity={getVoiceLevel} />
+      <AvaVoicePulse size={orbSize} getIntensity={getVoiceLevel} active={isConnected} />
     </div>
   );
 
@@ -261,7 +261,7 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
       <div className="mx-auto mb-6 w-full max-w-2xl">
         <div className="flex items-center gap-3.5 rounded-2xl p-3.5 sm:p-4" style={PANEL}>
           <div aria-hidden className="shrink-0" style={{ filter: `drop-shadow(0 0 26px hsl(${GREEN} / 0.4))` }}>
-            <AvaOrb size={56} reflection={false} amp={0.26} flow={0.72} getIntensity={getVoiceLevel} />
+            <AvaVoicePulse size={56} getIntensity={getVoiceLevel} active={isConnected} />
           </div>
           <div className="min-w-0 flex-1 text-left">
             <div className="text-[10.5px] font-bold uppercase tracking-[0.16em]" style={{ color: "hsl(var(--ck-brass))" }}>Ava · {reviewStatus}</div>
