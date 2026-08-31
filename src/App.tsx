@@ -91,12 +91,20 @@ const DeveloperActivity = lazyWithReload(() => import("./pages/DeveloperActivity
 const DeveloperSettings = lazyWithReload(() => import("./pages/DeveloperSettings"));
 const AvaFlowPreview = lazyWithReload(() => import("./pages/AvaFlowPreview"));
 
-/** Dev-only: walk the create-job flow in both themes side by side. Folded out
- *  of production builds along with its chunk — see DevOnlyPage note below. */
+/**
+ * The flow lab: walk the create-job flow — voice intake through publish — with
+ * Day and Night side by side in lockstep.
+ *
+ * It ships to PRODUCTION on purpose. It was gated to DEV first, which made the
+ * one surface built for the owner to review the one surface he could not reach,
+ * since he reviews on his phone against the live site. It renders the canned
+ * prototype only — no real jobs, no customer data — and its voice pane is inert
+ * because opening a session costs money.
+ */
+const FlowLab = lazyWithReload(() => import("./pages/FlowLab"));
+
+/** Placeholder for a dev-only page in production builds — never rendered. */
 const DevOnlyPage = () => null;
-const FlowLab = import.meta.env.DEV
-  ? lazyWithReload(() => import("./pages/FlowLab"))
-  : DevOnlyPage;
 
 
 
@@ -209,7 +217,7 @@ const App = () => (
                   {import.meta.env.DEV && (
                     <Route path="/preview/loading" element={<AuthLoadingScreen variant="employer" />} />
                   )}
-                  {import.meta.env.DEV && <Route path="/flow-lab" element={<FlowLab />} />}
+                  <Route path="/flow-lab" element={<FlowLab />} />
                   
                   {/* Document Verification (public, outside AppLayout) */}
                   <Route path="/verify/:documentCode" element={<VerifyDocument />} />

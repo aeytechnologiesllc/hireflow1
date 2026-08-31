@@ -28,9 +28,16 @@ const STEPS = ["Brief", "Follow-ups", "Rigor", "Ava builds", "Review plan", "Pub
 const VOICE = -1;
 const noop = () => {};
 function TalkToAvaPane() {
+  // Display-only, deliberately. This mounts the REAL voice component, and its
+  // "Start talking" button opens a paid OpenAI Realtime session — the same
+  // spend the /interview/voice gate was added to stop. The lab is reachable in
+  // production so it can be reviewed from a phone, which means anyone can open
+  // it, so this one pane is inert: look at it, don't run it. Every other pane
+  // stays fully interactive because the prototype costs nothing to click.
   return (
     <div className="relative flex min-h-[560px] flex-col justify-center px-6 py-10"
-         style={{ background: "hsl(var(--background))", color: "hsl(var(--foreground))" }}>
+         style={{ background: "hsl(var(--background))", color: "hsl(var(--foreground))", pointerEvents: "none", userSelect: "none" }}
+         aria-hidden>
       <TalkToAva
         step={0}
         planVisible={false}
@@ -139,7 +146,9 @@ export default function FlowLab() {
         </span>
 
         <span style={{ marginLeft: "auto", fontSize: 11, color: "#5C655E" }}>
-          Both panes are live — the buttons inside them work too.
+          {step === VOICE
+            ? "Voice intake is display-only here — starting a session costs money."
+            : "Both panes are live — the buttons inside them work too."}
         </span>
       </div>
 
