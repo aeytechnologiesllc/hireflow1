@@ -36,6 +36,7 @@ import { HeroBackground } from "@/components/ava/HeroBackground";
 import { CountUp } from "@/cockpit/components/CountUp";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { useAuth } from "@/hooks/useAuth";
+import { useProfile, useUpdateProfile } from "@/hooks/useProfile";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import {
@@ -128,6 +129,8 @@ export default function AvaCreateJob() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, loading: authLoading } = useAuth();
+  const { data: profile } = useProfile();
+  const updateProfile = useUpdateProfile();
   const { limits, isLoading: subscriptionLoading, isExpired, isWithinLimit } = useSubscription();
   const { data: teamPermissions, isLoading: teamPermissionsLoading } = useTeamMemberPermissions();
   const hasVoiceInterviews = limits?.hasVoiceInterviews ?? false;
@@ -163,6 +166,12 @@ export default function AvaCreateJob() {
   const [publishing, setPublishing] = useState(false);
   const [publishedCode, setPublishedCode] = useState<string | null>(null);
   const [publishedRoleId, setPublishedRoleId] = useState<string | null>(null);
+  // Publishing with no business name on file is what a job silently drops out
+  // of the aggregator feed for and shows "Confidential" to candidates. Catch
+  // it right here rather than losing the plan the employer just built.
+  const [showCompanyNamePrompt, setShowCompanyNamePrompt] = useState(false);
+  const [companyNameDraft, setCompanyNameDraft] = useState("");
+  const [savingCompanyName, setSavingCompanyName] = useState(false);
   // True once the Review-plan cards have actually finished animating in (real render signal) —
   // gates Ava's "here's your plan" so she never announces it while the build loader is still up.
   const [planVisible, setPlanVisible] = useState(false);
@@ -235,8 +244,16 @@ export default function AvaCreateJob() {
     }
   }, [step, runGeneration]);
 
-  const handlePublish = async () => {
+  const handlePublish = async (companyNameOverride?: string) => {
     if (!flow || publishing) return;
+
+    const effectiveCompanyName = companyNameOverride ?? profile?.company_name;
+    if (!effectiveCompanyName?.trim()) {
+      setCompanyNameDraft(profile?.company_name ?? "");
+      setShowCompanyNamePrompt(true);
+      return;
+    }
+
     setPublishing(true);
     try {
       const edited = applyReviewEdits(flow, reviewCards);
@@ -258,6 +275,28 @@ export default function AvaCreateJob() {
       toast.error(err instanceof Error ? err.message : "Publish failed");
     } finally {
       setPublishing(false);
+    }
+  };
+
+  // Save the business name captured inline from the publish-blocked state,
+  // then continue straight into the publish that was waiting on it — passed
+  // through directly rather than relying on the profile query to refetch in
+  // time, so there is no race and the plan is never lost.
+  const handleSaveCompanyNameAndPublish = async () => {
+    const trimmed = companyNameDraft.trim();
+    if (!trimmed) {
+      toast.error("Enter your business name to continue.");
+      return;
+    }
+    setSavingCompanyName(true);
+    try {
+      await updateProfile.mutateAsync({ company_name: trimmed });
+      setShowCompanyNamePrompt(false);
+      await handlePublish(trimmed);
+    } catch {
+      toast.error("Couldn't save your business name. Please try again.");
+    } finally {
+      setSavingCompanyName(false);
     }
   };
 
@@ -686,6 +725,49 @@ export default function AvaCreateJob() {
           </AnimatePresence>
         </div>
       </main>
+
+      {/* Business name required before publishing. Never a dead end — the
+          plan Ava just built stays exactly as it is, and publishing
+          continues the moment this is saved. */}
+      {showCompanyNamePrompt && step === 4 && (
+        <div className="relative z-10 px-4 pb-2 sm:px-6">
+          <div className="ck-card flex flex-col gap-3 p-4 sm:flex-row sm:items-center" style={{ borderTop: "3px solid hsl(var(--ck-brass) / 0.5)" }}>
+            <div className="min-w-0 flex-1">
+              <p className="text-[14px] font-semibold" style={{ color: "hsl(var(--foreground))" }}>
+                One more thing before this goes live
+              </p>
+              <p className="mt-0.5 text-[13px]" style={{ color: "hsl(var(--muted-foreground))" }}>
+                Your business name isn't on file — it's what candidates and job boards see instead of you.
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+              <input
+                type="text"
+                value={companyNameDraft}
+                onChange={(e) => setCompanyNameDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void handleSaveCompanyNameAndPublish();
+                  }
+                }}
+                placeholder="e.g. Ridgeway Garage"
+                autoFocus
+                className="ck-input h-11 w-full px-3.5 sm:w-56"
+              />
+              <button
+                type="button"
+                onClick={() => void handleSaveCompanyNameAndPublish()}
+                disabled={savingCompanyName || !companyNameDraft.trim()}
+                className="ck-btn ck-btn-primary shrink-0 !px-4 !text-[13px]"
+              >
+                {savingCompanyName && <Loader2 className="h-4 w-4 animate-spin" />}
+                Save &amp; publish
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {step !== 3 && step !== 5 && !(step === 0 && inputMode === "voice") && (
         <footer className="relative z-10 flex items-center justify-between gap-3 px-4 py-4 sm:px-6">

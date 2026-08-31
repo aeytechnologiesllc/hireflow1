@@ -56,7 +56,13 @@ async function fetchJobNotificationContext(jobId: string) {
 
   return {
     ...jobDetails,
-    companyName: employerProfile?.company_name ?? null,
+    // A null/blank company_name must never reach a candidate-facing message —
+    // that literally rendered as "null has decided not to move forward..."
+    // (src/hooks/useApplications.ts, the launch blocker this guards against).
+    // "This employer" reads correctly whether it opens a sentence or sits
+    // mid-sentence, matching the fallback already used on the candidate side
+    // (CandidateApplicationDetail.tsx, CandidateInterviewConfirmationCard.tsx).
+    companyName: employerProfile?.company_name?.trim() || "This employer",
   };
 }
 

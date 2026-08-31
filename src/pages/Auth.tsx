@@ -40,6 +40,7 @@ const emailSchema = z.string()
   }, "Please check your email - the domain ending looks incorrect (e.g., did you mean .com?)");
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
 const nameSchema = z.string().min(2, "Name must be at least 2 characters");
+const companyNameSchema = z.string().min(2, "Business name must be at least 2 characters");
 
 // Real-time password requirements component
 const PasswordRequirements = ({ password }: { password: string }) => {
@@ -106,6 +107,7 @@ export default function Auth() {
   const [signUpEmail, setSignUpEmail] = useState("");
   const [signUpPassword, setSignUpPassword] = useState("");
   const [signUpName, setSignUpName] = useState("");
+  const [signUpCompanyName, setSignUpCompanyName] = useState("");
 
   // Check for redirect parameter (e.g., from guest job creation)
   const redirectTo = searchParams.get("redirect");
@@ -300,6 +302,7 @@ export default function Auth() {
       emailSchema.parse(signUpEmail);
       passwordSchema.parse(signUpPassword);
       nameSchema.parse(signUpName);
+      companyNameSchema.parse(signUpCompanyName);
     } catch (err) {
       if (err instanceof z.ZodError) {
         toast({
@@ -312,7 +315,7 @@ export default function Auth() {
     }
 
     // Always register as employer - candidates use /candidate/auth
-    const { error, needsConfirmation } = await signUp(signUpEmail, signUpPassword, signUpName, "employer");
+    const { error, needsConfirmation } = await signUp(signUpEmail, signUpPassword, signUpName, "employer", signUpCompanyName);
 
     if (error) {
       const errorMessage = error.message.includes("already registered")
@@ -933,6 +936,20 @@ export default function Auth() {
                       required
                       className="bg-muted/50 border-border focus:border-primary h-12"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-company" className="text-foreground">Business Name</Label>
+                    <Input
+                      id="signup-company"
+                      type="text"
+                      placeholder="Ridgeway Garage"
+                      value={signUpCompanyName}
+                      onChange={(e) => setSignUpCompanyName(e.target.value)}
+                      onFocus={scrollFormIntoView}
+                      required
+                      className="bg-muted/50 border-border focus:border-primary h-12"
+                    />
+                    <p className="text-xs text-muted-foreground">This is what candidates and job boards will see.</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-email" className="text-foreground">Email</Label>

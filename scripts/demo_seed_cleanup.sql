@@ -75,3 +75,42 @@ commit;
 -- Confirm nothing is left behind:
 --   select count(*) from public.jobs where job_code = 'DEMO-SEED-1';         -- 0
 --   select count(*) from public.applications where source = 'DEMO-SEED';     -- 0
+
+-- 2026-08-30: verifying the company_name capture fix (sign-up field, the new
+-- handle_new_user migration, the Dashboard recovery card, and the publish
+-- guards in AvaCreateJob.tsx + CreateJob.tsx) touched two things:
+
+-- (a) employer.test@hireflow.dev (user_id 13e26129-2e6c-4e7b-bb55-deb5ad78f0c4)
+--     had company_name = NULL — the exact bug this task fixes, on the shared
+--     QA account itself. I used the real Dashboard recovery card to set it to
+--     "HireFlow QA Test Garage" and left it that way, since NULL was itself
+--     the defect and every future verification screenshot reads better with
+--     a real name. Revert only if you want the account back in its old
+--     (broken) state:
+--       update public.profiles set company_name = null where user_id = '13e26129-2e6c-4e7b-bb55-deb5ad78f0c4';
+
+-- (b) One brand-new throwaway employer created through the real sign-up form
+--     to prove the metadata → trigger path (email hireflow.qa.signup.20260830@hireflow.dev,
+--     user_id b428c9ba-cfe5-4cb8-9fcf-70da786a599b). Used to prove both publish
+--     guards end-to-end; ended with company_name "Edit Path QA Garage" and one
+--     published job. Run this block to remove everything but the auth user:
+
+begin;
+delete from public.jobs        where id      = 'b1c7544e-fb2b-4263-bd58-08e81a9414ce';
+delete from public.user_roles  where user_id = 'b428c9ba-cfe5-4cb8-9fcf-70da786a599b';
+delete from public.profiles    where user_id = 'b428c9ba-cfe5-4cb8-9fcf-70da786a599b';
+commit;
+
+--     The auth user itself must be deleted from the Supabase dashboard
+--     (Auth > Users > hireflow.qa.signup.20260830@hireflow.dev) — SQL here
+--     only clears public rows, same as the candidate.test cleanup above.
+
+-- (c) 2026-08-31: after applying the handle_new_user migration I signed up one
+--     more throwaway employer straight through the auth API to prove the
+--     trigger itself now persists company_name (metadata "  Probe Motors  "
+--     landed as "Probe Motors", correctly trimmed).
+--       email    hireflow.trigger.probe.20260831@hireflow.dev
+--       user_id  cc430367-b19f-4f04-a806-391e2bafdb81
+--     Its public.profiles and public.user_roles rows are ALREADY DELETED — no
+--     SQL needed here. Only the auth user remains; delete it from the Supabase
+--     dashboard (Auth > Users) when convenient.

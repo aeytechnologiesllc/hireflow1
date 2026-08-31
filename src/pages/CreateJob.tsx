@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
-import { useProfile } from "@/hooks/useProfile";
+import { useProfile, useUpdateProfile } from "@/hooks/useProfile";
 import { useCreateJob, useUpdateJob, useJob } from "@/hooks/useJobs";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
@@ -447,6 +447,7 @@ export default function CreateJob() {
   const { user, role, loading: authLoading, isTeamMember } = useAuth();
   const { data: teamPermissions, isLoading: permissionsLoading } = useTeamMemberPermissions();
   const { data: profile } = useProfile();
+  const updateProfile = useUpdateProfile();
   const createJob = useCreateJob();
   const updateJob = useUpdateJob();
   const { data: existingJob, isLoading: isLoadingJob } = useJob(id);
@@ -528,6 +529,14 @@ export default function CreateJob() {
     job_code?: string | null;
   } | null>(null);
   const [showPublishedDialog, setShowPublishedDialog] = useState(false);
+  // Publishing with no business name on file is what silently drops a job
+  // from the aggregator feed (api/job-feed.mjs's quality gate) and shows
+  // "Confidential" to candidates and Google. Rather than dead-ending the
+  // employer with a validation error, catch it right here and let them fill
+  // it in without losing the job they just wrote.
+  const [pendingPublishStatus, setPendingPublishStatus] = useState<"draft" | "published" | null>(null);
+  const [companyNameDraft, setCompanyNameDraft] = useState("");
+  const [isSavingCompanyName, setIsSavingCompanyName] = useState(false);
   const overlayStartedAtRef = useRef<number | null>(null);
   const workflowFinishTimerRef = useRef<number | null>(null);
 
@@ -1016,7 +1025,7 @@ export default function CreateJob() {
     }, remaining);
   }, [handleWorkflowComplete]);
 
-  const handleSubmit = async (status: "draft" | "published") => {
+  const handleSubmit = async (status: "draft" | "published", companyNameOverride?: string) => {
     if (!formData.title || !formData.description) {
       toast.error("Please fill in the title and description");
       return;
@@ -1030,6 +1039,17 @@ export default function CreateJob() {
     // Check job limit (only when creating a new job, not editing)
     if (!isEditMode && !isWithinLimit('jobs')) {
       toast.error(`You've reached your job limit (${usage?.jobs_created ?? 0}/${limits?.jobs ?? 0}). Upgrade your plan to create more jobs.`);
+      return;
+    }
+
+    // A published job with no business name on file never reaches candidates
+    // or job boards correctly (silently dropped from the feed, shows
+    // "Confidential"). Catch it here — inline, never a dead end — so the job
+    // the employer just wrote is never lost to a validation wall.
+    const effectiveCompanyName = companyNameOverride ?? profile?.company_name;
+    if (status === "published" && !effectiveCompanyName?.trim()) {
+      setCompanyNameDraft(profile?.company_name ?? "");
+      setPendingPublishStatus(status);
       return;
     }
 
@@ -1116,6 +1136,32 @@ export default function CreateJob() {
       toast.error(isEditMode ? "Failed to update job" : "Failed to create job");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Save the business name captured inline from the publish-blocked state,
+  // then continue the publish that was waiting on it — passing the name
+  // straight through instead of relying on the profile query to refetch in
+  // time, so there's no race and no second dead end.
+  const handleSaveCompanyNameAndContinue = async () => {
+    const trimmed = companyNameDraft.trim();
+    if (!trimmed) {
+      toast.error("Enter your business name to continue.");
+      return;
+    }
+    setIsSavingCompanyName(true);
+    try {
+      await updateProfile.mutateAsync({ company_name: trimmed });
+      const status = pendingPublishStatus;
+      setPendingPublishStatus(null);
+      if (status) {
+        await handleSubmit(status, trimmed);
+      }
+    } catch (error) {
+      console.error("Error saving business name:", error);
+      toast.error("Couldn't save your business name. Please try again.");
+    } finally {
+      setIsSavingCompanyName(false);
     }
   };
 
@@ -3660,6 +3706,65 @@ export default function CreateJob() {
         }}
         job={publishedJob}
       />
+
+      {/* Business name required before publishing. Never a dead end — the
+          job stays exactly as written, and publishing continues the moment
+          this is saved. */}
+      <Dialog
+        open={pendingPublishStatus !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingPublishStatus(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <AvaSeal size={28} />
+              <DialogTitle>One more thing before this goes live</DialogTitle>
+            </div>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Your business name isn't on file yet — it's what candidates and job boards see instead of
+            you. Add it and this job publishes right away.
+          </p>
+          <div className="space-y-2">
+            <Label htmlFor="publish-company-name">Business Name</Label>
+            <Input
+              id="publish-company-name"
+              placeholder="Ridgeway Garage"
+              value={companyNameDraft}
+              onChange={(e) => setCompanyNameDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void handleSaveCompanyNameAndContinue();
+                }
+              }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPendingPublishStatus(null)}
+              disabled={isSavingCompanyName}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void handleSaveCompanyNameAndContinue()}
+              disabled={isSavingCompanyName || !companyNameDraft.trim()}
+            >
+              {isSavingCompanyName ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Send className="h-4 w-4 mr-2" />
+              )}
+              Save &amp; Publish
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

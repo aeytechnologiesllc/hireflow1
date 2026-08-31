@@ -18,6 +18,8 @@ import { candidateApplyUrl } from "@/lib/showcaseApply";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { useInterviews } from "@/hooks/useInterviews";
 import { useUnreadMessagesCount } from "@/hooks/useUnreadMessagesCount";
+import { useUpdateProfile } from "@/hooks/useProfile";
+import { useSchemaMode } from "@/hooks/useSchemaMode";
 import CkAvatar from "../components/Avatar";
 import { CountUp } from "../components/CountUp";
 import { ActionDialog } from "../components/ActionDialog";
@@ -326,6 +328,94 @@ function LiveJobGuide({
   );
 }
 
+/**
+ * Real employer accounts exist today with no business name on file — a gap
+ * that predates this fix and left every one of their candidates reading
+ * their company as "null", "confidential", or "the employer" everywhere.
+ * This card fills the gap for whoever is already stuck in that state: quiet,
+ * honest about why it matters, and gone the moment it's resolved (it is not
+ * a localStorage-dismissible nag — the render condition itself goes away
+ * once company_name is saved). The X only sets it aside for this visit.
+ */
+function CompanyNameGuide({ onDismiss }: { onDismiss: () => void }) {
+  const updateProfile = useUpdateProfile();
+  const [value, setValue] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      toast.error("Enter your business name to continue.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateProfile.mutateAsync({ company_name: trimmed });
+      toast.success("Saved. Candidates and job boards will see this name from now on.");
+    } catch {
+      toast.error("Couldn't save that — please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section
+      className="ck-card ck-reveal relative flex flex-col items-start gap-4 p-6 text-left md:p-8"
+      style={{ ["--ck-i" as string]: 0, borderTop: "3px solid var(--hf-gold-border)" }}
+    >
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Dismiss for now"
+        className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full transition-opacity hover:opacity-70"
+        style={{ color: "var(--hf-text-muted)" }}
+      >
+        <X className="h-4 w-4" />
+      </button>
+      <span className="ck-seal-breathe">
+        <AvaSeal size={40} />
+      </span>
+      <div className="max-w-[56ch] pr-8">
+        <h2
+          className="font-display"
+          style={{ fontSize: "clamp(20px, 2.4vw, 26px)", lineHeight: 1.25, color: "var(--hf-text)", fontWeight: 500 }}
+        >
+          What should candidates call you?
+        </h2>
+        <p className="mt-2 text-[14.5px] leading-[1.6]" style={{ color: "var(--hf-text-soft)" }}>
+          Your business name is missing from your account — it's what candidates and job boards see
+          in place of it. Add it once and you're done.
+        </p>
+      </div>
+      <div className="flex w-full max-w-[56ch] flex-col gap-3 sm:flex-row sm:items-center">
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void save();
+            }
+          }}
+          placeholder="e.g. Ridgeway Garage"
+          maxLength={200}
+          className="ck-input h-11 flex-1 px-3.5"
+        />
+        <button
+          type="button"
+          className="ck-btn ck-btn-primary !px-5 !py-2.5 !text-[14px] shrink-0"
+          onClick={() => void save()}
+          disabled={saving || !value.trim()}
+        >
+          {saving ? "Saving…" : "Save business name"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
 /* ── What needs you today ──────────────────────────────────────────────
    The single most valuable thing this page can do: a short, honest checklist
    of the real things waiting on the employer right now — never a projection,
@@ -497,6 +587,7 @@ function MiniJourneyRail({ stages }: { stages: JourneyPipelineStage[] }) {
 export default function CockpitDashboard() {
   const navigate = useNavigate();
   const { account, profile } = useCockpitAccount();
+  const { data: schemaMode } = useSchemaMode();
   const { candidates, applications, isLoading } = useCockpitCandidates();
   const { advance, reject, isUpdating } = useCockpitActions();
   const { jobs, isLoading: jobsLoading } = useCockpitJobsData();
@@ -605,6 +696,14 @@ export default function CockpitDashboard() {
   // permanently (per-applicant) in localStorage — the same once-only pattern
   // Interviews.tsx uses for its "picked" state — so it never comes back once
   // closed, and never re-triggers once a second applicant arrives.
+  // Shown only for a real account genuinely missing a business name — never
+  // in the showcase/demo schema, and never again once resolved. "Set aside
+  // for this visit" is session-only state, not a permanent localStorage
+  // dismiss, because an unresolved missing company name is a real gap, not
+  // cosmetic.
+  const [companyPromptSetAside, setCompanyPromptSetAside] = useState(false);
+  const needsCompanyName = schemaMode !== "showcase" && !profile?.company_name?.trim();
+
   const firstApplicant = candidates.length === 1 ? candidates[0] : null;
   const [firstApplicantDismissed, setFirstApplicantDismissed] = useState(true);
   useEffect(() => {
@@ -681,6 +780,11 @@ export default function CockpitDashboard() {
           </button>
         )}
       </header>
+
+      {/* ── Recovery prompt for accounts already missing a business name. ── */}
+      {needsCompanyName && !companyPromptSetAside && (
+        <CompanyNameGuide onDismiss={() => setCompanyPromptSetAside(true)} />
+      )}
 
       {/* ── The first applicant an account has ever had, once. ── */}
       {firstApplicant && !firstApplicantDismissed && (

@@ -10,7 +10,7 @@ interface AuthContextType {
   role: AppRole | null;
   isTeamMember: boolean;
   loading: boolean;
-  signUp: (email: string, password: string, fullName: string, role: AppRole) => Promise<{ error: Error | null; needsConfirmation: boolean }>;
+  signUp: (email: string, password: string, fullName: string, role: AppRole, companyName?: string) => Promise<{ error: Error | null; needsConfirmation: boolean }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signInWithGoogle: (redirectTo?: string, role?: AppRole) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -205,9 +205,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signUp = async (email: string, password: string, fullName: string, userRole: AppRole) => {
+  const signUp = async (email: string, password: string, fullName: string, userRole: AppRole, companyName?: string) => {
     const redirectUrl = new URL("/auth/callback", window.location.origin);
     redirectUrl.searchParams.set("role", userRole);
+
+    const trimmedCompanyName = companyName?.trim();
 
     const { error, data } = await supabase.auth.signUp({
       email,
@@ -217,6 +219,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         data: {
           full_name: fullName,
           role: userRole,
+          // Employer-only. Carried as auth metadata so the `handle_new_user`
+          // DB trigger can persist it straight into profiles.company_name at
+          // account creation — the only point that used to leave it null for
+          // every employer forever (see the 2026-08-30 migration).
+          ...(trimmedCompanyName ? { company_name: trimmedCompanyName } : {}),
         },
       },
     });

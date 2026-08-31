@@ -62,6 +62,7 @@ const emailSchema = z.string()
   }, "Please check your email - the domain ending looks incorrect");
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
 const nameSchema = z.string().min(2, "Name must be at least 2 characters");
+const companyNameSchema = z.string().min(2, "Business name must be at least 2 characters");
 
 interface PublishSignupModalProps {
   isOpen: boolean;
@@ -117,6 +118,7 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
   const [signUpEmail, setSignUpEmail] = useState("");
   const [signUpPassword, setSignUpPassword] = useState("");
   const [signUpName, setSignUpName] = useState("");
+  const [signUpCompanyName, setSignUpCompanyName] = useState("");
   
   // Email validation state
   const signInEmailValidation = validateEmail(signInEmail);
@@ -187,6 +189,7 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
       emailSchema.parse(signUpEmail);
       passwordSchema.parse(signUpPassword);
       nameSchema.parse(signUpName);
+      companyNameSchema.parse(signUpCompanyName);
     } catch (err) {
       if (err instanceof z.ZodError) {
         toast({ variant: "warning", description: err.errors[0].message });
@@ -195,7 +198,7 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
       }
     }
 
-    const { error, needsConfirmation } = await signUp(signUpEmail, signUpPassword, signUpName, "employer");
+    const { error, needsConfirmation } = await signUp(signUpEmail, signUpPassword, signUpName, "employer", signUpCompanyName);
 
     if (error) {
       const errorMessage = error.message.includes("already registered")
@@ -329,6 +332,18 @@ export default function PublishSignupModal({ isOpen, onClose, jobTitle }: Publis
                   required
                   className="h-11"
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="company-name">Business Name</Label>
+                <Input
+                  id="company-name"
+                  placeholder="Ridgeway Garage"
+                  value={signUpCompanyName}
+                  onChange={(e) => setSignUpCompanyName(e.target.value)}
+                  required
+                  className="h-11"
+                />
+                <p className="text-xs text-muted-foreground">This is what candidates and job boards will see.</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
