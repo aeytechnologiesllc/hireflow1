@@ -136,14 +136,20 @@ const parseCommaSeparatedList = (value: unknown): string[] =>
     .filter(Boolean);
 
 // Step type info for workflow steps
-const STEP_TYPE_INFO: Record<string, { icon: React.ElementType; label: string; description: string; hasConfig?: boolean }> = {
+const STEP_TYPE_INFO: Record<string, { icon: React.ElementType; label: string; description: string; hasConfig?: boolean; candidateTitle?: string; candidateDescription?: string }> = {
   typing_test: { icon: Keyboard, label: "Typing Test", description: "Test typing speed and accuracy" },
   video_message: { icon: Video, label: "Video Message", description: "Record a video introduction" },
   chat_simulation: { icon: MessageSquare, label: "Chat Simulation", description: "Customer support roleplay" },
   sales_simulation: { icon: AvaSeal, label: "Sales Conversation", description: "Sales pitch roleplay" },
   portfolio_upload: { icon: Upload, label: "Portfolio Upload", description: "Submit work samples" },
-  chat_interview: { icon: MessageSquare, label: "Interview with Ava", description: "Text-based AI interview" },
-  voice_interview: { icon: Mic, label: "Ava Interview", description: "Premium voice interview (after Review)", hasConfig: true },
+  chat_interview: {
+    icon: MessageSquare, label: "Interview with Ava", description: "Text-based AI interview",
+    candidateTitle: "Chat interview", candidateDescription: "A short written conversation about the role",
+  },
+  voice_interview: {
+    icon: Mic, label: "Ava Interview", description: "Premium voice interview (after Review)", hasConfig: true,
+    candidateTitle: "Voice interview", candidateDescription: "A short spoken interview, taken whenever suits you",
+  },
 };
 
 const WIZARD_STEPS = [
@@ -327,8 +333,9 @@ export default function GuestJobCreator() {
     const newStep = {
       id: `step_${Date.now()}`,
       type,
-      title: stepInfo.label,
-      description: stepInfo.description,
+      // Stored on the job, so the CANDIDATE reads this — never the picker label.
+      title: stepInfo.candidateTitle ?? stepInfo.label,
+      description: stepInfo.candidateDescription ?? stepInfo.description,
       required: true,
       config
     };
