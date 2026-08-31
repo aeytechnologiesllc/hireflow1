@@ -665,10 +665,13 @@
    Gemline (direction 01 of the mockup gallery): the applicant's real
    workflow steps as gems strung on one continuous, flowing track — no
    night-sky porthole, the rail sits straight on the panel surface in both
-   themes. This is still the ONE colorful element in the applicant panel —
-   the --gem-* tokens below are sanctioned for this rail only; do not spend
-   them anywhere else in the cockpit (see the theme-lock note in Matrix).
-   Everything here is additive — no existing rule above this block is touched.
+   themes. The --gem-* tokens below are sanctioned for exactly two places:
+   this rail, and the compact aggregate miniature at the end of this block
+   (ck-mini-rail-*, "Pipeline at a glance" on the Dashboard) — the same track
+   language, once for one candidate's progress and once for everyone's.
+   Do not spend them anywhere else in the cockpit (see the theme-lock note
+   in Matrix). Everything here is additive — no existing rule above this
+   block is touched.
    ══════════════════════════════════════════════════════════════════════════ */
 
 :root {
@@ -935,4 +938,93 @@
   .ck-rail-receipt { font-size: 9px; }
   .ck-rail-chip { width: 25px; height: 25px; }
   .ck-rail-chip-core { width: 25px; height: 25px; font-size: 8.5px; }
+}
+
+/* ── MINI GEM RAIL — Dashboard, "Pipeline at a glance" ──────────────────────
+   2026-08-30. A compact, AGGREGATE miniature of the rail above: not one
+   candidate's progress (no traveler chip, no cleared/current/upcoming
+   states) but the shape of the whole live pipeline — every real phase from
+   candidateJourney, each node showing how many live applicants are on it
+   right now. An occupied phase lights up at its spot on the jade→mint→teal
+   →gold spectrum (--node-color/--node-ink set inline per node, same
+   convention as ck-rail-* above); an empty phase stays hollow and quiet —
+   the node is always drawn, because "nobody's here yet" is real information,
+   not noise to prune. Deliberately static (no flowing-gradient animation):
+   this sits on the page permanently rather than playing once on a detail
+   view, so it should read calm, not loop. Nodes flex evenly at every width
+   — same "shrink to fit, never scroll" rule as the rail's own narrow-panel
+   fallback — so the whole track is always visible, never clipped. ── */
+.ck-mini-rail { position: relative; }
+
+/* left/right are set inline per render (see MiniJourneyRail) — they depend
+   on how many nodes there are, so a fixed pixel inset would only ever line
+   up with the first and last dot's centers by coincidence. */
+.ck-mini-rail-track {
+  position: absolute;
+  top: 15px;
+  height: 2px;
+  border-radius: 999px;
+  z-index: 1;
+  background: linear-gradient(90deg, var(--gem-jade), var(--gem-mint), var(--gem-teal), var(--gem-gold));
+  opacity: 0.5;
+}
+
+.ck-mini-rail-nodes {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  gap: 2px;
+}
+
+.ck-mini-rail-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+}
+
+.ck-mini-rail-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  border: 1.5px solid var(--line);
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  color: var(--ink-3);
+}
+.ck-mini-rail-node.is-active .ck-mini-rail-dot {
+  border-color: transparent;
+  background: radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.4), var(--node-color, var(--gem-jade)) 68%);
+  color: var(--node-ink, #14100a);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.14) inset,
+    0 0 10px 1px color-mix(in srgb, var(--node-color, var(--gem-jade)) 45%, transparent);
+}
+
+.ck-mini-rail-label {
+  margin-top: 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ink-3);
+  max-width: 100%;
+  overflow-wrap: break-word;
+  /* A long single-word phase name ("Application") in a very narrow column
+     (many real phases on a small phone) still has to break somewhere —
+     hyphenate at a real syllable boundary instead of an abrupt mid-word cut. */
+  hyphens: auto;
+}
+.ck-mini-rail-node.is-active .ck-mini-rail-label { color: var(--ink); }
+
+@media (max-width: 480px) {
+  .ck-mini-rail-track { top: 13px; }
+  .ck-mini-rail-dot { width: 26px; height: 26px; font-size: 11px; }
+  .ck-mini-rail-label { font-size: 9px; margin-top: 5px; }
 }

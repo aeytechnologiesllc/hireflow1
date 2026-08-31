@@ -8,6 +8,12 @@ import type { TeamMember } from "@/hooks/useTeamMembers";
 import type { TeamInvitation } from "@/hooks/useTeam";
 import type { ActivityItem } from "@/hooks/useActivityFeed";
 import type { Profile } from "@/hooks/useProfile";
+import {
+  buildCandidateJourney,
+  positionFor,
+  DECISION_STAGE_ID,
+  type WorkflowStepLike,
+} from "@/lib/candidateJourney";
 import type {
   Candidate,
   CandidateStage,
@@ -211,6 +217,107 @@ export function buildPipeline(apps: ApplicationWithCandidate[]): PipelineNode[] 
   ];
 
   return nodes;
+}
+
+/** The minimal shape `buildJourneyPipeline` needs off an application — a
+ *  structural subset of `ApplicationWithCandidate` so it also accepts the
+ *  showcase dataset's lighter rows without a hard dependency on the real type. */
+export interface JourneyPipelineInput {
+  status?: string | null;
+  phase?: string | null;
+  jobs?: { workflow_steps?: unknown; quiz_questions?: unknown } | null;
+}
+
+/** One column of "Pipeline at a glance" — a real phase from a real job's
+ *  journey, and how many live applicants are on it right now. No percentage:
+ *  a share of *current occupants* reads as a conversion rate it isn't, so
+ *  this is deliberately count-only. `count === 0` is a real, keepable fact
+ *  ("nobody's here yet") — callers must render it, not hide the column. */
+export interface JourneyPipelineStage {
+  key: string;
+  label: string;
+  count: number;
+}
+
+/**
+ * "Pipeline at a glance" — the whole track a live applicant could ride, using
+ * the exact same source of truth as the applicant journey strip: every real
+ * phase comes from `buildCandidateJourney` off a job's own
+ * `workflow_steps`/`quiz_questions` (see `src/lib/candidateJourney.ts`),
+ * never a separate, hand-picked set of stage names like the legacy
+ * `buildPipeline` above. Unlike that legacy funnel, this shows EVERY phase —
+ * including ones nobody currently occupies — because an empty phase is real
+ * information ("nobody's in the voice interview yet"), not noise to prune.
+ *
+ * Phases are seeded from the full journey of every distinct job shape a live
+ * applicant belongs to (so a business running one job sees exactly that
+ * job's real steps; a business running several differently-configured jobs
+ * sees the union of them — still only real, configured phases, never
+ * invented ones), then each live applicant's own real position increments
+ * its column. Stages from different jobs merge into one column when they
+ * resolve to the same displayed title (e.g. two jobs that both have a
+ * "Voice interview" step), ordered by how early that step actually sits in
+ * its own journey — so "Application" always leads and "Decision" always
+ * trails. Rejected applicants are not part of a live pipeline; hired
+ * applicants get their own trailing column since they've cleared every real
+ * stage. Counts are real — never estimated, never padded, no bottleneck
+ * guesswork layered on top.
+ */
+export function buildJourneyPipeline(apps: readonly JourneyPipelineInput[]): JourneyPipelineStage[] {
+  const hired = apps.filter((a) => a.status === "hired");
+  const live = apps.filter((a) => a.status !== "rejected" && a.status !== "hired");
+  if (live.length + hired.length === 0) return [];
+
+  const buckets = new Map<string, { label: string; count: number; order: number }>();
+  const seenShapes = new Set<string>();
+
+  const journeyOf = (app: JourneyPipelineInput) => {
+    const workflowSteps = app.jobs?.workflow_steps as WorkflowStepLike[] | undefined;
+    const quizQuestions = app.jobs?.quiz_questions as unknown[] | undefined;
+    const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
+    return buildCandidateJourney(workflowSteps, { hasQuiz });
+  };
+
+  const seed = (steps: ReturnType<typeof journeyOf>) => {
+    steps.forEach((step, i) => {
+      const key = step.id === DECISION_STAGE_ID ? DECISION_STAGE_ID : step.title;
+      const existing = buckets.get(key);
+      if (existing) existing.order = Math.min(existing.order, i);
+      else buckets.set(key, { label: step.title, count: 0, order: i });
+    });
+  };
+
+  live.forEach((app) => {
+    const steps = journeyOf(app);
+    // Seed every real phase of this job's journey once per distinct shape —
+    // including the ones nobody has reached yet — so the track shows the
+    // whole ride, not just the stops that happen to have someone on them.
+    const shape = steps.map((s) => s.title).join("|");
+    if (!seenShapes.has(shape)) {
+      seenShapes.add(shape);
+      seed(steps);
+    }
+
+    const position = positionFor(steps, { phase: app.phase, status: app.status });
+    const key = position.current.id === DECISION_STAGE_ID ? DECISION_STAGE_ID : position.current.title;
+    const bucket = buckets.get(key);
+    if (bucket) bucket.count += 1;
+    else buckets.set(key, { label: position.current.title, count: 1, order: position.index });
+  });
+
+  const stages: JourneyPipelineStage[] = Array.from(buckets.values())
+    .sort((a, b) => a.order - b.order)
+    .map((stage) => ({
+      key: stage.label.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+      label: stage.label,
+      count: stage.count,
+    }));
+
+  if (hired.length > 0) {
+    stages.push({ key: "hired", label: "Hired", count: hired.length });
+  }
+
+  return stages;
 }
 
 export function buildDashboardHero(apps: ApplicationWithCandidate[]) {

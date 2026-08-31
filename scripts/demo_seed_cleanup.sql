@@ -9,9 +9,23 @@
 --
 -- Run this whole file to put the database back exactly as it was.
 
+-- Update, 2026-08-30: verifying the new Dashboard "What needs you today" /
+-- interview rows required a real interview in the awaiting-a-pick state, so
+-- one more was scheduled through the app's own scheduling wizard against the
+-- same seeded job/applicant (Tyrone Baptiste's application) — not a new row
+-- outside this seed, so no extra DELETE is needed:
+--   interview id     a514a1bb-5e79-4f79-bdda-4163ed349aeb
+--   application id   ac890d89-9497-420e-963a-d6ec54603f26
+--   scheduled_at     2026-08-30 23:30:00+00 (candidate_response: awaiting_pick)
+-- Step 1 below already deletes every interview whose application belongs to
+-- this job, so this one is caught by the existing subquery. Scheduling it
+-- also advanced that application's status from "reviewing" to "interview" —
+-- step 1's cascade to "delete the application entirely" removes that too,
+-- so nothing extra to revert there either.
+
 begin;
 
--- 1. The interview, then the applications, then the job.
+-- 1. The interview(s), then the applications, then the job.
 delete from public.interviews
  where application_id in (
    select id from public.applications
