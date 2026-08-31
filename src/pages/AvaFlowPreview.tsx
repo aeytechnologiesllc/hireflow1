@@ -59,7 +59,7 @@ import { CountUp } from "@/cockpit/components/CountUp";
 
 const DISPLAY = "'Fraunces', Georgia, serif";
 
-import { StepRail } from "@/components/ava/createFlow/shared";
+import { StepRail, PhaseRow } from "@/components/ava/createFlow/shared";
 
 const STEPS = ["Brief", "Follow-ups", "Rigor", "Ava builds", "Review plan", "Publish"] as const;
 
@@ -600,7 +600,7 @@ function RigorStep({
             >
               {isRec && (
                 <span className="absolute right-3 top-3 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ background: "hsl(var(--ck-jade))", color: "hsl(var(--primary-foreground))" }}>
-                  Ava picks
+                  Recommended
                 </span>
               )}
               <span className="text-lg font-bold" style={{ fontFamily: DISPLAY, color: active ? "hsl(var(--ck-brass-bright))" : "hsl(var(--foreground))" }}>
@@ -696,143 +696,6 @@ function BuildStep({ onDone, role, rigorLabel, reasoning }: { onDone: () => void
  * Step 4 — Review plan (premium, editable)
  * ──────────────────────────────────────────────────────────────────────────── */
 
-function PhaseRow({
-  phase,
-  index,
-  total,
-  editing,
-  onEdit,
-  onRemove,
-  onMove,
-  onField,
-}: {
-  phase: PhaseCard;
-  index: number;
-  total: number;
-  editing: boolean;
-  onEdit: () => void;
-  onRemove: () => void;
-  onMove: (dir: -1 | 1) => void;
-  onField: (field: "title" | "candidate", value: string) => void;
-}) {
-  const reduce = useReducedMotion();
-  const a = ACCENT[phase.accent];
-  const Icon = phase.icon;
-  const ctrlBtn = "grid h-7 w-7 place-items-center rounded-lg transition-colors disabled:opacity-25 disabled:cursor-not-allowed";
-  const ctrlStyle = { background: "hsl(var(--ck-surface-2))", color: "hsl(var(--muted-foreground))", border: "1px solid hsl(var(--border))" } as const;
-
-  return (
-    <motion.div
-      layout
-      initial={reduce ? false : { opacity: 0, y: 22 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: reduce ? 0 : 0.08 + index * 0.09, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="flex gap-3 sm:gap-4"
-    >
-      {/* numbered spine */}
-      <div className="flex flex-col items-center">
-        <span
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-bold"
-          style={{ background: "hsl(var(--card))", border: `1.5px solid ${a.line}`, color: a.fg, fontFamily: DISPLAY }}
-        >
-          {index + 1}
-        </span>
-        {index < total - 1 && <span className="mt-1 w-px flex-1" style={{ background: "hsl(var(--border))" }} />}
-      </div>
-
-      {/* card */}
-      <div
-        className="group mb-3 flex-1 rounded-2xl p-4 transition-all duration-300 sm:p-5"
-        style={{
-          background: editing ? "hsl(var(--primary) / 0.06)" : "var(--gradient-card)",
-          border: editing ? "1px solid hsl(var(--primary) / 0.45)" : "1px solid hsl(var(--border))",
-          boxShadow: editing ? "0 0 30px hsl(var(--primary) / 0.1)" : "var(--shadow-md)",
-        }}
-      >
-        <div className="flex items-start gap-3.5">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl" style={{ background: a.tile, color: a.fg, border: `1px solid ${a.edge}` }}>
-            <Icon className="h-5 w-5" />
-          </span>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: a.fg }}>
-                {phase.kind}
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ background: "hsl(var(--ck-surface-2))", color: "hsl(var(--muted-foreground))" }}>
-                {phase.count}
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ background: "hsl(var(--ck-surface-2))", color: "hsl(var(--muted-foreground))" }}>
-                <Clock className="h-2.5 w-2.5" /> {phase.duration}
-              </span>
-
-              {/* controls — always visible so it's obvious it's editable */}
-              <div className="ml-auto flex items-center gap-1">
-                <button type="button" aria-label="Move up" disabled={index === 0} onClick={() => onMove(-1)} className={ctrlBtn} style={ctrlStyle}>
-                  <ArrowUp className="h-3.5 w-3.5" />
-                </button>
-                <button type="button" aria-label="Move down" disabled={index === total - 1} onClick={() => onMove(1)} className={ctrlBtn} style={ctrlStyle}>
-                  <ArrowDown className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  aria-label={editing ? "Done editing" : "Edit"}
-                  onClick={onEdit}
-                  className={ctrlBtn}
-                  style={editing ? { background: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))", border: "1px solid hsl(var(--primary))" } : ctrlStyle}
-                >
-                  {editing ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
-                </button>
-                <button type="button" aria-label="Remove" onClick={onRemove} className={ctrlBtn} style={ctrlStyle}>
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {editing ? (
-              <div className="mt-2 space-y-2">
-                <input
-                  value={phase.title}
-                  onChange={(e) => onField("title", e.target.value)}
-                  className="w-full rounded-lg px-3 py-2 text-base font-semibold outline-none"
-                  style={{ background: "hsl(var(--ck-surface-2))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))", fontFamily: DISPLAY }}
-                />
-                {phase.candidate && (
-                  <textarea
-                    value={phase.candidate}
-                    onChange={(e) => onField("candidate", e.target.value)}
-                    rows={2}
-                    className="w-full resize-none rounded-lg px-3 py-2 text-sm outline-none"
-                    style={{ background: "hsl(var(--ck-surface-2))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))" }}
-                  />
-                )}
-              </div>
-            ) : (
-              <>
-                <h3 className="mt-1 text-base font-semibold" style={{ color: "hsl(var(--foreground))", fontFamily: DISPLAY }}>
-                  {phase.title}
-                </h3>
-                {phase.candidate && (
-                  <p className="mt-1.5 text-sm leading-relaxed" style={{ color: "hsl(var(--foreground) / 0.82)" }}>
-                    {phase.candidate}
-                  </p>
-                )}
-              </>
-            )}
-
-            <div className="mt-2.5 flex items-start gap-2 rounded-lg px-3 py-2" style={{ background: "hsl(var(--ck-surface-2))" }}>
-              <AvaSeal size={12} className="mt-0.5 shrink-0" />
-              <span className="text-xs italic leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
-                {phase.rationale}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
 function ReviewStep({
   phases,
   editingId,
@@ -860,7 +723,7 @@ function ReviewStep({
           className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em]"
           style={{ borderColor: "hsl(var(--ck-jade) / 0.4)", color: "hsl(var(--ck-mint))" }}
         >
-          <Check className="h-3 w-3" /> Built in seconds
+          <Check className="h-3 w-3" /> Draft · not published yet
         </motion.span>
         <h2 className="mt-3 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500, color: "hsl(var(--foreground))" }}>
           Here's your hiring plan.
@@ -933,7 +796,7 @@ function PublishStep({ count }: { count: number }) {
         Share your role.
       </motion.h2>
       <motion.p initial={reduce ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="mt-2 text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>
-        Start with the free HireFlow link. If you need more volume later, boost it on Indeed, LinkedIn, Monster, or ZipRecruiter.
+        Share the HireFlow link anywhere — that's where the screening happens, and every applicant lands in one place.
       </motion.p>
 
       <motion.div
@@ -1003,9 +866,21 @@ function PublishStep({ count }: { count: number }) {
  * Page shell
  * ──────────────────────────────────────────────────────────────────────────── */
 
-export default function AvaFlowPreview() {
+export interface AvaFlowPreviewProps {
+  /** Drive the step from outside — the flow lab walks both themes in lockstep. */
+  externalStep?: number;
+  /** Embedded in another page: drop the full-height and the Exit link. */
+  embedded?: boolean;
+}
+
+export default function AvaFlowPreview({ externalStep, embedded }: AvaFlowPreviewProps = {}) {
   const reduce = useReducedMotion();
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(externalStep ?? 0);
+
+  // Driven from outside (the flow lab steps Day and Night through together).
+  useEffect(() => {
+    if (externalStep != null) setStep(externalStep);
+  }, [externalStep]);
   const [fuIndex, setFuIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [rigor, setRigor] = useState<RigorId>("high");
@@ -1111,7 +986,7 @@ export default function AvaFlowPreview() {
 
   return (
     <div
-      className="ava-prev scroll-perf relative flex min-h-[100dvh] flex-col overflow-x-hidden"
+      className={`ava-prev scroll-perf relative flex flex-col overflow-x-hidden ${embedded ? "min-h-[560px]" : "min-h-[100dvh]"}`}
       style={{
         background: "radial-gradient(ellipse 90% 60% at 50% -10%, color-mix(in srgb, var(--hf-green-soft) 50%, transparent) 0%, transparent 60%), hsl(var(--background))",
         color: "hsl(var(--foreground))",
@@ -1125,9 +1000,11 @@ export default function AvaFlowPreview() {
       <HeroBackground />
 
       <header className="relative z-10 flex items-center justify-between gap-3 px-4 py-4 sm:px-6">
-        <Link to="/" className="inline-flex items-center gap-1.5 text-xs font-medium transition-opacity hover:opacity-100" style={{ color: "hsl(var(--muted-foreground))" }}>
-          <ArrowLeft className="h-3.5 w-3.5" /> Exit
-        </Link>
+        {embedded ? <span /> : (
+          <Link to="/" className="inline-flex items-center gap-1.5 text-xs font-medium transition-opacity hover:opacity-100" style={{ color: "hsl(var(--muted-foreground))" }}>
+            <ArrowLeft className="h-3.5 w-3.5" /> Exit
+          </Link>
+        )}
         <div className="hidden flex-1 sm:block">
           <StepRail step={step} traveler={previewTraveler} receipts={{
               "Brief": brief.role.trim() ? "Set" : null,

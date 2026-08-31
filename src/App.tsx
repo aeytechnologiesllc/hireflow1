@@ -91,6 +91,13 @@ const DeveloperActivity = lazyWithReload(() => import("./pages/DeveloperActivity
 const DeveloperSettings = lazyWithReload(() => import("./pages/DeveloperSettings"));
 const AvaFlowPreview = lazyWithReload(() => import("./pages/AvaFlowPreview"));
 
+/** Dev-only: walk the create-job flow in both themes side by side. Folded out
+ *  of production builds along with its chunk — see DevOnlyPage note below. */
+const DevOnlyPage = () => null;
+const FlowLab = import.meta.env.DEV
+  ? lazyWithReload(() => import("./pages/FlowLab"))
+  : DevOnlyPage;
+
 
 
 // Standard premium loading state — a properly sized, centered Ava orb.
@@ -202,6 +209,7 @@ const App = () => (
                   {import.meta.env.DEV && (
                     <Route path="/preview/loading" element={<AuthLoadingScreen variant="employer" />} />
                   )}
+                  {import.meta.env.DEV && <Route path="/flow-lab" element={<FlowLab />} />}
                   
                   {/* Document Verification (public, outside AppLayout) */}
                   <Route path="/verify/:documentCode" element={<VerifyDocument />} />

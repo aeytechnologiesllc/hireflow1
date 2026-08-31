@@ -259,7 +259,13 @@
     --destructive: 9 62% 61%;
     --destructive-foreground: 38 21% 7%;
 
-    --border: 42 44% 92%;          /* used at low alpha via border tokens */
+    /* Was 42 44% 92% — a near-white keyline. The comment said "used at low
+       alpha", but the codebase uses it RAW in 47 of 50 call sites, so in Night
+       every card, input and tile got a bright white outline that read cheap
+       against the ink ground. This is now the same visual weight as --hf-border
+       (rgba(244,239,227,.15) over #17140F), so a raw 1px border is a quiet
+       hairline. The three sites that DO pass an alpha were raised to match. */
+    --border: 42 12% 22%;
     --input: 30 16% 15%;
     --ring: 158 47% 53%;
 
@@ -618,9 +624,9 @@
   background: linear-gradient(
     180deg,
     transparent 0%,
-    hsl(var(--border) / 0.5) 20%,
+    hsl(var(--border)) 20%,
     hsl(var(--primary) / 0.25) 50%,
-    hsl(var(--border) / 0.5) 80%,
+    hsl(var(--border)) 80%,
     transparent 100%
   );
   animation: border-shimmer 3s linear infinite;

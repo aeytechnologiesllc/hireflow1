@@ -8,8 +8,15 @@
  * and joins, a 24x24 grid, and a single small filled accent (a dot, a seal)
  * that echoes across the family.
  *
- * These are the ONLY icons allowed to carry a candidate screen's identity —
- * the focal mark on a journey header, an empty state, a milestone card.
+ * These are the ONLY icons allowed to carry a screen's identity — the focal
+ * mark on a journey header, an empty state, a milestone card.
+ *
+ * Scope note: this file is named for the candidate side but is not limited to
+ * it — CreateJob, GuestJobCreator and the create-job StepRail all import from
+ * here, because GlyphLetter and GlyphSteps already draw objects the employer
+ * flow needed. The employer-specific marks live alongside it in
+ * ../ava/employerGlyphs.tsx and follow the identical family law; treat the two
+ * files as one kit.
  * Small utility chrome (a chevron, an eye, a close button) can still come
  * from lucide-react; a stock briefcase, clipboard, camera, sparkle, star,
  * wand, bot, or brain glyph may not.

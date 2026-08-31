@@ -443,7 +443,7 @@ export default function AvaCreateJob() {
         {!(step === 0 && inputMode === "voice") && <div className="hidden flex-1 sm:block"><StepRail step={step} traveler={travelerInitials} receipts={stepReceipts} /></div>}
         {genSource && (
           <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: genSource === "openai" ? "hsl(var(--ck-mint))" : "hsl(var(--muted-foreground))" }}>
-            {genSource === "openai" ? "AI generated" : "Template fallback"}
+            {"Draft"}
           </span>
         )}
       </header>
@@ -579,7 +579,7 @@ export default function AvaCreateJob() {
                       const isRec = opt.id === playbook.rigor.recommended;
                       return (
                         <button key={opt.id} type="button" onClick={() => { setRigor(opt.id); setRigorTouched(true); }} className="relative rounded-2xl p-5 text-left" style={{ background: active ? "hsl(var(--primary) / 0.1)" : "hsl(var(--card))", border: active ? "1px solid hsl(var(--primary) / 0.6)" : "1px solid hsl(var(--border))" }}>
-                          {isRec && <span className="absolute right-3 top-3 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase" style={{ background: "hsl(var(--ck-jade))", color: "hsl(var(--primary-foreground))" }}>Ava picks</span>}
+                          {isRec && <span className="absolute right-3 top-3 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase" style={{ background: "hsl(var(--ck-jade))", color: "hsl(var(--primary-foreground))" }}>Recommended</span>}
                           <span className="text-lg font-bold" style={{ fontFamily: DISPLAY, color: active ? "hsl(var(--ck-brass-bright))" : "hsl(var(--foreground))" }}>{opt.label}</span>
                           <p className="mt-1.5 text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>{opt.blurb}</p>
                         </button>
@@ -607,7 +607,7 @@ export default function AvaCreateJob() {
                 <div className="mx-auto max-w-2xl">
                   <div className="text-center">
                     <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ borderColor: "hsl(var(--ck-jade) / 0.4)", color: "hsl(var(--ck-mint))" }}>
-                      <Check className="h-3 w-3" /> {genSource === "openai" ? "Built with AI" : "Built from playbook"}
+                      <Check className="h-3 w-3" /> {"Draft · not published yet"}
                     </span>
                     <h2 className="mt-3 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>Here's your hiring plan.</h2>
                     <p className="mt-2 text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>Reorder, tweak, or remove anything — then publish.</p>

@@ -25,7 +25,8 @@
  * cockpit.css is imported globally in main.tsx, so this works on any page.
  */
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { Check, type LucideIcon } from "lucide-react";
+import { Check } from "lucide-react";
+import type { ComponentType, SVGProps } from "react";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { gemPosition } from "@/cockpit/lib/gemRail";
 import { cn } from "@/lib/utils";
@@ -36,8 +37,10 @@ const reducedMotion = () =>
 export interface GemRailNode {
   id: string;
   label: string;
-  /** The glyph struck into the gem. Ignored when `decision` is set. */
-  icon?: LucideIcon;
+  /** The glyph struck into the gem. Ignored when `decision` is set.
+   *  Any icon component — lucide for utility chrome, the brand glyph kits for
+   *  anything carrying identity. */
+  icon?: ComponentType<{ className?: string; size?: string | number; strokeWidth?: string | number }>;
   /** The line under the gem — a score, a duration, an outcome. Only ever what's on file. */
   receipt?: string | null;
   /** Renders the receipt as the brass pill, the way a verdict reads. */

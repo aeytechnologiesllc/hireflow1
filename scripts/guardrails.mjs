@@ -349,6 +349,42 @@ const guards = [
   },
 
   {
+    id: "brand-glyphs-carry-identity",
+    why:
+      "The create-job flow ran on stock lucide icons (ClipboardList, FileText, Timer, Camera, " +
+      "Trophy) while the candidate side had a hand-drawn kit. The owner's read was 'all the icons " +
+      "feel very generic, very AI', and candidate/glyphs.tsx already banned exactly this. The plan " +
+      "cards and the step rail now resolve their marks through glyphForKind()/STEP_GLYPHS against " +
+      "the brand kits, and must never fall back to lucide for a mark that carries identity.",
+    async run() {
+      const bad = [];
+      const shared = await read("src/components/ava/createFlow/shared.tsx");
+      const kit = await read("src/components/ava/employerGlyphs.tsx");
+      if (kit == null) return { ok: false, detail: ["src/components/ava/employerGlyphs.tsx is missing"] };
+      if (shared == null) return { ok: false, detail: ["createFlow/shared.tsx is missing"] };
+
+      if (!/export function glyphForKind\(/.test(shared)) {
+        bad.push("createFlow/shared.tsx no longer exports glyphForKind() — plan cards have lost their brand marks");
+      }
+      // The identity marks must come from a kit, not lucide.
+      for (const [label, re] of [
+        ["glyphForKind", /export function glyphForKind\([\s\S]*?\n\}/],
+        ["STEP_GLYPHS", /const STEP_GLYPHS = \{[\s\S]*?\}/],
+      ]) {
+        const block = shared.match(re)?.[0] ?? "";
+        const stock = block.match(/\b(ClipboardList|ClipboardCheck|FileText|Timer|Camera|Video|Mic|Trophy|Keyboard|Workflow|SlidersHorizontal|MessagesSquare)\b/g);
+        if (stock) bad.push(`createFlow/shared.tsx: ${label} resolves to stock lucide icons: ${[...new Set(stock)].join(", ")}`);
+      }
+      // Family law: the kit draws on one grid, in one voice.
+      if (!/viewBox="0 0 24 24"/.test(kit)) bad.push("employerGlyphs.tsx left the 24x24 grid");
+      if (!/stroke="currentColor"/.test(kit)) bad.push("employerGlyphs.tsx stopped using currentColor");
+      const count = (kit.match(/export function Glyph/g) || []).length;
+      if (count < 8) bad.push(`employerGlyphs.tsx only exports ${count} marks — the flow needs the full set`);
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
+  {
     id: "orb-stays-retired",
     why:
       "The Ava orb is retired — the mark is the wax seal. The orb nevertheless kept " +

@@ -231,7 +231,7 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
     }
   })();
 
-  const OrbVisual = (
+  const AvaVisual = (
     <div aria-hidden style={{ transform: `scale(${orb.scale})`, filter: orb.glow, transition: "transform 0.8s ease, filter 0.8s ease" }}>
       <AvaVoicePulse size={orbSize} getIntensity={getVoiceLevel} active={isConnected} />
     </div>
@@ -277,7 +277,8 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col items-center text-center">
-      {/* ORB — the hero + primary CTA when idle */}
+      {/* Ava's seal, breathing with the live voice level — the hero and the
+          primary CTA when idle. (Was the retired 3D orb.) */}
       {!isConnected && !creating ? (
         <button
           type="button"
@@ -286,10 +287,10 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
           aria-label="Start talking with Ava"
           className="group relative rounded-full outline-none transition-transform hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary))] disabled:opacity-70"
         >
-          {OrbVisual}
+          {AvaVisual}
         </button>
       ) : (
-        OrbVisual
+        AvaVisual
       )}
 
       <span className="mt-6 text-[11px] font-bold uppercase tracking-[0.22em]" style={{ color: "hsl(var(--ck-brass))" }}>

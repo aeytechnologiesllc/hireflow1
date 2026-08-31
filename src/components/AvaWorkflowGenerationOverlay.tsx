@@ -520,7 +520,7 @@ export default function AvaWorkflowGenerationOverlay({
 
             {/* Progress ring */}
             <svg className="absolute inset-0 w-full h-full" viewBox="0 0 200 200">
-              <circle cx="100" cy="100" r="85" fill="none" stroke="hsl(var(--border) / 0.2)" strokeWidth="2" />
+              <circle cx="100" cy="100" r="85" fill="none" stroke="hsl(var(--border))" strokeWidth="2" />
               <motion.circle
                 cx="100" cy="100" r="85"
                 fill="none"

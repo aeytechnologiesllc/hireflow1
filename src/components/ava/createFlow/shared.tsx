@@ -4,11 +4,6 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import {
   Check,
-  FileText,
-  MessagesSquare,
-  SlidersHorizontal,
-  Workflow,
-  ClipboardCheck,
   ArrowUp,
   ArrowDown,
   Pencil,
@@ -22,6 +17,35 @@ import { AvaGlyph } from "@/components/ava/AvaGlyph";
 export const DISPLAY = "'Fraunces', Georgia, serif";
 
 import { GemRail } from "@/components/rail/GemRail";
+import {
+  GlyphJobPost, GlyphScenarios, GlyphTyping, GlyphCallingCard, GlyphExchange,
+  GlyphQuoted, GlyphMeasure, GlyphPlan, GlyphPublish, GlyphRosette, GlyphForme,
+} from "@/components/ava/employerGlyphs";
+// Reused rather than redrawn: GlyphLetter is already documented as "an
+// application on its way", and GlyphSteps as ordered steps. Inventing a second
+// mark for an object the kit already draws is how families drift apart.
+import { GlyphLetter, GlyphSteps, GlyphCheckSeal } from "@/components/candidate/glyphs";
+
+/**
+ * The mark for a phase kind, from the employer glyph kit. The flow used stock
+ * lucide icons here (ClipboardList, FileText, Timer, Mic) — generic enough that
+ * the owner read the whole screen as machine-made, and a violation of the kit's
+ * own rule that a stock clipboard or camera may not carry identity.
+ */
+export function glyphForKind(kind: string) {
+  const k = kind.toLowerCase();
+  if (k.includes("job post") || k.includes("listing")) return GlyphJobPost;
+  if (k.includes("application")) return GlyphLetter;
+  if (k.includes("quiz") || k.includes("scenario")) return GlyphScenarios;
+  if (k.includes("typing") || k.includes("skills")) return GlyphTyping;
+  if (k.includes("video") || k.includes("walkthrough")) return GlyphCallingCard;
+  if (k.includes("chat") || k.includes("simulation") || k.includes("sim")) return GlyphExchange;
+  if (k.includes("voice") || k.includes("interview")) return GlyphQuoted;
+  if (k.includes("cod") || k.includes("technical")) return GlyphForme;
+  if (k.includes("shortlist") || k.includes("rank")) return GlyphRosette;
+  if (k.includes("reliab") || k.includes("reference")) return GlyphCheckSeal;
+  return GlyphLetter;
+}
 
 export const STEPS = ["Brief", "Follow-ups", "Rigor", "Ava builds", "Review plan", "Publish"] as const;
 
@@ -64,14 +88,14 @@ export function useWide() {
  * candidate rides their own journey — and Publish is Ava's seal, the same mark
  * she signs everything else with.
  */
-const STEP_GLYPHS: Record<(typeof STEPS)[number], LucideIcon> = {
-  "Brief": FileText,
-  "Follow-ups": MessagesSquare,
-  "Rigor": SlidersHorizontal,
-  "Ava builds": Workflow, // never a wand/sparkle — see the no-generic-ai-icons guard
-  "Review plan": ClipboardCheck,
-  "Publish": Check, // unused — Publish renders the seal
-};
+const STEP_GLYPHS = {
+  "Brief": GlyphLetter,        // existing kit — the brief on its way to Ava
+  "Follow-ups": GlyphExchange, // two facing arcs, one pressed dot between them
+  "Rigor": GlyphMeasure,       // the level you set, on a printer's measure
+  "Ava builds": GlyphSteps,    // existing kit — ordered steps climbing
+  "Review plan": GlyphPlan,    // the whole run of steps, on the brand's path
+  "Publish": GlyphPublish,     // fallback only — Publish renders the real seal
+} as const;
 
 export function StepRail({
   step,
@@ -134,10 +158,11 @@ export function PhaseRow({
   onField: (field: "title" | "candidate", value: string) => void;
 }) {
   const reduce = useReducedMotion();
-  const a = ACCENT[phase.accent];
-  const Icon = phase.icon;
-  const ctrlBtn = "grid h-7 w-7 place-items-center rounded-lg transition-colors disabled:opacity-25 disabled:cursor-not-allowed";
-  const ctrlStyle = { background: "hsl(var(--ck-surface-2))", color: "hsl(var(--muted-foreground))", border: "1px solid hsl(var(--border))" } as const;
+  const Icon = glyphForKind(phase.kind);
+  // Chrome rests at low opacity so the eye lands on the title, not the buttons.
+  const ctrlBtn =
+    "grid h-7 w-7 place-items-center rounded-lg border-0 bg-transparent opacity-40 transition-opacity hover:opacity-100 focus-visible:opacity-100 disabled:opacity-15 disabled:cursor-not-allowed";
+  const ctrlStyle = { color: "var(--hf-text-muted)" } as const;
 
   return (
     <motion.div
@@ -147,69 +172,101 @@ export function PhaseRow({
       transition={{ delay: reduce ? 0 : 0.06, duration: 0.38, ease: [0.4, 0, 0.2, 1] }}
       className="flex gap-3 sm:gap-4"
     >
+      {/* The spine: one bare numeral. It used to be a coloured figure inside a
+          differently-coloured ring, which put two accents on a step that has
+          no accent to communicate. */}
       <div className="flex flex-col items-center">
         <span
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-bold"
-          style={{ background: "hsl(var(--card))", border: `1.5px solid ${a.line}`, color: a.fg, fontFamily: DISPLAY }}
+          className="grid h-8 w-8 shrink-0 place-items-center text-[19px] leading-none"
+          style={{
+            fontFamily: DISPLAY,
+            fontVariantNumeric: "tabular-nums",
+            letterSpacing: "-0.02em",
+            color: "var(--hf-green)",
+          }}
         >
           {index + 1}
         </span>
-        {index < total - 1 && <span className="mt-1 w-px flex-1" style={{ background: "hsl(var(--border))" }} />}
+        {index < total - 1 && <span className="mt-1 w-px flex-1" style={{ background: "var(--hf-border)" }} />}
       </div>
+
+      {/* The sheet. Flat stock, one hairline, one brass rule at the head —
+          letterhead, not a glass tile. The old card was a gradient that faded
+          from 1.10:1 to 1.04:1 against the page as it descended, so it
+          dissolved into the ground exactly where the reader needed an edge. */}
       <div
-        className="group mb-3 flex-1 rounded-2xl p-4 transition-all duration-300 sm:p-5"
+        className="group mb-3 flex-1 overflow-hidden rounded-xl transition-colors duration-200"
         style={{
-          background: editing ? "hsl(var(--primary) / 0.06)" : "var(--gradient-card)",
-          border: editing ? "1px solid hsl(var(--primary) / 0.45)" : "1px solid hsl(var(--border))",
-          boxShadow: editing ? "0 0 30px hsl(var(--primary) / 0.1)" : "var(--shadow-md)",
+          background: editing ? "var(--hf-surface-raised)" : "var(--hf-surface)",
+          border: `1px solid ${editing ? "var(--hf-green-border)" : "var(--hf-border-strong)"}`,
+          boxShadow: editing ? "inset 3px 0 0 var(--hf-green)" : "none",
         }}
       >
-        {/* Header: icon paired with kind + title; controls pinned top-right */}
-        <div className="flex items-start gap-3.5">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl" style={{ background: a.tile, color: a.fg, border: `1px solid ${a.edge}` }}>
-            <Icon className="h-5 w-5" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <span className="block text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: a.fg }}>{phase.kind}</span>
-            {editing ? (
-              <input value={phase.title} onChange={(e) => onField("title", e.target.value)} className="mt-1 w-full rounded-lg px-3 py-2 text-[17px] font-semibold outline-none" style={{ background: "hsl(var(--ck-surface-2))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))", fontFamily: DISPLAY }} />
-            ) : (
-              <h3 className="mt-0.5 text-[17px] font-semibold leading-snug" style={{ color: "hsl(var(--foreground))", fontFamily: DISPLAY }}>{phase.title}</h3>
-            )}
+        <div className="h-[3px] w-full" style={{ background: "var(--hf-gold-border)" }} />
+        <div className="p-4 sm:p-5">
+          {/* Masthead: the mark sits inline with the kind, at text weight. The
+              44px tinted tile that used to hold it was the largest block of
+              colour on the card and said nothing the kind word didn't. */}
+          <div className="flex items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <span
+                className="flex items-center gap-1.5 text-[11.5px] font-semibold uppercase tracking-[0.14em]"
+                style={{ color: "var(--hf-text-muted)" }}
+              >
+                <Icon size={14} strokeWidth={2} /> {phase.kind}
+              </span>
+              {editing ? (
+                <input
+                  value={phase.title}
+                  onChange={(e) => onField("title", e.target.value)}
+                  className="mt-1.5 w-full rounded-lg px-3 py-2 text-[21px] outline-none"
+                  style={{ background: "var(--hf-surface-strong)", color: "var(--hf-text)", border: "1px solid var(--hf-border-strong)", fontFamily: DISPLAY, fontWeight: 500 }}
+                />
+              ) : (
+                /* T1 — the only loud thing on the card. */
+                <h3
+                  className="mt-1 text-[21px] leading-[1.22]"
+                  style={{ color: "var(--hf-text)", fontFamily: DISPLAY, fontWeight: 500, letterSpacing: "-0.015em" }}
+                >
+                  {phase.title}
+                </h3>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-0.5">
+              <button type="button" aria-label="Move up" disabled={index === 0} onClick={() => onMove(-1)} className={ctrlBtn} style={ctrlStyle}><ArrowUp className="h-3.5 w-3.5" /></button>
+              <button type="button" aria-label="Move down" disabled={index === total - 1} onClick={() => onMove(1)} className={ctrlBtn} style={ctrlStyle}><ArrowDown className="h-3.5 w-3.5" /></button>
+              <button type="button" aria-label={editing ? "Done editing" : "Edit"} onClick={onEdit} className={ctrlBtn} style={editing ? { color: "var(--hf-green)", opacity: 1 } : ctrlStyle}>
+                {editing ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+              </button>
+              <button type="button" aria-label="Remove" onClick={onRemove} className={ctrlBtn} style={ctrlStyle}><X className="h-3.5 w-3.5" /></button>
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
-            <button type="button" aria-label="Move up" disabled={index === 0} onClick={() => onMove(-1)} className={ctrlBtn} style={ctrlStyle}><ArrowUp className="h-3.5 w-3.5" /></button>
-            <button type="button" aria-label="Move down" disabled={index === total - 1} onClick={() => onMove(1)} className={ctrlBtn} style={ctrlStyle}><ArrowDown className="h-3.5 w-3.5" /></button>
-            <button type="button" aria-label={editing ? "Done editing" : "Edit"} onClick={onEdit} className={ctrlBtn} style={editing ? { background: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))", border: "1px solid hsl(var(--primary))" } : ctrlStyle}>
-              {editing ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
-            </button>
-            <button type="button" aria-label="Remove" onClick={onRemove} className={ctrlBtn} style={ctrlStyle}><X className="h-3.5 w-3.5" /></button>
-          </div>
-        </div>
 
-        {/* What the candidate experiences */}
-        {editing ? (
-          phase.candidate && (
-            <textarea value={phase.candidate} onChange={(e) => onField("candidate", e.target.value)} rows={2} className="mt-3 w-full resize-none rounded-lg px-3 py-2 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))" }} />
-          )
-        ) : (
-          phase.candidate && <p className="mt-3 text-sm leading-relaxed" style={{ color: "hsl(var(--foreground) / 0.85)" }}>{phase.candidate}</p>
-        )}
+          {/* T2 — what the candidate actually does. */}
+          {editing ? (
+            phase.candidate && (
+              <textarea value={phase.candidate} onChange={(e) => onField("candidate", e.target.value)} rows={2} className="mt-3 w-full resize-none rounded-lg px-3 py-2 text-sm outline-none" style={{ background: "var(--hf-surface-strong)", color: "var(--hf-text)", border: "1px solid var(--hf-border-strong)" }} />
+            )
+          ) : (
+            phase.candidate && <p className="mt-2.5 text-[14px] leading-[1.55]" style={{ color: "var(--hf-text-soft)" }}>{phase.candidate}</p>
+          )}
 
-        {/* Metrics — their own quiet line, not competing with the title */}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10.5px] font-medium" style={{ background: "hsl(var(--ck-surface-2))", color: "hsl(var(--muted-foreground))" }}>{phase.count}</span>
-          <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10.5px] font-medium" style={{ background: "hsl(var(--ck-surface-2))", color: "hsl(var(--muted-foreground))" }}>
-            <Clock className="h-2.5 w-2.5" /> {phase.duration}
-          </span>
-        </div>
+          {/* T3 — one plain metadata line. Two filled pills used to sit here
+              brighter than the card that contained them. */}
+          <p className="mt-2.5 text-[12px]" style={{ color: "var(--hf-text-muted)", fontVariantNumeric: "tabular-nums" }}>
+            {phase.count}
+            <span style={{ margin: "0 0.5em", opacity: 0.55 }}>·</span>
+            {phase.duration}
+          </p>
 
-        {/* Ava's reasoning — elevated insight (legible, not buried metadata) */}
-        <div className="mt-3 flex items-start gap-2.5 rounded-r-lg py-1.5 pl-3 pr-2" style={{ borderLeft: "2px solid hsl(var(--ck-brass) / 0.6)", background: "hsl(var(--ck-surface-2) / 0.55)" }}>
-          <AvaGlyph size={14} className="mt-0.5 shrink-0" />
-          <div className="min-w-0">
-            <span className="block text-[9.5px] font-bold uppercase tracking-[0.16em]" style={{ color: "hsl(var(--ck-brass))" }}>Why this step</span>
-            <span className="mt-0.5 block text-[13px] leading-relaxed" style={{ color: "hsl(var(--foreground) / 0.85)" }}>{phase.rationale}</span>
+          {/* Ava's note — a brass rule in the margin, the way a hand annotates
+              a page. No fill, no box, no synthetic oblique (Inter ships no
+              italic axis here, so the old italic was a faked slant). */}
+          <div className="mt-3.5 flex items-start gap-2.5 pl-3.5" style={{ borderLeft: "2px solid var(--hf-gold-border)" }}>
+            <div className="min-w-0">
+              <span className="block text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: "var(--hf-gold)" }}>Why this step</span>
+              <span className="mt-1 block text-[13.5px] leading-[1.5]" style={{ color: "var(--hf-text-soft)" }}>{phase.rationale}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -262,7 +319,7 @@ export function BuildStep({
       <h2 className="mt-2 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500, color: "hsl(var(--foreground))" }}>Building your hiring flow…</h2>
       <p className="mt-2 text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>
         {role} · <span style={{ color: "hsl(var(--ck-brass))" }}>{rigorLabel} rigor</span>
-        {generating && <span className="ml-2 opacity-70">· designing with AI</span>}
+        {generating && <span className="ml-2 opacity-70">· writing the questions</span>}
       </p>
       <div className="mt-7 w-full max-w-md space-y-1.5 text-left">
         {reasoning.map((line, i) => {
