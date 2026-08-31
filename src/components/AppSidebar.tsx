@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 import { prefetchForPath } from "@/lib/prefetchRoutes";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import hireflowLogo from "@/assets/app-icon-new.png";
+import { Wordmark } from "@/cockpit/components/Wordmark";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { version as appVersion } from "../../package.json";
 
@@ -208,25 +208,14 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
       <div className="absolute top-20 left-1/2 -translate-x-1/2 w-32 h-32 bg-primary/10 rounded-full blur-3xl animate-glow-pulse pointer-events-none" />
       <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-24 h-24 bg-accent/8 rounded-full blur-3xl animate-glow-pulse pointer-events-none" style={{ animationDelay: '2s' }} />
 
-      {/* Logo */}
+      {/* Logo — the canonical brand mark (dark tile + jade rising line), same
+          component as the landing header, the employer cockpit rail, and the
+          candidate auth page. Never the retired Ava orb or a hand-rolled image. */}
       <div className={cn(
         "relative z-10 h-16 flex items-center shrink-0",
         collapsed && !isMobile ? "justify-center px-2" : "gap-3 px-6"
       )}>
-        <div className="relative shrink-0">
-          {/* Glow effect behind logo */}
-          <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary/40 via-primary/25 to-[var(--brass)]/20 blur-lg scale-125 animate-glow-pulse" />
-          <img 
-            src={hireflowLogo} 
-            alt="HireFlow" 
-            className="relative w-9 h-9 rounded-xl animate-logo-breathe object-cover"
-          />
-        </div>
-        {(!collapsed || isMobile) && (
-          <span className="text-xl font-bold bg-gradient-to-r from-foreground via-foreground to-muted-foreground bg-clip-text text-transparent tracking-tight">
-            HireFlow
-          </span>
-        )}
+        <Wordmark size={30} markOnly={collapsed && !isMobile} />
         {/* Close button on mobile */}
         {isMobile && (
           <Button
