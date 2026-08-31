@@ -458,22 +458,28 @@ export default function TypingTestPhase() {
           } else if (analysisResult?.decision === "advanced" || analysisResult?.decision === "needs_employer_approval") {
             setEvaluationState("passed");
           } else {
-            // Fallback: fetch fresh application status
+            // Fallback: fetch fresh application status. The CLIENT MUST NEVER
+            // DECIDE A REJECTION — only a server-confirmed status:"rejected"
+            // row may show the rejected screen. Ava can return
+            // "recommend_decline" (status stays "reviewing" for a human) and
+            // that is NOT a rejection; comparing the score to the passing
+            // score here would manufacture one that no human made.
             const { data: freshApp } = await supabase
               .from("applications")
-              .select("status, ai_score")
+              .select("status")
               .eq("id", id!)
               .single();
-            
+
             if (freshApp?.status === "rejected") {
               setEvaluationState("failed");
-            } else if (freshApp?.ai_score !== null && freshApp.ai_score >= passingScore) {
-              setEvaluationState("passed");
-            } else if (freshApp?.ai_score !== null) {
-              setEvaluationState("failed");
             } else {
-              // Still processing - show as evaluating, realtime will update
-              setEvaluationState("evaluating");
+              // Neutral, honest outcome — submitted, hiring team reviewing.
+              // No guess about pass/fail the server hasn't confirmed.
+              setEvaluationState(null);
+              toast.success("Typing test submitted successfully!", {
+                description: "Your results have been recorded. The hiring team is reviewing your submission.",
+              });
+              navigate(`/applications/${id}`);
             }
           }
         } catch (err) {

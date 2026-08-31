@@ -350,9 +350,15 @@ export default function VideoIntroPhase() {
             // Keep evaluating state - backend is source of truth
             setEvaluationState("evaluating");
           } else {
-            // Backend decides pass/fail based on weighted ai_score vs passing_score
+            // Backend decides pass/fail — the client must never decide either
+            // outcome on its own. "advanced"/"needs_employer_approval" and a
+            // server-confirmed status:"rejected" are the only cases we act on;
+            // anything else (e.g. Ava recommended declining and the row is
+            // sitting in "reviewing" for a human) is neutral, not "passed" —
+            // defaulting to "passed" here would hand the candidate a "Start
+            // next phase" button the hiring team never approved.
             const decision = analysisResult?.decision;
-            if (decision === "advanced") {
+            if (decision === "advanced" || decision === "needs_employer_approval") {
               setEvaluationState("passed");
             } else if (decision === "rejected") {
               setEvaluationState("failed"); // EvaluationScreen handles "failed"
@@ -360,14 +366,21 @@ export default function VideoIntroPhase() {
               // Fallback: check application status
               const { data: updatedApp } = await supabase
                 .from("applications")
-                .select("status, ai_score")
+                .select("status")
                 .eq("id", id!)
                 .single();
-              
+
               if (updatedApp?.status === "rejected") {
                 setEvaluationState("failed");
               } else {
-                setEvaluationState("passed");
+                // Neutral, honest outcome — submitted, hiring team reviewing.
+                setEvaluationState(null);
+                setNextPhaseInfo(null);
+                toast.success("Video submitted!", {
+                  description: "The hiring team will get back to you — everyone hears back.",
+                });
+                navigate(`/applications/${id}`);
+                return;
               }
             }
           }
@@ -429,8 +442,11 @@ export default function VideoIntroPhase() {
                   console.error("[VideoIntroPhase] AVA analysis error (recovery):", analysisError);
                   setEvaluationState("evaluating");
                 } else {
+                  // Same rule as the primary path: never decide "passed" or
+                  // "failed" locally — only act on a server-confirmed decision
+                  // or a server-confirmed status:"rejected" row.
                   const decision = analysisResult?.decision;
-                  if (decision === "advanced") {
+                  if (decision === "advanced" || decision === "needs_employer_approval") {
                     setEvaluationState("passed");
                   } else if (decision === "rejected") {
                     setEvaluationState("failed");
@@ -440,11 +456,18 @@ export default function VideoIntroPhase() {
                       .select("status")
                       .eq("id", id!)
                       .single();
-                    
+
                     if (updatedApp?.status === "rejected") {
                       setEvaluationState("failed");
                     } else {
-                      setEvaluationState("passed");
+                      // Neutral, honest outcome — submitted, hiring team reviewing.
+                      setEvaluationState(null);
+                      setNextPhaseInfo(null);
+                      toast.success("Video submitted!", {
+                        description: "The hiring team will get back to you — everyone hears back.",
+                      });
+                      navigate(`/applications/${id}`);
+                      return;
                     }
                   }
                 }

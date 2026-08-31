@@ -114,3 +114,358 @@ commit;
 --     Its public.profiles and public.user_roles rows are ALREADY DELETED — no
 --     SQL needed here. Only the auth user remains; delete it from the Supabase
 --     dashboard (Auth > Users) when convenient.
+
+-- ============================================================================
+-- (d) 2026-08-31: FULL END-TO-END RUN (employer sign-up -> published job ->
+--     candidate apply -> screening -> employer acts). Everything below was
+--     created by that run and is safe to delete. Two throwaway auth users were
+--     created through the Supabase auth API with the exact metadata the real
+--     sign-up form sends (never by typing a password into a form):
+--
+--       employer   hireflow.e2e.employer.20260831@hireflow.dev
+--                  user_id 96fbe13e-3c20-4bd1-bd5c-3b85010abfca
+--                  company_name "Northgate Auto Care"
+--       candidate  hireflow.e2e.candidate.20260831@hireflow.dev
+--                  user_id a87c6168-18d8-4f83-905e-2ebd2fa03cf3
+--
+--     Rows created under them are listed in the DELETE block appended at the
+--     end of this run (see "(d) cleanup block").
+
+-- ============================================================================
+-- (e) 2026-08-31: COMMUNICATIONS AUDIT (what a candidate/employer actually
+--     RECEIVES: email, in-app bell, messages, push). NO new auth users were
+--     created for this run — it reused the existing employer.test@hireflow.dev
+--     (13e26129-2e6c-4e7b-bb55-deb5ad78f0c4) and candidate.test@hireflow.dev
+--     (3f16c4a5-00dd-4525-9232-4029fffb5cda) accounts, so nothing needs to be
+--     removed from Auth > Users for this block.
+--
+--     No real email or SMS was sent at any point: RESEND_API_KEY is unset, and
+--     the one probe of send-notification-email deliberately used a nonexistent
+--     recipient_user_id so that even a configured Resend would have 404'd at
+--     the profile lookup before composing anything.
+--
+--     Rows created by this run (all safe to delete):
+--       job          c0a11d17-0000-4000-a000-000000000001  "COMMS AUDIT - Do Not Use"
+--                    job_code JOB-FBBF2C, exclude_from_feed = TRUE (never fed
+--                    to any aggregator, never sent to the Google Indexing API)
+--       application  c0a11d17-0000-4000-a000-000000000002  (candidate.test on
+--                    that job) — used to test the reject / "no ghosting" path
+--       notifications rows auto-created by the on_application_status_change
+--                    trigger + the client insert for that application
+--       messages     rows sent between the two test accounts on application
+--                    a27f8e3c-fc91-4ce5-aa3d-ebf6661735d4 for the messaging test
+--
+-- (e) cleanup block
+DELETE FROM public.messages
+ WHERE application_id = 'a27f8e3c-fc91-4ce5-aa3d-ebf6661735d4'
+   AND content LIKE '[COMMS AUDIT]%';
+DELETE FROM public.notifications
+ WHERE user_id IN ('13e26129-2e6c-4e7b-bb55-deb5ad78f0c4',
+                   '3f16c4a5-00dd-4525-9232-4029fffb5cda')
+   AND created_at >= '2026-08-31'::date;
+DELETE FROM public.applications
+ WHERE id = 'c0a11d17-0000-4000-a000-000000000002';
+DELETE FROM public.jobs
+ WHERE id = 'c0a11d17-0000-4000-a000-000000000001';
+
+-- (d) 2026-08-31: first-run / paywall audit. ONE throwaway employer created via
+--     the auth API to observe what a REAL account WITHOUT
+--     raw_app_meta_data.subscription_bypass hits (the test accounts have the
+--     bypass, which hides every gate). No job, application, interview, message
+--     or document was created by this account — only sign-up side effects.
+--       email    audit.freshemployer@hireflow.dev
+--       user_id  2b4902b8-24d4-4702-b9e1-0e8660fd33a3
+--     Side-effect rows written automatically on first load: public.profiles +
+--     public.user_roles (via assign_user_role RPC), and get-subscription
+--     auto-provisioned public.subscriptions (trial, ends 2026-09-07),
+--     public.subscription_usage and one public.voice_credits row (15 min).
+--     The trial-expiry lockout was reproduced by rewriting the get-subscription
+--     RESPONSE in the browser only — no row was ever mutated to 'expired'.
+
+begin;
+delete from public.voice_credits      where user_id = '2b4902b8-24d4-4702-b9e1-0e8660fd33a3';
+delete from public.subscription_usage where user_id = '2b4902b8-24d4-4702-b9e1-0e8660fd33a3';
+delete from public.subscriptions      where user_id = '2b4902b8-24d4-4702-b9e1-0e8660fd33a3';
+delete from public.user_roles         where user_id = '2b4902b8-24d4-4702-b9e1-0e8660fd33a3';
+delete from public.profiles           where user_id = '2b4902b8-24d4-4702-b9e1-0e8660fd33a3';
+commit;
+
+--     The auth user itself must be deleted from the Supabase dashboard
+--     (Auth > Users > audit.freshemployer@hireflow.dev).
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- (d) 2026-08-31: SCREENING-ENGINE END-TO-END AUDIT.
+--     Proved the Ava scoring pipeline writes ai_score / ai_scorecard /
+--     resume_score for real (first non-null resume_score in the database),
+--     and that autopilotAction='reject' still never rejects.
+--
+--     Everything below was created by that audit and is safe to delete.
+--     Both jobs were inserted with exclude_from_feed = true and never went
+--     near the public feed or the Google Indexing ping.
+--
+--       job  11111111-e2e0-4aaa-8bbb-000000000001
+--            "[E2E ENGINE AUDIT] Lube Technician (do not use)"  (job_code JOB-5AD826)
+--       job  11111111-e2e0-4aaa-8bbb-000000000002
+--            "[E2E ENGINE AUDIT] Lube Technician - degradation probe (do not use)"
+--       app  22222222-e2e0-4aaa-8bbb-000000000001  (scored 85, strong candidate)
+--       app  22222222-e2e0-4aaa-8bbb-000000000002  (scored 0, unreadable-resume probe)
+--
+--     Both applications belong to the existing candidate.test@hireflow.dev
+--     user and both jobs to employer.test@hireflow.dev — no new auth users
+--     were created, so nothing needs removing from the Auth dashboard.
+
+begin;
+delete from public.applications where id in (
+  '22222222-e2e0-4aaa-8bbb-000000000001',
+  '22222222-e2e0-4aaa-8bbb-000000000002'
+);
+delete from public.jobs where id in (
+  '11111111-e2e0-4aaa-8bbb-000000000001',
+  '11111111-e2e0-4aaa-8bbb-000000000002'
+);
+commit;
+
+--     One storage object was also uploaded, to the private `resumes` bucket
+--     (a synthetic 1-page PDF resume for the fictional "Marcus Delaney"):
+--       resumes/3f16c4a5-00dd-4525-9232-4029fffb5cda/e2e-engine-audit-marcus-delaney.pdf
+--     Delete it from Storage > resumes in the Supabase dashboard, or with:
+--       delete from storage.objects
+--        where bucket_id = 'resumes'
+--          and name = '3f16c4a5-00dd-4525-9232-4029fffb5cda/e2e-engine-audit-marcus-delaney.pdf';
+--     Job published by the run (PRIMARY /jobs/create route, typed brief):
+--       id 2a3d7db3-c7b3-4906-920e-c40199b63a0d  code JOB-E7126C
+--       "Front Desk Receptionist (Part-Time, Onsite)" — Austin, Texas
+--       exclude_from_feed was flipped to TRUE immediately after publish (the
+--       app never sets it; createJobFromFlow leaves it false), and the
+--       google-indexing edge call was blocked at the browser so nothing was
+--       ever announced to Google.
+
+-- ---------------------------------------------------------------------------
+-- (d) cleanup block — run this to remove EVERYTHING the 2026-08-31 end-to-end
+--     run created. Order matters (children first). Nothing here predates the
+--     run; no pre-existing row was edited or deleted by it.
+--
+--     Verified during the run: PATCHing public.subscriptions as the owning user
+--     returns 403 (RLS forbids it), so the trial row was NOT modified — the
+--     day-8 lockout could not be simulated and nothing was mutated.
+-- ---------------------------------------------------------------------------
+begin;
+
+-- employer 96fbe13e-3c20-4bd1-bd5c-3b85010abfca (Northgate Auto Care)
+-- candidate a87c6168-18d8-4f83-905e-2ebd2fa03cf3 (Priya Raman)
+
+delete from public.interviews
+  where id = 'd92d5caf-1a46-4d2b-a13e-1f8c8b9dd1c4';                     -- video interview, Aug 31 2:00pm
+
+delete from public.messages
+  where sender_id   in ('96fbe13e-3c20-4bd1-bd5c-3b85010abfca','a87c6168-18d8-4f83-905e-2ebd2fa03cf3')
+     or receiver_id in ('96fbe13e-3c20-4bd1-bd5c-3b85010abfca','a87c6168-18d8-4f83-905e-2ebd2fa03cf3');
+
+delete from public.notifications
+  where user_id in ('96fbe13e-3c20-4bd1-bd5c-3b85010abfca','a87c6168-18d8-4f83-905e-2ebd2fa03cf3');
+
+delete from public.applications
+  where id = '6e4f006d-61fe-470b-a021-23a4f0d3755e';                     -- Priya -> Front Desk Receptionist
+
+delete from public.jobs
+  where id = '2a3d7db3-c7b3-4906-920e-c40199b63a0d';                     -- JOB-E7126C
+
+delete from public.voice_credits
+  where user_id = '96fbe13e-3c20-4bd1-bd5c-3b85010abfca';                -- 15 trial minutes, auto-provisioned
+
+delete from public.subscriptions
+  where id = '03ff6bbc-56b2-4603-916e-5589e6688cfb';                     -- auto-created 7-day trial
+
+delete from public.user_roles
+  where user_id in ('96fbe13e-3c20-4bd1-bd5c-3b85010abfca','a87c6168-18d8-4f83-905e-2ebd2fa03cf3');
+
+delete from public.profiles
+  where user_id in ('96fbe13e-3c20-4bd1-bd5c-3b85010abfca','a87c6168-18d8-4f83-905e-2ebd2fa03cf3');
+
+commit;
+
+-- Storage: one resume PDF was uploaded to the private `resumes` bucket —
+--   object path  a87c6168-18d8-4f83-905e-2ebd2fa03cf3/1788157618774.pdf
+-- Delete it from Storage > resumes in the Supabase dashboard.
+--
+-- Auth users must also be deleted from the dashboard (Auth > Users), same as
+-- every other block in this file:
+--   hireflow.e2e.employer.20260831@hireflow.dev
+--   hireflow.e2e.candidate.20260831@hireflow.dev
+
+-- ---------------------------------------------------------------------------
+-- 2026-08-31 — adversarial verification of the "Skills Check is unanswerable"
+-- claim. One job + one application, both under the EXISTING test accounts
+-- (no new auth users). quiz_questions were copied verbatim from the real
+-- published "Grocery Stocker" job so the repro used production-shaped data.
+-- The job is exclude_from_feed = true and never reached any job board.
+-- ---------------------------------------------------------------------------
+begin;
+delete from applications where id = '9a11f0aa-0000-4000-a000-000000000002';
+delete from jobs         where id = '9a11f0aa-0000-4000-a000-000000000001';
+commit;
+
+-- ---------------------------------------------------------------------------
+-- 2026-08-31 — adversarial verification of the "three dialogs promise the
+-- candidate will be told something and nothing is sent" claim. One draft job
+-- + one application under the EXISTING test accounts (no new auth users), used
+-- to observe whether advancing a status inserts a notifications row.
+-- The job was status='draft', exclude_from_feed=true and never reached any job
+-- board. No email or SMS was sent (RESEND_API_KEY is unset on this project —
+-- send-notification-email returns {"skipped":true} for every call).
+-- ALREADY DELETED during the session, including the two notifications rows the
+-- on_application_status_change trigger inserted for the candidate
+-- ("Interview Scheduled!" and "Offer Extended!"); the candidate's notification
+-- count was verified back at its pre-run baseline of 2. Kept here for the
+-- record / in case of a restore.
+-- ---------------------------------------------------------------------------
+begin;
+delete from notifications where user_id = '3f16c4a5-00dd-4525-9232-4029fffb5cda'
+  and id in ('4128569b-0eb1-4feb-a431-6e995afc939c','42cfbe23-4f87-4401-9ff2-e2a26b2c68db');
+delete from applications where id = 'aaaa1111-9999-4000-a000-0000000000f1';
+delete from jobs         where id = 'ae11f111-0000-4000-a000-000000000001';
+commit;
+-- NOTE: both rows above were already deleted by the verifying agent on
+-- 2026-08-31; the block is left here as a record only and is a no-op.
+
+-- ---------------------------------------------------------------------------
+-- 2026-08-31 — adversarial verification of the "candidate nav links bounce"
+-- claim. One interview row was inserted under the EXISTING test accounts
+-- (employer.test -> candidate.test, application 22222222-e2e0-4aaa-8bbb-
+-- 000000000002) purely to render the candidate interview card, then DELETED
+-- in the same run. Nothing else was created; no email or SMS was sent.
+-- ALREADY CLEANED UP — this block is a no-op, kept for the record.
+-- ---------------------------------------------------------------------------
+begin;
+delete from public.interviews where id = '7c0ffee0-0000-4000-a000-0000000000a1';  -- already deleted
+commit;
+
+-- ---------------------------------------------------------------------------
+-- 2026-08-31 — adversarial verification of the "fresh employer is capped at
+-- ONE job and the upgrade button errors" claim. A BRAND-NEW employer account
+-- was signed up via the auth API (email confirmation is off, so NO email was
+-- sent) so the trial limits could be observed without the test accounts'
+-- subscription_bypass masking them. One DRAFT job (exclude_from_feed = true,
+-- never published, never in any feed) was inserted to push jobs_created to 1.
+-- get-subscription then auto-created the trial subscription + subscription_usage
+-- + voice_credits rows for that user, as it does for every new employer.
+-- NOT yet cleaned up — delete in this order.
+--   account : adv.verify.gap19@hireflow.dev
+--   user_id : 2f7633fb-5645-46f3-9b1d-5257607b14cb
+--   job_id  : 3c02afff-9f2b-47b9-812a-4cb0a7a2c813  ("ADV VERIFY GAP19 draft")
+-- ---------------------------------------------------------------------------
+begin;
+delete from public.jobs             where id = '3c02afff-9f2b-47b9-812a-4cb0a7a2c813';
+delete from public.voice_credits     where user_id = '2f7633fb-5645-46f3-9b1d-5257607b14cb';
+delete from public.subscription_usage where user_id = '2f7633fb-5645-46f3-9b1d-5257607b14cb';
+delete from public.subscriptions     where user_id = '2f7633fb-5645-46f3-9b1d-5257607b14cb';
+delete from public.user_roles        where user_id = '2f7633fb-5645-46f3-9b1d-5257607b14cb';
+delete from public.profiles          where user_id = '2f7633fb-5645-46f3-9b1d-5257607b14cb';
+commit;
+-- Finally, delete the auth user itself (dashboard → Authentication → Users, or
+-- the admin API): 2f7633fb-5645-46f3-9b1d-5257607b14cb / adv.verify.gap19@hireflow.dev
+
+-- ---------------------------------------------------------------------------
+-- 2026-08-31 — adversarial verification of the "publishing puts the job in the
+-- public aggregator feed with no opt-out" claim. NO job was created and NOTHING
+-- was published. The only side effect was a single read-only config probe of the
+-- google-indexing edge function, called with a non-existent job id and
+-- notificationType = URL_DELETED (a *de-indexing* notice for a URL that has
+-- never existed — it cannot publish anything). It proved the Google Indexing
+-- service account IS configured in prod ("configured":true,"status":"sent").
+-- That probe appended ONE append-only audit row:
+--   table  : public.google_indexing_notifications
+--   reason : 'adversarial_verify_config_probe'
+--   job_id : NULL (the fk target 00000000-0000-4000-8000-000000000001 does not
+--            exist, so job_id was stored as given / nulled by the fk)
+--   employer_id : 13e26129-2e6c-4e7b-bb55-deb5ad78f0c4 (employer.test@hireflow.dev)
+-- NOT yet cleaned up.
+-- ---------------------------------------------------------------------------
+begin;
+delete from public.google_indexing_notifications
+ where reason = 'adversarial_verify_config_probe';
+commit;
+
+-- ---------------------------------------------------------------------------
+-- 2026-08-31 — adversarial verification of the "employer is told the Skills
+-- Check is Completed while the candidate is stuck on it" claim. One draft job
+-- + one application under the EXISTING test accounts (no new auth users),
+-- created solely to put an application into the exact state the production
+-- backend produces (trigger-ava-analysis writes phase = 'quiz' on a job that
+-- has quiz_questions). The job was status='draft', exclude_from_feed=true and
+-- never reached any job board. No email or SMS was sent.
+-- ALREADY DELETED during the session and verified gone (both selects returned
+-- []); this block is a no-op, kept for the record / in case of a restore.
+-- ---------------------------------------------------------------------------
+begin;
+delete from applications where id = '7fa17e57-0000-4000-a000-000000000002';
+delete from jobs         where id = '7fa17e57-0000-4000-a000-000000000001';
+commit;
+
+-- ---------------------------------------------------------------------------
+-- 2026-08-31 — adversarial verification of the "candidate is shown an
+-- automated rejection while the DB says 'reviewing'" claim. One published-but-
+-- feed-excluded job (processing_mode='auto', passing_score=60,
+-- exclude_from_feed=true) + one application, both under the EXISTING test
+-- accounts (no new auth users). Created solely to observe what the production
+-- trigger-ava-analysis edge function returns to the candidate's browser. The
+-- job never reached any job board. No email or SMS was sent.
+-- ALREADY DELETED during the session (both DELETEs returned 200 with the row
+-- representation); this block is a no-op, kept for the record.
+-- ---------------------------------------------------------------------------
+begin;
+delete from applications where id = '359af4bd-2710-464d-bfe6-7b3e5fa0c03f';
+delete from jobs         where id = '7ed98613-74e3-4dcc-9eb1-c56c24520e2e';
+commit;
+
+-- ---------------------------------------------------------------------------
+-- 2026-08-31 — BLOCKER FIX VERIFICATION (the "unanswerable Skills Check" and
+-- "fake rejection + Improvement Blueprint upsell" launch blockers). Two live
+-- checks, both under the EXISTING test accounts (candidate.test / employer.test
+-- — no new auth users created).
+--
+-- (1) Blocker 1 proof — took the real quiz on a KNOWN-BROKEN LIVE job. Applied
+--     as candidate.test to the real, currently-published "Front Desk Associate"
+--     job (id b1c7544e-fb2b-4263-bd58-08e81a9414ce, job_code JOB-61543B — a
+--     REAL employer job, exclude_from_feed=false, one of the five live jobs
+--     whose 8 quiz questions are all type "situational" with empty options).
+--     Answered all 3 application questions + all 8 quiz questions (previously
+--     unrenderable — confirmed they now render as free-text boxes) and
+--     submitted both phases; the application genuinely advanced to "Handle a
+--     real moment" (chat_simulation), proving the fix works on already-broken
+--     production data with no migration. DO NOT DELETE THE JOB (it is real,
+--     not test data) — only the application + resume this run created:
+--       application  ee60548c-3562-4218-aab4-b0fc3d8a812c
+--       resume       resumes/3f16c4a5-00dd-4525-9232-4029fffb5cda/1788161706457.png
+--
+-- (2) Blocker 2 proof — needed a submission that genuinely earns
+--     autopilotAction="reject" server-side, so a fresh, obviously-disqualified
+--     application was driven through the real ApplicationFormPhase.tsx submit
+--     flow (job requires a crane certification the candidate explicitly says
+--     they don't have). Confirmed server response: status stayed 'reviewing',
+--     rejected_by_type stayed null, ai_score=34, phase_ai_analysis="Ava
+--     recommends declining — needs your review...". Candidate-facing screen
+--     showed a neutral "Under review — The hiring team will get back to you"
+--     with NO rejection screen and NO Improvement Blueprint upsell. Job was
+--     created with exclude_from_feed=true and never reached any job board.
+--       job          7d672828-d2a3-4f92-b544-b0441dfaa5ae  (JOB-QAB2X1,
+--                    "[BLOCKER2 VERIFY PROBE] Licensed Crane Operator")
+--       application  15c8d215-7e7c-438b-b90a-00f6e4b27747
+--       resume       resumes/3f16c4a5-00dd-4525-9232-4029fffb5cda/1788162207271.png
+--
+-- ALREADY DELETED during the session (all three REST DELETEs and the storage
+-- batch-delete returned 200 with the row/object representation); this block
+-- is a no-op, kept for the record.
+-- ---------------------------------------------------------------------------
+begin;
+delete from public.applications where id = 'ee60548c-3562-4218-aab4-b0fc3d8a812c';  -- Front Desk Associate (real job, kept)
+delete from public.applications where id = '15c8d215-7e7c-438b-b90a-00f6e4b27747';  -- crane-operator probe
+delete from public.jobs         where id = '7d672828-d2a3-4f92-b544-b0441dfaa5ae';  -- crane-operator probe (test-only job)
+commit;
+
+delete from storage.objects
+ where bucket_id = 'resumes'
+   and name in (
+     '3f16c4a5-00dd-4525-9232-4029fffb5cda/1788161706457.png',
+     '3f16c4a5-00dd-4525-9232-4029fffb5cda/1788162207271.png'
+   );

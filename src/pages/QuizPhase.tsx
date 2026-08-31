@@ -100,6 +100,17 @@ const getQuestionType = (question: QuizQuestion): 'multiple_choice' | 'multi_sel
   if (question.type === 'text' || question.type === 'open_ended' || question.type === 'short_answer' || question.type === 'long_answer') {
     return 'text';
   }
+  // No options to choose from — always fall through to free text, regardless
+  // of the declared type. This MUST be checked before the type checks below:
+  // Ava's job generator writes every quiz question as type "situational" with
+  // an empty options array, and a situational/personality/work_style/
+  // multi_select question with no options renders zero choices (a radio or
+  // checkbox group over nothing) if the type check wins first. Free text is
+  // what an option-less scenario prompt wants anyway. A situational question
+  // that DOES have options still gets its radio buttons below.
+  if (validOptions.length === 0) {
+    return 'text';
+  }
   // Personality/situational are fit-based (no right/wrong)
   if (question.type === 'personality' || question.type === 'situational' || question.type === 'work_style') {
     return 'fit';
@@ -107,10 +118,6 @@ const getQuestionType = (question: QuizQuestion): 'multiple_choice' | 'multi_sel
   // Multi-select questions
   if (question.type === 'multi_select') {
     return 'multi_select';
-  }
-  // If no options or empty options array, treat as text
-  if (validOptions.length === 0) {
-    return 'text';
   }
   return 'multiple_choice';
 };
@@ -812,22 +819,29 @@ export default function QuizPhase() {
           } else if (analysisResult?.decision === "advanced" || analysisResult?.decision === "needs_employer_approval") {
             setEvaluationState("passed");
           } else {
-            // Fallback: fetch fresh application status
+            // Fallback: fetch fresh application status. The CLIENT MUST NEVER
+            // DECIDE A REJECTION — only a server-confirmed status:"rejected"
+            // row may show the rejected screen. Ava can return
+            // "recommend_decline" (status stays "reviewing" for a human) and
+            // that is NOT a rejection; comparing the score to the passing
+            // score here would manufacture one that no human made.
             const { data: freshApp } = await supabase
               .from("applications")
-              .select("status, ai_score")
+              .select("status")
               .eq("id", id!)
               .single();
-            
+
             if (freshApp?.status === "rejected") {
               setEvaluationState("failed");
-            } else if (freshApp?.ai_score !== null && freshApp.ai_score >= passingScore) {
-              setEvaluationState("passed");
-            } else if (freshApp?.ai_score !== null) {
-              setEvaluationState("failed");
             } else {
-              // Still processing - show as evaluating, realtime will update
-              setEvaluationState("evaluating");
+              // Neutral, honest outcome — submitted, hiring team reviewing.
+              // No guess about pass/fail the server hasn't confirmed.
+              // (Progress was already cleared earlier in this submit flow.)
+              setEvaluationState(null);
+              toast.success("Quiz submitted successfully!", {
+                description: "Your answers have been recorded. The hiring team is reviewing your submission.",
+              });
+              navigate(`/applications/${id}`);
             }
           }
         } catch (err) {

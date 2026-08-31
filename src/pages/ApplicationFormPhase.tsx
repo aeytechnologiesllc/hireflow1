@@ -903,12 +903,29 @@ export default function ApplicationFormPhase() {
         } else if (autopilotResult?.decision === "rejected") {
           setEvaluationState("failed");
         } else {
-          // Fallback: just show passed if score is high enough
-          const passingScore = application.jobs?.passing_score || 60;
-          if (score >= passingScore) {
-            setEvaluationState("passed");
-          } else {
+          // The CLIENT MUST NEVER DECIDE A REJECTION — only a server-confirmed
+          // status:"rejected" row may show the rejected screen. Ava can return
+          // "recommend_decline" (status stays "reviewing" for a human) and
+          // that is NOT a rejection; comparing the score to the passing score
+          // here would manufacture one that no human made.
+          const { data: freshApp } = await supabase
+            .from("applications")
+            .select("status")
+            .eq("id", id!)
+            .single();
+
+          if (freshApp?.status === "rejected") {
             setEvaluationState("failed");
+          } else {
+            // Neutral, honest outcome — submitted, hiring team reviewing.
+            // No guess about pass/fail the server hasn't confirmed.
+            setEvaluationState(null);
+            toast.success("Application submitted!", {
+              description: "The hiring team has what they need. Everyone hears back.",
+            });
+            queryClient.invalidateQueries({ queryKey: ["applications"] });
+            navigate(`/applications/${id}`);
+            return;
           }
         }
       } else {
@@ -1074,16 +1091,22 @@ export default function ApplicationFormPhase() {
                   : fieldId;
             const usePlainInput = questionType === "text";
             const useNumericInput = questionType === "number";
-            const useFallbackInput = ![
-              "text",
-              "number",
-              "textarea",
-              "email",
-              "phone",
-              "date",
-              "select",
-              "file",
-            ].includes(questionType);
+            // A "select" question with no options to choose from can't render
+            // a radio group over nothing — same "type checked before options"
+            // trap as the quiz's getQuestionType. Fall through to a plain
+            // text input instead of rendering an empty, unanswerable field.
+            const hasSelectOptions = Array.isArray(question.options) && question.options.length > 0;
+            const useFallbackInput =
+              ![
+                "text",
+                "number",
+                "textarea",
+                "email",
+                "phone",
+                "date",
+                "select",
+                "file",
+              ].includes(questionType) || (questionType === "select" && !hasSelectOptions);
             const criteriaContext = getQuestionCriteriaContext(question, application?.jobs ?? null);
             const isCriteriaExpanded = expandedCriteriaQuestionId === question.id;
 
@@ -1269,7 +1292,7 @@ export default function ApplicationFormPhase() {
                 </Popover>
               )}
               
-              {questionType === "select" && question.options && (
+              {questionType === "select" && hasSelectOptions && (
                 <RadioGroup
                   value={answers[question.id] || ""}
                   onValueChange={(value) => setAnswers(prev => ({ ...prev, [question.id]: value }))}

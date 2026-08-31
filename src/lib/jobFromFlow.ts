@@ -154,16 +154,22 @@ function buildQuizQuestions(phases: ScreeningPhase[]): QuizQuestion[] {
 
   return (cfg.items ?? [])
     .filter((it) => typeof it.scenario === "string" && it.scenario.trim().length > 0)
-    .map((it) => ({
-      id: it.id || uid("quiz"),
-      type: "situational",
-      question: it.scenario.trim(),
-      options: Array.isArray(it.options) ? it.options : [],
-      correct_answer: null,
-      fit_context: rubricById.get(it.id) || undefined,
-      time_limit_seconds: timeLimit,
-      category: "Scenario",
-    }));
+    .map((it) => {
+      const options = Array.isArray(it.options) ? it.options : [];
+      return {
+        id: it.id || uid("quiz"),
+        // A situational question with no options is unanswerable as a radio
+        // group — emit "text" so the candidate gets a free-text box instead
+        // of a type the runtime can't render (see QuizPhase's getQuestionType).
+        type: options.length > 0 ? "situational" : "text",
+        question: it.scenario.trim(),
+        options,
+        correct_answer: null,
+        fit_context: rubricById.get(it.id) || undefined,
+        time_limit_seconds: timeLimit,
+        category: "Scenario",
+      };
+    });
 }
 
 /**
