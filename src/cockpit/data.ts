@@ -55,6 +55,11 @@ export interface JobRow {
 }
 
 export type CandidateStage = "Application" | "Quiz" | "Voice" | "Shortlist" | "Hired" | "Rejected";
+/** Ava's own recommendation for what to do next — independent of the numeric
+ *  score, so a high score paired with a hard-reject reason (name mismatch,
+ *  resume authenticity concern, a stated deal-breaker) still surfaces as
+ *  "reject" rather than reading as a clean advance. */
+export type RecommendedAction = "advance" | "review" | "reject";
 export interface Candidate {
   id: string;
   avatar: string;
@@ -68,10 +73,26 @@ export interface Candidate {
   quiz: number | null;
   voice: number | null;
   overall: number;
+  /**
+   * True once Ava has real screening signal on file — a score, a quiz result,
+   * or a voice result. This is the single source of truth for "has this been
+   * scored" vs. "not scored yet" and must never be derived from `overall > 0`:
+   * a genuine finished score of 0 is a real result and has to read as one,
+   * not fall back to looking unscored.
+   */
+  analyzed: boolean;
   read: string;
   readFull: string;
   strengths: string[];
   risk: { level: "Low" | "Medium" | "High" | "Pending"; note: string };
+  /** Null until Ava has produced a scorecard. */
+  recommendedAction: RecommendedAction | null;
+  /** The engine's own words for why it would decline this candidate — shown
+   *  to the employer verbatim. Null unless the scorecard actually flagged one. */
+  hardRejectReason: string | null;
+  /** Every other risk flag the engine raised (name mismatch, authenticity
+   *  concerns, missing requirements…), for surfaces that want the full list. */
+  riskFlags: string[];
   source: string;
 }
 

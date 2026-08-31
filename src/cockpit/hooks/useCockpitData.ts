@@ -44,6 +44,7 @@ import {
   buildShowcasePipeline,
 } from "../data/showcaseSource";
 import { useSchemaMode } from "@/hooks/useSchemaMode";
+import type { RecommendedAction } from "../data";
 
 export { useSchemaMode };
 
@@ -264,12 +265,29 @@ export function advanceTargetLabel(currentStatus?: string): string | null {
   return next ? STATUS_STAGE_LABEL[next] ?? next : null;
 }
 
-/** Ava's recommendation on whether to advance, derived from the real match score.
+/** Ava's recommendation on whether to advance, derived from the real match score
+ *  — UNLESS the scorecard itself is recommending against it, in which case that
+ *  overrides the score-only read: a name mismatch or authenticity concern on a
+ *  resume that happens to score well must never be read back to the employer as
+ *  "a strong match" at the exact moment they're deciding whether to advance.
  *  She speaks in the first person here — this renders as her note inside the
  *  advance dialog — and prints the score in the same unit her letterhead does
  *  ("x out of 100"), so one number is never shown as two different units. */
-export function avaAdvanceRec(overall: number, analyzed: boolean): { tone: "good" | "neutral" | "caution"; text: string } {
+export function avaAdvanceRec(
+  overall: number,
+  analyzed: boolean,
+  recommendedAction?: RecommendedAction | null,
+  hardRejectReason?: string | null,
+): { tone: "good" | "neutral" | "caution"; text: string } {
   if (!analyzed) return { tone: "neutral", text: "I haven't finished reading this one yet, so this is your call." };
+  if (recommendedAction === "reject") {
+    return {
+      tone: "caution",
+      text: hardRejectReason
+        ? `I'd hold off — ${hardRejectReason.replace(/\.$/, "")}. That doesn't change just because the score is ${overall}.`
+        : `I'd hold off — my read on this one is to decline, even at ${overall} out of 100.`,
+    };
+  }
   if (overall >= 75) return { tone: "good", text: `I'd talk to them — ${overall} out of 100 against this job is a strong match.` };
   if (overall >= 50) return { tone: "neutral", text: `I'd look closer first — ${overall} out of 100. Worth a read before you move them on.` };
   return { tone: "caution", text: `I'd be careful here — ${overall} out of 100 is a weak match for this job.` };

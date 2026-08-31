@@ -67,18 +67,47 @@ interface DashInterviewNeed {
  * A person is only "sealed" once Ava has real screening signal on them. Until
  * then there is no seal, no number and no place on this page — the same test
  * the Applicants list uses to decide who gets a score and who gets a dash.
+ * `candidate.analyzed` is the single source of truth (computed once in
+ * `mapCandidate`) — never re-derive this from `overall > 0`: a genuine
+ * finished score of 0 is a real result and has to read as one.
  */
 function isAnalyzed(c: Candidate): boolean {
-  return (c.overall ?? 0) > 0 || c.quiz != null || c.voice != null;
+  return c.analyzed;
 }
 
 /**
- * Ava files her report with section headers and markdown emphasis. The employer
- * should read her sentences, not the scaffolding, so the marks are stripped and
- * the bare headers dropped. Display only — the stored record is untouched.
+ * Ava's full resume report is a structured document built for the scoring
+ * engine — bold section headers, then mostly machine-readable "Label: Value"
+ * diagnostic lines. Only two passages are actually written as prose — the
+ * "Summary:" line and the "SCORE EXPLANATION" section — so prefer those when
+ * present. Anything else (a short decline note, a phase blurb) is already
+ * plain prose and just needs markdown/bullet/header stripped. Display only —
+ * the stored record is untouched.
  */
+function extractLabeledLine(raw: string, label: string): string {
+  const m = raw.match(new RegExp(`^${label}\\s*:\\s*(.+)$`, "im"));
+  return m ? m[1].replace(/\*\*/g, "").trim() : "";
+}
+
+function extractReportSection(raw: string, header: string): string {
+  const m = raw.match(new RegExp(`\\*\\*${header}\\*\\*[^\\n]*\\n([\\s\\S]*?)(?:\\n\\*\\*|\\n---|$)`, "i"));
+  if (!m) return "";
+  return m[1]
+    .split(/\n+/)
+    .map((l) => l.replace(/\*\*/g, "").trim())
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+}
+
 function avaProse(raw: string | null | undefined): string {
   if (!raw) return "";
+
+  const summary = extractLabeledLine(raw, "Summary");
+  const explanation = extractReportSection(raw, "SCORE EXPLANATION");
+  const structuredProse = [summary, explanation].filter(Boolean).join(" ").trim();
+  if (structuredProse) return structuredProse;
+
   return raw
     .split(/\n+/)
     .map((line) => line.replace(/\*\*/g, "").replace(/^[-–—•*]+\s*/, "").trim())
@@ -1104,7 +1133,7 @@ export default function CockpitDashboard() {
       {actionDialog?.type === "advance" && (() => {
         const cand = actionDialog.cand;
         const label = advanceTargetLabel(statusOf(cand.id));
-        const rec = avaAdvanceRec(cand.overall ?? 0, isAnalyzed(cand));
+        const rec = avaAdvanceRec(cand.overall ?? 0, isAnalyzed(cand), cand.recommendedAction, cand.hardRejectReason);
         return (
           <ActionDialog
             open

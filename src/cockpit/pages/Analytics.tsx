@@ -45,9 +45,12 @@ function toDate(label: string | null | undefined): Date | null {
   return isValid(parsed) ? parsed : null;
 }
 
-/** Ava has a read on this person — a score, a skills check or a voice interview. */
-function screenedByAva(c: { overall: number; quiz: number | null; voice: number | null }) {
-  return c.overall > 0 || c.quiz != null || c.voice != null;
+/** Ava has a read on this person — a score, a skills check or a voice interview.
+ *  `analyzed` is computed once in `mapCandidate` and must never be re-derived
+ *  from `overall > 0` here: a genuine finished score of 0 is a real result and
+ *  has to read as one, not fall back to looking unscored. */
+function screenedByAva(c: { analyzed: boolean }) {
+  return c.analyzed;
 }
 
 /** "a", "a and b", "a, b and c" — Ava writes sentences, not comma lists. */
@@ -145,7 +148,7 @@ export default function CockpitAnalytics() {
     const hired = candidates.filter((c) => c.stage === "Hired").length;
     const passed = candidates.filter((c) => c.stage === "Rejected").length;
 
-    const sealedScores = candidates.filter((c) => isSealed(c) && c.overall > 0).map((c) => c.overall);
+    const sealedScores = candidates.filter((c) => isSealed(c) && c.analyzed).map((c) => c.overall);
     const avgSealed = sealedScores.length
       ? Math.round(sealedScores.reduce((a, b) => a + b, 0) / sealedScores.length)
       : null;

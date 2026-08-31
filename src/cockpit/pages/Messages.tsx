@@ -293,7 +293,9 @@ export default function CockpitMessages() {
   }, [conversations, filter, partner]);
 
   const hasInterview = !!contactId && interviews.upcoming.some((i) => i.avatar === contactId);
-  const sealedScore = activeCandidate && activeCandidate.overall > 0 ? activeCandidate.overall : null;
+  // `.analyzed` (not `overall > 0`) — a genuine finished score of 0 must still
+  // read as sealed, not fall back to looking unscored.
+  const sealedScore = activeCandidate?.analyzed ? activeCandidate.overall : null;
 
   // Land at the newest message whenever the conversation changes or grows.
   useEffect(() => {
@@ -427,7 +429,7 @@ export default function CockpitMessages() {
                     conv={c}
                     index={i}
                     active={c.id === contactId}
-                    sealed={!!cand && cand.overall > 0}
+                    sealed={!!cand?.analyzed}
                     onPick={() => setActiveId(c.id)}
                   />
                 );

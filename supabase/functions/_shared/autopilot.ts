@@ -320,9 +320,20 @@ export function buildAvaScorecard(params: {
   } else if (/AUTHENTICITY ASSESSMENT[\s\S]{0,160}Status:\s*QUESTIONABLE/i.test(analysisText)) {
     riskFlags.push("Profile details need closer verification");
   }
-  if (/Missing Critical Skills|Poor Match|Not Recommended/i.test(analysisText)) riskFlags.push("Critical role-fit concerns were flagged");
+  // NOTE: "Missing Critical Skills" is NOT matched here — it's a mandatory section
+  // header the report template always emits ("Missing Critical Skills: [only list
+  // truly critical gaps...]"), so it's present verbatim in every completed analysis
+  // regardless of whether any gap was actually found. Matching the header string
+  // trips this flag on every candidate. "Poor Match" and "Not Recommended" are safe:
+  // they're specific enum values the model only writes when it actually means them
+  // (Role Fit: [Strong Match/Good Match/Partial Match/Poor Match], Recommendation:
+  // [Highly Recommended/Recommended/Consider/Not Recommended]).
+  if (/Poor Match|Not Recommended/i.test(analysisText)) riskFlags.push("Critical role-fit concerns were flagged");
   if (/LIKELY_AI_GENERATED/i.test(analysisText)) riskFlags.push("Application content may be overly templated");
-  if (Array.isArray(jobSkillsRequired) && jobSkillsRequired.length > 0 && /Missing Critical Skills/i.test(analysisText)) {
+  // Structured data, not the header string: a genuine missing-skill concern is one
+  // the judge actually returned as a hard requirement conflict, never inferred from
+  // whether the report's "Missing Critical Skills:" section header is present.
+  if (Array.isArray(jobSkillsRequired) && jobSkillsRequired.length > 0 && normalizedHardRequirementConflicts.length > 0) {
     riskFlags.push("Required skill alignment needs a closer look");
   }
   if (/deal[- ]?breaker|non[- ]?negotiable|cannot work|required schedule/i.test(analysisText)) {

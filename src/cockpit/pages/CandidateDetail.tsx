@@ -25,6 +25,47 @@ import { ResumeViewerDialog } from "../components/ResumeViewerDialog";
 
 const STRENGTH_ICONS = [UserRound, MessageCircle, Target, BookOpen];
 
+/**
+ * Ava's full resume report is a structured document built for the scoring
+ * engine — bold section headers, then mostly machine-readable "Label: Value"
+ * diagnostic lines ("Status: VALID_RESUME", "Confidence: 100%"…). Only two
+ * passages are actually written as prose — the "Summary:" line and the
+ * "SCORE EXPLANATION" section — so prefer those when present. Anything else
+ * (a short decline note, a phase blurb) is already plain prose and just
+ * needs markdown stripped. Display only — the stored record is untouched.
+ */
+function extractLabeledLine(raw: string, label: string): string {
+  const m = raw.match(new RegExp(`^${label}\\s*:\\s*(.+)$`, "im"));
+  return m ? m[1].replace(/\*\*/g, "").trim() : "";
+}
+
+function extractReportSection(raw: string, header: string): string {
+  const m = raw.match(new RegExp(`\\*\\*${header}\\*\\*[^\\n]*\\n([\\s\\S]*?)(?:\\n\\*\\*|\\n---|$)`, "i"));
+  if (!m) return "";
+  return m[1]
+    .split(/\n+/)
+    .map((l) => l.replace(/\*\*/g, "").trim())
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+}
+
+function avaProse(raw: string | null | undefined): string {
+  if (!raw) return "";
+
+  const summary = extractLabeledLine(raw, "Summary");
+  const explanation = extractReportSection(raw, "SCORE EXPLANATION");
+  const structuredProse = [summary, explanation].filter(Boolean).join(" ").trim();
+  if (structuredProse) return structuredProse;
+
+  return raw
+    .split(/\n+/)
+    .map((line) => line.replace(/\*\*/g, "").replace(/^[-–—•*]+\s*/, "").trim())
+    .filter((line) => line.length > 2 && !/^[A-Z0-9 ,/&'()-]+:?$/.test(line))
+    .join(" ")
+    .trim();
+}
+
 export default function CockpitCandidateDetail() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -83,10 +124,21 @@ export default function CockpitCandidateDetail() {
   const isOffered = status === "offered";
   const isTerminal = isHired || isRejected;
   const canAdvance = !!nextAdvanceStatus(status);
-  const analyzed = (c.overall ?? 0) > 0 || c.quiz != null || c.voice != null;
+  // `c.analyzed` is the single source of truth (computed once in `mapCandidate`) —
+  // never re-derive this from `overall > 0`: a genuine finished score of 0 is a
+  // real result and has to read as one, not fall back to looking unscored.
+  const analyzed = c.analyzed;
   const advanceLabel = advanceTargetLabel(status);
-  const rec = avaAdvanceRec(c.overall ?? 0, analyzed);
+  const rec = avaAdvanceRec(c.overall ?? 0, analyzed, c.recommendedAction, c.hardRejectReason);
   const resumeUrl = (application as { resume_url?: string | null } | null)?.resume_url ?? null;
+  // Ava's own recommendation, not the score, decides how loud this page gets:
+  // a decline recommendation must never sit under a shortlist badge, a green
+  // "all clear" shield, or a primary green Advance button — the human still
+  // decides, but the page can't be arguing against Ava's own warning while
+  // she's making it.
+  const declineRecommended = c.recommendedAction === "reject";
+  const riskIconColor =
+    c.risk.level === "High" || c.risk.level === "Medium" ? "var(--amber-fg)" : c.risk.level === "Low" ? "var(--hf-green)" : "var(--hf-text-muted)";
 
   const doAdvance = async () => {
     if (application) await advance(c.id, application.status);
@@ -139,7 +191,21 @@ export default function CockpitCandidateDetail() {
           <div className="min-w-0 flex-1">
             <div className="font-display text-[24px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>{c.name}</div>
             <div className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>{c.role} · {c.appliedAgo}</div>
-            <div className="mt-1.5"><span className="ck-pill ck-pill-stage">{c.stage}</span></div>
+            <div className="mt-1.5">
+              {/* A decline recommendation overrides the stage badge — "Shortlist"
+                  above a High risk factor reads as the product disagreeing with
+                  itself. Same amber treatment as the risk callouts elsewhere. */}
+              {declineRecommended ? (
+                <span
+                  className="ck-pill"
+                  style={{ color: "var(--amber-fg)", background: "var(--amber-bg)", borderColor: "var(--brass-line)" }}
+                >
+                  Needs review
+                </span>
+              ) : (
+                <span className="ck-pill ck-pill-stage">{c.stage}</span>
+              )}
+            </div>
           </div>
           {/* The record carries the score once, in jade, the way .read-sc does
               in the design. Unscored is "—", not "0%" — a 0 would be a claim. */}
@@ -158,26 +224,33 @@ export default function CockpitCandidateDetail() {
           <AvaSeal size={34} />
           <div className="min-w-0">
             <div className="font-display text-[16px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>Ava's read</div>
-            <p className="mt-1 text-[13px] leading-snug" style={{ color: "var(--hf-text-soft)" }}>{c.readFull}</p>
+            <p className="mt-1 text-[13px] leading-snug" style={{ color: "var(--hf-text-soft)" }}>
+              {analyzed ? avaProse(c.readFull) || c.read : "I'm still reading this one — the score and my working land here the moment screening finishes."}
+            </p>
           </div>
         </div>
 
-        <div className="ck-card p-4">
-          <div className="text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>Top strengths</div>
-          <div className="mt-2 space-y-1">
-            {c.strengths.map((s, i) => {
-              const Icon = STRENGTH_ICONS[i % STRENGTH_ICONS.length];
-              return (
-                <div key={s} className="flex items-start gap-2.5 py-1.5 text-[13px]" style={{ color: "var(--hf-text)" }}>
-                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--hf-green-soft)", color: "var(--hf-green)" }}>
-                    <Icon className="h-3.5 w-3.5" />
-                  </span>
-                  <span className="flex-1">{s}</span>
-                </div>
-              );
-            })}
+        {/* Real strengths only (see extractStrengths in mappers.ts) — when Ava
+            hasn't produced any worth showing, the card is left out entirely
+            rather than rendering a heading over nothing, or worse, scaffolding. */}
+        {c.strengths.length > 0 && (
+          <div className="ck-card p-4">
+            <div className="text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>Top strengths</div>
+            <div className="mt-2 space-y-1">
+              {c.strengths.map((s, i) => {
+                const Icon = STRENGTH_ICONS[i % STRENGTH_ICONS.length];
+                return (
+                  <div key={s} className="flex items-start gap-2.5 py-1.5 text-[13px]" style={{ color: "var(--hf-text)" }}>
+                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--hf-green-soft)", color: "var(--hf-green)" }}>
+                      <Icon className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="flex-1">{s}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Quiz and Voice only — the overall lives up top, and repeating it here
             made the same number the answer to three different questions. */}
@@ -196,7 +269,10 @@ export default function CockpitCandidateDetail() {
         </div>
 
         <div className="ck-card flex items-center gap-3 p-4">
-          <ShieldCheck className="h-5 w-5 shrink-0" style={{ color: "var(--hf-green)" }} />
+          {/* Green means clean everywhere else in this cockpit — an elevated
+              risk level gets the same amber treatment as the alert callouts,
+              never a green "all clear" shield over a High risk. */}
+          <ShieldCheck className="h-5 w-5 shrink-0" style={{ color: riskIconColor }} />
           <div className="min-w-0 flex-1">
             <div className="text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>Risk factors</div>
             <div className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>{c.risk.level} — {c.risk.note}</div>
@@ -257,7 +333,17 @@ export default function CockpitCandidateDetail() {
         ) : (
           <>
             {canAdvance && (
-              <button className="ck-btn ck-btn-primary flex-1" onClick={() => setDialog("advance")} disabled={isUpdating}>Advance<ChevronRight className="h-4 w-4" /></button>
+              // The human still decides — Advance stays fully live, never disabled
+              // or hidden. But when Ava is recommending against advancing, it drops
+              // from the filled primary button to the same outline weight as Pass,
+              // so the page isn't nudging toward the one thing it just warned against.
+              <button
+                className={`ck-btn ${declineRecommended ? "ck-btn-outline" : "ck-btn-primary"} flex-1`}
+                onClick={() => setDialog("advance")}
+                disabled={isUpdating}
+              >
+                Advance<ChevronRight className="h-4 w-4" />
+              </button>
             )}
             <button className="ck-btn ck-btn-outline flex-1" onClick={() => setDialog("reject")}>Pass</button>
             <button className="ck-btn ck-btn-outline flex-1" onClick={() => navigate(`/messages?candidate=${c.avatar}`)}><MessageSquare className="h-4 w-4" />Message</button>

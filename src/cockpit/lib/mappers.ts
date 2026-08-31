@@ -127,28 +127,114 @@ export function mapCandidateStage(app: ApplicationWithCandidate): CandidateStage
   return "Application";
 }
 
-function extractStrengths(app: ApplicationWithCandidate): string[] {
+/**
+ * The shape of `applications.ai_scorecard` that matters to the cockpit — a
+ * loose mirror of `AvaScorecard` in `supabase/functions/_shared/autopilot.ts`
+ * (kept local rather than imported: that file lives in the Deno edge-function
+ * runtime, this one in the Vite/browser build). The column is typed `Json` in
+ * the generated Supabase types, so this is a defensive read, not a contract —
+ * every field is optional and missing/malformed data degrades to "no
+ * recommendation" rather than throwing.
+ */
+interface AiScorecard {
+  recommendedAction?: "advance" | "review" | "reject" | null;
+  hardRejectReason?: string | null;
+  riskFlags?: string[] | null;
+  /** Real, structured positive-signal bullets the judge produced (e.g.
+   *  "Trained 5 junior techs (leadership/mentoring)") — never parsed out of
+   *  free text, so it's the safest source for "Top strengths". */
+  transferableEvidence?: string[] | null;
+}
+
+function extractScorecard(app: ApplicationWithCandidate): AiScorecard | null {
+  const raw = (app as unknown as { ai_scorecard?: unknown }).ai_scorecard;
+  if (!raw || typeof raw !== "object") return null;
+  return raw as AiScorecard;
+}
+
+/** A line that's Ava's report scaffolding, not a sentence a human wrote to be
+ *  read — a bare section header ("PHASE PERFORMANCE SUMMARY"), a bare label
+ *  with nothing after it ("Phase Highlights:"), or a "Label: value"
+ *  diagnostic pair ("Application: Completed", "Status: VALID_RESUME"). None
+ *  of these belong in a list that's supposed to read as real strengths. */
+function looksLikeScaffolding(line: string): boolean {
+  if (/^[A-Z0-9 ,/&'()-]+:?$/.test(line)) return true;
+  if (/^[A-Za-z][A-Za-z /'()-]{1,40}:$/.test(line)) return true;
+  if (/^[A-Za-z][A-Za-z /'()-]{1,40}:\s+\S/.test(line)) return true;
+  return false;
+}
+
+/** A labeled value that just says "nothing here" ("None", "N/A", "None
+ *  identified") — real absence, not a strength worth showing. */
+const NO_VALUE = /^(none|n\/a|not applicable|not provided)\b/i;
+
+/** Pulls just one labeled bulleted section out of Ava's structured resume
+ *  report (e.g. the real "Key Strengths:" list under **OVERALL ASSESSMENT**)
+ *  — never the whole document, which is mostly Label: Value diagnostics and
+ *  section headers that have nothing to do with strengths. */
+function extractLabeledBullets(raw: string, label: string): string[] {
+  const m = raw.match(new RegExp(`^${label}\\s*:\\s*([\\s\\S]*?)(?=\\n[A-Za-z][A-Za-z /'()-]{1,40}:|\\n\\*\\*|\\n---|$)`, "im"));
+  if (!m) return [];
+  return m[1]
+    .split(/\n+/)
+    .map((l) => l.replace(/\*\*/g, "").replace(/^[\s–—•*-]+/, "").trim())
+    .filter((l) => l.length >= 8 && l.length <= 160)
+    .filter((l) => !NO_VALUE.test(l));
+}
+
+function dedupe(items: string[], limit: number): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of items) {
+    const key = item.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+/**
+ * "Top strengths" — real, specific things worth telling the employer, never
+ * Ava's report scaffolding. Three layers, each preferred over the next only
+ * when it comes up empty:
+ *  1. `ai_scorecard.transferableEvidence` — genuine structured JSON the judge
+ *     produced, not parsed out of free text at all. The safest source.
+ *  2. The report's own "Key Strengths:" bulleted section — a real labeled
+ *     list, not the whole document.
+ *  3. "Phase Highlights:" — same idea, one section over.
+ * If none of those hold anything real, this returns no strengths at all
+ * (the UI hides the card) rather than falling back to grabbing arbitrary
+ * sentences — an empty section is honest; a header dressed up as a bullet
+ * point is not.
+ */
+function extractStrengths(app: ApplicationWithCandidate, scorecard: AiScorecard | null): string[] {
+  const structured = Array.isArray(scorecard?.transferableEvidence)
+    ? scorecard!.transferableEvidence.filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+    : [];
+  if (structured.length > 0) return dedupe(structured, 4);
+
   const analysis = (app.ai_analysis ?? "").trim();
   if (!analysis) return [];
-  // Split into clean, COMPLETE sentences. Never split on hyphens — that breaks
-  // words like "hands-on" / "double-checks" into garbage fragments. Sentence
-  // ends (. ! ?), newlines and bullets are the only delimiters. (No regex
-  // look-behind — older Safari can't run it.)
+
+  const keyStrengths = extractLabeledBullets(analysis, "Key Strengths");
+  if (keyStrengths.length > 0) return dedupe(keyStrengths, 4);
+
+  const phaseHighlights = extractLabeledBullets(analysis, "Phase Highlights");
+  if (phaseHighlights.length > 0) return dedupe(phaseHighlights, 4);
+
+  // Not the structured resume-report template — a shorter, already-prose
+  // analysis (a voice-interview summary, a phase blurb). Fall back to
+  // sentence-splitting, but still refuse anything that reads as scaffolding.
   const parts = analysis
     .replace(/([.!?])\s+/g, "$1\n")
     .split(/[\n\n•]+/)
-    .map((s) => s.replace(/^[\s–—•*-]+/, "").trim())
-    .filter((s) => s.length >= 15 && s.length <= 160);
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const p of parts) {
-    const key = p.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(p);
-    if (out.length >= 4) break;
-  }
-  // No fabrication: if Ava hasn't produced real analysis, return none (UI shows "screening in progress").
+    .map((s) => s.replace(/\*\*/g, "").replace(/^[\s–—•*-]+/, "").trim())
+    .filter((s) => s.length >= 15 && s.length <= 160)
+    .filter((s) => !looksLikeScaffolding(s));
+  const out = dedupe(parts, 4);
+  // No fabrication: fewer than two real sentences reads as noise, not signal.
   return out.length >= 2 ? out : [];
 }
 
@@ -163,6 +249,11 @@ export function mapCandidate(app: ApplicationWithCandidate): Candidate {
   const read = (app.ai_analysis ?? app.phase_ai_analysis ?? "Screening in progress…").split("\n")[0].slice(0, 140);
   const readFull = app.ai_analysis ?? app.phase_ai_analysis ?? read;
 
+  const scorecard = extractScorecard(app);
+  const recommendedAction = scorecard?.recommendedAction ?? null;
+  const hardRejectReason = scorecard?.hardRejectReason ?? null;
+  const riskFlags = Array.isArray(scorecard?.riskFlags) ? scorecard!.riskFlags.filter((f): f is string => typeof f === "string") : [];
+
   return {
     id: app.id,
     avatar: app.candidate_id,
@@ -175,15 +266,23 @@ export function mapCandidate(app: ApplicationWithCandidate): Candidate {
     quiz,
     voice,
     overall,
+    analyzed,
     read,
     readFull,
-    strengths: extractStrengths(app),
+    strengths: extractStrengths(app, scorecard),
+    // The score alone decides Low/Medium/High, EXCEPT a hard-reject reason
+    // always wins: a name mismatch or authenticity concern on a resume that
+    // otherwise scored well must never read as "Low risk". The note carries
+    // the engine's own words verbatim so the employer sees why, not just that.
     risk: analyzed
       ? {
-          level: overall >= 75 ? "Low" : overall >= 50 ? "Medium" : "High",
-          note: "Based on completed screening signals.",
+          level: hardRejectReason ? "High" : overall >= 75 ? "Low" : overall >= 50 ? "Medium" : "High",
+          note: hardRejectReason ?? "Based on completed screening signals.",
         }
       : { level: "Pending", note: "Ava is still screening this candidate." },
+    recommendedAction,
+    hardRejectReason,
+    riskFlags,
     source: "Application",
   };
 }

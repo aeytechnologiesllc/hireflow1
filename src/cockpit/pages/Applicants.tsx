@@ -141,12 +141,43 @@ function clip(text: string, max: number): string {
 }
 
 /**
- * Ava files her report with section headers and markdown emphasis. The employer
- * should read her sentences, not the scaffolding, so the marks are stripped and
- * the bare headers dropped. Display only — the stored record is untouched.
+ * Ava's full resume report (`ai_analysis`) is a structured document built for
+ * the scoring engine — bold section headers, then mostly machine-readable
+ * "Label: Value" diagnostic lines (`Status: VALID_RESUME`, `Confidence: 100%`,
+ * `Name Match: MATCH`…). None of that is meant for an employer to read; the
+ * report carries exactly two passages actually written as prose — the
+ * "Summary:" line and the "SCORE EXPLANATION" section — so prefer those when
+ * they're present. Anything else (a short decline note, a phase blurb) is
+ * already plain prose and just needs markdown/bullet/header stripped.
+ * Display only — the stored record is untouched.
  */
+function extractLabeledLine(raw: string, label: string): string {
+  const m = raw.match(new RegExp(`^${label}\\s*:\\s*(.+)$`, "im"));
+  return m ? m[1].replace(/\*\*/g, "").trim() : "";
+}
+
+function extractReportSection(raw: string, header: string): string {
+  const m = raw.match(new RegExp(`\\*\\*${header}\\*\\*[^\\n]*\\n([\\s\\S]*?)(?:\\n\\*\\*|\\n---|$)`, "i"));
+  if (!m) return "";
+  return m[1]
+    .split(/\n+/)
+    .map((l) => l.replace(/\*\*/g, "").trim())
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+}
+
 function avaProse(raw: string | null | undefined): string {
   if (!raw) return "";
+
+  const summary = extractLabeledLine(raw, "Summary");
+  const explanation = extractReportSection(raw, "SCORE EXPLANATION");
+  const structuredProse = [summary, explanation].filter(Boolean).join(" ").trim();
+  if (structuredProse) return structuredProse;
+
+  // Not the structured resume-report template — it's already prose (a decline
+  // note, a phase blurb). Just strip markdown emphasis, bullets, and any bare
+  // ALL-CAPS section headers.
   return raw
     .split(/\n+/)
     .map((line) => line.replace(/\*\*/g, "").replace(/^[-–—•*]+\s*/, "").trim())
@@ -183,9 +214,12 @@ function quizResultOf(app?: AppRecord): QuizResult | null {
   return result;
 }
 
-/** A candidate has real screening signal once any score exists; until then we don't fake strengths. */
+/** A candidate has real screening signal once any score exists; until then we don't fake strengths.
+ *  `candidate.analyzed` is the single source of truth for this (computed once in
+ *  `mapCandidate`) — it must never be re-derived from `overall > 0` here, because a
+ *  genuine finished score of 0 is a real result and has to read as one. */
 function isAnalyzed(c: Candidate): boolean {
-  return (c.overall ?? 0) > 0 || c.quiz != null || c.voice != null;
+  return c.analyzed;
 }
 
 function bucketOf(c: Candidate): Bucket {
@@ -220,7 +254,13 @@ function PersonRow({
   onSelect: () => void;
 }) {
   const analyzed = isAnalyzed(candidate);
-  const why = clip(avaProse(candidate.readFull) || candidate.read, 64);
+  // Ava's own decline recommendation, not the score, decides whether this row
+  // reads as clean — a name mismatch behind an 85 must never look identical
+  // to a genuine 85 in a list an employer is scanning fast.
+  const needsReview = candidate.recommendedAction === "reject";
+  const why = needsReview
+    ? clip(candidate.hardRejectReason ? `Needs review — ${candidate.hardRejectReason}` : "Needs review", 64)
+    : clip(avaProse(candidate.readFull) || candidate.read, 64);
 
   return (
     <button
@@ -253,16 +293,28 @@ function PersonRow({
             <AvaSeal size={20} tilt={TILTS[index % TILTS.length]} />
           </span>
         )}
+        {/* Quiet caution cue on the avatar itself — the one part of the row
+            that reads at a glance even before the score or subtext do, and
+            the only cue that survives on narrow widths where the subtext
+            below is hidden. */}
+        {needsReview && (
+          <span
+            aria-hidden
+            className="absolute -top-[1px] -right-[1px] block h-[9px] w-[9px] rounded-full border"
+            style={{ background: "var(--amber-fg)", borderColor: "var(--brass-line)" }}
+          />
+        )}
       </span>
 
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[13px] font-semibold leading-[1.3]" style={{ color: "var(--ink)" }}>
           {candidate.name}
         </span>
+        {needsReview && <span className="sr-only">Needs review</span>}
         {why && (
           <span
             className="mt-[2px] hidden truncate text-[11px] min-[1160px]:block"
-            style={{ color: "var(--ink-3)" }}
+            style={{ color: needsReview ? "var(--amber-fg)" : "var(--ink-3)" }}
           >
             {why}
           </span>
@@ -271,7 +323,7 @@ function PersonRow({
 
       <span
         className="ck-num ml-auto min-w-[34px] shrink-0 text-right text-[18px] font-semibold"
-        style={{ color: analyzed ? "var(--jade)" : "var(--ink-3)" }}
+        style={{ color: needsReview ? "var(--amber-fg)" : analyzed ? "var(--jade)" : "var(--ink-3)" }}
       >
         {analyzed ? candidate.overall : "—"}
       </span>
@@ -380,13 +432,20 @@ function AvasRead({ candidate, app }: { candidate: Candidate; app?: AppRecord })
     app?.resume_url ? "resume" : null,
   ].filter(Boolean) as string[];
 
-  // A middling or weak score is the one thing worth raising before you commit.
+  // Ava's own decline recommendation always surfaces here, in her own words,
+  // no matter what the number says — a flagged candidate must never read as
+  // clean just because the score looks good. Anything softer (no hard-reject
+  // reason, just a middling or weak score) still gets the score-based nudge.
   const worthAsking =
-    analyzed && candidate.risk.level !== "Low"
-      ? candidate.risk.level === "Medium"
-        ? `${candidate.overall} puts them in the middle of your field — worth asking about the gaps`
-        : `${candidate.overall} is below the people I sealed — worth asking before you spend an hour`
-      : null;
+    analyzed && candidate.recommendedAction === "reject"
+      ? candidate.hardRejectReason
+        ? `Ava recommends declining — ${candidate.hardRejectReason}`
+        : "Ava recommends declining this one — the evidence collected so far is below the bar for this role."
+      : analyzed && candidate.risk.level !== "Low"
+        ? candidate.risk.level === "Medium"
+          ? `${candidate.overall} puts them in the middle of your field — worth asking about the gaps`
+          : `${candidate.overall} is below the people I sealed — worth asking before you spend an hour`
+        : null;
 
   return (
     <div className="ck-card relative px-5 pb-4 pt-4">
@@ -508,14 +567,22 @@ function Timeline({ candidate, app }: { candidate: Candidate; app?: AppRecord })
   // the state it is in now.
   const settled = when(app?.updated_at);
 
-  const stageTone =
-    candidate.stage === "Rejected"
+  // A decline recommendation overrides the stage word here too — "Shortlisted"
+  // in jade next to a candidate Ava is warning about reads as the page
+  // disagreeing with itself. Terminal outcomes (Hired/Rejected) are a human's
+  // completed decision, not a pending recommendation, so they're left alone.
+  const needsReview = candidate.recommendedAction === "reject" && candidate.stage !== "Hired" && candidate.stage !== "Rejected";
+
+  const stageTone = needsReview
+    ? "var(--amber-fg)"
+    : candidate.stage === "Rejected"
       ? "var(--crit)"
       : candidate.stage === "Hired" || candidate.stage === "Shortlist"
         ? "var(--jade-soft-fg)"
         : "var(--amber-fg)";
-  const stageWord =
-    candidate.stage === "Rejected"
+  const stageWord = needsReview
+    ? "Needs review"
+    : candidate.stage === "Rejected"
       ? "Passed"
       : candidate.stage === "Hired"
         ? "Hired"
@@ -636,9 +703,9 @@ function JourneyStrip({ candidate, app }: { candidate: Candidate; app?: AppRecor
     if (step.type === "quiz") {
       if (quiz) return `${quiz.correct}/${quiz.total}${quiz.passed === true ? " · passed" : quiz.passed === false ? " · did not pass" : ""}`;
       if (candidate.quiz != null) return `${candidate.quiz}%`;
-      return "Completed";
+      return state === "completed" ? "Completed" : null; // "current" with no result yet isn't done
     }
-    if (step.type === "voice_interview") return minutes != null ? `${minutes} min · transcript ready` : "Completed";
+    if (step.type === "voice_interview") return minutes != null ? `${minutes} min · transcript ready` : state === "completed" ? "Completed" : null;
     return state === "completed" ? "Completed" : null;
   };
 
@@ -1072,6 +1139,11 @@ export default function CockpitApplicants() {
 
   const selected = listCandidates.find((c) => c.id === selectedId) ?? paged[0] ?? null;
   const selectedIndex = selected ? listCandidates.findIndex((c) => c.id === selected.id) : -1;
+  // Ava's own decline recommendation, not the score, decides how loud the
+  // panel's action row gets — the human still decides, but the page can't be
+  // nudging toward the one thing Ava just warned against. Same rule as the
+  // Advance button on the full profile page.
+  const selectedNeedsReview = selected?.recommendedAction === "reject";
 
   /** Move through the whole filtered list, pulling the page along with it. */
   const goTo = (index: number) => {
@@ -1396,6 +1468,20 @@ export default function CockpitApplicants() {
                   <div className="mt-1 text-[12px]" style={{ color: "var(--ink-3)" }}>
                     {selected.appliedAgo} · {selected.role}
                   </div>
+                  {/* Same amber "Needs review" treatment as the full profile page —
+                      a decline recommendation must be visible right here, next to
+                      the name, not only buried in the buttons below. Left alone
+                      once a human has actually settled it (Hired/Rejected). */}
+                  {selectedNeedsReview && selected.stage !== "Hired" && selected.stage !== "Rejected" && (
+                    <div className="mt-1.5">
+                      <span
+                        className="ck-pill"
+                        style={{ color: "var(--amber-fg)", background: "var(--amber-bg)", borderColor: "var(--brass-line)" }}
+                      >
+                        Needs review
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -1473,8 +1559,13 @@ export default function CockpitApplicants() {
                           Move to {advanceTargetLabel(statusById[selected.id])}
                         </button>
                       )}
+                      {/* The human still decides — this stays fully live, never
+                          disabled or hidden. But when Ava is recommending against
+                          this candidate, it drops from the filled primary button
+                          to the same outline weight as Pass, so the panel isn't
+                          nudging toward the one thing she just warned about. */}
                       <button
-                        className={`ck-btn ck-btn-primary !py-2 !text-[12.5px]${
+                        className={`ck-btn ${selectedNeedsReview ? "ck-btn-outline" : "ck-btn-primary"} !py-2 !text-[12.5px]${
                           scheduleHintId === selected.id ? " ck-node-pulse" : ""
                         }`}
                         onClick={() => setScheduleCand(selected)}
@@ -1582,7 +1673,7 @@ export default function CockpitApplicants() {
         const cand = actionDialog.cand;
         const st = statusById[cand.id];
         const label = advanceTargetLabel(st);
-        const rec = avaAdvanceRec(cand.overall ?? 0, isAnalyzed(cand));
+        const rec = avaAdvanceRec(cand.overall ?? 0, isAnalyzed(cand), cand.recommendedAction, cand.hardRejectReason);
         const who = firstName(cand.name);
         /* Ava asks in the same words as the button that opened this, and says
            what she will actually do next. Never "advance", "stage", "pipeline"

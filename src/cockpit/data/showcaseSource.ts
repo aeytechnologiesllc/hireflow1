@@ -135,6 +135,9 @@ export async function fetchShowcaseCandidates(): Promise<ShowcaseBundle> {
     const voice = scaleVoice(app.voice_score ?? detail?.voice_score ?? null);
     const overall = Math.max(quiz ?? 0, voice ?? 0);
     const read = detail?.ava_read ?? app.note ?? "Awaiting review.";
+    // Showcase data carries no ai_score/ai_scorecard column — quiz or voice
+    // signal is the only "has this been scored" test available here.
+    const analyzed = quiz != null || voice != null;
 
     return {
       id: app.id,
@@ -147,10 +150,14 @@ export async function fetchShowcaseCandidates(): Promise<ShowcaseBundle> {
       quiz,
       voice,
       overall,
+      analyzed,
       read: read.slice(0, 140),
       readFull: read,
       strengths: [],
       risk: { level: "Pending" as const, note: "Screening signals pending." },
+      recommendedAction: null,
+      hardRejectReason: null,
+      riskFlags: [],
       source: "Application",
     };
   });
