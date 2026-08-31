@@ -469,3 +469,339 @@ delete from storage.objects
      '3f16c4a5-00dd-4525-9232-4029fffb5cda/1788161706457.png',
      '3f16c4a5-00dd-4525-9232-4029fffb5cda/1788162207271.png'
    );
+
+-- ---------------------------------------------------------------------------
+-- 2026-08-31  DEEP-PHASE AUDIT (post-quiz-fix rerun)
+--   Purpose: the previous audit ran against the BROKEN quiz build, so every
+--   screening phase AFTER the quiz had never been exercised. This run drives
+--   one candidate through typing test, quiz, chat simulation, chat interview,
+--   voice interview, video intro, portfolio and the Daily interview room.
+--   Accounts used: EXISTING test accounts only (employer.test@hireflow.dev,
+--   candidate.test@hireflow.dev) — no new accounts created.
+--   Job carries exclude_from_feed = true and was never published to any board.
+--   Rows created (delete block at the bottom of this section):
+--     job          dee9dee9-0000-4000-a000-000000000001  (JOB-688F71,
+--                  "[DEEPPHASE 0831] Support Specialist - phase probe")
+-- ---------------------------------------------------------------------------
+--     application  638ac3f3-5b4c-465c-b030-351f4c71dc72  (candidate.test, driven
+--                  through every screening phase by the deep-phase audit)
+--     resume obj   resumes/3f16c4a5-00dd-4525-9232-4029fffb5cda/1788181229117.png
+
+-- ---------------------------------------------------------------------------
+-- 2026-08-31  CANDIDATE-HONESTY AUDIT (post-fix rerun)
+--   Purpose: audit what the CANDIDATE is told — that the fake-rejection fix
+--   holds in more than one phase, that no AI/Ava/score text leaks to the
+--   candidate, and what a passed-over candidate actually experiences given
+--   RESEND_API_KEY is unset.
+--   Accounts used: EXISTING test accounts only (employer.test@hireflow.dev
+--   13e26129-2e6c-4e7b-bb55-deb5ad78f0c4, candidate.test@hireflow.dev
+--   3f16c4a5-00dd-4525-9232-4029fffb5cda). NO new accounts created.
+--   Job carries exclude_from_feed = true and was never published to any board.
+--   Rows created:
+--     job          aa11aa11-0831-4bbb-9ccc-000000000001  (JOB-HON831,
+--                  "[HONESTY 0831] Bilingual Pharmacy Technician (do not use)")
+--     application  aa11aa11-0831-4bbb-9ccc-000000000002  (candidate.test,
+--                  deliberately unqualified — no PTCB license, no Spanish;
+--                  driven through application form, quiz, typing test and
+--                  video intro, then set status='rejected' to verify the
+--                  genuine rejection screen still renders)
+--     notification  1 row for candidate.test, inserted by the
+--                   on_application_status_change DB trigger when the
+--                   application above was set to 'rejected'
+--     storage objs  resumes/3f16c4a5-00dd-4525-9232-4029fffb5cda/1788184132200.png
+--                   resumes/3f16c4a5-00dd-4525-9232-4029fffb5cda/1788184159128.png
+--                   videos/3f16c4a5-00dd-4525-9232-4029fffb5cda/aa11aa11-0831-4bbb-9ccc-000000000002-step_hon_video-1788184750006.webm
+--   NOT yet deleted — uncomment to remove.
+-- ---------------------------------------------------------------------------
+-- begin;
+-- delete from public.notifications
+--  where user_id = '3f16c4a5-00dd-4525-9232-4029fffb5cda'
+--    and link = '/applications/aa11aa11-0831-4bbb-9ccc-000000000002';
+-- delete from public.applications where id = 'aa11aa11-0831-4bbb-9ccc-000000000002';
+-- delete from public.jobs         where id = 'aa11aa11-0831-4bbb-9ccc-000000000001';
+-- commit;
+--
+-- delete from storage.objects
+--  where (bucket_id = 'resumes' and name in (
+--          '3f16c4a5-00dd-4525-9232-4029fffb5cda/1788184132200.png',
+--          '3f16c4a5-00dd-4525-9232-4029fffb5cda/1788184159128.png'))
+--     or (bucket_id = 'videos'  and name =
+--          '3f16c4a5-00dd-4525-9232-4029fffb5cda/aa11aa11-0831-4bbb-9ccc-000000000002-step_hon_video-1788184750006.webm');
+
+-- ---------------------------------------------------------------------------
+-- 2026-08-31  RERUN REGRESSION CHECK (verifies commits 5a82141 + 300802e)
+--   Purpose: regression-check the three shipped blocker fixes and the engine
+--   redeploy — quiz answerability (all shapes), employer visibility of the
+--   recommendation/reason/flags, the false "Critical role-fit concerns" flag,
+--   and the anti-auto-reject guard.
+--   Accounts used: EXISTING test accounts only (employer.test@hireflow.dev
+--   13e26129-2e6c-4e7b-bb55-deb5ad78f0c4, candidate.test@hireflow.dev
+--   3f16c4a5-00dd-4525-9232-4029fffb5cda). NO new accounts created.
+--   The five real published jobs whose quiz was broken belong to REAL
+--   employers, so they were NOT touched: their quiz_questions JSON was cloned
+--   verbatim into throwaway jobs under employer.test instead.
+--   Every job below carries exclude_from_feed = true and was never published
+--   to any board.
+--   Rows created:
+--     job 44444444-0831-4aaa-8bbb-100000000001  quizclone of Part-Time Mechanic
+--     job 44444444-0831-4aaa-8bbb-100000000002  quizclone of Front Desk Receptionist
+--     job 44444444-0831-4aaa-8bbb-100000000003  quizclone of Grocery Stocker
+--     job 44444444-0831-4aaa-8bbb-100000000004  quizclone of Front Desk Associate
+--     job 44444444-0831-4aaa-8bbb-100000000005  quizclone of Solo Cashier
+--     job 44444444-0831-4aaa-8bbb-200000000001  Quiz shape probe (MC / situational
+--                                               with options / multi_select / no-options)
+--     application 44444444-0831-4aaa-8bbb-a00000000001 .. a00000000006
+--                                               (candidate.test, one per job above)
+-- ---------------------------------------------------------------------------
+-- begin;
+-- delete from public.applications where id::text like '44444444-0831-4aaa-8bbb-a%';
+-- delete from public.jobs         where id::text like '44444444-0831-4aaa-8bbb-%';
+-- commit;
+
+-- ---------------------------------------------------------------------------
+-- 2026-08-31  DEEP-PHASE AUDIT #2 (post-quiz-fix rerun, every phase after the
+--             quiz)
+--   Why: the earlier deep-phase run seeded its job with processing_mode =
+--   'ava_autopilot', a value the app does not recognise (it only ever compares
+--   against 'auto' / 'manual'), so autopilot never ran and that run stalled at
+--   the application form. This run uses processing_mode='auto' and drives the
+--   typing test, chat simulation, video intro, portfolio, sales simulation,
+--   chat interview, voice interview and the Daily interview room.
+--   Accounts used: EXISTING bypassed test accounts only
+--   (employer.test@hireflow.dev, candidate.test@hireflow.dev). No new accounts.
+--   Job carries exclude_from_feed = true and was never pushed to any board.
+--   Rows created:
+--     job          deadbe11-0831-4b00-9000-000000000001  (JOB-9007C7,
+--                  "[DEEPPHASE2 0831] Customer Support Specialist - all-phase
+--                  probe (do not use)")
+--     application  a4aa57cf-3fd0-4035-a54b-442575b31837  (candidate.test,
+--                  driven through every screening phase by this audit)
+-- ---------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------
+-- 2026-08-31  CLEAN FIRST-RUN AUDIT (post-quiz-fix, NO subscription bypass)
+--   Purpose: re-run the whole employer->candidate journey from nothing on the
+--   fixed build, using a BRAND-NEW employer account that carries no
+--   raw_app_meta_data.subscription_bypass, so every plan gate a real paying
+--   customer hits is visible (1-job trial cap, Subscribe, AI-analysis quota).
+--   Ran entirely against a local dev server (localhost:6177) talking to this
+--   production Supabase. Nothing was published to any job board; the job
+--   carries exclude_from_feed = true.
+--   Accounts created:
+--     employer  8e38f97e-6c2d-4c9e-a806-5318f3c4f88c  clean.firstrun.a7@hireflow.dev
+--               ("Priya Raman" / "Marlow & Finch Bakery", trial, NO bypass)
+--   (job / application / storage-object ids appended below as they are made)
+-- ---------------------------------------------------------------------------
+--   Rows created by the clean first-run audit:
+--     job  f2f81a7d-3c5a-4ec1-884a-b609fe1c1675  (JOB-8BB349,
+--          "Bakery Counter Assistant", published, exclude_from_feed = true)
+
+-- ---------------------------------------------------------------------------
+-- 2026-08-31  RERUN-B REGRESSION CHECK (quiz fix + employer visibility +
+--             risk-flag redeploy + anti-auto-reject guard)
+--   Purpose: independently re-verify commits 5a82141 / 300802e and the
+--   trigger-ava-analysis + autopilot-batch redeploys. Ran against a local dev
+--   server on localhost:7205 talking to this production Supabase. Nothing was
+--   published to any board; every job carries exclude_from_feed = true.
+--   Accounts used: EXISTING bypassed test accounts only
+--   (employer.test@hireflow.dev 13e26129-2e6c-4e7b-bb55-deb5ad78f0c4,
+--    candidate.test@hireflow.dev 3f16c4a5-00dd-4525-9232-4029fffb5cda).
+--   No new accounts were created.
+--   NOTE: a concurrent agent's rows use the 44444444-0831-% prefix; this run
+--   deliberately uses its own 55555555-0831-% namespace so the two do not
+--   collide.
+--
+--   Jobs created (all employer.test, published, exclude_from_feed = true):
+--     55555555-0831-4aaa-8bbb-100000000001  quizclone of Part-Time Mechanic
+--     55555555-0831-4aaa-8bbb-100000000002  quizclone of Front Desk Receptionist
+--     55555555-0831-4aaa-8bbb-100000000003  quizclone of Grocery Stocker
+--     55555555-0831-4aaa-8bbb-100000000004  quizclone of Front Desk Associate
+--     55555555-0831-4aaa-8bbb-100000000005  quizclone of Solo Cashier
+--       (quiz_questions copied verbatim from the five real published jobs that
+--        were 8-for-8 unanswerable, so the real employers' rows are untouched)
+--     55555555-0831-4aaa-8bbb-200000000001  Quiz shape probe (MC / situational
+--        +options / multi_select / empty-options / blank-string options /
+--        single option)
+--   Applications created (all candidate.test):
+--     55555555-0831-4bbb-9ccc-100000000001 .. -100000000005
+--     55555555-0831-4bbb-9ccc-200000000001
+--   (further rows from the live-analysis probes appended below)
+--
+-- Cleanup:
+--   begin;
+--   delete from public.applications where id::text like '55555555-0831-4bbb-9ccc-%';
+--   delete from public.jobs         where id::text like '55555555-0831-4aaa-8bbb-%';
+--   commit;
+-- ---------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------
+-- 2026-08-31  DEEP-PHASE AUDIT #3 (post-quiz-fix rerun; "UI-faithful" configs)
+--   Why a third probe job: the earlier deep-phase jobs hand-wrote rich step
+--   `config` blobs (scenarios, interview questions, dimensions). The real
+--   /jobs/create-legacy UI writes `config: {}` for every step except
+--   voice_interview (which gets only language keys) — see addWorkflowStep in
+--   src/pages/CreateJob.tsx. A richly-configured probe therefore hides the
+--   exact bug class the quiz had (a renderer reading data the creator never
+--   writes). This job reproduces the UI's real output byte-for-byte.
+--   Accounts used: EXISTING bypassed test accounts only
+--     employer.test@hireflow.dev   (13e26129-2e6c-4e7b-bb55-deb5ad78f0c4)
+--     candidate.test@hireflow.dev  (3f16c4a5-00dd-4525-9232-4029fffb5cda)
+--   No new accounts. Job carries exclude_from_feed = true and was never
+--   pushed to any board. Driven against a local dev server (localhost:9412).
+--   Rows created:
+--     job  beefcafe-0831-4d00-9000-000000000001  (JOB-AB7C02,
+--          "[DEEPPHASE3 0831] Client Care Associate - UI-faithful all-phase
+--           probe (do not use)")
+--     application id appended below once created.
+-- ---------------------------------------------------------------------------
+-- begin;
+--   delete from public.notifications  where application_id in (select id from public.applications where job_id = 'beefcafe-0831-4d00-9000-000000000001');
+--   delete from public.interviews     where application_id in (select id from public.applications where job_id = 'beefcafe-0831-4d00-9000-000000000001');
+--   delete from public.messages       where application_id in (select id from public.applications where job_id = 'beefcafe-0831-4d00-9000-000000000001');
+--   delete from public.applications   where job_id = 'beefcafe-0831-4d00-9000-000000000001';
+--   delete from public.jobs           where id = 'beefcafe-0831-4d00-9000-000000000001';
+-- commit;
+--   DEEP-PHASE AUDIT #3 application row:
+--     application  0cda77cb-f48d-40f1-89ab-d750b15024f9  (candidate.test on job
+--                  beefcafe-0831-4d00-9000-000000000001; driven through every
+--                  screening phase by this audit)
+
+-- ---------------------------------------------------------------------------
+-- 2026-08-31  DEEP-PHASE AUDIT #4 (post-quiz-fix rerun; every phase AFTER the
+--             quiz, driven end-to-end by one candidate)
+--   Why a fourth probe job: the earlier deep-phase jobs all used step type
+--   `video_intro`. The real /jobs/create-legacy UI writes `video_message`
+--   (see STEP_TYPE_INFO in src/pages/CreateJob.tsx), and it orders steps
+--   "regular steps in add-order, then chat_interview, then voice_interview".
+--   This job reproduces that exactly, and deliberately places
+--   portfolio_upload immediately before video_message to exercise the
+--   next-phase hand-off between them.
+--   Accounts used: EXISTING bypassed test accounts only (no new accounts)
+--     employer.test@hireflow.dev   (13e26129-2e6c-4e7b-bb55-deb5ad78f0c4)
+--     candidate.test@hireflow.dev  (3f16c4a5-00dd-4525-9232-4029fffb5cda)
+--   Job carries exclude_from_feed = true and was never pushed to any board.
+--   Driven against a local dev server (localhost:9733) talking to prod Supabase.
+--   Rows created:
+--     job  d4d4d4d4-0831-4e00-9000-000000000001  (JOB-DP4831,
+--          "[DEEPPHASE4 0831] Member Services Associate - post-quiz phase
+--           probe (do not use)")
+--     (application + storage object ids appended below as they are made)
+-- ---------------------------------------------------------------------------
+--   Live-analysis probe rows added by the same run (real trigger-ava-analysis
+--   calls against production, to prove the false "Critical role-fit concerns"
+--   flag is gone on a clean candidate and still fires on a real conflict):
+--     job          55555555-0831-4aaa-8bbb-300000000001  Certified Pharmacy
+--                  Technician - risk flag probe   (clean candidate)
+--     job          55555555-0831-4aaa-8bbb-300000000002  ... probe B
+--                  (deliberately unqualified candidate)
+--     application  55555555-0831-4bbb-9ccc-300000000001  (strong, no real gap)
+--     application  55555555-0831-4bbb-9ccc-300000000002  (no cert, no Spanish,
+--                  no Saturdays, no experience)
+--   Both are covered by the same two DELETE statements above.
+--   DEEP-PHASE AUDIT #4 rows created:
+--     application  d4d4d4d4-0831-4e00-9000-000000000002  (candidate.test on job
+--                  d4d4d4d4-0831-4e00-9000-000000000001; driven through the
+--                  application form, quiz, typing test, chat simulation,
+--                  portfolio upload, video message, sales simulation, chat
+--                  interview and voice interview by this audit)
+--     storage obj  videos/3f16c4a5-00dd-4525-9232-4029fffb5cda/d4d4d4d4-0831-4e00-9000-000000000002-step_dp4_video-1788186952133.webm
+--     storage objs portfolio/… uploaded by the portfolio phase for this
+--                  application (see storage.objects filtered by the
+--                  application id below)
+--   NOT yet deleted — uncomment to remove.
+-- ---------------------------------------------------------------------------
+-- begin;
+--   delete from public.notifications where application_id = 'd4d4d4d4-0831-4e00-9000-000000000002';
+--   delete from public.interviews    where application_id = 'd4d4d4d4-0831-4e00-9000-000000000002';
+--   delete from public.messages      where application_id = 'd4d4d4d4-0831-4e00-9000-000000000002';
+--   delete from public.applications  where id     = 'd4d4d4d4-0831-4e00-9000-000000000002';
+--   delete from public.jobs          where id     = 'd4d4d4d4-0831-4e00-9000-000000000001';
+-- commit;
+--
+-- delete from storage.objects
+--  where name like '%d4d4d4d4-0831-4e00-9000-000000000002%';
+--   Anti-auto-reject guard probe (autopilot path) added by the same run:
+--     job          55555555-0831-4aaa-8bbb-300000000003  (processing_mode
+--                  'auto', passing_score 90 — the configuration most likely to
+--                  make the engine reject on its own)
+--     application  55555555-0831-4bbb-9ccc-300000000003  (deliberately terrible
+--                  candidate; scored 0, autopilotAction 'reject'; verified the
+--                  row stayed status='reviewing' with rejected_by_type NULL
+--                  through BOTH trigger-ava-analysis (autopilotDecision:true)
+--                  and autopilot-batch)
+--   Also covered by the same two DELETE statements above.
+--   DEEP-PHASE AUDIT #4, additional row (in-app Daily interview room probe):
+--     interview  d4d4d4d4-0831-4e00-9000-000000000003  (on application
+--                d4d4d4d4-0831-4e00-9000-000000000002; status 'scheduled',
+--                candidate_response 'confirmed' so the interview-rooms
+--                function would mint a Daily room. A Daily room named
+--                hf-d4d4d4d4-0831-4e00-9000-000000000003 was created in the
+--                hireflownow Daily domain by that call and expires on its own.)
+--     No email or SMS was sent; the row was created directly, not through the
+--     scheduling wizard, so no notification to a real person was triggered.
+--   The delete block above already removes this row (delete from
+--   public.interviews where application_id = '…0002').
+-- ---------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------
+-- ADVERSARIAL VERIFICATION RUN 2026-08-31 — "phase hand-off pre-empted by
+-- PhaseAlreadySubmitted" claim. Created against a LOCAL dev server
+-- (http://localhost:5733) talking to production Supabase. Employer =
+-- employer.test@hireflow.dev (bypassed test account), candidate =
+-- candidate.test@hireflow.dev. Nothing real was touched, nothing was emailed,
+-- the job carries exclude_from_feed = true and was never published to a feed.
+--
+--   job          1966ca9d-5e43-4b91-9987-bf3aef3a7288
+--                "VERIFY-handoff Typing QA (adversarial verifier)"
+--                employer_id 13e26129-2e6c-4e7b-bb55-deb5ad78f0c4,
+--                status 'published', exclude_from_feed true,
+--                processing_mode 'auto', workflow_steps
+--                [step-typing-verify (typing_test), step-video-verify (video_intro)]
+--   application  2c587e68-5be9-45a7-9f55-dea3183853a8
+--                candidate_id 3f16c4a5-00dd-4525-9232-4029fffb5cda
+--                (typing test submitted 3x by the harness; trigger-ava-analysis
+--                ran on it and advanced it to step-video-verify)
+--
+-- To remove:
+-- begin;
+--   delete from public.applications where id = '2c587e68-5be9-45a7-9f55-dea3183853a8';
+--   delete from public.jobs         where id = '1966ca9d-5e43-4b91-9987-bf3aef3a7288';
+-- commit;
+
+-- ---------------------------------------------------------------------------
+-- 2026-08-31  VOICE-INTERVIEW LAUNCH-BLOCKER FIX — verification probe (event-
+-- rename overlay trap + early-start server gate on ava-voice-session)
+--   Purpose: (1) prove the reconnected overlay lifts once the client accepts
+--   the GA realtime event names (response.output_audio.delta /
+--   response.output_audio.done / response.output_audio_transcript.delta)
+--   alongside the old ones; (2) exercise the new candidateHasReachedVoiceStep
+--   gate in supabase/functions/ava-voice-session/index.ts against a real
+--   job/application shape at several phase values (before / at / after the
+--   voice_interview step). Created against a LOCAL dev server talking to
+--   PRODUCTION Supabase. Employer = employer.test@hireflow.dev (bypassed test
+--   account), candidate = candidate.test@hireflow.dev. Nothing was emailed,
+--   nothing was published to a board (exclude_from_feed = true), and the job
+--   title is flagged "(do not use)".
+--
+--   job          9a9a9a9a-0831-4f00-9000-000000000001  (JOB-GATEPROBE,
+--                "[GATEPROBE 0831] Voice interview early-start gate probe
+--                (do not use)"), employer_id
+--                13e26129-2e6c-4e7b-bb55-deb5ad78f0c4, status 'published',
+--                exclude_from_feed true, workflow_steps = [typing_test
+--                step_gate_typing, video_message step_gate_video,
+--                voice_interview step_gate_voice]. No quiz.
+--   application  9a9a9a9a-0831-4f00-9000-000000000002  candidate_id
+--                3f16c4a5-00dd-4525-9232-4029fffb5cda, created with
+--                phase='step_gate_typing' (before the voice step). Its phase
+--                was then updated in place several times during verification
+--                (to 'step_gate_voice', then 'decision', etc.) to exercise
+--                the gate at each position — no new application rows were
+--                created for that, just UPDATEs to this same row.
+--
+-- To remove:
+-- begin;
+--   delete from public.applications where id = '9a9a9a9a-0831-4f00-9000-000000000002';
+--   delete from public.jobs         where id = '9a9a9a9a-0831-4f00-9000-000000000001';
+-- commit;
+-- ---------------------------------------------------------------------------
+-- ---------------------------------------------------------------------------

@@ -42,12 +42,20 @@ interface AvaVoiceState {
   connectionQuality: 'excellent' | 'good' | 'poor' | 'unknown';
   voiceNameUsed: string | null; // Voice returned by backend session creation
   hasReceivedFirstAudio: boolean; // True when first audio delta is received - used for loading state
+  connectionStalled: boolean; // Safety net tripped: connected but never saw a first-audio signal in time
 }
 
 const MAX_RECONNECT_ATTEMPTS = 3;
 const STUCK_TIMEOUT_MS = 45000; // 45 seconds - give Ava more time to respond
 const SILENCE_CHECK_INTERVAL_MS = 1000; // Check silence every second
 const SILENCE_NUDGE_THRESHOLD_S = 20; // Nudge Ava after 20 seconds of candidate silence (increased from 10)
+// Safety net for the connecting overlay: OpenAI has renamed these realtime server events
+// before (and may again). If the data channel is open but nothing has marked
+// hasReceivedFirstAudio true within this window, we stop trusting any single event name
+// and force the overlay to lift ourselves — a candidate must never be stuck behind a
+// full-screen "Connecting…" panel with a live mic and a running clock, whatever the API
+// calls its events this month.
+const CONNECT_AUDIO_SAFETY_TIMEOUT_MS = 12000; // 12 seconds
 
 export function useAvaVoice(options: UseAvaVoiceOptions) {
   const { toast } = useToast();
@@ -65,6 +73,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     connectionQuality: 'unknown',
     voiceNameUsed: null,
     hasReceivedFirstAudio: false,
+    connectionStalled: false,
   });
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -99,6 +108,11 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
   // This prevents silence detection from triggering while Ava is still speaking
   const isResponseActiveRef = useRef(false);
 
+  // Safety-net timer: started the moment the data channel opens, cleared the moment we see
+  // ANY signal that counts as "first audio received." If it fires first, the overlay gets
+  // forced open regardless of which event names the API actually sent.
+  const firstAudioSafetyTimeoutRef = useRef<number | null>(null);
+
   // Keep options ref updated
   useEffect(() => {
     optionsRef.current = options;
@@ -120,6 +134,28 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     }
     setState(s => ({ ...s, isStuck: false }));
   }, []);
+
+  // Clear the first-audio safety-net timer
+  const clearFirstAudioSafetyTimeout = useCallback(() => {
+    if (firstAudioSafetyTimeoutRef.current) {
+      clearTimeout(firstAudioSafetyTimeoutRef.current);
+      firstAudioSafetyTimeoutRef.current = null;
+    }
+  }, []);
+
+  // Arm the safety net. If nothing marks hasReceivedFirstAudio true before this fires, force
+  // it true ourselves (flagging connectionStalled) so the connecting overlay can never outlive
+  // its own timeout — no candidate should be trapped behind it with a live mic.
+  const startFirstAudioSafetyTimeout = useCallback(() => {
+    clearFirstAudioSafetyTimeout();
+    firstAudioSafetyTimeoutRef.current = window.setTimeout(() => {
+      setState(s =>
+        s.hasReceivedFirstAudio
+          ? s
+          : { ...s, hasReceivedFirstAudio: true, connectionStalled: true, isProcessing: false }
+      );
+    }, CONNECT_AUDIO_SAFETY_TIMEOUT_MS);
+  }, [clearFirstAudioSafetyTimeout]);
 
   // Clear silence timer helper
   const clearSilenceTimer = useCallback(() => {
@@ -296,6 +332,12 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
 
   // Cleanup connection resources without full state reset
   const cleanupConnection = useCallback(() => {
+    // Stop the first-audio safety-net timer
+    if (firstAudioSafetyTimeoutRef.current) {
+      clearTimeout(firstAudioSafetyTimeoutRef.current);
+      firstAudioSafetyTimeoutRef.current = null;
+    }
+
     // Stop connection quality monitoring
     if (connectionQualityIntervalRef.current) {
       clearInterval(connectionQualityIntervalRef.current);
@@ -339,7 +381,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
 
   // Internal connect function used by both initial connect and reconnect
   const connectInternal = useCallback(async () => {
-    setState(s => ({ ...s, isConnecting: true, error: null }));
+    setState(s => ({ ...s, isConnecting: true, error: null, connectionStalled: false }));
 
     // Check if we have an external mic stream to use
     const externalStream = optionsRef.current.externalMicStream;
@@ -540,7 +582,11 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       
       // Start monitoring connection quality
       startConnectionQualityMonitoring();
-      
+
+      // Arm the safety net now — if no event marks first-audio-received before it fires,
+      // the overlay gets forced open on its own regardless of which event names arrive.
+      startFirstAudioSafetyTimeout();
+
       // Trigger AVA to start speaking first (both interview and assistant mode)
       // In assistant mode, she'll greet contextually based on current page
       // Use 1.5s delay for better audio stability and synchronization
@@ -578,9 +624,10 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
           break;
           
         case 'response.audio.delta':
+        case 'response.output_audio.delta': // GA rename of response.audio.delta — accept both, never replace
           // Clear stuck timeout - Ava is responding
           clearProcessingTimeout();
-          
+
           // Handle audio chunk
           if (event.delta) {
             const binaryString = atob(event.delta);
@@ -604,10 +651,12 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
           // CRITICAL: Set isSpeaking TRUE and isProcessing FALSE immediately when first audio delta arrives
           // This ensures the UI shows "Speaking" not "Thinking"
           // Also mark hasReceivedFirstAudio so the loading overlay can hide
+          clearFirstAudioSafetyTimeout(); // real audio arrived — the safety net is no longer needed
           setState(s => ({ ...s, isSpeaking: true, isProcessing: false, isStuck: false, hasReceivedFirstAudio: true }));
           break;
 
         case 'response.audio.done':
+        case 'response.output_audio.done': // GA rename of response.audio.done — accept both, never replace
           // Audio chunk done - but DON'T start silence detection here!
           // Wait for response.done which fires after the complete response
           setTimeout(() => {
@@ -617,7 +666,9 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
           break;
 
         case 'response.audio_transcript.delta':
+        case 'response.output_audio_transcript.delta': // GA rename of response.audio_transcript.delta — accept both
           if (event.delta) {
+            clearFirstAudioSafetyTimeout(); // transcript text counts as "we heard from Ava" too
             setState(s =>
               s.hasReceivedFirstAudio
                 ? s
@@ -694,6 +745,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
                   isInterviewEndedRef.current = true;
                   clearProcessingTimeout();
                   clearSilenceTimer(); // Stop all silence detection immediately
+                  clearFirstAudioSafetyTimeout(); // interview is ending — the safety net must not fire after the fact
                   
                   // IMMEDIATELY stop listening to prevent any more user input
                   isResponseActiveRef.current = true; // Prevent any silence nudges
@@ -964,6 +1016,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       connectionQuality: 'unknown',
       voiceNameUsed: null,
       hasReceivedFirstAudio: false,
+      connectionStalled: false,
     });
   }, [clearProcessingTimeout, clearSilenceTimer, cleanupConnection]);
 
@@ -973,7 +1026,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     isInterviewEndedRef.current = false;
     isResponseActiveRef.current = false;
     silenceNudgeCountRef.current = 0;
-    setState(s => ({ ...s, isStuck: false, error: null, reconnectAttempts: 0 }));
+    setState(s => ({ ...s, isStuck: false, error: null, reconnectAttempts: 0, connectionStalled: false }));
     
     clearSilenceTimer();
     cleanupConnection();

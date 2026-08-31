@@ -168,18 +168,54 @@ function looksLikeScaffolding(line: string): boolean {
  *  identified") — real absence, not a strength worth showing. */
 const NO_VALUE = /^(none|n\/a|not applicable|not provided)\b/i;
 
-/** Pulls just one labeled bulleted section out of Ava's structured resume
- *  report (e.g. the real "Key Strengths:" list under **OVERALL ASSESSMENT**)
- *  — never the whole document, which is mostly Label: Value diagnostics and
- *  section headers that have nothing to do with strengths. */
+/** The start of a new labeled field ("Areas of Concern:", "Summary:") — the
+ *  end of whatever bulleted list came before it. */
+const LABEL_LINE = /^[A-Za-z][A-Za-z /'()-]{1,40}:/;
+
+/** A `**SECTION**` heading or a `---` rule: the end of the current section. */
+const SECTION_LINE = /^(\*\*|---)/;
+
+/**
+ * Pulls just one labeled bulleted section out of Ava's structured resume
+ * report (e.g. the real "Key Strengths:" list under **OVERALL ASSESSMENT**)
+ * — never the whole document, which is mostly Label: Value diagnostics and
+ * section headers that have nothing to do with strengths.
+ *
+ * Read line by line rather than with one lookahead regex: under the `m` flag
+ * an end-of-input `$` alternative also matches end-of-*line*, so a lazy
+ * capture stopped dead at the first bullet and every list here silently
+ * rendered as a single item.
+ *
+ * The value can sit on the label line itself ("Phase Highlights: None") or on
+ * the bullets beneath it — both count, and the list ends at the next label,
+ * the next section, or a blank line.
+ */
 function extractLabeledBullets(raw: string, label: string): string[] {
-  const m = raw.match(new RegExp(`^${label}\\s*:\\s*([\\s\\S]*?)(?=\\n[A-Za-z][A-Za-z /'()-]{1,40}:|\\n\\*\\*|\\n---|$)`, "im"));
-  if (!m) return [];
-  return m[1]
-    .split(/\n+/)
-    .map((l) => l.replace(/\*\*/g, "").replace(/^[\s–—•*-]+/, "").trim())
+  const head = new RegExp(`^\\s*\\*{0,2}${label}\\*{0,2}\\s*:\\s*(.*)$`, "i");
+  const lines = raw.split(/\r?\n/);
+  const at = lines.findIndex((line) => head.test(line));
+  if (at === -1) return [];
+
+  const block = [lines[at].match(head)![1]];
+  for (let i = at + 1; i < lines.length; i += 1) {
+    const line = lines[i].trim();
+    if (!line || SECTION_LINE.test(line) || LABEL_LINE.test(line)) break;
+    block.push(line);
+  }
+
+  return block
+    .map((l) => l.replace(/\*\*/g, "").replace(/^[\s–—•*-]+/, "").replace(/^\[|\]$/g, "").trim())
     .filter((l) => l.length >= 8 && l.length <= 160)
     .filter((l) => !NO_VALUE.test(l));
+}
+
+/** Ava's structured hiring report — the multi-section template with
+ *  `**SECTION**` headings (see REQUIRED OUTPUT FORMAT in
+ *  `supabase/functions/ai-analyze/index.ts`). Its body is checklists, scoring
+ *  math and Label: Value diagnostics, so strengths may only ever be read out
+ *  of a named section of it, never scraped sentence by sentence. */
+function isStructuredReport(raw: string): boolean {
+  return /^\s*\*\*[A-Z][A-Z0-9 ,&/'()-]*\*\*/m.test(raw);
 }
 
 function dedupe(items: string[], limit: number): string[] {
@@ -224,7 +260,14 @@ function extractStrengths(app: ApplicationWithCandidate, scorecard: AiScorecard 
   const phaseHighlights = extractLabeledBullets(analysis, "Phase Highlights");
   if (phaseHighlights.length > 0) return dedupe(phaseHighlights, 4);
 
-  // Not the structured resume-report template — a shorter, already-prose
+  // A structured report whose own strengths sections hold nothing real means
+  // this candidate genuinely has no strengths to show — the honest answer is
+  // none. Sentence-scraping the report body instead is what printed
+  // "PHASE PERFORMANCE SUMMARY" and "Company names present in work
+  // experience?" to employers as a candidate's top strengths.
+  if (isStructuredReport(analysis)) return [];
+
+  // Not the structured report template — a shorter, already-prose
   // analysis (a voice-interview summary, a phase blurb). Fall back to
   // sentence-splitting, but still refuse anything that reads as scaffolding.
   const parts = analysis

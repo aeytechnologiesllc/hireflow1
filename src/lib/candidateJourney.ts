@@ -62,9 +62,17 @@ const FALLBACK_TITLES: Record<string, string> = {
   [DECISION_STAGE_ID]: "Decision",
 };
 
+/** Candidates must never see that a machine is involved — no "Ava", no "AI".
+ *  Employers name their own steps, and the step picker itself used to offer
+ *  "Ava Interview" as a default, so that string is sitting in real jobs today
+ *  and lands straight in the candidate's own journey header ("Step 4 of 5 —
+ *  Ava Interview"). Sanitising here repairs those existing jobs at render
+ *  time, with no migration, and catches anything an employer types later. */
+const MACHINE_WORDS = /\b(ava|a\.?i\.?|artificial intelligence|bot|automated|algorithm)\b/i;
+
 function titleFor(type: string, given?: string | null): string {
   const trimmed = given?.trim();
-  if (trimmed) return trimmed;
+  if (trimmed && !MACHINE_WORDS.test(trimmed)) return trimmed;
   return FALLBACK_TITLES[type] || type;
 }
 

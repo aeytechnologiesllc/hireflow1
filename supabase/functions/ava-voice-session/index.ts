@@ -243,6 +243,62 @@ async function fetchResumeText(resumeUrl: string, adminClient?: any): Promise<st
   }
 }
 
+// =============== VOICE-INTERVIEW PHASE GATE ===============
+// A candidate who has not actually reached the voice_interview step in their workflow must
+// never be able to mint a real OpenAI Realtime session here — every mint costs real money.
+// This is a small, self-contained copy of the ordering logic in
+// src/lib/candidateJourney.ts (Edge Functions bundle only this directory, so it can't import
+// from src/ — see the ava-voice-tools / other functions for the same constraint). "Reached"
+// means the same thing here as it does on the candidate's own screen: their current phase
+// resolves to the voice_interview step, or to anything at/after it (a legitimate re-take),
+// never to something earlier.
+interface WorkflowStepLike {
+  id?: string;
+  type?: string;
+}
+
+/** Same statuses candidateJourney.ts treats as "every real step is done" — covers a just-
+ *  submitted application exactly like an already-decided one. Only consulted when `phase`
+ *  itself doesn't resolve to a real step, matching the client's own fallback order. */
+const POST_WORKFLOW_STATUSES = new Set(["pending", "reviewing", "interview", "offered", "hired", "rejected"]);
+
+function resolveJourneyStepIds(workflowSteps: WorkflowStepLike[] | null | undefined): Array<{ id: string; type: string }> {
+  const steps: Array<{ id: string; type: string }> = [{ id: "application", type: "application" }];
+  for (const step of workflowSteps ?? []) {
+    if (!step?.id || !step.type) continue;
+    // application/quiz are synthesized from their own columns elsewhere — skip any duplicate.
+    if (step.type === "application" || step.type === "quiz") continue;
+    steps.push({ id: step.id, type: step.type });
+  }
+  steps.push({ id: "decision", type: "decision" });
+  return steps;
+}
+
+/** True once the candidate's OWN application row (never anything the client sends) shows
+ *  they have reached, or already passed, the voice_interview step. */
+function candidateHasReachedVoiceStep(
+  workflowSteps: WorkflowStepLike[] | null | undefined,
+  phase: string | null | undefined,
+  status: string | null | undefined,
+): boolean {
+  const steps = resolveJourneyStepIds(workflowSteps);
+  const voiceIndex = steps.findIndex((s) => s.type === "voice_interview");
+  if (voiceIndex === -1) return false; // job has no voice_interview step configured — nothing to reach
+
+  const decisionIndex = steps.findIndex((s) => s.id === "decision");
+
+  let candidateIndex = -1;
+  if (phase) {
+    candidateIndex = steps.findIndex((s) => s.id === phase || s.type === phase);
+  }
+  if (candidateIndex === -1 && status && POST_WORKFLOW_STATUSES.has(status)) {
+    candidateIndex = decisionIndex;
+  }
+  if (candidateIndex === -1) candidateIndex = 0; // unresolvable phase — treat as "hasn't started"
+
+  return candidateIndex >= voiceIndex;
+}
+
 interface VoiceSessionRequest {
   mode: 'assistant' | 'interview' | 'intake';
   applicationId?: string;
@@ -310,7 +366,7 @@ serve(async (req) => {
 
       const { data: interviewApplication, error: interviewApplicationError } = await adminClient
         .from("applications")
-        .select("id, candidate_id, job_id, jobs!inner(employer_id)")
+        .select("id, candidate_id, job_id, phase, status, jobs!inner(employer_id, workflow_steps)")
         .eq("id", applicationId)
         .single();
 
@@ -327,6 +383,25 @@ serve(async (req) => {
         });
         return new Response(
           JSON.stringify({ error: "You do not have permission to access this interview" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      // BLOCKER FIX: refuse BEFORE any OpenAI session is minted — this is what stops the spend.
+      // A candidate several steps earlier in their own workflow (confirmed live: their own
+      // screen shows this step as "Upcoming") must not be able to start a real, billed voice
+      // session just by knowing or guessing this URL.
+      const interviewWorkflowSteps = ((interviewApplication.jobs as { workflow_steps?: unknown } | null)
+        ?.workflow_steps as WorkflowStepLike[] | null) || [];
+      if (!candidateHasReachedVoiceStep(interviewWorkflowSteps, interviewApplication.phase, interviewApplication.status)) {
+        console.warn("[ava-voice-session] Refusing early voice-interview start — candidate has not reached this step yet:", {
+          requesterId: user.id,
+          applicationId,
+          phase: interviewApplication.phase,
+          status: interviewApplication.status,
+        });
+        return new Response(
+          JSON.stringify({ error: "This interview isn't ready to start yet — there are earlier steps to finish first." }),
           { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }

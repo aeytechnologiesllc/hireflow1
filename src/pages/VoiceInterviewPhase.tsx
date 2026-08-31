@@ -40,6 +40,7 @@ export default function VoiceInterviewPhase() {
   const [loading, setLoading] = useState(true);
   const [job, setJob] = useState<JobDetails | null>(null);
   const [appPhase, setAppPhase] = useState<string | null>(null);
+  const [appStatus, setAppStatus] = useState<string | null>(null);
   const [candidateName, setCandidateName] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [interviewStarted, setInterviewStarted] = useState(false);
@@ -285,6 +286,7 @@ export default function VoiceInterviewPhase() {
     audioLevels,
     connectionQuality,
     hasReceivedFirstAudio,
+    connectionStalled,
     connect,
     disconnect,
     sendTextMessage,
@@ -460,6 +462,7 @@ export default function VoiceInterviewPhase() {
         quiz_questions: (app.jobs.quiz_questions as any[] | null) || [],
       });
       setAppPhase(app.phase);
+      setAppStatus(app.status);
       setCandidateName(candidateProfile?.full_name || "Candidate");
       setLanguage(app.voice_interview_language || "en");
       setDuration(app.voice_interview_duration || 10);
@@ -585,6 +588,22 @@ Duration: ${formatTime(elapsedSeconds)}
 
   const journeyProgressPct = Math.round(((journey.index + 1) / Math.max(journey.total, 1)) * 100);
 
+  // Where the candidate ACTUALLY is, from their own application record only — never from the
+  // URL. A candidate can type this URL directly while their real progress (application.phase /
+  // .status) is still several steps earlier; comparing that real position against this page's
+  // position in the same journey is what lets us show them a calm "not yet" screen instead of
+  // starting a live session. This must never trust stepId — that's exactly what a candidate
+  // jumping the URL controls.
+  const actualPosition = useMemo(() => {
+    const workflowSteps = (job?.workflow_steps || []) as Array<{ id: string; type: string; title?: string }>;
+    const quizQuestions = job?.quiz_questions;
+    const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
+    const steps = buildCandidateJourney(workflowSteps, { hasQuiz });
+    return positionFor(steps, { phase: appPhase, status: appStatus });
+  }, [job?.workflow_steps, job?.quiz_questions, appPhase, appStatus]);
+
+  const hasReachedThisStep = actualPosition.index >= journey.index;
+
   // Which held step the pre-interview flow is showing right now.
   const preStep: "device" | "ready" = cameraTestPassed ? "ready" : "device";
 
@@ -598,6 +617,37 @@ Duration: ${formatTime(elapsedSeconds)}
 
   if (isSubmitted && applicationId) {
     return <PhaseAlreadySubmitted applicationId={applicationId} phaseName={videoEnabled ? "Video Interview" : "Voice Interview"} />;
+  }
+
+  // Candidate landed here before actually reaching this step — e.g. their own application
+  // screen shows it as "Upcoming" but they typed or followed a link to this URL directly.
+  // Show a calm way back instead of the real interview flow. The edge function refuses to
+  // start a session for the same reason, so this is a courtesy, not the real gate.
+  if (job && applicationId && !hasReachedThisStep) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Card className="bg-card border-border max-w-md w-full">
+          <CardContent className="p-8 text-center space-y-6">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+              <Clock className="h-8 w-8 text-[var(--jade-bright)]" />
+            </div>
+
+            <div className="space-y-2">
+              <h2 className="text-xl font-semibold text-foreground">Not quite time yet</h2>
+              <p className="text-muted-foreground">
+                This interview opens once you've finished the steps before it. Head back to your
+                application to pick up where you left off.
+              </p>
+            </div>
+
+            <Button onClick={() => navigate(`/applications/${applicationId}`)} className="w-full gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Back to your application
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
@@ -1037,6 +1087,38 @@ Duration: ${formatTime(elapsedSeconds)}
                           <Volume2 className="h-4 w-4" />
                           Prompt to continue
                         </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={retryConnection}
+                          className="gap-2 border-brass/30 hover:bg-brass/10"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                          Reconnect
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Connection Stalled UI — safety net: we never confirmed Ava's audio arrived,
+                  so hasReceivedFirstAudio was forced true to lift the overlay. Tell the
+                  candidate honestly and give them a real way out (reconnect, or the always-
+                  visible End Interview button above). */}
+              {connectionStalled && isConnected && !showCompletionScreen && (
+                <div className="mt-4 p-3 bg-brass/10 border border-brass/20 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="h-5 w-5 text-brass flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-brass text-sm font-medium">
+                        Taking longer than expected to confirm the connection
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        If you can't hear anything, or think you're not being heard, you can
+                        reconnect or end the interview using the button above.
+                      </p>
+                      <div className="flex gap-2 mt-3">
                         <Button
                           variant="outline"
                           size="sm"

@@ -983,8 +983,11 @@ export default function CreateJob() {
               ...step,
               id: `step_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
               type: 'voice_interview',
-              title: 'Ava Interview',
-              description: 'Premium AI voice interview powered by Ava',
+              // Stored on the job, so the CANDIDATE reads this in their own
+              // journey ("Step 4 of 5 — ..."). Never name Ava or AI here; the
+              // employer-facing label in the step picker above still can.
+              title: 'Voice Interview',
+              description: 'A short spoken interview, taken whenever suits them',
               config: { language: 'en', language_name: 'English', language_enforcement: 'flexible' }
             };
           }
