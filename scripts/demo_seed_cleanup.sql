@@ -65,6 +65,13 @@ delete from public.profiles    where user_id      = '3f16c4a5-00dd-4525-9232-402
 
 commit;
 
+-- NOTE (2026-08-30, verification only — no cleanup row needed):
+--   interview 12e0b26b-6b6d-403d-9acf-7b784112608c was moved to a future date and
+--   set candidate_response='confirmed' so the live "Add to calendar" button had a
+--   confirmed upcoming interview to render on. It belongs to the demo job and is
+--   already removed by the job-scoped deletes above. Its original state was
+--   scheduled_at 2026-08-28T09:00Z, candidate_response 'pending'.
+
 -- Confirm nothing is left behind:
 --   select count(*) from public.jobs where job_code = 'DEMO-SEED-1';         -- 0
 --   select count(*) from public.applications where source = 'DEMO-SEED';     -- 0
