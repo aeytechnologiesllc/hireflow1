@@ -11,13 +11,14 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { format, isFuture, differenceInMinutes, differenceInHours } from "date-fns";
-import { Calendar, Clock, Video, Check, RefreshCw, Loader2, ExternalLink, Globe } from "lucide-react";
+import { Calendar, CalendarPlus, Clock, Video, Check, RefreshCw, Loader2, ExternalLink, Globe } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { CandidateRescheduleRequestDialog } from "./CandidateRescheduleRequestDialog";
 import { getTimezoneAbbreviation } from "@/lib/timezone";
+import { buildCandidateInterviewIcs, downloadIcsFile, icsFileStem } from "@/lib/calendarInvite";
 
 // Candidate can join in-app starting this many minutes before the scheduled start.
 const JOIN_WINDOW_MINUTES = 15;
@@ -44,12 +45,15 @@ interface Interview {
   meeting_provider?: string | null;
   meeting_room_url?: string | null;
   meeting_room_name?: string | null;
+  /** Drives the calendar invite's SEQUENCE, so a reschedule updates the existing event instead of duplicating it. */
+  updated_at?: string;
 }
 
 interface CandidateInterviewConfirmationCardProps {
   interview: Interview;
   applicationId: string;
   employerName?: string | null;
+  jobTitle?: string | null;
 }
 
 function parseEmployerWindows(raw: unknown): EmployerWindow[] {
@@ -66,6 +70,7 @@ export function CandidateInterviewConfirmationCard({
   interview,
   applicationId,
   employerName,
+  jobTitle,
 }: CandidateInterviewConfirmationCardProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -252,6 +257,28 @@ export function CandidateInterviewConfirmationCard({
   const canFreeRepick =
     hasWindows && candidateResponse === "confirmed" && otherFutureWindows.length > 0 && hoursToStart > FREE_REPICK_HOURS;
 
+  // A plain .ics download — no Google/Microsoft sign-in on either side. The
+  // in-app room's own URL rides along in LOCATION/DESCRIPTION so it's
+  // clickable straight from the calendar entry. Re-downloading after a
+  // reschedule carries the same UID with a fresher SEQUENCE (derived from
+  // the interview's own updated_at), so calendars update the existing event
+  // instead of adding a second one.
+  const handleAddToCalendar = () => {
+    const joinUrl = hasDailyRoom ? `${window.location.origin}/applications/${applicationId}/interview-room` : null;
+    const ics = buildCandidateInterviewIcs({
+      interviewId: interview.id,
+      scheduledAt: effectiveScheduledAt,
+      durationMinutes: effectiveDurationMinutes,
+      updatedAt: interview.updated_at ?? new Date().toISOString(),
+      interviewType: interview.interview_type,
+      joinUrl,
+      externalMeetingLink: hasDailyRoom ? null : interview.meeting_link,
+      jobTitle: jobTitle || "the role",
+      companyName: employerName || "This employer",
+    });
+    downloadIcsFile(`interview-${icsFileStem(employerName || "hireflow")}`, ics);
+  };
+
   const handleCantMakeIt = () => {
     if (canFreeRepick) {
       setShowRepickSheet(true);
@@ -432,6 +459,18 @@ export function CandidateInterviewConfirmationCard({
                   </span>
                 )}
               </>
+            )}
+
+            {candidateResponse === "confirmed" && (
+              <Button
+                variant="outline"
+                onClick={handleAddToCalendar}
+                className="gap-2"
+                title="Download a calendar invite (.ics) — works with Google, Apple and Outlook"
+              >
+                <CalendarPlus className="h-4 w-4" />
+                Add to calendar
+              </Button>
             )}
 
             {candidateResponse === "confirmed" && hasWindows && (

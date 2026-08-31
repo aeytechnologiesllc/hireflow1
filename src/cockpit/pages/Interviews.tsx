@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { addDays, format, isSameDay, isToday, startOfDay, startOfWeek } from "date-fns";
-import { AlertCircle, HelpCircle, ShieldCheck, Video, type LucideIcon } from "lucide-react";
+import { AlertCircle, CalendarPlus, HelpCircle, ShieldCheck, Video, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { EmployerRescheduleReviewDialog } from "@/components/EmployerRescheduleReviewDialog";
 import { useInterviews, useUpdateInterview, type InterviewWithDetails } from "@/hooks/useInterviews";
 import { supabase } from "@/integrations/supabase/client";
 import { notifyInterviewCancelled } from "@/utils/emailNotifications";
+import { buildEmployerInterviewIcs, downloadIcsFile, icsFileStem } from "@/lib/calendarInvite";
 import CkAvatar from "../components/Avatar";
 import { ActionDialog } from "../components/ActionDialog";
 import { PageHeader } from "../components/PageHeader";
-import { useCockpitCandidates, useCockpitInterviews } from "../hooks/useCockpitData";
+import { useCockpitAccount, useCockpitCandidates, useCockpitInterviews } from "../hooks/useCockpitData";
 import type { CandidateStage } from "../data";
 
 /**
@@ -68,6 +69,10 @@ interface Session {
   /** 'daily' -> an in-app call room; anything else with a link is a legacy external meeting_link. */
   meetingProvider: string | null;
   meetingLink: string | null;
+  /** The employer's own scheduling notes — folded into the calendar invite, never candidate-facing. */
+  notes: string | null;
+  /** Drives the calendar invite's SEQUENCE, so a reschedule updates the existing event instead of duplicating it. */
+  updatedAt: string;
 }
 
 function firstName(full: string) {
@@ -121,6 +126,8 @@ function fromRow(row: InterviewWithDetails): Session {
     // The room route resolves the Daily room from the interview id itself; this
     // is only for the legacy path, where the link the wizard saved is the join.
     meetingLink: row.meeting_link ?? null,
+    notes: row.notes,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -179,6 +186,7 @@ export default function CockpitInterviews() {
   const { interviews, isLoading } = useCockpitInterviews();
   const { data: rows = [] } = useInterviews();
   const { candidates } = useCockpitCandidates();
+  const { account } = useCockpitAccount();
   const [reviewing, setReviewing] = useState<Session | null>(null);
   const [cancelling, setCancelling] = useState<Session | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -222,6 +230,8 @@ export default function CockpitInterviews() {
         windowsOffered: 0,
         meetingProvider: null,
         meetingLink: null,
+        notes: null,
+        updatedAt: new Date().toISOString(),
       });
     });
     return fallback;
@@ -307,6 +317,31 @@ export default function CockpitInterviews() {
 
   const canJoinDaily = (s: Session) =>
     s.response === "confirmed" && s.meetingProvider === "daily" && !!s.at && s.at.getTime() - now <= 15 * 60 * 1000;
+
+  /* A plain .ics download — no Google/Microsoft account needed on either
+     side. The in-app room's own URL rides along in LOCATION/DESCRIPTION so
+     it's clickable straight from the calendar entry. Re-downloading after a
+     reschedule carries the same UID with a fresher SEQUENCE (derived from
+     the row's own updated_at), so calendars update the existing event
+     instead of adding a second one. */
+  const addToCalendar = (s: Session) => {
+    if (!s.at) return;
+    const isDaily = s.meetingProvider === "daily";
+    const ics = buildEmployerInterviewIcs({
+      interviewId: s.id,
+      scheduledAt: s.at,
+      durationMinutes: s.minutes,
+      updatedAt: s.updatedAt,
+      interviewType: s.type,
+      joinUrl: isDaily ? `${window.location.origin}/interviews/${s.id}/room` : null,
+      externalMeetingLink: isDaily ? null : s.meetingLink,
+      candidateName: s.name,
+      jobTitle: s.role,
+      companyName: account.name,
+      notes: s.notes,
+    });
+    downloadIcsFile(`interview-${icsFileStem(s.name)}`, ics);
+  };
 
   const confirmCancel = async () => {
     if (!cancelling) return;
@@ -618,13 +653,23 @@ export default function CockpitInterviews() {
                       </span>
                     </button>
 
-                    <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
+                    <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 sm:w-auto">
                       <button className="ck-btn ck-btn-outline !py-2 !text-[12px]" onClick={() => openRecord(s)}>
                         Details
                       </button>
                       {confirm && (
                         <button className="ck-btn ck-btn-primary !py-2 !text-[12px]" onClick={() => setReviewing(s)}>
                           Review times
+                        </button>
+                      )}
+                      {s.response === "confirmed" && (
+                        <button
+                          className="ck-btn ck-btn-outline !py-2 !text-[12px]"
+                          onClick={() => addToCalendar(s)}
+                          title="Download a calendar invite (.ics) — works with Google, Apple and Outlook"
+                        >
+                          <CalendarPlus className="mr-1 inline h-3.5 w-3.5" aria-hidden />
+                          Add to calendar
                         </button>
                       )}
                       {s.response === "confirmed" && s.meetingProvider === "daily" && (

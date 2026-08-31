@@ -773,6 +773,7 @@ export default function CandidateApplicationDetail() {
               interview={candidateInterview}
               applicationId={id!}
               employerName={employerBranding}
+              jobTitle={job?.title}
             />
           </div>
         )}
