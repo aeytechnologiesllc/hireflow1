@@ -802,7 +802,14 @@ button:not(.ck-btn):not(.cand-btn-primary):not(.cand-btn-ghost):not(:disabled):n
     padding-left: 0.625rem;
     padding-right: 0.625rem;
     height: auto;
-    min-height: 2rem;
+    /* 2.75rem = 44px, the touch-target floor.
+       This was 2rem. The selector's specificity is (0,2,1) — an element plus two
+       :not() arguments — so it beats any single-class height utility, including
+       `.tap-target` (0,1,0) and every `h-11` / `min-h-11` in the app. Every
+       attempt to give a control a bigger tap area on mobile was silently
+       overridden here, on exactly the devices the rule targets. HireFlow's
+       candidates are hourly workers filling this in one-handed on a phone. */
+    min-height: 2.75rem;
     white-space: normal;
   }
   

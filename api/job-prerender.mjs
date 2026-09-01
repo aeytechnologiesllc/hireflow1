@@ -239,11 +239,20 @@ export default async function handler(req, res) {
     const jsonLd = JSON.stringify(schema).replace(/</g, "\\u003c");
 
     const injected =
+      // The shell's plain description is stripped below, so replace it with the
+      // job's own — otherwise the page ships with none at all.
+      `<meta name="description" content="${esc(desc)}" />` +
       `<meta property="og:type" content="website" />` +
       `<meta property="og:title" content="${esc(title)}" />` +
       `<meta property="og:description" content="${esc(desc)}" />` +
       `<meta property="og:url" content="${esc(url)}" />` +
+      // twitter:* needs its own title and description. The shell's defaults
+      // describe an "AI-powered hiring platform" to an employer audience, and
+      // anything preferring twitter:* over og:* — X among them — was serving
+      // that to candidates with no job title in it at all.
       `<meta name="twitter:card" content="summary" />` +
+      `<meta name="twitter:title" content="${esc(title)}" />` +
+      `<meta name="twitter:description" content="${esc(desc)}" />` +
       `<link rel="canonical" href="${esc(url)}" />` +
       (indexable
         ? `<script type="application/ld+json" data-jobposting="server">${jsonLd}</script>`
@@ -256,7 +265,11 @@ export default async function handler(req, res) {
       // job page carries EXACTLY ONE canonical — conflicting canonicals can make
       // Google index the homepage instead of the job.
       .replace(/<link\s+rel="canonical"[^>]*>\s*/gi, "")
-      .replace(/<meta\s+property="og:(title|description|url)"[^>]*>\s*/gi, "");
+      .replace(/<meta\s+property="og:(title|description|url)"[^>]*>\s*/gi, "")
+      // The shell's twitter:* and plain description were being left in place, so
+      // a prerendered job page still shipped the employer marketing line — and a
+      // duplicated twitter:card alongside the one injected above.
+      .replace(/<meta\s+name="(twitter:(card|title|description|image)|description)"[^>]*>\s*/gi, "");
     out = out.includes("</head>") ? out.replace("</head>", injected + "</head>") : out + injected;
 
     res.statusCode = 200;

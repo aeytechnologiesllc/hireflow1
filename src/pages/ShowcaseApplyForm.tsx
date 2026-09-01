@@ -201,7 +201,9 @@ export default function ShowcaseApplyForm() {
                   value={answer}
                   onChange={(e) => setAnswer(e.target.value)}
                   rows={3}
-                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  // text-base on mobile so iOS Safari does not zoom the viewport
+                  // on focus — this is the accountless applicant's answer box.
+                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-base md:text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
               </div>
 
