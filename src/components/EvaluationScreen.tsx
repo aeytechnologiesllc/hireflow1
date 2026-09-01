@@ -14,9 +14,13 @@ interface EvaluationScreenProps {
   nextPhaseName?: string;
 }
 
+// Rule 1: nothing here may reveal that a machine is involved. "Analyzing your
+// responses" was the tell — people review and read; they do not analyse your
+// responses in four seconds while you watch a progress bar. Every line below
+// is something a person could truthfully be doing.
 const evaluatingMessages = [
   "Reviewing your submission...",
-  "Analyzing your responses...",
+  "Reading through your answers...",
   "Almost there...",
   "Just a moment...",
 ];

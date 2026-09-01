@@ -152,6 +152,14 @@ const guards = [
       ];
       // Words that give the machine away, inside a user-visible string literal.
       const TELL = /\b(Ava|AI|artificial intelligence|chatbot|automated|algorithm)\b/;
+      // The subtler tell: not naming the machine, but describing what only a
+      // machine does. "Analyzing your responses..." ran on the shared
+      // evaluation screen every phase uses, and "Scoring is taking a moment"
+      // on the quiz and portfolio — nobody reads and scores your answers in
+      // four seconds while you watch a progress bar. Deliberately matches only
+      // the -ing/-ed forms: the typing test's sample passage contains the word
+      // "analyze", and a candidate typing that sentence gives nothing away.
+      const TELL_PROCESS = /\b(analyzing|analyzed|analysing|analysed|scoring|grading|auto-?scored?)\b/i;
       const bad = [];
       for (const rel of CANDIDATE_FILES) {
         const text = await read(rel);
@@ -172,7 +180,7 @@ const guards = [
           if (context.includes("employer-facing")) return;
           for (const m of line.matchAll(/"([^"\\]{4,})"/g)) {
             const s = m[1];
-            if (!TELL.test(s)) continue;
+            if (!TELL.test(s) && !TELL_PROCESS.test(s)) continue;
             // Only prose reaches a candidate — skip class names, urls and keys.
             if (/^[a-z0-9-]+$/.test(s) || s.includes("/") || !s.includes(" ")) continue;
             bad.push(`${rel}:${i + 1}  "${s.slice(0, 90)}"`);

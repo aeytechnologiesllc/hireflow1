@@ -461,7 +461,7 @@ export default function PortfolioUploadPhase() {
             // See the catch below — same reasoning, same honest exit.
             setEvaluationState(null);
             toast.success("Portfolio submitted", {
-              description: "Your work is uploaded. Scoring is taking a moment — the hiring team will see it either way.",
+              description: "Your work is uploaded. This is taking a moment — the hiring team will see it either way.",
             });
             navigate(`/applications/${id}`);
           } else {
@@ -504,7 +504,7 @@ export default function PortfolioUploadPhase() {
           // succeeded above, so say so and let them go.
           setEvaluationState(null);
           toast.success("Portfolio submitted", {
-            description: "Your work is uploaded. Scoring is taking a moment — the hiring team will see it either way.",
+            description: "Your work is uploaded. This is taking a moment — the hiring team will see it either way.",
           });
           navigate(`/applications/${id}`);
         }
@@ -757,7 +757,7 @@ export default function PortfolioUploadPhase() {
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">
-                  {isAnalyzing ? "Analyzing portfolio..." : "Uploading files..."}
+                  {isAnalyzing ? "Finishing up..." : "Uploading files..."}
                 </span>
                 <span className="text-foreground">{Math.round(uploadProgress)}%</span>
               </div>

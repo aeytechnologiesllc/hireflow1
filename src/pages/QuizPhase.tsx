@@ -882,7 +882,7 @@ export default function QuizPhase() {
           // to say so and let them leave. The employer's side scores it later.
           setEvaluationState(null);
           toast.success("Quiz submitted", {
-            description: "Your answers are saved. Scoring is taking a moment — the hiring team will see them either way.",
+            description: "Your answers are saved. This is taking a moment — the hiring team will see them either way.",
           });
           navigate(`/applications/${id}`);
         }
