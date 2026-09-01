@@ -65,6 +65,8 @@ export interface ApplicationDisplayState {
   interviewNeedsConfirmation: boolean;
   interviewRescheduleRequested: boolean;
   interviewConfirmed: boolean;
+  /** Employer offered windows; the candidate has to choose one. */
+  interviewNeedsTimePick: boolean;
   
   // States
   isRejected: boolean;
@@ -90,8 +92,20 @@ export function getApplicationDisplayState(application: ApplicationWithJob): App
     (!latestInterview?.candidate_response || latestInterview?.candidate_response === "pending");
   const interviewRescheduleRequested = hasScheduledInterview && 
     latestInterview?.candidate_response === "reschedule_requested";
-  const interviewConfirmed = hasScheduledInterview && 
+  const interviewConfirmed = hasScheduledInterview &&
     latestInterview?.candidate_response === "confirmed";
+  /**
+   * The employer offered several windows and is waiting for the candidate to
+   * choose one. InterviewSchedulingWizard writes candidate_response:
+   * "awaiting_pick", which matched NONE of the three flags above — not
+   * needsConfirmation (which only matches null or "pending"), not reschedule,
+   * not confirmed. So the candidate got the notification email saying "Pick a
+   * Time", the link landed on a row showing a bare "In review" chip with no
+   * guidance, and the row would not open. The pick-a-time UI existed on the
+   * detail page the whole time, behind that dead row.
+   */
+  const interviewNeedsTimePick = hasScheduledInterview &&
+    latestInterview?.candidate_response === "awaiting_pick";
   
   // Parse notes to check if phase has been submitted. Was a hand-rolled
   // try/catch doing exactly this; one implementation now, and it also rejects
@@ -158,6 +172,7 @@ export function getApplicationDisplayState(application: ApplicationWithJob): App
     interviewNeedsConfirmation,
     interviewRescheduleRequested,
     interviewConfirmed,
+    interviewNeedsTimePick,
     isRejected,
     isHired,
     isWaitingPhase,

@@ -93,6 +93,14 @@ function getStatusChip(application: ApplicationWithJob, displayState: Applicatio
   if (application.status === "offered") return { label: "Offer extended", bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)" };
   if (displayState.isRejected) return { label: "Not selected", bg: "var(--surface-2)", fg: "var(--ink-2)" };
 
+  // Interview chips first, and NOT gated on isWaitingPhase. The scheduling
+  // wizard sets status "interview" without moving the phase, so a candidate
+  // asked to pick a time could fall past this whole branch and out to a bare
+  // "In review" chip — the exact opposite of what they were emailed.
+  if (displayState.interviewNeedsTimePick) return { label: "Pick your time", bg: "var(--amber-bg)", fg: "var(--amber-fg)" };
+  if (displayState.hasScheduledInterview && displayState.interviewConfirmed) return { label: "Interview confirmed", bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)" };
+  if (displayState.hasScheduledInterview && displayState.interviewNeedsConfirmation) return { label: "Needs your response", bg: "var(--amber-bg)", fg: "var(--amber-fg)" };
+
   if (displayState.isWaitingPhase) {
     if (displayState.interviewConfirmed) return { label: "Interview confirmed", bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)" };
     if (displayState.interviewNeedsConfirmation) return { label: "Needs your response", bg: "var(--amber-bg)", fg: "var(--amber-fg)" };
@@ -122,6 +130,9 @@ function getGuidanceCopy(displayState: ApplicationDisplayState): string | null {
     const estimate = phaseDurationEstimates[displayState.phaseType]?.label;
     return estimate ? `Your turn — about ${estimate}.` : "Your turn — pick this up when you're ready.";
   }
+  // The employer offered windows and is waiting on the candidate to choose. This
+  // row previously had no guidance line at all in that state.
+  if (displayState.interviewNeedsTimePick) return "Tap to pick a time that works for you.";
   // Sent them to their email for something they can do right here — the detail
   // page has the confirmation card. A candidate who lost the email had no path.
   if (displayState.interviewNeedsConfirmation) return "Tap to confirm your interview time — we're holding your spot.";
@@ -208,7 +219,11 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
   const candidateHasSomethingToDo =
     displayState.interviewNeedsConfirmation ||
     displayState.interviewRescheduleRequested ||
-    displayState.interviewConfirmed;
+    displayState.interviewConfirmed ||
+    // The scheduling wizard writes "awaiting_pick", which matches none of the
+    // three above — so an employer who offered three windows produced a row
+    // that still would not open. This was the gap left by the first pass.
+    displayState.interviewNeedsTimePick;
   const isLocked =
     (displayState.isPendingReview || displayState.isWaitingPhase) && !candidateHasSomethingToDo;
   const isFinal = displayState.isHired || displayState.isRejected || application.status === "offered";
