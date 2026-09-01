@@ -22,7 +22,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { isPast } from "date-fns";
-import { titleFor } from "@/lib/candidateJourney";
+import { buildCandidateJourney } from "@/lib/candidateJourney";
 import { CandidateShell } from "@/components/candidate/CandidateShell";
 import { fetchRoleByCode, type ShowcaseRole } from "@/lib/showcaseApply";
 import { detectSchemaMode } from "@/cockpit/data/showcaseSource";
@@ -97,26 +97,24 @@ function getRequiredMaterials(job: JobPreview) {
   return Array.from(materials);
 }
 
-function getPreviewStages(job: JobPreview) {
-  const stages: string[] = [];
-
-  if ((job.application_questions || []).length > 0 || job.require_resume !== false) {
-    stages.push("Application review");
-  }
-
-  if ((job.quiz_questions || []).length > 0) {
-    stages.push("Assessment");
-  }
-
-  (job.workflow_steps || []).forEach((step) => {
-    // Through the sanitiser: production rows carry "Interview with Ava" from
-    // the workflow generator, and this preview is the FIRST thing a candidate
-    // reads about the job — before they have even entered their name.
-    stages.push(titleFor(step.type, step.title));
-  });
-
-  return stages.length > 0 ? stages : ["Review"];
+/**
+ * The stages quoted to a candidate before they apply.
+ *
+ * This used to build its own list — "Application review", "Assessment", then
+ * the workflow steps — which is not the list the candidate then walks. The
+ * shared builder synthesises the application and quiz stages the same way AND
+ * appends the honest closing "Decision" stage, so a hand-rolled version quotes
+ * a smaller number here than the "Step X of N" every screen shows afterwards.
+ * The count a candidate is given before they commit has to be the real one.
+ */
+function getPreviewStages(job: JobPreview): string[] {
+  const hasQuiz = (job.quiz_questions?.length ?? 0) > 0;
+  return buildCandidateJourney(
+    (job.workflow_steps || []) as Array<{ id: string; type: string; title?: string | null }>,
+    { hasQuiz }
+  ).map((stage) => stage.title);
 }
+
 
 export default function ApplyWithCode() {
   const { role } = useAuth();
@@ -371,7 +369,11 @@ export default function ApplyWithCode() {
                   <div className="rounded-xl border border-border bg-muted/20 p-4">
                     <p className="text-sm font-medium text-foreground mb-3">What you'll do</p>
                     <div className="space-y-2">
-                      {getPreviewStages(previewJob).slice(0, 5).map((stage, index) => (
+                      {/* No slice. The headline above counts every stage, so
+                          truncating the list silently contradicted its own
+                          number — "6 steps" over a list of five. If it is worth
+                          quoting a count for, it is worth showing. */}
+                      {getPreviewStages(previewJob).map((stage, index) => (
                         <div key={`${stage}-${index}`} className="flex items-start gap-2 text-sm text-muted-foreground">
                           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                           <span>{stage}</span>

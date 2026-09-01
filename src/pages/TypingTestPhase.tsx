@@ -61,6 +61,10 @@ interface ApplicationDetails {
     passing_score: number | null;
     required_wpm: number | null;
     workflow_steps?: WorkflowStep[] | null;
+    /** Its own column, not part of workflow_steps. The submit path read this
+     *  to compute hasQuiz, but the select never fetched it — so hasQuiz was
+     *  always false there, not just in the header. */
+    quiz_questions?: unknown[] | null;
   } | null;
 }
 
@@ -160,7 +164,7 @@ export default function TypingTestPhase() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("applications")
-        .select("*, jobs(title, processing_mode, passing_score, required_wpm, workflow_steps)")
+        .select("*, jobs(title, processing_mode, passing_score, required_wpm, workflow_steps, quiz_questions)")
         .eq("id", id!)
         .single();
 
@@ -216,10 +220,17 @@ export default function TypingTestPhase() {
   // agrees with every other candidate screen. Never invented.
   const journeyStep = useMemo(() => {
     const workflowSteps = application?.jobs?.workflow_steps || [];
-    const phases = buildCandidateJourney(workflowSteps);
+    // The quiz lives on its own column, not in workflow_steps, so omitting
+    // hasQuiz drops a real stage the candidate performs. This call had it
+    // missing while the submit path in the same file (:381) passed it — so the
+    // header said "Step 2 of 4" and the logic underneath counted five, on one
+    // screen, under a comment promising the opposite.
+    const quizQuestions = application?.jobs?.quiz_questions as Json[] | undefined;
+    const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
+    const phases = buildCandidateJourney(workflowSteps, { hasQuiz });
     const { index, total, current } = positionFor(phases, { stepId, phase: application?.phase });
     return { index, total, title: current.title };
-  }, [application?.jobs?.workflow_steps, application?.phase, stepId]);
+  }, [application?.jobs?.workflow_steps, application?.jobs?.quiz_questions, application?.phase, stepId]);
 
   const journeyProgressPct = Math.round(((journeyStep.index + 1) / Math.max(journeyStep.total, 1)) * 100);
 

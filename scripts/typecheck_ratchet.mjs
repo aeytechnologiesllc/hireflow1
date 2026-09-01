@@ -22,7 +22,8 @@ import { promisify } from "node:util";
 import process from "node:process";
 
 /**
- * 196 as of 2026-08-31.
+ * 195 as of 2026-09-01 (was 196; fetching quiz_questions in TypingTestPhase
+ * resolved one).
  *
  * 124 of these (76 in src/cockpit/data/showcaseSource.ts, 48 in
  * src/lib/showcaseApply.ts) are one root cause, not 124 problems: that code
@@ -30,7 +31,7 @@ import process from "node:process";
  * yqklrkpptnhubsnijqze, so every column access fails to resolve. Deleting or
  * gating the showcase path would clear roughly two thirds of this number at once.
  */
-const BASELINE = 196;
+const BASELINE = 195;
 
 const run = promisify(execFile);
 

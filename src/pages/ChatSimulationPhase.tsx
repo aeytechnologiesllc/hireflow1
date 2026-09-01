@@ -85,6 +85,9 @@ interface ApplicationDetails {
     processing_mode: string | null;
     passing_score: number | null;
     workflow_steps: any[] | null;
+    /** Lives on its own column, not in workflow_steps — the journey builder
+     *  needs it to count the quiz as the stage the candidate actually does. */
+    quiz_questions: unknown[] | null;
   } | null;
 }
 
@@ -149,7 +152,7 @@ export default function ChatSimulationPhase() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("applications")
-        .select("*, jobs(title, processing_mode, passing_score, workflow_steps)")
+        .select("*, jobs(title, processing_mode, passing_score, workflow_steps, quiz_questions)")
         .eq("id", id!)
         .single();
 
@@ -203,10 +206,15 @@ export default function ChatSimulationPhase() {
   // agrees with every other candidate screen. Never invented.
   const journeyStep = useMemo(() => {
     const workflowSteps = (application?.jobs?.workflow_steps || []) as Array<{ id: string; type: string; title?: string }>;
-    const steps = buildCandidateJourney(workflowSteps);
+    // The quiz lives on its own column, not in workflow_steps. Omitting hasQuiz
+    // dropped a stage the candidate actually performs, so this screen quoted a
+    // smaller "of N" than the application detail page for the same application.
+    const quizQuestions = application?.jobs?.quiz_questions as unknown[] | undefined;
+    const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
+    const steps = buildCandidateJourney(workflowSteps, { hasQuiz });
     const { index, total, current } = positionFor(steps, { stepId, phase: application?.phase });
     return { index, total, title: current.title };
-  }, [application?.jobs?.workflow_steps, application?.phase, stepId]);
+  }, [application?.jobs?.workflow_steps, application?.jobs?.quiz_questions, application?.phase, stepId]);
 
   const journeyProgressPct = Math.round(((journeyStep.index + 1) / Math.max(journeyStep.total, 1)) * 100);
 
