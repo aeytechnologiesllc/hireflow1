@@ -976,6 +976,48 @@ const guards = [
     },
   },
 
+  {
+    id: "anti-cheat-speaks-to-a-person-and-blocks-only-cheating",
+    why:
+      "Two problems, both in the anti-cheat handlers. First, the sales simulation and the quiz " +
+      "were never migrated to the candidate voice — they still said \"Copy is disabled during " +
+      "this assessment\", passive and clinical, while every other screen had moved to \"Copy is " +
+      "turned off here \u2014 just type your own words\". Second, and worse, five screens blocked " +
+      "Ctrl/Cmd+A. That is select-all: it stops someone clearing their own draft to start over, " +
+      "which is precisely what a person writing an answer does, and it prevents no cheating at " +
+      "all because copy, cut and paste are each blocked on their own handlers. It punished " +
+      "ordinary editing and caught nobody.",
+    async run() {
+      const SCREENS = [
+        "src/pages/QuizPhase.tsx", "src/pages/ApplicationFormPhase.tsx",
+        "src/pages/TypingTestPhase.tsx", "src/pages/ChatSimulationPhase.tsx",
+        "src/pages/ChatInterviewPhase.tsx", "src/pages/SalesSimulationPhase.tsx",
+      ];
+      const bad = [];
+      for (const rel of SCREENS) {
+        const text = await read(rel);
+        if (text == null) continue;
+        text.split("\n").forEach((line, i) => {
+          const trimmed = line.trim();
+          if (trimmed.startsWith("//") || trimmed.startsWith("*")) return;
+
+          // Select-all is not a cheating vector.
+          if (/\[[^\]]*'a'[^\]]*\]\.includes\(\s*e\.key/.test(line) ||
+              /e\.key\.toLowerCase\(\)\s*===\s*'a'/.test(line)) {
+            bad.push(`${rel}:${i + 1} blocks Ctrl/Cmd+A — that is select-all, not cheating; it only stops someone rewriting their own answer`);
+          }
+          // System voice in copy a candidate reads.
+          for (const m of line.matchAll(/"([^"\\]{10,})"/g)) {
+            if (/\b(is|are) (disabled|not allowed|not permitted)\b/i.test(m[1])) {
+              bad.push(`${rel}:${i + 1} speaks system voice to a candidate: "${m[1].slice(0, 70)}"`);
+            }
+          }
+        });
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
 ];
 
 /* --------------------------------------------------------------------- main */

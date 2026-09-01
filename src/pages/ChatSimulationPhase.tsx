@@ -321,7 +321,7 @@ export default function ChatSimulationPhase() {
         e.preventDefault();
         logViolation('paste_attempt', 'User pressed Ctrl/Cmd+V');
         toast.error("Paste is turned off during this conversation");
-      } else if (['p', 'a', 's'].includes(e.key.toLowerCase())) {
+      } else if (['p', 's'].includes(e.key.toLowerCase())) {
         e.preventDefault();
         toast.error("Keyboard shortcuts are turned off during this conversation");
       }

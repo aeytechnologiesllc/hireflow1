@@ -275,7 +275,7 @@ export default function ApplicationFormPhase() {
 
   // Anti-cheating: Block keyboard shortcuts
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x', 'a'].includes(e.key.toLowerCase())) {
+    if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x'].includes(e.key.toLowerCase())) {
       e.preventDefault();
       recordViolation('keyboard_shortcut', `Blocked ${e.key.toUpperCase()} shortcut`);
       toast.warning("That shortcut is turned off here.", {

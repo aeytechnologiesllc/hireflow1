@@ -326,7 +326,7 @@ export default function QuizPhase() {
   const handleCopy = useCallback((e: React.ClipboardEvent) => {
     e.preventDefault();
     recordViolation('copy_attempt');
-    toast.warning("Copying is disabled during the quiz", {
+    toast.warning("Copy is turned off here — just answer in your own words.", {
       icon: <ShieldAlert className="h-4 w-4" />,
     });
   }, [recordViolation]);
@@ -334,7 +334,7 @@ export default function QuizPhase() {
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
     e.preventDefault();
     recordViolation('paste_attempt');
-    toast.warning("Pasting is disabled during the quiz", {
+    toast.warning("Paste is turned off here — answer directly.", {
       icon: <ShieldAlert className="h-4 w-4" />,
     });
   }, [recordViolation]);
@@ -347,17 +347,17 @@ export default function QuizPhase() {
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     recordViolation('right_click');
-    toast.warning("Right-click is disabled during the quiz", {
+    toast.warning("Right-click is turned off here.", {
       icon: <ShieldAlert className="h-4 w-4" />,
     });
   }, [recordViolation]);
 
   // Anti-cheating: Block keyboard shortcuts
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x', 'a', 'p', 's'].includes(e.key.toLowerCase())) {
+    if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x', 'p', 's'].includes(e.key.toLowerCase())) {
       e.preventDefault();
       recordViolation('keyboard_shortcut', `Blocked ${e.key.toUpperCase()} shortcut`);
-      toast.warning("Keyboard shortcuts are disabled during the quiz", {
+      toast.warning("That shortcut is turned off here.", {
         icon: <ShieldAlert className="h-4 w-4" />,
       });
     }

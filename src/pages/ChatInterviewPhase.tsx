@@ -756,7 +756,12 @@ export default function ChatInterviewPhase() {
         e.preventDefault();
         logViolation('paste_attempt', 'User pressed Ctrl/Cmd+V');
         toast.error("Paste is turned off here — type your answer directly.");
-      } else if (['p', 'a', 's'].includes(e.key.toLowerCase())) {
+      } else if (['p', 's'].includes(e.key.toLowerCase())) {
+        // 'a' deliberately NOT here. Ctrl/Cmd+A is select-all: blocking it
+        // stops someone clearing their own draft to start over, which is
+        // exactly what a person writing a pitch does. It prevents no cheating
+        // — copy and paste are each already blocked on their own handlers
+        // above. Print and Save stay blocked; those copy the assessment out.
         e.preventDefault();
         toast.error("That shortcut is turned off here.");
       }
