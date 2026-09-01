@@ -12,7 +12,8 @@ import { toast } from "sonner";
 import { Loader2, Mic, Phone, PhoneOff, Volume2, CheckCircle, Clock, Wifi, WifiOff, Camera, RefreshCw, AlertTriangle, ArrowLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
-import { buildCandidateJourney, positionFor } from "@/lib/candidateJourney";
+
+import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { AvaAvatar, useAvaExpression } from "@/components/AvaAvatar";
 import { GlyphVoice, GlyphClock, GlyphLetter, GlyphCheckSeal } from "@/components/candidate/glyphs";
@@ -620,16 +621,7 @@ Duration: ${formatTime(elapsedSeconds)}
   // Where the candidate is in the whole journey — derived from the job's real
   // workflow_steps via the shared candidateJourney builder, so this screen
   // agrees with every other candidate screen. Never invented.
-  const journey = useMemo(() => {
-    const workflowSteps = (job?.workflow_steps || []) as Array<{ id: string; type: string; title?: string }>;
-    const quizQuestions = job?.quiz_questions;
-    const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
-    const steps = buildCandidateJourney(workflowSteps, { hasQuiz });
-    const { index, total, current } = positionFor(steps, { stepId, phase: appPhase });
-    return { index, total, title: current.title };
-  }, [job?.workflow_steps, job?.quiz_questions, appPhase, stepId]);
-
-  const journeyProgressPct = Math.round(((journey.index + 1) / Math.max(journey.total, 1)) * 100);
+  const journey = useJourneyPosition(job, { stepId, phase: appPhase });
 
   // Where the candidate ACTUALLY is, from their own application record only — never from the
   // URL. A candidate can type this URL directly while their real progress (application.phase /
@@ -637,13 +629,8 @@ Duration: ${formatTime(elapsedSeconds)}
   // position in the same journey is what lets us show them a calm "not yet" screen instead of
   // starting a live session. This must never trust stepId — that's exactly what a candidate
   // jumping the URL controls.
-  const actualPosition = useMemo(() => {
-    const workflowSteps = (job?.workflow_steps || []) as Array<{ id: string; type: string; title?: string }>;
-    const quizQuestions = job?.quiz_questions;
-    const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
-    const steps = buildCandidateJourney(workflowSteps, { hasQuiz });
-    return positionFor(steps, { phase: appPhase, status: appStatus });
-  }, [job?.workflow_steps, job?.quiz_questions, appPhase, appStatus]);
+  // Deliberately no stepId: this must never trust the URL.
+  const actualPosition = useJourneyPosition(job, { phase: appPhase, status: appStatus });
 
   const hasReachedThisStep = actualPosition.index >= journey.index;
 
@@ -735,7 +722,7 @@ Duration: ${formatTime(elapsedSeconds)}
             <span className="ck-num">{journey.total}</span> — {journey.title}
           </span>
 
-          <Progress value={journeyProgressPct} className="h-1.5 bg-[var(--track)]" />
+          <Progress value={journey.progressPct} className="h-1.5 bg-[var(--track)]" />
 
           <p className="text-sm text-muted-foreground">
             {interviewStarted

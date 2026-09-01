@@ -1018,6 +1018,49 @@ const guards = [
     },
   },
 
+  {
+    id: "every-phase-screen-says-where-the-candidate-is",
+    why:
+      "Seven phase screens each carried their own copy of the same \"Step X of N\" memo, and " +
+      "two — portfolio upload and sales simulation — had none at all, so on those screens a " +
+      "candidate mid-journey could not tell how much was left or whether this was the last " +
+      "thing. Nine copies is nine chances to drift, and a position that disagrees between " +
+      "screens is worse than showing none: it makes the whole journey look untrustworthy. " +
+      "There is now one implementation, useJourneyPosition, and every phase screen must both " +
+      "use it and render the result.",
+    async run() {
+      const SCREENS = [
+        "src/pages/ApplicationFormPhase.tsx", "src/pages/QuizPhase.tsx",
+        "src/pages/TypingTestPhase.tsx", "src/pages/VideoIntroPhase.tsx",
+        "src/pages/PortfolioUploadPhase.tsx", "src/pages/ChatSimulationPhase.tsx",
+        "src/pages/ChatInterviewPhase.tsx", "src/pages/SalesSimulationPhase.tsx",
+        "src/pages/VoiceInterviewPhase.tsx",
+      ];
+      const bad = [];
+      if ((await read("src/hooks/useJourneyPosition.ts")) == null) {
+        return { ok: false, detail: ["src/hooks/useJourneyPosition.ts is gone — the shared position is the point"] };
+      }
+      for (const rel of SCREENS) {
+        const text = await read(rel);
+        if (text == null) { bad.push(`${rel} is missing`); continue; }
+        if (!/useJourneyPosition\(/.test(text)) {
+          bad.push(`${rel} does not use useJourneyPosition — either it shows no position, or it re-implements one that can drift`);
+        }
+        // Using it but never rendering it is the same silence for the candidate.
+        // Allow the wrapped form: several screens split this across lines with
+        // <span className="ck-num"> around each number.
+        if (!/Step[\s\S]{0,160}\.index \+ 1\}[\s\S]{0,160}\.total\}/.test(text)) {
+          bad.push(`${rel} never renders "Step X of N" — the candidate cannot tell how much is left`);
+        }
+        // No screen may go back to hand-rolling the memo.
+        if (/const \{ index, total, current \} = positionFor\(/.test(text)) {
+          bad.push(`${rel} re-implements the journey memo inline again instead of using the shared hook`);
+        }
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
 ];
 
 /* --------------------------------------------------------------------- main */

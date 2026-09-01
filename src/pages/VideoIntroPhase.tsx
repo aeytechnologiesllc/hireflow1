@@ -12,7 +12,8 @@ import { Progress } from "@/components/ui/progress";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { AvaSeal } from "@/components/ava/AvaSeal";
-import { buildCandidateJourney, positionFor, DECISION_STAGE_ID } from "@/lib/candidateJourney";
+import { buildCandidateJourney, DECISION_STAGE_ID } from "@/lib/candidateJourney";
+import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 import {
   ArrowLeft,
   Play,
@@ -124,16 +125,8 @@ export default function VideoIntroPhase() {
   // Where this screen sits in the whole journey — derived from the same real
   // workflow_steps used to build the journey at submit time below, via the
   // shared candidateJourney builder, never invented.
-  const journey = useMemo(() => {
-    const workflowSteps = (application?.jobs?.workflow_steps || []) as Array<{ id: string; type: string; title?: string }>;
-    const quizQuestions = application?.jobs?.quiz_questions as Json[] | undefined;
-    const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
-    const phases = buildCandidateJourney(workflowSteps, { hasQuiz });
-    const { index, total, current } = positionFor(phases, { stepId, phase: application?.phase });
-    return { index, total, title: current.title };
-  }, [application?.jobs?.workflow_steps, application?.jobs?.quiz_questions, application?.phase, stepId]);
+  const journey = useJourneyPosition(application?.jobs, { stepId, phase: application?.phase });
 
-  const journeyProgressPct = Math.round(((journey.index + 1) / Math.max(journey.total, 1)) * 100);
 
   // Cleanup
   useEffect(() => {
@@ -710,7 +703,7 @@ export default function VideoIntroPhase() {
             <span className="ck-num">{journey.total}</span> — {journey.title}
           </span>
 
-          <Progress value={journeyProgressPct} className="h-1.5 bg-[var(--track)]" />
+          <Progress value={journey.progressPct} className="h-1.5 bg-[var(--track)]" />
 
           <p className="text-sm text-muted-foreground">
             {recordingState === "recording"

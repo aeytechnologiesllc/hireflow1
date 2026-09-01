@@ -42,6 +42,7 @@ import { isImageResumeUrl, isPdfResumeUrl, isSupportedResumeFile, isSupportedRes
 import { resolveResumeUrl } from "@/utils/resumeSignedUrl";
 import { GlyphLetter } from "@/components/candidate/glyphs";
 import { buildCandidateJourney, DECISION_STAGE_ID } from "@/lib/candidateJourney";
+import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 import { parseApplicationNotes } from "@/lib/applicationNotes";
 
 // A slim brass rule across the top of a card — the letterhead mark
@@ -337,15 +338,7 @@ export default function ApplicationFormPhase() {
   // workflow_steps via the shared candidateJourney builder, so this screen
   // agrees with every other candidate screen. This screen IS the
   // application stage, so it's always step 1.
-  const journeyStep = useMemo(() => {
-    const workflowSteps = (application?.jobs?.workflow_steps || []) as Array<{ id: string; type: string; title?: string }>;
-    const quizQuestions = application?.jobs?.quiz_questions;
-    const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
-    const steps = buildCandidateJourney(workflowSteps, { hasQuiz });
-    return { index: 0, total: steps.length, title: steps[0].title };
-  }, [application?.jobs?.workflow_steps, application?.jobs?.quiz_questions]);
-
-  const journeyProgressPct = Math.round(((journeyStep.index + 1) / Math.max(journeyStep.total, 1)) * 100);
+  const journeyStep = useJourneyPosition(application?.jobs, { phase: "application" });
 
   // Parse notes to check if already submitted. This runs during RENDER, so a
   // bare JSON.parse here throws inside the render pass on any malformed row and
@@ -1086,7 +1079,7 @@ export default function ApplicationFormPhase() {
             <span className="ck-num">{journeyStep.total}</span> — {journeyStep.title}
           </span>
 
-          <Progress value={journeyProgressPct} className="h-1.5 bg-[var(--track)]" />
+          <Progress value={journeyStep.progressPct} className="h-1.5 bg-[var(--track)]" />
 
           <p className="text-sm text-muted-foreground">
             Take your time — you can't break anything here.

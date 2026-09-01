@@ -25,7 +25,8 @@ import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 import { parseApplicationNotes, stringifyApplicationNotes } from "@/utils/applicationNotes";
 import { AvaSeal } from "@/components/ava/AvaSeal";
-import { buildCandidateJourney, positionFor } from "@/lib/candidateJourney";
+
+import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 
 interface Message {
   id: string;
@@ -204,19 +205,7 @@ export default function ChatSimulationPhase() {
   // Where the candidate is in the whole journey — derived from the job's real
   // workflow_steps via the shared candidateJourney builder, so this screen
   // agrees with every other candidate screen. Never invented.
-  const journeyStep = useMemo(() => {
-    const workflowSteps = (application?.jobs?.workflow_steps || []) as Array<{ id: string; type: string; title?: string }>;
-    // The quiz lives on its own column, not in workflow_steps. Omitting hasQuiz
-    // dropped a stage the candidate actually performs, so this screen quoted a
-    // smaller "of N" than the application detail page for the same application.
-    const quizQuestions = application?.jobs?.quiz_questions as unknown[] | undefined;
-    const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
-    const steps = buildCandidateJourney(workflowSteps, { hasQuiz });
-    const { index, total, current } = positionFor(steps, { stepId, phase: application?.phase });
-    return { index, total, title: current.title };
-  }, [application?.jobs?.workflow_steps, application?.jobs?.quiz_questions, application?.phase, stepId]);
-
-  const journeyProgressPct = Math.round(((journeyStep.index + 1) / Math.max(journeyStep.total, 1)) * 100);
+  const journeyStep = useJourneyPosition(application?.jobs, { stepId, phase: application?.phase });
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -917,7 +906,7 @@ export default function ChatSimulationPhase() {
             <span className="ck-num">{journeyStep.total}</span> — {journeyStep.title}
           </span>
 
-          <Progress value={journeyProgressPct} className="h-1.5 bg-[var(--track)]" />
+          <Progress value={journeyStep.progressPct} className="h-1.5 bg-[var(--track)]" />
 
           <p className="text-sm text-muted-foreground">{headerGuidance}</p>
         </div>

@@ -26,7 +26,8 @@ import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 import { GlyphJourney, GlyphCheckSeal } from "@/components/candidate/glyphs";
-import { buildCandidateJourney, positionFor, DECISION_STAGE_ID } from "@/lib/candidateJourney";
+import { buildCandidateJourney, DECISION_STAGE_ID } from "@/lib/candidateJourney";
+import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 
 // A slim brass rule across the top of a card — the letterhead mark that
 // opens every considered moment in this phase (Founder's Law: "the
@@ -381,16 +382,8 @@ export default function QuizPhase() {
   // Where the candidate is in the whole journey — derived from the job's real
   // workflow_steps via the shared candidateJourney builder, so this screen
   // agrees with every other candidate screen. Never invented.
-  const journeyStep = useMemo(() => {
-    const workflowSteps = (application?.jobs?.workflow_steps || []) as Array<{ id: string; type: string; title?: string }>;
-    const quizQuestions = application?.jobs?.quiz_questions;
-    const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
-    const steps = buildCandidateJourney(workflowSteps, { hasQuiz });
-    const { index, total, current } = positionFor(steps, { stepId, phase: "quiz" });
-    return { index, total, title: current.title };
-  }, [application?.jobs?.workflow_steps, application?.jobs?.quiz_questions, stepId]);
+  const journeyStep = useJourneyPosition(application?.jobs, { stepId, phase: "quiz" });
 
-  const journeyProgressPct = Math.round(((journeyStep.index + 1) / Math.max(journeyStep.total, 1)) * 100);
 
   // Used only for the "what happens next" line on the pre-send screen — the
   // real pass/fail decision is always made server-side after submit.
@@ -1090,7 +1083,7 @@ export default function QuizPhase() {
             Step {journeyStep.index + 1} of {journeyStep.total} — {journeyStep.title}
           </span>
 
-          <Progress value={journeyProgressPct} className="h-1.5 bg-[var(--track)]" />
+          <Progress value={journeyStep.progressPct} className="h-1.5 bg-[var(--track)]" />
 
           <p className="text-sm text-muted-foreground">
             {showResults

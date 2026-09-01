@@ -28,6 +28,7 @@ import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { compressImage, needsCompression } from "@/utils/imageCompression";
 import { PhaseContextCard } from "@/components/PhaseContextCard";
 import { buildCandidateJourney, DECISION_STAGE_ID } from "@/lib/candidateJourney";
+import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 import { parseApplicationNotes } from "@/lib/applicationNotes";
 interface ApplicationDetails {
   id: string;
@@ -126,6 +127,13 @@ export default function PortfolioUploadPhase() {
       supabase.removeChannel(channel); 
     };
   }, [id, queryClient]);
+
+  // Where the candidate is. This screen showed no position at all, so
+  // mid-journey they could not tell how much was left.
+  const journeyStep = useJourneyPosition(application?.jobs, {
+    stepId,
+    phase: application?.phase,
+  });
 
   // Get portfolio config
   const portfolioConfig = (() => {
@@ -640,6 +648,10 @@ export default function PortfolioUploadPhase() {
           <p className="text-muted-foreground">
             For: {application.jobs?.title}
           </p>
+          <span className="ck-num block pt-2 text-xs font-medium text-muted-foreground">
+            Step {journeyStep.index + 1} of {journeyStep.total} — {journeyStep.title}
+          </span>
+          <Progress value={journeyStep.progressPct} className="mt-1.5 h-1.5 bg-[var(--track)]" />
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Instructions */}

@@ -28,7 +28,8 @@ import { invokeTriggerAvaAnalysis, triggerAvaAnalysis, evaluatePhaseSubmission }
 import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
-import { buildCandidateJourney, positionFor, DECISION_STAGE_ID } from "@/lib/candidateJourney";
+import { buildCandidateJourney, DECISION_STAGE_ID } from "@/lib/candidateJourney";
+import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 
 // Sample typing test paragraphs
 const typingTexts = [
@@ -218,21 +219,7 @@ export default function TypingTestPhase() {
   // Where the candidate is in the whole journey — derived from the job's real
   // workflow_steps via the shared candidateJourney builder, so this screen
   // agrees with every other candidate screen. Never invented.
-  const journeyStep = useMemo(() => {
-    const workflowSteps = application?.jobs?.workflow_steps || [];
-    // The quiz lives on its own column, not in workflow_steps, so omitting
-    // hasQuiz drops a real stage the candidate performs. This call had it
-    // missing while the submit path in the same file (:381) passed it — so the
-    // header said "Step 2 of 4" and the logic underneath counted five, on one
-    // screen, under a comment promising the opposite.
-    const quizQuestions = application?.jobs?.quiz_questions as Json[] | undefined;
-    const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
-    const phases = buildCandidateJourney(workflowSteps, { hasQuiz });
-    const { index, total, current } = positionFor(phases, { stepId, phase: application?.phase });
-    return { index, total, title: current.title };
-  }, [application?.jobs?.workflow_steps, application?.jobs?.quiz_questions, application?.phase, stepId]);
-
-  const journeyProgressPct = Math.round(((journeyStep.index + 1) / Math.max(journeyStep.total, 1)) * 100);
+  const journeyStep = useJourneyPosition(application?.jobs, { stepId, phase: application?.phase });
 
   // Timer countdown
   useEffect(() => {
@@ -692,7 +679,7 @@ export default function TypingTestPhase() {
             <span className="ck-num">{journeyStep.total}</span> — {journeyStep.title}
           </span>
 
-          <Progress value={journeyProgressPct} className="h-1.5 bg-[var(--track)]" />
+          <Progress value={journeyStep.progressPct} className="h-1.5 bg-[var(--track)]" />
 
           <p className="text-sm text-muted-foreground">{headerGuidance}</p>
         </div>

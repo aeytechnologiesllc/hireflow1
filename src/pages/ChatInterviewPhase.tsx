@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
-import { buildCandidateJourney, positionFor } from "@/lib/candidateJourney";
+
+import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/integrations/supabase/client";
@@ -306,16 +307,7 @@ export default function ChatInterviewPhase() {
   // Where the candidate is in the whole journey — derived from the job's real
   // workflow_steps via the shared candidateJourney builder, so this screen
   // agrees with every other candidate screen. Never invented.
-  const journeyStep = useMemo(() => {
-    const workflowSteps = (application?.jobs?.workflow_steps || []) as Array<{ id: string; type: string; title?: string }>;
-    const quizQuestions = application?.jobs?.quiz_questions;
-    const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
-    const steps = buildCandidateJourney(workflowSteps, { hasQuiz });
-    const { index, total, current } = positionFor(steps, { stepId, phase: application?.phase });
-    return { index, total, title: current.title };
-  }, [application?.jobs?.workflow_steps, application?.jobs?.quiz_questions, application?.phase, stepId]);
-
-  const journeyProgressPct = Math.round(((journeyStep.index + 1) / Math.max(journeyStep.total, 1)) * 100);
+  const journeyStep = useJourneyPosition(application?.jobs, { stepId, phase: application?.phase });
 
   // Format elapsed time for display
   const getDuration = () => {
@@ -893,7 +885,7 @@ export default function ChatInterviewPhase() {
             <span className="ck-num">{journeyStep.total}</span> — {journeyStep.title}
           </span>
 
-          <Progress value={journeyProgressPct} className="h-1.5 bg-[var(--track)]" />
+          <Progress value={journeyStep.progressPct} className="h-1.5 bg-[var(--track)]" />
 
           <p className="text-sm text-muted-foreground">
             {state === "intro"
