@@ -993,6 +993,7 @@ Duration: ${formatTime(elapsedSeconds)}
           <div className="relative">
             {videoEnabled ? (
               /* Video mode: Small video preview in corner */
+              /* theme-exempt: letterbox behind a <video>, black in both themes */
               <div className="fixed bottom-24 right-6 z-40 w-48 aspect-video rounded-lg overflow-hidden shadow-2xl border-2 border-primary/30 bg-black">
                 <video
                   ref={videoPreviewRef}
@@ -1005,13 +1006,23 @@ Duration: ${formatTime(elapsedSeconds)}
                 {isRecording && (
                   <div className="absolute top-2 left-2 flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-destructive animate-pulse" />
+                    {/* theme-exempt: sits on top of the video, not the page */}
                     <span className="text-xs font-medium text-white bg-black/50 px-1.5 py-0.5 rounded">REC</span>
                   </div>
                 )}
               </div>
             ) : (
               /* Audio-only mode: Audio visualizer orb */
-              <div className="fixed bottom-24 right-6 z-40 w-20 h-20 rounded-full flex flex-col items-center justify-center shadow-2xl border-2 border-primary/30 bg-black/90">
+              /* Was bg-black/90. This pill floats on the page, NOT over video —
+                 the video preview above it is legitimately black because that
+                 is the letterbox behind a <video>. A hardcoded black disc on
+                 the Day theme's ivory paper is the same black-hole-punched-in-
+                 the-page problem the retired orb had. --card follows the theme
+                 in both directions. */
+              <div
+                className="fixed bottom-24 right-6 z-40 flex h-20 w-20 flex-col items-center justify-center rounded-full border-2 border-primary/30 shadow-2xl"
+                style={{ background: "hsl(var(--card))" }}
+              >
                 <div className="flex items-end gap-0.5 h-8">
                   {micLevels.map((level, i) => (
                     <motion.div
@@ -1025,7 +1036,7 @@ Duration: ${formatTime(elapsedSeconds)}
                 {isRecording && (
                   <div className="flex items-center gap-1 mt-1">
                     <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
-                    <span className="text-[10px] font-medium text-white">REC</span>
+                    <span className="text-[10px] font-medium text-foreground">REC</span>
                   </div>
                 )}
               </div>
@@ -1332,6 +1343,7 @@ Duration: ${formatTime(elapsedSeconds)}
                           <AlertTriangle className="h-10 w-10" style={{ color: "var(--hf-gold)" }} />
                         ) : (
                           <span className="flex h-full w-full items-center justify-center rounded-full bg-gradient-to-r from-primary to-accent">
+                            {/* theme-exempt: on the jade fill, not the page */}
                             <CheckCircle className="h-10 w-10 text-white" />
                           </span>
                         )}

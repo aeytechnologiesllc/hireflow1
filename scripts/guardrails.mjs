@@ -1147,6 +1147,44 @@ const guards = [
     },
   },
 
+  {
+    id: "candidate-screens-follow-the-theme",
+    why:
+      "The voice interview's audio-only visualiser was a hardcoded `bg-black/90` pill with " +
+      "white text. Unlike the video preview above it — where black is the correct letterbox " +
+      "behind a <video> — that pill floats on the page, so on the Day theme's ivory paper it " +
+      "was a black disc punched into the sheet: the exact problem the retired orb had. " +
+      "Hardcoded black and white ignore the theme by definition. Where one is genuinely right " +
+      "it is because the element sits on media or a colour fill rather than on the page, and " +
+      "that has to be said out loud with a `theme-exempt:` note rather than left to be guessed.",
+    async run() {
+      const SCREENS = [
+        "src/pages/QuizPhase.tsx", "src/pages/TypingTestPhase.tsx",
+        "src/pages/VideoIntroPhase.tsx", "src/pages/PortfolioUploadPhase.tsx",
+        "src/pages/ChatSimulationPhase.tsx", "src/pages/ChatInterviewPhase.tsx",
+        "src/pages/SalesSimulationPhase.tsx", "src/pages/VoiceInterviewPhase.tsx",
+        "src/pages/ApplicationFormPhase.tsx", "src/pages/Applications.tsx",
+        "src/pages/CandidateApplicationDetail.tsx", "src/components/EvaluationScreen.tsx",
+      ];
+      const bad = [];
+      for (const rel of SCREENS) {
+        const text = await read(rel);
+        if (text == null) continue;
+        const lines = text.split("\n");
+        lines.forEach((line, i) => {
+          const trimmed = line.trim();
+          if (trimmed.startsWith("//") || trimmed.startsWith("*")) return;
+          if (!/className="[^"]*\b(bg|text)-(white|black)\b/.test(line)) return;
+          // Deliberate exemptions are declared on the line or just above it.
+          const context = lines.slice(Math.max(0, i - 2), i + 1).join("\n");
+          if (context.includes("theme-exempt:")) return;
+          bad.push(`${rel}:${i + 1} hardcodes black or white on a candidate screen — it cannot follow the theme; if it belongs on media or a colour fill, say so with a "theme-exempt:" note`);
+        });
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
 ];
 
 /* --------------------------------------------------------------------- main */
