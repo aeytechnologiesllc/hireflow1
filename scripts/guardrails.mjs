@@ -243,6 +243,14 @@ const guards = [
           if (/instanceof Error\s*\?\s*\w+\.message/.test(line)) {
             bad.push(`${rel}:${i + 1} shows a raw error message to a candidate — log it and show a written sentence instead`);
           }
+          // Our vocabulary leaking into their screen. "Not yet implemented"
+          // shipped on the phase-start CTA: it named an internal state, blamed
+          // nobody, and left the candidate looking at a button that did
+          // nothing. Only flag it inside strings a toast actually renders.
+          if (/toast\.\w+\(|description:/.test(line) &&
+              /(not (yet )?implemented|TypeError|ReferenceError|PGRST|\[object Object\])/i.test(line)) {
+            bad.push(`${rel}:${i + 1} shows developer vocabulary to a candidate — say what happened and whose problem it is`);
+          }
         });
       }
       return bad.length ? { ok: false, detail: bad } : { ok: true };

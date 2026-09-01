@@ -553,7 +553,14 @@ export default function CandidateApplicationDetail() {
         navigate(`/applications/${id}/voice-interview/${phaseId}`);
         break;
       default:
-        toast.info("This phase type is not yet implemented");
+        // Reachable only if a job is configured with a step type this build
+        // cannot open. "Not yet implemented" is our word, not theirs — it tells
+        // a candidate nothing, blames nobody, and leaves them staring at a
+        // button that did nothing. Say whose problem it is and where to go.
+        console.error("No route for candidate phase type:", phaseType, "step:", phaseId);
+        toast.error("We can't open this step right now", {
+          description: "That's on our side, not yours — nothing you've done is lost. Try again shortly.",
+        });
         setActivePhaseAction(null);
     }
   };
