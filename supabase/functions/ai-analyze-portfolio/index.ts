@@ -1,6 +1,48 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
+/**
+ * Fetch a candidate's portfolio file.
+ *
+ * This used to be a bare `fetch(url)` against a public bucket URL, which only
+ * worked because the `portfolios` bucket was world-readable — the same fact
+ * that put candidates' work samples at permanent unauthenticated URLs. Reading
+ * through the storage API with the service role means the bucket can be private
+ * and this still works. Legacy rows hold full public URLs and newer ones hold
+ * bare paths, so both shapes are handled; a value pointing somewhere else
+ * entirely (an external link a candidate pasted) still falls back to a plain
+ * fetch, which is correct for a genuinely external file.
+ */
+async function fetchPortfolioFile(url: string): Promise<ArrayBuffer | null> {
+  const match = url.match(/\/portfolios\/(.+?)(?:\?|$)/);
+  const path = match
+    ? decodeURIComponent(match[1])
+    : /^https?:\/\//i.test(url)
+      ? null
+      : url.replace(/^\/+/, "");
+
+  if (path) {
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+    const { data, error } = await admin.storage.from("portfolios").download(path);
+    if (error || !data) {
+      console.error(`Storage download failed for ${path}:`, error);
+      return null;
+    }
+    return await data.arrayBuffer();
+  }
+
+  const res = await fetch(url);
+  if (!res.ok) {
+    console.error(`Failed to fetch external file: ${url}, status: ${res.status}`);
+    return null;
+  }
+  return await res.arrayBuffer();
+}
 
 // Model is configurable so the Oct-2026 gemini-2.5-flash retirement is a config
 // change, not a code change. Set GEMINI_PORTFOLIO_MODEL to the replacement model when swapping.
@@ -180,16 +222,14 @@ BE CRITICAL AND HONEST. A score of 85+ should be exceptional. Average portfolios
         if (url.match(/\.pdf$/i)) {
           // Handle PDF - fetch and convert to base64 for Gemini's native PDF support
           console.log(`Fetching PDF ${pdfCount + 1} for analysis: ${url}`);
-          const pdfResponse = await fetch(url);
-          
-          if (!pdfResponse.ok) {
-            console.error(`Failed to fetch PDF: ${url}, status: ${pdfResponse.status}`);
+          const pdfBuffer = await fetchPortfolioFile(url);
+
+          if (!pdfBuffer) {
             contentParts[0].text += `\n\n[Note: Could not fetch PDF document #${i + 1}: ${url}]`;
             skippedCount++;
             continue;
           }
 
-          const pdfBuffer = await pdfResponse.arrayBuffer();
           const pdfBase64 = base64Encode(pdfBuffer);
           const fileSizeKB = Math.round(pdfBuffer.byteLength / 1024);
           
@@ -206,14 +246,28 @@ BE CRITICAL AND HONEST. A score of 85+ should be exceptional. Average portfolios
           console.log(`Added PDF ${pdfCount} to analysis (${fileSizeKB}KB)`);
           
         } else if (url.match(/\.(jpg|jpeg|png|webp|gif)$/i)) {
-          // Handle images - direct URL for vision analysis
+          // Inlined as base64, like the PDFs above. This used to hand the model
+          // provider the raw URL and let it fetch the file itself, which only
+          // worked because the bucket was world-readable — and meant a
+          // candidate's work sample was handed to a third party as a public
+          // link rather than as content we control.
+          const imageBuffer = await fetchPortfolioFile(url);
+
+          if (!imageBuffer) {
+            contentParts[0].text += `\n\n[Note: Could not fetch image #${i + 1}: ${url}]`;
+            skippedCount++;
+            continue;
+          }
+
+          const ext = (url.match(/\.(jpg|jpeg|png|webp|gif)(?:\?|$)/i)?.[1] || "png").toLowerCase();
+          const mime = ext === "jpg" ? "image/jpeg" : `image/${ext}`;
           contentParts.push({
             type: "image_url",
-            image_url: { url },
+            image_url: { url: `data:${mime};base64,${base64Encode(imageBuffer)}` },
           });
           imageCount++;
-          console.log(`Added image ${imageCount} to analysis: ${url}`);
-          
+          console.log(`Added image ${imageCount} to analysis (${Math.round(imageBuffer.byteLength / 1024)}KB)`);
+
         } else {
           // Unknown file type - note it
           console.log(`Unknown file type, skipping: ${url}`);
