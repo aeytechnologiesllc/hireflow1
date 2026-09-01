@@ -897,6 +897,27 @@ const guards = [
           bad.push("the job-code lookup no longer uses .maybeSingle(), so a missing code cannot be told apart from a failure");
         }
       }
+      const job = await read("src/pages/JobDetails.tsx");
+      if (job == null) {
+        bad.push("src/pages/JobDetails.tsx is missing");
+      } else {
+        if (/if \(loadError \|\| !job\)/.test(job)) {
+          bad.push('JobDetails tells a stranger the role is gone when the request merely failed');
+        }
+        // Strip comments before matching: the comment on this very query
+        // quotes `.single()` while explaining why it is banned, and a guard
+        // that reads its own documentation as a violation is useless.
+        const qm = job.match(/queryKey:\s*\[\s*"job-details"[\s\S]{0,1200}?\n  \}\);/);
+        const q = qm && [qm[0].split("\n").filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join("\n")];
+        if (q && /\.single\(\)/.test(q[0])) {
+          bad.push("the job-details query uses .single() again — a missing job and a failed request both arrive as an error");
+        }
+        // Both apply routes ask for a job code. A stranger who followed a
+        // shared link has never had one, so offering it is a dead end.
+        if (!/strandedRoute/.test(job)) {
+          bad.push("JobDetails sends stranded visitors back to a code-entry page — a stranger who followed a shared link has no code");
+        }
+      }
       return bad.length ? { ok: false, detail: bad } : { ok: true };
     },
   },

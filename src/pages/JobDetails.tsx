@@ -40,6 +40,11 @@ export default function JobDetails() {
 
   const isEmployer = role === "employer";
   const applyEntryRoute = role === "candidate" ? "/apply" : "/candidate/apply";
+  // Where to send someone whose link led nowhere. Both apply routes ask for a
+  // job code; a stranger who followed a shared link has never had one, so that
+  // was a dead end dressed up as a way out. Signed-out visitors get the
+  // candidate portal instead, which is an actual starting point.
+  const strandedRoute = user ? applyEntryRoute : "/candidate";
   const shouldRestrictToPublished = !user || role === "candidate";
   const { data: schemaMode } = useQuery({
     queryKey: ["cockpit-schema-mode"],
@@ -55,15 +60,20 @@ export default function JobDetails() {
     enabled: !!id && isShowcase,
   });
 
-  const { data: job, isLoading: hireflowLoading, error: hireflowError } = useQuery({
+  const { data: job, isLoading: hireflowLoading, error: hireflowError, refetch: refetchJob, isFetching: isFetchingJob } = useQuery({
     queryKey: ["job-details", id, shouldRestrictToPublished],
     queryFn: async () => {
+      // maybeSingle, not single: `.single()` raises PGRST116 when there is no
+      // row, so a job that doesn't exist and a request that failed arrived as
+      // the same error — and the page then told a stranger the job was gone
+      // when in truth their connection dropped. `data === null` now means
+      // "no such job (or not published)"; a thrown error means "we failed".
       if (shouldRestrictToPublished) {
         const { data, error } = await supabase
           .from("published_jobs_public")
           .select("*")
           .eq("id", id!)
-          .single();
+          .maybeSingle();
 
         if (error) throw error;
         return data;
@@ -73,7 +83,7 @@ export default function JobDetails() {
         .from("jobs")
         .select("*")
         .eq("id", id!)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       return data;
@@ -282,19 +292,49 @@ export default function JobDetails() {
     );
   }
 
-  if (loadError || !job) {
+  // A failed request is not a missing job, and this is the page strangers open
+  // from a shared link. Collapsing the two told someone whose connection
+  // blipped that the role was gone — and then offered them, as their only way
+  // forward, a page that asks for a job code they have never had.
+  if (loadError) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Card className="bg-card border-border max-w-md">
+          <CardContent className="space-y-4 p-8 text-center">
+            <GlyphJobPost size={48} className="mx-auto opacity-60" style={{ color: "var(--hf-text-muted)" }} />
+            <h2 className="text-xl font-semibold text-foreground">We couldn&apos;t load this role</h2>
+            <p className="text-muted-foreground">
+              The role is still there — the connection dropped on the way. Try again.
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+              <Button onClick={() => refetchJob()} disabled={isFetchingJob} className="gap-2">
+                {isFetchingJob ? "Trying again" : "Try again"}
+              </Button>
+              <Button variant="ghost" onClick={() => navigate(strandedRoute)}>
+                {user ? "Back to Apply" : "Browse HireFlow"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!job) {
     return (
       <div className="flex items-center justify-center h-full">
         <Card className="bg-card border-border max-w-md">
           <CardContent className="p-8 text-center">
             <GlyphJobPost size={48} className="mx-auto mb-4 opacity-60" style={{ color: "var(--hf-text-muted)" }} />
-            <h2 className="text-xl font-semibold text-foreground mb-2">Job Not Found</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-2">This role isn&apos;t available</h2>
             <p className="text-muted-foreground mb-4">
-              This job may no longer be available or the link is invalid.
+              {user
+                ? "This job may no longer be available or the link is invalid."
+                : "It may have closed, or the link may be incomplete. You can still see what HireFlow is about."}
             </p>
-            <Button onClick={() => navigate(applyEntryRoute)}>
+            <Button onClick={() => navigate(strandedRoute)}>
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Apply
+              {user ? "Back to Apply" : "Browse HireFlow"}
             </Button>
           </CardContent>
         </Card>
