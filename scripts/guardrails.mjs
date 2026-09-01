@@ -580,23 +580,50 @@ const guards = [
       if (kit == null) return { ok: false, detail: ["src/components/ava/employerGlyphs.tsx is missing"] };
       if (shared == null) return { ok: false, detail: ["createFlow/shared.tsx is missing"] };
 
-      if (!/export function glyphForKind\(/.test(shared)) {
+      // It may define it or re-export the shared module — both keep the plan
+      // cards on brand marks. What matters is that shared.tsx still hands it out.
+      if (!/export function glyphForKind\(/.test(shared) && !/export \{ glyphForKind \}/.test(shared)) {
         bad.push("createFlow/shared.tsx no longer exports glyphForKind() — plan cards have lost their brand marks");
       }
       // The identity marks must come from a kit, not lucide.
-      for (const [label, re] of [
-        ["glyphForKind", /export function glyphForKind\([\s\S]*?\n\}/],
-        ["STEP_GLYPHS", /const STEP_GLYPHS = \{[\s\S]*?\}/],
+      const resolverSrc = (await read("src/components/glyphForKind.ts")) ?? "";
+      for (const [label, re, src] of [
+        // The resolver moved to its own module so the candidate side could
+        // import it without dragging the create flow along; scan it there.
+        ["glyphForKind", /export function glyphForKind\([\s\S]*?\n\}/, resolverSrc],
+        ["STEP_GLYPHS", /const STEP_GLYPHS = \{[\s\S]*?\}/, shared],
       ]) {
-        const block = shared.match(re)?.[0] ?? "";
+        const block = src.match(re)?.[0] ?? "";
         const stock = block.match(/\b(ClipboardList|ClipboardCheck|FileText|Timer|Camera|Video|Mic|Trophy|Keyboard|Workflow|SlidersHorizontal|MessagesSquare)\b/g);
-        if (stock) bad.push(`createFlow/shared.tsx: ${label} resolves to stock lucide icons: ${[...new Set(stock)].join(", ")}`);
+        if (stock) bad.push(`${label} resolves to stock lucide icons: ${[...new Set(stock)].join(", ")}`);
       }
       // Family law: the kit draws on one grid, in one voice.
       if (!/viewBox="0 0 24 24"/.test(kit)) bad.push("employerGlyphs.tsx left the 24x24 grid");
       if (!/stroke="currentColor"/.test(kit)) bad.push("employerGlyphs.tsx stopped using currentColor");
       const count = (kit.match(/export function Glyph/g) || []).length;
       if (count < 8) bad.push(`employerGlyphs.tsx only exports ${count} marks — the flow needs the full set`);
+
+      // The candidate's own journey is the surface they look at most on their
+      // side, and it carried its own map of stock lucide icons (FileCheck,
+      // ClipboardList, Video, Keyboard, MessageSquare, Briefcase, Mic, Eye) —
+      // exactly the generic voice this kit exists to replace. It must resolve
+      // through the same shared glyphForKind the employer flow uses, so a step
+      // wears one mark throughout the product.
+      const resolver = await read("src/components/glyphForKind.ts");
+      if (resolver == null) {
+        bad.push("src/components/glyphForKind.ts is gone — the two sides will drift back to separate mappings");
+      }
+      const detail = await read("src/pages/CandidateApplicationDetail.tsx");
+      if (detail == null) {
+        bad.push("src/pages/CandidateApplicationDetail.tsx is missing");
+      } else {
+        if (!/icon: glyphForKind\(/.test(detail)) {
+          bad.push("the candidate journey no longer resolves its step marks through glyphForKind");
+        }
+        if (/const stepTypeIcons/.test(detail)) {
+          bad.push("the candidate journey has its own icon map again — that is how the two sides drift apart");
+        }
+      }
       return bad.length ? { ok: false, detail: bad } : { ok: true };
     },
   },

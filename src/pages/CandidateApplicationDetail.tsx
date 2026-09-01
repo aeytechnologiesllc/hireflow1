@@ -11,11 +11,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import {
   ArrowLeft,
-  FileCheck,
-  ClipboardList,
-  Keyboard,
-  Video,
-  MessageSquare,
   Eye,
   Clock,
   Play,
@@ -24,7 +19,6 @@ import {
   Briefcase,
   Calendar,
   AlertCircle,
-  Mic,
   FileUp
 } from "lucide-react";
 import { toast } from "sonner";
@@ -44,6 +38,7 @@ import { DocumentRequestCard } from "@/components/documents/DocumentRequestCard"
 import { DocumentUploadDialog } from "@/components/documents/DocumentUploadDialog";
 import { phaseDurationEstimates } from "@/lib/phaseDurations";
 import { buildCandidateJourney, positionFor, titleFor } from "@/lib/candidateJourney";
+import { glyphForKind } from "@/components/glyphForKind";
 
 interface WorkflowStep {
   id: string;
@@ -59,21 +54,12 @@ interface ApplicationDetails extends Tables<"applications"> {
 }
 
 // Map workflow step types to icons
-const stepTypeIcons: Record<string, any> = {
-  application: FileCheck,
-  quiz: ClipboardList,
-  video_intro: Video,
-  video_message: Video,
-  typing_test: Keyboard,
-  chat_simulation: MessageSquare,
-  chat_interview: MessageSquare,
-  sales_simulation: Briefcase,
-  portfolio_upload: FileCheck,
-  voice_interview: Mic,
-  // The one honest closing stage — "the hiring team decides" — replaces the
-  // old synthetic review/interview/hired legs.
-  decision: Eye,
-};
+// Was a map of stock lucide icons — FileCheck, ClipboardList, Video, Keyboard,
+// MessageSquare, Briefcase, Mic, Eye. This list is the candidate's own journey,
+// the surface they look at most on their side of the product, and it was drawn
+// in exactly the generic voice the brand kit exists to replace. glyphForKind is
+// the same resolver the employer create-flow uses, so a step wears one mark
+// throughout the product.
 
 import {
   candidatePhaseDisplayNames,
@@ -387,7 +373,7 @@ export default function CandidateApplicationDetail() {
 
     return buildCandidateJourney(workflowSteps, { hasQuiz }).map((step) => ({
       ...step,
-      icon: stepTypeIcons[step.type] || ClipboardList,
+      icon: glyphForKind(step.type),
     }));
   })();
 

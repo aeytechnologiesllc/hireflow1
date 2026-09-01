@@ -25,6 +25,11 @@ import {
 // application on its way", and GlyphSteps as ordered steps. Inventing a second
 // mark for an object the kit already draws is how families drift apart.
 import { GlyphLetter, GlyphSteps, GlyphCheckSeal } from "@/components/candidate/glyphs";
+// One implementation, shared with the candidate journey. `import` then
+// re-`export`: `export { x } from` would not bind it locally, and this file
+// calls it itself below.
+import { glyphForKind } from "@/components/glyphForKind";
+export { glyphForKind };
 
 /**
  * The mark for a phase kind, from the employer glyph kit. The flow used stock
@@ -32,20 +37,6 @@ import { GlyphLetter, GlyphSteps, GlyphCheckSeal } from "@/components/candidate/
  * the owner read the whole screen as machine-made, and a violation of the kit's
  * own rule that a stock clipboard or camera may not carry identity.
  */
-export function glyphForKind(kind: string) {
-  const k = kind.toLowerCase();
-  if (k.includes("job post") || k.includes("listing")) return GlyphJobPost;
-  if (k.includes("application")) return GlyphLetter;
-  if (k.includes("quiz") || k.includes("scenario")) return GlyphScenarios;
-  if (k.includes("typing") || k.includes("skills")) return GlyphTyping;
-  if (k.includes("video") || k.includes("walkthrough")) return GlyphCallingCard;
-  if (k.includes("chat") || k.includes("simulation") || k.includes("sim")) return GlyphExchange;
-  if (k.includes("voice") || k.includes("interview")) return GlyphQuoted;
-  if (k.includes("cod") || k.includes("technical")) return GlyphForme;
-  if (k.includes("shortlist") || k.includes("rank")) return GlyphRosette;
-  if (k.includes("reliab") || k.includes("reference")) return GlyphCheckSeal;
-  return GlyphLetter;
-}
 
 export const STEPS = ["Brief", "Follow-ups", "Rigor", "Ava builds", "Review plan", "Publish"] as const;
 
