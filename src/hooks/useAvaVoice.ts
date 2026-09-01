@@ -446,7 +446,21 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
 
     setState(s => ({ ...s, voiceNameUsed }));
 
-    // Create audio context for playback
+    // Create audio context for playback.
+    //
+    // Close any existing one first. Browsers cap live AudioContexts per page
+    // (Chrome allows about six), and this assignment used to orphan whatever
+    // was already here — the old context stayed open, unreachable, forever.
+    // The reconnect path calls cleanupConnection() first so it was safe, but
+    // the public connect() does not, and a connectInternal() that threw AFTER
+    // this line left one behind every single time. A candidate retrying a
+    // failing voice interview therefore burned a context per attempt until
+    // `new AudioContext()` itself threw, and then the interview could not be
+    // started again at all without reloading the page.
+    if (audioContextRef.current) {
+      void audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
     audioContextRef.current = new AudioContext({ sampleRate: 24000 });
     audioQueueRef.current = new AudioQueue(
       audioContextRef.current,
@@ -958,6 +972,11 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       await connectInternal();
     } catch (err) {
       console.error('Connection error:', err);
+      // connectInternal builds the mic stream, peer connection and audio
+      // context as it goes. Throwing partway used to leave all of it open —
+      // the error state was set and nothing was released — so each retry
+      // stacked another set on top of the last.
+      cleanupConnection();
       const rawMessage = err instanceof Error ? err.message : 'Failed to connect';
       
       // Check if this is a billing/subscription-related error that shouldn't be shown to candidates
@@ -978,7 +997,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
         description: displayMessage,
       });
     }
-  }, [connectInternal, toast]);
+  }, [connectInternal, cleanupConnection, toast]);
 
   const disconnect = useCallback(async () => {
     // Deduct voice minutes if session was started (and not already deducted by end_interview).

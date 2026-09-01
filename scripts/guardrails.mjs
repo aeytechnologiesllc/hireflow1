@@ -1093,6 +1093,39 @@ const guards = [
     },
   },
 
+  {
+    id: "voice-connect-never-leaks-an-audio-context",
+    why:
+      "useAvaVoice assigned `audioContextRef.current = new AudioContext(...)` unconditionally, " +
+      "orphaning whatever was already there, and connect()'s catch set an error without " +
+      "releasing anything connectInternal had already built. So every failed attempt left a " +
+      "live context behind. Browsers cap these per page — Chrome at about six — and simulating " +
+      "the retry loop, `new AudioContext()` itself threw on the seventh attempt: from then on " +
+      "the candidate could not start the voice interview at all without reloading the page. " +
+      "The failure mode is invisible until it is total, and it lands on candidates with the " +
+      "flakiest connections, who retry the most.",
+    async run() {
+      const bad = [];
+      const hook = await read("src/hooks/useAvaVoice.ts");
+      if (hook == null) return { ok: false, detail: ["src/hooks/useAvaVoice.ts is missing"] };
+
+      // A live context must be closed before another is created.
+      const create = hook.match(/[\s\S]{0,400}audioContextRef\.current = new AudioContext/);
+      if (!create || !/audioContextRef\.current\.close\(\)/.test(create[0])) {
+        bad.push("a new AudioContext is created without closing the existing one first — each failed connect orphans one until the browser refuses to make more");
+      }
+
+      // A failed connect must release what it already built.
+      const connect = hook.match(/const connect = useCallback\(async \(\) => \{[\s\S]*?\n  \}, \[[^\]]*\]\);/);
+      if (!connect) {
+        bad.push("the public connect() is gone or unrecognisable");
+      } else if (!/cleanupConnection\(\)/.test(connect[0])) {
+        bad.push("connect() does not call cleanupConnection() when it fails — the mic stream, peer connection and audio context all stay open, and every retry stacks another set");
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
 ];
 
 /* --------------------------------------------------------------------- main */
