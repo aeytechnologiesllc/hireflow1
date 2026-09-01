@@ -836,6 +836,55 @@ const guards = [
     },
   },
 
+  {
+    id: "a-failed-lookup-never-blames-the-candidate",
+    why:
+      "Both accountless entry points collapsed \"the lookup failed\" into \"there is nothing " +
+      "here\", and the wording they landed on blamed the applicant. A dropped connection on " +
+      "/candidate/apply told them \"we couldn't find a role with that code\" — so someone " +
+      "holding a perfectly good code retypes it until they give up — and on the apply form it " +
+      "said the role was \"no longer accepting applications\", which reads as: the job is gone, " +
+      "don't come back. Verified against the live API: `.single()` returns PGRST116 for a " +
+      "missing row, so under the old branch a network error and a bad code were literally " +
+      "indistinguishable. A retryable failure must say so and offer a retry.",
+    async run() {
+      const bad = [];
+
+      const apply = await read("src/pages/ShowcaseApplyForm.tsx");
+      if (apply == null) {
+        bad.push("src/pages/ShowcaseApplyForm.tsx is missing");
+      } else {
+        if (/if \(error \|\| !role\)/.test(apply)) {
+          bad.push('ShowcaseApplyForm collapses fetch failure into "no longer accepting applications" again');
+        }
+        if (!/if \(error\) \{/.test(apply)) {
+          bad.push("ShowcaseApplyForm no longer has a distinct branch for a failed load");
+        }
+        if (!/refetch\(\)/.test(apply)) {
+          bad.push("ShowcaseApplyForm's load failure offers no retry — a retryable error must be retryable");
+        }
+      }
+
+      const code = await read("src/pages/ApplyWithCode.tsx");
+      if (code == null) {
+        bad.push("src/pages/ApplyWithCode.tsx is missing");
+      } else {
+        if (/if \(fetchError \|\| !data\)/.test(code)) {
+          bad.push("ApplyWithCode blames the candidate's code for a failed lookup again");
+        }
+        // `.single()` makes the two cases indistinguishable at the source.
+        const lookup = code.match(/\.from\("published_jobs_public"\)[\s\S]{0,700}?;/);
+        if (lookup && /\.single\(\)/.test(lookup[0])) {
+          bad.push("the job-code lookup uses .single() again — a missing code and a failed request both arrive as an error");
+        }
+        if (lookup && !/\.maybeSingle\(\)/.test(lookup[0])) {
+          bad.push("the job-code lookup no longer uses .maybeSingle(), so a missing code cannot be told apart from a failure");
+        }
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
 ];
 
 /* --------------------------------------------------------------------- main */

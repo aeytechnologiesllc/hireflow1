@@ -38,7 +38,7 @@ export default function ShowcaseApplyForm() {
     role: ShowcaseRole;
   } | null>(null);
 
-  const { data: role, isLoading, error } = useQuery({
+  const { data: role, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ["showcase-role", roleId],
     queryFn: () => fetchRoleById(roleId!),
     enabled: !!roleId,
@@ -93,7 +93,38 @@ export default function ShowcaseApplyForm() {
     );
   }
 
-  if (error || !role) {
+  // A failed fetch is NOT a closed role. These were collapsed into one branch,
+  // so a dropped connection told the applicant "this role is no longer
+  // accepting applications" — and someone who believes the job is gone does
+  // not come back and try again. The two need different words and different
+  // exits: one is retryable, the other isn't.
+  if (error) {
+    return (
+      <CandidateShell className="flex min-h-[60vh] items-center justify-center px-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="space-y-4 p-8 text-center">
+            <p className="font-display text-base font-medium text-foreground">
+              We couldn&apos;t load this role
+            </p>
+            <p className="text-sm text-muted-foreground">
+              The role is still there — the connection dropped on the way. Try again.
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+              <Button onClick={() => refetch()} disabled={isFetching} className="gap-2">
+                {isFetching && <Loader2 className="h-4 w-4 animate-spin" />}
+                {isFetching ? "Trying again" : "Try again"}
+              </Button>
+              <Button variant="ghost" onClick={() => navigate("/candidate/apply")}>
+                Enter a different code
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </CandidateShell>
+    );
+  }
+
+  if (!role) {
     return (
       <CandidateShell className="flex min-h-[60vh] items-center justify-center px-4">
         <Card className="max-w-md w-full">

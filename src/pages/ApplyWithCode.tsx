@@ -163,9 +163,22 @@ export default function ApplyWithCode() {
         .from("published_jobs_public")
         .select("id, title, description, location, job_type, experience_level, department, application_questions, quiz_questions, workflow_steps, require_resume, application_deadline, employer_id")
         .eq("job_code", normalizedCode)
-        .single();
+        .maybeSingle();
 
-      if (fetchError || !data) {
+      // `maybeSingle` so "no such code" comes back as `data === null` rather
+      // than as an error. These were collapsed together under `.single()`, so a
+      // dropped connection told the applicant their CODE was wrong — and
+      // someone who believes they mistyped will retype a perfectly good code
+      // until they give up. A lookup that failed and a code that doesn't exist
+      // need different words.
+      if (fetchError) {
+        console.error("Job code lookup failed:", fetchError);
+        setError("We couldn't check that code just now — that's on us, not your code. Try again.");
+        setPreviewJob(null);
+        return;
+      }
+
+      if (!data) {
         setError("We couldn't find a role with that code. Double-check it and try again.");
         setPreviewJob(null);
         return;
