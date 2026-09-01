@@ -100,6 +100,10 @@ interface ApplicationDetails {
     processing_mode: string | null;
     passing_score: number | null;
     workflow_steps: any[] | null;
+    /** Its own column, not part of workflow_steps. Without it the journey
+     *  builder drops the quiz and this screen quotes a smaller "of N" than
+     *  the rest of the app. */
+    quiz_questions?: unknown[] | null;
   } | null;
 }
 
@@ -167,7 +171,7 @@ export default function SalesSimulationPhase() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("applications")
-        .select("*, jobs(title, description, processing_mode, passing_score, workflow_steps)")
+        .select("*, jobs(title, description, processing_mode, passing_score, workflow_steps, quiz_questions)")
         .eq("id", id!)
         .single();
 

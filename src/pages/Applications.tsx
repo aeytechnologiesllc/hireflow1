@@ -1,6 +1,7 @@
 import { useAuth } from "@/hooks/useAuth";
 import { useCandidateApplications } from "@/hooks/useApplications";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Search,
   MapPin,
@@ -423,7 +424,7 @@ export default function Applications() {
   const isEmployer = role === "employer";
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { data: applications, isLoading, refetch } = useCandidateApplications();
+  const { data: applications, isLoading, isError, refetch } = useCandidateApplications();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter] = useState<string | null>(null);
   const [showBlueprintDialog, setShowBlueprintDialog] = useState(false);
@@ -599,6 +600,23 @@ export default function Applications() {
             <Skeleton className="h-40 w-full rounded-[14px]" />
             <Skeleton className="h-40 w-full rounded-[14px]" />
           </>
+        ) : isError ? (
+          // A failed fetch used to fall through to the empty state, which told a
+          // candidate they had never applied to anything — the most alarming
+          // possible reading of a network blip, on the screen where they check
+          // whether their applications still exist. Say what actually happened
+          // and give them the retry.
+          <div className="ck-card px-5 py-8 text-center">
+            <p className="text-[15px] font-semibold" style={{ color: "var(--ink)" }}>
+              We couldn't load your applications
+            </p>
+            <p className="mt-1.5 text-[13.5px]" style={{ color: "var(--ink-3)" }}>
+              Nothing has been lost — this is on our end. Check your connection and try again.
+            </p>
+            <Button className="mt-4" onClick={() => refetch()}>
+              Try again
+            </Button>
+          </div>
         ) : filteredApplications && filteredApplications.length > 0 ? (
           filteredApplications.map((application) => (
             <ApplicationCard

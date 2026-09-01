@@ -38,6 +38,10 @@ interface ApplicationDetails {
     processing_mode: string | null;
     passing_score: number | null;
     workflow_steps: any[] | null;
+    /** Its own column, not part of workflow_steps. Without it the journey
+     *  builder drops the quiz and this screen quotes a smaller "of N" than
+     *  the rest of the app. */
+    quiz_questions?: unknown[] | null;
   } | null;
 }
 
@@ -76,7 +80,7 @@ export default function VideoIntroPhase() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("applications")
-        .select("*, jobs(title, processing_mode, passing_score, workflow_steps)")
+        .select("*, jobs(title, processing_mode, passing_score, workflow_steps, quiz_questions)")
         .eq("id", id!)
         .single();
       if (error) throw error;
@@ -202,11 +206,35 @@ export default function VideoIntroPhase() {
       const blob = new Blob(chunksRef.current, {
         type: recordedMimeRef.current || "video/webm",
       });
+
+      // A recorder that produced nothing — a denied track, a device grabbed by
+      // another app, a stop that raced the start — used to sail through to a
+      // preview of an empty file, an upload, and a database row marked
+      // completed. The candidate believed they had recorded a video; the
+      // employer opened nothing. Send them back to try again instead.
+      if (!chunksRef.current.length || blob.size === 0) {
+        toast.error("That recording didn't capture", {
+          description: "Nothing came through from the camera — give it another go.",
+        });
+        setRecordingState("camera_preview");
+        return;
+      }
+
       setRecordedBlob(blob);
       setRecordedUrl(URL.createObjectURL(blob));
       setRecordingState("preview");
     };
-    
+
+    // Surface a recorder-level failure rather than leaving the UI in "recording"
+    // with a stopwatch running over a dead recorder.
+    mediaRecorder.onerror = (event) => {
+      console.error("MediaRecorder error:", event);
+      toast.error("The recording stopped unexpectedly", {
+        description: "Check your camera and microphone, then try again.",
+      });
+      setRecordingState("camera_preview");
+    };
+
     mediaRecorderRef.current = mediaRecorder;
     mediaRecorder.start();
     setRecordingState("recording");
@@ -243,9 +271,21 @@ export default function VideoIntroPhase() {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
+  const MIN_RECORDING_SECONDS = 3;
+
   const handleSubmit = async () => {
     if (!recordedBlob || !application || !user || isSubmitting) return;
-    
+
+    // Start-then-immediately-Stop produced a fraction-of-a-second clip that was
+    // uploaded and written as `duration: 0 … COMPLETED`, spending the
+    // candidate's one attempt on nothing. Ask for a few seconds of something.
+    if (recordingTime < MIN_RECORDING_SECONDS) {
+      toast.error("That's too short to send", {
+        description: `Record at least ${MIN_RECORDING_SECONDS} seconds so the team can actually hear you.`,
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     setRecordingState("submitting");
     

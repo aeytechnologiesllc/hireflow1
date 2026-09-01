@@ -31,7 +31,7 @@ import process from "node:process";
  * yqklrkpptnhubsnijqze, so every column access fails to resolve. Deleting or
  * gating the showcase path would clear roughly two thirds of this number at once.
  */
-const BASELINE = 195;
+const BASELINE = 191;
 
 const run = promisify(execFile);
 
