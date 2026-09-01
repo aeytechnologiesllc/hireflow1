@@ -352,6 +352,21 @@ export default function ApplicationFormPhase() {
   // blanks the whole screen with the candidate's part-finished application in
   // it. Reading notes must never be able to take a screen down.
   const notes = parseApplicationNotes(application?.notes);
+  /**
+   * Serializes read-modify-write cycles against applications.notes.
+   *
+   * Every upload rewrites the whole notes blob, so two in flight together lose
+   * one another's keys. Chaining them means each read already sees the last
+   * write. A rejected link must not break the chain, so the tail always
+   * resolves — the caller still gets the real rejection.
+   */
+  const notesWriteQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const withNotesLock = useCallback(<T,>(fn: () => Promise<T>): Promise<T> => {
+    const run = notesWriteQueue.current.then(fn, fn);
+    notesWriteQueue.current = run.catch(() => undefined);
+    return run;
+  }, []);
+
   const getLatestStoredNotes = useCallback(async () => {
     const fallbackNotes = notes || {};
 
@@ -663,25 +678,39 @@ export default function ApplicationFormPhase() {
         imageUrls = [fileName];
       }
 
-      // Store image URLs for this question in notes
-      const currentNotes = await getLatestStoredNotes();
-      const fileUploads = currentNotes.fileUploads || {};
-      fileUploads[questionId] = {
-        url: fileName,  // CRITICAL: Must be "url" not "fileUrl" - backend expects this schema
-        imageUrls: imageUrls,
-        isResume: isResumeUpload,
-      };
+      // Store image URLs for this question in notes.
+      //
+      // Serialized on purpose. This is a read-modify-write of ONE json blob
+      // that holds every question's upload: read notes, add this question's
+      // key, write the whole thing back. Two uploads in flight together both
+      // read the same snapshot, and whichever writes second erases the other's
+      // key — the file is still in storage, but nothing references it, so the
+      // employer never sees it and the candidate is told it uploaded. A
+      // candidate attaching a resume and a portfolio one after another is the
+      // ordinary case, not a rare one.
+      //
+      // The queue makes each upload's read-modify-write wait for the last, so
+      // every one of them reads a snapshot that already contains the previous.
+      await withNotesLock(async () => {
+        const currentNotes = await getLatestStoredNotes();
+        const fileUploads = (currentNotes.fileUploads as Record<string, unknown>) || {};
+        fileUploads[questionId] = {
+          url: fileName,  // CRITICAL: Must be "url" not "fileUrl" - backend expects this schema
+          imageUrls: imageUrls,
+          isResume: isResumeUpload,
+        };
 
-      const updatedNotes = {
-        ...currentNotes,
-        fileUploads,
-        // If this is a resume question, also store in resumeImageUrls
-        ...(isResumeUpload && imageUrls.length > 0 ? { resumeImageUrls: imageUrls } : {}),
-      };
-      
-      await updateApplication.mutateAsync({
-        id: id!,
-        notes: JSON.stringify(updatedNotes),
+        const updatedNotes = {
+          ...currentNotes,
+          fileUploads,
+          // If this is a resume question, also store in resumeImageUrls
+          ...(isResumeUpload && imageUrls.length > 0 ? { resumeImageUrls: imageUrls } : {}),
+        };
+
+        await updateApplication.mutateAsync({
+          id: id!,
+          notes: JSON.stringify(updatedNotes),
+        });
       });
 
       setQuestionFileUrls(prev => ({ ...prev, [questionId]: fileName }));
