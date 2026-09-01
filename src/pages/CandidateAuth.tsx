@@ -88,6 +88,18 @@ export default function CandidateAuth() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
   const [resetEmailSent, setResetEmailSent] = useState(false);
+  /**
+   * Password recovery. This page sends a reset email pointing at itself
+   * (/candidate/auth?reset=true) and then had nothing at all to receive it —
+   * no recovery detection, no new-password form, no updateUser call. A
+   * candidate who forgot their password clicked the link, landed on the
+   * sign-in form, and was locked out permanently with no way forward.
+   * The employer page (src/pages/Auth.tsx) has had this the whole time.
+   */
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
   const redirectTarget = searchParams.get("redirect");
   const safeRedirectTarget =
     redirectTarget && redirectTarget.startsWith("/") && !redirectTarget.startsWith("//")
@@ -170,6 +182,71 @@ export default function CandidateAuth() {
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [isGoogleLoading]);
+
+  // Detect password recovery. Supabase strips ?reset=true while it consumes the
+  // recovery hash, so the flag captured from the hash at page load (index.html)
+  // and the hash itself are both checked — same three signals the employer page
+  // uses, for the same reason.
+  useEffect(() => {
+    const isResetMode =
+      searchParams.get("reset") === "true" ||
+      (window as Window & { __HF_PASSWORD_RECOVERY?: boolean }).__HF_PASSWORD_RECOVERY === true ||
+      /[#&]type=recovery/.test(window.location.hash);
+
+    if (!isResetMode) return;
+
+    // Timing varies: Supabase may emit PASSWORD_RECOVERY, SIGNED_IN or
+    // INITIAL_SESSION. Any session during recovery means show the form.
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session && (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN" || event === "INITIAL_SESSION")) {
+        setIsResettingPassword(true);
+      }
+    });
+
+    // In case the event fired before this listener attached.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) setIsResettingPassword(true);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [searchParams]);
+
+  const handleSetNewPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      passwordSchema.parse(newPassword);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        toast({ variant: "warning", title: "Check your password", description: err.errors[0].message });
+        return;
+      }
+    }
+    if (newPassword !== confirmNewPassword) {
+      toast({ variant: "warning", title: "Those don't match", description: "Type the same password in both boxes." });
+      return;
+    }
+
+    setIsSavingPassword(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setIsSavingPassword(false);
+
+    if (error) {
+      console.error("Candidate password update failed:", error);
+      toast({
+        variant: "destructive",
+        title: "We couldn't change your password",
+        description: "The reset link may have expired — request a new one and try again.",
+      });
+      return;
+    }
+
+    setIsResettingPassword(false);
+    toast({ title: "Password changed", description: "You're signed in." });
+    navigate(redirectTarget || "/candidate");
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -408,7 +485,54 @@ export default function CandidateAuth() {
                 style={{ background: "var(--brass-line)" }}
               />
 
-              {showForgotPassword ? (
+              {isResettingPassword ? (
+                /* Set-a-new-password view — where the emailed reset link lands.
+                   Without this the link arrived at the sign-in form and the
+                   candidate had no way to finish the reset. */
+                <motion.div
+                  key="set-new-password"
+                  initial={reduceMotion ? false : { opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+                >
+                  <div className="mb-6">
+                    <h2 className="text-2xl font-bold text-foreground">Choose a new password</h2>
+                    <p className="text-muted-foreground text-sm mt-1">
+                      Nearly there — pick a password and we'll sign you straight in.
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleSetNewPassword} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="new-password">New password</Label>
+                      <Input
+                        id="new-password"
+                        type="password"
+                        autoComplete="new-password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        required
+                        className="h-12 text-base"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="confirm-new-password">Confirm new password</Label>
+                      <Input
+                        id="confirm-new-password"
+                        type="password"
+                        autoComplete="new-password"
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        required
+                        className="h-12 text-base"
+                      />
+                    </div>
+                    <Button type="submit" className="w-full h-12" disabled={isSavingPassword}>
+                      {isSavingPassword ? "Saving…" : "Save password and sign in"}
+                    </Button>
+                  </form>
+                </motion.div>
+              ) : showForgotPassword ? (
                 /* Forgot Password View */
                 <motion.div
                   key="forgot-password"
