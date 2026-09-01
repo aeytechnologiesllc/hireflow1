@@ -138,23 +138,52 @@ export default function InterviewRoom() {
 
           setCtx({ interviewId: data.id, otherLabel, backHref: "/interviews" });
         } else if (appId) {
-          // Candidate context — :appId is the application id; resolve its
-          // most recent interview. Kept data-minimal: no employer profile
-          // lookup here (candidates can't see raw employer profiles anyway).
-          const { data, error } = await supabase
+          // Candidate context — :appId is the application id; resolve the
+          // interview this candidate is actually meant to walk into. Kept
+          // data-minimal: no employer profile lookup here (candidates can't
+          // see raw employer profiles anyway).
+          //
+          // This used to be `.order("scheduled_at", { ascending: false }).limit(1)`
+          // with no status filter, which is wrong twice over. It took the
+          // FURTHEST-FUTURE row rather than the imminent one, and a cancelled
+          // row was eligible to win — so after a reschedule the candidate could
+          // be dropped into a call that had been called off, or into next
+          // month's slot instead of the one starting now.
+          const { data: rows, error } = await supabase
             .from("interviews")
-            .select("id")
+            .select("id, scheduled_at, duration_minutes, status")
             .eq("application_id", appId)
-            .order("scheduled_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
+            .order("scheduled_at", { ascending: true });
           if (error) throw error;
           if (cancelled) return;
-          if (!data) {
-            setLoadError("No interview is scheduled for this application yet.");
+
+          const live = (rows ?? []).filter((r) => r.status === "scheduled");
+          // The earliest interview that hasn't already finished. Walking the
+          // list in time order means a finished earlier slot steps aside for
+          // the next one instead of shadowing it.
+          const now = Date.now();
+          const GRACE_MS = 30 * 60 * 1000; // joining late is normal
+          const upcoming = live.find((r) => {
+            const start = new Date(r.scheduled_at).getTime();
+            if (Number.isNaN(start)) return false;
+            return start + (r.duration_minutes ?? 30) * 60 * 1000 + GRACE_MS > now;
+          });
+          // Nothing current — fall back to the most recent one so a candidate
+          // arriving very late still lands somewhere real.
+          const chosen = upcoming ?? live[live.length - 1];
+
+          if (!chosen) {
+            // Distinguish "called off" from "never scheduled". Telling someone
+            // nothing was ever scheduled when their interview was cancelled is
+            // its own small betrayal.
+            setLoadError(
+              (rows ?? []).length > 0
+                ? "This interview was cancelled. The hiring team will be in touch about next steps."
+                : "No interview is scheduled for this application yet.",
+            );
             return;
           }
-          setCtx({ interviewId: data.id, otherLabel: "the hiring team", backHref: `/applications/${appId}` });
+          setCtx({ interviewId: chosen.id, otherLabel: "the hiring team", backHref: `/applications/${appId}` });
         } else {
           setLoadError("Missing interview reference.");
         }

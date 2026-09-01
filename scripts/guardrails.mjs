@@ -797,6 +797,45 @@ const guards = [
     },
   },
 
+  {
+    id: "interview-room-picks-the-live-interview",
+    why:
+      "The candidate route into the interview room used to resolve the application's " +
+      "interview with `.order(\"scheduled_at\", { ascending: false }).limit(1)` and no status " +
+      "filter. That is wrong twice: it takes the FURTHEST-FUTURE row rather than the imminent " +
+      "one, and a cancelled or completed row is eligible to win. In replay it sent the " +
+      "candidate to the wrong room in four of six realistic cases — including a call that had " +
+      "been cancelled and one already finished. The room must consider only scheduled " +
+      "interviews and must walk them in ascending time order.",
+    async run() {
+      const bad = [];
+      const page = await read("src/pages/InterviewRoom.tsx");
+      if (page == null) return { ok: false, detail: ["src/pages/InterviewRoom.tsx is missing"] };
+
+      // The candidate branch only — the employer branch resolves by explicit id.
+      const m = page.match(/\} else if \(appId\) \{[\s\S]*?\n        \} else \{/);
+      if (!m) return { ok: false, detail: ["the candidate (appId) branch is gone or unrecognisable"] };
+      // Test the CODE, not the prose: the comment above this query quotes the
+      // very pattern being banned, and a guard that reads its own explanation
+      // as a violation is worse than no guard.
+      const block = m[0]
+        .split("\n")
+        .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+        .join("\n");
+
+      if (/ascending:\s*false/.test(block)) {
+        bad.push("the candidate branch orders interviews descending again — it takes the furthest-future slot, not the imminent one");
+      }
+      if (!/status\s*===\s*"scheduled"/.test(block)) {
+        bad.push("the candidate branch no longer filters to scheduled interviews — a cancelled or completed call can win");
+      }
+      if (!/\.select\([^)]*status/.test(block)) {
+        bad.push("the candidate branch stopped selecting `status`, so it cannot filter cancelled interviews out");
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
 ];
 
 /* --------------------------------------------------------------------- main */
