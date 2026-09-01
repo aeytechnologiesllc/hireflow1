@@ -1261,9 +1261,15 @@ export default function ApplicationFormPhase() {
                   onChange={(e) => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
                   placeholder="email@example.com"
                   className={cn(FIELD_CLASS, validationErrors[question.id] && "border-destructive")}
-                  onCopy={handleCopy}
-                  onPaste={handlePaste}
-                  onCut={handleCut}
+                  /* No anti-cheat on contact details. Pasting your own email is
+                     the most ordinary thing a person does on a form — it is how
+                     password managers, autofill and every phone keyboard work —
+                     and there is nothing here to cheat at. Blocking it also
+                     recorded a `paste_attempt` violation, which is counted into
+                     the employer's report, so a candidate who pasted their own
+                     address was quietly marked as someone who "might have been
+                     looking for help". Blocking it made typos MORE likely on the
+                     one field we need correct to reach them. */
                 />
               )}
 
@@ -1276,15 +1282,25 @@ export default function ApplicationFormPhase() {
                   <Input
                     id={`${fieldId}-phone`}
                     value={answers[question.id] || ""}
-                    onChange={(e) => setAnswers(prev => ({
-                      ...prev,
-                      [question.id]: formatPhoneNumber(e.target.value)
-                    }))}
+                    onChange={(e) => {
+                      // A number pasted from Contacts or a password manager
+                      // carries its country code ("+1 555-123-4567"). The
+                      // selector beside this field already holds that, and it
+                      // is prepended again at submit — while formatPhoneNumber
+                      // keeps only the first ten digits, so the leading code
+                      // shifts every digit one place left. "+1 555-123-4567"
+                      // became "+1 155-512-3456": a wrong number with the code
+                      // duplicated, and no way for the employer to call back.
+                      const dial = (phoneCountryCodes[question.id] || "+1").replace(/\D/g, "");
+                      let raw = e.target.value.replace(/\D/g, "");
+                      if (dial && raw.length > 10 && raw.startsWith(dial)) raw = raw.slice(dial.length);
+                      setAnswers(prev => ({ ...prev, [question.id]: formatPhoneNumber(raw) }));
+                    }}
                     placeholder="123-456-7890"
                     className={cn(FIELD_CLASS, "flex-1", validationErrors[question.id] && "border-destructive")}
-                    onCopy={handleCopy}
-                    onPaste={handlePaste}
-                    onCut={handleCut}
+                    /* Same as email: a phone number is contact data, not an
+                       answer. onChange still runs formatPhoneNumber, so a
+                       pasted number is normalised the same as a typed one. */
                   />
                 </div>
               )}

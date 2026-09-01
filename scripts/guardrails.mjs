@@ -885,6 +885,50 @@ const guards = [
     },
   },
 
+  {
+    id: "contact-details-are-not-an-assessment",
+    why:
+      "The application form ran its anti-cheat handlers on the email and phone fields. " +
+      "Pasting your own email is the most ordinary act on any form — it is how autofill, " +
+      "password managers and every phone keyboard work — and there is nothing to cheat at " +
+      "in a contact field. Worse, the block also recorded a `paste_attempt` violation, which " +
+      "is counted into the employer's report, so a candidate who pasted their own address was " +
+      "quietly marked as someone who might have been looking for help. The phone field has a " +
+      "second trap: the country code is prepended again at submit while formatPhoneNumber " +
+      "keeps only the first ten digits, so a pasted \"+1 555-123-4567\" was stored as " +
+      "\"+1 155-512-3456\" — a wrong number the employer cannot call back.",
+    async run() {
+      const bad = [];
+      const form = await read("src/pages/ApplicationFormPhase.tsx");
+      if (form == null) return { ok: false, detail: ["src/pages/ApplicationFormPhase.tsx is missing"] };
+
+      const blockFor = (type) => {
+        const m = form.match(new RegExp(`questionType === "${type}" && \\(([\\s\\S]*?)\\n              \\)\\}`));
+        return m ? m[1] : null;
+      };
+
+      for (const type of ["email", "phone"]) {
+        const block = blockFor(type);
+        if (block == null) {
+          bad.push(`the ${type} field block is gone or unrecognisable`);
+          continue;
+        }
+        for (const handler of ["onPaste", "onCopy", "onCut"]) {
+          // Only real JSX props count; the comment explaining the ban does not.
+          if (new RegExp(`^\\s*${handler}=\\{`, "m").test(block)) {
+            bad.push(`the ${type} field carries ${handler} again — contact details are not an assessment, and the block records a violation against the candidate`);
+          }
+        }
+      }
+
+      const phone = blockFor("phone");
+      if (phone && !/raw\.startsWith\(dial\)/.test(phone)) {
+        bad.push('the phone field no longer strips a pasted country code — "+1 555-123-4567" is stored as "+1 155-512-3456" and the employer cannot call back');
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
 ];
 
 /* --------------------------------------------------------------------- main */
