@@ -236,7 +236,17 @@ export default function QuizPhase() {
           setAnswers(progress.answers);
           setViolations(progress.violations || []);
           setQuizStartedAt(progress.startedAt || new Date().toISOString());
-          setQuestionDeadlines(progress.questionDeadlines || {});
+          // Drop deadlines that have already passed. Restoring them unfiltered
+          // meant a quiz reopened after any real gap came back with every
+          // stored deadline expired, which is the input the cascade above fed
+          // on. A question the candidate is returning to gets a fresh clock.
+          setQuestionDeadlines(
+            Object.fromEntries(
+              Object.entries(progress.questionDeadlines || {}).filter(
+                ([, iso]) => Date.parse(iso as string) > Date.now()
+              )
+            ) as Record<string, string>
+          );
           
           toast.info("Quiz progress restored", {
             description: `Continuing from question ${progress.currentQuestionIndex + 1}`,
@@ -250,9 +260,20 @@ export default function QuizPhase() {
       }
       
       setStableQuestions(fetchedQuestions);
+    }
+
+    // Mark initialized once the application has resolved, EVEN IF there are no
+    // questions. This used to sit inside the `length > 0` guard, so a quiz with
+    // zero questions left quizInitialized false forever, the render fell into
+    // the `questions.length === 0 && !quizInitialized` skeleton branch, and the
+    // candidate watched two grey bars for as long as they were willing to wait.
+    // The honest "nothing to answer here" state below it — the only branch with
+    // a Back to Application button — was unreachable code. A cleared quiz, a
+    // stale emailed link, or a step whose config.questions is [] all land here.
+    if (application && !quizInitialized) {
       setQuizInitialized(true);
     }
-  }, [fetchedQuestions, quizInitialized, QUIZ_STORAGE_KEY]);
+  }, [fetchedQuestions, quizInitialized, QUIZ_STORAGE_KEY, application]);
 
   // Save progress to localStorage whenever it changes
   useEffect(() => {
@@ -516,8 +537,15 @@ export default function QuizPhase() {
       let deadlineMs = existingDeadline ? Date.parse(existingDeadline) : Number.NaN;
 
       if (!Number.isFinite(deadlineMs)) {
-        const baseTime = lastBoundary ?? now;
-        deadlineMs = baseTime + getQuestionTimeLimit(question) * 1000;
+        // Was `lastBoundary ?? now`, which dated a question the candidate has
+        // never been shown off the PREVIOUS question's deadline. On a return
+        // visit that boundary is already in the past, so the new deadline was
+        // born expired too — and the loop then walked the same way through
+        // every remaining question, minting each one already dead, until it
+        // reached the end and submitted a blank paper. Close the tab on
+        // question 1, come back later, and the quiz was over with a permanent
+        // zero. A question's clock starts when the candidate reaches it.
+        deadlineMs = now + getQuestionTimeLimit(question) * 1000;
         workingDeadlines[question.id] = new Date(deadlineMs).toISOString();
       }
 
