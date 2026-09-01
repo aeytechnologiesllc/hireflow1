@@ -52,6 +52,12 @@ export default function VoiceInterviewPhase() {
   const [interviewResult, setInterviewResult] = useState<any>(null);
   const [showCompletionScreen, setShowCompletionScreen] = useState(false);
   const [isProcessingEnd, setIsProcessingEnd] = useState(false);
+  /** True when the results write failed. The completion screen used to render
+   *  regardless, telling a candidate their interview "has been submitted" when
+   *  nothing reached the database — they leave believing they are done and the
+   *  employer never sees it. A toast that auto-dismisses is not enough for
+   *  losing ten minutes of someone's paid interview. */
+  const [saveFailed, setSaveFailed] = useState(false);
   const [isUserEndingInterview, setIsUserEndingInterview] = useState(false); // Immediate loading when user clicks End
   const [justFinishedSpeaking, setJustFinishedSpeaking] = useState(false);
   const completionTriggeredRef = useRef(false);
@@ -268,7 +274,10 @@ export default function VoiceInterviewPhase() {
       }
     } catch (error) {
       console.error("Error saving interview result:", error);
-      toast.error("Failed to save interview results");
+      // Record it, so the completion screen tells the truth instead of
+      // congratulating them on a submission that did not happen.
+      setSaveFailed(true);
+      toast.error("We couldn't save your interview");
       // Still cleanup camera on error too
       cleanupVideo();
     } finally {
@@ -1275,13 +1284,29 @@ Duration: ${formatTime(elapsedSeconds)}
                     </>
                   ) : (
                     <>
-                      <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-r from-primary to-accent flex items-center justify-center">
-                        <CheckCircle className="h-10 w-10 text-white" />
+                      <div
+                        className="w-20 h-20 mx-auto rounded-full flex items-center justify-center"
+                        style={{
+                          background: saveFailed ? "var(--hf-gold-soft)" : undefined,
+                          border: saveFailed ? "1px solid var(--hf-gold-border)" : undefined,
+                        }}
+                      >
+                        {saveFailed ? (
+                          <AlertTriangle className="h-10 w-10" style={{ color: "var(--hf-gold)" }} />
+                        ) : (
+                          <span className="flex h-full w-full items-center justify-center rounded-full bg-gradient-to-r from-primary to-accent">
+                            <CheckCircle className="h-10 w-10 text-white" />
+                          </span>
+                        )}
                       </div>
                       <div className="space-y-2">
-                        <h2 className="text-2xl font-bold text-foreground">Interview Complete!</h2>
+                        <h2 className="text-2xl font-bold text-foreground">
+                          {saveFailed ? "We couldn't save your interview" : "Interview Complete!"}
+                        </h2>
                         <p className="text-muted-foreground max-w-md mx-auto">
-                          Your interview has been submitted! The employer is now reviewing your results and will be in touch with next steps.
+                          {saveFailed
+                            ? "You finished the interview, but it didn't reach us — so the hiring team can't see it yet. Please tell them, or try this step again. Nothing you did was your fault."
+                            : "Your interview has been submitted! The employer is now reviewing your results and will be in touch with next steps."}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           Duration: {formatTime(elapsedSeconds)}

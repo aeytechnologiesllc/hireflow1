@@ -846,8 +846,17 @@ export default function QuizPhase() {
           }
         } catch (err) {
           console.error("[QuizPhase] Backend analysis failed:", err);
-          // Keep evaluating state - backend is source of truth, no local fallback
-          setEvaluationState("evaluating");
+          // The backend stays the source of truth — we still refuse to invent a
+          // local pass or fail. But holding the candidate on the full-screen
+          // "evaluating" state was not neutrality, it was a trap: no timeout, no
+          // message, no way out, on a screen that covers everything. Their
+          // answers were already saved before this call, so the honest move is
+          // to say so and let them leave. The employer's side scores it later.
+          setEvaluationState(null);
+          toast.success("Quiz submitted", {
+            description: "Your answers are saved. Scoring is taking a moment — the hiring team will see them either way.",
+          });
+          navigate(`/applications/${id}`);
         }
       } else {
         // Manual mode - just trigger analysis in background, toast and navigate
