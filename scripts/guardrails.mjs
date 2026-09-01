@@ -747,6 +747,56 @@ const guards = [
     },
   },
 
+  {
+    id: "a-decided-application-shows-no-pending-step",
+    why:
+      "The candidate's \"Your steps\" list sits directly under the banner announcing the " +
+      "outcome, and it used to contradict it outright. A hired candidate saw the closing " +
+      "Decision stage read \"Under review\" \u2014 told they got the job, then told the decision " +
+      "was still pending \u2014 and any step the employer decided not to run still read " +
+      "\"Upcoming\", implying work left to do. A rejected candidate saw the same already-made " +
+      "Decision listed as pending. Once an application has an outcome, no row may read " +
+      "Upcoming / Under review / Up next; the Decision row must read Offer or Closed.",
+    async run() {
+      const bad = [];
+      const page = await read("src/pages/CandidateApplicationDetail.tsx");
+      if (page == null) return { ok: false, detail: ["src/pages/CandidateApplicationDetail.tsx is missing"] };
+
+      // Grab the statusText decision block from the steps list.
+      const m = page.match(/let statusText = "Upcoming";[\s\S]{0,1200}?statusText = isPendingHeld/);
+      if (!m) {
+        bad.push('the "Your steps" statusText block is gone or unrecognisable \u2014 outcome rows may have regressed');
+        return { ok: false, detail: bad };
+      }
+      const block = m[0];
+
+      // The terminal branches must exist, and must be reached before the
+      // in-progress fallback that produces the pending wording.
+      if (!/isDecisionStep && isDecided/.test(block)) {
+        bad.push("the Decision row no longer branches on the outcome \u2014 it can read Upcoming again");
+      }
+      if (!/"Offer"/.test(block) || !/"Closed"/.test(block)) {
+        bad.push("the Decision row no longer resolves to Offer / Closed");
+      }
+      // Must be a branch of its own for the NON-decision rows. Matching a bare
+      // `isHired` is not enough \u2014 the Decision branch above already mentions it,
+      // so a loose check passes while every other row falls through to the
+      // pending wording, which is exactly the bug.
+      if (!/else if \(isHired\)/.test(block)) {
+        bad.push("no hired branch for the ordinary steps \u2014 a hired candidate can still be shown a pending step");
+      }
+      if (!/else if \(isRejected\)/.test(block)) {
+        bad.push("no rejected branch for the ordinary steps \u2014 steps that will never run still read \"Upcoming\"");
+      }
+      // The naive original: a lone rejected check feeding straight into the
+      // pending wording, with no hired branch at all.
+      if (/status === "rejected" \? "Not passed" : isPendingHeld/.test(page)) {
+        bad.push("the original ternary is back \u2014 hired falls through to \"Under review\"/\"Up next\"");
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
 ];
 
 /* --------------------------------------------------------------------- main */

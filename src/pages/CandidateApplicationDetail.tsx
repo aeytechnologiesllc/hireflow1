@@ -846,14 +846,26 @@ export default function CandidateApplicationDetail() {
               const skipped =
                 isCompleted &&
                 (isEmployerSkipped(phase.id, phase.type) || isImplicitlySkipped(index, phase.id, phase.type));
+              const isDecisionStep = phase.type === "decision";
+              const isDecided = isHired || isRejected;
 
+              // A decided application has no "Upcoming". This list used to
+              // contradict the banner directly above it: a hired candidate saw
+              // the closing Decision stage read "Under review" (or "Upcoming"),
+              // and every step the employer decided not to run still read as
+              // though it were still coming. Rejected candidates got the same
+              // treatment — a "Decision" that had already been made, listed as
+              // pending. Once there is an outcome, every row must reflect it.
               let statusText = "Upcoming";
               if (skipped) statusText = "Skipped";
               else if (isCompleted) statusText = "Completed";
-              else if (isCurrent) {
+              else if (isDecisionStep && isDecided) statusText = isHired ? "Offer" : "Closed";
+              else if (isHired) {
+                // Finished it, or the employer decided before reaching it.
                 statusText =
-                  status === "rejected" ? "Not passed" : isPendingHeld ? "Under review" : "Up next";
-              }
+                  status === "pending" || status === "employer_reviewing" ? "Completed" : "Not needed";
+              } else if (isRejected) statusText = isCurrent ? "Not passed" : "Not reached";
+              else if (isCurrent) statusText = isPendingHeld ? "Under review" : "Up next";
 
               return (
                 <div key={phase.id} className="flex items-center gap-3 px-4 py-3">
@@ -863,8 +875,12 @@ export default function CandidateApplicationDetail() {
                         ? "text-[var(--brass-line)]"
                         : isCompleted
                         ? "text-[var(--jade)]"
+                        : isDecisionStep && isDecided
+                        ? isHired
+                          ? "text-[var(--jade)]"
+                          : "text-[var(--crit)]"
                         : isCurrent
-                        ? status === "rejected"
+                        ? isRejected
                           ? "text-[var(--crit)]"
                           : "text-foreground"
                         : "text-muted-foreground"
