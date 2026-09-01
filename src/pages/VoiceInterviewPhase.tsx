@@ -416,6 +416,22 @@ export default function VoiceInterviewPhase() {
     }
   }, [cameraEnabled, isPermissionGranted, getPreviewStream, interviewStarted]);
 
+  // Warn before a reload or a closed tab takes the interview down with it. The
+  // back arrow is guarded separately; this is the other half — a refresh, a
+  // swipe-close, a tapped link — which tore down the session and lost the
+  // recording with no warning at all. The browser shows its own wording here;
+  // preventDefault is what makes it appear.
+  useEffect(() => {
+    const isLive = interviewStarted && !isProcessingEnd;
+    if (!isLive) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [interviewStarted, isProcessingEnd]);
+
   // Confirm camera works
   const confirmCameraWorks = () => {
     setCameraTestPassed(true);
@@ -671,7 +687,20 @@ Duration: ${formatTime(elapsedSeconds)}
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate(`/applications/${applicationId}`)}
+            onClick={() => {
+              // Leaving mid-interview tears down the session and loses the
+              // recording — the candidate's attempt is spent and so is the
+              // money. One unguarded tap on a back arrow, on a phone, next to
+              // the edge of the screen, was all it took. Ask first, and only
+              // while it is actually live.
+              const isLive = interviewStarted && !isProcessingEnd;
+              if (isLive && !window.confirm(
+                "Leave the interview?\n\nYour interview is still recording. If you leave now it won't be saved and you'll have to start again."
+              )) {
+                return;
+              }
+              navigate(`/applications/${applicationId}`);
+            }}
             aria-label="Back to application overview"
             className="h-11 w-11 shrink-0 text-muted-foreground"
           >
