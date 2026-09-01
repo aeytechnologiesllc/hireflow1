@@ -53,6 +53,9 @@ interface UploadedFile {
   uploaded: boolean;
   compressing?: boolean;
   url?: string;
+  /** Upload failed. Without this the tile kept spinning forever on a failure,
+   *  because only the success path ever cleared `uploading`. */
+  failed?: boolean;
 }
 
 const MAX_FILES = 10;
@@ -224,8 +227,10 @@ export default function PortfolioUploadPhase() {
     });
   };
 
-  const uploadFiles = async (): Promise<string[]> => {
-    const uploadedUrls: string[] = [];
+  const uploadFiles = async (): Promise<Array<{ url: string; name: string; type: string }>> => {
+    // Each entry carries its own name and type, so the record can never be
+    // rebuilt by index against a list this one no longer lines up with.
+    const uploadedUrls: Array<{ url: string; name: string; type: string }> = [];
     
     for (let i = 0; i < files.length; i++) {
       const fileItem = files[i];
@@ -247,6 +252,14 @@ export default function PortfolioUploadPhase() {
       if (uploadError) {
         console.error("Upload error:", uploadError);
         toast.error(`Failed to upload ${fileItem.file.name}`);
+        // Clear the spinner and mark the tile failed. Without this the file
+        // kept `uploading: true` forever — a tile spinning with no error, no
+        // retry and no explanation — because only the success path reset it.
+        setFiles(prev => prev.map(f =>
+          f.id === fileItem.id ? { ...f, uploading: false, uploaded: false, failed: true } : f
+        ));
+        // Advance the bar on failure too, or it stalls at the first bad file.
+        setUploadProgress(((i + 1) / files.length) * 100);
         continue;
       }
 
@@ -254,15 +267,24 @@ export default function PortfolioUploadPhase() {
         .from("portfolios")
         .getPublicUrl(fileName);
 
-      uploadedUrls.push(urlData.publicUrl);
-      
-      setFiles(prev => prev.map(f => 
+      // Carry the name and type WITH the url. The caller used to rebuild these
+      // as `uploadedUrls.map((url, i) => ({ url, name: files[i].file.name }))`,
+      // but `continue` compacts uploadedUrls while `files` keeps its holes — so
+      // after any mid-list failure every surviving file was saved under the
+      // wrong filename and mime type. Pairing them here makes that impossible.
+      uploadedUrls.push({
+        url: urlData.publicUrl,
+        name: fileItem.file.name,
+        type: fileItem.file.type || "unknown",
+      });
+
+      setFiles(prev => prev.map(f =>
         f.id === fileItem.id ? { ...f, uploading: false, uploaded: true, url: urlData.publicUrl } : f
       ));
-      
+
       setUploadProgress(((i + 1) / files.length) * 100);
     }
-    
+
     return uploadedUrls;
   };
 
@@ -293,6 +315,26 @@ export default function PortfolioUploadPhase() {
         throw new Error("No files were uploaded successfully");
       }
 
+      // A PARTIAL failure used to sail straight through to a record written
+      // `completed: true`, which makes the phase permanently unrecoverable via
+      // PhaseAlreadySubmitted — a work sample silently dropped and no way to
+      // add it back. Ask before spending the one submission they get.
+      const failedCount = files.length - uploadedUrls.length;
+      if (failedCount > 0) {
+        const proceed = window.confirm(
+          `${failedCount} of your ${files.length} files didn't upload.\n\n` +
+            `Submit with just the ${uploadedUrls.length} that worked? ` +
+            `You won't be able to add the others afterwards.\n\n` +
+            `Cancel to try those files again.`
+        );
+        if (!proceed) {
+          setIsSubmitting(false);
+          setIsAnalyzing(false);
+          setUploadProgress(0);
+          return;
+        }
+      }
+
       // Analyze portfolio with AI
       setIsAnalyzing(true);
       
@@ -320,11 +362,9 @@ export default function PortfolioUploadPhase() {
       // Save phase data (NO local pass/fail decision - backend decides)
       const portfolioResult = {
         type: "portfolio_upload",
-        files: uploadedUrls.map((url, i) => ({
-          url,
-          name: files[i]?.file.name || `file-${i}`,
-          type: files[i]?.file.type || "unknown",
-        })),
+        // Already paired at upload time — never re-indexed against `files`,
+        // which is what mislabelled every surviving file after a failure.
+        files: uploadedUrls,
         uploadedAt: new Date().toISOString(),
         completed: true,
         aiAnalysis,

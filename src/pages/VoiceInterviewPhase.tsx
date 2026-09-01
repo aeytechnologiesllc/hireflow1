@@ -527,8 +527,22 @@ export default function VoiceInterviewPhase() {
     }
   }, [isConnected, interviewStarted, cameraTestPassed, isRecording, startRecording, getAvaAudioElement]);
 
-  const endInterview = () => {
+  const endInterview = async () => {
     setIsUserEndingInterview(true); // Show loading immediately
+
+    // If the connection has already gone, there is nobody to ask for a closing
+    // sentence — asking anyway just burns the 12s fallback while the candidate
+    // waits. Save what exists immediately instead. Nothing reaches the database
+    // until handleInterviewEnd runs, so before this branch a candidate who lost
+    // signal mid-interview had no way to keep the transcript and recording they
+    // had just spent ten minutes producing.
+    if (!isConnected) {
+      clearFallbackEndTimeout();
+      await disconnect().catch(() => {});
+      await handleInterviewEnd(buildManualEndEvaluation());
+      return;
+    }
+
     sendSystemInstruction(
       "The candidate clicked the End Interview button. Conclude immediately with one brief closing sentence, then call end_interview right away. Do not push back, do not ask more questions, and do not wait for a reply.",
     );
@@ -1098,7 +1112,14 @@ Duration: ${formatTime(elapsedSeconds)}
                   <Button
                     variant="destructive"
                     onClick={endInterview}
-                    disabled={!isConnected}
+                    // Was disabled={!isConnected}, which greyed out the ONLY
+                    // control that writes the interview to the database at
+                    // exactly the moment a candidate needs it — when the
+                    // connection drops. The stalled-connection panel below even
+                    // points at "the always-visible End Interview button
+                    // above". It is genuinely always available now; the handler
+                    // saves whatever exists when there is no connection left.
+                    disabled={!interviewStarted || isProcessingEnd}
                     className="gap-2"
                   >
                     <PhoneOff className="h-4 w-4" />
