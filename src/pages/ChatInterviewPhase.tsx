@@ -506,7 +506,9 @@ export default function ChatInterviewPhase() {
 
     } catch (error) {
       console.error("Chat interview error:", error);
-      toast.error(error instanceof Error ? error.message : "That message didn't send — please try again.");
+      // Candidates get our sentence, not the edge function's raw error string.
+      console.error("Chat interview message failed:", error);
+      toast.error("That message didn't send — please try again.");
     } finally {
       setIsTyping(false);
       // Auto-focus the input after Ava responds

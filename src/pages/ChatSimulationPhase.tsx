@@ -416,7 +416,13 @@ export default function ChatSimulationPhase() {
 
     } catch (error) {
       console.error("Chat simulation error:", error);
-      toast.error(error instanceof Error ? error.message : "That didn't come through — give it another try.");
+      // The raw message here comes from the edge function, so preferring it
+      // showed candidates backend internals (rate limits, provider errors) and
+      // used our own plain-English copy only when the throw was NOT an Error —
+      // exactly backwards. The candidate gets the sentence; the console keeps
+      // the detail for debugging.
+      console.error("Chat simulation message failed:", error);
+      toast.error("That didn't come through — give it another try.");
     } finally {
       setIsTyping(false);
       // Auto-focus the input after customer responds
@@ -523,7 +529,8 @@ export default function ChatSimulationPhase() {
 
     } catch (error) {
       console.error("Chat simulation error:", error);
-      toast.error(error instanceof Error ? error.message : "Couldn't start the conversation — give it another try.");
+      console.error("Chat simulation failed to start:", error);
+      toast.error("Couldn't start the conversation — give it another try.");
     } finally {
       setIsTyping(false);
       // Auto-focus the input after initial customer message

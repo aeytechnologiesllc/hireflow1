@@ -214,6 +214,42 @@ const guards = [
   },
 
   {
+    id: "candidates-never-see-a-raw-error",
+    why:
+      "All three conversational screens, and the video upload, wrote " +
+      "toast.error(error instanceof Error ? error.message : \"<plain English>\"). That reads as " +
+      "careful and is exactly backwards: error.message here is the edge function's own string, so " +
+      "a candidate was shown provider rate limits and API errors, and our written sentence was " +
+      "used ONLY when the throw was not an Error. A candidate cannot act on a stack of backend " +
+      "internals — they need to know whether their work survived and what to do next. Log the " +
+      "detail, show the sentence.",
+    async run() {
+      const CANDIDATE_SCREENS = [
+        "src/pages/ApplicationFormPhase.tsx", "src/pages/QuizPhase.tsx",
+        "src/pages/TypingTestPhase.tsx", "src/pages/VideoIntroPhase.tsx",
+        "src/pages/PortfolioUploadPhase.tsx", "src/pages/ChatSimulationPhase.tsx",
+        "src/pages/ChatInterviewPhase.tsx", "src/pages/SalesSimulationPhase.tsx",
+        "src/pages/VoiceInterviewPhase.tsx", "src/pages/ApplyWithCode.tsx",
+        "src/pages/ShowcaseApplyForm.tsx", "src/pages/CandidateContinue.tsx",
+        "src/pages/Applications.tsx", "src/pages/CandidateApplicationDetail.tsx",
+      ];
+      const bad = [];
+      for (const rel of CANDIDATE_SCREENS) {
+        const text = await read(rel);
+        if (text == null) continue;
+        text.split("\n").forEach((line, i) => {
+          if (line.trim().startsWith("//")) return;
+          // The tell: a raw thrown message chosen in preference to written copy.
+          if (/instanceof Error\s*\?\s*\w+\.message/.test(line)) {
+            bad.push(`${rel}:${i + 1} shows a raw error message to a candidate — log it and show a written sentence instead`);
+          }
+        });
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
+  {
     id: "no-dead-project-ref",
     why:
       "kcotpxlggfvgclwksmhl is a dead Supabase project. It was copied out of CLAUDE.md " +

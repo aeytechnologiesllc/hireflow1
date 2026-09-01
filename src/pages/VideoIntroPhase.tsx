@@ -531,8 +531,11 @@ export default function VideoIntroPhase() {
         // Verification failed, show original error
       }
       
+      // Storage and edge-function errors are not sentences a candidate can act
+      // on. Keep the detail in the console; tell them what to do instead.
+      console.error("Video intro upload failed:", error);
       toast.error("That didn't upload", {
-        description: error instanceof Error ? error.message : "Please try again.",
+        description: "Your recording is still here — check your connection and try again.",
       });
       setRecordingState("preview");
       setEvaluationState(null);

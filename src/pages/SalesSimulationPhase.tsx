@@ -409,7 +409,9 @@ export default function SalesSimulationPhase() {
 
     } catch (error) {
       console.error("Sales simulation error:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to get prospect response");
+      // Candidates get our sentence, not the edge function's raw error string.
+      console.error("Sales simulation message failed:", error);
+      toast.error("That didn't come through — give it another try.");
     } finally {
       setIsTyping(false);
       // Auto-focus the input after prospect responds
@@ -518,7 +520,8 @@ export default function SalesSimulationPhase() {
 
     } catch (error) {
       console.error("Sales simulation error:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to start simulation");
+      console.error("Sales simulation failed to start:", error);
+      toast.error("Couldn't start the conversation — give it another try.");
     } finally {
       setIsTyping(false);
       // Auto-focus the input after initial prospect message

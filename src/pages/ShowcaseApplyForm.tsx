@@ -73,7 +73,13 @@ export default function ShowcaseApplyForm() {
       setStep("save");
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not submit application");
+      // This is the accountless applicant submitting — the highest-stakes
+      // moment on the candidate side. A raw database or edge-function string
+      // tells them nothing about whether their application survived.
+      console.error("Accountless application submit failed:", err);
+      toast.error("We couldn't send that", {
+        description: "Nothing was lost — check your connection and try again.",
+      });
     } finally {
       setSubmitting(false);
     }
