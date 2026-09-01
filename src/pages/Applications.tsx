@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/dialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImprovementBlueprintCard } from "@/components/ImprovementBlueprintCard";
+import { BLUEPRINT_PRICE_FORMATTED } from "@/hooks/useImprovementBlueprint";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 import {
   getApplicationDisplayState,
@@ -345,7 +346,13 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
             style={{ borderColor: "var(--brass-line)", color: "var(--brass)" }}
           >
             <Download className="h-4 w-4" />
-            Get Feedback Report
+            {/* The price belongs on the button, not behind it. This said "Get
+                Feedback Report" and opened a $1.99 payment wall — shown to
+                someone who has just been turned down for a job. Concealing a
+                charge until after the click is a dark pattern anywhere; here it
+                lands on a person at their least able to shrug it off. Whether
+                to charge at all is a pricing decision; hiding it is not. */}
+            Get Feedback Report — {BLUEPRINT_PRICE_FORMATTED}
           </button>
         )}
 

@@ -1061,6 +1061,38 @@ const guards = [
     },
   },
 
+  {
+    id: "a-paid-thing-says-so-before-the-click",
+    why:
+      "\"Get Feedback Report\" sat on a rejected candidate's application and opened a $1.99 " +
+      "payment wall. Nothing on the button said it cost anything. Concealing a charge until " +
+      "after the click is a dark pattern anywhere; here it lands on someone who has just been " +
+      "turned down for a job, at the moment they are least able to shrug it off. Whether to " +
+      "charge for this at all is a pricing decision and not this guard's business — saying so " +
+      "up front is not optional. If the blueprint is behind a payment, the control that opens " +
+      "it must carry the price.",
+    async run() {
+      const bad = [];
+      const card = await read("src/components/ImprovementBlueprintCard.tsx");
+      const hook = await read("src/hooks/useImprovementBlueprint.ts");
+      // Only applies while the blueprint actually costs money.
+      const isPaid = !!hook && /BLUEPRINT_PRICE_CENTS\s*=\s*([1-9]\d*)/.test(hook) &&
+                     !!card && /purchaseBlueprint|hasPurchased/.test(card);
+      if (!isPaid) return { ok: true };
+
+      const list = await read("src/pages/Applications.tsx");
+      if (list == null) return { ok: false, detail: ["src/pages/Applications.tsx is missing"] };
+
+      const m = list.match(/Get Feedback Report[^\n<]*/);
+      if (!m) {
+        bad.push("the blueprint button's label changed — re-check that it still names the price");
+      } else if (!/BLUEPRINT_PRICE_FORMATTED|\$\d/.test(m[0])) {
+        bad.push(`the blueprint button hides its price: "${m[0].trim()}" opens a paid wall with no price on it`);
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
 ];
 
 /* --------------------------------------------------------------------- main */
