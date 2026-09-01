@@ -29,14 +29,11 @@ import type {
   TeamMember as CockpitTeamMember,
 } from "../data";
 
-export function parseApplicationNotes(notes: string | null): Record<string, unknown> {
-  if (!notes) return {};
-  try {
-    return JSON.parse(notes) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
-}
+// Moved to src/lib/applicationNotes.ts so the candidate screens can use it
+// without reaching into the cockpit layer — they were parsing notes by hand,
+// one of them during render. Re-exported here so employer imports are unchanged.
+import { parseApplicationNotes } from "@/lib/applicationNotes";
+export { parseApplicationNotes };
 
 export function getInitials(name: string | null | undefined, email?: string | null): string {
   if (name?.trim()) {

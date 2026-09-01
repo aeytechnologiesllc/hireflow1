@@ -42,6 +42,7 @@ import { isImageResumeUrl, isPdfResumeUrl, isSupportedResumeFile, isSupportedRes
 import { resolveResumeUrl } from "@/utils/resumeSignedUrl";
 import { GlyphLetter } from "@/components/candidate/glyphs";
 import { buildCandidateJourney, DECISION_STAGE_ID } from "@/lib/candidateJourney";
+import { parseApplicationNotes } from "@/lib/applicationNotes";
 
 // A slim brass rule across the top of a card — the letterhead mark
 // (Founder's Law: "the dialogues feel empty and boring").
@@ -346,8 +347,11 @@ export default function ApplicationFormPhase() {
 
   const journeyProgressPct = Math.round(((journeyStep.index + 1) / Math.max(journeyStep.total, 1)) * 100);
 
-  // Parse notes to check if already submitted
-  const notes = application?.notes ? JSON.parse(application.notes) : {};
+  // Parse notes to check if already submitted. This runs during RENDER, so a
+  // bare JSON.parse here throws inside the render pass on any malformed row and
+  // blanks the whole screen with the candidate's part-finished application in
+  // it. Reading notes must never be able to take a screen down.
+  const notes = parseApplicationNotes(application?.notes);
   const getLatestStoredNotes = useCallback(async () => {
     const fallbackNotes = notes || {};
 
@@ -382,7 +386,10 @@ export default function ApplicationFormPhase() {
       return fallbackNotes;
     }
   }, [id, notes]);
-  const hasApplicationAnswers = !!(notes.applicationAnswers && notes.applicationAnswers.length > 0);
+  // notes is now typed rather than `any`, which surfaced that this assumed
+  // applicationAnswers is an array without checking. A malformed row could put
+  // anything here, so ask.
+  const hasApplicationAnswers = Array.isArray(notes.applicationAnswers) && notes.applicationAnswers.length > 0;
   
   // If application was reconsidered (status reset to pending), allow re-submission
   const isReconsidered = application?.status === "pending" && 
