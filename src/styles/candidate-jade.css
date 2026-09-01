@@ -1,14 +1,27 @@
-/* Deep Jade — candidate-facing surfaces (NO AI language in copy; visual only) */
+/* Candidate-facing surfaces (NO AI language in copy; visual only).
+ *
+ * This file used to define its own palette — a deep jade ground at hue 156 with
+ * no Day variant at all. That made it a THIRD theme sitting alongside Paper and
+ * Ink: the accountless screens (the portal landing, the code entry, the apply
+ * form, the return-by-phone page) were locked dark whatever the rest of the app
+ * was doing, and locked to a different dark than Night's #17140F. It is also
+ * the literal "green bath" — every surface on hue 150-156, which is the thing
+ * the palette was rebuilt to stop.
+ *
+ * The --cand-* names are kept because sixty-odd class usages read them, but
+ * they are now aliases onto the app's real tokens. One indirection, and the
+ * whole accountless surface follows Day and Night like everything else.
+ */
 
 .cand-root {
-  --cand-bg: hsl(156 22% 5%);
-  --cand-surface: hsl(156 18% 8%);
-  --cand-surface-raised: hsl(156 16% 11%);
-  --cand-border: hsl(150 12% 16% / 0.85);
-  --cand-text: hsl(150 30% 92%);
-  --cand-muted: hsl(150 12% 58%);
-  --cand-brass: hsl(38 64% 62%);
-  --cand-jade: hsl(152 46% 52%);
+  --cand-bg: var(--hf-bg);
+  --cand-surface: var(--hf-surface);
+  --cand-surface-raised: var(--hf-surface-raised);
+  --cand-border: var(--hf-border);
+  --cand-text: var(--hf-text);
+  --cand-muted: var(--hf-text-muted);
+  --cand-brass: var(--hf-gold);
+  --cand-jade: var(--hf-green);
   min-height: 100dvh;
   background: var(--cand-bg);
   color: var(--cand-text);
@@ -27,7 +40,8 @@
   background: var(--cand-surface-raised);
   border: 1px solid var(--cand-border);
   border-radius: 1rem;
-  box-shadow: 0 12px 40px hsl(156 30% 2% / 0.45);
+  /* Was a near-black drop shadow, which is a smudge on ivory. */
+  box-shadow: var(--hf-shadow-raised);
 }
 
 .cand-btn-primary {
@@ -41,8 +55,12 @@
   font-weight: 600;
   /* Jade, not brass — this is a free action (apply/continue), and brass is
      reserved for anything that costs money. */
-  background: linear-gradient(180deg, hsl(152 46% 52%), hsl(152 46% 40%));
-  color: hsl(150 30% 10%);
+  /* Flat jade, and a foreground that FLIPS with the theme. The old pairing was
+     a fixed near-black label, which is legible on Night's light jade (#4FBF95)
+     and unreadable on Day's dark jade (#0F6B4F) — the primary action on the
+     accountless screens was dark-on-dark in Day. */
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
   border: none;
   transition: transform 110ms cubic-bezier(0.4, 0, 0.2, 1), filter 110ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 110ms cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -73,7 +91,7 @@
 }
 
 .cand-btn-ghost:hover {
-  border-color: hsl(150 12% 26%);
+  border-color: var(--hf-border-strong);
   color: var(--cand-text);
   transform: translateY(-1px);
 }
@@ -86,7 +104,8 @@
   width: 100%;
   border-radius: 0.75rem;
   border: 1px solid var(--cand-border);
-  background: hsl(156 20% 7%);
+  /* Was a near-black fill, so on ivory the candidate typed into a black box. */
+  background: var(--hf-surface-strong);
   color: var(--cand-text);
   padding: 0.75rem 1rem;
   font-size: 0.875rem;
@@ -94,8 +113,8 @@
 }
 
 .cand-input:focus {
-  border-color: hsl(152 40% 38%);
-  box-shadow: 0 0 0 2px hsl(152 46% 40% / 0.2);
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.25);
 }
 
 .cand-kicker {
