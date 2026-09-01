@@ -928,8 +928,16 @@ const guards = [
       if (job == null) {
         bad.push("src/pages/JobDetails.tsx is missing");
       } else {
-        if (/if \(loadError \|\| !job\)/.test(job)) {
-          bad.push('JobDetails tells a stranger the role is gone when the request merely failed');
+        // ANY `loadError || !x` collapse, not just the one already fixed. The
+        // first fix here split `loadError || !job` into two branches but left
+        // an EARLIER `loadError || !activeRole` standing above them — and since
+        // activeRole IS job outside showcase mode, that early branch swallowed
+        // every hireflow visitor and made the split unreachable. A guard that
+        // named only the variable it had just fixed could not see that.
+        const collapse = job.split("\n").filter((l) => !l.trim().startsWith("//"))
+          .join("\n").match(/if \(loadError \|\| ![A-Za-z]+\)/g);
+        if (collapse) {
+          bad.push(`JobDetails collapses a failed request into "not found" again: ${[...new Set(collapse)].join(", ")}`);
         }
         // Strip comments before matching: the comment on this very query
         // quotes `.single()` while explaining why it is banned, and a guard

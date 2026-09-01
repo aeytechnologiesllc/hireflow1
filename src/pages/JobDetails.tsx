@@ -242,26 +242,6 @@ export default function JobDetails() {
     );
   }
 
-  if (loadError || !activeRole) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Card className="bg-card border-border max-w-md">
-          <CardContent className="p-8 text-center">
-            <GlyphJobPost size={48} className="mx-auto mb-4 opacity-60" style={{ color: "var(--hf-text-muted)" }} />
-            <h2 className="text-xl font-semibold text-foreground mb-2">Job Not Found</h2>
-            <p className="text-muted-foreground mb-4">
-              This job may no longer be available or the link is invalid.
-            </p>
-            <Button onClick={() => navigate(applyEntryRoute)}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Apply
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   if (isShowcase && showcaseRole) {
     return (
       <div className="max-w-4xl mx-auto space-y-6 px-4 py-6">
@@ -300,6 +280,13 @@ export default function JobDetails() {
   // from a shared link. Collapsing the two told someone whose connection
   // blipped that the role was gone — and then offered them, as their only way
   // forward, a page that asks for a job code they have never had.
+  // ONE pair of branches, covering both the showcase and hireflow queries via
+  // `activeRole`. There used to be a second, earlier `if (loadError ||
+  // !activeRole)` above `isLoading`'s sibling that collapsed both cases into a
+  // single "Job Not Found" card — and because `activeRole` IS `job` outside
+  // showcase mode, it intercepted every hireflow visitor and made this pair
+  // unreachable. Splitting the cases below while that stood meant the split
+  // never actually ran.
   if (loadError) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -324,7 +311,7 @@ export default function JobDetails() {
     );
   }
 
-  if (!job) {
+  if (!activeRole) {
     return (
       <div className="flex items-center justify-center h-full">
         <Card className="bg-card border-border max-w-md">
