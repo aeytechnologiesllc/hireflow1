@@ -413,8 +413,12 @@ export default function PortfolioUploadPhase() {
           
           if (analysisError) {
             console.error("[PortfolioUploadPhase] AVA analysis error:", analysisError);
-            // Keep evaluating state - backend is source of truth
-            setEvaluationState("evaluating");
+            // See the catch below — same reasoning, same honest exit.
+            setEvaluationState(null);
+            toast.success("Portfolio submitted", {
+              description: "Your work is uploaded. Scoring is taking a moment — the hiring team will see it either way.",
+            });
+            navigate(`/applications/${id}`);
           } else {
             // Backend decides pass/fail based on weighted ai_score vs passing_score
             const decision = analysisResult?.decision;
@@ -433,14 +437,31 @@ export default function PortfolioUploadPhase() {
               if (updatedApp?.status === "rejected") {
                 setEvaluationState("failed");
               } else {
-                setEvaluationState("passed");
+                // Was setEvaluationState("passed") — so ANY state this branch
+                // did not recognise (still pending, null, a status added later)
+                // showed the candidate a celebration screen saying they had
+                // passed. Nothing decided that. The backend is the only thing
+                // allowed to call an outcome, and when it has not called one
+                // yet the honest answer is that the work is in.
+                setEvaluationState(null);
+                toast.success("Portfolio submitted", {
+                  description: "Your work is uploaded. The hiring team will review it.",
+                });
+                navigate(`/applications/${id}`);
               }
             }
           }
         } catch (err) {
           console.error("[PortfolioUploadPhase] Backend analysis failed:", err);
-          // Keep evaluating state - backend is source of truth, no local fallback
-          setEvaluationState("evaluating");
+          // Same trap the quiz had: refusing to invent a local result is right,
+          // but holding the candidate on a full-screen "evaluating" with no
+          // timeout and no way out is not neutrality. The upload already
+          // succeeded above, so say so and let them go.
+          setEvaluationState(null);
+          toast.success("Portfolio submitted", {
+            description: "Your work is uploaded. Scoring is taking a moment — the hiring team will see it either way.",
+          });
+          navigate(`/applications/${id}`);
         }
       } else {
         // Manual mode - just trigger analysis in background, toast and navigate
