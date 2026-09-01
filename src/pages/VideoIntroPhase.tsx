@@ -63,6 +63,10 @@ export default function VideoIntroPhase() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  /** The container the browser actually recorded in — webm on Chrome, mp4 on
+   *  iOS Safari. Drives the blob type, the file extension and the upload
+   *  content type, so a recording is never mislabelled on the way to storage. */
+  const recordedMimeRef = useRef<string>("");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch application details - force refetch on mount to handle reconsider workflow
@@ -159,14 +163,44 @@ export default function VideoIntroPhase() {
     if (!streamRef.current) return;
     
     chunksRef.current = [];
-    const mediaRecorder = new MediaRecorder(streamRef.current, { mimeType: "video/webm" });
-    
+
+    // Probe in preference order rather than forcing a container. iOS Safari
+    // supports neither 'video/webm' nor 'audio/webm', and passing an
+    // unsupported mimeType to the MediaRecorder constructor throws
+    // NotSupportedError — which was uncaught here, so on an iPhone the
+    // recording simply never started and the candidate got no error either.
+    // These are hourly workers on phones; this was most of them.
+    // Same negotiation as useVideoInterviewRecorder.ts, which already had it.
+    const candidates = [
+      "video/webm;codecs=vp9,opus",
+      "video/webm;codecs=vp8,opus",
+      "video/webm",
+      "video/mp4",
+    ];
+    const preferred = candidates.find((t) => MediaRecorder.isTypeSupported(t));
+
+    let mediaRecorder: MediaRecorder;
+    try {
+      mediaRecorder = new MediaRecorder(
+        streamRef.current,
+        preferred ? { mimeType: preferred } : {}
+      );
+    } catch {
+      // Last resort: let the browser choose its own container entirely.
+      mediaRecorder = new MediaRecorder(streamRef.current);
+    }
+    // What the browser actually gave us — not what we asked for. The blob, the
+    // file extension and the upload content type all follow this.
+    recordedMimeRef.current = mediaRecorder.mimeType || preferred || "";
+
     mediaRecorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunksRef.current.push(e.data);
     };
-    
+
     mediaRecorder.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: "video/webm" });
+      const blob = new Blob(chunksRef.current, {
+        type: recordedMimeRef.current || "video/webm",
+      });
       setRecordedBlob(blob);
       setRecordedUrl(URL.createObjectURL(blob));
       setRecordingState("preview");
@@ -229,11 +263,16 @@ export default function VideoIntroPhase() {
       if (isAutoMode) {
         setEvaluationState("evaluating");
       }
-      // 1. Upload video
-      const fileName = `${user.id}/${id}-${stepId}-${Date.now()}.webm`;
+      // 1. Upload video. Name and label it with what the browser ACTUALLY
+      // recorded — an iOS recording is mp4, and storing it as .webm with a
+      // video/webm content type produces a file nothing will play back for the
+      // employer, which is a silent loss of the candidate's work.
+      const recordedMime = recordedBlob.type || recordedMimeRef.current || "video/webm";
+      const extension = recordedMime.includes("mp4") ? "mp4" : "webm";
+      const fileName = `${user.id}/${id}-${stepId}-${Date.now()}.${extension}`;
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from("videos")
-        .upload(fileName, recordedBlob, { contentType: "video/webm" });
+        .upload(fileName, recordedBlob, { contentType: recordedMime.split(";")[0] });
 
       if (uploadError) {
         throw new Error(`Upload failed: ${uploadError.message}`);

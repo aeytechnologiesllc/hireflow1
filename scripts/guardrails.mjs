@@ -184,6 +184,36 @@ const guards = [
   },
 
   {
+    id: "media-recording-negotiates-its-container",
+    why:
+      "iOS Safari supports neither video/webm nor audio/webm, and passing an unsupported mimeType " +
+      "to the MediaRecorder constructor throws NotSupportedError. VideoIntroPhase hardcoded " +
+      "mimeType: 'video/webm' with no try/catch, so on an iPhone the recording never started and " +
+      "the candidate got no error either — these are hourly workers on phones, so that was most of " +
+      "them. The audio twin of this bug was already fixed once in useVideoInterviewRecorder.ts. " +
+      "Every MediaRecorder must probe with isTypeSupported and fall back to the browser default, " +
+      "and the upload must be labelled with what was ACTUALLY recorded — an mp4 stored as .webm is " +
+      "a file the employer cannot play, which loses the candidate's work silently.",
+    async run() {
+      const files = await sources([".ts", ".tsx"]);
+      const bad = [];
+      for (const { rel, text } of files) {
+        if (!text.includes("new MediaRecorder")) continue;
+        // A literal container passed straight to the constructor.
+        const forced = [...text.matchAll(/new MediaRecorder\([^)]*mimeType:\s*["'`]([^"'`]+)/g)];
+        for (const m of forced) {
+          bad.push(`${rel} forces mimeType "${m[1]}" into the MediaRecorder constructor — probe with isTypeSupported instead`);
+        }
+        // Any file constructing a recorder should be negotiating.
+        if (!/isTypeSupported/.test(text)) {
+          bad.push(`${rel} constructs a MediaRecorder without calling MediaRecorder.isTypeSupported`);
+        }
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
+  {
     id: "no-dead-project-ref",
     why:
       "kcotpxlggfvgclwksmhl is a dead Supabase project. It was copied out of CLAUDE.md " +
