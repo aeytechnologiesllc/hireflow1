@@ -105,8 +105,9 @@ const phaseInfoMap: Record<PhaseType, PhaseInfo> = {
   chat_interview: {
     icon: GlyphLetter,
     title: "Interview Conversation",
+    // Candidate-facing: never name Ava, never say AI. See rule 1.
     description:
-      "Have a text-based conversation about your experience and qualifications. Ava will guide you through interview questions.",
+      "A written conversation about your experience and what you have done. You will be asked a few questions, one at a time.",
     duration: "15-20 minutes",
     tips: [
       "Take your time to compose thoughtful responses",
@@ -116,9 +117,12 @@ const phaseInfoMap: Record<PhaseType, PhaseInfo> = {
   },
   voice_interview: {
     icon: Mic,
-    title: "Voice Interview with Ava",
+    // Candidate-facing: never name Ava, never say AI. See rule 1. This card is
+    // shown immediately before the step, so it is the single most-read piece of
+    // copy on the candidate side — and it was saying "our AI assistant".
+    title: "Voice Interview",
     description:
-      "Have a real-time voice conversation with Ava, our AI assistant. This gives the team deeper insight into your communication skills.",
+      "A spoken conversation about your experience, out loud instead of typed. It gives the team a better sense of how you explain your work.",
     duration: "10-15 minutes",
     tips: [
       "Find a quiet space with a good internet connection",

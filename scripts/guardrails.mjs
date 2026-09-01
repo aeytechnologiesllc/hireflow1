@@ -126,6 +126,64 @@ const guards = [
   },
 
   {
+    id: "candidates-never-learn-a-machine-is-involved",
+    why:
+      "Rule 1, and the most-repeatedly-violated rule in this repo. A candidate must never read " +
+      "that a machine is involved — employer copy may name Ava freely, candidate copy may not. " +
+      "It shipped again on the two most-read candidate surfaces: PhaseContextCard, the card shown " +
+      "immediately before every step, said 'Voice Interview with Ava' and 'Ava, our AI assistant'; " +
+      "EvaluationScreen, shown after the quiz, the typing test and the application form, said the " +
+      "employer 'may invite you to an Ava Interview'.",
+    async run() {
+      // Screens and components a CANDIDATE actually reads. Employer surfaces are
+      // deliberately absent — they are allowed to name Ava.
+      const CANDIDATE_FILES = [
+        "src/pages/CandidatePortalLanding.tsx", "src/pages/CandidateAuth.tsx",
+        "src/pages/ApplyWithCode.tsx", "src/pages/ShowcaseApplyForm.tsx",
+        "src/pages/JobDetails.tsx", "src/pages/Applications.tsx",
+        "src/pages/CandidateApplicationDetail.tsx", "src/pages/CandidateContinue.tsx",
+        "src/pages/ApplicationFormPhase.tsx", "src/pages/QuizPhase.tsx",
+        "src/pages/TypingTestPhase.tsx", "src/pages/VideoIntroPhase.tsx",
+        "src/pages/PortfolioUploadPhase.tsx", "src/pages/ChatSimulationPhase.tsx",
+        "src/pages/ChatInterviewPhase.tsx", "src/pages/SalesSimulationPhase.tsx",
+        "src/pages/VoiceInterviewPhase.tsx", "src/pages/InterviewRoom.tsx",
+        "src/components/EvaluationScreen.tsx", "src/components/PhaseContextCard.tsx",
+        "src/components/candidate/SaveProgressPrompt.tsx",
+      ];
+      // Words that give the machine away, inside a user-visible string literal.
+      const TELL = /\b(Ava|AI|artificial intelligence|chatbot|automated|algorithm)\b/;
+      const bad = [];
+      for (const rel of CANDIDATE_FILES) {
+        const text = await read(rel);
+        if (text == null) continue; // a screen that no longer exists is not a violation
+        const lines = text.split("\n");
+        lines.forEach((line, i) => {
+          const trimmed = line.trim();
+          // Comments, imports and identifiers are not what a candidate reads.
+          if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("import ")) return;
+          // Explicit, documented opt-out for text that lives on a candidate
+          // SCREEN file but is only ever read by the employer — scorecard
+          // summaries, concerns, notes written to the database. Must be marked
+          // deliberately, on the line or the one above it, so the exception is
+          // a decision someone made rather than a hole in the rule.
+          // Look back a few lines: the marker sits on the comment above the
+          // property, and a multi-line string starts a line or two below that.
+          const context = lines.slice(Math.max(0, i - 5), i + 1).join("\n");
+          if (context.includes("employer-facing")) return;
+          for (const m of line.matchAll(/"([^"\\]{4,})"/g)) {
+            const s = m[1];
+            if (!TELL.test(s)) continue;
+            // Only prose reaches a candidate — skip class names, urls and keys.
+            if (/^[a-z0-9-]+$/.test(s) || s.includes("/") || !s.includes(" ")) continue;
+            bad.push(`${rel}:${i + 1}  "${s.slice(0, 90)}"`);
+          }
+        });
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
+  {
     id: "no-dead-project-ref",
     why:
       "kcotpxlggfvgclwksmhl is a dead Supabase project. It was copied out of CLAUDE.md " +

@@ -169,8 +169,12 @@ export default function VoiceInterviewPhase() {
       communication_score: null,
       culture_fit_score: null,
       credibility_rating: "manual_review_required",
+      // employer-facing: this scorecard is written to the database and read on
+      // the employer's candidate detail page. The candidate never sees it, so
+      // naming Ava here is correct — rule 1 covers what a CANDIDATE reads.
       summary:
         "The candidate ended the interview manually before Ava returned a structured final evaluation. The transcript and recording were saved for employer review.",
+      // employer-facing: same scorecard, same reader.
       concerns: [
         "Manual end fallback was used because Ava did not finalize the interview automatically.",
       ],

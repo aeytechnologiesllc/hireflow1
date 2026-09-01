@@ -55,7 +55,10 @@ export function EvaluationScreen({
             subtitle={
               nextPhaseName && onStartNextPhase 
                 ? "You've successfully completed this phase and can move on to the next step."
-                : "You've completed all required steps. The employer will review your application and may invite you to an Ava Interview."
+                // Candidate-facing: never name Ava. See rule 1. This is the
+                // screen shown after the quiz, the typing test and the
+                // application form, so it reached almost every candidate.
+                : "You've completed all the steps. The hiring team will review your application and get back to you."
             }
           >
             <div className="space-y-3 pt-2">
