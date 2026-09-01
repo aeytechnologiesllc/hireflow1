@@ -328,7 +328,7 @@ export default function ChatInterviewPhase() {
   const buildCandidateContext = () => {
     if (!application) return undefined;
     
-    const notes = application.notes ? JSON.parse(application.notes) : {};
+    const notes = parseApplicationNotes(application.notes);
     const context: any = {
       completedPhases: [] as string[],
     };
@@ -601,7 +601,7 @@ export default function ChatInterviewPhase() {
         evaluation = await evalResponse.json();
       }
 
-      const existingNotes = application.notes ? JSON.parse(application.notes) : {};
+      const existingNotes = parseApplicationNotes(application.notes);
       const duration = startTime ? Math.floor((new Date().getTime() - startTime.getTime()) / 1000) : 0;
       
       const antiCheatLog = {
@@ -777,7 +777,7 @@ export default function ChatInterviewPhase() {
     }
     if (!application?.notes) return null;
     try {
-      const notes = JSON.parse(application.notes);
+      const notes = parseApplicationNotes(application.notes);
       return notes.chatInterviewResult || null;
     } catch {
       return null;

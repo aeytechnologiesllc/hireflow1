@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { parseApplicationNotes } from "@/lib/applicationNotes";
 
 export interface ImprovementBlueprintData {
   honestReflection: {
@@ -185,7 +186,7 @@ export function useImprovementBlueprint() {
       }
 
       let blueprintData: ImprovementBlueprintData | null = null;
-      const notes = application?.notes ? JSON.parse(application.notes as string) : {};
+      const notes = parseApplicationNotes(application?.notes as string | null);
 
       // Check if blueprint already exists - if so, it's permanently locked
       if (notes[BLUEPRINT_CACHE_KEY]) {

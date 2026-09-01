@@ -28,6 +28,7 @@ import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { compressImage, needsCompression } from "@/utils/imageCompression";
 import { PhaseContextCard } from "@/components/PhaseContextCard";
 import { buildCandidateJourney, DECISION_STAGE_ID } from "@/lib/candidateJourney";
+import { parseApplicationNotes } from "@/lib/applicationNotes";
 interface ApplicationDetails {
   id: string;
   candidate_id: string;
@@ -314,7 +315,7 @@ export default function PortfolioUploadPhase() {
       
       setIsAnalyzing(false);
 
-      const existingNotes = application.notes ? JSON.parse(application.notes) : {};
+      const existingNotes = parseApplicationNotes(application.notes);
 
       // Save phase data (NO local pass/fail decision - backend decides)
       const portfolioResult = {
@@ -511,7 +512,7 @@ export default function PortfolioUploadPhase() {
     }
     if (!application?.notes) return null;
     try {
-      const notes = JSON.parse(application.notes);
+      const notes = parseApplicationNotes(application.notes);
       // Check both the stepId key and the global portfolioResult key
       return notes[stepId!] || notes.portfolioResult || null;
     } catch {

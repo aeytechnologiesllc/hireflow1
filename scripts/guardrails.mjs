@@ -250,6 +250,34 @@ const guards = [
   },
 
   {
+    id: "application-notes-parsed-safely",
+    why:
+      "applications.notes is a json blob every candidate phase screen reads and writes, and it was " +
+      "read with a bare JSON.parse in thirteen places. In ApplicationFormPhase that ran during " +
+      "RENDER, so one malformed row threw inside the render pass and blanked the screen with the " +
+      "candidate's part-finished application in it. Everywhere else it takes down whatever action " +
+      "the candidate just took. Reading stored state must never be able to break a screen, so it " +
+      "goes through parseApplicationNotes, which fails to an empty object and renders the honest " +
+      "empty state instead.",
+    async run() {
+      const files = await sources([".ts", ".tsx"]);
+      const bad = hits(
+        files,
+        /JSON\.parse\(\s*[A-Za-z_$][\w$]*\.notes/,
+        (rel) =>
+          // The safe helper is the one place allowed to do this.
+          rel === "src/lib/applicationNotes.ts" ||
+          // Edge functions are Deno, a separate module graph — they cannot
+          // import from @/lib at all, so this rule cannot reach them. They also
+          // run server-side, where a throw is a 500 rather than a candidate
+          // staring at a blank screen.
+          rel.startsWith("supabase/functions/")
+      );
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
+  {
     id: "no-dead-project-ref",
     why:
       "kcotpxlggfvgclwksmhl is a dead Supabase project. It was copied out of CLAUDE.md " +

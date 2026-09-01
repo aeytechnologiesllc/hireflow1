@@ -3,6 +3,7 @@ import { useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "react-router-dom";
+import { parseApplicationNotes } from "@/lib/applicationNotes";
 
 const LAST_SEEN_KEY = "applications_last_seen";
 
@@ -59,12 +60,10 @@ export function usePendingActionsCount() {
         }
         
         // Check if the phase has been completed
-        let notes: Record<string, any> = {};
-        try {
-          notes = app.notes ? JSON.parse(app.notes) : {};
-        } catch {
-          // ignore
-        }
+        // Was a hand-rolled try/catch doing exactly this. Same behaviour, one
+        // implementation, and it also rejects JSON scalars that parse fine but
+        // are not a notes object.
+        const notes = parseApplicationNotes(app.notes);
         
         // Check for phase-specific data
         const hasPhaseData = (() => {

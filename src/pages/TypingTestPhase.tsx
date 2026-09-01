@@ -556,7 +556,7 @@ export default function TypingTestPhase() {
     }
     if (!application?.notes) return null;
     try {
-      const notes = JSON.parse(application.notes);
+      const notes = parseApplicationNotes(application.notes);
       return notes.typingTestResult || null;
     } catch {
       return null;

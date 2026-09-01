@@ -917,7 +917,7 @@ export default function QuizPhase() {
     }
     if (!application?.notes) return null;
     try {
-      const notes = JSON.parse(application.notes);
+      const notes = parseApplicationNotes(application.notes);
       // Check for step-specific quiz answers or general quiz result
       const stepData = notes.quizAnswers?.[stepId!] || notes[stepId!];
       if (stepData?.completedAt) return stepData;

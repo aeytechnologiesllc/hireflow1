@@ -24,6 +24,7 @@ import {
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { invokeTriggerAvaAnalysis, triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
+import { parseApplicationNotes } from "@/lib/applicationNotes";
 
 interface ApplicationDetails {
   id: string;
@@ -328,7 +329,7 @@ export default function VideoIntroPhase() {
       }
 
       // 4. Update database
-      const existingNotes = application.notes ? JSON.parse(application.notes) : {};
+      const existingNotes = parseApplicationNotes(application.notes);
       const currentStep = workflowSteps?.find((s: any) => s.id === stepId);
       const stepType = currentStep?.type || "video_intro";
 
@@ -452,7 +453,7 @@ export default function VideoIntroPhase() {
           .single();
         
         if (checkData?.notes) {
-          const checkNotes = JSON.parse(checkData.notes);
+          const checkNotes = parseApplicationNotes(checkData.notes) as Record<string, { videoUrl?: string } | undefined> & { videoIntroUrl?: string };
           if (checkNotes[stepId!]?.videoUrl || checkNotes.videoIntroUrl) {
             // Actually succeeded! Re-fetch job data to check mode
             const { data: freshJobCheck } = await supabase
@@ -584,7 +585,7 @@ export default function VideoIntroPhase() {
     }
     if (!application?.notes) return null;
     try {
-      const notes = JSON.parse(application.notes);
+      const notes = parseApplicationNotes(application.notes);
       return notes.videoIntroResult || notes.videoIntroUrl ? { videoUrl: notes.videoIntroUrl } : null;
     } catch {
       return null;

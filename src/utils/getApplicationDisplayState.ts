@@ -2,6 +2,7 @@ import {
   FileText, ClipboardList, Keyboard, Video, MessageSquare, Mic
 } from "lucide-react";
 import type { ApplicationWithJob } from "@/hooks/useApplications";
+import { parseApplicationNotes } from "@/lib/applicationNotes";
 import { 
   applicationStatusColors, 
   applicationStatusLabels 
@@ -92,13 +93,10 @@ export function getApplicationDisplayState(application: ApplicationWithJob): App
   const interviewConfirmed = hasScheduledInterview && 
     latestInterview?.candidate_response === "confirmed";
   
-  // Parse notes to check if phase has been submitted
-  let notes: Record<string, any> = {};
-  try {
-    notes = application.notes ? JSON.parse(application.notes as string) : {};
-  } catch {
-    // ignore
-  }
+  // Parse notes to check if phase has been submitted. Was a hand-rolled
+  // try/catch doing exactly this; one implementation now, and it also rejects
+  // JSON scalars that parse fine but are not a notes object.
+  const notes = parseApplicationNotes(application.notes as string | null) as Record<string, any>;
   
   // Check if the current phase has been completed/submitted
   const hasPhaseData = (() => {

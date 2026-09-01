@@ -789,7 +789,7 @@ export default function ChatSimulationPhase() {
     }
     if (!application?.notes) return null;
     try {
-      const notes = JSON.parse(application.notes);
+      const notes = parseApplicationNotes(application.notes);
       return notes.chatSimulationResult || null;
     } catch {
       return null;

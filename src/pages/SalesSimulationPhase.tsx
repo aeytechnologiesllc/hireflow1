@@ -27,6 +27,7 @@ import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import { PhaseContextCard } from "@/components/PhaseContextCard";
+import { parseApplicationNotes } from "@/lib/applicationNotes";
 
 interface Message {
   id: string;
@@ -604,7 +605,7 @@ export default function SalesSimulationPhase() {
 
       if (evalResponse.ok) evaluation = await evalResponse.json();
 
-      const existingNotes = application.notes ? JSON.parse(application.notes) : {};
+      const existingNotes = parseApplicationNotes(application.notes);
       const salesRepMessages = messages.filter((m) => m.role === "salesRep");
       
       const antiCheatLog = {
@@ -707,7 +708,7 @@ export default function SalesSimulationPhase() {
     }
     if (!application?.notes) return null;
     try {
-      const notes = JSON.parse(application.notes);
+      const notes = parseApplicationNotes(application.notes);
       return notes.salesSimulationResult || null;
     } catch {
       return null;
