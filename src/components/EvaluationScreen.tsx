@@ -28,7 +28,17 @@ export function EvaluationScreen({
   nextPhaseName,
 }: EvaluationScreenProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.06),transparent_30%),linear-gradient(180deg,rgba(8,12,20,0.96),rgba(8,12,20,0.99))]">
+    // Was a hardcoded near-black ground — rgba(8,12,20), the retired cobalt,
+    // not --ground — with an emerald-500 glow that is not jade either. The
+    // children paint with text-foreground, which in Day is #141F1B: near-black
+    // text on a near-black rectangle, about 1.1:1. So anyone on the Day theme
+    // saw a blank black box after submitting EVERY step, including the screen
+    // that tells them they are finished. --gradient-bg already composes the
+    // ambient tints over --ground and is correct in both themes.
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden"
+      style={{ background: "var(--gradient-bg)" }}
+    >
       <AnimatePresence mode="wait">
         {state === "evaluating" && (
           <motion.div

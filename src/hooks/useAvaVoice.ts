@@ -229,10 +229,16 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     
     processingTimeoutRef.current = window.setTimeout(() => {
       setState(s => ({ ...s, isStuck: true }));
+      // This hook is shared: employer surfaces may name Ava, a candidate in an
+      // interview may never hear it. The gate is the same one the billing
+      // branch in this file already uses.
+      const inInterview = optionsRef.current.mode === 'interview';
       toast({
         variant: 'destructive',
-        title: 'Ava is taking too long',
-        description: 'The connection may be experiencing issues. You can try to prompt Ava or reconnect.',
+        title: inInterview ? 'Taking a moment to respond' : 'Ava is taking too long',
+        description: inInterview
+          ? 'This could be a connection issue — you can prompt for a reply or reconnect.'
+          : 'The connection may be experiencing issues. You can try to prompt Ava or reconnect.',
       });
     }, STUCK_TIMEOUT_MS);
   }, [clearProcessingTimeout, toast]);
@@ -901,10 +907,16 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
 
         case 'error':
           console.error('Realtime API error:', event);
+          // Never hand a candidate the provider's raw error text — it can name
+          // the model outright, and it is not something they can act on.
+          console.error('Realtime voice error:', event.error);
           toast({
             variant: 'destructive',
-            title: 'Voice Error',
-            description: event.error?.message || 'An error occurred',
+            title: optionsRef.current.mode === 'interview' ? 'Connection problem' : 'Voice Error',
+            description:
+              optionsRef.current.mode === 'interview'
+                ? 'Something interrupted the connection — try reconnecting.'
+                : event.error?.message || 'An error occurred',
           });
           break;
       }
@@ -1047,18 +1059,26 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     clearProcessingTimeout();
     startProcessingTimeout();
     
-    toast({
-      title: 'Prompting Ava',
-      description: 'Asking Ava to continue...',
-    });
+    // Fires on every press of the neutrally-labelled "Prompt to continue"
+    // button, so in an interview it was a guaranteed reveal.
+    toast(
+      optionsRef.current.mode === 'interview'
+        ? { title: 'Asking for a reply', description: 'Giving the interviewer a nudge…' }
+        : { title: 'Prompting Ava', description: 'Asking Ava to continue...' }
+    );
   }, [clearProcessingTimeout, startProcessingTimeout, toast]);
 
   const sendRealtimeInstruction = useCallback((text: string, echoInTranscript: boolean) => {
     if (!dcRef.current || dcRef.current.readyState !== 'open') {
+      // Fires when a candidate reaches for End Interview after the connection
+      // has already dropped — the worst possible moment to say "AVA".
       toast({
         variant: 'destructive',
-        title: 'Not Connected',
-        description: 'Please connect to AVA first',
+        title: optionsRef.current.mode === 'interview' ? 'Connection already closed' : 'Not Connected',
+        description:
+          optionsRef.current.mode === 'interview'
+            ? 'Wrapping up your interview now — anything recorded is saved.'
+            : 'Please connect to AVA first',
       });
       return;
     }

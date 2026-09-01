@@ -43,7 +43,7 @@ import { useDocumentRequests, DocumentRequestWithDetails } from "@/hooks/useDocu
 import { DocumentRequestCard } from "@/components/documents/DocumentRequestCard";
 import { DocumentUploadDialog } from "@/components/documents/DocumentUploadDialog";
 import { phaseDurationEstimates } from "@/lib/phaseDurations";
-import { buildCandidateJourney, positionFor } from "@/lib/candidateJourney";
+import { buildCandidateJourney, positionFor, titleFor } from "@/lib/candidateJourney";
 
 interface WorkflowStep {
   id: string;
@@ -235,10 +235,16 @@ export default function CandidateApplicationDetail() {
               if (voiceInterviewStep && newPhase === voiceInterviewStep.id) {
                 setStatusScreen("ava_interview_unlocked");
               } else {
-                const stepTitle =
-                  workflowSteps?.find((s: any) => s.id === newPhase)?.title ||
-                  candidatePhaseDisplayNames[newPhase as string] ||
-                  "the next step";
+                // Read the stored title through the sanitiser. Rows in
+                // production carry "Interview with Ava" because the workflow
+                // generator wrote it, and this toast rendered it raw — the
+                // journey header two hundred lines below has always been
+                // sanitised, so the same screen told the truth in one place and
+                // named the machine in another.
+                const rawStep = workflowSteps?.find((s: any) => s.id === newPhase);
+                const stepTitle = rawStep
+                  ? titleFor(rawStep.type, rawStep.title)
+                  : candidatePhaseDisplayNames[newPhase as string] || "the next step";
                 toast.success(`You're on to ${stepTitle}.`, {
                   description: "Check your next steps below.",
                 });

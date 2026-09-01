@@ -22,6 +22,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { isPast } from "date-fns";
+import { titleFor } from "@/lib/candidateJourney";
 import { CandidateShell } from "@/components/candidate/CandidateShell";
 import { fetchRoleByCode, type ShowcaseRole } from "@/lib/showcaseApply";
 import { detectSchemaMode } from "@/cockpit/data/showcaseSource";
@@ -108,7 +109,10 @@ function getPreviewStages(job: JobPreview) {
   }
 
   (job.workflow_steps || []).forEach((step) => {
-    stages.push(step.title || step.type.replace(/_/g, " "));
+    // Through the sanitiser: production rows carry "Interview with Ava" from
+    // the workflow generator, and this preview is the FIRST thing a candidate
+    // reads about the job — before they have even entered their name.
+    stages.push(titleFor(step.type, step.title));
   });
 
   return stages.length > 0 ? stages : ["Review"];

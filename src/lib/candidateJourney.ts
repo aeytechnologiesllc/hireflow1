@@ -70,7 +70,16 @@ const FALLBACK_TITLES: Record<string, string> = {
  *  time, with no migration, and catches anything an employer types later. */
 const MACHINE_WORDS = /\b(ava|a\.?i\.?|artificial intelligence|bot|automated|algorithm)\b/i;
 
-function titleFor(type: string, given?: string | null): string {
+/**
+ * The candidate-safe name for a step.
+ *
+ * Exported because this file is not the only place a stored step title reaches
+ * a candidate. `ai-generate-workflow` has been writing "Interview with Ava"
+ * into jobs.workflow_steps, so that string is in production rows today, and any
+ * screen reading `step.title` raw renders it. Every such reader must come
+ * through here rather than re-implementing the check or forgetting it.
+ */
+export function titleFor(type: string, given?: string | null): string {
   const trimmed = given?.trim();
   if (trimmed && !MACHINE_WORDS.test(trimmed)) return trimmed;
   return FALLBACK_TITLES[type] || type;

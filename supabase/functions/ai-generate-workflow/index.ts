@@ -411,7 +411,10 @@ function ensureFamilyWorkflowSteps(
       id: "step_video_message",
       type: "video_message",
       title: "Communication Snapshot",
-      description: "Record a short response so Ava can assess clarity, presence, and professionalism.",
+      // Candidate-facing: step descriptions are shown on the phase card, so
+      // they never name Ava. The plan summaries elsewhere in this file are
+      // employer-facing and correctly still do.
+      description: "Record a short response so the hiring team can hear how you explain your work.",
       required: true,
       config: buildVideoMessageConfig(family, guidedSetup),
     });
@@ -561,8 +564,8 @@ function makeFallbackWorkflow(request: WorkflowRequest, family: string, requireP
   workflowSteps.push({
     id: "step_final",
     type: "chat_interview",
-    title: "Interview with Ava",
-    description: "Complete a final interview with Ava based on your earlier responses.",
+    title: "Chat interview",
+    description: "A short written conversation about the role, based on your earlier answers.",
     required: true,
     config: { focus: "behavioral" },
   });
@@ -683,8 +686,8 @@ function postProcessWorkflowData(
     data.workflow_steps.push({
       id: "step_final",
       type: "chat_interview",
-      title: "Interview with Ava",
-      description: "Complete a final interview with Ava based on your earlier responses.",
+      title: "Chat interview",
+      description: "A short written conversation about the role, based on your earlier answers.",
       required: true,
       config: { focus: "behavioral" },
     });
@@ -834,7 +837,7 @@ Return ONLY valid JSON with this shape:
   ],
   "workflow_steps": [
     {"id": "step1", "type": "typing_test", "title": "Typing Speed Test", "description": "...", "required": true, "config": {"min_wpm": 40}},
-    {"id": "stepFinal", "type": "chat_interview", "title": "Interview with Ava", "description": "Final interview with Ava", "required": true, "config": {"focus": "behavioral"}}
+    {"id": "stepFinal", "type": "chat_interview", "title": "Chat interview", "description": "A short written conversation about the role", "required": true, "config": {"focus": "behavioral"}}
   ]
 }`;
 
