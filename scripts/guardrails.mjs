@@ -945,6 +945,37 @@ const guards = [
     },
   },
 
+  {
+    id: "the-quiz-does-not-promise-time-it-will-not-give",
+    why:
+      "The quiz told candidates \"Answer at your own pace \u2014 each question keeps its own gentle " +
+      "timer\" while a hard countdown ran on the same screen, a few lines below the sentence. " +
+      "It is not gentle and it is not their pace: when a question's deadline passes the quiz " +
+      "advances itself, and on the last question it submits. Someone who believed that sentence " +
+      "and took their time lost the question, permanently. Reassurance a screen cannot honour is " +
+      "worse than no reassurance \u2014 it actively costs the person who trusts it.",
+    async run() {
+      const bad = [];
+      const quiz = await read("src/pages/QuizPhase.tsx");
+      if (quiz == null) return { ok: false, detail: ["src/pages/QuizPhase.tsx is missing"] };
+
+      // Only meaningful while expiry really does move the candidate on.
+      const autoAdvances = /handleFinishQuiz\(\)/.test(quiz) && /deadlineMs > now/.test(quiz);
+      if (!autoAdvances) return { ok: true };
+
+      quiz.split("\n").forEach((line, i) => {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("//") || trimmed.startsWith("*")) return;
+        for (const m of line.matchAll(/"([^"\\]{10,})"/g)) {
+          if (/(your own pace|no rush|take your time|gentle timer|as long as you (need|like))/i.test(m[1])) {
+            bad.push(`src/pages/QuizPhase.tsx:${i + 1} promises unhurried time on a screen that auto-advances: "${m[1].slice(0, 80)}"`);
+          }
+        }
+      });
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
 ];
 
 /* --------------------------------------------------------------------- main */

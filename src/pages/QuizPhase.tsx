@@ -1095,7 +1095,7 @@ export default function QuizPhase() {
           <p className="text-sm text-muted-foreground">
             {showResults
               ? "Have a last look, then send your answers in."
-              : "Answer at your own pace — each question keeps its own gentle timer."}
+              : "Each question is timed — when the clock runs out, the next one comes up."}
           </p>
         </div>
 
