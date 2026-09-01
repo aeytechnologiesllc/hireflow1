@@ -705,6 +705,48 @@ const guards = [
     },
   },
 
+  {
+    id: "public-job-page-names-a-real-company",
+    why:
+      "The public job page is what a STRANGER opens from a shared link. It used to read " +
+      "the employer's branding from `profiles`, which is RLS-locked \u2014 a signed-out visitor " +
+      "was returned an empty row every single time, so the company name never resolved. The " +
+      "query was additionally gated behind `!shouldRestrictToPublished`, so on the one route " +
+      "where it mattered it did not even run. The heading then fell back to `job.department`, " +
+      "an internal field, and showed a stranger \"Operations\" where an employer name belongs \u2014 " +
+      "an anonymous-looking listing is exactly the shape job-board scam filters penalise. " +
+      "Branding on this page must come from the public-safe view, ungated, with no fallback.",
+    async run() {
+      const bad = [];
+      const page = await read("src/pages/JobDetails.tsx");
+      if (page == null) return { ok: false, detail: ["src/pages/JobDetails.tsx is missing"] };
+
+      // Isolate the branding query so an unrelated `profiles` read elsewhere on
+      // the page cannot trip this guard, and a renamed query cannot hide it.
+      const q = page.match(/queryKey:\s*\[\s*"job-employer-profile"[\s\S]{0,900}?\n  \}\);/);
+      if (!q) {
+        bad.push('the "job-employer-profile" query is gone \u2014 public branding may have regressed');
+      } else {
+        const block = q[0];
+        if (/\.from\(\s*"profiles"\s*\)/.test(block)) {
+          bad.push('the branding query reads RLS-locked "profiles" again \u2014 a signed-out visitor gets nothing');
+        }
+        if (!/\.from\(\s*"employer_public_branding"\s*\)/.test(block)) {
+          bad.push('the branding query no longer reads the public-safe "employer_public_branding" view');
+        }
+        if (/enabled:[^\n]*shouldRestrictToPublished/.test(block)) {
+          bad.push("the branding query is gated off on the public path again");
+        }
+      }
+
+      // A department is not a company. This fallback shipped once already.
+      if (/employerProfile\?\.company_name\s*\|\|\s*job\.department/.test(page)) {
+        bad.push("the heading falls back to job.department \u2014 a department is not an employer");
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
 ];
 
 /* --------------------------------------------------------------------- main */

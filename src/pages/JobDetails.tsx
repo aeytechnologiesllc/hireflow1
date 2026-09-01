@@ -85,14 +85,20 @@ export default function JobDetails() {
   const { data: employerProfile } = useQuery({
     queryKey: ["job-employer-profile", job?.employer_id],
     queryFn: async () => {
+      // employer_public_branding, not profiles. This is the page a STRANGER
+      // opens from a shared link, and `profiles` is RLS-locked — a signed-out
+      // visitor could never read it, so the company name simply never resolved.
+      // The query was also gated off on the public path, so on the one route
+      // where it matters most it did not even run. The view exists precisely to
+      // expose these two fields safely.
       const { data } = await supabase
-        .from("profiles")
-        .select("company_name, company_logo")
+        .from("employer_public_branding")
+        .select("user_id, company_name, company_logo")
         .eq("user_id", job!.employer_id)
         .maybeSingle();
       return data;
     },
-    enabled: !!job?.employer_id && !shouldRestrictToPublished,
+    enabled: !!job?.employer_id,
   });
 
   // Check if application deadline has passed
@@ -331,10 +337,17 @@ export default function JobDetails() {
                     </div>
                     <div className="min-w-0">
                       <h1 className="break-words text-3xl font-bold text-foreground [overflow-wrap:anywhere]">{job.title}</h1>
-                      {(employerProfile?.company_name || job.department) && (
+                      {/* Only a real company name. The fallback here was
+                          job.department — an internal field — so a stranger
+                          could be shown "Operations" where the employer's name
+                          belongs, which reads as an anonymous listing and is
+                          exactly the pattern job-board scam filters look for.
+                          Showing nothing is more honest than showing a
+                          department and calling it a company. */}
+                      {employerProfile?.company_name && (
                         <p className="mt-1 flex min-w-0 items-center gap-1 text-muted-foreground">
                           <Building2 className="h-4 w-4 shrink-0" />
-                          <span className="break-words [overflow-wrap:anywhere]">{employerProfile?.company_name || job.department}</span>
+                          <span className="break-words [overflow-wrap:anywhere]">{employerProfile.company_name}</span>
                         </p>
                       )}
                     </div>
