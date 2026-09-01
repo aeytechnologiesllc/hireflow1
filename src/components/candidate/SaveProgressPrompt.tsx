@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { GOOGLE_AUTH_ENABLED } from "@/lib/googleAuth";
 import { linkGuestApplications } from "@/lib/showcaseApply";
 
 interface SaveProgressPromptProps {
@@ -34,7 +35,9 @@ export function SaveProgressPrompt({
 
   const handleGoogle = async () => {
     setGoogleLoading(true);
-    const redirect = `/candidate/continue?phone=${encodeURIComponent(applicantPhone)}`;
+    // Absolute: signInWithGoogle feeds this to `new URL`, which throws on a
+    // relative path.
+    const redirect = `${window.location.origin}/candidate/continue?phone=${encodeURIComponent(applicantPhone)}`;
     const { error } = await signInWithGoogle(redirect, "candidate");
     if (error) {
       toast.error(error.message);
@@ -85,9 +88,15 @@ export function SaveProgressPrompt({
           </div>
 
           <div className="space-y-3">
-            <Button type="button" variant="outline" className="w-full h-11" onClick={() => void handleGoogle()} disabled={googleLoading}>
-              {googleLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Continue with Google"}
-            </Button>
+            {/* Ungated, this offered Google while the provider is disabled — and
+                because the redirect below is RELATIVE, `new URL` threw and the
+                candidate got a raw "Failed to construct 'URL': Invalid URL"
+                toast at the moment they finished applying. */}
+            {GOOGLE_AUTH_ENABLED && (
+              <Button type="button" variant="outline" className="w-full h-11" onClick={() => void handleGoogle()} disabled={googleLoading}>
+                {googleLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Continue with Google"}
+              </Button>
+            )}
             <Button type="button" variant="outline" className="w-full h-11" onClick={() => setShowSignup((v) => !v)}>
               {showSignup ? "Hide email signup" : "Create account with email"}
             </Button>

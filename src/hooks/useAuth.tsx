@@ -164,22 +164,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
 
       let resolved = await readResolvedRole();
+      let assignmentAttempted = false;
 
       if (!resolved && (fallbackRole === "employer" || fallbackRole === "candidate")) {
         // First-time accounts can momentarily authenticate before their role row exists.
         // Use the intended portal role immediately, then persist it if needed.
+        assignmentAttempted = true;
         setRole(fallbackRole);
 
         const { error } = await supabase.rpc("assign_user_role", { p_role: fallbackRole });
         if (error && !isDuplicateRoleAssignmentError(error)) {
-          console.error("Error assigning fallback role:", error);
-          return;
+          // The usual causes are transient — a momentarily stale JWT, a 429, a
+          // dropped request — so it is worth one more attempt before giving up.
+          console.error("Error assigning fallback role, retrying:", error);
+          const retry = await supabase.rpc("assign_user_role", { p_role: fallbackRole });
+          if (retry.error && !isDuplicateRoleAssignmentError(retry.error)) {
+            console.error("Role assignment failed twice:", retry.error);
+          }
         }
 
+        // No early return here. Bailing out used to leave the optimistic
+        // setRole(fallbackRole) above standing with NO user_roles row behind
+        // it, so the app believed the person was a candidate while the database
+        // did not. Apply then sailed past every role check and died on the
+        // INSERT policy, which reports "Failed to start application. Please try
+        // again." — advice that could never work, on an account that looked
+        // fine. Re-read instead and believe the database.
         resolved = await readResolvedRole();
       }
 
-      setRole(resolved ?? fallbackRole ?? null);
+      // Only trust the intent when we never tried to persist it; once we have,
+      // the absence of a row is the answer, not something to paper over.
+      setRole(resolved ?? (assignmentAttempted ? null : fallbackRole) ?? null);
     } catch (error) {
       console.error("Error fetching user role:", error);
     }

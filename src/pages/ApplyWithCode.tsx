@@ -117,7 +117,7 @@ function getPreviewStages(job: JobPreview): string[] {
 
 
 export default function ApplyWithCode() {
-  const { role } = useAuth();
+  const { role, signOut } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialCode = searchParams.get("code") || "";
@@ -243,19 +243,48 @@ export default function ApplyWithCode() {
     });
   }, []);
 
+  // This is the URL the product itself tells employers to hand out:
+  // candidateApplyUrl() builds /candidate/apply?code=XXXX, and that is what the
+  // dashboard's "copy the link", the Share Kit's copy button, its QR code and
+  // its printed flyer all emit. An employer who opened their own shared link to
+  // check it landed on a bare "Candidate Access Only" card with no button, no
+  // link and no sign-out — and since this route sits outside AppLayout there is
+  // no sidebar or header either, so the only way out was the browser's back
+  // button, which does not exist on a freshly scanned QR code. They could never
+  // test the one link they distribute. Show them the code entry, say whose view
+  // it is, and give them a real way through.
   if (isEmployer) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Card className="bg-card border-border max-w-md">
-          <CardContent className="p-8 text-center">
-            <Briefcase className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h2 className="font-display text-xl font-medium text-foreground mb-2">Candidate Access Only</h2>
-            <p className="text-muted-foreground">
-              This page is for job seekers. Use the Jobs section to manage your job postings.
+      <CandidateShell className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-10">
+        <Card className="w-full max-w-md">
+          <CardContent className="space-y-4 p-8 text-center">
+            <Briefcase className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
+            <h2 className="font-display text-xl font-medium text-foreground">
+              This is the link you share with candidates
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              It opens the code entry where applicants start. Applying needs a candidate
+              account, so sign out to walk it the way they will.
             </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  // Come back to this exact link (code and all) as a stranger sees it.
+                  const back = `/candidate/apply${window.location.search}`;
+                  await signOut();
+                  navigate(back, { replace: true });
+                }}
+              >
+                Sign out and try it as a candidate
+              </Button>
+              <Button variant="ghost" onClick={() => navigate("/jobs")}>
+                Back to Jobs
+              </Button>
+            </div>
           </CardContent>
         </Card>
-      </div>
+      </CandidateShell>
     );
   }
 

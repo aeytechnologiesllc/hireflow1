@@ -45,7 +45,18 @@ export default function JobDetails() {
   // was a dead end dressed up as a way out. Signed-out visitors get the
   // candidate portal instead, which is an actual starting point.
   const strandedRoute = user ? applyEntryRoute : "/candidate";
-  const shouldRestrictToPublished = !user || role === "candidate";
+  // This page IS the candidate's view, so it always reads the candidate's
+  // source: published_jobs_public. It used to be
+  //   !user || role === "candidate"
+  // which sent every signed-in NON-candidate to the RLS-locked `jobs` table,
+  // whose SELECT policies only cover jobs you own, jobs assigned to you, or
+  // developers. So an employer opening another company's public posting — or
+  // any signed-in user whose role row had not resolved yet — read nothing and
+  // was told "Job Not Found" about a live, public job. It also meant the
+  // employer preview rendered the PRIVATE row, so a draft or closed posting
+  // previewed as a complete live page under a banner promising this is what
+  // candidates see. It is not: candidates see nothing at all.
+  const shouldRestrictToPublished = true;
   const { data: schemaMode } = useQuery({
     queryKey: ["cockpit-schema-mode"],
     queryFn: detectSchemaMode,
@@ -68,19 +79,8 @@ export default function JobDetails() {
       // the same error — and the page then told a stranger the job was gone
       // when in truth their connection dropped. `data === null` now means
       // "no such job (or not published)"; a thrown error means "we failed".
-      if (shouldRestrictToPublished) {
-        const { data, error } = await supabase
-          .from("published_jobs_public")
-          .select("*")
-          .eq("id", id!)
-          .maybeSingle();
-
-        if (error) throw error;
-        return data;
-      }
-
       const { data, error } = await supabase
-        .from("jobs")
+        .from("published_jobs_public")
         .select("*")
         .eq("id", id!)
         .maybeSingle();
@@ -91,6 +91,22 @@ export default function JobDetails() {
     enabled: !!id && !isShowcase,
   });
   
+  // Only asked when the public view came back empty AND the viewer is an
+  // employer: "this is yours but candidates cannot see it" is a different
+  // message from "this link goes nowhere", and only the owner is owed it.
+  const { data: ownedButUnpublished } = useQuery({
+    queryKey: ["job-owned-unpublished", id, user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("jobs")
+        .select("id, status")
+        .eq("id", id!)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!id && !isShowcase && isEmployer && !hireflowLoading && !job,
+  });
+
   // Employer company name/logo (for JobPosting structured data hiringOrganization).
   const { data: employerProfile } = useQuery({
     queryKey: ["job-employer-profile", job?.employer_id],
@@ -162,10 +178,21 @@ export default function JobDetails() {
     // so an employer's insert is rejected by the database every time. Firing it
     // anyway produced "Failed to start application. Please try again." — untrue
     // twice over: it is not a failure they caused, and retrying can never work.
-    if (isEmployer) {
-      toast.info("You're signed in as an employer", {
-        description: "Applications belong to a candidate account. Sign out to apply to this role.",
-      });
+    // Not just employers. The policy demands has_role(uid,'candidate'), so it
+    // also rejects a team_member, a developer, and — the case that actually
+    // bites — anyone whose user_roles row has not been written yet, whose role
+    // resolves to null. All of them used to get "Failed to start application.
+    // Please try again." from the catch below, which is untrue twice: not their
+    // failure, and no retry can ever succeed.
+    if (role !== "candidate") {
+      toast.info(
+        isEmployer ? "You're signed in as an employer" : "This account can't apply yet",
+        {
+          description: isEmployer
+            ? "Applications belong to a candidate account. Sign out to apply to this role."
+            : "Applying needs a candidate account. Sign out and sign up as a job seeker to continue.",
+        },
+      );
       return;
     }
 
@@ -317,15 +344,19 @@ export default function JobDetails() {
         <Card className="bg-card border-border max-w-md">
           <CardContent className="p-8 text-center">
             <GlyphJobPost size={48} className="mx-auto mb-4 opacity-60" style={{ color: "var(--hf-text-muted)" }} />
-            <h2 className="text-xl font-semibold text-foreground mb-2">This role isn&apos;t available</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-2">
+              {ownedButUnpublished ? "Candidates can\u2019t see this yet" : "This role isn\u2019t available"}
+            </h2>
             <p className="text-muted-foreground mb-4">
-              {user
+              {ownedButUnpublished
+                ? `This posting is ${ownedButUnpublished.status ?? "not published"}, so it has no candidate view yet. Publish it and this link goes live.`
+                : user
                 ? "This job may no longer be available or the link is invalid."
                 : "It may have closed, or the link may be incomplete. You can still see what HireFlow is about."}
             </p>
-            <Button onClick={() => navigate(strandedRoute)}>
+            <Button onClick={() => navigate(ownedButUnpublished ? "/jobs" : strandedRoute)}>
               <ArrowLeft className="h-4 w-4 mr-2" />
-              {user ? "Back to Apply" : "Browse HireFlow"}
+              {ownedButUnpublished ? "Back to Jobs" : user ? "Back to Apply" : "Browse HireFlow"}
             </Button>
           </CardContent>
         </Card>

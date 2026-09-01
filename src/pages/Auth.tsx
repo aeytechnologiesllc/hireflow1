@@ -14,11 +14,10 @@ import { resolvePostAuthDestination } from "@/lib/authRouting";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { HeroBackground } from "@/components/ava/HeroBackground";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { GOOGLE_AUTH_ENABLED } from "@/lib/googleAuth";
 
 // Google OAuth isn't enabled on the Supabase backend yet (authorize endpoint
 // returns 400) — keep the UI hidden until credentials exist. Flip
-// VITE_GOOGLE_AUTH_ENABLED=true once it's live; no logic here changes.
-const GOOGLE_AUTH_ENABLED = import.meta.env.VITE_GOOGLE_AUTH_ENABLED === "true";
 
 // Detect if running inside a WebView (Natively or generic)
 const isWebView = () => {
@@ -30,14 +29,16 @@ const isWebView = () => {
   return false;
 };
 
-const VALID_TLDS = ['com', 'org', 'net', 'edu', 'gov', 'io', 'co', 'us', 'uk', 'ca', 'au', 'de', 'fr', 'es', 'it', 'nl', 'be', 'ch', 'at', 'jp', 'cn', 'kr', 'in', 'br', 'mx', 'ru', 'info', 'biz', 'dev', 'app', 'tech', 'online', 'ai'];
 
-const emailSchema = z.string()
-  .email("Please enter a valid email address")
-  .refine((email) => {
-    const tld = email.split('.').pop()?.toLowerCase();
-    return tld && VALID_TLDS.includes(tld);
-  }, "Please check your email - the domain ending looks incorrect (e.g., did you mean .com?)");
+// No TLD allowlist. There are well over a thousand valid top-level domains and
+// the set grows every year, so any hand-written list is a list of people who
+// cannot create an account. This one held 33 entries and omitted, among many
+// others, .pk — while the product was live with a "Remote, Pakistan" posting,
+// meaning the exact candidates that job was written for were turned away at the
+// email field. Zod's .email() already rejects malformed addresses; catching a
+// mistyped TLD is not worth refusing real ones, and if we ever want that it
+// belongs in a "did you mean?" hint, never a hard block.
+const emailSchema = z.string().email("Please enter a valid email address");
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
 const nameSchema = z.string().min(2, "Name must be at least 2 characters");
 const companyNameSchema = z.string().min(2, "Business name must be at least 2 characters");

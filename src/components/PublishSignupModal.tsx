@@ -14,7 +14,14 @@ import { z } from "zod";
 import { AvaSeal } from "@/components/ava/AvaSeal";
 import PremiumCelebration from "@/components/animations/PremiumCelebration";
 
-const VALID_TLDS = ['com', 'org', 'net', 'edu', 'gov', 'io', 'co', 'us', 'uk', 'ca', 'au', 'de', 'fr', 'es', 'it', 'nl', 'be', 'ch', 'at', 'jp', 'cn', 'kr', 'in', 'br', 'mx', 'ru', 'info', 'biz', 'dev', 'app', 'tech', 'online', 'ai', 'me', 'tv', 'cc', 'xyz', 'club', 'site', 'store', 'blog'];
+// No TLD allowlist. There are well over a thousand valid top-level domains and
+// the set grows every year, so any hand-written list is a list of people who
+// cannot create an account. This one held 33 entries and omitted, among many
+// others, .pk — while the product was live with a "Remote, Pakistan" posting,
+// meaning the exact candidates that job was written for were turned away at the
+// email field. Zod's .email() already rejects malformed addresses; catching a
+// mistyped TLD is not worth refusing real ones, and if we ever want that it
+// belongs in a "did you mean?" hint, never a hard block.
 
 // Common typos for TLDs
 const TYPO_CORRECTIONS: Record<string, string> = {
@@ -44,11 +51,6 @@ const validateEmail = (email: string): { valid: boolean; error?: string; suggest
       error: `Did you mean .${TYPO_CORRECTIONS[tld]}?`,
       suggestion: TYPO_CORRECTIONS[tld]
     };
-  }
-  
-  // Check if TLD is valid
-  if (!VALID_TLDS.includes(tld)) {
-    return { valid: false, error: "Please check your email domain ending" };
   }
   
   return { valid: true };

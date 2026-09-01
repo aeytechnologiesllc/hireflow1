@@ -1220,6 +1220,135 @@ const guards = [
     },
   },
 
+  {
+    id: "nobody-is-turned-away-at-the-email-field",
+    why:
+      "Sign-up validated the email's TLD against a hand-written 33-entry allowlist. There are " +
+      "well over a thousand valid top-level domains, so the list was really a list of people " +
+      "who could not create an account — and it omitted .pk while the product was live with a " +
+      "\"Remote, Pakistan\" posting, meaning the exact candidates that job was written for were " +
+      "refused at the email field. Replayed: 16 of 17 ordinary addresses (.pk .ae .ng .za .ph " +
+      ".bd .id .se .pl .ie .sg .nz .me .xyz .cloud) were rejected. The same list gated the " +
+      "employer sign-up and the publish modal. Catching a mistyped TLD is never worth refusing " +
+      "real ones; if we want that it belongs in a \"did you mean?\" hint, not a hard block.",
+    async run() {
+      const bad = [];
+      for (const rel of [
+        "src/pages/CandidateAuth.tsx", "src/pages/Auth.tsx",
+        "src/components/PublishSignupModal.tsx",
+      ]) {
+        const text = await read(rel);
+        if (text == null) continue;
+        if (/VALID_TLDS/.test(text)) {
+          bad.push(`${rel} gates sign-up on a TLD allowlist again — that is a list of people who cannot sign up`);
+        }
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
+  {
+    id: "employers-can-walk-the-links-they-hand-out",
+    why:
+      "Both candidate entry points met a signed-in employer with a bare \"Candidate Access Only\" " +
+      "card carrying no button, no link and no sign-out. /candidate/apply is the worse of the " +
+      "two: candidateApplyUrl() builds it, and it is what the dashboard's copy-link, the Share " +
+      "Kit's copy button, its QR code and its printed flyer all emit — and because that route " +
+      "sits outside AppLayout there was no sidebar or header either, so a scanned QR left the " +
+      "employer on a page with literally no way out. They could never check the one link they " +
+      "distribute. Both pages must render, say whose view it is, and offer a way through.",
+    async run() {
+      const bad = [];
+      for (const rel of ["src/pages/JobDetails.tsx", "src/pages/ApplyWithCode.tsx"]) {
+        const text = await read(rel);
+        if (text == null) { bad.push(`${rel} is missing`); continue; }
+        const lines = text.split("\n").filter((l) => !l.trim().startsWith("//") && !l.trim().startsWith("*"));
+        const body = lines.join("\n");
+        if (/Candidate Access Only/.test(body)) {
+          bad.push(`${rel} walls employers out again with an action-free "Candidate Access Only" card`);
+        }
+        // The employer branch must offer a real exit.
+        const m = body.match(/if \(isEmployer\) \{[\s\S]*?\n  \}/);
+        if (m && !/signOut\(\)/.test(m[0])) {
+          bad.push(`${rel}'s employer branch offers no sign-out — an employer cannot reach the candidate view`);
+        }
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
+  {
+    id: "google-is-offered-only-where-it-works",
+    why:
+      "Google OAuth is disabled on the Supabase project (/auth/v1/settings reports " +
+      "external.google: false). Auth.tsx and CandidateAuth.tsx each kept their own copy of a " +
+      "VITE_GOOGLE_AUTH_ENABLED flag and gated correctly, but SaveProgressPrompt and JoinTeam " +
+      "had no flag and shipped the button anyway. SaveProgressPrompt passed a RELATIVE redirect, " +
+      "so `new URL` threw and the candidate got a raw \"Failed to construct 'URL': Invalid URL\" " +
+      "toast at the exact moment they finished applying; JoinTeam passed an absolute one, so the " +
+      "invitee was actually navigated to raw Supabase JSON reading \"Unsupported provider\". " +
+      "One shared flag, so a fifth button cannot be added without it.",
+    async run() {
+      const bad = [];
+      if ((await read("src/lib/googleAuth.ts")) == null) {
+        return { ok: false, detail: ["src/lib/googleAuth.ts is gone — the flag will drift into copies again"] };
+      }
+      const files = await sources([".ts", ".tsx"]);
+      for (const { rel, text } of files) {
+        if (rel === "src/lib/googleAuth.ts") continue;
+        if (/const GOOGLE_AUTH_ENABLED\s*=/.test(text)) {
+          bad.push(`${rel} declares its own GOOGLE_AUTH_ENABLED instead of importing the shared one`);
+        }
+        if (!/Continue with Google/.test(text)) continue;
+        // The BUTTON must be gated, not merely the file importing the flag —
+        // checking the whole file matches the import line and passes while the
+        // button renders unconditionally. Look for the conditional that
+        // actually wraps this label.
+        const lines = text.split("\n");
+        const at = lines.findIndex((l) => /Continue with Google/.test(l));
+        // 60, not 25: the inline Google SVG runs ~40 lines, so the gate sits well
+        // above its own label.
+        const wrapper = lines.slice(Math.max(0, at - 60), at + 1).join("\n");
+        if (!/GOOGLE_AUTH_ENABLED\s*&&/.test(wrapper)) {
+          bad.push(`${rel}:${at + 1} renders "Continue with Google" without a GOOGLE_AUTH_ENABLED && gate — the provider is disabled, so the button only produces an error`);
+        }
+        // A relative redirect makes signInWithGoogle's `new URL` throw.
+        if (/signInWithGoogle\(\s*`\//.test(text)) {
+          bad.push(`${rel} passes a relative redirect to signInWithGoogle — new URL() throws on it`);
+        }
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
+  {
+    id: "a-role-the-database-did-not-confirm-is-not-a-role",
+    why:
+      "fetchUserRole set the role optimistically from client-supplied auth metadata, called the " +
+      "assign_user_role RPC, and on any non-duplicate error logged and returned early — leaving " +
+      "the app believing the person was a candidate with no user_roles row behind it. Every " +
+      "role check then passed while the applications INSERT policy, which demands " +
+      "has_role(uid,'candidate'), rejected them; the candidate saw \"Failed to start " +
+      "application. Please try again.\" on an account that looked perfectly fine, and no retry " +
+      "could ever work. After an assignment attempt the database's answer is the answer.",
+    async run() {
+      const bad = [];
+      const hook = await read("src/hooks/useAuth.tsx");
+      if (hook == null) return { ok: false, detail: ["src/hooks/useAuth.tsx is missing"] };
+      const m = hook.match(/if \(!resolved && \(fallbackRole === "employer"[\s\S]*?setRole\(resolved[^\n]*\);/);
+      if (!m) return { ok: false, detail: ["the role-assignment block is gone or unrecognisable"] };
+      const block = m[0].split("\n").filter((l) => !l.trim().startsWith("//")).join("\n");
+      // `\n\s*return;` missed `console.error(...); return;` on one line.
+      if (/\breturn;/.test(block)) {
+        bad.push("fetchUserRole returns early when assignment fails again — that leaves a fabricated role the database never confirmed");
+      }
+      if (!/assignmentAttempted/.test(block)) {
+        bad.push("fetchUserRole no longer distinguishes 'never tried' from 'tried and failed', so a failed assignment falls back to the claimed role");
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
 ];
 
 /* --------------------------------------------------------------------- main */
