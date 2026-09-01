@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useConversationDraft } from "@/hooks/useConversationDraft";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -143,6 +144,14 @@ export default function SalesSimulationPhase() {
   const [isTyping, setIsTyping] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentScenario, setCurrentScenario] = useState<SalesScenario | null>(null);
+  // The transcript used to live only in this component, so a refresh or a
+  // phone call wiped it mid-simulation.
+  const { clear: clearConversationDraft } = useConversationDraft<Message>(
+    id && stepId ? `${id}:${stepId}:sales-sim` : null,
+    messages,
+    setMessages,
+    state === "selling"
+  );
   const [isBlurred, setIsBlurred] = useState(false);
   const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
   const [rejectedAppData, setRejectedAppData] = useState<any>(null);
@@ -548,6 +557,9 @@ export default function SalesSimulationPhase() {
 
   const endSales = () => {
     setState("evaluating");
+    // Finished and on its way to be scored — drop the local draft so a retake
+    // never resumes inside the old transcript.
+    clearConversationDraft();
     handleSubmit();
   };
 

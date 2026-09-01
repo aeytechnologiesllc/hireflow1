@@ -5,6 +5,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useConversationDraft } from "@/hooks/useConversationDraft";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -81,6 +82,14 @@ export default function ChatInterviewPhase() {
   const [isTyping, setIsTyping] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [startTime, setStartTime] = useState<Date | null>(null);
+  // The transcript used to live only in this component, so a refresh or a
+  // phone call wiped it mid-interview.
+  const { clear: clearConversationDraft } = useConversationDraft<Message>(
+    id && stepId ? `${id}:${stepId}:chat-interview` : null,
+    messages,
+    setMessages,
+    state === "interviewing"
+  );
   const [elapsedTime, setElapsedTime] = useState(0);
   const [questionCount, setQuestionCount] = useState(0);
   const [isBlurred, setIsBlurred] = useState(false);
@@ -542,6 +551,9 @@ export default function ChatInterviewPhase() {
 
   const endInterview = () => {
     setState("evaluating");
+    // Finished and on its way to be scored — drop the local draft so a retake
+    // never resumes inside the old transcript.
+    clearConversationDraft();
     handleSubmit();
   };
 

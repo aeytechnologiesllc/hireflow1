@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useConversationDraft } from "@/hooks/useConversationDraft";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -124,6 +125,15 @@ export default function ChatSimulationPhase() {
   const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
   const [isResolved, setIsResolved] = useState(false);
   const [completionCountdown, setCompletionCountdown] = useState<number | null>(null);
+
+  // The transcript used to live only here, so a refresh or a phone call wiped
+  // it mid-assessment with the clock still running.
+  const { clear: clearConversationDraft } = useConversationDraft<Message>(
+    id && stepId ? `${id}:${stepId}:chat-sim` : null,
+    messages,
+    setMessages,
+    state === "chatting"
+  );
   const [completionNote, setCompletionNote] = useState(
     "The hiring team will get back to you — everyone hears back."
   );
@@ -557,6 +567,9 @@ export default function ChatSimulationPhase() {
 
   const endChat = () => {
     setState("evaluating");
+    // The conversation is finished and on its way to be scored — drop the
+    // local draft so a retake never resumes inside the old transcript.
+    clearConversationDraft();
     handleSubmit();
   };
 
