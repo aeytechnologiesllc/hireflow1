@@ -122,7 +122,9 @@ function getGuidanceCopy(displayState: ApplicationDisplayState): string | null {
     const estimate = phaseDurationEstimates[displayState.phaseType]?.label;
     return estimate ? `Your turn — about ${estimate}.` : "Your turn — pick this up when you're ready.";
   }
-  if (displayState.interviewNeedsConfirmation) return "Check your email to confirm the time — we're holding your spot.";
+  // Sent them to their email for something they can do right here — the detail
+  // page has the confirmation card. A candidate who lost the email had no path.
+  if (displayState.interviewNeedsConfirmation) return "Tap to confirm your interview time — we're holding your spot.";
   if (displayState.interviewRescheduleRequested) return "We've asked to reschedule — sit tight for a new time.";
   return null;
 }
@@ -192,8 +194,23 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
     }
   };
 
-  // Determine if the row should navigate — only employer-controlled waits are locked
-  const isLocked = displayState.isPendingReview || displayState.isWaitingPhase;
+  // Determine if the row should navigate — only employer-controlled waits are locked.
+  //
+  // "Employer-controlled" is the whole test, and it was being applied too
+  // widely: the entire isWaitingPhase branch was locked, including the states
+  // where the chip on this very row says "Needs your response". The candidate
+  // was told to act and then given a row that does nothing. The detail page
+  // renders CandidateInterviewConfirmationCard for exactly these states, so the
+  // destination existed the whole time — only the door was shut.
+  //
+  // A confirmed interview opens too: that is where the time, the meeting link
+  // and Add to calendar live, and wanting to look at them again is normal.
+  const candidateHasSomethingToDo =
+    displayState.interviewNeedsConfirmation ||
+    displayState.interviewRescheduleRequested ||
+    displayState.interviewConfirmed;
+  const isLocked =
+    (displayState.isPendingReview || displayState.isWaitingPhase) && !candidateHasSomethingToDo;
   const isFinal = displayState.isHired || displayState.isRejected || application.status === "offered";
 
   const { steps: journeySteps, index: stepIndex } = journeyForCard(application);
