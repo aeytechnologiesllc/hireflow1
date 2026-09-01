@@ -6,9 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { 
-  Briefcase, 
-  MapPin, 
+import {
+  MapPin,
   DollarSign, 
   Building2,
   Calendar,
@@ -21,6 +20,10 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { format, isPast } from "date-fns";
+// This page is the front door — the one a stranger opens from a shared link.
+// It was carrying a stock lucide Briefcase as the job's identity mark and in
+// three empty states, which candidate/glyphs.tsx bans by name.
+import { GlyphJobPost } from "@/components/ava/employerGlyphs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { detectSchemaMode } from "@/cockpit/data/showcaseSource";
@@ -198,7 +201,7 @@ export default function JobDetails() {
       <div className="flex items-center justify-center h-full">
         <Card className="bg-card border-border max-w-md">
           <CardContent className="p-8 text-center">
-            <Briefcase className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+            <GlyphJobPost size={48} className="mx-auto mb-4 opacity-60" style={{ color: "var(--hf-text-muted)" }} />
             <h2 className="text-xl font-semibold text-foreground mb-2">Candidate Access Only</h2>
             <p className="text-muted-foreground">
               This page is for job seekers. Use the Jobs section to manage your job postings.
@@ -224,7 +227,7 @@ export default function JobDetails() {
       <div className="flex items-center justify-center h-full">
         <Card className="bg-card border-border max-w-md">
           <CardContent className="p-8 text-center">
-            <Briefcase className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+            <GlyphJobPost size={48} className="mx-auto mb-4 opacity-60" style={{ color: "var(--hf-text-muted)" }} />
             <h2 className="text-xl font-semibold text-foreground mb-2">Job Not Found</h2>
             <p className="text-muted-foreground mb-4">
               This job may no longer be available or the link is invalid.
@@ -278,7 +281,7 @@ export default function JobDetails() {
       <div className="flex items-center justify-center h-full">
         <Card className="bg-card border-border max-w-md">
           <CardContent className="p-8 text-center">
-            <Briefcase className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+            <GlyphJobPost size={48} className="mx-auto mb-4 opacity-60" style={{ color: "var(--hf-text-muted)" }} />
             <h2 className="text-xl font-semibold text-foreground mb-2">Job Not Found</h2>
             <p className="text-muted-foreground mb-4">
               This job may no longer be available or the link is invalid.
@@ -323,7 +326,7 @@ export default function JobDetails() {
                       {employerProfile?.company_logo ? (
                         <img src={employerProfile.company_logo} alt={employerProfile.company_name ?? "Company logo"} className="h-full w-full object-contain" />
                       ) : (
-                        <Briefcase className="h-7 w-7 text-primary" />
+                        <GlyphJobPost size={28} style={{ color: "var(--hf-green)" }} />
                       )}
                     </div>
                     <div className="min-w-0">
@@ -342,8 +345,10 @@ export default function JobDetails() {
                       <MapPin className="h-3 w-3" />
                       {job.location || "Remote"}
                     </Badge>
-                    <Badge variant="secondary" className="gap-1">
-                      <Briefcase className="h-3 w-3" />
+                    {/* No icon: "Full-Time" says it already, and the stock
+                        briefcase that used to sit here is on the kit's banned
+                        list. An icon that adds nothing is not worth a rule. */}
+                    <Badge variant="secondary">
                       {job.job_type || "Full-Time"}
                     </Badge>
                     <Badge variant="secondary" className="gap-1">

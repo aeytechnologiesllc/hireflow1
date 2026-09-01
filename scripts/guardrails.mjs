@@ -77,6 +77,55 @@ function hits(files, re, skip = () => false) {
 
 const guards = [
   {
+    id: "every-internal-link-has-a-route",
+    why:
+      "/candidate/continue was linked from EIGHT places across four files — the candidate portal " +
+      "landing, the public job page, the save-progress prompt and the apply form — and was never " +
+      "registered as a route. Every one of them fell through to the catch-all and rendered " +
+      "'404 Oops! Page not found' on production. The page existed; it was simply never mounted. " +
+      "A link to a route that does not exist is a dead end for a real person, so it fails the build.",
+    async run() {
+      const app = await read("src/App.tsx");
+      if (app == null) return { ok: false, detail: ["src/App.tsx is missing"] };
+
+      // Every registered path, with :params turned into a wildcard segment.
+      // The catch-all is deliberately EXCLUDED: `path="*"` would compile to
+      // ^.*$ and match every destination, which would make this guard pass
+      // unconditionally — and the catch-all is precisely what renders the 404
+      // this guard exists to prevent.
+      const routes = [...app.matchAll(/path="([^"]+)"/g)]
+        .map((m) => m[1])
+        .filter((r) => r !== "*" && r !== "/*");
+      const matchers = routes.map((r) =>
+        new RegExp("^" + r.replace(/:[^/]+/g, "[^/]+") + "$")
+      );
+      const isRouted = (p) => matchers.some((re) => re.test(p));
+
+      // Every internal destination the app navigates to.
+      const files = await sources([".ts", ".tsx"]);
+      const bad = [];
+      const seen = new Set();
+      for (const { rel, text } of files) {
+        const targets = [
+          ...text.matchAll(/navigate\(\s*["'](\/[^"'`?#]*)/g),
+          ...text.matchAll(/\bto=["'](\/[^"'`?#]*)/g),
+        ];
+        for (const m of targets) {
+          let path = m[1].replace(/\/+$/, "") || "/";
+          // Skip anything built from a variable or a template literal — this
+          // guard only judges destinations written as plain literals.
+          if (path.includes("${") || path.length < 2) continue;
+          const key = `${rel}→${path}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          if (!isRouted(path)) bad.push(`${rel} links to ${path} — no <Route path> matches it`);
+        }
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
+  {
     id: "no-dead-project-ref",
     why:
       "kcotpxlggfvgclwksmhl is a dead Supabase project. It was copied out of CLAUDE.md " +

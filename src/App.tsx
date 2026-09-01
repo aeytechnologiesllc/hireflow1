@@ -58,6 +58,15 @@ const TeamPortal = lazyWithReload(routeImporters["/team-portal"]);
 const JoinTeam = lazyWithReload(() => import("./pages/JoinTeam"));
 const ApplyWithCode = lazyWithReload(routeImporters["/apply"]);
 const JobDetails = lazyWithReload(() => import("./pages/JobDetails"));
+/**
+ * The accountless applicant's way back in: they enter the phone number they
+ * applied with and get their applications. Eight links across four files
+ * pointed at /candidate/continue — the portal landing, the public job page and
+ * the apply form among them — while the route itself was never registered, so
+ * every one of them fell through to the catch-all and rendered "404 Oops! Page
+ * not found" on production. The page had been written and simply never mounted.
+ */
+const CandidateContinue = lazyWithReload(() => import("./pages/CandidateContinue"));
 const Applications = lazyWithReload(routeImporters["/applications"]);
 const CandidateApplicationDetail = lazyWithReload(() => import("./pages/CandidateApplicationDetail"));
 const ApplicationFormPhase = lazyWithReload(() => import("./pages/ApplicationFormPhase"));
@@ -150,6 +159,9 @@ const App = () => (
                   <Route path="/candidate/auth" element={<CandidateAuth />} />
                   <Route path="/candidate/apply" element={<ApplyWithCode />} />
                   <Route path="/candidate/apply/:roleId/form" element={<ShowcaseApplyForm />} />
+                  {/* Accountless — no auth wall, by design: the whole point is
+                      getting back to an application you started without one. */}
+                  <Route path="/candidate/continue" element={<CandidateContinue />} />
                   <Route path="/candidate/job/:id" element={<JobDetails />} />
                   
                   {/* Developer Dashboard (role-based access) */}

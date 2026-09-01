@@ -284,12 +284,20 @@ export default function AppLayout() {
     }
   }, [loading, user, shouldRedirectCandidate, navigate]);
 
-  // Candidate-facing routes aren't all under /candidate — the application
-  // flow lives at /applications/* — so the loading-screen variant has to
-  // check both, or a candidate waiting on auth/subscription state sees
-  // employer copy ("Preparing your dashboard...").
-  const isCandidateRoute =
-    location.pathname.startsWith("/candidate") || location.pathname.startsWith("/applications");
+  // Candidate-facing routes aren't all under /candidate — the application flow
+  // lives at /applications/*, the public job page at /job/:id, and the code
+  // entry at /apply — so the loading-screen variant has to check all of them,
+  // or a candidate waiting on auth/subscription state sees employer copy
+  // ("Preparing your dashboard...").
+  //
+  // /job/:id is the one a STRANGER opens from a shared link, so it is the worst
+  // possible place to show them an employer dashboard message. It was missing
+  // from this list, along with /apply, which is the same screen as
+  // /candidate/apply mounted inside the layout.
+  const CANDIDATE_ROUTE_PREFIXES = ["/candidate", "/applications", "/job/", "/apply"] as const;
+  const isCandidateRoute = CANDIDATE_ROUTE_PREFIXES.some((prefix) =>
+    location.pathname.startsWith(prefix)
+  );
   const loadingVariant = isCandidateRoute ? "candidate" : "employer";
   const isGuestDraftSignal =
     !isCandidateRoute &&
