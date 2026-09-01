@@ -33,7 +33,7 @@ import { JobPostingJsonLd } from "@/components/seo/JobPostingJsonLd";
 export default function JobDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { role, user } = useAuth();
+  const { role, user, signOut } = useAuth();
   const [isStartingApplication, setIsStartingApplication] = useState(false);
   const [applicantLimitReached, setApplicantLimitReached] = useState(false);
   const [isCheckingLimit, setIsCheckingLimit] = useState(false);
@@ -156,7 +156,19 @@ export default function JobDetails() {
     }
 
     if (!job) return;
-    
+
+    // The applications INSERT policy is
+    //   (auth.uid() = candidate_id) AND has_role(auth.uid(), 'candidate')
+    // so an employer's insert is rejected by the database every time. Firing it
+    // anyway produced "Failed to start application. Please try again." — untrue
+    // twice over: it is not a failure they caused, and retrying can never work.
+    if (isEmployer) {
+      toast.info("You're signed in as an employer", {
+        description: "Applications belong to a candidate account. Sign out to apply to this role.",
+      });
+      return;
+    }
+
     setIsStartingApplication(true);
     try {
       if (user) {
@@ -212,21 +224,13 @@ export default function JobDetails() {
   const loadError = isShowcase ? showcaseError : hireflowError;
   const activeRole = isShowcase ? showcaseRole : job;
 
-  if (isEmployer) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Card className="bg-card border-border max-w-md">
-          <CardContent className="p-8 text-center">
-            <GlyphJobPost size={48} className="mx-auto mb-4 opacity-60" style={{ color: "var(--hf-text-muted)" }} />
-            <h2 className="text-xl font-semibold text-foreground mb-2">Candidate Access Only</h2>
-            <p className="text-muted-foreground">
-              This page is for job seekers. Use the Jobs section to manage your job postings.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // An employer used to hit a hard "Candidate Access Only" card here, with no
+  // button on it at all — no preview, no sign-out, no way onward. A job posting
+  // is PUBLIC: any stranger with the link can read this page, so walling off the
+  // one person who wrote it was backwards. It also meant nobody could ever check
+  // their own live posting the way a candidate sees it, which is exactly the
+  // check you want to run right after publishing. The page now renders for
+  // employers too, with an honest banner and a real way through.
 
   if (isLoading) {
     return (
@@ -348,15 +352,54 @@ export default function JobDetails() {
         <JobPostingJsonLd job={job} company={employerProfile?.company_name} logo={employerProfile?.company_logo} />
       )}
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Back Button */}
-        <Button 
-          variant="ghost" 
-          onClick={() => navigate(applyEntryRoute)}
+        {/* Back Button — "Back to Apply" is meaningless to an employer, who
+            came from their own postings list. */}
+        <Button
+          variant="ghost"
+          onClick={() => navigate(isEmployer ? "/jobs" : applyEntryRoute)}
           className="text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Apply
+          {isEmployer ? "Back to Jobs" : "Back to Apply"}
         </Button>
+
+        {/* Say plainly whose view this is, and give a real way through. Without
+            this an employer either believes they are seeing what a candidate
+            sees (they nearly are, but Apply cannot work for them) or hits a
+            refusal they cannot act on. */}
+        {isEmployer && (
+          <div
+            className="rounded-xl border p-4"
+            style={{ borderColor: "var(--brass-line)", background: "var(--amber-bg)" }}
+          >
+            <p className="text-sm font-medium text-foreground">
+              This is the candidate&apos;s view of your posting
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Everything below is what an applicant sees. Applying needs a candidate
+              account, so the button won&apos;t work while you&apos;re signed in as an employer.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  // Sign out, then land straight back on this posting as a
+                  // stranger would see it — the check worth running right after
+                  // publishing.
+                  const back = `/candidate/job/${id}`;
+                  await signOut();
+                  navigate(back, { replace: true });
+                }}
+              >
+                Sign out and view as a candidate
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => navigate("/applicants")}>
+                See applicants
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Job Header */}
         <motion.div
@@ -530,9 +573,13 @@ export default function JobDetails() {
                   ) : (
                     <>
                       <div className="text-center">
-                        <h3 className="text-lg font-semibold text-foreground">Ready to Apply?</h3>
+                        <h3 className="text-lg font-semibold text-foreground">
+                          {isEmployer ? "This is where candidates apply" : "Ready to Apply?"}
+                        </h3>
                         <p className="text-sm text-muted-foreground mt-1">
-                          Start your application and take the first step
+                          {isEmployer
+                            ? "Sign out above to try it the way an applicant would."
+                            : "Start your application and take the first step"}
                         </p>
                       </div>
 
