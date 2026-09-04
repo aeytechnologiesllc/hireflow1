@@ -1258,9 +1258,9 @@ const guards = [
       "/candidate/auth with a way back to the job.",
     async run() {
       const text = await read("src/pages/JobDetails.tsx");
-      if (text == null) return ["src/pages/JobDetails.tsx is missing"];
+      if (text == null) return { ok: false, detail: ["src/pages/JobDetails.tsx is missing"] };
       const start = text.indexOf("const handleStartApplication = async () => {");
-      if (start < 0) return ["JobDetails.tsx no longer has handleStartApplication"];
+      if (start < 0) return { ok: false, detail: ["JobDetails.tsx no longer has handleStartApplication"] };
       const body = text.slice(start);
       const guest = body.indexOf("if (!user) {");
       const roleCheck = body.indexOf('if (role !== "candidate") {');
@@ -1272,7 +1272,7 @@ const guards = [
       if (guest >= 0 && !/\/candidate\/auth\?redirect=/.test(body.slice(guest, guest + 400))) {
         bad.push("the signed-out branch does not send the visitor to /candidate/auth with a redirect back");
       }
-      return bad;
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
     },
   },
 
