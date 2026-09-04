@@ -1248,6 +1248,35 @@ const guards = [
   },
 
   {
+    id: "a-stranger-on-a-job-link-is-sent-to-the-candidate-door",
+    why:
+      "On 2026-09-04 a signed-out visitor who clicked Apply Now on a shared job link was told " +
+      "\"This account can't apply yet — sign out and sign up as a job seeker\". They had no " +
+      "account to sign out of. The role check ran before the signed-out check, so a null role " +
+      "was treated as the wrong kind of account. The very first person a new employer sends " +
+      "to their job link is a stranger; the signed-out branch must run first and must lead to " +
+      "/candidate/auth with a way back to the job.",
+    async run() {
+      const text = await read("src/pages/JobDetails.tsx");
+      if (text == null) return ["src/pages/JobDetails.tsx is missing"];
+      const start = text.indexOf("const handleStartApplication = async () => {");
+      if (start < 0) return ["JobDetails.tsx no longer has handleStartApplication"];
+      const body = text.slice(start);
+      const guest = body.indexOf("if (!user) {");
+      const roleCheck = body.indexOf('if (role !== "candidate") {');
+      const bad = [];
+      if (guest < 0) bad.push("handleStartApplication has no signed-out branch");
+      if (roleCheck >= 0 && guest >= 0 && guest > roleCheck) {
+        bad.push("the role check runs before the signed-out check — a stranger is told they have the wrong account");
+      }
+      if (guest >= 0 && !/\/candidate\/auth\?redirect=/.test(body.slice(guest, guest + 400))) {
+        bad.push("the signed-out branch does not send the visitor to /candidate/auth with a redirect back");
+      }
+      return bad;
+    },
+  },
+
+  {
     id: "employers-can-walk-the-links-they-hand-out",
     why:
       "Both candidate entry points met a signed-in employer with a bare \"Candidate Access Only\" " +

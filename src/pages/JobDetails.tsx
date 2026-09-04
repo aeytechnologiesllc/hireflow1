@@ -184,6 +184,15 @@ export default function JobDetails() {
     // resolves to null. All of them used to get "Failed to start application.
     // Please try again." from the catch below, which is untrue twice: not their
     // failure, and no retry can ever succeed.
+    // A stranger arriving from a shared link is not "the wrong kind of account" —
+    // they have no account yet. Send them to the candidate door with a way back
+    // here, before any role check can mistake them for a signed-in non-candidate.
+    if (!user) {
+      const back = `/candidate/job/${job.id}`;
+      navigate(`/candidate/auth?redirect=${encodeURIComponent(back)}`);
+      return;
+    }
+
     if (role !== "candidate") {
       toast.info(
         isEmployer ? "You're signed in as an employer" : "This account can't apply yet",
