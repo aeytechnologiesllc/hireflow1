@@ -129,6 +129,11 @@ export default function ChatSimulationPhase() {
   const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
   const [isResolved, setIsResolved] = useState(false);
   const [completionCountdown, setCompletionCountdown] = useState<number | null>(null);
+  // The simulated customer failed to answer the candidate's last message. The
+  // wrap-up button is normally gated on a minimum number of replies, so a
+  // customer that never comes back would leave the candidate typing into a
+  // void with no way to finish. Once this is set, they may send what they have.
+  const [customerUnavailable, setCustomerUnavailable] = useState(false);
 
   // The transcript used to live only here, so a refresh or a phone call wiped
   // it mid-assessment with the clock still running.
@@ -420,6 +425,7 @@ export default function ChatSimulationPhase() {
           ? { ...m, id: `customer-${Date.now()}` }
           : m
       ));
+      if (customerContent) setCustomerUnavailable(false);
 
     } catch (error) {
       console.error("Chat simulation error:", error);
@@ -429,6 +435,7 @@ export default function ChatSimulationPhase() {
       // exactly backwards. The candidate gets the sentence; the console keeps
       // the detail for debugging.
       console.error("Chat simulation message failed:", error);
+      setCustomerUnavailable(true);
       toast.error("That didn't come through — give it another try.");
     } finally {
       setIsTyping(false);
@@ -533,10 +540,12 @@ export default function ChatSimulationPhase() {
           ? { ...m, id: `customer-initial` }
           : m
       ));
+      if (customerContent) setCustomerUnavailable(false);
 
     } catch (error) {
       console.error("Chat simulation error:", error);
       console.error("Chat simulation failed to start:", error);
+      setCustomerUnavailable(true);
       toast.error("Couldn't start the conversation — give it another try.");
     } finally {
       setIsTyping(false);
@@ -832,8 +841,15 @@ export default function ChatSimulationPhase() {
     );
   }
 
+  // "agent" is the candidate's role in this simulation (they play support; the
+  // AI plays the customer), so this already counts the candidate's own turns.
   const agentReplyCount = messages.filter(m => m.role === "agent").length;
-  const canEndChat = agentReplyCount >= chatConfig.minMessages;
+  // If the customer stopped answering, the candidate may wrap up with whatever
+  // they have written — the minimum only applies while the conversation works.
+  const canEndEarly = customerUnavailable && agentReplyCount > 0;
+  const canEndChat = agentReplyCount >= chatConfig.minMessages || canEndEarly;
+  // Ending early, before the usual minimum — the button and hint change wording.
+  const endingShort = canEndEarly && agentReplyCount < Number(chatConfig.minMessages ?? 0);
 
   // Show rejection screen for autopilot mode failure
   if (state === "rejected" && rejectedAppData) {
@@ -1100,13 +1116,18 @@ export default function ChatSimulationPhase() {
 
                   {/* End Chat Button - only show if not auto-resolved */}
                   {state === "chatting" && canEndChat && !isResolved && (
-                    <div className="text-center pt-2">
+                    <div className="space-y-2 text-center pt-2">
+                      {endingShort && (
+                        <p className="text-sm text-muted-foreground">
+                          The customer isn't responding right now. You can keep trying, or send what you have — it still counts.
+                        </p>
+                      )}
                       <Button
                         variant="outline"
                         onClick={endChat}
                         disabled={isTyping}
                       >
-                        Wrap up and send
+                        {endingShort ? "Send what I have" : "Wrap up and send"}
                       </Button>
                     </div>
                   )}

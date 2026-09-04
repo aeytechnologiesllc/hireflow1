@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+import { Paperclip } from "lucide-react";
 import AvaSeal from "@/components/ava/AvaSeal";
+import { useAuth } from "@/hooks/useAuth";
+import { useMessageableEmployers, type MessageableEmployer } from "@/hooks/useMessages";
 import CkAvatar from "../components/Avatar";
 import {
   useCockpitMessages,
@@ -11,7 +14,12 @@ import {
 } from "../hooks/useCockpitData";
 
 /**
- * Messages — every thread with an applicant, in one place.
+ * Messages — every thread with the person on the other side, in one place.
+ *
+ * Shared by both roles. An employer reads it as "every applicant who wrote";
+ * a candidate reads it as "every hiring team I can talk to" — including the
+ * ones who have not written yet, because a candidate has no applicant record
+ * to start a thread from the way an employer does.
  *
  * Two panes: the threads on the left, triaged by whether anything is actually
  * waiting on you, and the conversation on the right. No hero graphic; the
@@ -30,8 +38,23 @@ const TILTS = [-6, 4, -3, 5, -4];
 
 type ThreadItem = ReturnType<typeof useCockpitMessages>["conversations"][number];
 
+interface Attachment {
+  url: string;
+  name: string;
+  type: string;
+}
+
 function firstName(full: string) {
   return full.trim().split(/\s+/)[0] || full;
+}
+
+/** A candidate knows the hiring team by the company; fall back to whoever posted. */
+function employerName(e: MessageableEmployer) {
+  return e.employer_profile?.company_name || e.employer_profile?.full_name || "Hiring team";
+}
+
+function isImageFile(file: Attachment) {
+  return file.type.startsWith("image/") || /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(file.name);
 }
 
 /** The mapper hands over a long relative stamp ("about 2 hours ago"); a thread
@@ -152,12 +175,18 @@ function Bubble({
   time,
   text,
   mine,
+  file,
 }: {
   who: string;
   time: string;
   text: string;
   mine: boolean;
+  file?: Attachment;
 }) {
+  // A message that carried a file was stored with "Sent a file: <name>" as its
+  // text so a client with no file rendering had something to print. Once the
+  // file itself is on screen that line is just the filename twice.
+  const showText = !!text && !(file && /^Sent a file:/i.test(text));
   return (
     <div
       className="max-w-[76%] rounded-xl px-[13px] py-2.5 text-[13px] leading-[1.5] sm:max-w-[70%]"
@@ -181,25 +210,56 @@ function Bubble({
         {who}
         {time ? ` · ${time}` : ""}
       </span>
-      {text}
+      {file &&
+        (isImageFile(file) ? (
+          <a
+            href={file.url}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`Open ${file.name}`}
+            className={`block overflow-hidden rounded-lg ${showText ? "mb-1.5" : ""}`}
+          >
+            <img src={file.url} alt={file.name} loading="lazy" className="block max-h-[240px] w-auto max-w-full" />
+          </a>
+        ) : (
+          <a
+            href={file.url}
+            target="_blank"
+            rel="noreferrer"
+            className={`inline-flex max-w-full items-center gap-1.5 underline underline-offset-2 ${showText ? "mb-1" : ""}`}
+          >
+            <Paperclip className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="truncate">{file.name}</span>
+          </a>
+        ))}
+      {showText && <span className="block whitespace-pre-wrap">{text}</span>}
     </div>
   );
 }
 
 export default function CockpitMessages() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
-  const candidateParam = searchParams.get("candidate");
+  // An employer arrives with ?candidate=, a candidate with ?employer=. Either
+  // names the person on the other end, so both are read the same way.
+  const linkParam = searchParams.get("candidate") ?? searchParams.get("employer");
+  const { role } = useAuth();
+  const isCandidate = role === "candidate";
   const { account } = useCockpitAccount();
-  const { candidates } = useCockpitCandidates();
+  const { candidates, isLoading: candidatesLoading } = useCockpitCandidates();
   const { interviews } = useCockpitInterviews();
+  // Who a candidate may write to: the hiring team behind every application.
+  // Employer-side callers never run this — it can only come back empty for them.
+  const { data: employers = [], isLoading: employersLoading } = useMessageableEmployers({
+    enabled: isCandidate,
+  });
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "needs" | "quiet">("all");
   const [draft, setDraft] = useState("");
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const bubblesRef = useRef<HTMLDivElement>(null);
-  const appliedParam = useRef<string | null>(null);
 
   const contactId = activeId;
   // `isLoading` is the conversations fetch OR the thread fetch. Coarse, but the
@@ -208,24 +268,40 @@ export default function CockpitMessages() {
   const { conversations, thread, rawThread, send, markRead, isLoading, isSending } =
     useCockpitMessages(contactId);
 
-  // A deep link may carry the candidate's user id (what messaging addresses) or
-  // the application id (what a list row has to hand). Accept either.
+  // A deep link may carry the other person's user id (what messaging addresses)
+  // or an application id (what a list row has to hand). Accept either — but not
+  // before the lookup that tells them apart has loaded, or an application id
+  // would briefly be addressed as if it were a person.
+  const lookupPending = isCandidate ? employersLoading : candidatesLoading;
   const linkedContactId = useMemo(() => {
-    if (!candidateParam) return null;
-    const byApplication = candidates.find((c) => c.id === candidateParam);
-    return byApplication?.avatar ?? candidateParam;
-  }, [candidateParam, candidates]);
+    if (!linkParam || lookupPending) return null;
+    if (isCandidate) {
+      const byApplication = employers.find((e) => e.application_id === linkParam);
+      return byApplication?.employer_id ?? linkParam;
+    }
+    const byApplication = candidates.find((c) => c.id === linkParam);
+    return byApplication?.avatar ?? linkParam;
+  }, [linkParam, lookupPending, isCandidate, employers, candidates]);
 
-  // Honour the deep link once. Re-applying it on every render would pin the
-  // page to that person and make every other thread unclickable.
+  // Honour the deep link once per navigation. Re-applying it on every render
+  // would pin the page to that person and make every other thread unclickable;
+  // applying it only once per person meant a second "Message" click on the same
+  // applicant, after reading someone else, landed on the wrong thread. The
+  // navigation key changes on every click that brings you here, so each one
+  // is honoured exactly once. Without a link, open the newest thread.
+  const appliedLink = useRef<string | null>(null);
   useEffect(() => {
-    if (linkedContactId && appliedParam.current !== linkedContactId) {
-      appliedParam.current = linkedContactId;
-      setActiveId(linkedContactId);
+    if (linkParam) {
+      if (!linkedContactId) return;
+      const key = `${location.key}:${linkedContactId}`;
+      if (appliedLink.current !== key) {
+        appliedLink.current = key;
+        setActiveId(linkedContactId);
+      }
       return;
     }
     if (!activeId && conversations[0]) setActiveId(conversations[0].id);
-  }, [linkedContactId, conversations, activeId]);
+  }, [linkParam, linkedContactId, location.key, conversations, activeId]);
 
   // Only the messages addressed to you can be marked read — marking your own
   // outbound ones would refetch forever, since the update can never take.
@@ -246,24 +322,57 @@ export default function CockpitMessages() {
     void markRead(unread);
   }, [thread, rawThread, markRead]);
 
+  // The mapper keeps a message down to its text; the attachment, when there is
+  // one, is still on the raw row. Look it up by id so a file renders as a file
+  // instead of as the "Sent a file: x" placeholder it was stored with.
+  const filesById = useMemo(() => {
+    const map = new Map<string, Attachment>();
+    for (const m of rawThread) {
+      if (m.file_url) {
+        map.set(m.id, { url: m.file_url, name: m.file_name ?? "Attachment", type: m.file_type ?? "" });
+      }
+    }
+    return map;
+  }, [rawThread]);
+
   const activeConv = conversations.find((c) => c.id === contactId);
   const activeCandidate = candidates.find((c) => c.avatar === contactId);
+  const activeEmployer = isCandidate ? employers.find((e) => e.employer_id === contactId) : undefined;
+  const employersById = useMemo(
+    () => new Map(employers.map((e) => [e.employer_id, e])),
+    [employers],
+  );
 
-  // The person on screen: their thread if one exists, otherwise the applicant
-  // the deep link named — so a first message is always possible.
+  // The person on screen: their thread if one exists, otherwise whoever the
+  // deep link or the opener list named — so a first message is always possible.
+  // A candidate's thread partner is a company, not the account that posted, so
+  // the hiring-team lookup overrides the bare profile the conversation carries.
   const partner = useMemo(() => {
     if (activeConv) {
+      const team = isCandidate ? employersById.get(activeConv.id) : undefined;
       return {
         id: activeConv.id,
-        name: activeConv.name,
-        role: activeConv.role,
+        name: team ? employerName(team) : activeConv.name,
+        role: team ? team.job_title : activeConv.role,
       };
     }
     if (activeCandidate && contactId) {
       return { id: contactId, name: activeCandidate.name, role: activeCandidate.role };
     }
+    if (activeEmployer && contactId) {
+      return { id: contactId, name: employerName(activeEmployer), role: activeEmployer.job_title };
+    }
     return null;
-  }, [activeConv, activeCandidate, contactId]);
+  }, [activeConv, activeCandidate, activeEmployer, contactId, isCandidate, employersById]);
+
+  // A company name is not a first name: a candidate writes to "Ridgeline
+  // Coffee", not to "Ridgeline".
+  const partnerShort = partner ? (isCandidate ? partner.name : firstName(partner.name)) : "";
+
+  // Team-member RLS on messages is keyed on application_id — a row without one
+  // is invisible to them, including their own. Send every message with the
+  // application it belongs to when we know it.
+  const activeApplicationId = activeCandidate?.id ?? activeEmployer?.application_id;
 
   const needsYou = conversations.filter((c) => (c.unread ?? 0) > 0).length;
   const quiet = conversations.length - needsYou;
@@ -276,8 +385,34 @@ export default function CockpitMessages() {
           ? conversations.filter((c) => !(c.unread ?? 0))
           : conversations;
 
+    // A candidate's list also holds the hiring teams they have not written to
+    // yet — with no applicant record to start from, this is their only door.
+    // Named by company, since that is how a candidate knows them.
+    const known = new Set(conversations.map((c) => c.id));
+    const openers: ThreadItem[] =
+      isCandidate && filter === "all"
+        ? employers
+            .filter((e) => !known.has(e.employer_id))
+            .map((e) => ({
+              id: e.employer_id,
+              avatar: e.employer_id,
+              name: employerName(e),
+              role: e.job_title,
+              time: "",
+              preview: `${e.job_title} · no messages yet`,
+              unread: undefined,
+            }))
+        : [];
+    const named = isCandidate
+      ? list.map((c) => {
+          const team = employersById.get(c.id);
+          return team ? { ...c, name: employerName(team), role: team.job_title } : c;
+        })
+      : list;
+    const all = [...named, ...openers];
+
     // A deep-linked applicant with no history yet still belongs in the list.
-    if (partner && !conversations.some((c) => c.id === partner.id)) {
+    if (partner && !all.some((c) => c.id === partner.id)) {
       const pending: ThreadItem = {
         id: partner.id,
         avatar: partner.id,
@@ -287,10 +422,10 @@ export default function CockpitMessages() {
         preview: "No messages yet",
         unread: undefined,
       };
-      return [pending, ...list];
+      return [pending, ...all];
     }
-    return list;
-  }, [conversations, filter, partner]);
+    return all;
+  }, [conversations, filter, partner, isCandidate, employers, employersById]);
 
   const hasInterview = !!contactId && interviews.upcoming.some((i) => i.avatar === contactId);
   // `.analyzed` (not `overall > 0`) — a genuine finished score of 0 must still
@@ -318,7 +453,7 @@ export default function CockpitMessages() {
     const text = draft.trim();
     if (!text || !contactId) return;
     try {
-      await send(text, contactId);
+      await send(text, contactId, activeApplicationId);
       setDraft("");
       if (composerRef.current) composerRef.current.style.height = "auto";
     } catch {
@@ -326,7 +461,12 @@ export default function CockpitMessages() {
     }
   };
 
-  if (isLoading && !conversations.length) {
+  // Hold the skeleton while a deep link is still being resolved, and while a
+  // candidate's list of hiring teams is on its way: the empty state below
+  // would otherwise flash "nobody to write to" at someone who has applied.
+  const settling =
+    (!!linkParam && lookupPending) || (isCandidate && employersLoading && !conversations.length);
+  if ((isLoading && !conversations.length) || settling) {
     return (
       <div className="space-y-4">
         <div className="ck-rise h-[42px] w-56 rounded-lg" style={{ background: "var(--surface)", opacity: 0.55 }} />
@@ -352,14 +492,75 @@ export default function CockpitMessages() {
         Messages
       </h1>
       <span className="text-[13px]" style={{ color: "var(--ink-3)" }}>
-        Every message with an applicant, in one place.
+        {isCandidate
+          ? "Every message with a hiring team, in one place."
+          : "Every message with an applicant, in one place."}
       </span>
     </header>
   );
 
-  // Brand-new account: no threads, nobody deep-linked. Say so, and point at the
-  // one thing that starts them.
+  // No threads, nobody deep-linked. Say so, and point at the one thing that
+  // starts them — which differs by who is looking.
   if (!conversations.length && !partner) {
+    if (isCandidate) {
+      return (
+        <div className="space-y-5">
+          {header}
+          <section className="ck-card ck-reveal p-6 md:p-8" style={{ ["--ck-i" as string]: 1 }}>
+            <h2 className="font-display text-[20px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
+              Nobody has written yet.
+            </h2>
+            {employers.length > 0 ? (
+              <>
+                <p className="mt-2 max-w-[54ch] text-[14px]" style={{ color: "var(--hf-text-soft)" }}>
+                  You can message the hiring team for any role you've applied to:
+                </p>
+                <div className="mt-5 flex max-w-[520px] flex-col gap-2">
+                  {employers.map((e) => {
+                    const name = employerName(e);
+                    return (
+                      <button
+                        key={e.employer_id}
+                        type="button"
+                        onClick={() => setActiveId(e.employer_id)}
+                        className="flex items-center gap-3 rounded-[10px] border p-3 text-left transition-colors hover:border-[var(--hair)] hover:bg-[var(--surface)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--jade)]"
+                        style={{ borderColor: "var(--line)" }}
+                      >
+                        <CkAvatar who={name} size={34} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[13px] font-semibold" style={{ color: "var(--ink)" }}>
+                            {name}
+                          </span>
+                          <span className="block truncate text-[11px]" style={{ color: "var(--ink-3)" }}>
+                            {e.job_title}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-[11px] font-bold uppercase tracking-[0.06em]" style={{ color: "var(--jade)" }}>
+                          Write
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="mt-2 max-w-[54ch] text-[14px]" style={{ color: "var(--hf-text-soft)" }}>
+                  Once you've applied to a role, its hiring team shows up here and you can write to them
+                  any time.
+                </p>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <button className="ck-btn ck-btn-primary" onClick={() => navigate("/applications")}>
+                    See your applications
+                  </button>
+                </div>
+              </>
+            )}
+          </section>
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-5">
         {header}
@@ -487,6 +688,14 @@ export default function CockpitMessages() {
                     View application
                   </button>
                 )}
+                {!activeCandidate && activeEmployer && (
+                  <button
+                    className="ck-btn ck-btn-outline ml-auto shrink-0 !px-3 !py-1.5 !text-[12px]"
+                    onClick={() => navigate(`/applications/${activeEmployer.application_id}`)}
+                  >
+                    Your application
+                  </button>
+                )}
               </div>
 
               {/* mt-auto, not justify-end: a short thread still hugs the
@@ -507,21 +716,22 @@ export default function CockpitMessages() {
                         <AvaSeal size={26} />
                       </span>
                       <p className="text-[12.5px]" style={{ color: "var(--ink-3)" }}>
-                        Pulling up your messages with {firstName(partner.name)}…
+                        Pulling up your messages with {partnerShort}…
                       </p>
                     </div>
                   ) : thread.length === 0 ? (
                     <p className="text-center text-[12.5px]" style={{ color: "var(--ink-3)" }}>
-                      No messages with {firstName(partner.name)} yet — write the first one.
+                      No messages with {partnerShort} yet — write the first one.
                     </p>
                   ) : (
                     thread.map((m) => (
                       <Bubble
                         key={m.id}
                         mine={m.from === "me"}
-                        who={m.from === "me" ? account.name : firstName(partner.name)}
+                        who={m.from === "me" ? account.name : partnerShort}
                         time={m.time}
                         text={m.text}
+                        file={filesById.get(m.id)}
                       />
                     ))
                   )}
@@ -536,8 +746,8 @@ export default function CockpitMessages() {
                   ref={composerRef}
                   rows={1}
                   value={draft}
-                  aria-label={`Write to ${firstName(partner.name)}`}
-                  placeholder={`Write to ${firstName(partner.name)}…`}
+                  aria-label={`Write to ${partnerShort}`}
+                  placeholder={`Write to ${partnerShort}…`}
                   onChange={(e) => {
                     setDraft(e.target.value);
                     e.target.style.height = "auto";

@@ -275,9 +275,11 @@ export default function PortfolioUploadPhase() {
         continue;
       }
 
-      const { data: urlData } = supabase.storage
-        .from("portfolios")
-        .getPublicUrl(fileName);
+      // Persist the bare storage path, not a URL. The `portfolios` bucket is
+      // private, so a public URL would be a permanent dead link. Viewers mint a
+      // short-lived signed URL from the path (candidateMediaUrl.ts), and
+      // ai-analyze-portfolio downloads by path through the storage API.
+      const storedPath = fileName;
 
       // Carry the name and type WITH the url. The caller used to rebuild these
       // as `uploadedUrls.map((url, i) => ({ url, name: files[i].file.name }))`,
@@ -285,13 +287,13 @@ export default function PortfolioUploadPhase() {
       // after any mid-list failure every surviving file was saved under the
       // wrong filename and mime type. Pairing them here makes that impossible.
       uploadedUrls.push({
-        url: urlData.publicUrl,
+        url: storedPath,
         name: fileItem.file.name,
         type: fileItem.file.type || "unknown",
       });
 
       setFiles(prev => prev.map(f =>
-        f.id === fileItem.id ? { ...f, uploading: false, uploaded: true, url: urlData.publicUrl } : f
+        f.id === fileItem.id ? { ...f, uploading: false, uploaded: true, url: storedPath } : f
       ));
 
       setUploadProgress(((i + 1) / files.length) * 100);

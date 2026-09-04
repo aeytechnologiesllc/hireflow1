@@ -1,10 +1,36 @@
 {
   "rewrites": [
-    { "source": "/sitemap.xml", "destination": "https://yqklrkpptnhubsnijqze.supabase.co/functions/v1/sitemap" },
-    { "source": "/jobs.xml", "destination": "/api/job-feed" },
-    { "source": "/landing.html", "destination": "/landing.html" },
-    { "source": "/candidate/job/:id", "destination": "/api/job-prerender?id=:id" },
-    { "source": "/job/:id", "destination": "/api/job-prerender?id=:id" },
-    { "source": "/:path+", "destination": "/index.html" }
+    {
+      "source": "/sitemap.xml",
+      "destination": "https://yqklrkpptnhubsnijqze.supabase.co/functions/v1/sitemap"
+    },
+    {
+      "source": "/jobs.xml",
+      "destination": "/api/job-feed"
+    },
+    {
+      "source": "/adzuna.xml",
+      "destination": "/api/job-feed-adzuna"
+    },
+    {
+      "source": "/jooble.xml",
+      "destination": "/api/job-feed-jooble"
+    },
+    {
+      "source": "/landing.html",
+      "destination": "/landing.html"
+    },
+    {
+      "source": "/candidate/job/:id",
+      "destination": "/api/job-prerender?id=:id"
+    },
+    {
+      "source": "/job/:id",
+      "destination": "/api/job-prerender?id=:id"
+    },
+    {
+      "source": "/:path+",
+      "destination": "/index.html"
+    }
   ]
 }

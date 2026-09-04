@@ -22,6 +22,7 @@ import { prefetchForPath } from "@/lib/prefetchRoutes";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCockpitAccount } from "./hooks/useCockpitData";
 import { useUnreadCount } from "@/hooks/useNotifications";
+import { useUnreadMessagesCount } from "@/hooks/useUnreadMessagesCount";
 import { Wordmark } from "./components/Wordmark";
 import { AccountMenu } from "./components/AccountMenu";
 
@@ -121,6 +122,7 @@ function TrialBadge() {
 }
 
 function Sidebar() {
+  const { data: unreadMessages = 0 } = useUnreadMessagesCount();
   const { pathname } = useLocation();
   const { account } = useCockpitAccount();
   return (
@@ -177,6 +179,15 @@ function Sidebar() {
             >
               <Icon className="h-[18px] w-[18px] shrink-0 transition-transform group-hover:translate-x-px" />
               <span className="hidden min-[1121px]:inline">{item.label}</span>
+              {item.to === "/messages" && unreadMessages > 0 && (
+                <span
+                  aria-label={`${unreadMessages} unread`}
+                  className="ml-auto flex items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums"
+                  style={{ minWidth: 16, height: 16, background: "var(--jade)", color: "var(--btn-fg)" }}
+                >
+                  {unreadMessages > 9 ? "9+" : unreadMessages}
+                </span>
+              )}
             </Link>
           );
         })}
@@ -314,6 +325,7 @@ function MobileTopBar() {
 }
 
 function MobileTabBar() {
+  const { data: unreadMessages = 0 } = useUnreadMessagesCount();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const moreActive = ["/interviews", "/documents", "/team", "/analytics", "/more", "/settings"].some((p) => isActive(pathname, p));
@@ -342,7 +354,18 @@ function MobileTabBar() {
               className="absolute -top-2 h-[2px] w-8 rounded-full"
               style={{ background: active ? "var(--jade)" : "transparent" }}
             />
-            <Icon className="h-[22px] w-[22px]" style={{ color: active ? "var(--hf-text)" : "var(--hf-text-muted)" }} />
+            <span className="relative">
+              <Icon className="h-[22px] w-[22px]" style={{ color: active ? "var(--hf-text)" : "var(--hf-text-muted)" }} />
+              {tab.to === "/messages" && unreadMessages > 0 && (
+                <span
+                  aria-label={`${unreadMessages} unread`}
+                  className="absolute -right-1.5 -top-1.5 flex items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums"
+                  style={{ minWidth: 16, height: 16, background: "var(--jade)", color: "var(--btn-fg)" }}
+                >
+                  {unreadMessages > 9 ? "9+" : unreadMessages}
+                </span>
+              )}
+            </span>
             <span className="text-[11px] font-medium" style={{ color: active ? "var(--hf-text)" : "var(--hf-text-muted)" }}>
               {tab.label}
             </span>

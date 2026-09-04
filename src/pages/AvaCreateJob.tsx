@@ -63,7 +63,7 @@ import {
   type Rigor,
 } from "@/lib/avaEngine";
 import { candidateApplyUrl } from "@/lib/showcaseApply";
-import { createJobFromFlow } from "@/lib/jobFromFlow";
+import { createJobFromFlow, fetchEmployerCompanyName } from "@/lib/jobFromFlow";
 import { geocodePlace, formatPlace } from "@/lib/geocode";
 import TalkToAva from "@/components/ava/createFlow/TalkToAva";
 import type { LucideIcon } from "lucide-react";
@@ -243,14 +243,44 @@ export default function AvaCreateJob() {
     }
   }, [step, runGeneration]);
 
+  // Screening cards only — the job-post card is the listing, not a step. With none
+  // left there is nothing for Ava to read, so the role must not go live like that.
+  const screeningCardCount = reviewCards.filter((c) => c.id !== "job-post").length;
+  const NO_SCREENING_NOTE = "Keep at least one screening step — with none, Ava has nothing to read and no one to shortlist.";
+
   const handlePublish = async (companyNameOverride?: string) => {
     if (!flow || publishing) return;
 
-    const effectiveCompanyName = companyNameOverride ?? profile?.company_name;
-    if (!effectiveCompanyName?.trim()) {
-      setCompanyNameDraft(profile?.company_name ?? "");
-      setShowCompanyNamePrompt(true);
+    // Voice ("publish it") reaches here directly, so the guard lives here too.
+    if (screeningCardCount === 0) {
+      toast.error(NO_SCREENING_NOTE);
       return;
+    }
+
+    // A team member publishes under the account owner, so the business name that
+    // candidates and job boards see is the OWNER's — not the member's own profile,
+    // which usually has none. They can't edit the owner's profile either, so the
+    // ask goes to the owner instead of into the inline prompt below.
+    const ownerId = teamPermissions?.isTeamMember && teamPermissions.employerId ? teamPermissions.employerId : null;
+    if (ownerId) {
+      let ownerCompanyName: string | null = null;
+      try {
+        ownerCompanyName = await fetchEmployerCompanyName(ownerId);
+      } catch {
+        toast.error("Couldn't check the business name on file. Please try again.");
+        return;
+      }
+      if (!ownerCompanyName) {
+        toast.error("The account owner hasn't added a business name yet. Ask them to add it in Settings, then publish.");
+        return;
+      }
+    } else {
+      const effectiveCompanyName = companyNameOverride ?? profile?.company_name;
+      if (!effectiveCompanyName?.trim()) {
+        setCompanyNameDraft(profile?.company_name ?? "");
+        setShowCompanyNamePrompt(true);
+        return;
+      }
     }
 
     setPublishing(true);
@@ -634,6 +664,11 @@ export default function AvaCreateJob() {
                       />
                     ))}
                   </div>
+                  {screeningCardCount === 0 && (
+                    <p className="mt-4 text-center text-[13px]" style={{ color: "hsl(var(--ck-brass))" }}>
+                      {NO_SCREENING_NOTE} Go back and I&rsquo;ll build the plan again.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -794,7 +829,8 @@ export default function AvaCreateJob() {
           </button>
           <button
             type="button"
-            disabled={publishing || (step === 4 && !flow)}
+            disabled={publishing || (step === 4 && (!flow || screeningCardCount === 0))}
+            title={step === 4 && flow && screeningCardCount === 0 ? NO_SCREENING_NOTE : undefined}
             onClick={() => {
               if (step === 2) setStep(3);
               else if (step === 4) void handlePublish();

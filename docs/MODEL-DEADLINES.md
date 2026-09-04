@@ -9,7 +9,7 @@ deploy. Nothing here requires touching the repo.
 | When | What retires | Who uses it |
 |---|---|---|
 | **~14–23 Oct 2026** | `gpt-4.1` | job writing, candidate analysis, shortlisting, workflow + flow generation, chat/sales evaluation |
-| **≥16 Oct 2026** | `google/gemini-2.5-flash` | performance reports, document generation, document field extraction, portfolio analysis |
+| **no announced date** | `gpt-5.6-luna`, `gpt-5.6-terra` | performance reports, document generation, document field placement, portfolio analysis (moved off Gemini/Lovable, Sep 2026) |
 | **no announced date** | `gpt-4o-mini` | live conversational turns in chat/sales/interview simulations |
 | **20 Jan 2027** | `gpt-realtime`, `gpt-4o-transcribe` | Ava's voice interviews and transcription |
 
@@ -35,21 +35,26 @@ deploy. Nothing here requires touching the repo.
 | `OPENAI_SALES_SIMULATION_MODEL` | `gpt-4o-mini` | live turns, sales simulation |
 | `OPENAI_SALES_SIMULATION_EVAL_MODEL` | `gpt-4.1` | scoring, sales simulation |
 
-### Documents (Gemini, via the Lovable gateway)
+### Documents & portfolio (OpenAI)
+
+These four used to run on Gemini through the Lovable gateway. They now call OpenAI
+directly with the same `OPENAI_API_KEY` as everything else. The old `GEMINI_*`
+variables are dead — unset them if they are still in Secrets.
 
 | Variable | Default today | Function |
 |---|---|---|
-| `GEMINI_REPORT_MODEL` | `google/gemini-2.5-flash` | `ai-generate-performance-report` |
-| `GEMINI_DOCUMENT_MODEL` | `google/gemini-2.5-flash` | `ai-generate-document` |
-| `GEMINI_DOC_FIELDS_MODEL` | `google/gemini-2.5-flash` | `ai-analyze-document-fields` |
-| `GEMINI_PORTFOLIO_MODEL` | `google/gemini-2.5-flash` | `ai-analyze-portfolio` |
+| `OPENAI_REPORT_MODEL` | `gpt-5.6-terra` | `ai-generate-performance-report` — long JSON blueprint |
+| `OPENAI_DOCUMENT_MODEL` | `gpt-5.6-luna` | `ai-generate-document` — plain-text offer letters, NDAs, contracts |
+| `OPENAI_DOC_FIELDS_MODEL` | `gpt-5.6-luna` | `ai-analyze-document-fields` — signature-field placement (JSON) |
+| `OPENAI_PORTFOLIO_MODEL` | `gpt-5.6-terra` | `ai-analyze-portfolio` — vision: images + PDFs inlined (needs a model with image and file input) |
 
-### Voice (OpenAI Realtime)
+### Voice (OpenAI Realtime, plus one ElevenLabs demo)
 
 | Variable | Default today | Note |
 |---|---|---|
 | `OPENAI_REALTIME_MODEL` | `gpt-realtime` | the replacement generation is also **~3× cheaper per audio minute** — this swap improves margin, not just compatibility |
 | `OPENAI_REALTIME_TRANSCRIPTION_MODEL` | `gpt-4o-transcribe` | |
+| `ELEVENLABS_API_KEY` (`elevenlabs-tts`) | — | not a model variable. The `elevenlabs-tts` function is called **only by the `/marketing-demo` page**; no candidate or employer flow depends on it. If ElevenLabs breaks, the product does not. |
 
 ## Swap procedure (do this once, per family)
 
@@ -60,10 +65,10 @@ deploy. Nothing here requires touching the repo.
 4. Roll the rest, then run one full candidate journey: apply → screen → voice → seal.
 5. If anything regresses, unset the variable — it falls straight back to the old default.
 
-## Third-party dependency worth knowing
+## Lovable gateway — gone (Sep 2026)
 
-Four document functions call `ai.gateway.lovable.dev` (the scaffolding vendor's AI
-gateway) rather than Google directly, using `LOVABLE_API_KEY`. That is an external
-dependency on a tool we no longer build with. It works today, but moving these four
-to a direct provider call removes a vendor we do not control from the production path.
-Not urgent; worth doing before scale.
+Four document functions used to call `ai.gateway.lovable.dev` (the scaffolding
+vendor's AI gateway) with `LOVABLE_API_KEY`. That key was never set in production,
+so those four features were silently dead. They now call OpenAI directly (table
+above) and no code references the gateway or the key any more. `LOVABLE_API_KEY`
+can be deleted from Secrets; nothing reads it.

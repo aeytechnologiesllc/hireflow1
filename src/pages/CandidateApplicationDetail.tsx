@@ -634,6 +634,14 @@ export default function CandidateApplicationDetail() {
         companyName={companyName}
         interviewDetails={interviewDetails || undefined}
         onClose={() => setStatusScreen(null)}
+        onStartVoiceInterview={() => {
+          // Same route handleStartPhase computes for the voice step — the card
+          // used to just close and leave the candidate to find it.
+          const voiceStep = (application?.jobs as unknown as { workflow_steps?: WorkflowStep[] } | null)
+            ?.workflow_steps?.find((s) => s.type === "voice_interview");
+          setStatusScreen(null);
+          if (voiceStep) handleStartPhase(voiceStep.id, "voice_interview");
+        }}
         interviewId={candidateInterview?.id}
         applicationId={id}
         candidateResponse={candidateInterview?.candidate_response}

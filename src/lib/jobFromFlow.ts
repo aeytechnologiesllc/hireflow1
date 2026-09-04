@@ -92,6 +92,83 @@ function mapDifficulty(rigor: JobFlow["rigor"]): "easy" | "medium" | "hard" {
   return rigorToDb(rigor);
 }
 
+/** Country names for the codes inferCountryCode() can recognise from free text. */
+const COUNTRY_NAME_BY_CODE: Record<string, string> = {
+  US: "United States",
+  CA: "Canada",
+  PK: "Pakistan",
+  GB: "United Kingdom",
+  IN: "India",
+  AU: "Australia",
+  AE: "United Arab Emirates",
+  DE: "Germany",
+  FR: "France",
+  ES: "Spain",
+  IT: "Italy",
+  NL: "Netherlands",
+  IE: "Ireland",
+};
+
+/** US state names + postal abbreviations (lower-cased) — a state is never a city. */
+const US_STATE_TOKENS = new Set(
+  (
+    "al ak az ar ca co ct de fl ga hi ia id il in ks ky la ma md me mi mn mo ms mt nc nd ne nh nj nm nv ny oh ok or pa ri sc sd tn tx ut va vt wa wi wv wy dc " +
+    "alabama alaska arizona arkansas california colorado connecticut delaware florida georgia hawaii idaho illinois indiana iowa kansas kentucky louisiana maine maryland massachusetts michigan minnesota mississippi missouri montana nebraska nevada ohio oklahoma oregon pennsylvania tennessee texas utah vermont virginia washington wisconsin wyoming"
+  ).split(" ").concat([
+    "new hampshire", "new jersey", "new mexico", "new york", "north carolina", "north dakota",
+    "rhode island", "south carolina", "south dakota", "west virginia", "district of columbia",
+  ]),
+);
+
+export interface FallbackLocationFields {
+  city: string | null;
+  country: string | null;
+  countryCode: string | null;
+}
+
+/**
+ * What we can still say about a location when the geocoder fails.
+ *
+ * The publish gate accepts a job on inferCountryCode() alone, but the feed and the
+ * sitemap read the stored location_* columns — so a job that geocoding missed used
+ * to publish and then never be distributed anywhere. This fills those columns from
+ * the text itself: the country the gate already recognised, and the token before
+ * the first comma as the city when that token is not a country or a US state.
+ */
+export function fallbackLocationFields(locationText: string | null | undefined): FallbackLocationFields {
+  const text = (locationText ?? "").trim();
+  const countryCode = inferCountryCode(text);
+  const country = countryCode ? COUNTRY_NAME_BY_CODE[countryCode] ?? null : null;
+
+  // "Remote — Lahore, Pakistan" still names Lahore; "Remote" alone names nothing.
+  const first = (text.split(",")[0] ?? "").replace(/^remote\b[\s—–\-:|]*/i, "").trim();
+  const isCity =
+    first.length > 0 &&
+    !/^remote$/i.test(first) &&
+    !inferCountryCode(first) &&
+    !US_STATE_TOKENS.has(first.toLowerCase());
+
+  return { city: isCity ? first : null, country, countryCode };
+}
+
+/**
+ * The business name candidates and job boards will see for a job, looked up by the
+ * OWNING employer's id. Team members publish under the owner's account, so checking
+ * their own profile (which usually has no company name) was the wrong question.
+ * Reads the public branding view — a team member cannot read the owner's profile row.
+ * Throws on a query failure so callers can tell "no name on file" from "couldn't check".
+ */
+export async function fetchEmployerCompanyName(employerId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("employer_public_branding")
+    .select("company_name")
+    .eq("user_id", employerId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const name = data?.company_name?.trim();
+  return name ? name : null;
+}
+
 /** Build a non-empty job description from the post (description is NOT NULL). */
 function composeDescription(flow: JobFlow, brief: JobBrief): string {
   const { jobPost } = flow;
@@ -120,7 +197,7 @@ function composeDescription(flow: JobFlow, brief: JobBrief): string {
 }
 
 /** Map the application phase's questions (string[]) to ApplicationQuestion[]. */
-function buildApplicationQuestions(phases: ScreeningPhase[]): ApplicationQuestion[] {
+export function buildApplicationQuestions(phases: ScreeningPhase[]): ApplicationQuestion[] {
   const app = phases.find((p) => p.kind === "application");
   if (!app) return [];
   const questions = (app.config as { questions?: string[] }).questions ?? [];
@@ -140,7 +217,7 @@ function buildApplicationQuestions(phases: ScreeningPhase[]): ApplicationQuestio
  * carries the "good answer" guidance. They map to a fit/situational question (no right
  * answer) which QuizPhase treats as a free-text fit question (getQuestionType -> "fit").
  */
-function buildQuizQuestions(phases: ScreeningPhase[]): QuizQuestion[] {
+export function buildQuizQuestions(phases: ScreeningPhase[]): QuizQuestion[] {
   const quiz = phases.find((p) => p.kind === "quiz");
   if (!quiz) return [];
   const cfg = quiz.config as QuizConfig;
@@ -178,7 +255,7 @@ function buildQuizQuestions(phases: ScreeningPhase[]): QuizQuestion[] {
  * and are intentionally excluded here. Each emitted step uses a `type` that has a real
  * candidate runtime + route (see src/utils/getApplicationDisplayState.ts).
  */
-function buildWorkflowSteps(phases: ScreeningPhase[], voiceInterview: boolean): WorkflowStep[] {
+export function buildWorkflowSteps(phases: ScreeningPhase[], voiceInterview: boolean): WorkflowStep[] {
   const steps: WorkflowStep[] = [];
 
   for (const phase of phases) {
@@ -300,13 +377,18 @@ export async function createJobFromFlow(
     );
   }
 
+  // When the geocoder misses, still persist what the text itself says — the feed and
+  // sitemap read these columns, and a job with nothing in them is never distributed.
+  const fallbackLoc = geo.ok ? null : fallbackLocationFields(locationText);
+  const countryCode = geo.ok ? geo.countryCode ?? null : fallbackLoc?.countryCode ?? null;
+
   // Structured salary (currency- + period-aware), parsed from what the employer typed.
   // Country hints the currency (PKR, etc.) when the pay text doesn't state one.
   const payText = brief.pay?.trim() || "";
-  const sal = parseSalary(payText, geo.ok ? geo.countryCode : undefined);
+  const sal = parseSalary(payText, countryCode ?? undefined);
   const salaryMin = sal.min;
   const salaryMax = sal.max;
-  const salaryCurrency = sal.currency ?? (geo.ok && geo.countryCode === "US" ? "USD" : null);
+  const salaryCurrency = sal.currency ?? (countryCode === "US" ? "USD" : null);
   const salaryPeriod = sal.period;
 
   const row = {
@@ -316,10 +398,10 @@ export async function createJobFromFlow(
     requirements,
     responsibilities,
     location: brief.location || (geo.ok ? [geo.city, geo.region, geo.country].filter(Boolean).join(", ") : null),
-    location_city: geo.ok ? geo.city ?? null : null,
+    location_city: geo.ok ? geo.city ?? null : fallbackLoc?.city ?? null,
     location_region: geo.ok ? geo.region ?? null : null,
-    location_country: geo.ok ? geo.country ?? null : null,
-    location_country_code: geo.ok ? geo.countryCode ?? null : null,
+    location_country: geo.ok ? geo.country ?? null : fallbackLoc?.country ?? null,
+    location_country_code: countryCode,
     latitude: geo.ok ? geo.lat ?? null : null,
     longitude: geo.ok ? geo.lon ?? null : null,
     is_remote: isRemote,

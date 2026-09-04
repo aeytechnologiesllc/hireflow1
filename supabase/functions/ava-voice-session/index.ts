@@ -10,9 +10,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const OPENAI_REALTIME_MODEL = Deno.env.get("OPENAI_REALTIME_MODEL") || "gpt-realtime";
+const OPENAI_REALTIME_MODEL = Deno.env.get("OPENAI_REALTIME_MODEL") || "gpt-realtime-2.1";
 const OPENAI_REALTIME_TRANSCRIPTION_MODEL =
-  Deno.env.get("OPENAI_REALTIME_TRANSCRIPTION_MODEL") || "gpt-4o-transcribe";
+  Deno.env.get("OPENAI_REALTIME_TRANSCRIPTION_MODEL") || "gpt-live-transcribe";
 
 // =============== RESUME DETECTION UTILITIES ===============
 // Keywords that indicate a resume/CV upload question
@@ -450,7 +450,7 @@ serve(async (req) => {
 
     // Check access - only Enterprise and Trial can use voice
     const isEnterprise = subscription?.plan_type === 'enterprise' && subscription?.status === 'active';
-    const isTrial = !subscriptionBypass && subscription?.status === 'trialing';
+    const isTrial = !subscriptionBypass && (subscription?.status === 'trialing' || subscription?.plan_type === 'trial');
 
     // Voice access is Enterprise/Trial only — EXCEPT 'intake' (employer Talk-to-Ava job creation),
     // which is relaxed during the build phase. Restore gating + server-side metering when billing lands.
@@ -533,7 +533,7 @@ serve(async (req) => {
 
     if (mode !== 'intake' && !subscriptionBypass && totalMinutesAvailable <= 0) {
       if (isTrial) {
-        throw new Error("Voice trial minutes exhausted. Upgrade to Enterprise for 150 minutes/month.");
+        throw new Error("This account's voice time is used up.");
       }
       throw new Error("No voice minutes available. Purchase a voice credit pack to continue.");
     }

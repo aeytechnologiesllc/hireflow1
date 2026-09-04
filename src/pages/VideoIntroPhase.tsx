@@ -312,9 +312,10 @@ export default function VideoIntroPhase() {
         throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
-      // 2. Get public URL
-      const { data: urlData } = supabase.storage.from("videos").getPublicUrl(fileName);
-      const videoUrl = urlData.publicUrl;
+      // 2. Persist the bare storage path, not a URL. The `videos` bucket is
+      // private, so a public URL here would be a permanent dead link; viewers
+      // mint a short-lived signed URL from the path (see candidateMediaUrl.ts).
+      const videoUrl = fileName;
 
       // 3. Build the real journey to determine the next stage
       const workflowSteps = application.jobs?.workflow_steps as Array<{ id: string; type: string; title?: string }> || [];
@@ -395,7 +396,7 @@ export default function VideoIntroPhase() {
           notes: JSON.stringify(updatedNotes),
           // Manual mode must NEVER auto-advance phases
           phase: isAutoMode ? newPhase : application.phase,
-          phase_ai_analysis: `Video intro: ${formatTime(recordingTime)} duration. COMPLETED. Video URL: ${videoUrl}`,
+          phase_ai_analysis: `Video intro: ${formatTime(recordingTime)} duration. COMPLETED. Stored at: ${videoUrl}`,
         })
         .eq("id", id!);
 
@@ -420,8 +421,16 @@ export default function VideoIntroPhase() {
           
           if (analysisError) {
             console.error("[VideoIntroPhase] AVA analysis error:", analysisError);
-            // Keep evaluating state - backend is source of truth
-            setEvaluationState("evaluating");
+            // The video is already saved (the notes update above succeeded).
+            // Holding the candidate on a full-screen "reviewing" with no exit
+            // because a backend call failed is not neutrality — say the work
+            // is in and let them go. Same rule as PortfolioUploadPhase.
+            setEvaluationState(null);
+            toast.success("Video submitted", {
+              description: "Your recording is saved. This is taking a moment — the hiring team will see it either way.",
+            });
+            navigate(`/applications/${id}`);
+            return;
           } else {
             // Backend decides pass/fail — the client must never decide either
             // outcome on its own. "advanced"/"needs_employer_approval" and a
@@ -459,8 +468,13 @@ export default function VideoIntroPhase() {
           }
         } catch (err) {
           console.error("[VideoIntroPhase] Backend analysis failed:", err);
-          // Keep evaluating state - backend is source of truth, no local fallback
-          setEvaluationState("evaluating");
+          // Never decide pass/fail locally — but never trap them either.
+          setEvaluationState(null);
+          toast.success("Video submitted", {
+            description: "Your recording is saved. This is taking a moment — the hiring team will see it either way.",
+          });
+          navigate(`/applications/${id}`);
+          return;
         }
       } else {
         // Manual mode - just trigger analysis in background, toast and navigate
@@ -513,7 +527,12 @@ export default function VideoIntroPhase() {
                 
                 if (analysisError) {
                   console.error("[VideoIntroPhase] AVA analysis error (recovery):", analysisError);
-                  setEvaluationState("evaluating");
+                  setEvaluationState(null);
+                  toast.success("Video submitted", {
+                    description: "Your recording is saved. This is taking a moment — the hiring team will see it either way.",
+                  });
+                  navigate(`/applications/${id}`);
+                  return;
                 } else {
                   // Same rule as the primary path: never decide "passed" or
                   // "failed" locally — only act on a server-confirmed decision
@@ -546,7 +565,12 @@ export default function VideoIntroPhase() {
                 }
               } catch (err) {
                 console.error("[VideoIntroPhase] Backend analysis failed (recovery):", err);
-                setEvaluationState("evaluating");
+                setEvaluationState(null);
+                toast.success("Video submitted", {
+                  description: "Your recording is saved. This is taking a moment — the hiring team will see it either way.",
+                });
+                navigate(`/applications/${id}`);
+                return;
               }
             } else {
               invokeTriggerAvaAnalysis({

@@ -255,6 +255,16 @@ export default function AppLayout() {
         return;
       }
 
+      // /applications/* is the candidate's own flow — a signed-out candidate
+      // following an emailed step link used to be sent to the EMPLOYER door.
+      // Send them to their own sign-in and carry the destination, in the
+      // same-origin `?redirect=` form CandidateAuth already checks and honours.
+      if (location.pathname === "/applications" || location.pathname.startsWith("/applications/")) {
+        const destination = encodeURIComponent(`${location.pathname}${location.search}`);
+        navigate(`/candidate/auth?redirect=${destination}`, { replace: true });
+        return;
+      }
+
       navigate(isCandidateRoute ? "/candidate/auth" : "/auth", { replace: true });
     } else if (!loading && user && (role as string) === 'developer' && !location.pathname.startsWith("/developer")) {
       // Redirect developers to their dashboard

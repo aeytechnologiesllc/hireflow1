@@ -3,6 +3,9 @@ export type OpenAIMessageContent =
   | Array<
       | { type: "text"; text: string }
       | { type: "image_url"; image_url: { url: string; detail?: "low" | "high" | "auto" } }
+      // Chat Completions file input (PDFs). `file_data` is a data URL:
+      // "data:application/pdf;base64,…". Images do NOT go through this shape.
+      | { type: "file"; file: { filename: string; file_data: string } }
     >;
 
 export interface OpenAIMessage {
@@ -82,6 +85,16 @@ function validateJson(value: unknown, validator?: (value: unknown) => string | n
   }
 }
 
+/**
+ * GPT-5-family (and o-series) models accept only the default sampling
+ * temperature and return 400 `unsupported_value` for anything else. Older
+ * models still honour it. Callers keep passing what they always did; we drop
+ * the field where the model would reject it.
+ */
+export function modelSupportsTemperature(model: string): boolean {
+  return !/^(gpt-5|o[1-9])/i.test(model.trim());
+}
+
 export async function callOpenAIChat(options: OpenAIChatOptions): Promise<OpenAIChatResult> {
   const {
     apiKey,
@@ -111,7 +124,7 @@ export async function callOpenAIChat(options: OpenAIChatOptions): Promise<OpenAI
         body: JSON.stringify({
           model,
           messages,
-          temperature,
+          ...(temperature !== undefined && modelSupportsTemperature(model) ? { temperature } : {}),
           max_completion_tokens: maxCompletionTokens,
           ...(responseFormat ? { response_format: responseFormat } : {}),
         }),
@@ -160,10 +173,15 @@ export async function callOpenAIJson<T>(options: OpenAIJsonOptions<T>): Promise<
 
   for (let attempt = 1; attempt <= Math.max(1, retries); attempt++) {
     try {
+      // `retries` above is the JSON parse/validation retry count and is
+      // destructured OUT of chatOptions, so the HTTP retry count for each
+      // attempt is always the helper default of 3. (This used to read
+      // `chatOptions.retries ?? 3`, which was a type error that evaluated to
+      // 3 at runtime — same behaviour, now spelled honestly.)
       const result = await callOpenAIChat({
         ...chatOptions,
         responseFormat: { type: "json_object" },
-        retries: chatOptions.retries ?? 3,
+        retries: 3,
       });
 
       const parsed = parseJsonContent<unknown>(result.content);
@@ -189,6 +207,18 @@ export async function callOpenAIJson<T>(options: OpenAIJsonOptions<T>): Promise<
   }
 
   throw lastError instanceof Error ? lastError : new Error("OpenAI JSON request failed");
+}
+
+/**
+ * Recover the HTTP status from an error thrown by callOpenAIChat/callOpenAIJson
+ * ("OpenAI error 429: …"). Returns null for anything that isn't an OpenAI HTTP
+ * failure (network errors, JSON parse errors, validator errors), so callers can
+ * keep mapping 429/402 to their own responses without string-matching inline.
+ */
+export function openAIErrorStatus(error: unknown): number | null {
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  const match = message.match(/^OpenAI error (\d{3})\b/);
+  return match ? Number(match[1]) : null;
 }
 
 export function requireJsonKeys(value: unknown, keys: string[]) {

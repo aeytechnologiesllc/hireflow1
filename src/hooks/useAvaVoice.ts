@@ -978,22 +978,23 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       // stacked another set on top of the last.
       cleanupConnection();
       const rawMessage = err instanceof Error ? err.message : 'Failed to connect';
-      
-      // Check if this is a billing/subscription-related error that shouldn't be shown to candidates
-      const isBillingError = rawMessage.toLowerCase().includes('minutes exhausted') || 
-                             rawMessage.toLowerCase().includes('voice credits') ||
-                             rawMessage.toLowerCase().includes('trial') ||
-                             rawMessage.toLowerCase().includes('subscription');
 
-      // For interview mode, use generic message for billing errors (candidate-facing)
-      const displayMessage = optionsRef.current.mode === 'interview' && isBillingError
-        ? 'We are unable to start the interview at this time. Please contact the employer for assistance.'
+      // Interview mode is candidate-facing. The raw message is a server string
+      // — "No voice minutes available. Purchase a voice credit pack…", "Voice
+      // features require Enterprise plan", "OPENAI_API_KEY is not configured" —
+      // the employer's billing and our configuration, none of it the candidate's
+      // to see or act on. A keyword filter used to let most of these through.
+      // In interview mode the candidate gets one calm line, always; the detail
+      // stays in the console for whoever is debugging.
+      const inInterview = optionsRef.current.mode === 'interview';
+      const displayMessage = inInterview
+        ? "We couldn't start the call right now. Your progress is saved — you can try again or come back later."
         : rawMessage;
-      
+
       setState(s => ({ ...s, isConnecting: false, error: displayMessage }));
       toast({
         variant: 'destructive',
-        title: 'Connection Failed',
+        title: inInterview ? "Couldn't start the call" : 'Connection Failed',
         description: displayMessage,
       });
     }

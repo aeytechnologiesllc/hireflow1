@@ -6,9 +6,12 @@ import { toast } from "sonner";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { clearDraft } from "@/lib/avaEngine/draft";
 import { candidateApplyUrl } from "@/lib/showcaseApply";
+import { useDeleteJob, useUpdateJob } from "@/hooks/useJobs";
+import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { SearchInput, FilterSelect } from "../components/controls";
+import { ActionDialog } from "../components/ActionDialog";
 import { ShareKitDialog } from "../components/ShareKitDialog";
-import { useCockpitJobsData } from "../hooks/useCockpitData";
+import { useCockpitJobsData, useSchemaMode } from "../hooks/useCockpitData";
 import type { JobRow, JobStatus } from "../data";
 
 /**
@@ -132,6 +135,8 @@ function JobListRow({
   onOpen,
   onEdit,
   onBoost,
+  onCloseRole,
+  onDelete,
 }: {
   job: JobRow;
   extras: RowExtras;
@@ -139,6 +144,9 @@ function JobListRow({
   onOpen: () => void;
   onEdit: () => void;
   onBoost: () => void;
+  onCloseRole: () => void;
+  /** null hides Delete — team members without the permission, and the showcase dataset. */
+  onDelete: (() => void) | null;
 }) {
   const live = job.status === "live";
   const draft = job.status === "draft";
@@ -222,8 +230,35 @@ function JobListRow({
         {second && <JobStat label={second.label} value={second.value} tone="jade" />}
       </div>
 
-      {/* the one next thing */}
+      {/* the one next thing — with the quiet ways out first, so the primary stays loudest */}
       <div className="flex w-full shrink-0 justify-end gap-2 sm:w-auto">
+        {live && (
+          <button
+            type="button"
+            title="Take it off your job page, Google and the feed — you can post it again later"
+            className="ck-btn ck-btn-ghost !px-3 !py-2 !text-[12.5px]"
+            onClick={(e) => {
+              e.stopPropagation();
+              onCloseRole();
+            }}
+          >
+            Close role
+          </button>
+        )}
+        {onDelete && (
+          <button
+            type="button"
+            title="Remove this role and every application to it"
+            className="ck-btn ck-btn-ghost !px-3 !py-2 !text-[12.5px]"
+            style={{ color: "var(--hf-danger)" }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+          >
+            Delete
+          </button>
+        )}
         {live && (
           <button
             type="button"
@@ -318,15 +353,62 @@ function shortName(full: string) {
 
 const SHOW_CLOSED_KEY = "hf-jobs-show-closed";
 
+/** The one sentence that has to land before a delete: the applications go too. */
+function describeDelete(job: JobRow) {
+  const n = job.applicants;
+  if (n === 0) return "This removes the role for good. No one has applied yet, so nothing else goes with it. There is no undo.";
+  const apps = n === 1 ? "the 1 application to it" : `all ${n} applications to it`;
+  return `This removes the role for good, and ${apps} — every answer, score and interview. There is no undo. If you only want it off the boards, close it instead; a closed role keeps its applicants.`;
+}
+
 export default function CockpitJobs() {
   const navigate = useNavigate();
   const { jobs, rawJobs, applications, isLoading } = useCockpitJobsData();
+  const { data: mode } = useSchemaMode();
+  const { data: teamPermissions } = useTeamMemberPermissions();
+  const updateJob = useUpdateJob();
+  const deleteJob = useDeleteJob();
 
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<StatusKey>("all");
   const [place, setPlace] = useState("all");
   const [sort, setSort] = useState<SortKey>("recent");
   const [kitJob, setKitJob] = useState<JobRow | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<JobRow | null>(null);
+
+  // Delete is real and final, so it only shows where it can actually happen: not on the
+  // showcase dataset, and not for a team member whose role does not include it.
+  const canDelete = mode !== "showcase" && !(teamPermissions?.isTeamMember && !teamPermissions.canDeleteJobs);
+
+  // Closing is the reversible way out — "Post it again" brings it back — so it needs no
+  // dialog. useUpdateJob already tells Google the URL is gone when a job leaves "published".
+  const closeRole = async (job: JobRow) => {
+    try {
+      await updateJob.mutateAsync({ id: job.id, status: "closed" });
+      toast.success(`${job.title} is closed — off your job page, Google and the feed.`);
+    } catch (error) {
+      console.error("Failed to close job:", error);
+      toast.error("Couldn't close this role. Please try again.");
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const job = pendingDelete;
+    try {
+      await deleteJob.mutateAsync(job.id);
+      setPendingDelete(null);
+      toast.success(
+        job.applicants > 0
+          ? `Deleted ${job.title} and its ${job.applicants} ${job.applicants === 1 ? "application" : "applications"}.`
+          : `Deleted ${job.title}.`,
+      );
+    } catch (error) {
+      console.error("Failed to delete job:", error);
+      toast.error("Couldn't delete this role. Please try again.");
+    }
+  };
+
   // Closed roles are done — they stay out of the way by default. Whoever wants
   // them back can ask, and we remember the ask.
   const [showClosed, setShowClosed] = useState(() => {
@@ -640,6 +722,8 @@ export default function CockpitJobs() {
                   onOpen={() => navigate(`/applicants?roleId=${job.id}`)}
                   onEdit={() => navigate(`/jobs/edit/${job.id}`)}
                   onBoost={() => setKitJob(job)}
+                  onCloseRole={() => void closeRole(job)}
+                  onDelete={canDelete ? () => setPendingDelete(job) : null}
                 />
               ))}
             </div>
@@ -667,6 +751,8 @@ export default function CockpitJobs() {
                       onOpen={() => navigate(`/applicants?roleId=${job.id}`)}
                       onEdit={() => navigate(`/jobs/edit/${job.id}`)}
                       onBoost={() => setKitJob(job)}
+                      onCloseRole={() => void closeRole(job)}
+                      onDelete={canDelete ? () => setPendingDelete(job) : null}
                     />
                   ))}
                 </div>
@@ -702,6 +788,17 @@ export default function CockpitJobs() {
             : ""
         }
         onClose={() => setKitJob(null)}
+      />
+
+      <ActionDialog
+        open={pendingDelete !== null}
+        title={pendingDelete ? `Delete ${pendingDelete.title}?` : "Delete role?"}
+        description={pendingDelete ? describeDelete(pendingDelete) : undefined}
+        confirmLabel={pendingDelete && pendingDelete.applicants > 0 ? "Delete role and applications" : "Delete role"}
+        tone="danger"
+        busy={deleteJob.isPending}
+        onConfirm={() => void confirmDelete()}
+        onClose={() => setPendingDelete(null)}
       />
     </div>
   );

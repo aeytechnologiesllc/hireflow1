@@ -111,6 +111,12 @@ function InterviewDetailsCard({
 
 /* ── Rejected — with the optional, paid Improvement Blueprint upsell ───── */
 
+/** The Blueprint is sold through Stripe Checkout. With no publishable key the
+ *  checkout cannot open, so offering "Unlock for $1.99" to someone who has just
+ *  been turned down would be a button that does nothing. Hide the offer until
+ *  billing is configured; a completed purchase still gets its download. */
+const BLUEPRINT_PURCHASE_ENABLED = !!import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+
 function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; applicationId?: string }) {
   const {
     downloadBlueprint,
@@ -190,7 +196,7 @@ function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; app
         </div>
 
         {/* Improvement Blueprint — a paid upsell, so it reads as brass (money), never the primary jade action */}
-        {applicationId && (
+        {applicationId && (BLUEPRINT_PURCHASE_ENABLED || hasPurchased) && (
           <div className="space-y-3 border-t border-border pt-6 text-left">
             <div className="flex items-start gap-3">
               <Lightbulb className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--brass)" }} />
@@ -261,6 +267,11 @@ interface CandidateStatusScreenProps {
   companyName?: string;
   interviewDetails?: InterviewDetails;
   onClose: () => void;
+  /** "Start voice interview" on the unlocked card. Without this the button
+   *  only closed the card (it was wired to onClose) and the candidate had to
+   *  find the step in the hub themselves. The hub owns the route, so it passes
+   *  the navigation in. */
+  onStartVoiceInterview?: () => void;
   // New props for interview actions
   interviewId?: string;
   applicationId?: string;
@@ -275,6 +286,7 @@ export function CandidateStatusScreen({
   companyName,
   interviewDetails,
   onClose,
+  onStartVoiceInterview,
   interviewId,
   applicationId,
   candidateResponse: initialCandidateResponse,
@@ -496,7 +508,7 @@ export function CandidateStatusScreen({
                   Find somewhere quiet, then start when you&apos;re ready — answer naturally, out loud.
                 </p>
 
-                <Button size="lg" onClick={onClose} className="gap-2">
+                <Button size="lg" onClick={onStartVoiceInterview ?? onClose} className="gap-2">
                   Start voice interview
                   <ArrowRight className="h-4 w-4" />
                 </Button>

@@ -1,8 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { callOpenAIJson, requireJsonKeys } from "../_shared/openai.ts";
 
-// Model is configurable so the Oct-2026 gemini-2.5-flash retirement is a config
-// change, not a code change. Set GEMINI_DOC_FIELDS_MODEL to the replacement model when swapping.
-const GEMINI_DOC_FIELDS_MODEL = Deno.env.get("GEMINI_DOC_FIELDS_MODEL") || "google/gemini-2.5-flash";
+// Model is configurable so a retirement is a config change, not a code change.
+// Set OPENAI_DOC_FIELDS_MODEL to the replacement model when swapping.
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+const OPENAI_DOC_FIELDS_MODEL = Deno.env.get("OPENAI_DOC_FIELDS_MODEL") || "gpt-5.6-luna";
 
 
 const corsHeaders = {
@@ -27,34 +29,7 @@ interface SignatureField {
   height: number;
 }
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  try {
-    const { pdfUrl, totalPages } = await req.json() as AnalyzeRequest;
-    
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
-    }
-
-    console.log("Analyzing document for signature fields...", { pdfUrl, totalPages });
-
-    // Use AI to analyze the document concept and suggest field placements
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: GEMINI_DOC_FIELDS_MODEL,
-        messages: [
-          {
-            role: "system",
-            content: `You are a document analysis assistant for hiring/employment documents. You must return EXACTLY 4 signature/date fields positioned correctly.
+const SYSTEM_PROMPT = `You are a document analysis assistant for hiring/employment documents. You must return EXACTLY 4 signature/date fields positioned correctly.
 
 CRITICAL POSITIONING RULES:
 1. Signature fields go DIRECTLY TO THE RIGHT of "Signature" or "Signature:" labels - on the same horizontal line
@@ -79,7 +54,7 @@ Return EXACTLY this JSON structure with 4 fields:
       "height": 5
     },
     {
-      "type": "candidate", 
+      "type": "candidate",
       "label": "Candidate Date",
       "page": 1,
       "x": 12,
@@ -89,7 +64,7 @@ Return EXACTLY this JSON structure with 4 fields:
     },
     {
       "type": "employer",
-      "label": "Employer Signature", 
+      "label": "Employer Signature",
       "page": 1,
       "x": 22,
       "y": 48,
@@ -114,74 +89,76 @@ Positioning:
 - x and y are percentages (0-100) from top-left
 - x: 12-25% positions field to the right of typical left-aligned labels
 - Signature fields: width 28%, height 5%
-- Date fields: width 18%, height 4%`
-          },
-          {
-            role: "user",
-            content: `Place signature fields for this hiring document. Document has ${totalPages} page(s). URL: ${pdfUrl}
+- Date fields: width 18%, height 4%`;
+
+/** The "defaults on any failure" safety net. Always a 200 with usedDefaults: true. */
+function defaultsResponse(totalPages: number) {
+  return new Response(JSON.stringify({
+    success: true,
+    documentType: "unknown",
+    suggestedFields: getDefaultFields(totalPages),
+    confidence: "low",
+    reasoning: "Using default signature placements",
+    usedDefaults: true
+  }), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { pdfUrl, totalPages } = await req.json() as AnalyzeRequest;
+
+    if (!OPENAI_API_KEY) {
+      // Surfaces as a 500 JSON { error, success: false } via the catch below —
+      // a missing key is a deployment fault, not a reason to hand out defaults.
+      throw new Error("OPENAI_API_KEY is not configured");
+    }
+
+    console.log("Analyzing document for signature fields...", { pdfUrl, totalPages, model: OPENAI_DOC_FIELDS_MODEL });
+
+    // As before, the model is given only the PDF's URL as text — no file bytes.
+    // It places fields from the described layout of a standard hiring document.
+    const userPrompt = `Place signature fields for this hiring document. Document has ${totalPages} page(s). URL: ${pdfUrl}
 
 This document needs 4 fields on page ${totalPages}:
 1. Candidate Signature - on the line next to "Signature" in candidate/receiving party section
-2. Candidate Date - on the underline after "Date:" in candidate section  
+2. Candidate Date - on the underline after "Date:" in candidate section
 3. Employer Signature - on the line next to "Signature" in employer/disclosing party section
 4. Employer Date - on the underline after "Date:" in employer section
 
-Position each field on the actual blank line/space provided, not overlapping the labels.`
-          }
-        ],
-        response_format: { type: "json_object" }
-      }),
-    });
+Position each field on the actual blank line/space provided, not overlapping the labels.`;
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("AI API error:", response.status, errorText);
-      
-      // Return default placements if AI fails
-      return new Response(JSON.stringify({
-        success: true,
-        documentType: "unknown",
-        suggestedFields: getDefaultFields(totalPages),
-        confidence: "low",
-        reasoning: "Using default signature placements",
-        usedDefaults: true
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    
-    if (!content) {
-      console.log("No AI response, using defaults");
-      return new Response(JSON.stringify({
-        success: true,
-        documentType: "unknown",
-        suggestedFields: getDefaultFields(totalPages),
-        confidence: "low",
-        reasoning: "Using default signature placements",
-        usedDefaults: true
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    let analysis;
+    let analysis: any;
     try {
-      analysis = JSON.parse(content);
-    } catch (e) {
-      console.error("Failed to parse AI response:", content);
-      return new Response(JSON.stringify({
-        success: true,
-        documentType: "unknown",
-        suggestedFields: getDefaultFields(totalPages),
-        confidence: "low",
-        reasoning: "Using default signature placements",
-        usedDefaults: true
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      const { data } = await callOpenAIJson<any>({
+        apiKey: OPENAI_API_KEY,
+        model: OPENAI_DOC_FIELDS_MODEL,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
+        ],
+        maxCompletionTokens: 2500,
+        validator: (value) => requireJsonKeys(value, ["suggestedFields"]),
       });
+      analysis = data;
+    } catch (error) {
+      // Any AI failure — HTTP, network, unparseable JSON, missing keys — falls
+      // back to default placements so the wizard never dead-ends. Loudly.
+      console.error(
+        "[ai-analyze-document-fields] FALLBACK: OpenAI call failed; returning default signature placements.",
+        {
+          model: OPENAI_DOC_FIELDS_MODEL,
+          pdfUrl,
+          totalPages,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+      return defaultsResponse(totalPages);
     }
 
     // Convert AI suggestions to our field format
@@ -242,9 +219,9 @@ Position each field on the actual blank line/space provided, not overlapping the
   } catch (error: unknown) {
     console.error("Error analyzing document:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       error: errorMessage,
-      success: false 
+      success: false
     }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

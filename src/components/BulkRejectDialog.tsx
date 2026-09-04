@@ -119,7 +119,7 @@ export default function BulkRejectDialog({
             Reject {selectedApplications.length} Applicant{selectedApplications.length !== 1 ? "s" : ""}
           </DialogTitle>
           <DialogDescription>
-            This action will reject all selected applicants and notify them of the decision.
+            This will reject all selected applicants. They'll see the decision in their HireFlow account.
           </DialogDescription>
         </DialogHeader>
 

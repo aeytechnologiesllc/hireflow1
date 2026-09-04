@@ -1,3 +1,4 @@
+import { modelSupportsTemperature } from "./openai.ts";
 import type { OpenAIMessage } from "./openai.ts";
 
 const OPENAI_STREAM_ENDPOINT = "https://api.openai.com/v1/chat/completions";
@@ -28,7 +29,8 @@ export async function streamOpenAIChatCompletion(options: StreamOpenAIChatOption
     body: JSON.stringify({
       model,
       messages,
-      temperature,
+      // GPT-5-family models reject any non-default temperature (400 unsupported_value).
+      ...(modelSupportsTemperature(model) ? { temperature } : {}),
       max_completion_tokens: maxCompletionTokens,
       stream: true,
     }),

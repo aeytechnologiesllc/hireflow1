@@ -2,18 +2,77 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { callOpenAIJson, openAIErrorStatus, requireJsonKeys } from "../_shared/openai.ts";
+import type { OpenAIMessageContent } from "../_shared/openai.ts";
+
+// Model is configurable so a retirement is a config change, not a code change.
+// Set OPENAI_PORTFOLIO_MODEL to the replacement model when swapping.
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+const OPENAI_PORTFOLIO_MODEL = Deno.env.get("OPENAI_PORTFOLIO_MODEL") || "gpt-5.6-terra";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+const MAX_FILES_TO_ANALYZE = 10;
+// Every file is inlined as base64 in the request body. Skip any single file
+// over 8 MB outright, and stop attaching once 20 MB of raw bytes are in
+// (≈27 MB encoded — under OpenAI's 32 MB per-request budget for file inputs).
+const MAX_FILE_BYTES = 8 * 1024 * 1024;
+const MAX_TOTAL_INLINE_BYTES = 20 * 1024 * 1024;
+
+type ContentPart = Exclude<OpenAIMessageContent, string>[number];
+
+/** What the client sends: `{ url, name, type }` per uploaded file. Legacy callers sent bare URL strings. */
+interface PortfolioItem {
+  url: string;
+  name: string;
+  type: string;
+}
+
+interface SkippedFile {
+  file: string;
+  reason: string;
+}
+
+type FileKind =
+  | { kind: "pdf" }
+  | { kind: "image"; mime: string }
+  | { kind: "unsupported" };
+
+const IMAGE_MIME_BY_EXT: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  gif: "image/gif",
+};
+const SUPPORTED_IMAGE_MIMES = new Set(Object.values(IMAGE_MIME_BY_EXT));
+
+let adminClient: ReturnType<typeof createClient> | null = null;
+function getAdminClient() {
+  if (!adminClient) {
+    adminClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+  }
+  return adminClient;
+}
 
 /**
  * Fetch a candidate's portfolio file.
  *
  * This used to be a bare `fetch(url)` against a public bucket URL, which only
  * worked because the `portfolios` bucket was world-readable — the same fact
- * that put candidates' work samples at permanent unauthenticated URLs. Reading
- * through the storage API with the service role means the bucket can be private
- * and this still works. Legacy rows hold full public URLs and newer ones hold
- * bare paths, so both shapes are handled; a value pointing somewhere else
- * entirely (an external link a candidate pasted) still falls back to a plain
- * fetch, which is correct for a genuinely external file.
+ * that put candidates' work samples at permanent unauthenticated URLs. The
+ * bucket is private now, so a stored public URL no longer serves anything;
+ * reading through the storage API with the service role is the only path.
+ * Legacy rows hold full public URLs and newer ones hold bare paths, so both
+ * shapes are handled (same rule as src/utils/candidateMediaUrl.ts); a value
+ * pointing somewhere else entirely (an external link a candidate pasted) still
+ * falls back to a plain fetch, which is correct for a genuinely external file.
  */
 async function fetchPortfolioFile(url: string): Promise<ArrayBuffer | null> {
   const match = url.match(/\/portfolios\/(.+?)(?:\?|$)/);
@@ -24,11 +83,7 @@ async function fetchPortfolioFile(url: string): Promise<ArrayBuffer | null> {
       : url.replace(/^\/+/, "");
 
   if (path) {
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
-    const { data, error } = await admin.storage.from("portfolios").download(path);
+    const { data, error } = await getAdminClient().storage.from("portfolios").download(path);
     if (error || !data) {
       console.error(`Storage download failed for ${path}:`, error);
       return null;
@@ -44,18 +99,90 @@ async function fetchPortfolioFile(url: string): Promise<ArrayBuffer | null> {
   return await res.arrayBuffer();
 }
 
-// Model is configurable so the Oct-2026 gemini-2.5-flash retirement is a config
-// change, not a code change. Set GEMINI_PORTFOLIO_MODEL to the replacement model when swapping.
-const GEMINI_PORTFOLIO_MODEL = Deno.env.get("GEMINI_PORTFOLIO_MODEL") || "google/gemini-2.5-flash";
+function fileNameFromUrl(url: string): string {
+  const last = url.split(/[?#]/)[0].split("/").filter(Boolean).pop() || "";
+  try {
+    return decodeURIComponent(last);
+  } catch {
+    return last;
+  }
+}
 
+/**
+ * Accept both shapes the client has ever sent. The previous version called
+ * `url.match(...)` on the `{ url, name, type }` object, which threw for every
+ * file — so every file was "skipped" and the model scored an empty portfolio.
+ */
+function normalizePortfolioItem(raw: unknown, index: number): PortfolioItem | null {
+  if (typeof raw === "string") {
+    const url = raw.trim();
+    if (!url) return null;
+    return { url, name: fileNameFromUrl(url) || `file-${index + 1}`, type: "" };
+  }
+  if (raw && typeof raw === "object") {
+    const r = raw as Record<string, unknown>;
+    const url = typeof r.url === "string" ? r.url.trim() : "";
+    if (!url) return null;
+    const name = typeof r.name === "string" && r.name.trim()
+      ? r.name.trim()
+      : fileNameFromUrl(url) || `file-${index + 1}`;
+    const type = typeof r.type === "string" ? r.type.trim().toLowerCase() : "";
+    return { url, name, type };
+  }
+  return null;
+}
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+function extensionOf(s: string): string {
+  return (s.match(/\.([a-z0-9]+)$/i)?.[1] || "").toLowerCase();
+}
 
-// Increased file limit from 5 to 10
-const MAX_FILES_TO_ANALYZE = 10;
+function classify(item: PortfolioItem): FileKind {
+  const ext = extensionOf(item.name) || extensionOf(fileNameFromUrl(item.url));
+  if (item.type === "application/pdf" || ext === "pdf") return { kind: "pdf" };
+  if (SUPPORTED_IMAGE_MIMES.has(item.type)) return { kind: "image", mime: item.type };
+  if (IMAGE_MIME_BY_EXT[ext]) return { kind: "image", mime: IMAGE_MIME_BY_EXT[ext] };
+  return { kind: "unsupported" };
+}
+
+function mb(bytes: number): string {
+  return (bytes / (1024 * 1024)).toFixed(1);
+}
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+/** The "score 60 / CONSIDER" safety net when the model gives back nothing usable. */
+function buildFallbackAnalysis(imageCount: number, pdfCount: number, skipped: SkippedFile[]) {
+  return {
+    score: 60,
+    summary: "Portfolio reviewed. Manual verification recommended due to parsing issues.",
+    filesAnalyzed: {
+      total: imageCount + pdfCount,
+      images: imageCount,
+      pdfs: pdfCount,
+      pdfPageDetails: [],
+      skippedFiles: skipped.length,
+      skipped,
+    },
+    authenticity: {
+      assessment: "UNKNOWN",
+      confidence: "LOW",
+      concerns: ["Could not fully analyze content"],
+    },
+    relevance: { score: 60, feedback: "Portfolio appears relevant to the position. Manual review recommended." },
+    quality: { score: 60, feedback: "Work demonstrates some technical skills. Needs manual verification." },
+    creativity: { score: 60, feedback: "Unable to fully assess creativity." },
+    penaltiesApplied: [],
+    bonusesApplied: [],
+    strengths: ["Portfolio submitted successfully", `${imageCount} images and ${pdfCount} PDFs received`],
+    areasForImprovement: ["Analysis could not be fully completed"],
+    recommendation: "CONSIDER - Portfolio submitted for manual review",
+  };
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -65,22 +192,22 @@ serve(async (req) => {
   try {
     const { portfolioUrls, jobTitle, jobDescription } = await req.json();
 
-    if (!portfolioUrls || portfolioUrls.length === 0) {
+    if (!Array.isArray(portfolioUrls) || portfolioUrls.length === 0) {
       throw new Error("No portfolio URLs provided");
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!OPENAI_API_KEY) {
+      console.error("[ai-analyze-portfolio] OPENAI_API_KEY is not configured");
+      return jsonResponse({ error: "OPENAI_API_KEY is not configured" }, 500);
     }
 
-    console.log(`Analyzing ${portfolioUrls.length} portfolio items for job: ${jobTitle}`);
+    const items = portfolioUrls
+      .map((raw: unknown, i: number) => normalizePortfolioItem(raw, i))
+      .filter((item: PortfolioItem | null): item is PortfolioItem => item !== null);
 
-    // Build content array with images and PDFs for analysis
-    const contentParts: any[] = [
-      {
-        type: "text",
-        text: `You are AIVA, an expert portfolio reviewer with a CRITICAL and DISCERNING eye. You analyze work samples for job applications with HIGH STANDARDS.
+    console.log(`Analyzing ${items.length} portfolio items for job: ${jobTitle} (model: ${OPENAI_PORTFOLIO_MODEL})`);
+
+    const promptHeader = `You are AIVA, an expert portfolio reviewer with a CRITICAL and DISCERNING eye. You analyze work samples for job applications with HIGH STANDARDS.
 
 **Job Title:** ${jobTitle || "Not specified"}
 **Job Description:** ${jobDescription || "Not specified"}
@@ -205,188 +332,167 @@ Provide your analysis in this exact JSON format:
   "recommendation": "<STRONG_HIRE/HIRE/CONSIDER/LEAN_PASS/PASS with brief justification>"
 }
 
-BE CRITICAL AND HONEST. A score of 85+ should be exceptional. Average portfolios score 55-70.`,
-      },
-    ];
+BE CRITICAL AND HONEST. A score of 85+ should be exceptional. Average portfolios score 55-70.`;
 
-    // Process portfolio items (increased limit to 10)
-    const itemsToAnalyze = portfolioUrls.slice(0, MAX_FILES_TO_ANALYZE);
+    // Attach files. Images go in as data-URL image parts; PDFs as Chat
+    // Completions `file` parts. Each attachment is preceded by a short text
+    // label so the model can name files in pdfPageDetails.
+    const itemsToAnalyze = items.slice(0, MAX_FILES_TO_ANALYZE);
+    const attachments: ContentPart[] = [];
+    const skipped: SkippedFile[] = [];
+    const notes: string[] = [];
+    const pdfDetails: string[] = [];
     let pdfCount = 0;
     let imageCount = 0;
-    let skippedCount = 0;
-    const pdfDetails: string[] = [];
+    let totalInlineBytes = 0;
+
+    for (const item of items.slice(MAX_FILES_TO_ANALYZE)) {
+      skipped.push({ file: item.name, reason: `over the ${MAX_FILES_TO_ANALYZE}-file limit` });
+    }
 
     for (let i = 0; i < itemsToAnalyze.length; i++) {
-      const url = itemsToAnalyze[i];
+      const item = itemsToAnalyze[i];
+      const label = `#${i + 1} "${item.name}"`;
+      const skip = (reason: string) => {
+        console.warn(`[ai-analyze-portfolio] skipping file ${label}: ${reason}`);
+        skipped.push({ file: item.name, reason });
+        notes.push(`[Note: file ${label} was not included: ${reason}]`);
+      };
+
+      const kind = classify(item);
+      if (kind.kind === "unsupported") {
+        skip(`unsupported file type (${item.type || "unknown"})`);
+        continue;
+      }
+
       try {
-        if (url.match(/\.pdf$/i)) {
-          // Handle PDF - fetch and convert to base64 for Gemini's native PDF support
-          console.log(`Fetching PDF ${pdfCount + 1} for analysis: ${url}`);
-          const pdfBuffer = await fetchPortfolioFile(url);
-
-          if (!pdfBuffer) {
-            contentParts[0].text += `\n\n[Note: Could not fetch PDF document #${i + 1}: ${url}]`;
-            skippedCount++;
-            continue;
-          }
-
-          const pdfBase64 = base64Encode(pdfBuffer);
-          const fileSizeKB = Math.round(pdfBuffer.byteLength / 1024);
-          
-          // Gemini supports inline PDF data with proper MIME type
-          contentParts.push({
-            type: "image_url",
-            image_url: {
-              url: `data:application/pdf;base64,${pdfBase64}`
-            }
-          });
-          
-          pdfCount++;
-          pdfDetails.push(`PDF #${pdfCount} (${fileSizeKB}KB)`);
-          console.log(`Added PDF ${pdfCount} to analysis (${fileSizeKB}KB)`);
-          
-        } else if (url.match(/\.(jpg|jpeg|png|webp|gif)$/i)) {
-          // Inlined as base64, like the PDFs above. This used to hand the model
-          // provider the raw URL and let it fetch the file itself, which only
-          // worked because the bucket was world-readable — and meant a
-          // candidate's work sample was handed to a third party as a public
-          // link rather than as content we control.
-          const imageBuffer = await fetchPortfolioFile(url);
-
-          if (!imageBuffer) {
-            contentParts[0].text += `\n\n[Note: Could not fetch image #${i + 1}: ${url}]`;
-            skippedCount++;
-            continue;
-          }
-
-          const ext = (url.match(/\.(jpg|jpeg|png|webp|gif)(?:\?|$)/i)?.[1] || "png").toLowerCase();
-          const mime = ext === "jpg" ? "image/jpeg" : `image/${ext}`;
-          contentParts.push({
-            type: "image_url",
-            image_url: { url: `data:${mime};base64,${base64Encode(imageBuffer)}` },
-          });
-          imageCount++;
-          console.log(`Added image ${imageCount} to analysis (${Math.round(imageBuffer.byteLength / 1024)}KB)`);
-
-        } else {
-          // Unknown file type - note it
-          console.log(`Unknown file type, skipping: ${url}`);
-          contentParts[0].text += `\n\n[Note: Unsupported file type submitted (file #${i + 1}): ${url}]`;
-          skippedCount++;
+        const bytes = await fetchPortfolioFile(item.url);
+        if (!bytes) {
+          skip("could not be downloaded");
+          continue;
         }
+        if (bytes.byteLength > MAX_FILE_BYTES) {
+          skip(`too large to analyze (${mb(bytes.byteLength)} MB; limit ${mb(MAX_FILE_BYTES)} MB)`);
+          continue;
+        }
+        if (totalInlineBytes + bytes.byteLength > MAX_TOTAL_INLINE_BYTES) {
+          skip(`total attachment budget of ${mb(MAX_TOTAL_INLINE_BYTES)} MB reached`);
+          continue;
+        }
+
+        totalInlineBytes += bytes.byteLength;
+        const b64 = base64Encode(bytes);
+        const sizeKB = Math.round(bytes.byteLength / 1024);
+
+        if (kind.kind === "pdf") {
+          pdfCount++;
+          const filename = /\.pdf$/i.test(item.name) ? item.name : `${item.name}.pdf`;
+          attachments.push({ type: "text", text: `File ${label} — PDF document, ${sizeKB}KB:` });
+          attachments.push({
+            type: "file",
+            file: { filename, file_data: `data:application/pdf;base64,${b64}` },
+          });
+          pdfDetails.push(`PDF #${pdfCount} "${item.name}" (${sizeKB}KB)`);
+        } else {
+          imageCount++;
+          attachments.push({ type: "text", text: `File ${label} — image (${kind.mime}), ${sizeKB}KB:` });
+          attachments.push({
+            type: "image_url",
+            image_url: { url: `data:${kind.mime};base64,${b64}` },
+          });
+        }
+        console.log(`[ai-analyze-portfolio] attached ${kind.kind} ${label} (${sizeKB}KB)`);
       } catch (fetchError) {
-        console.error(`Error processing portfolio item ${url}:`, fetchError);
-        contentParts[0].text += `\n\n[Note: Could not process file #${i + 1}: ${url}]`;
-        skippedCount++;
+        console.error(`[ai-analyze-portfolio] error processing file ${label}:`, fetchError);
+        skip("processing error");
       }
     }
 
-    // Add explicit file count notification
-    contentParts[0].text += `\n\n## FILES SUBMITTED FOR YOUR REVIEW:
-- Total files submitted: ${portfolioUrls.length}
-- Files being analyzed: ${itemsToAnalyze.length} (limit: ${MAX_FILES_TO_ANALYZE})
-- Images: ${imageCount}
-- PDF documents: ${pdfCount}${pdfDetails.length > 0 ? ` (${pdfDetails.join(', ')})` : ''}
-- Skipped/failed: ${skippedCount}`;
+    const analyzedCount = imageCount + pdfCount;
+    console.log(`Portfolio analysis includes: ${imageCount} images, ${pdfCount} PDFs, ${skipped.length} skipped (${mb(totalInlineBytes)} MB inlined)`);
 
-    if (portfolioUrls.length > MAX_FILES_TO_ANALYZE) {
-      contentParts[0].text += `\n- NOTE: ${portfolioUrls.length - MAX_FILES_TO_ANALYZE} additional files were submitted but not analyzed due to the ${MAX_FILES_TO_ANALYZE}-file limit.`;
+    if (analyzedCount === 0) {
+      // Nothing reached the model — don't ask it to score an empty portfolio.
+      console.error(
+        "[ai-analyze-portfolio] FALLBACK: no files could be attached; returning default score 60 / CONSIDER without calling the model.",
+        { submitted: items.length, skipped }
+      );
+      return jsonResponse(buildFallbackAnalysis(0, 0, skipped));
     }
 
-    contentParts[0].text += `\n\nIMPORTANT: For each PDF, report the number of pages you reviewed and describe key content. Your filesAnalyzed.pdfPageDetails array must have an entry for each PDF.`;
+    const promptText = `${promptHeader}${notes.length ? `\n\n${notes.join("\n")}` : ""}
 
-    console.log(`Portfolio analysis includes: ${imageCount} images, ${pdfCount} PDFs, ${skippedCount} skipped`);
+## FILES SUBMITTED FOR YOUR REVIEW:
+- Total files submitted: ${items.length}
+- Files attached for analysis: ${analyzedCount} (limit: ${MAX_FILES_TO_ANALYZE})
+- Images: ${imageCount}
+- PDF documents: ${pdfCount}${pdfDetails.length > 0 ? ` (${pdfDetails.join(", ")})` : ""}
+- Skipped/failed: ${skipped.length}${items.length > MAX_FILES_TO_ANALYZE ? `\n- NOTE: ${items.length - MAX_FILES_TO_ANALYZE} additional files were submitted but not analyzed due to the ${MAX_FILES_TO_ANALYZE}-file limit.` : ""}
 
-    // Use Gemini 2.5 Flash for vision + PDF analysis
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: GEMINI_PORTFOLIO_MODEL,
+IMPORTANT: For each PDF, report the number of pages you reviewed and describe key content. Your filesAnalyzed.pdfPageDetails array must have an entry for each PDF.`;
+
+    let analysis: any;
+    try {
+      const { data, rawContent } = await callOpenAIJson<any>({
+        apiKey: OPENAI_API_KEY,
+        model: OPENAI_PORTFOLIO_MODEL,
         messages: [
           {
             role: "user",
-            content: contentParts,
+            content: [{ type: "text", text: promptText }, ...attachments],
           },
         ],
-        max_tokens: 3000, // Increased for detailed multi-page reporting
-      }),
-    });
+        // Detailed multi-file JSON; reasoning tokens count against this too.
+        maxCompletionTokens: 4000,
+        timeoutMs: 120000,
+        validator: (value) => requireJsonKeys(value, ["score", "summary"]),
+      });
+      console.log("Raw AI response:", rawContent.substring(0, 500) + "...");
+      analysis = data;
+    } catch (error) {
+      const status = openAIErrorStatus(error);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("AI Gateway error:", response.status, errorText);
-      
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      if (status === 429) {
+        return jsonResponse({ error: "Rate limit exceeded. Please try again later." }, 429);
       }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "API credits exhausted. Please add credits." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      if (status === 402) {
+        return jsonResponse({ error: "API credits exhausted. Please add credits." }, 402);
       }
-      
-      throw new Error(`AI Gateway error: ${response.status}`);
-    }
+      if (status !== null) {
+        // Any other HTTP failure takes the same road as before: the outer
+        // catch answers 200 with the score-50 "processing error" body.
+        console.error("AI API error:", status, error);
+        throw new Error(`AI API error: ${status}`);
+      }
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "";
-    
-    console.log("Raw AI response:", content.substring(0, 500) + "...");
-
-    // Parse JSON from response
-    let analysis;
-    try {
-      // Extract JSON from markdown code blocks if present
-      const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
-      const jsonStr = jsonMatch ? jsonMatch[1].trim() : content.trim();
-      analysis = JSON.parse(jsonStr);
-    } catch (parseError) {
-      console.error("Failed to parse AI response as JSON:", parseError);
-      // Return a default analysis if parsing fails
-      analysis = {
-        score: 60,
-        summary: "Portfolio reviewed. Manual verification recommended due to parsing issues.",
-        filesAnalyzed: {
-          total: imageCount + pdfCount,
+      // Unparseable / structurally invalid JSON after the helper's retry.
+      console.error(
+        "[ai-analyze-portfolio] FALLBACK: OpenAI returned no parseable analysis; defaulting to score 60 / CONSIDER.",
+        {
+          model: OPENAI_PORTFOLIO_MODEL,
           images: imageCount,
           pdfs: pdfCount,
-          pdfPageDetails: [],
-          skippedFiles: skippedCount
-        },
-        authenticity: {
-          assessment: "UNKNOWN",
-          confidence: "LOW",
-          concerns: ["Could not fully analyze content"]
-        },
-        relevance: { score: 60, feedback: "Portfolio appears relevant to the position. Manual review recommended." },
-        quality: { score: 60, feedback: "Work demonstrates some technical skills. Needs manual verification." },
-        creativity: { score: 60, feedback: "Unable to fully assess creativity." },
-        penaltiesApplied: [],
-        bonusesApplied: [],
-        strengths: ["Portfolio submitted successfully", `${imageCount} images and ${pdfCount} PDFs received`],
-        areasForImprovement: ["Analysis could not be fully completed"],
-        recommendation: "CONSIDER - Portfolio submitted for manual review",
-      };
+          skipped: skipped.length,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+      analysis = buildFallbackAnalysis(imageCount, pdfCount, skipped);
     }
 
-    // Ensure filesAnalyzed is populated even if AI didn't include it
-    if (!analysis.filesAnalyzed) {
-      analysis.filesAnalyzed = {
-        total: imageCount + pdfCount,
-        images: imageCount,
-        pdfs: pdfCount,
-        pdfPageDetails: [],
-        skippedFiles: skippedCount
-      };
-    }
+    // filesAnalyzed carries what we actually attached, not what the model
+    // believes it saw. Its per-PDF page notes are kept; the skip list is ours.
+    const modelFiles = analysis.filesAnalyzed && typeof analysis.filesAnalyzed === "object"
+      ? analysis.filesAnalyzed
+      : {};
+    analysis.filesAnalyzed = {
+      ...modelFiles,
+      total: analyzedCount,
+      images: imageCount,
+      pdfs: pdfCount,
+      pdfPageDetails: Array.isArray(modelFiles.pdfPageDetails) ? modelFiles.pdfPageDetails : [],
+      skippedFiles: skipped.length,
+      skipped,
+    };
 
     console.log("Portfolio analysis complete:", {
       score: analysis.score,
@@ -394,29 +500,24 @@ BE CRITICAL AND HONEST. A score of 85+ should be exceptional. Average portfolios
       recommendation: analysis.recommendation,
       imagesAnalyzed: imageCount,
       pdfsAnalyzed: pdfCount,
-      skippedFiles: skippedCount
+      skippedFiles: skipped.length,
     });
 
-    return new Response(JSON.stringify(analysis), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse(analysis);
   } catch (error) {
     console.error("Error in ai-analyze-portfolio:", error);
-    return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : "Unknown error",
-        // Return basic analysis even on error - but with low score requiring manual review
-        score: 50,
-        summary: "Portfolio upload encountered issues. Manual review strongly recommended.",
-        filesAnalyzed: { total: 0, images: 0, pdfs: 0, pdfPageDetails: [], skippedFiles: 0 },
-        authenticity: { assessment: "UNKNOWN", confidence: "LOW", concerns: ["Processing error occurred"] },
-        penaltiesApplied: ["-10: Processing error"],
-        bonusesApplied: [],
-        strengths: ["Portfolio submitted"],
-        areasForImprovement: ["Resubmission may be needed"],
-        recommendation: "CONSIDER - Manual review required",
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({
+      error: error instanceof Error ? error.message : "Unknown error",
+      // Return basic analysis even on error - but with low score requiring manual review
+      score: 50,
+      summary: "Portfolio upload encountered issues. Manual review strongly recommended.",
+      filesAnalyzed: { total: 0, images: 0, pdfs: 0, pdfPageDetails: [], skippedFiles: 0, skipped: [] },
+      authenticity: { assessment: "UNKNOWN", confidence: "LOW", concerns: ["Processing error occurred"] },
+      penaltiesApplied: ["-10: Processing error"],
+      bonusesApplied: [],
+      strengths: ["Portfolio submitted"],
+      areasForImprovement: ["Resubmission may be needed"],
+      recommendation: "CONSIDER - Manual review required",
+    }, 200);
   }
 });

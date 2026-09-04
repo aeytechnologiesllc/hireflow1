@@ -14,6 +14,14 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signInWithGoogle: (redirectTo?: string, role?: AppRole) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  /**
+   * Re-read the role from the database right now. The role is otherwise only
+   * fetched when the session first appears, so anything that writes a
+   * user_roles row afterwards (AuthCallback's assign_user_role for a brand-new
+   * OAuth account) has to call this, or the person renders in the wrong shell
+   * until the next token refresh or a reload.
+   */
+  refreshRole: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -290,7 +298,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = async (redirectTo?: string, role?: AppRole) => {
     try {
-      const callbackUrl = new URL(redirectTo || `${window.location.origin}/auth/callback`);
+      // Resolve against the origin so a relative path ("/candidate/continue")
+      // is accepted. Without the base, `new URL` throws "Invalid URL" before
+      // Supabase is ever called, and the caller surfaces that raw browser
+      // message as the sign-in error. An absolute URL ignores the base.
+      const callbackUrl = new URL(redirectTo || "/auth/callback", window.location.origin);
       if (role) {
         callbackUrl.searchParams.set("role", role);
       }
@@ -323,8 +335,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsTeamMember(false);
   };
 
+  const refreshRole = async () => {
+    // getSession is local — no network — and is the same source the initial
+    // bootstrap trusts, so this cannot disagree with it about who is signed in.
+    const {
+      data: { session: currentSession },
+    } = await supabase.auth.getSession();
+    const currentUser = currentSession?.user;
+    if (!currentUser) return;
+
+    await Promise.all([
+      fetchUserRole(currentUser.id, getFallbackRoleFromUser(currentUser)),
+      checkTeamMembership(currentUser.id),
+    ]);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, role, isTeamMember, loading, signUp, signIn, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ user, session, role, isTeamMember, loading, signUp, signIn, signInWithGoogle, signOut, refreshRole }}>
       {children}
     </AuthContext.Provider>
   );

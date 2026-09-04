@@ -397,15 +397,16 @@ serve(async (req) => {
 
     // If no subscription exists, create trial
     if (!subscription && !subscriptionBypass) {
+      // Billing is off: a trial has no end date. Voice credits are good for a year.
       const trialEnd = new Date();
-      trialEnd.setDate(trialEnd.getDate() + 7);
+      trialEnd.setFullYear(trialEnd.getFullYear() + 1);
 
       const { data: newSub } = await supabaseAdmin.from("subscriptions").insert({
         user_id: effectiveOwnerId,
         plan_type: 'trial',
         status: 'trialing',
         trial_start: new Date().toISOString(),
-        trial_end: trialEnd.toISOString(),
+        trial_end: null,
       }).select().single();
 
       // Create usage record
@@ -413,12 +414,12 @@ serve(async (req) => {
         user_id: effectiveOwnerId,
       });
 
-      // Create initial trial voice credits (15 minutes for ~3 voice interviews)
+      // Create initial trial voice credits (120 minutes, roughly twenty interviews)
       await supabaseAdmin.from("voice_credits").insert({
         user_id: effectiveOwnerId,
         source: 'subscription',
-        minutes_granted: 15,
-        minutes_remaining: 15,
+        minutes_granted: 120,
+        minutes_remaining: 120,
         expires_at: trialEnd.toISOString(),
         status: 'active',
       });
@@ -428,11 +429,11 @@ serve(async (req) => {
         usage: { jobs_created: 0, applicants_received: 0, documents_sent: 0, team_members_added: 0, ai_analyses_used: 0, voice_minutes_used: 0 },
         limits: getPlanLimits('trial'),
         voiceCredits: {
-          totalMinutesAvailable: 15,
+          totalMinutesAvailable: 120,
           credits: [{
             id: 'initial',
             source: 'trial',
-            minutes_remaining: 15,
+            minutes_remaining: 120,
             expires_at: trialEnd.toISOString(),
           }],
         },
@@ -443,22 +444,8 @@ serve(async (req) => {
       });
     }
 
-    // Check if trial expired
-    if (!subscriptionBypass && subscription?.status === 'trialing' && subscription.trial_end) {
-      const trialEnd = new Date(subscription.trial_end);
-      if (trialEnd < new Date()) {
-        await supabaseAdmin.from("subscriptions").update({
-          status: 'expired',
-        }).eq('user_id', effectiveOwnerId);
-
-        // Void all voice credits when trial expires
-        await supabaseAdmin.from("voice_credits").update({
-          status: 'voided',
-        }).eq('user_id', effectiveOwnerId).eq('status', 'active');
-
-        subscription.status = 'expired';
-      }
-    }
+    // Billing is off: trials no longer expire. (The flip to 'expired' that used to
+    // live here paywalled the whole app seven days after sign-up.)
 
     const effectiveSubscription = subscriptionBypass
       ? {
@@ -553,19 +540,19 @@ function getPlanLimits(planType: string) {
         hasVoiceAssistant: false,
         hasVoiceInterviews: false,
       };
-    default: // trial - LIMITED to encourage upgrades
+    default: // trial - everything is open while billing is off
       return {
-        jobs: 1,
-        applicants: 15,
-        documents: 10,
-        teamMembers: 1,
-        aiAnalyses: 15,
-        voiceMinutes: 15,
-        hasAdvancedAnalytics: false,
+        jobs: -1,
+        applicants: -1,
+        documents: -1,
+        teamMembers: 3,
+        aiAnalyses: -1,
+        voiceMinutes: 120,
+        hasAdvancedAnalytics: true,
         hasTeamPortal: true,
         hasDocuments: true,
         hasPrioritySupport: false,
-        hasVoiceAssistant: false,
+        hasVoiceAssistant: true,
         hasVoiceInterviews: true,
         hasVoiceTrialAccess: true,
       };

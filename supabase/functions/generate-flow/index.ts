@@ -116,7 +116,7 @@ Deno.serve(async (req: Request) => {
 
     const key = Deno.env.get("OPENAI_API_KEY");
     if (!key) return json({ error: "OPENAI_API_KEY not configured" }, 500);
-    const model = Deno.env.get("OPENAI_MODEL") || "gpt-4.1";
+    const model = Deno.env.get("OPENAI_MODEL") || "gpt-5.6-luna";
 
     const followUpCtx =
       Array.isArray(brief?.followUps) && brief.followUps.length

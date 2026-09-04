@@ -932,7 +932,11 @@ export default function CockpitInterviews() {
           currentScheduledAt={reviewing.at ? reviewing.at.toISOString() : ""}
           proposedTimes={reviewing.proposedTimes}
           candidateNote={reviewing.candidateNote}
-          onMessageCandidate={() => navigate("/messages")}
+          // Land on this candidate's thread, not the inbox — a bare /messages
+          // opened whichever thread was newest and left the owner to hunt.
+          onMessageCandidate={() =>
+            navigate(reviewing.candidateId ? `/messages?candidate=${reviewing.candidateId}` : "/messages")
+          }
         />
       )}
 

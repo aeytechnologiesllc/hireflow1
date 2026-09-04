@@ -42,6 +42,10 @@ interface NotificationData {
   minutes_remaining?: string;
   active_jobs_count?: string;
   score?: string;
+  /** new_message: who sent it, so an employer's email can deep-link to that thread. */
+  sender_id?: string;
+  /** new_message: lets the function skip its role lookup when the caller knows. */
+  recipient_role?: "employer" | "candidate" | "team_member";
 }
 
 async function sendNotificationEmail(
@@ -292,19 +296,77 @@ export async function notifyStatusHired(
 // ============ SHARED NOTIFICATIONS ============
 
 /**
- * Notify user about a new message
+ * Notify user about a new message.
+ *
+ * The email reads differently for each side — an employer gets "New message
+ * from <name>" linking to that candidate's thread, a candidate gets a note
+ * from the hiring team routed through candidate sign-in. The function decides
+ * by the recipient's role; it only needs the sender's id for the employer's
+ * deep link. Existing callers pass no sender, so the signed-in user (who is
+ * the sender) fills it in.
  */
 export async function notifyNewMessage(
   recipientId: string,
   senderName: string,
   messagePreview?: string,
-  jobTitle?: string
+  jobTitle?: string,
+  senderId?: string,
+  recipientRole?: NotificationData["recipient_role"]
 ): Promise<void> {
+  let resolvedSenderId = senderId;
+  if (!resolvedSenderId) {
+    try {
+      const { data } = await supabase.auth.getSession();
+      resolvedSenderId = data.session?.user?.id;
+    } catch {
+      // Fine — the employer's email links to the inbox instead of the thread.
+    }
+  }
   await sendNotificationEmail("new_message", recipientId, {
     sender_name: senderName,
     message_preview: messagePreview?.substring(0, 100),
     job_title: jobTitle,
+    sender_id: resolvedSenderId,
+    recipient_role: recipientRole,
   });
+}
+
+/**
+ * A candidate just submitted their application (status -> pending). Tell the
+ * candidate it landed and the employer someone applied — both looked up from
+ * the job, both fire-and-forget. This is the moment the application is real;
+ * the row is created earlier, when they only open the form, and an email that
+ * says "submitted" at that point would be a lie.
+ */
+export async function notifyApplicationSubmitted(
+  jobId: string,
+  candidateId: string,
+  candidateName: string
+): Promise<void> {
+  try {
+    const { data: job, error: jobError } = await supabase
+      .from("jobs")
+      .select("title, employer_id")
+      .eq("id", jobId)
+      .single();
+    if (jobError || !job) {
+      console.error("[emailNotifications] Could not load job for submission emails:", jobError);
+      return;
+    }
+    const { data: employerProfile } = await supabase
+      .from("profiles")
+      .select("company_name")
+      .eq("user_id", job.employer_id)
+      .maybeSingle();
+    const companyName = employerProfile?.company_name?.trim() || undefined;
+
+    await Promise.all([
+      notifyApplicationReceived(candidateId, job.title, companyName),
+      notifyNewApplication(job.employer_id, candidateName || "A candidate", job.title),
+    ]);
+  } catch (err) {
+    console.error("[emailNotifications] Failed to send application submitted emails:", err);
+  }
 }
 
 /**

@@ -38,7 +38,16 @@ import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import CountryCodeSelect from "@/components/CountryCodeSelect";
 import { convertPdfFileToImages, base64ToBlob } from "@/utils/pdfToImage";
-import { isImageResumeUrl, isPdfResumeUrl, isSupportedResumeFile, isSupportedResumeUrl } from "@/utils/resumeFiles";
+import {
+  isImageResumeUrl,
+  isPdfResumeUrl,
+  isSupportedResumeFile,
+  isSupportedResumeUrl,
+  isWordResumeUrl,
+  RESUME_FILE_ACCEPT,
+  RESUME_FORMATS_LABEL,
+} from "@/utils/resumeFiles";
+import { notifyApplicationSubmitted } from "@/utils/emailNotifications";
 import { resolveResumeUrl } from "@/utils/resumeSignedUrl";
 import { GlyphLetter } from "@/components/candidate/glyphs";
 import { buildCandidateJourney, DECISION_STAGE_ID } from "@/lib/candidateJourney";
@@ -529,7 +538,7 @@ export default function ApplicationFormPhase() {
 
   const handleFileSelect = async (file: File) => {
     if (!isSupportedResumeFile(file)) {
-      toast.error("That file type won't work — please upload a PDF or image.");
+      toast.error(`That file type won't work — please upload a ${RESUME_FORMATS_LABEL}.`);
       return;
     }
 
@@ -571,9 +580,12 @@ export default function ApplicationFormPhase() {
             }
           }
         }
-      } else {
+      } else if (file.type.startsWith("image/")) {
         imageUrls.push(fileName);
       }
+      // A Word document has no page images to hand the reader. The file is
+      // stored and shown to the employer; Ava's read falls back to the typed
+      // answers (the backend returns null for anything it cannot parse).
       
       // Update application with resume URL and image URLs in notes
       const currentNotes = await getLatestStoredNotes();
@@ -605,7 +617,7 @@ export default function ApplicationFormPhase() {
 
     if (isResumeUpload) {
       if (!isSupportedResumeFile(file)) {
-        toast.error("That won't work for a resume — please upload a PDF or image.");
+        toast.error(`That won't work for a resume — please upload a ${RESUME_FORMATS_LABEL}.`);
         return;
       }
     } else {
@@ -761,7 +773,7 @@ export default function ApplicationFormPhase() {
     const hasResumeFromFileQuestion = resumeFileQuestion && !!answers[resumeFileQuestion.id];
     
     if (requiresResume && !resumeFile && !hasValidApplicationResume && !usingProfileResume && !hasResumeFromFileQuestion) {
-      errors.resume = "Add your resume to continue — PDF or image, under 10 MB";
+      errors.resume = `Add your resume to continue — ${RESUME_FORMATS_LABEL}, under 10 MB`;
     }
 
     setValidationErrors(errors);
@@ -838,6 +850,9 @@ export default function ApplicationFormPhase() {
                 finalResumeImageUrls.push(imagePath);
               }
             }
+          } else if (isWordResumeUrl(profile.resume_url)) {
+            // Nothing to rasterise — the file is attached as-is and the
+            // analysis falls back to the typed answers.
           } else {
             throw new Error("Unsupported profile resume format");
           }
@@ -845,7 +860,7 @@ export default function ApplicationFormPhase() {
           finalResumeUrl = profile.resume_url;
         } catch (conversionError) {
           console.error("[ApplicationFormPhase] Profile resume conversion failed:", conversionError);
-          toast.error("We couldn't read that resume — please upload a PDF or image.");
+          toast.error(`We couldn't read that resume — please upload a ${RESUME_FORMATS_LABEL}.`);
           setIsSubmitting(false);
           setEvaluationState(null);
           return;
@@ -877,6 +892,16 @@ export default function ApplicationFormPhase() {
         status: "pending",
         ...(finalResumeUrl && !application.resume_url ? { resume_url: finalResumeUrl } : {}),
       });
+
+      // This is the moment the application is actually submitted — the row was
+      // created when they opened the form (JobDetails, status "in_progress").
+      // Confirmation to the candidate, new-applicant note to the employer;
+      // fire-and-forget, never in the way of the submission itself.
+      if (application.status !== "pending") {
+        const candidateName =
+          profile?.full_name?.trim() || user?.user_metadata?.full_name || user?.email || "A candidate";
+        void notifyApplicationSubmitted(application.job_id, application.candidate_id, candidateName);
+      }
 
       // Get workflow steps to find the next stage in the real journey
       const workflowSteps = application.jobs?.workflow_steps || [];
@@ -1450,7 +1475,12 @@ export default function ApplicationFormPhase() {
                               className="h-8 w-8"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                window.open(questionFileUrls[question.id], '_blank');
+                                // Stored value is a bare path in the private
+                                // `resumes` bucket — opening it raw 404s. Sign it
+                                // first, the way the profile-resume preview does.
+                                void resolveResumeUrl(questionFileUrls[question.id]).then((s) => {
+                                  if (s) window.open(s, '_blank');
+                                });
                               }}
                             >
                               <Eye className="h-4 w-4" />
@@ -1639,7 +1669,7 @@ export default function ApplicationFormPhase() {
                       Click to upload or drag and drop your resume
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      PDF or image, up to 10 MB
+                      {RESUME_FORMATS_LABEL}, up to 10 MB
                     </p>
                   </div>
                 )}
@@ -1647,7 +1677,7 @@ export default function ApplicationFormPhase() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp"
+                accept={RESUME_FILE_ACCEPT}
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];

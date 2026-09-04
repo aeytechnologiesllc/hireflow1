@@ -72,14 +72,32 @@ interface NotificationRequest {
     minutes_remaining?: string;
     active_jobs_count?: string;
     score?: string;
+    /** new_message: the sender's user id, for the employer's thread deep link. */
+    sender_id?: string;
+    /** new_message: skips the role lookup when the caller already knows. */
+    recipient_role?: RecipientRole;
   };
 }
 
-const getEmailContent = (type: NotificationType, data: NotificationRequest["data"]) => {
+type RecipientRole = "employer" | "candidate" | "team_member";
+
+const getEmailContent = (
+  type: NotificationType,
+  data: NotificationRequest["data"],
+  recipientRole: RecipientRole = "candidate",
+) => {
   const baseUrl = getAppBaseUrl();
-  
-  // Simple, clean template wrapper
-  const wrapEmail = (title: string, content: string, buttonText?: string, buttonUrl?: string) => `
+
+  // Every candidate-facing link goes through candidate sign-in with the real
+  // destination as a redirect. A bare /applications link sent a signed-out
+  // candidate to the EMPLOYER login page; CandidateAuth honours a safe
+  // `redirect` param and routes an already-signed-in candidate straight through.
+  const candidateLink = (path: string) =>
+    `${baseUrl}/candidate/auth?redirect=${encodeURIComponent(path)}`;
+
+  // Simple, clean template wrapper. `signature` lets a message that comes from
+  // the employer (a decision on an application) sign as the employer.
+  const wrapEmail = (title: string, content: string, buttonText?: string, buttonUrl?: string, signature = "— The HireFlow Team") => `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
       <h2 style="color: #111; margin-bottom: 20px;">${title}</h2>
       ${content}
@@ -89,10 +107,13 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
         </p>
       ` : ''}
       <p style="color: #666; font-size: 13px; margin-top: 32px; border-top: 1px solid #eee; padding-top: 16px;">
-        — The HireFlow Team
+        ${signature}
       </p>
     </div>
   `;
+
+  const companyName = data.company_name?.trim() || "";
+  const teamLabel = companyName ? `The ${companyName} team` : "The hiring team";
 
   const templates: Record<NotificationType, { subject: string; html: string }> = {
     // EMPLOYER-FACING
@@ -115,7 +136,7 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
         `<p>Your application for <strong>${data.job_title}</strong> has been successfully submitted.</p>
          <p style="color: #666;">The hiring team will review your application and get back to you. You can track your application status in your dashboard.</p>`,
         "Track Application",
-        `${baseUrl}/applications`
+        candidateLink("/applications")
       ),
     },
     
@@ -128,21 +149,36 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
          <p><strong>Current Phase:</strong> ${data.phase_name}</p>
          <p style="color: #666;">Log in to continue with the next steps.</p>`,
         "Continue Application",
-        `${baseUrl}/applications`
+        candidateLink("/applications")
       ),
     },
     
-    // CANDIDATE-FACING
-    new_message: {
-      subject: `New message regarding your application${data.job_title ? `: ${data.job_title}` : ''}`,
-      html: wrapEmail(
-        "New Message",
-        `<p>You have a new message from the hiring team${data.job_title ? ` regarding <strong>${data.job_title}</strong>` : ''}.</p>
-         ${data.message_preview ? `<p style="color: #666; font-style: italic; border-left: 3px solid #ddd; padding-left: 12px;">"${data.message_preview}..."</p>` : ''}`,
-        "View Message",
-        `${baseUrl}/messages`
-      ),
-    },
+    // BOTH SIDES — the copy and the link depend on who is receiving it. An
+    // employer used to get "a new message from the hiring team" (they ARE the
+    // hiring team) with a candidate sign-in link.
+    new_message: recipientRole === "candidate"
+      ? {
+          subject: `New message regarding your application${data.job_title ? `: ${data.job_title}` : ''}`,
+          html: wrapEmail(
+            "New Message",
+            `<p>You have a new message from the hiring team${data.job_title ? ` regarding <strong>${data.job_title}</strong>` : ''}.</p>
+             ${data.message_preview ? `<p style="color: #666; font-style: italic; border-left: 3px solid #ddd; padding-left: 12px;">"${data.message_preview}..."</p>` : ''}`,
+            "View Message",
+            candidateLink("/messages")
+          ),
+        }
+      : {
+          subject: `New message from ${data.sender_name || "a candidate"}${data.job_title ? ` — ${data.job_title}` : ''}`,
+          html: wrapEmail(
+            `New message from ${data.sender_name || "a candidate"}`,
+            `<p><strong>${data.sender_name || "A candidate"}</strong> sent you a message${data.job_title ? ` about <strong>${data.job_title}</strong>` : ''}.</p>
+             ${data.message_preview ? `<p style="color: #666; font-style: italic; border-left: 3px solid #ddd; padding-left: 12px;">"${data.message_preview}..."</p>` : ''}`,
+            "Reply",
+            data.sender_id
+              ? `${baseUrl}/messages?candidate=${encodeURIComponent(data.sender_id)}`
+              : `${baseUrl}/messages`
+          ),
+        },
     
     // CANDIDATE-FACING
     interview_scheduled: {
@@ -153,7 +189,7 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
          <p><strong>Date:</strong> ${data.interview_date}<br><strong>Time:</strong> ${data.interview_time}</p>
          <p style="color: #666;">Check your dashboard for meeting details.</p>`,
         "View Interview Details",
-        `${baseUrl}/applications`
+        candidateLink("/applications")
       ),
     },
     
@@ -172,7 +208,7 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
          }
          <p style="color: #666;">Head to your application to choose a time — it only takes a second.</p>`,
         "Pick a Time",
-        `${baseUrl}/applications`
+        candidateLink("/applications")
       ),
     },
 
@@ -185,7 +221,7 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
          ${data.original_date ? `<p style="color: #666;">Original date: ${data.original_date}</p>` : ''}
          <p style="color: #666;">Check your messages for updates from the hiring team.</p>`,
         "Check Messages",
-        `${baseUrl}/messages`
+        candidateLink("/messages")
       ),
     },
     
@@ -198,7 +234,7 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
          <p><strong>New Date:</strong> ${data.new_date}<br><strong>New Time:</strong> ${data.new_time}</p>
          <p style="color: #666;">Please confirm your availability.</p>`,
         "Confirm New Time",
-        `${baseUrl}/applications`
+        candidateLink("/applications")
       ),
     },
     
@@ -211,7 +247,7 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
          <p><strong>Date:</strong> ${data.interview_date}<br><strong>Time:</strong> ${data.interview_time}</p>
          <p style="color: #666;">Make sure you're prepared and have the meeting link ready!</p>`,
         "View Details",
-        `${baseUrl}/applications`
+        candidateLink("/applications")
       ),
     },
     
@@ -223,7 +259,7 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
         `<p>The hiring team has sent you a document to review and sign.</p>
          <p><strong>Document:</strong> ${data.document_name}</p>`,
         "Review & Sign",
-        `${baseUrl}/applications`
+        candidateLink("/applications")
       ),
     },
     
@@ -248,7 +284,7 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
          ${data.document_name ? `<p><strong>Document Type:</strong> ${data.document_name}</p>` : ''}
          <p style="color: #666;">Please upload the requested document in your dashboard.</p>`,
         "Upload Document",
-        `${baseUrl}/applications`
+        candidateLink("/applications")
       ),
     },
     
@@ -264,28 +300,31 @@ const getEmailContent = (type: NotificationType, data: NotificationRequest["data
       ),
     },
     
-    // CANDIDATE-FACING
+    // CANDIDATE-FACING — a decision, so it comes from the employer, not from
+    // HireFlow. Short and warm; no "feedback report" (there is nothing to
+    // download), and no mention of how the decision was reached.
     status_rejected: {
-      subject: `Application Update: ${data.job_title}`,
+      subject: `An update on your ${data.job_title} application`,
       html: wrapEmail(
-        "Application Update",
-        `<p>Thank you for your interest in the <strong>${data.job_title}</strong> position.</p>
-         <p style="color: #666;">After careful consideration, the hiring team has decided to move forward with other candidates whose experience more closely matches their current needs.</p>
-         <p style="color: #666;">Download your personalized feedback report to see how you can improve for future applications.</p>`,
-        "View Feedback",
-        `${baseUrl}/applications`
+        `An update from ${companyName || "the hiring team"}`,
+        `<p>Thank you for applying for the <strong>${data.job_title}</strong> role${companyName ? ` at ${companyName}` : ''}, and for the time you put into it.</p>
+         <p style="color: #666;">We've decided to move forward with other candidates this time. We're grateful you considered us, and we wish you the very best in your search.</p>`,
+        "View your applications",
+        candidateLink("/applications"),
+        `— ${teamLabel}`
       ),
     },
     
-    // CANDIDATE-FACING
+    // CANDIDATE-FACING — also from the employer.
     status_hired: {
-      subject: `Congratulations! You're Hired - ${data.job_title}`,
+      subject: `Welcome aboard — ${data.job_title}`,
       html: wrapEmail(
-        "Congratulations!",
-        `<p>You've been selected for the <strong>${data.job_title}</strong> position!</p>
-         <p style="color: #666;">We're excited to welcome you aboard. Please check your messages and documents for next steps.</p>`,
-        "View Details",
-        `${baseUrl}/applications`
+        `You've got the job${companyName ? ` at ${companyName}` : ''}`,
+        `<p>We'd like to offer you the <strong>${data.job_title}</strong> role. Congratulations.</p>
+         <p style="color: #666;">We'll follow up with your start date and next steps. Your messages and any documents to sign are in your HireFlow account.</p>`,
+        "Open your application",
+        candidateLink("/applications"),
+        `— ${teamLabel}`
       ),
     },
     
@@ -389,6 +428,22 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { type, recipient_user_id, data }: NotificationRequest = await req.json();
 
+    // Only new_message reads differently per side; look the role up once, and
+    // only when the caller did not say. Default to the candidate copy, which is
+    // the safer failure: an employer reading candidate copy is odd, a candidate
+    // reading employer copy ("New message from <their own name>") is wrong.
+    let recipientRole: RecipientRole = data?.recipient_role ?? "candidate";
+    if (type === "new_message" && !data?.recipient_role) {
+      const { data: roleRows } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", recipient_user_id);
+      const roles = (roleRows ?? []).map((r: { role: string }) => r.role);
+      if (roles.includes("employer")) recipientRole = "employer";
+      else if (roles.includes("team_member")) recipientRole = "team_member";
+      else recipientRole = "candidate";
+    }
+
     console.log(`[send-notification-email] Processing ${type} notification for user ${recipient_user_id}`);
     console.log(`[send-notification-email] Data:`, JSON.stringify(data));
     console.log(`[send-notification-email] Base URL:`, getAppBaseUrl());
@@ -432,7 +487,7 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    const emailContent = getEmailContent(type, data);
+    const emailContent = getEmailContent(type, data, recipientRole);
 
     console.log(`[send-notification-email] Sending email to ${profile.email} with subject: ${emailContent.subject}`);
 

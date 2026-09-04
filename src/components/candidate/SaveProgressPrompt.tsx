@@ -35,9 +35,14 @@ export function SaveProgressPrompt({
 
   const handleGoogle = async () => {
     setGoogleLoading(true);
-    // Absolute: signInWithGoogle feeds this to `new URL`, which throws on a
-    // relative path.
-    const redirect = `${window.location.origin}/candidate/continue?phone=${encodeURIComponent(applicantPhone)}`;
+    // Go through /auth/callback like every other Google button, so the new
+    // account gets its candidate role row (assign_user_role) before landing.
+    // Sending the browser straight to /candidate/continue skipped that, and a
+    // signed-in person with no role is later filed as an employer by default.
+    // The callback then honours `redirect` and drops them on the phone lookup,
+    // prefilled, which is the page that shows the application they just made.
+    const continuePath = `/candidate/continue?phone=${encodeURIComponent(applicantPhone)}`;
+    const redirect = `/auth/callback?redirect=${encodeURIComponent(continuePath)}`;
     const { error } = await signInWithGoogle(redirect, "candidate");
     if (error) {
       toast.error(error.message);

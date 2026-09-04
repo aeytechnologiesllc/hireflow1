@@ -1,10 +1,12 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { callOpenAIJson, openAIErrorStatus, requireJsonKeys } from "../_shared/openai.ts";
 
-// Model is configurable so the Oct-2026 gemini-2.5-flash retirement is a config
-// change, not a code change. Set GEMINI_REPORT_MODEL to the replacement model when swapping.
-const GEMINI_REPORT_MODEL = Deno.env.get("GEMINI_REPORT_MODEL") || "google/gemini-2.5-flash";
+// Model is configurable so a retirement is a config change, not a code change.
+// Set OPENAI_REPORT_MODEL to the replacement model when swapping.
+const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+const OPENAI_REPORT_MODEL = Deno.env.get('OPENAI_REPORT_MODEL') || 'gpt-5.6-terra';
 
 
 const corsHeaders = {
@@ -92,9 +94,9 @@ serve(async (req) => {
     const jobData = Array.isArray(application.jobs) ? application.jobs[0] : application.jobs;
     const passingScore = jobData?.passing_score || 70;
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    if (!OPENAI_API_KEY) {
+      // Surfaces as a 500 JSON { error } via the catch below.
+      throw new Error('OPENAI_API_KEY is not configured');
     }
 
     const systemPrompt = `You are a friendly, supportive career coach creating a PREMIUM improvement blueprint for a rejected candidate.
@@ -299,44 +301,34 @@ CRITICAL REQUIREMENTS:
 
 Return ONLY valid JSON, no markdown.`;
 
-    console.log('Calling Lovable AI for improvement blueprint...');
+    console.log(`Calling OpenAI (${OPENAI_REPORT_MODEL}) for improvement blueprint...`);
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: GEMINI_REPORT_MODEL,
+    // callOpenAIJson sends response_format: { type: "json_object" } and
+    // max_completion_tokens, strips any stray code fences, and retries once on
+    // an unparseable/invalid body before giving up. No temperature is sent: the
+    // gpt-5.x family rejects non-default sampling params, and the old 0.5 was
+    // a Gemini setting anyway.
+    let reportData: any;
+    try {
+      const { data } = await callOpenAIJson<any>({
+        apiKey: OPENAI_API_KEY,
+        model: OPENAI_REPORT_MODEL,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        temperature: 0.5,
-        max_tokens: 8000, // Increased for more detailed output
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('AI API error:', response.status, errorText);
-      throw new Error(`AI API error: ${response.status}`);
-    }
-
-    const aiResponse = await response.json();
-    const content = aiResponse.choices?.[0]?.message?.content;
-
-    if (!content) {
-      throw new Error('No content in AI response');
-    }
-
-    let reportData;
-    try {
-      const cleanedContent = content.replace(/```json\n?|\n?```/g, '').trim();
-      reportData = JSON.parse(cleanedContent);
-    } catch (parseError) {
-      console.error('Failed to parse AI response:', content);
+        maxCompletionTokens: 8000, // long, detailed report — reasoning tokens count against this too
+        timeoutMs: 120000,
+        validator: (value) => requireJsonKeys(value, ['executiveSummary']),
+      });
+      reportData = data;
+    } catch (error) {
+      const status = openAIErrorStatus(error);
+      if (status !== null) {
+        console.error('AI API error:', status, error);
+        throw new Error(`AI API error: ${status}`);
+      }
+      console.error('Failed to parse AI response:', error);
       throw new Error('Failed to parse AI analysis');
     }
 

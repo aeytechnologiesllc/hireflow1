@@ -46,6 +46,12 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImprovementBlueprintCard } from "@/components/ImprovementBlueprintCard";
 import { BLUEPRINT_PRICE_FORMATTED } from "@/hooks/useImprovementBlueprint";
+
+/** The Blueprint is sold through Stripe Checkout. Without a publishable key the
+ *  checkout cannot open, so "Get Feedback Report — $1.99" would be a button that
+ *  does nothing, shown to someone who has just been turned down. Hidden until
+ *  billing is configured. */
+const BLUEPRINT_PURCHASE_ENABLED = !!import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 import {
   getApplicationDisplayState,
@@ -144,7 +150,9 @@ function getGuidanceCopy(displayState: ApplicationDisplayState): string | null {
 
 function getOutcomeCopy(application: ApplicationWithJob, displayState: ApplicationDisplayState): string | null {
   if (displayState.isHired) return "Congratulations — the team will be in touch about next steps.";
-  if (application.status === "offered") return "An offer's been extended — check your email for the details.";
+  // No offer email exists in this system, so "check your email" sent them
+  // looking for something that was never sent.
+  if (application.status === "offered") return "An offer's been extended — the team will be in touch with the details.";
   if (displayState.isRejected) return "This one didn't move forward. There's always the next role.";
   return null;
 }
@@ -335,7 +343,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
           </button>
         )}
 
-        {displayState.isRejected && onOpenBlueprint && (
+        {displayState.isRejected && onOpenBlueprint && BLUEPRINT_PURCHASE_ENABLED && (
           <button
             type="button"
             onClick={(e) => {

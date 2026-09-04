@@ -199,11 +199,41 @@ async function recordAttempt(
   }
 }
 
+/**
+ * IndexNow (Bing, Yandex, Naver, Seznam). Free, no account: the key below is
+ * public by design and is served from /8f1bfc75cd683af0c7f05fe79664ec51.txt on the site.
+ * Best-effort and fire-and-forget — it must never delay or fail the Google call.
+ */
+const INDEXNOW_KEY = "8f1bfc75cd683af0c7f05fe79664ec51";
+
+export async function pingIndexNow(url: string): Promise<void> {
+  try {
+    const host = new URL(siteOrigin()).host;
+    const res = await fetch("https://api.indexnow.org/indexnow", {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({
+        host,
+        key: INDEXNOW_KEY,
+        keyLocation: `${siteOrigin()}/${INDEXNOW_KEY}.txt`,
+        urlList: [url],
+      }),
+    });
+    if (!res.ok && res.status !== 202) {
+      console.warn(`[indexnow] ${res.status} for ${url}: ${truncate(await res.text(), 200)}`);
+    }
+  } catch (error) {
+    console.warn("[indexnow] ping failed", error instanceof Error ? error.message : String(error));
+  }
+}
+
 export async function notifyGoogleIndexing(
   options: NotifyGoogleIndexingOptions,
 ): Promise<GoogleIndexingResult> {
   const url = jobUrl(options.job.id);
   const disabled = (Deno.env.get("GOOGLE_INDEXING_DISABLED") ?? "").toLowerCase() === "true";
+  // Bing & friends: one free ping per change, never awaited.
+  void pingIndexNow(url);
 
   if (disabled) {
     await recordAttempt(options.supabaseAdmin, {

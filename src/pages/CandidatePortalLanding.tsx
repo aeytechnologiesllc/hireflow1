@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, FileText, MessageSquare, ClipboardCheck, KeyRound, Phone } from "lucide-react";
+import { ArrowRight, MessageSquare, ClipboardCheck, KeyRound, UserRound } from "lucide-react";
 import { CandidateShell } from "@/components/candidate/CandidateShell";
 
 export default function CandidatePortalLanding() {
@@ -7,12 +7,12 @@ export default function CandidatePortalLanding() {
     {
       icon: ClipboardCheck,
       title: "Apply in minutes",
-      description: "Enter your job code — no account needed to get started",
+      description: "Enter the job code or open the link the employer gave you",
     },
     {
-      icon: Phone,
-      title: "Pick up anytime",
-      description: "Continue with the phone number you used when you applied",
+      icon: UserRound,
+      title: "One free account",
+      description: "Sign in with Google or email — your progress is saved as you go",
     },
     {
       icon: MessageSquare,
@@ -42,15 +42,15 @@ export default function CandidatePortalLanding() {
             </span>
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed" style={{ color: "var(--hf-text-soft)" }}>
-            Enter the job code from the employer to apply — no signup wall. Come back anytime with your phone number.
+            Enter the job code from the employer, create a free account, and apply. Sign back in anytime to pick up where you left off.
           </p>
           <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
             <Link to="/candidate/apply" className="cand-btn-primary w-full sm:w-auto">
               Enter job code
               <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link to="/candidate/continue" className="cand-btn-ghost w-full sm:w-auto">
-              Continue your application
+            <Link to="/candidate/auth" className="cand-btn-ghost w-full sm:w-auto">
+              Sign in to continue
             </Link>
           </div>
         </section>
@@ -74,10 +74,10 @@ export default function CandidatePortalLanding() {
           <h2 className="font-display text-center text-2xl" style={{ color: "var(--hf-text)" }}>How it works</h2>
           <div className="mt-6 space-y-4">
             {[
-              { step: 1, icon: KeyRound, title: "Get a job code", desc: "The employer shares a code or apply link for the role" },
-              { step: 2, icon: ClipboardCheck, title: "Apply — no account needed", desc: "Name, email, phone, and a few answers. That's it." },
-              { step: 3, icon: Phone, title: "Come back with your phone", desc: "See all your applications and pick up where you left off" },
-              { step: 4, icon: FileText, title: "Optional: create an account", desc: "Save progress with Google or email — encouraged, never required to start" },
+              { step: 1, icon: KeyRound, title: "Get a job code", desc: "The employer shares a code or an apply link for the role" },
+              { step: 2, icon: UserRound, title: "Create a free account", desc: "Google or email — it takes a moment and keeps your progress safe" },
+              { step: 3, icon: ClipboardCheck, title: "Apply", desc: "A few questions, your resume, and any steps the employer added" },
+              { step: 4, icon: MessageSquare, title: "Hear back", desc: "Sign in anytime to see where things stand — everyone hears back" },
             ].map(({ step, icon: Icon, title, desc }) => (
               <div key={step} className="flex items-start gap-4 border-t pt-4 first:border-t-0 first:pt-0" style={{ borderColor: "var(--hf-border-strong)" }}>
                 <span

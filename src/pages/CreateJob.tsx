@@ -115,6 +115,14 @@ import { generateFullJobPosting, generateJobField, generateScreeningPlan, type A
 import { DEFAULT_GUIDED_JOB_SETUP, assessScreeningPlanRisk, buildScreeningPlanRationale, summarizeScreeningPlan, type GuidedJobSetup } from "@/lib/hiringPlan";
 import { geocodePlace } from "@/lib/geocode";
 import { inferCountryCode, isFullyRemoteText } from "@/lib/jobLocation";
+import {
+  buildApplicationQuestions,
+  buildQuizQuestions,
+  buildWorkflowSteps,
+  fallbackLocationFields,
+  fetchEmployerCompanyName,
+} from "@/lib/jobFromFlow";
+import { briefFromForm, generateTemplateFlow, legacyToRigor } from "@/lib/avaEngine";
 import { AvaSeal } from "@/components/ava/AvaSeal";
 import { GlyphCheckSeal } from "@/components/candidate/glyphs";
 
@@ -228,6 +236,45 @@ const buildOverlaySummary = (
   quizQuestions: workflowData.quiz_questions.length,
   workflowSteps: workflowData.workflow_steps.length,
 });
+
+/**
+ * Ava's deterministic screening plan for a role — the same template the guided
+ * flow falls back to (flowGenerator → templateGenerator) mapped onto this page's
+ * shapes. Used when ai-generate-workflow is rate-limited or has no key, so the
+ * employer is never told "Failed to generate workflow" and left unable to publish.
+ * Interviews come out as chat_interview; handleWorkflowComplete upgrades them to
+ * voice for plans that include it, exactly as it does for AI-built plans.
+ */
+function buildFallbackScreeningPlan(
+  source: AvaJobFormData,
+  difficulty: string,
+): {
+  application_questions: ApplicationQuestion[];
+  quiz_questions: QuizQuestion[];
+  workflow_steps: WorkflowStep[];
+} {
+  const pay =
+    source.salary_type === "fixed"
+      ? source.salary_fixed
+      : [source.salary_min, source.salary_max].filter(Boolean).join("–");
+  const brief = briefFromForm({
+    role: source.title,
+    location: source.location,
+    type: source.job_type,
+    // briefFromForm reads the work mode from this field; the location is where
+    // an employer writes "Remote" or "Hybrid" on this page.
+    workMode: source.location,
+    pay: pay ? `${source.salary_currency} ${pay}` : "",
+    start: "",
+    work: source.description.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(),
+  });
+  const { flow } = generateTemplateFlow({ brief, rigor: legacyToRigor(difficulty) });
+  return {
+    application_questions: buildApplicationQuestions(flow.phases),
+    quiz_questions: buildQuizQuestions(flow.phases),
+    workflow_steps: buildWorkflowSteps(flow.phases, false),
+  };
+}
 
 function InlineReviewField({
   id,
@@ -550,6 +597,9 @@ export default function CreateJob() {
   const [isSavingCompanyName, setIsSavingCompanyName] = useState(false);
   const overlayStartedAtRef = useRef<number | null>(null);
   const workflowFinishTimerRef = useRef<number | null>(null);
+  // Set when ai-generate-workflow was unavailable and the plan came from the
+  // deterministic template instead — so the completion toast can say so, once.
+  const usedFallbackPlanRef = useRef(false);
 
   // Load existing job data for edit mode
   useEffect(() => {
@@ -896,20 +946,29 @@ export default function CreateJob() {
     setPendingWorkflowData(null);
     
     try {
-      const data = await generateScreeningPlan(sourceFormData, difficultyOverride, profile?.company_name || null);
+      let completedWorkflowData: NonNullable<typeof pendingWorkflowData>;
+      try {
+        const data = await generateScreeningPlan(sourceFormData, difficultyOverride, profile?.company_name || null);
+        completedWorkflowData = {
+          application_questions: data.application_questions || [],
+          quiz_questions: data.quiz_questions || [],
+          workflow_steps: data.workflow_steps || [],
+        };
+      } catch (error) {
+        // A 429, a missing key, a cold function — none of these should stop the
+        // employer publishing. Ava's standard plan for the role stands in.
+        console.warn("[create-job] ai-generate-workflow unavailable — using the standard screening plan.", error);
+        completedWorkflowData = buildFallbackScreeningPlan(sourceFormData, difficultyOverride);
+        usedFallbackPlanRef.current = true;
+      }
 
       // Store the data but don't dismiss yet - wait for animation to complete
-      const completedWorkflowData = {
-        application_questions: data.application_questions || [],
-        quiz_questions: data.quiz_questions || [],
-        workflow_steps: data.workflow_steps || [],
-      };
       setPendingWorkflowData(completedWorkflowData);
       setGenerationOverlaySummary(buildOverlaySummary(completedWorkflowData));
       setGenerationOverlayStage("finalizing");
       setWorkflowApiComplete(true);
       scheduleWorkflowCompletion(completedWorkflowData, "workflow");
-      
+
     } catch (error) {
       console.error("Error generating workflow:", error);
       toast.error("Failed to generate workflow. Please try again.");
@@ -948,13 +1007,21 @@ export default function CreateJob() {
     setGenerationOverlaySummary({ sectionsGenerated });
 
     try {
-      const data = await generateScreeningPlan(nextFormData, workflowDifficulty, profile?.company_name || null);
+      let completedWorkflowData: NonNullable<typeof pendingWorkflowData>;
+      try {
+        const data = await generateScreeningPlan(nextFormData, workflowDifficulty, profile?.company_name || null);
+        completedWorkflowData = {
+          application_questions: data.application_questions || [],
+          quiz_questions: data.quiz_questions || [],
+          workflow_steps: data.workflow_steps || [],
+        };
+      } catch (error) {
+        // The draft already landed; a screening-plan hiccup must not throw it away.
+        console.warn("[create-job] ai-generate-workflow unavailable — using the standard screening plan.", error);
+        completedWorkflowData = buildFallbackScreeningPlan(nextFormData, workflowDifficulty);
+        usedFallbackPlanRef.current = true;
+      }
 
-      const completedWorkflowData = {
-        application_questions: data.application_questions || [],
-        quiz_questions: data.quiz_questions || [],
-        workflow_steps: data.workflow_steps || [],
-      };
       setPendingWorkflowData(completedWorkflowData);
       setGenerationOverlaySummary(buildOverlaySummary(completedWorkflowData, sectionsGenerated));
       setGenerationOverlayStage("finalizing");
@@ -1004,6 +1071,12 @@ export default function CreateJob() {
           }
           return step;
         });
+      }
+
+      if (usedFallbackPlanRef.current) {
+        usedFallbackPlanRef.current = false;
+        toast.message("Ava's generator is busy right now, so this is her standard plan for the role — edit any step before you publish.");
+      } else if (hasVoiceInterviewAccess) {
         toast.success("Ava built the screening plan with premium Ava Interview!");
       } else {
         toast.success("Ava built the screening plan!");
@@ -1060,11 +1133,32 @@ export default function CreateJob() {
     // or job boards correctly (silently dropped from the feed, shows
     // "Confidential"). Catch it here — inline, never a dead end — so the job
     // the employer just wrote is never lost to a validation wall.
-    const effectiveCompanyName = companyNameOverride ?? profile?.company_name;
-    if (status === "published" && !effectiveCompanyName?.trim()) {
-      setCompanyNameDraft(profile?.company_name ?? "");
-      setPendingPublishStatus(status);
-      return;
+    //
+    // A team member publishes under the account owner, so the name that matters
+    // is the OWNER's — their own profile usually has none, and saving one there
+    // would fix nothing. They also can't edit the owner's profile, so the ask
+    // goes to the owner rather than into the inline prompt.
+    const ownerId = isTeamMember && teamPermissions?.employerId ? teamPermissions.employerId : null;
+    if (status === "published" && ownerId) {
+      let ownerCompanyName: string | null = null;
+      try {
+        ownerCompanyName = await fetchEmployerCompanyName(ownerId);
+      } catch (error) {
+        console.error("Error checking the account's business name:", error);
+        toast.error("Couldn't check the business name on file. Please try again.");
+        return;
+      }
+      if (!ownerCompanyName) {
+        toast.error("The account owner hasn't added a business name yet. Ask them to add it in Settings, then publish.");
+        return;
+      }
+    } else {
+      const effectiveCompanyName = companyNameOverride ?? profile?.company_name;
+      if (status === "published" && !effectiveCompanyName?.trim()) {
+        setCompanyNameDraft(profile?.company_name ?? "");
+        setPendingPublishStatus(status);
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -1085,16 +1179,19 @@ export default function CreateJob() {
         );
         return;
       }
+      // When the geocoder misses, the feed and sitemap still need the stored
+      // columns — fill them from the text the gate above already accepted.
+      const fallbackLoc = geo.ok ? null : fallbackLocationFields(locationText);
       const jobData = {
         title: formData.title,
         description: formData.description,
         requirements: formData.requirements || null,
         responsibilities: formData.responsibilities || null,
         location: formData.location || null,
-        location_city: geo.ok ? geo.city ?? null : null,
+        location_city: geo.ok ? geo.city ?? null : fallbackLoc?.city ?? null,
         location_region: geo.ok ? geo.region ?? null : null,
-        location_country: geo.ok ? geo.country ?? null : null,
-        location_country_code: geo.ok ? geo.countryCode ?? null : null,
+        location_country: geo.ok ? geo.country ?? null : fallbackLoc?.country ?? null,
+        location_country_code: geo.ok ? geo.countryCode ?? null : fallbackLoc?.countryCode ?? null,
         latitude: geo.ok ? geo.lat ?? null : null,
         longitude: geo.ok ? geo.lon ?? null : null,
         is_remote: isRemote,

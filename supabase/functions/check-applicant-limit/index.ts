@@ -67,6 +67,7 @@ serve(async (req) => {
 
     const hasActiveSubscriptionAccess =
       !subscription ||
+      subscription.plan_type === "trial" || // billing is off: trials never lapse
       subscription.status === "active" ||
       (subscription.status === "trialing" &&
         (!subscription.trial_end || new Date(subscription.trial_end) > new Date()));
@@ -88,12 +89,12 @@ serve(async (req) => {
     // Get plan limits
     const planType = subscription?.plan_type || 'trial';
     const applicantLimits: Record<string, number> = {
-      trial: 15,
+      trial: -1, // billing is off: no applicant cap
       growth: 50,
       business: -1, // unlimited
       enterprise: -1, // unlimited
     };
-    const limit = applicantLimits[planType] ?? 15;
+    const limit = applicantLimits[planType] ?? -1;
 
     // If unlimited, return immediately
     if (limit === -1) {

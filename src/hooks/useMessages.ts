@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 
 export type Message = Tables<"messages"> & {
   file_url?: string | null;
@@ -40,9 +40,12 @@ export interface MessageableCandidate {
   application_id: string;
 }
 
-// Hook to get employers the candidate can message (from their applications)
-export function useMessageableEmployers() {
+// Hook to get employers the candidate can message (from their applications).
+// Pass `enabled: false` for employer-side callers: the query is keyed on the
+// caller being the candidate, so it can only ever come back empty for them.
+export function useMessageableEmployers(options: { enabled?: boolean } = {}) {
   const { user } = useAuth();
+  const enabled = options.enabled ?? true;
 
   return useQuery({
     queryKey: ["messageable-employers", user?.id],
@@ -92,7 +95,7 @@ export function useMessageableEmployers() {
         return true;
       });
     },
-    enabled: !!user,
+    enabled: !!user && enabled,
   });
 }
 
@@ -285,12 +288,19 @@ export function useMessages(contactId: string | null) {
     enabled: !!user && !!contactId,
   });
 
-  // Real-time subscription
+  // Real-time subscription. This listens for the whole inbox, not just the
+  // open thread: a note from a second candidate used to be dropped here
+  // because it did not match the contact on screen, so the list stayed stale
+  // until the owner navigated away and back. It also runs with no thread open,
+  // so the empty state can turn into a thread the moment the first message
+  // lands. The channel name carries the instance id so two mounted callers
+  // (the page, a dialog) never share a topic.
+  const instanceId = useId();
   useEffect(() => {
-    if (!user || !contactId) return;
+    if (!user) return;
 
     const channel = supabase
-      .channel(`messages-${user.id}-${contactId}`)
+      .channel(`messages-${user.id}-${instanceId}`)
       .on(
         "postgres_changes",
         {
@@ -300,12 +310,15 @@ export function useMessages(contactId: string | null) {
         },
         (payload) => {
           const msg = payload.new as Message;
-          if (
-            (msg.sender_id === user.id && msg.receiver_id === contactId) ||
-            (msg.sender_id === contactId && msg.receiver_id === user.id)
-          ) {
-            queryClient.invalidateQueries({ queryKey: ["messages", user.id, contactId] });
-            queryClient.invalidateQueries({ queryKey: ["conversations", user.id] });
+          const sentByMe = msg.sender_id === user.id;
+          const sentToMe = msg.receiver_id === user.id;
+          if (!sentByMe && !sentToMe) return;
+
+          const counterpart = sentByMe ? msg.receiver_id : msg.sender_id;
+          queryClient.invalidateQueries({ queryKey: ["messages", user.id, counterpart] });
+          queryClient.invalidateQueries({ queryKey: ["conversations", user.id] });
+          if (sentToMe) {
+            queryClient.invalidateQueries({ queryKey: ["unread-messages-count", user.id] });
           }
         }
       )
@@ -314,7 +327,7 @@ export function useMessages(contactId: string | null) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, contactId, queryClient]);
+  }, [user, instanceId, queryClient]);
 
   return query;
 }
@@ -377,27 +390,26 @@ export function useSendMessage() {
         .single();
 
       if (error) throw error;
-      
-      // Send email notification to the receiver
-      try {
-        // Get sender's profile for the name
+
+      // The message is in the database; the sender is done. The email to the
+      // receiver runs on its own — awaiting it here kept the Send button on
+      // "Sending…" for as long as the mail provider took to answer, and a mail
+      // failure would have read as a failed send for a message that had landed.
+      const senderId = user!.id;
+      void (async () => {
         const { data: senderProfile } = await supabase
           .from("profiles")
           .select("full_name, company_name")
-          .eq("user_id", user!.id)
+          .eq("user_id", senderId)
           .single();
-        
+
         const senderName = senderProfile?.company_name || senderProfile?.full_name || "Someone";
         const { notifyNewMessage } = await import("@/utils/emailNotifications");
-        await notifyNewMessage(
-          receiver_id,
-          senderName,
-          content?.substring(0, 100)
-        );
-      } catch (emailError) {
+        await notifyNewMessage(receiver_id, senderName, content?.substring(0, 100));
+      })().catch((emailError) => {
         console.error("Failed to send message notification email:", emailError);
-      }
-      
+      });
+
       return data;
     },
     onSuccess: (_, variables) => {

@@ -2,12 +2,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect } from "react";
-import { useLocation } from "react-router-dom";
 
 export function useUnreadMessagesCount() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const location = useLocation();
 
   const query = useQuery({
     queryKey: ["unread-messages-count", user?.id],
@@ -66,21 +64,10 @@ export function useUnreadMessagesCount() {
     };
   }, [user?.id, queryClient]);
 
-  // Mark all messages as read when visiting messages page
-  useEffect(() => {
-    if (location.pathname === "/messages" && user?.id) {
-      const markAllAsRead = async () => {
-        await supabase
-          .from("messages")
-          .update({ is_read: true })
-          .eq("receiver_id", user.id)
-          .eq("is_read", false);
-        
-        queryClient.invalidateQueries({ queryKey: ["unread-messages-count", user.id] });
-      };
-      markAllAsRead();
-    }
-  }, [location.pathname, queryClient, user?.id]);
+  // Nothing here marks messages read. Landing on /messages used to mark every
+  // unread message read at once — including threads the reader never opened —
+  // so a second candidate's note went quiet the moment you looked at a first.
+  // The page marks a thread read only when that thread is actually on screen.
 
   return query;
 }

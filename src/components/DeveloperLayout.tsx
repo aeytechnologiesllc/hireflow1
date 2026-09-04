@@ -81,6 +81,18 @@ export default function DeveloperLayout() {
     }
   }, [user, loading, role, navigate]);
 
+  // A signed-in person with NO role sat on the loading screen forever: the
+  // guard above only fires for a role that is set, and the render below waits
+  // for one that never comes. After a fresh sign-in the role is fetched a
+  // moment after `loading` clears, so give it a short grace period before
+  // deciding it is genuinely absent; then hand them to /dashboard, whose
+  // layout knows how to deal with an account like that.
+  useEffect(() => {
+    if (loading || !user || role !== null) return;
+    const timer = setTimeout(() => navigate("/dashboard", { replace: true }), 2500);
+    return () => clearTimeout(timer);
+  }, [user, loading, role, navigate]);
+
   if (loading) {
     return <AuthLoadingScreen variant="employer" />;
   }
