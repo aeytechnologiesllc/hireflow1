@@ -138,17 +138,30 @@ export function mapJobBriefToFormPayload(b: JobBrief): BriefFormPayload {
   };
 }
 
-const CRITICAL: { label: string; has: (b: JobBrief) => boolean }[] = [
-  { label: "Role", has: (b) => !!b.roleTitle },
-  { label: "Full-time or part-time", has: (b) => !!b.employmentType },
-  { label: "Location or remote", has: (b) => !!b.location || !!b.workMode },
-  { label: "Pay", has: (b) => !!payToText(b.pay) },
-  { label: "Start date", has: (b) => !!b.startDateText },
-  { label: "What they'll do", has: (b) => b.responsibilities.length > 0 },
+// `required` marks the fields the TYPED create-job form also refuses to continue without
+// (see canContinueBrief in AvaCreateJob.tsx: role, location, pay, what they'll do). Employment
+// type and start date stay optional here too — the typed form ships sane defaults for both
+// ("Full-time · On-site", "Within a few weeks") instead of forcing the employer to state them.
+const CRITICAL: { label: string; required: boolean; has: (b: JobBrief) => boolean }[] = [
+  { label: "Role", required: true, has: (b) => !!b.roleTitle },
+  { label: "Full-time or part-time", required: false, has: (b) => !!b.employmentType },
+  { label: "Location or remote", required: true, has: (b) => !!b.location || !!b.workMode },
+  { label: "Pay", required: true, has: (b) => !!payToText(b.pay) },
+  { label: "Start date", required: false, has: (b) => !!b.startDateText },
+  { label: "What they'll do", required: true, has: (b) => b.responsibilities.length > 0 },
 ];
 
 export function computeMissingCritical(b: JobBrief): string[] {
   return CRITICAL.filter((c) => !c.has(b)).map((c) => c.label);
+}
+
+/**
+ * The subset of computeMissingCritical that actually blocks progress — the same bar
+ * canContinueBrief holds the typed path to. Voice must clear this before building a plan;
+ * conversational nice-to-haves (employment type, start date) don't gate it.
+ */
+export function computeMissingRequired(b: JobBrief): string[] {
+  return CRITICAL.filter((c) => c.required && !c.has(b)).map((c) => c.label);
 }
 
 function computeConfidence(b: JobBrief): number {

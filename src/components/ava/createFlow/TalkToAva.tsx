@@ -11,6 +11,7 @@ import { useAvaVoice } from "@/hooks/useAvaVoice";
 import {
   briefHasAnyData,
   canCreate,
+  computeMissingRequired,
   emptyJobBrief,
   mapJobBriefToFormPayload,
   mergeBriefFromTool,
@@ -70,9 +71,13 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
   const handedOff = useRef(false);
   const jobBriefRef = useRef(jobBrief);
   jobBriefRef.current = jobBrief;
+  // Live, not reactive-state — always reflects the current brief so the readback card and the
+  // "ask Ava" effect below never lag a beat behind a voice update.
+  const missingRequired = computeMissingRequired(jobBrief);
   const reviewCardsRef = useRef(reviewCards);
   reviewCardsRef.current = reviewCards;
   const reviewPromptedRef = useRef(false);
+  const askedMissingRef = useRef<string>("");
   const transcriptRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -101,11 +106,41 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
     onComplete(mapJobBriefToFormPayload(jobBriefRef.current));
   }, [onComplete]);
 
+  // Gate on the SAME critical fields the typed path requires (role, location, pay, what
+  // they'll do — see canContinueBrief in AvaCreateJob.tsx) before ever building a plan. If
+  // Ava tries to wrap up early, surface the readback card with inline fields for whatever's
+  // still missing instead of letting the employer sit through the plan animation with a gap
+  // that only surfaces as an error at Publish.
   const doCreate = useCallback(() => {
-    if (finishing.current || !canCreate(jobBriefRef.current)) return;
+    if (finishing.current) return;
+    const brief = jobBriefRef.current;
+    if (!canCreate(brief)) return;
+    if (computeMissingRequired(brief).length > 0) {
+      setReadback(true);
+      return;
+    }
     finishing.current = true;
     setCreating(true); // show "building…" while Ava finishes her handoff line; the effects below transition
   }, []);
+
+  // Fill in a still-missing field directly (from the inline form on the readback card),
+  // routed through the same tool-args merge voice uses — same parsing, same missing-field
+  // recompute — then immediately re-check whether we can proceed.
+  const applyInlineFix = useCallback(
+    (patch: { role?: string; location?: string; pay?: string; work?: string }) => {
+      const next = mergeBriefFromTool(jobBriefRef.current, {
+        roleTitle: patch.role,
+        location: patch.location,
+        pay: patch.pay,
+        responsibilities: patch.work?.trim() ? [patch.work.trim()] : undefined,
+      });
+      jobBriefRef.current = next; // so the doCreate() re-check below sees the fresh values
+      setJobBrief(next);
+      onBriefPatch(mapJobBriefToFormPayload(next));
+      doCreate();
+    },
+    [onBriefPatch, doCreate],
+  );
 
   const onToolCall = useCallback(
     (toolName: string, args: any) => {
@@ -155,6 +190,19 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
 
   useEffect(() => () => { try { disconnect(); } catch { /* no-op */ } }, [disconnect]);
   useEffect(() => { transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight, behavior: "smooth" }); }, [messages]);
+
+  // She tried to wrap up but a required field is still missing — surfaced by doCreate() via
+  // readback + missingRequired. Have her ask for it out loud too (the inline fields on the
+  // readback card cover the case where voice doesn't land it), once per distinct missing set.
+  useEffect(() => {
+    if (!readback || missingRequired.length === 0 || !isConnected || isSpeaking || isProcessing) return;
+    const sig = missingRequired.join("|");
+    if (askedMissingRef.current === sig) return;
+    askedMissingRef.current = sig;
+    voice.sendSystemInstruction(
+      `[Before you can build the plan you still need: ${missingRequired.join(", ")}. Ask for these now, briefly and naturally — one at a time is fine. They can also fill them in on screen.]`,
+    );
+  }, [readback, missingRequired, isConnected, isSpeaking, isProcessing, voice]);
 
   // Smooth handoff: once confirmed, let Ava finish her closing line, THEN glide into the build
   // animation. Transition a beat after she stops speaking; a hard cap ensures we never hang.
@@ -343,7 +391,7 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
           {error ? (
             <ErrorCard message={error || ""} onPreferType={onPreferType} />
           ) : readback ? (
-            <ReadbackCard brief={jobBrief} canCreate={canCreate(jobBrief)} onCreate={doCreate} onAddDetail={() => setReadback(false)} onPreferType={onPreferType} />
+            <ReadbackCard brief={jobBrief} canCreate={canCreate(jobBrief)} missingRequired={missingRequired} onFixFields={applyInlineFix} onCreate={doCreate} onAddDetail={() => setReadback(false)} onPreferType={onPreferType} />
           ) : hasData ? (
             <BriefSummary brief={jobBrief} onPreferType={onPreferType} />
           ) : (
@@ -400,20 +448,101 @@ function BriefSummary({ brief, onPreferType }: { brief: JobBrief; onPreferType: 
   );
 }
 
-function ReadbackCard({ brief, canCreate, onCreate, onAddDetail, onPreferType }: { brief: JobBrief; canCreate: boolean; onCreate: () => void; onAddDetail: () => void; onPreferType: () => void }) {
-  const mayAsk = brief.missingCriticalFields.slice(0, 2);
+const FIELD_INPUT = "mt-1 w-full rounded-lg px-3 py-2 text-sm outline-none";
+const FIELD_STYLE = { background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" } as const;
+
+/** Inline versions of the same fields the typed create-job form asks for (role, location,
+ * pay, what they'll do) — shown only for whichever of those the conversation didn't capture,
+ * so the employer can fill the gap right here instead of getting an error at Publish. */
+function MissingFieldsForm({ missing, brief, onSave }: { missing: string[]; brief: JobBrief; onSave: (patch: { role?: string; location?: string; pay?: string; work?: string }) => void }) {
+  const showRole = missing.includes("Role");
+  const showLocation = missing.includes("Location or remote");
+  const showPay = missing.includes("Pay");
+  const showWork = missing.includes("What they'll do");
+
+  const [role, setRole] = useState(brief.roleTitle ?? "");
+  const [location, setLocation] = useState(brief.location ?? "");
+  const [pay, setPay] = useState(payToText(brief.pay));
+  const [work, setWork] = useState(brief.responsibilities.join(". "));
+
+  const canSave = (!showRole || role.trim()) && (!showLocation || location.trim()) && (!showPay || pay.trim()) && (!showWork || work.trim());
+
+  return (
+    <div className="mt-4 space-y-3 rounded-xl p-4" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--primary) / 0.35)" }}>
+      <p className="text-[12.5px] font-semibold" style={{ color: "hsl(var(--ck-brass))" }}>
+        A couple of things I still need before I can build this:
+      </p>
+      {showRole && (
+        <label className="block">
+          <span className={LBL} style={{ color: "hsl(var(--muted-foreground))" }}>Role</span>
+          <input value={role} onChange={(e) => setRole(e.target.value)} className={FIELD_INPUT} style={FIELD_STYLE} placeholder="Barista, Line cook, Frontend Developer…" />
+        </label>
+      )}
+      {showLocation && (
+        <label className="block">
+          <span className={LBL} style={{ color: "hsl(var(--muted-foreground))" }}>Location or remote</span>
+          <input value={location} onChange={(e) => setLocation(e.target.value)} className={FIELD_INPUT} style={FIELD_STYLE} placeholder="Any city or country — or 'Remote'" />
+        </label>
+      )}
+      {showPay && (
+        <label className="block">
+          <span className={LBL} style={{ color: "hsl(var(--muted-foreground))" }}>Pay</span>
+          <input value={pay} onChange={(e) => setPay(e.target.value)} className={FIELD_INPUT} style={FIELD_STYLE} placeholder="e.g. $22/hr or $90k–$110k" />
+        </label>
+      )}
+      {showWork && (
+        <label className="block">
+          <span className={LBL} style={{ color: "hsl(var(--muted-foreground))" }}>What they'll do</span>
+          <textarea value={work} onChange={(e) => setWork(e.target.value)} rows={2} className={`${FIELD_INPUT} resize-none`} style={FIELD_STYLE} placeholder="2–3 sentences: the day-to-day, who they work with, what success looks like." />
+        </label>
+      )}
+      <button
+        type="button"
+        disabled={!canSave}
+        onClick={() => onSave({ role: showRole ? role : undefined, location: showLocation ? location : undefined, pay: showPay ? pay : undefined, work: showWork ? work : undefined })}
+        className="ck-btn ck-btn-primary w-full !py-2.5 !text-[14px] disabled:opacity-50"
+      >
+        Save &amp; continue
+      </button>
+    </div>
+  );
+}
+
+function ReadbackCard({
+  brief,
+  canCreate,
+  missingRequired,
+  onFixFields,
+  onCreate,
+  onAddDetail,
+  onPreferType,
+}: {
+  brief: JobBrief;
+  canCreate: boolean;
+  missingRequired: string[];
+  onFixFields: (patch: { role?: string; location?: string; pay?: string; work?: string }) => void;
+  onCreate: () => void;
+  onAddDetail: () => void;
+  onPreferType: () => void;
+}) {
+  const blocked = missingRequired.length > 0;
+  const mayAsk = brief.missingCriticalFields.filter((f) => !missingRequired.includes(f)).slice(0, 2);
   return (
     <div className="rounded-2xl p-5 sm:p-6" style={{ ...PANEL, border: "1px solid hsl(var(--primary) / 0.4)" }}>
       <div className="mb-1 text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--ck-brass))" }}>Here's what I heard</div>
       <h3 className="mb-4 text-xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>{brief.roleTitle || "Your role"}</h3>
       <SummaryRows brief={brief} />
-      {mayAsk.length > 0 && (
-        <p className="mt-3 text-[12.5px] italic" style={{ color: "hsl(var(--muted-foreground))" }}>
-          Ava may ask about {mayAsk.join(" and ").toLowerCase()} as you go.
-        </p>
+      {blocked ? (
+        <MissingFieldsForm missing={missingRequired} brief={brief} onSave={onFixFields} />
+      ) : (
+        mayAsk.length > 0 && (
+          <p className="mt-3 text-[12.5px] italic" style={{ color: "hsl(var(--muted-foreground))" }}>
+            Ava may ask about {mayAsk.join(" and ").toLowerCase()} as you go.
+          </p>
+        )
       )}
       <div className="mt-5 flex flex-col gap-2.5">
-        <button type="button" onClick={onCreate} disabled={!canCreate} className="ck-btn ck-btn-primary inline-flex items-center justify-center gap-2 !py-3 !text-[15px] disabled:opacity-50">
+        <button type="button" onClick={onCreate} disabled={!canCreate || blocked} title={blocked ? "Fill in what's missing above first" : undefined} className="ck-btn ck-btn-primary inline-flex items-center justify-center gap-2 !py-3 !text-[15px] disabled:opacity-50">
           <Check className="h-4 w-4" /> Create hiring flow
         </button>
         <div className="flex items-center justify-center gap-4">

@@ -496,6 +496,11 @@ export default function AvaCreateJob() {
                 // recommended rigor for the detected role family, and jump straight into the
                 // existing "Ava is building" step (which auto-runs generateJobFlow).
                 const merged = { ...briefFields, ...payload };
+                // Belt-and-suspenders: TalkToAva already refuses to call onComplete until the
+                // brief clears the same bar canContinueBrief holds the typed path to (role,
+                // location, pay, what they'll do) — never build a plan from here without it either.
+                const meetsBar = merged.role.trim().length > 1 && merged.location.trim() && merged.pay.trim() && merged.work.trim();
+                if (!meetsBar) return;
                 setBriefFields(merged);
                 const fam = detectFamily(briefFromForm({ ...merged, followUps: [] }));
                 setRigor(PLAYBOOKS[fam].rigor.recommended);
