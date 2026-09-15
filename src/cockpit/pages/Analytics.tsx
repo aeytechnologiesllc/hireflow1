@@ -4,6 +4,7 @@ import { differenceInCalendarDays, format, isValid, parse, subDays } from "date-
 import { ChevronRight } from "lucide-react";
 import { clearDraft } from "@/lib/avaEngine/draft";
 import AvaSeal from "@/components/ava/AvaSeal";
+import { CockpitErrorCard } from "../components/ErrorCard";
 import { useCockpitAnalytics, useCockpitCandidates, useCockpitJobsData } from "../hooks/useCockpitData";
 
 /**
@@ -130,7 +131,7 @@ function Footnote({ children }: { children: ReactNode }) {
 
 export default function CockpitAnalytics() {
   const navigate = useNavigate();
-  const { analytics, isLoading: analyticsLoading } = useCockpitAnalytics();
+  const { analytics, isLoading: analyticsLoading, isError: analyticsFailed, refetch: refetchAnalytics } = useCockpitAnalytics();
   const { candidates, isLoading: candidatesLoading } = useCockpitCandidates();
   const { jobs } = useCockpitJobsData();
 
@@ -285,6 +286,13 @@ export default function CockpitAnalytics() {
         <div className="ck-card ck-reveal h-[180px]" style={{ ["--ck-i" as string]: 4, opacity: 0.55 }} />
       </div>
     );
+  }
+
+  // A failed load must never render as a zeroed, "publish a role to start
+  // seeing funnel data" analytics page — that reads as a real answer for a
+  // quiet account, not a fetch that never came back.
+  if (analyticsFailed) {
+    return <CockpitErrorCard message="We couldn't load your analytics just now." onRetry={refetchAnalytics} />;
   }
 
   return (

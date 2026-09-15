@@ -6,6 +6,7 @@ import AvaSeal from "@/components/ava/AvaSeal";
 import { useAuth } from "@/hooks/useAuth";
 import { useMessageableEmployers, type MessageableEmployer } from "@/hooks/useMessages";
 import CkAvatar from "../components/Avatar";
+import { CockpitErrorCard } from "../components/ErrorCard";
 import {
   useCockpitMessages,
   useCockpitAccount,
@@ -265,7 +266,7 @@ export default function CockpitMessages() {
   // `isLoading` is the conversations fetch OR the thread fetch. Coarse, but the
   // page-level skeleton below already absorbs the first, so by the time a thread
   // is on screen it reads as "this conversation is still in flight".
-  const { conversations, thread, rawThread, send, markRead, isLoading, isSending } =
+  const { conversations, thread, rawThread, send, markRead, isLoading, isError, refetch, isSending } =
     useCockpitMessages(contactId);
 
   // A deep link may carry the other person's user id (what messaging addresses)
@@ -499,6 +500,17 @@ export default function CockpitMessages() {
     </header>
   );
 
+  // A failed load must never read as "nobody has written yet" — that is a
+  // claim about the inbox, not the network.
+  if (isError && !conversations.length && !partner) {
+    return (
+      <div className="space-y-5">
+        {header}
+        <CockpitErrorCard message="We couldn't load your messages just now." onRetry={refetch} />
+      </div>
+    );
+  }
+
   // No threads, nobody deep-linked. Say so, and point at the one thing that
   // starts them — which differs by who is looking.
   if (!conversations.length && !partner) {
@@ -719,6 +731,14 @@ export default function CockpitMessages() {
                         Pulling up your messages with {partnerShort}…
                       </p>
                     </div>
+                  ) : thread.length === 0 && isError ? (
+                    // Same rule as the page-level empty state: a failed fetch is not
+                    // "no one has written" — say so, and offer the one way back in.
+                    <CockpitErrorCard
+                      compact
+                      message={`We couldn't load your messages with ${partnerShort}.`}
+                      onRetry={refetch}
+                    />
                   ) : thread.length === 0 ? (
                     <p className="text-center text-[12.5px]" style={{ color: "var(--ink-3)" }}>
                       No messages with {partnerShort} yet — write the first one.

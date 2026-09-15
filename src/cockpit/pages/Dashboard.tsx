@@ -23,6 +23,7 @@ import { useSchemaMode } from "@/hooks/useSchemaMode";
 import CkAvatar from "../components/Avatar";
 import { CountUp } from "../components/CountUp";
 import { ActionDialog } from "../components/ActionDialog";
+import { CockpitErrorCard } from "../components/ErrorCard";
 import {
   useCockpitAccount,
   useCockpitCandidates,
@@ -617,9 +618,9 @@ export default function CockpitDashboard() {
   const navigate = useNavigate();
   const { account, profile } = useCockpitAccount();
   const { data: schemaMode } = useSchemaMode();
-  const { candidates, applications, isLoading } = useCockpitCandidates();
+  const { candidates, applications, isLoading, isError: candidatesFailed, refetch: refetchCandidates } = useCockpitCandidates();
   const { advance, reject, isUpdating } = useCockpitActions();
-  const { jobs, isLoading: jobsLoading } = useCockpitJobsData();
+  const { jobs, isLoading: jobsLoading, isError: jobsFailed, refetch: refetchJobs } = useCockpitJobsData();
   const { data: interviewRows = [] } = useInterviews();
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
 
@@ -785,6 +786,21 @@ export default function CockpitDashboard() {
           ))}
         </div>
       </div>
+    );
+  }
+
+  // A failed load must never fall into "post your first job" or "nobody's
+  // applied yet" — those are the two guides `hasNoJobs` / `hasJobsNoApplicants`
+  // below would otherwise show for an account that may have plenty of both.
+  if (candidatesFailed || jobsFailed) {
+    return (
+      <CockpitErrorCard
+        message="We couldn't load your dashboard just now."
+        onRetry={() => {
+          refetchCandidates();
+          refetchJobs();
+        }}
+      />
     );
   }
 

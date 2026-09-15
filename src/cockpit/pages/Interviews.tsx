@@ -12,6 +12,7 @@ import { buildEmployerInterviewIcs, downloadIcsFile, icsFileStem } from "@/lib/c
 import CkAvatar from "../components/Avatar";
 import { ActionDialog } from "../components/ActionDialog";
 import { PageHeader } from "../components/PageHeader";
+import { CockpitErrorCard } from "../components/ErrorCard";
 import { useCockpitAccount, useCockpitCandidates, useCockpitInterviews } from "../hooks/useCockpitData";
 import type { CandidateStage } from "../data";
 
@@ -183,7 +184,7 @@ function Evidence({
 
 export default function CockpitInterviews() {
   const navigate = useNavigate();
-  const { interviews, isLoading } = useCockpitInterviews();
+  const { interviews, isLoading, isError, refetch } = useCockpitInterviews();
   const { data: rows = [] } = useInterviews();
   const { candidates } = useCockpitCandidates();
   const { account } = useCockpitAccount();
@@ -432,6 +433,12 @@ export default function CockpitInterviews() {
         ))}
       </div>
     );
+  }
+
+  // A failed load must never settle into "Nothing on the books yet" — that
+  // is a claim about the calendar, not the network.
+  if (isError) {
+    return <CockpitErrorCard message="We couldn't load your interviews just now." onRetry={refetch} />;
   }
 
   return (
