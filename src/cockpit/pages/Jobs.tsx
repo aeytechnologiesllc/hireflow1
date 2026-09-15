@@ -11,6 +11,7 @@ import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { SearchInput, FilterSelect } from "../components/controls";
 import { ActionDialog } from "../components/ActionDialog";
 import { ShareKitDialog } from "../components/ShareKitDialog";
+import { CockpitErrorCard } from "../components/ErrorCard";
 import { useCockpitJobsData, useSchemaMode } from "../hooks/useCockpitData";
 import type { JobRow, JobStatus } from "../data";
 
@@ -363,7 +364,7 @@ function describeDelete(job: JobRow) {
 
 export default function CockpitJobs() {
   const navigate = useNavigate();
-  const { jobs, rawJobs, applications, isLoading } = useCockpitJobsData();
+  const { jobs, rawJobs, applications, isLoading, isError, refetch } = useCockpitJobsData();
   const { data: mode } = useSchemaMode();
   const { data: teamPermissions } = useTeamMemberPermissions();
   const updateJob = useUpdateJob();
@@ -593,6 +594,12 @@ export default function CockpitJobs() {
         ))}
       </div>
     );
+  }
+
+  // A failed load must never read as "you haven't posted a role yet" — that
+  // is a claim about the account, not the network.
+  if (isError) {
+    return <CockpitErrorCard message="We couldn't load your jobs just now." onRetry={refetch} />;
   }
 
   return (

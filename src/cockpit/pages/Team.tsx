@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { PageHeader } from "../components/PageHeader";
 import { CkAvatar } from "../components/Avatar";
 import { ActionDialog } from "../components/ActionDialog";
+import { CockpitErrorCard } from "../components/ErrorCard";
 import { useCockpitTeam } from "../hooks/useCockpitData";
 import { useDeleteTeamMember } from "@/hooks/useTeamMembers";
 import { useDeleteInvitation } from "@/hooks/useTeam";
@@ -48,7 +49,7 @@ function TeamKpi({ k }: { k: ReturnType<typeof useCockpitTeam>["team"]["kpis"][n
 }
 
 export default function CockpitTeam() {
-  const { team, isLoading } = useCockpitTeam();
+  const { team, isLoading, isError, refetch } = useCockpitTeam();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [menuId, setMenuId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ kind: "member" | "invite"; id: string; name: string } | null>(null);
@@ -77,6 +78,17 @@ export default function CockpitTeam() {
 
   if (isLoading) {
     return <div className="flex min-h-[40vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--hf-green)] border-t-transparent" /></div>;
+  }
+
+  // A failed load must never read as "it's just you so far" — that is a
+  // claim about the team, not the network.
+  if (isError) {
+    return (
+      <div className="space-y-5">
+        <PageHeader title="Team" subtitle="Manage who can help with hiring." />
+        <CockpitErrorCard message="We couldn't load your team just now." onRetry={refetch} />
+      </div>
+    );
   }
 
   return (

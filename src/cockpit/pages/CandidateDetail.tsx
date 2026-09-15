@@ -18,6 +18,7 @@ import {
 import AvaSeal from "@/components/ava/AvaSeal";
 import { CandidateMark } from "../components/CandidateMark";
 import { ActionDialog } from "../components/ActionDialog";
+import { CockpitErrorCard } from "../components/ErrorCard";
 import { HiringDocumentPromptDialog } from "@/components/HiringDocumentPromptDialog";
 import { useCockpitCandidate, useCockpitActions, useCockpitAccount, nextAdvanceStatus, advanceTargetLabel, avaAdvanceRec } from "../hooks/useCockpitData";
 import { getInitials } from "../lib/mappers";
@@ -69,7 +70,7 @@ function avaProse(raw: string | null | undefined): string {
 export default function CockpitCandidateDetail() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { candidate: c, application, isLoading } = useCockpitCandidate(id);
+  const { candidate: c, application, isLoading, isError, refetch } = useCockpitCandidate(id);
   const { advance, hire, reject, isUpdating } = useCockpitActions();
   const { account } = useCockpitAccount();
   const [dialog, setDialog] = useState<null | "hire" | "reject" | "advance">(null);
@@ -92,6 +93,16 @@ export default function CockpitCandidateDetail() {
           <AvaSeal size={44} />
         </span>
         <p className="text-[13.5px]" style={{ color: "var(--hf-text-soft)" }}>Pulling up their record…</p>
+      </div>
+    );
+  }
+
+  // A failed load must never read as "I can't find that applicant any more" —
+  // that says the record is gone; a failed fetch says nothing of the kind.
+  if (isError) {
+    return (
+      <div className="mx-auto max-w-[640px] pt-10">
+        <CockpitErrorCard message="We couldn't load this applicant just now." onRetry={refetch} />
       </div>
     );
   }

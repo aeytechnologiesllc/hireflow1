@@ -4,6 +4,7 @@ import { FileSignature, FileText, Paperclip, ShieldCheck, UserCheck } from "luci
 import { useCockpitDocuments } from "../hooks/useCockpitData";
 import { useApplicationsForDocuments } from "@/hooks/useApplicationsForDocuments";
 import { DocumentWizard } from "@/components/documents/DocumentWizard";
+import { CockpitErrorCard } from "../components/ErrorCard";
 import type { DocRow, DocStatus } from "../data";
 
 /**
@@ -214,7 +215,7 @@ function SectionTitle({ children, flush }: { children: ReactNode; flush?: boolea
 }
 
 export default function CockpitDocuments() {
-  const { documents, isLoading } = useCockpitDocuments();
+  const { documents, isLoading, isError, refetch } = useCockpitDocuments();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: appsForDocs = [] } = useApplicationsForDocuments();
   const [wizard, setWizard] = useState<{ type?: string; appId?: string; mode?: "generate" | "upload" } | null>(null);
@@ -312,6 +313,17 @@ export default function CockpitDocuments() {
         {[0, 1, 2].map((i) => (
           <div key={i} className="ck-card ck-reveal h-[66px]" style={{ ["--ck-i" as string]: i, opacity: 0.55 }} />
         ))}
+      </div>
+    );
+  }
+
+  // A failed load must never present as an empty drawer — that is a claim
+  // about the paperwork, not the network.
+  if (isError) {
+    return (
+      <div className="space-y-4">
+        {head}
+        <CockpitErrorCard message="We couldn't load your documents just now." onRetry={refetch} />
       </div>
     );
   }

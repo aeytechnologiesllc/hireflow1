@@ -28,6 +28,7 @@ import { HiringDocumentPromptDialog } from "@/components/HiringDocumentPromptDia
 import { DocumentPreviewDialog } from "../components/DocumentPreviewDialog";
 import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
 import { SearchInput, FilterSelect, type FilterOption } from "../components/controls";
+import { CockpitErrorCard } from "../components/ErrorCard";
 import {
   useCockpitCandidates,
   useCockpitJobsData,
@@ -772,7 +773,7 @@ export default function CockpitApplicants() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const roleIdFilter = searchParams.get("roleId");
-  const { candidates, applications, isLoading } = useCockpitCandidates();
+  const { candidates, applications, isLoading, isError, refetch } = useCockpitCandidates();
   const { jobs } = useCockpitJobsData();
   const { advance, hire, reject, isUpdating } = useCockpitActions();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -1021,6 +1022,12 @@ export default function CockpitApplicants() {
         </div>
       </div>
     );
+  }
+
+  // A failed load must never read as "nobody has applied yet" — that is a
+  // claim about the pipeline, not the network.
+  if (isError) {
+    return <CockpitErrorCard message="We couldn't load your applicants just now." onRetry={refetch} />;
   }
 
   /* ── Nothing has come in yet ─────────────────────────────────────────── */
