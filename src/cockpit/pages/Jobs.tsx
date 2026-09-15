@@ -262,16 +262,17 @@ function JobListRow({
         {live && (
           <button
             type="button"
-            // Brass and outlined: extra reach is bought on the boards themselves,
-            // not from us — the kit hands over the link, post text and QR.
-            title="Take it further — post it on Indeed, LinkedIn or ZipRecruiter"
-            className="ck-btn ck-btn-paid !px-3.5 !py-2 !text-[12.5px]"
+            // Quiet and jade, never brass: this hands over the link, QR and a
+            // printable flyer — sharing your own listing, nothing paid. "Boost"
+            // is reserved for the future paid Ava Boost.
+            title="Get the apply link, a QR code and a printable flyer for this job"
+            className="ck-btn ck-btn-ghost !px-3.5 !py-2 !text-[12.5px]"
             onClick={(e) => {
               e.stopPropagation();
               onBoost();
             }}
           >
-            Boost
+            Share link
           </button>
         )}
         {draft ? (
