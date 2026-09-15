@@ -1382,7 +1382,24 @@ const guards = [
 
 /* --------------------------------------------------------------------- main */
 
+/**
+ * Extra guards live one-file-per-fix in scripts/guards/*.mjs, each exporting a
+ * default array of { id, why, run(helpers) } — so parallel fixes never collide
+ * on this file.
+ */
+async function loadExtraGuards() {
+  const dir = path.join(ROOT, "scripts/guards");
+  const names = (await readdir(dir).catch(() => [])).filter((n) => n.endsWith(".mjs")).sort();
+  for (const name of names) {
+    const mod = await import(path.join(dir, name));
+    for (const g of mod.default ?? []) {
+      guards.push({ ...g, run: () => g.run({ read, walk, sources }) });
+    }
+  }
+}
+
 async function main() {
+  await loadExtraGuards();
   if (process.argv.includes("--list")) {
     guards.forEach((g) => console.log(g.id));
     return 0;
