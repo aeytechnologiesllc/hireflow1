@@ -188,3 +188,53 @@ export function positionFor(
   const fallbackStep: CandidateJourneyStep = { id: DECISION_STAGE_ID, type: DECISION_STAGE_ID, title: titleFor(DECISION_STAGE_ID) };
   return { index, total, current: steps[index] ?? steps[0] ?? fallbackStep };
 }
+
+/** `video_intro` is the type every screen and this file's own titles use;
+ *  `video_message` is a legacy alias that shows up in some jobs' stored
+ *  `workflow_steps`. Any route/screen expecting one must accept the other. */
+export function typeMatchesPhase(stepType: string, expectedType: string): boolean {
+  if (stepType === expectedType) return true;
+  if (expectedType === "video_intro" && stepType === "video_message") return true;
+  if (expectedType === "video_message" && stepType === "video_intro") return true;
+  return false;
+}
+
+export interface GatedStepResolution {
+  /** True only when `stepId` names a real step in `steps` AND that step's
+   *  own `type` matches `expectedType`. */
+  matched: boolean;
+  /** Index of the matched step in `steps`; -1 when `matched` is false. */
+  index: number;
+}
+
+/**
+ * Resolves a route's `:stepId` param STRICTLY — the one check every
+ * phase-gating screen must use to decide access, as opposed to `positionFor`
+ * above (which is deliberately lenient: it falls back to `phase`/`status`
+ * so "Step X of N" progress UI always has something reasonable to show).
+ *
+ * Two things `positionFor` alone would silently accept must instead be
+ * refused outright here, never treated as "some other position":
+ *
+ * 1. A `stepId` that doesn't name any real step in this job's own journey
+ *    (typo'd, stale, copy-pasted from a different job). `positionFor` falls
+ *    back to `phase`, which — for a route-gating check — would collapse to
+ *    the candidate's OWN current phase and let them in unconditionally.
+ * 2. A `stepId` that IS real but belongs to a step whose `type` doesn't
+ *    match the route asking (e.g. opening `/voice-interview/<a real
+ *    typing_test step id>`). Comparing bare journey indices can't catch
+ *    this — a real step id, on the wrong route, must still be refused.
+ *
+ * Callers that fail this resolution must treat access as denied, full stop
+ * — never fall through to comparing indices computed some other way.
+ */
+export function resolveGatedStep(
+  steps: readonly CandidateJourneyStep[],
+  query: { stepId?: string | null; expectedType: string },
+): GatedStepResolution {
+  if (!query.stepId) return { matched: false, index: -1 };
+  const index = steps.findIndex((s) => s.id === query.stepId);
+  if (index === -1) return { matched: false, index: -1 };
+  if (!typeMatchesPhase(steps[index].type, query.expectedType)) return { matched: false, index: -1 };
+  return { matched: true, index };
+}

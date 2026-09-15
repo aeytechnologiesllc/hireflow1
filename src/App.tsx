@@ -196,15 +196,15 @@ const App = () => (
                     <Route path="/job/:id" element={<JobDetails />} />
                     <Route path="/applications" element={<Applications />} />
                     <Route path="/applications/:id" element={<CandidateApplicationDetail />} />
-                    <Route path="/applications/:id/application/:stepId" element={<CandidateStepGate><ApplicationFormPhase /></CandidateStepGate>} />
-                    <Route path="/applications/:id/typing-test/:stepId" element={<CandidateStepGate><TypingTestPhase /></CandidateStepGate>} />
-                    <Route path="/applications/:id/quiz/:stepId" element={<CandidateStepGate><QuizPhase /></CandidateStepGate>} />
-                    <Route path="/applications/:id/video-intro/:stepId" element={<CandidateStepGate><VideoIntroPhase /></CandidateStepGate>} />
-                    <Route path="/applications/:id/chat-simulation/:stepId" element={<CandidateStepGate><ChatSimulationPhase /></CandidateStepGate>} />
-                    <Route path="/applications/:id/chat-interview/:stepId" element={<CandidateStepGate><ChatInterviewPhase /></CandidateStepGate>} />
-                    <Route path="/applications/:id/sales-simulation/:stepId" element={<CandidateStepGate><SalesSimulationPhase /></CandidateStepGate>} />
-                    <Route path="/applications/:id/voice-interview/:stepId" element={<CandidateStepGate><VoiceInterviewPhase /></CandidateStepGate>} />
-                    <Route path="/applications/:id/portfolio/:stepId" element={<CandidateStepGate><PortfolioUploadPhase /></CandidateStepGate>} />
+                    <Route path="/applications/:id/application/:stepId" element={<CandidateStepGate phase="application"><ApplicationFormPhase /></CandidateStepGate>} />
+                    <Route path="/applications/:id/typing-test/:stepId" element={<CandidateStepGate phase="typing_test"><TypingTestPhase /></CandidateStepGate>} />
+                    <Route path="/applications/:id/quiz/:stepId" element={<CandidateStepGate phase="quiz"><QuizPhase /></CandidateStepGate>} />
+                    <Route path="/applications/:id/video-intro/:stepId" element={<CandidateStepGate phase="video_intro"><VideoIntroPhase /></CandidateStepGate>} />
+                    <Route path="/applications/:id/chat-simulation/:stepId" element={<CandidateStepGate phase="chat_simulation"><ChatSimulationPhase /></CandidateStepGate>} />
+                    <Route path="/applications/:id/chat-interview/:stepId" element={<CandidateStepGate phase="chat_interview"><ChatInterviewPhase /></CandidateStepGate>} />
+                    <Route path="/applications/:id/sales-simulation/:stepId" element={<CandidateStepGate phase="sales_simulation"><SalesSimulationPhase /></CandidateStepGate>} />
+                    <Route path="/applications/:id/voice-interview/:stepId" element={<CandidateStepGate phase="voice_interview"><VoiceInterviewPhase /></CandidateStepGate>} />
+                    <Route path="/applications/:id/portfolio/:stepId" element={<CandidateStepGate phase="portfolio_upload"><PortfolioUploadPhase /></CandidateStepGate>} />
                     <Route path="/applications/:appId/interview-room" element={<InterviewRoom />} />
                     <Route path="/notifications" element={<Notifications />} />
                     <Route path="/settings" element={<Settings />} />

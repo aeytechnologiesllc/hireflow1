@@ -1,7 +1,8 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
+import { buildCandidateJourney, resolveGatedStep, type WorkflowStepLike } from "@/lib/candidateJourney";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Clock, ArrowLeft, AlertTriangle } from "lucide-react";
@@ -23,14 +24,30 @@ interface GateJob {
  *
  * This is the one place that decision gets made, before the real phase
  * component — and anything it does on mount — ever renders. It mirrors the
- * exact position logic VoiceInterviewPhase pioneered: build the job's real
- * journey (`useJourneyPosition` / `candidateJourney.ts`), find where the
- * URL's `stepId` sits in it, and compare that against where the candidate's
- * OWN application record (`phase` / `status` — never the URL) says they
- * actually are. Every phase now agrees, instead of nine near-identical
- * copies drifting apart.
+ * position logic VoiceInterviewPhase pioneered — build the job's real journey
+ * (`candidateJourney.ts`) and compare the URL's step against where the
+ * candidate's OWN application record (`phase` / `status` — never the URL)
+ * says they actually are — but STRICTER than that original check: `phase`
+ * is required and names the step `type` this particular route represents
+ * (e.g. "voice_interview" for `/voice-interview/:stepId`). `resolveGatedStep`
+ * only grants access when `stepId` names a real step in this job's own
+ * journey AND that step's `type` matches this route's `phase`. Anything
+ * else — an unrecognized stepId, or a real stepId opened under the wrong
+ * route — is refused outright rather than falling back to some other
+ * position, which is what let a candidate through on any unrecognized
+ * stepId, or by reusing their own real stepId under a different phase's
+ * route, before this check existed.
  */
-export default function CandidateStepGate({ children }: { children: ReactNode }) {
+export default function CandidateStepGate({
+  children,
+  phase,
+}: {
+  children: ReactNode;
+  /** The step `type` this route represents (e.g. "voice_interview",
+   *  "typing_test") — checked against the step `resolveGatedStep` matches by
+   *  id, never inferred from the URL alone. */
+  phase: string;
+}) {
   const { id: applicationId, stepId } = useParams();
   const navigate = useNavigate();
 
@@ -98,19 +115,27 @@ export default function CandidateStepGate({ children }: { children: ReactNode })
     };
   }, [applicationId]);
 
-  // Where this URL's stepId sits in the job's real journey. Falls back to the
-  // candidate's real phase when stepId doesn't match any known step, so an
-  // unrecognized step id never fabricates a bogus "ahead of everything"
-  // position — it behaves as if the URL had picked out today's real step.
-  const journey = useJourneyPosition(job, { stepId, phase: appPhase });
+  // The job's real journey, and where this URL's stepId resolves in it —
+  // strictly: only a stepId that names a real step of THIS route's own
+  // `phase` type resolves at all. An unrecognized stepId, or a real stepId
+  // that belongs to a different phase type, never resolves — it is refused
+  // below, not treated as some other position.
+  const steps = useMemo(
+    () =>
+      buildCandidateJourney((job?.workflow_steps ?? []) as WorkflowStepLike[], {
+        hasQuiz: Array.isArray(job?.quiz_questions) && (job!.quiz_questions as unknown[]).length > 0,
+      }),
+    [job],
+  );
+  const resolution = useMemo(() => resolveGatedStep(steps, { stepId, expectedType: phase }), [steps, stepId, phase]);
 
   // Where the candidate ACTUALLY is — from application.phase / .status only,
   // deliberately never from the URL. This is the only signal that decides
-  // access; a candidate steering the URL controls journey.index above, never
+  // access; a candidate steering the URL controls `resolution` above, never
   // this.
   const actualPosition = useJourneyPosition(job, { phase: appPhase, status: appStatus });
 
-  const hasReachedThisStep = actualPosition.index >= journey.index;
+  const hasReachedThisStep = resolution.matched && actualPosition.index >= resolution.index;
 
   if (loading) {
     return (
