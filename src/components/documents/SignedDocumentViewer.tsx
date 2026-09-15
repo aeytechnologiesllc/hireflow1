@@ -111,6 +111,54 @@ const getActionIcon = (action: string) => {
   }
 };
 
+/** Drives every "is this actually signed" claim in the main document view off
+ *  document.status, instead of the view assuming completion regardless of
+ *  where the document really is in its lifecycle. */
+const DOCUMENT_STATUS_META: Record<
+  "signed" | "declined" | "pending",
+  {
+    icon: typeof CheckCircle;
+    badgeClass: string;
+    badgeLabel: string;
+    iconBoxClass: string;
+    iconClass: string;
+    stripBgClass: string;
+    bannerTitle: string;
+    bannerSubtitle: string;
+  }
+> = {
+  signed: {
+    icon: CheckCircle,
+    badgeClass: "bg-success/20 text-success",
+    badgeLabel: "Fully Signed",
+    iconBoxClass: "bg-success/20",
+    iconClass: "text-success",
+    stripBgClass: "bg-success/5",
+    bannerTitle: "Signed and Time-Stamped",
+    bannerSubtitle: "SHA-256 verified",
+  },
+  declined: {
+    icon: XCircle,
+    badgeClass: "bg-destructive/20 text-destructive",
+    badgeLabel: "Declined",
+    iconBoxClass: "bg-destructive/20",
+    iconClass: "text-destructive",
+    stripBgClass: "bg-destructive/5",
+    bannerTitle: "Signing Declined",
+    bannerSubtitle: "This document was not completed",
+  },
+  pending: {
+    icon: Clock,
+    badgeClass: "bg-warning/20 text-warning",
+    badgeLabel: "Awaiting Signature",
+    iconBoxClass: "bg-warning/20",
+    iconClass: "text-warning",
+    stripBgClass: "bg-warning/5",
+    bannerTitle: "Awaiting Signature",
+    bannerSubtitle: "Not yet verified",
+  },
+};
+
 export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDocumentViewerProps) {
   const [showAuditTrail, setShowAuditTrail] = useState(false);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -682,6 +730,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
   if (!document) return null;
 
   const finalHash = document.v3_hash || document.v2_hash || document.document_hash;
+  const statusMeta = DOCUMENT_STATUS_META[document.status] ?? DOCUMENT_STATUS_META.pending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -710,19 +759,22 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
               <DialogHeader className="p-6 pb-4 border-b border-border shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-success/20 flex items-center justify-center">
-                      <FileCheck className="h-6 w-6 text-success" />
+                    <div className={`w-12 h-12 rounded-xl ${statusMeta.iconBoxClass} flex items-center justify-center`}>
+                      <statusMeta.icon className={`h-6 w-6 ${statusMeta.iconClass}`} />
                     </div>
                     <div>
                       <DialogTitle className="text-xl">{document.name}</DialogTitle>
                       <p className="text-sm text-muted-foreground">
-                        {document.document_type?.replace(/_/g, " ")} • Completed {document.signed_at ? format(new Date(document.signed_at), "MMM d, yyyy") : ""}
+                        {document.document_type?.replace(/_/g, " ")}
+                        {document.status === "signed" && document.signed_at
+                          ? ` • Completed ${format(new Date(document.signed_at), "MMM d, yyyy")}`
+                          : ""}
                       </p>
                     </div>
                   </div>
-                  <Badge className="bg-success/20 text-success px-3 py-1.5">
-                    <CheckCircle className="h-4 w-4 mr-1.5" />
-                    Fully Signed
+                  <Badge className={`${statusMeta.badgeClass} px-3 py-1.5`}>
+                    <statusMeta.icon className="h-4 w-4 mr-1.5" />
+                    {statusMeta.badgeLabel}
                   </Badge>
                 </div>
               </DialogHeader>
@@ -740,7 +792,9 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                       <Clock className="h-4 w-4 text-muted-foreground" />
                       <span className="text-muted-foreground">Completed:</span>
                       <span className="font-medium">
-                        {document.signed_at ? format(new Date(document.signed_at), "PPpp 'UTC'") : "Pending"}
+                        {document.status === "signed" && document.signed_at
+                          ? format(new Date(document.signed_at), "PPpp 'UTC'")
+                          : statusMeta.badgeLabel}
                       </span>
                     </div>
                   </div>
@@ -762,15 +816,15 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                   <div className="bg-gradient-to-r from-primary/10 to-accent/10 p-6 border-b border-border">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <Shield className="h-6 w-6 text-primary" />
+                        <Shield className={`h-6 w-6 ${statusMeta.iconClass}`} />
                         <div>
-                          <p className="font-semibold text-foreground">Signed and Time-Stamped</p>
-                          <p className="text-xs text-muted-foreground">SHA-256 verified</p>
+                          <p className="font-semibold text-foreground">{statusMeta.bannerTitle}</p>
+                          <p className="text-xs text-muted-foreground">{statusMeta.bannerSubtitle}</p>
                         </div>
                       </div>
                       <div className="text-right text-xs text-muted-foreground">
                         <p>Document ID: {getDocumentCode()}</p>
-                        <p>Signed: {document.signed_at ? format(new Date(document.signed_at), "PPpp") : ""}</p>
+                        <p>Status: {statusMeta.badgeLabel}</p>
                       </div>
                     </div>
                   </div>
@@ -810,13 +864,17 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                           </div>
                         ) : (
                           <div className="h-16 bg-muted/50 rounded border border-dashed border-border flex items-center justify-center">
-                            <span className="text-xs text-muted-foreground">Signature on file</span>
+                            <span className="text-xs text-muted-foreground">
+                              {document.candidate_signed_at ? "Signature on file" : "Not yet signed"}
+                            </span>
                           </div>
                         )}
-                        <div className="mt-2 flex items-center gap-1 text-xs text-success">
-                          <CheckCircle className="h-3 w-3" />
-                          <span>Verified</span>
-                        </div>
+                        {document.candidate_signed_at && (
+                          <div className="mt-2 flex items-center gap-1 text-xs text-success">
+                            <CheckCircle className="h-3 w-3" />
+                            <span>Verified</span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Employer Signature */}
@@ -840,39 +898,65 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                           </div>
                         ) : (
                           <div className="h-16 bg-muted/50 rounded border border-dashed border-border flex items-center justify-center">
-                            <span className="text-xs text-muted-foreground">Signature on file</span>
+                            <span className="text-xs text-muted-foreground">
+                              {document.employer_signed_at ? "Signature on file" : "Not yet signed"}
+                            </span>
                           </div>
                         )}
-                        <div className="mt-2 flex items-center gap-1 text-xs text-success">
-                          <CheckCircle className="h-3 w-3" />
-                          <span>Verified</span>
-                        </div>
+                        {document.employer_signed_at && (
+                          <div className="mt-2 flex items-center gap-1 text-xs text-success">
+                            <CheckCircle className="h-3 w-3" />
+                            <span>Verified</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Certificate of Completion */}
-                  <div className="border-t border-border p-4 bg-success/5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Shield className="h-5 w-5 text-success" />
-                        <div>
-                          <p className="text-sm font-medium text-success">Certificate of Completion</p>
+                  {/* Completion certificate — only a fully signed document has earned
+                      this; a pending/declined one gets an honest status strip instead. */}
+                  {document.status === "signed" ? (
+                    <div className="border-t border-border p-4 bg-success/5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Shield className="h-5 w-5 text-success" />
+                          <div>
+                            <p className="text-sm font-medium text-success">Certificate of Completion</p>
+                            <p className="text-xs text-muted-foreground">
+                              Integrity verified via SHA-256 hash matching the finalized document.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
                           <p className="text-xs text-muted-foreground">
-                            Integrity verified via SHA-256 hash matching the finalized document.
+                            Document ID: {getDocumentCode()}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Completed: {document.signed_at ? format(new Date(document.signed_at), "MMMM d, yyyy") : ""}
                           </p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-xs text-muted-foreground">
+                    </div>
+                  ) : (
+                    <div className={`border-t border-border p-4 ${statusMeta.stripBgClass}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <statusMeta.icon className={`h-5 w-5 ${statusMeta.iconClass}`} />
+                          <div>
+                            <p className={`text-sm font-medium ${statusMeta.iconClass}`}>{statusMeta.badgeLabel}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {document.status === "declined"
+                                ? "This document hasn't been completed, so there's no certificate to show."
+                                : "A certificate is issued once every signature has been collected."}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="text-right text-xs text-muted-foreground">
                           Document ID: {getDocumentCode()}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Completed: {document.signed_at ? format(new Date(document.signed_at), "MMMM d, yyyy") : ""}
                         </p>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </ScrollArea>
 
