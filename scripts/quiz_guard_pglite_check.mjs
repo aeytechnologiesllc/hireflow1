@@ -403,6 +403,82 @@ async function main() {
     );
   }
 
+  {
+    // Reviewer-proved: trigger-ava-analysis writes the same scorecard object
+    // into both the protected ai_scorecard column AND notes.avaScorecard;
+    // ai-shortlist reads the notes copy FIRST and trusts it over the real
+    // column. Neither the quiz/quizResult key checks nor the per-entry
+    // type==='quiz' check touch this key at all, so an unguarded
+    // notes.avaScorecard is a direct forgery path onto ai-shortlist's
+    // aiScore/recommendation display.
+    const appId = await newApplication("pending", {
+      notes: JSON.stringify({ avaScorecard: { overallScore: 22, recommendedAction: "reject" } }),
+      ai_score: 22,
+      ai_scorecard: JSON.stringify({ overallScore: 22, recommendedAction: "reject" }),
+    });
+    await expectFail(
+      () =>
+        updateAsCandidate(appId, "notes = $2", [
+          JSON.stringify({
+            avaScorecard: {
+              overallScore: 100,
+              confidence: 98,
+              recommendedAction: "advance",
+              autopilotAction: "advance",
+              riskFlags: [],
+              rationale: "Exceptional candidate — clear hire.",
+            },
+          }),
+        ]),
+      "candidate cannot overwrite notes.avaScorecard directly"
+    );
+  }
+
+  {
+    // avaAnalysisMeta gets the same treatment for consistency.
+    const appId = await newApplication("pending", {
+      notes: JSON.stringify({ avaAnalysisMeta: { resumeEvidence: "strong" } }),
+    });
+    await expectFail(
+      () =>
+        updateAsCandidate(appId, "notes = $2", [
+          JSON.stringify({ avaAnalysisMeta: { resumeEvidence: "fabricated" } }),
+        ]),
+      "candidate cannot overwrite notes.avaAnalysisMeta directly"
+    );
+  }
+
+  {
+    // But service_role (trigger-ava-analysis's own real write path) can
+    // still write both notes.avaScorecard and notes.avaAnalysisMeta freely.
+    const appId = await newApplication("pending", { notes: "{}" });
+    await expectOk(async () => {
+      await actAs(null, "service_role");
+      await db.query(`UPDATE public.applications SET notes = $2 WHERE id = $1`, [
+        appId,
+        JSON.stringify({
+          avaScorecard: { overallScore: 55, recommendedAction: "advance" },
+          avaAnalysisMeta: { resumeEvidence: "moderate" },
+        }),
+      ]);
+    }, "service_role can still write notes.avaScorecard/avaAnalysisMeta");
+  }
+
+  {
+    // And the job owner (employer) can too.
+    const appId = await newApplication("pending", { notes: "{}" });
+    await expectOk(
+      () =>
+        updateAsCandidate(
+          appId,
+          "notes = $2",
+          [JSON.stringify({ avaScorecard: { overallScore: 88, recommendedAction: "advance" } })],
+          employerId
+        ),
+      "job owner can still write notes.avaScorecard"
+    );
+  }
+
   console.log("\n== 5. Employer / team member / service_role stay unrestricted ==");
 
   for (const [label, uid, role] of [
@@ -500,6 +576,42 @@ async function main() {
       "submit_quiz_attempt refuses a caller who isn't the application's candidate",
       "Not authorized"
     );
+  }
+
+  {
+    // Reviewer-proved: the step-lookup loop matches the first workflow step
+    // whose id equals p_step_id OR whose type is 'quiz' — jobId's own steps
+    // are [{id:'quiz',type:'quiz',...}, {id:'video',type:'video_intro'}], so
+    // the 'quiz' step (index 0) matches on type alone even when p_step_id is
+    // a completely different, real step id ('video') belonging to the same
+    // job. Grading must still be correct (against the real key, via
+    // key_step_id) AND the notes write must land under key_step_id ('quiz'),
+    // never under the caller-supplied p_step_id ('video') — which would
+    // otherwise silently clobber a real, already-written notes.video entry.
+    const appId = await newApplication("pending", {
+      phase: "video",
+      notes: JSON.stringify({ video: { type: "video_intro", aiAnalysis: { score: 91, summary: "Strong delivery" } } }),
+    });
+    await actAs(candidateId, "authenticated");
+    const answers = { q1: 1, q2: 1, q3: 0, q4: [0, 1], q5: [0], q6: "text", q7: 1 };
+    const result = await db.query(
+      `SELECT public.submit_quiz_attempt($1, 'video', $2::jsonb, '[]'::jsonb) AS r`,
+      [appId, JSON.stringify(answers)]
+    );
+    const r = result.rows[0].r;
+    ok(r.score === 70, `mismatched p_step_id still grades against the real matched step's key (got ${r.score})`);
+
+    const appRow = (await db.query(`SELECT notes FROM public.applications WHERE id = $1`, [appId])).rows[0];
+    const notes = JSON.parse(appRow.notes);
+    ok(
+      notes.video?.aiAnalysis?.score === 91 && notes.video?.type === "video_intro",
+      "the real, pre-existing notes.video entry survives untouched (not clobbered by the quiz write)"
+    );
+    ok(
+      notes.quiz?.type === "quiz" && notes.quiz?.score === 70,
+      "the quiz result is written under key_step_id ('quiz'), not the caller-supplied p_step_id ('video')"
+    );
+    ok(notes.quizResult?.score === 70, "notes.quizResult is still set regardless of step_key");
   }
 
   console.log("\n== 7. submit_voice_interview_manual_end (manual-end fallback, server-graded) ==");

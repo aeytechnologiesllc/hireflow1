@@ -153,6 +153,33 @@
 --          close and is flagged back to the orchestrator rather than
 --          resolved here.
 --
+--   8. A third review round found two more narrow holes, both fixed in
+--      place:
+--        - notes.avaScorecard (and its sibling notes.avaAnalysisMeta) were
+--          completely unguarded. trigger-ava-analysis writes the same
+--          scorecard object into both the protected ai_scorecard column and
+--          this notes key on every run; ai-shortlist's buildScorecard()
+--          reads the notes copy FIRST and trusts it over the real, protected
+--          column. A candidate could overwrite notes.avaScorecard directly —
+--          it is neither named 'quiz'/'quizResult' nor typed 'quiz' — and
+--          have ai-shortlist render a forged aiScore/recommendation to the
+--          employer while the real ai_score/ai_scorecard columns (which
+--          autopilot-batch actually decides from) stayed correct and
+--          untouched. Guarded by key name now, the same way 'quiz' is.
+--        - submit_quiz_attempt's notes write used the caller-supplied
+--          p_step_id as the object key instead of key_step_id, the id of
+--          the step actually matched and graded against (the step lookup
+--          matches by id-OR-type='quiz', so p_step_id can legitimately be
+--          any value and still resolve to and grade against the real quiz
+--          step). Writing under the raw p_step_id let a candidate name an
+--          existing, unrelated step key on the same application and have
+--          their one legitimate quiz submission silently overwrite whatever
+--          real notes entry already lived there (e.g. a real, already-
+--          graded portfolio score) — the same "erase a real result" class
+--          item 7 already closed for voice_interview_result, left open here.
+--          Now uses key_step_id, exactly as the job_quiz_keys lookup two
+--          lines earlier already does.
+--
 -- Idempotent: CREATE OR REPLACE FUNCTION, DROP TRIGGER IF EXISTS + CREATE,
 -- CREATE TABLE IF NOT EXISTS, DROP POLICY IF EXISTS + CREATE. Safe to run
 -- once against the live database as it stands today.
@@ -673,7 +700,25 @@ BEGIN
   -- existing_notes was already computed (and checked) above, before the
   -- one-shot guard; app.notes hasn't changed since (the row has been held
   -- FOR UPDATE the whole time), so it's still current here.
-  step_key := p_step_id;
+  --
+  -- step_key is the ACTUALLY-MATCHED quiz step's own id (key_step_id) —
+  -- never the caller-supplied p_step_id. The step-lookup loop above matches
+  -- the first workflow step whose id equals p_step_id OR whose type is
+  -- 'quiz', so a caller can pass ANY p_step_id (one belonging to a
+  -- different, real step on the same job, or one matching nothing at all)
+  -- and still have it resolve to the real quiz step and grade correctly
+  -- against the real key — key_step_id already reflects that resolved step,
+  -- not the raw input, exactly like the job_quiz_keys lookup above uses it.
+  -- Writing under p_step_id instead would let a candidate pick an existing,
+  -- unrelated step key (e.g. a real 'portfolio' entry with its own
+  -- already-graded aiAnalysis.score) and have this call's result silently
+  -- clobber it via the top-level `existing_notes || jsonb_build_object(...)`
+  -- merge below — erasing real evidence for an unrelated phase using their
+  -- one legitimate quiz submission, while also leaving the real notes.quiz
+  -- entry never written. quizResult (below) is unconditionally written
+  -- under its own fixed key regardless of step_key either way, so the
+  -- one-shot resubmission guard above is unaffected by this either way.
+  step_key := key_step_id;
   new_notes := existing_notes || jsonb_build_object(
     step_key, jsonb_build_object(
       'type', 'quiz',
@@ -1003,6 +1048,35 @@ BEGIN
     -- shape (or absence of a "type" field) the value happens to have.
     IF (new_notes -> 'quiz') IS DISTINCT FROM (old_notes -> 'quiz') THEN
       RAISE EXCEPTION 'Candidates cannot edit quiz results directly';
+    END IF;
+
+    -- trigger-ava-analysis (supabase/functions/trigger-ava-analysis/
+    -- index.ts) writes the exact same scorecard object into BOTH the
+    -- protected ai_scorecard column AND applications.notes.avaScorecard on
+    -- every run (plus notes.avaAnalysisMeta alongside it), as a service_role
+    -- write, so it never reaches this far — service_role already returned
+    -- at the top of this function. But nothing here stopped a CANDIDATE
+    -- from writing straight over notes.avaScorecard themselves: it isn't a
+    -- 'type':'quiz' entry and isn't named 'quiz'/'quizResult', so neither
+    -- check above catches it. ai-shortlist's buildScorecard()
+    -- (supabase/functions/ai-shortlist/index.ts) reads notes.avaScorecard
+    -- FIRST, ahead of the real (protected) ai_score/ai_scorecard columns,
+    -- and trusts its overallScore/confidence/recommendedAction/
+    -- autopilotAction/riskFlags/rationale essentially verbatim — so an
+    -- unguarded notes.avaScorecard is a direct forgery path onto a
+    -- hiring-decision surface, the exact class of hole this migration
+    -- exists to close. Guarded the same way as the 'quiz'/'quizResult' key
+    -- names: by key name, so it does not matter what shape (or lack of a
+    -- 'type' field) the candidate's forged value takes. avaAnalysisMeta is
+    -- read by CondensedAIAnalysis.tsx as trusted display metadata
+    -- alongside avaScorecard, so it gets the same treatment for
+    -- consistency even though no ranking surface derives a score from it
+    -- today.
+    IF (new_notes -> 'avaScorecard') IS DISTINCT FROM (old_notes -> 'avaScorecard') THEN
+      RAISE EXCEPTION 'Candidates cannot edit the Ava scorecard directly';
+    END IF;
+    IF (new_notes -> 'avaAnalysisMeta') IS DISTINCT FROM (old_notes -> 'avaAnalysisMeta') THEN
+      RAISE EXCEPTION 'Candidates cannot edit Ava analysis metadata directly';
     END IF;
 
     FOR note_key IN
