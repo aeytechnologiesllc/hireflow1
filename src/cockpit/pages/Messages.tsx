@@ -343,6 +343,18 @@ export default function CockpitMessages() {
   // rendering; a message with no file, or a signing failure, is left out and
   // falls back to the stored value in `filesById`.
   const [signedFileUrls, setSignedFileUrls] = useState<Map<string, string>>(new Map());
+  // `filesById` is a fresh Map on every render (it's rebuilt from `rawThread`,
+  // itself a new array identity on every query refetch even when the rows
+  // haven't changed) — keying the effect on the Map itself re-signs every
+  // attachment, and re-requests every open thread's URLs, each time anything
+  // else on the page re-renders. Key on the actual (id, path) pairs instead:
+  // a plain string that only changes when a file is added, removed, or its
+  // stored path changes, so the effect only re-runs when there is new signing
+  // to do.
+  const fileKey = useMemo(
+    () => Array.from(filesById.entries()).map(([id, f]) => `${id}:${f.url}`).join("|"),
+    [filesById]
+  );
   useEffect(() => {
     let cancelled = false;
     const entries = Array.from(filesById.entries());
@@ -365,7 +377,8 @@ export default function CockpitMessages() {
     return () => {
       cancelled = true;
     };
-  }, [filesById]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fileKey]);
 
   const resolvedFilesById = useMemo(() => {
     const map = new Map<string, Attachment>();

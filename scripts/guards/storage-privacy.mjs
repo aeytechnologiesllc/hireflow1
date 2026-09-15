@@ -28,6 +28,25 @@ function lineOf(text, index) {
   return text.slice(0, index).split("\n").length;
 }
 
+/**
+ * Normalize a policy's `using (...)` body so `bucket_id = 'portfolios'`,
+ * `bucket_id='portfolios'`, `BUCKET_ID = 'portfolios'`, `(bucket_id =
+ * 'portfolios')` and any whitespace/newline variant of those all collapse to
+ * the same string. Only the SQL around the literal is case-folded — the
+ * bucket name itself (inside the quotes) is left exactly as written, since
+ * Postgres string literals and identifiers are case-sensitive.
+ */
+function normalizeUsing(using) {
+  return using
+    .trim()
+    .replace(/^\(+/, "")
+    .replace(/\)+$/, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/\s*=\s*/g, "=")
+    .replace(/^([^']*)/, (head) => head.toLowerCase());
+}
+
 export default [
   {
     id: "storage-no-bucket-wide-read-policy-regression",
@@ -55,9 +74,9 @@ export default [
           /create\s+policy\s+"[^"]*"\s+on\s+storage\.objects\s+for\s+select[\s\S]*?using\s*\(([\s\S]*?)\)\s*;/gi;
         let m;
         while ((m = policyRe.exec(text))) {
-          const using = m[1].replace(/\s+/g, " ").trim().toLowerCase();
+          const using = normalizeUsing(m[1]);
           for (const bucket of PRIVATE_BUCKETS) {
-            if (using === `bucket_id = '${bucket}'`) {
+            if (using === `bucket_id='${bucket}'`) {
               bad.push(
                 `${rel}:${lineOf(text, m.index)}  bucket-wide SELECT policy for '${bucket}' with no owner check`
               );
