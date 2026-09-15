@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { useAvaVoice } from "@/hooks/useAvaVoice";
 import { useVideoInterviewRecorder } from "@/hooks/useVideoInterviewRecorder";
 import { Button } from "@/components/ui/button";
@@ -165,7 +166,15 @@ export default function VoiceInterviewPhase() {
     }
   }, []);
 
-  const buildManualEndEvaluation = useCallback(() => {
+  // Local-only shape used solely as a UI fallback if the RPC call below
+  // itself fails (e.g. a network error) — it is never written to
+  // voice_interview_result directly; that column is guarded server-side
+  // (protect_application_columns()) against the candidate's own writes, so
+  // the real, persisted result always comes from
+  // submit_voice_interview_manual_end. Kept field-for-field identical to
+  // what that RPC computes so the completion screen reads the same either
+  // way.
+  const buildManualEndEvaluationFallback = useCallback(() => {
     const candidateTurns = messages.filter((message) => message.role === "user" && message.content.trim().length > 0);
     const assistantTurns = messages.filter((message) => message.role === "assistant" && message.content.trim().length > 0);
 
@@ -194,6 +203,37 @@ export default function VoiceInterviewPhase() {
       duration_seconds: elapsedSeconds,
     };
   }, [elapsedSeconds, messages]);
+
+  // Server-grades the manual-end/connection-lost fallback via
+  // submit_voice_interview_manual_end (supabase/migrations/20260915110000_
+  // quiz_answer_keys_server_side.sql) instead of building — and directly
+  // persisting — the evaluation client-side. That RPC ignores any
+  // score/recommendation and always returns the same fixed "needs manual
+  // review" result; only the transcript and turn/duration bookkeeping are
+  // read from the caller. On an RPC failure (network blip, not an
+  // authorization problem), fall back to the same fixed shape for the UI
+  // only — voice_interview_result is never written client-side either way.
+  const submitManualEnd = useCallback(async () => {
+    const transcript = messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+      timestamp: m.timestamp,
+      formatted_time: new Date(m.timestamp).toISOString(),
+    }));
+
+    const { data, error } = await supabase.rpc("submit_voice_interview_manual_end", {
+      p_application_id: applicationId!,
+      p_transcript: transcript as unknown as Json,
+      p_duration_seconds: elapsedSeconds,
+    });
+
+    if (error) {
+      console.error("submit_voice_interview_manual_end failed:", error);
+      return buildManualEndEvaluationFallback();
+    }
+
+    return data;
+  }, [applicationId, buildManualEndEvaluationFallback, elapsedSeconds, messages]);
 
   const handleInterviewEnd = useCallback(async (evaluation: any) => {
     if (completionTriggeredRef.current) {
@@ -238,11 +278,20 @@ export default function VoiceInterviewPhase() {
         .eq("id", applicationId)
         .single();
 
-      // Save result AND transcript to database
+      // voice_interview_result is NOT written here. It is guarded server-side
+      // by protect_application_columns() (supabase/migrations/20260915110000_
+      // quiz_answer_keys_server_side.sql) against a candidate's own direct
+      // writes, and by the time this runs it has already been persisted by
+      // whichever legitimate path produced `evaluation`: either
+      // ava-voice-tools' "end_interview" tool handler (service-role write,
+      // for the normal Ava-ended path) or submitManualEnd()'s call to
+      // submit_voice_interview_manual_end (for the manual-end/connection-lost
+      // fallback below) — both run before handleInterviewEnd is invoked.
+      // Only the transcript (not written server-side by the tool-call path)
+      // and phase_ai_analysis need saving here.
       const { error } = await supabase
         .from("applications")
         .update({
-          voice_interview_result: evaluation,
           voice_interview_transcript: transcript,
           phase_ai_analysis: evaluation.summary,
         })
@@ -540,7 +589,7 @@ export default function VoiceInterviewPhase() {
     if (!isConnected) {
       clearFallbackEndTimeout();
       await disconnect().catch(() => {});
-      await handleInterviewEnd(buildManualEndEvaluation());
+      await handleInterviewEnd(await submitManualEnd());
       return;
     }
 
@@ -555,7 +604,7 @@ export default function VoiceInterviewPhase() {
 
       console.warn("[VoiceInterviewPhase] Falling back to manual interview completion");
       await disconnect().catch(() => {});
-      await handleInterviewEnd(buildManualEndEvaluation());
+      await handleInterviewEnd(await submitManualEnd());
     }, 12000);
   };
 

@@ -161,6 +161,46 @@ export default [
   },
 
   {
+    id: "voice-interview-phase-never-writes-its-own-score",
+    why:
+      "VoiceInterviewPhase.tsx used to build its own fallback evaluation locally " +
+      "(buildManualEndEvaluation) and write applications.voice_interview_result straight to the " +
+      "database with a plain .update() — the same devtools-replayable pattern QuizPhase.tsx used " +
+      "to have, on a column that ai-shortlist/trigger-ava-analysis/autopilot-batch all trust as a " +
+      "real Ava score. voice_interview_result is now guarded by protect_application_columns() " +
+      "(supabase/migrations/20260915110000_quiz_answer_keys_server_side.sql); the only legitimate " +
+      "writers are ava-voice-tools' end_interview handler (service_role) and the " +
+      "submit_voice_interview_manual_end RPC. If this file starts setting voice_interview_result " +
+      "in a direct .update() again, a candidate can forge it again.",
+    async run({ read }) {
+      const file = "src/pages/VoiceInterviewPhase.tsx";
+      const text = await read(file);
+      if (text == null) return { ok: false, detail: [`${file} is missing`] };
+
+      const detail = [];
+
+      if (!/\.rpc\(\s*["']submit_voice_interview_manual_end["']/.test(text)) {
+        detail.push(`${file} no longer calls the submit_voice_interview_manual_end RPC`);
+      }
+
+      const lines = text.split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        if (/from\(\s*["']applications["']\s*\)/.test(lines[i])) {
+          // .update(...) commonly lands within the next few lines of a
+          // chained .from("applications").update({ ... }) call.
+          const window = lines.slice(i, i + 12).join("\n");
+          const updateMatch = window.match(/\.update\(\s*\{([\s\S]*?)\}\s*\)/);
+          if (updateMatch && /voice_interview_result\s*:/.test(updateMatch[1])) {
+            detail.push(`${file}:${i + 1}  writes voice_interview_result directly: ${lines[i].trim()}`);
+          }
+        }
+      }
+
+      return detail.length ? { ok: false, detail } : { ok: true };
+    },
+  },
+
+  {
     id: "sending-a-candidate-back-to-quiz-reopens-it",
     why:
       "submit_quiz_attempt() is unconditionally one-shot per (application, step): once " +

@@ -501,17 +501,34 @@ serve(async (req) => {
           throw new Error("Application ID required for interview tools");
         }
 
-        // Merge any previously flagged inconsistencies with final evaluation
-        const { data: currentApp } = await supabaseClient
+        // voice_interview_result is now guarded by protect_application_columns()
+        // (supabase/migrations/20260915110000_quiz_answer_keys_server_side.sql)
+        // against a candidate's own direct writes — a candidate can no longer
+        // devtools-PATCH it with a forged score. This handler is the
+        // legitimate write path, so it now performs the update with
+        // supabaseAdmin (service_role), which clears that trigger's
+        // auth.role() = 'service_role' bypass instead of going through the
+        // caller's own RLS-scoped client. Because that switches off RLS as
+        // the authorization check this call previously relied on, ownership
+        // must be verified explicitly here first: this tool is only ever
+        // invoked from the candidate's own live interview session
+        // (useAvaVoice mode: 'interview' in VoiceInterviewPhase.tsx), never
+        // by an employer, so the caller must be the application's own
+        // candidate.
+        const { data: ownerCheck, error: ownerCheckError } = await supabaseClient
           .from("applications")
-          .select("notes")
+          .select("id, candidate_id, notes")
           .eq("id", applicationId)
           .single();
 
-        const currentNotes = typeof currentApp?.notes === 'string' 
-          ? JSON.parse(currentApp?.notes || '{}') 
-          : (currentApp?.notes || {});
-        
+        if (ownerCheckError || !ownerCheck || ownerCheck.candidate_id !== user.id) {
+          throw new Error("Application not found or access denied");
+        }
+
+        const currentNotes = typeof ownerCheck.notes === 'string'
+          ? JSON.parse(ownerCheck.notes || '{}')
+          : (ownerCheck.notes || {});
+
         // Combine flagged inconsistencies with final evaluation inconsistencies
         const allInconsistencies = [
           ...(currentNotes.voiceInterviewInconsistencies || []),
@@ -525,7 +542,7 @@ serve(async (req) => {
         };
 
         // Store interview results
-        const { error } = await supabaseClient
+        const { error } = await supabaseAdmin
           .from("applications")
           .update({
             voice_interview_result: evaluationWithFlags,

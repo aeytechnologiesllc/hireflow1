@@ -50,21 +50,55 @@
 --      per-question correctAnswer out of notes (checked: src/cockpit/lib/
 --      mappers.ts and src/cockpit/pages/Applicants.tsx only ever read the
 --      aggregate notes.quizResult.score/passed).
---   5. Adds a BEFORE UPDATE trigger on applications that blocks a candidate
+--   5. Adds submit_voice_interview_manual_end(...) — SECURITY DEFINER RPC
+--      that server-grades the voice interview's manual-end/connection-lost
+--      fallback the same way submit_quiz_attempt server-grades the quiz: it
+--      accepts only the transcript and duration, and always writes the same
+--      fixed "needs manual review" result — no score/recommendation
+--      parameter exists for a candidate to forge. See item 6 below for why
+--      this exists.
+--   6. Adds a BEFORE UPDATE trigger on applications that blocks a candidate
 --      from rewriting their own job_id, candidate_id, any AI/score column
---      (ai_score, ai_scorecard, ai_analysis, resume_score — every live
---      column that holds an Ava score, scorecard or analysis; there is no
---      separate ranking/shortlist/autopilot-decision column on applications
---      or jobs today, so guarding ai_scorecard covers those, since ai-
---      shortlist/autopilot-batch derive them from it rather than storing
---      them separately), rejected_by/rejected_by_type, or a quiz result
---      inside notes (the notes.quizResult key, or any notes entry whose own
---      "type" is "quiz") — outside of submit_quiz_attempt, which is given a
---      transaction-local pass via set_config('hireflow.in_quiz_submit', ...).
+--      (ai_score, ai_scorecard, ai_analysis, resume_score, and —
+--      re-inspected live per the orchestrator's directive —
+--      voice_interview_result: a jsonb column holding Ava's voice-interview
+--      score/recommendation/scorecard, read as a trusted signal by
+--      ai-shortlist's ranking and evidence-quality score, by trigger-ava-
+--      analysis's own ai_score computation, and by autopilot-batch's
+--      advance/reject decision — structurally identical to ai_scorecard and
+--      just as forgeable, since "Candidates can update their own
+--      applications" has no column restriction either. There is no separate
+--      ranking/shortlist/autopilot-decision column on applications or jobs
+--      today, so guarding ai_scorecard and voice_interview_result covers
+--      those, since ai-shortlist/autopilot-batch derive them from these
+--      rather than storing them separately), rejected_by/rejected_by_type,
+--      or a quiz result inside notes (the notes.quizResult key, or any notes
+--      entry whose own "type" is "quiz") — outside of submit_quiz_attempt
+--      and submit_voice_interview_manual_end, each given a transaction-local
+--      pass via set_config('hireflow.in_quiz_submit', ...) /
+--      set_config('hireflow.in_voice_interview_submit', ...) respectively.
 --      service_role (edge functions, migrations) is exempted via
 --      auth.role() = 'service_role' — not current_user, which inside this
 --      SECURITY DEFINER function is always the function's owner, never the
 --      calling role.
+--
+--      voice_interview_result is guarded; voice_interview_transcript is
+--      deliberately NOT — it is the candidate's own raw conversation record
+--      (what they and Ava actually said), the same self-reported category as
+--      a typing-test WPM or a chat-simulation transcript, not a score. A
+--      forged transcript is a much higher-effort attack than one field write
+--      and is an accepted limit here, same footing as the phase/notes
+--      carve-outs below. src/pages/VoiceInterviewPhase.tsx's own write no
+--      longer includes voice_interview_result (see that file): the
+--      "official" grading path is supabase/functions/ava-voice-tools'
+--      end_interview handler, which now performs that column's write with
+--      the service-role admin client instead of the caller's own JWT-scoped
+--      client, so it clears the auth.role() = 'service_role' bypass below
+--      like every other edge function does; the candidate-initiated
+--      manual-end fallback (connection lost, or Ava never called
+--      end_interview) goes through submit_voice_interview_manual_end, which
+--      computes its own fixed, non-attacker-influenceable result rather than
+--      trusting whatever the client claims.
 --
 --      An earlier draft of this trigger allow-listed exactly what a
 --      candidate's own status/phase write was allowed to be — reviewers
@@ -651,7 +685,100 @@ END;
 $function$;
 
 -- ----------------------------------------------------------------------------
--- 5. Stop a candidate from rewriting their own status/score/quiz result
+-- 5. submit_voice_interview_manual_end — the manual-end/connection-lost
+--    fallback for the voice interview, server-graded the same way
+--    submit_quiz_attempt is.
+-- ----------------------------------------------------------------------------
+-- src/pages/VoiceInterviewPhase.tsx's normal path gets its evaluation from
+-- Ava (via the ava-voice-tools "end_interview" tool, now written with the
+-- service-role admin client). But if the candidate clicks "End Interview"
+-- with the connection already dropped, or Ava never calls end_interview
+-- within the 12s grace window, the client has always built its own fallback
+-- result locally (buildManualEndEvaluation()) and written it straight to
+-- applications.voice_interview_result. That write is exactly the same
+-- shape/authority as a forged one — nothing before this migration stopped a
+-- candidate from calling that same .update() with a fabricated
+-- overall_score/recommendation instead of the real fallback object, and
+-- nothing stops it now that voice_interview_result is guarded, unless the
+-- legitimate fallback has its own protected path. This RPC is that path: it
+-- IGNORES any score/recommendation the client might try to pass in (there is
+-- no such parameter) and always writes the same fixed "needs manual review"
+-- result — score fields null, recommendation "review",
+-- credibility_rating "manual_review_required" — mirroring
+-- buildManualEndEvaluation() in VoiceInterviewPhase.tsx exactly. Only the
+-- transcript and turn/duration bookkeeping (non-scoring metadata) come from
+-- the caller.
+CREATE OR REPLACE FUNCTION public.submit_voice_interview_manual_end(
+  p_application_id uuid,
+  p_transcript jsonb,
+  p_duration_seconds integer DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public', 'pg_temp'
+AS $function$
+DECLARE
+  app             public.applications%ROWTYPE;
+  candidate_turns int;
+  ava_turns       int;
+  transcript_turns int;
+  evaluation      jsonb;
+BEGIN
+  SELECT * INTO app FROM public.applications WHERE id = p_application_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Application not found';
+  END IF;
+
+  IF app.candidate_id <> auth.uid() THEN
+    RAISE EXCEPTION 'Not authorized to end this interview';
+  END IF;
+
+  transcript_turns := CASE WHEN jsonb_typeof(p_transcript) = 'array' THEN jsonb_array_length(p_transcript) ELSE 0 END;
+
+  SELECT count(*) INTO candidate_turns
+    FROM jsonb_array_elements(COALESCE(p_transcript, '[]'::jsonb)) m
+   WHERE (m->>'role') = 'user' AND length(trim(COALESCE(m->>'content', ''))) > 0;
+
+  SELECT count(*) INTO ava_turns
+    FROM jsonb_array_elements(COALESCE(p_transcript, '[]'::jsonb)) m
+   WHERE (m->>'role') = 'assistant' AND length(trim(COALESCE(m->>'content', ''))) > 0;
+
+  -- Fixed, non-attacker-influenceable result — matches
+  -- buildManualEndEvaluation() in VoiceInterviewPhase.tsx field-for-field.
+  evaluation := jsonb_build_object(
+    'overall_score', NULL,
+    'recommendation', 'review',
+    'technical_score', NULL,
+    'communication_score', NULL,
+    'culture_fit_score', NULL,
+    'credibility_rating', 'manual_review_required',
+    'summary', 'The candidate ended the interview manually before Ava returned a structured final evaluation. The transcript and recording were saved for employer review.',
+    'concerns', jsonb_build_array('Manual end fallback was used because Ava did not finalize the interview automatically.'),
+    'strengths', '[]'::jsonb,
+    'candidate_questions', '[]'::jsonb,
+    'ended_by', 'candidate_button_fallback',
+    'transcript_turns', transcript_turns,
+    'candidate_turns', candidate_turns,
+    'ava_turns', ava_turns,
+    'duration_seconds', p_duration_seconds
+  );
+
+  -- Let this transaction's write through the applications write-guard.
+  PERFORM set_config('hireflow.in_voice_interview_submit', 'on', true);
+
+  UPDATE public.applications
+     SET voice_interview_result = evaluation,
+         voice_interview_transcript = p_transcript,
+         phase_ai_analysis = evaluation ->> 'summary'
+   WHERE id = p_application_id;
+
+  RETURN evaluation;
+END;
+$function$;
+
+-- ----------------------------------------------------------------------------
+-- 6. Stop a candidate from rewriting their own status/score/quiz result
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.protect_application_columns()
 RETURNS trigger
@@ -701,15 +828,17 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  -- submit_quiz_attempt sets this transaction-local flag right before it
-  -- writes notes/phase_ai_analysis on the candidate's own behalf.
-  IF COALESCE(current_setting('hireflow.in_quiz_submit', true), '') = 'on' THEN
+  -- submit_quiz_attempt / submit_voice_interview_manual_end each set their
+  -- own transaction-local flag right before they write to columns this
+  -- trigger otherwise guards, on the candidate's own behalf.
+  IF COALESCE(current_setting('hireflow.in_quiz_submit', true), '') = 'on'
+     OR COALESCE(current_setting('hireflow.in_voice_interview_submit', true), '') = 'on' THEN
     RETURN NEW;
   END IF;
 
   -- From here: a candidate is updating their own application directly
   -- (every phase page's supabase.from("applications").update(...) call),
-  -- not through submit_quiz_attempt.
+  -- not through submit_quiz_attempt or submit_voice_interview_manual_end.
 
   IF NEW.job_id IS DISTINCT FROM OLD.job_id THEN
     RAISE EXCEPTION 'Candidates cannot change job_id';
@@ -728,6 +857,9 @@ BEGIN
   END IF;
   IF NEW.resume_score IS DISTINCT FROM OLD.resume_score THEN
     RAISE EXCEPTION 'Candidates cannot change resume_score';
+  END IF;
+  IF NEW.voice_interview_result IS DISTINCT FROM OLD.voice_interview_result THEN
+    RAISE EXCEPTION 'Candidates cannot change voice_interview_result';
   END IF;
   IF NEW.rejected_by IS DISTINCT FROM OLD.rejected_by THEN
     RAISE EXCEPTION 'Candidates cannot change rejected_by';
@@ -821,3 +953,4 @@ CREATE TRIGGER protect_applications_candidate_writes
 
 GRANT EXECUTE ON FUNCTION public.get_job_quiz_keys(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.submit_quiz_attempt(uuid, text, jsonb, jsonb) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.submit_voice_interview_manual_end(uuid, jsonb, integer) TO authenticated;

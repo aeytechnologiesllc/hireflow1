@@ -1587,6 +1587,14 @@ export type Database = {
         }
         Returns: Json
       }
+      submit_voice_interview_manual_end: {
+        Args: {
+          p_application_id: string
+          p_duration_seconds?: number
+          p_transcript: Json
+        }
+        Returns: Json
+      }
       subscription_plan_for_limits: {
         Args: { target_user_id: string }
         Returns: string

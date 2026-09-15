@@ -19,7 +19,9 @@
  *     status
  *   - candidate can't touch status at all once it's rejected/offered/hired
  *   - candidate edits to quizResult, a quiz notes entry, or any AI/score
- *     column (ai_score, ai_scorecard, ai_analysis, resume_score) fail
+ *     column (ai_score, ai_scorecard, ai_analysis, resume_score,
+ *     voice_interview_result) fail — voice_interview_transcript stays
+ *     candidate-writable on purpose (self-reported, not a score)
  *   - candidate edits to job_id / candidate_id / rejected_by /
  *     rejected_by_type fail
  *   - employer (job owner), an active team member, and service_role remain
@@ -32,6 +34,13 @@
  *     call, and a retake (clearing notes[stepId]/notes.quizResult, exactly
  *     what move_applicant_to_phase now does) lets it grade again
  *   - the answer key never lands in applications.notes
+ *   - submit_voice_interview_manual_end always returns/persists the same
+ *     fixed "needs manual review" result regardless of caller input (no
+ *     score/recommendation parameter exists to forge), computes
+ *     candidate_turns/ava_turns from the supplied transcript, is one-shot
+ *     per its own transaction-local guard bypass (a direct candidate write
+ *     to voice_interview_result still fails immediately afterward), and
+ *     refuses a caller who isn't the application's own candidate
  *
  * WHAT'S STUBBED, AND WHY IT'S STILL A FAIR TEST: PGlite has no Supabase
  * `auth` schema and every statement here runs as its single superuser role,
@@ -141,6 +150,8 @@ async function main() {
       rejected_by uuid,
       rejected_by_type text,
       resume_score numeric,
+      voice_interview_result jsonb,
+      voice_interview_transcript jsonb,
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
     );
@@ -319,6 +330,11 @@ async function main() {
     ["ai_scorecard = $2::jsonb", ['{"overallScore":99}'], "ai_scorecard"],
     ["ai_analysis = $2", ["I am great"], "ai_analysis"],
     ["resume_score = $2", [99], "resume_score"],
+    [
+      "voice_interview_result = $2::jsonb",
+      ['{"overall_score":100,"recommendation":"strong_hire","credibility_rating":"Excellent"}'],
+      "voice_interview_result",
+    ],
     ["job_id = $2::uuid", [randomUUID()], "job_id"],
     ["candidate_id = $2::uuid", [randomUUID()], "candidate_id"],
     ["rejected_by = $2::uuid", [randomUUID()], "rejected_by"],
@@ -377,8 +393,17 @@ async function main() {
   ]) {
     const appId = await newApplication("rejected");
     await expectOk(
-      () => updateAsCandidate(appId, "status = $2, ai_score = $3, notes = $4", ["interview", 88, JSON.stringify({ quizResult: { score: 100, correct: 7, total: 7, passed: true } })], uid),
-      `${label} can set status->interview, ai_score, and notes.quizResult even from status='rejected'`
+      () => updateAsCandidate(appId, "status = $2, ai_score = $3, voice_interview_result = $4::jsonb, notes = $5", ["interview", 88, '{"overall_score":95}', JSON.stringify({ quizResult: { score: 100, correct: 7, total: 7, passed: true } })], uid),
+      `${label} can set status->interview, ai_score, voice_interview_result, and notes.quizResult even from status='rejected'`
+    );
+  }
+
+  console.log("\n== 5b. voice_interview_transcript stays candidate-writable (self-reported, not a score) ==");
+  {
+    const appId = await newApplication("pending");
+    await expectOk(
+      () => updateAsCandidate(appId, "voice_interview_transcript = $2::jsonb", ['[{"role":"user","content":"hi"}]']),
+      "candidate can still write voice_interview_transcript directly"
     );
   }
 
@@ -458,7 +483,62 @@ async function main() {
     );
   }
 
-  console.log("\n== 7. job_quiz_keys extraction (still intact) ==");
+  console.log("\n== 7. submit_voice_interview_manual_end (manual-end fallback, server-graded) ==");
+
+  {
+    const appId = await newApplication("pending");
+    await actAs(candidateId, "authenticated");
+    const transcript = [
+      { role: "user", content: "Hi, this is me." },
+      { role: "assistant", content: "Hello!" },
+      { role: "user", content: "" }, // blank turns don't count
+    ];
+    const result = await db.query(
+      `SELECT public.submit_voice_interview_manual_end($1, $2::jsonb, $3) AS r`,
+      [appId, JSON.stringify(transcript), 42]
+    );
+    const r = result.rows[0].r;
+    ok(r.overall_score === null, `overall_score is null, not attacker-influenceable (got ${r.overall_score})`);
+    ok(r.recommendation === "review", `recommendation is fixed "review" (got ${r.recommendation})`);
+    ok(r.credibility_rating === "manual_review_required", `credibility_rating is fixed (got ${r.credibility_rating})`);
+    ok(r.candidate_turns === 1, `candidate_turns counted from transcript (got ${r.candidate_turns})`);
+    ok(r.ava_turns === 1, `ava_turns counted from transcript (got ${r.ava_turns})`);
+    ok(r.duration_seconds === 42, `duration_seconds passed through (got ${r.duration_seconds})`);
+
+    const appRow = (await db.query(
+      `SELECT voice_interview_result, voice_interview_transcript FROM public.applications WHERE id = $1`,
+      [appId]
+    )).rows[0];
+    ok(
+      appRow.voice_interview_result.recommendation === "review",
+      "voice_interview_result was actually persisted by the RPC (transaction-local guard bypass worked)"
+    );
+    ok(
+      JSON.stringify(appRow.voice_interview_transcript) === JSON.stringify(transcript),
+      "voice_interview_transcript was persisted by the RPC"
+    );
+
+    // The RPC never accepts a score/recommendation parameter at all — there
+    // is no way to pass one in. Confirm a direct candidate write is still
+    // denied immediately afterward (no residual bypass window).
+    await expectFail(
+      () => updateAsCandidate(appId, "voice_interview_result = $2::jsonb", ['{"overall_score":100}']),
+      "candidate still cannot forge voice_interview_result after a manual-end submission"
+    );
+  }
+
+  {
+    // Candidate cannot manual-end someone else's application.
+    const appId = await newApplication("pending");
+    await actAs(randomUUID(), "authenticated");
+    await expectFail(
+      () => db.query(`SELECT public.submit_voice_interview_manual_end($1, '[]'::jsonb, 10) AS r`, [appId]),
+      "submit_voice_interview_manual_end refuses a caller who isn't the application's candidate",
+      "Not authorized"
+    );
+  }
+
+  console.log("\n== 8. job_quiz_keys extraction (still intact) ==");
   {
     const keys = await db.query(
       `SELECT step_id, question_id, key FROM public.job_quiz_keys WHERE job_id = $1 ORDER BY question_id`,
