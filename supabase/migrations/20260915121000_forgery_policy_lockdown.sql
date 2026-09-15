@@ -114,12 +114,22 @@ REVOKE INSERT ON public.blueprint_purchases FROM authenticated, anon;
 --      user_id/signer_name/signer_email/signer_role from the caller's own
 --      auth.uid()/profile — never trusted from the client payload — and
 --      nulls out every signature/hash field (signature_method,
---      consent_confirmed, document_hash, pre_signature_hash,
---      post_signature_hash, signing_order_position, page_numbers_signed,
---      signature_event_id), so even an action this migration failed to
---      exclude can never carry a forged identity or a forged hash. A
---      service_role caller (the future real signing edge function) is left
---      untouched — it is the authoritative source for exactly these fields.
+--      consent_confirmed, pre_signature_hash, post_signature_hash,
+--      signing_order_position, page_numbers_signed, signature_event_id) plus
+--      document_hash on every action EXCEPT 'created'/'document_created', so
+--      even an action this migration failed to exclude can never carry a
+--      forged identity or a forged signing hash. document_hash is left alone
+--      on 'created'/'document_created' specifically because
+--      DocumentWizard.tsx:735 — the one live client insert this migration's
+--      policy allow-list actually admits — legitimately sets it to a
+--      client-computed content-integrity hash of the document its own
+--      caller (forced to user_id above) just created; that is not part of
+--      the forged-signing-attestation surface this migration closes, and
+--      EmployerReviewPanel.tsx, SignedDocumentViewer.tsx,
+--      completionCertificate.ts and certificatePDF.ts all read it back for
+--      the audit trail / completion certificate shown today. A service_role
+--      caller (the future real signing edge function) is left untouched on
+--      every field — it is the authoritative source for all of them.
 --
 -- The existing immutability triggers (prevent_audit_update /
 -- prevent_audit_delete, from 20251215015158_*.sql) are untouched and keep
@@ -163,16 +173,25 @@ BEGIN
   NEW.signer_name := v_name;
   NEW.signer_email := v_email;
 
-  -- No client-origin row may carry a signature or hash claim, regardless of
-  -- what the action turns out to be.
+  -- No client-origin row may carry a signing-only signature or hash claim,
+  -- regardless of what the action turns out to be.
   NEW.signature_method := NULL;
   NEW.consent_confirmed := NULL;
-  NEW.document_hash := NULL;
   NEW.pre_signature_hash := NULL;
   NEW.post_signature_hash := NULL;
   NEW.signing_order_position := NULL;
   NEW.page_numbers_signed := NULL;
   NEW.signature_event_id := NULL;
+
+  -- document_hash is the exception: on 'created'/'document_created' it is
+  -- the client-computed content-integrity hash of the document the caller
+  -- (user_id already forced above) just made, not a signing attestation —
+  -- DocumentWizard.tsx sets it on every document it creates today, and the
+  -- audit-trail UI and completion certificate read it back. Every other
+  -- action still has it stripped, same as every other hash field.
+  IF NEW.action NOT IN ('created', 'document_created') THEN
+    NEW.document_hash := NULL;
+  END IF;
 
   RETURN NEW;
 END;

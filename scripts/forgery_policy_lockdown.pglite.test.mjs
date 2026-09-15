@@ -501,16 +501,25 @@ async function main() {
     );
   }
 
-  check(
-    "legit: the document's sender (employer who created it) can log 'created'",
-    (
-      await asUser(
-        EMP_A,
-        "authenticated",
-        `insert into public.document_audit_logs (document_id, user_id, action) values ('${DOC_AX}', '${EMP_A}', 'created')`
-      )
-    ).ok
-  );
+  {
+    // Matches the real shape of src/components/documents/DocumentWizard.tsx:723-737
+    // — the one live client insert this policy allow-list admits — which sets
+    // document_hash to a client-computed content-integrity hash on 'created'.
+    const r = await asUser(
+      EMP_A,
+      "authenticated",
+      `insert into public.document_audit_logs (document_id, user_id, action, document_hash) values ('${DOC_AX}', '${EMP_A}', 'created', 'v1-content-hash')`
+    );
+    check("legit: the document's sender (employer who created it) can log 'created'", r.ok);
+    const row = await asPostgres(
+      `select document_hash from public.document_audit_logs where document_id = '${DOC_AX}' and action = 'created' order by created_at desc limit 1`
+    );
+    check(
+      "...and the trigger preserves document_hash on 'created' (DocumentWizard's v1 content-integrity hash, not a signing claim) — read back by EmployerReviewPanel.tsx, SignedDocumentViewer.tsx and completionCertificate.ts",
+      row.rows[0]?.document_hash === "v1-content-hash",
+      JSON.stringify(row.rows[0])
+    );
+  }
 
   check(
     "legit: the document's recipient (candidate) can log 'viewed'",
