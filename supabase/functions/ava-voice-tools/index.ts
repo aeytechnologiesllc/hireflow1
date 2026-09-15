@@ -166,7 +166,7 @@ serve(async (req) => {
         // Verify the application belongs to this employer and get workflow steps
         const { data: app, error: appError } = await supabaseClient
           .from("applications")
-          .select("id, job_id, jobs!inner(employer_id, workflow_steps)")
+          .select("id, job_id, notes, jobs!inner(employer_id, workflow_steps)")
           .eq("id", application_id)
           .eq("jobs.employer_id", user.id)
           .single();
@@ -203,6 +203,32 @@ serve(async (req) => {
         const updates: any = { phase: normalizedPhase, updated_at: new Date().toISOString() };
         if (new_status) {
           updates.status = new_status;
+        }
+
+        // Sending a candidate back to a quiz step is a request to retake it.
+        // submit_quiz_attempt() is one-shot per (application, step) — it
+        // refuses to grade again once notes[stepId] or notes.quizResult
+        // already holds a result, which is exactly the state a candidate
+        // who already finished the quiz once is in. Clear that step's saved
+        // result (and the top-level quizResult summary, since a "which quiz
+        // step" isn't tracked separately from "the candidate's latest quiz
+        // result") here, as part of the employer's own write, so the
+        // reopened quiz step is actually retakeable instead of erroring
+        // with "This quiz has already been submitted." Only fires when the
+        // destination phase really is a quiz step, and only touches the
+        // quiz-shaped keys in notes — every other note (application
+        // answers, typing test, chat transcripts, ...) is left untouched.
+        if (matchedPhase?.type === "quiz") {
+          let existingNotes: Record<string, any> = {};
+          try {
+            existingNotes = typeof app.notes === "string" ? JSON.parse(app.notes) : (app.notes as any) || {};
+          } catch {
+            existingNotes = {};
+          }
+          if (existingNotes[normalizedPhase] || existingNotes.quizResult) {
+            const { [normalizedPhase]: _droppedStep, quizResult: _droppedResult, ...rest } = existingNotes;
+            updates.notes = JSON.stringify(rest);
+          }
         }
 
         const { error: updateError } = await supabaseClient

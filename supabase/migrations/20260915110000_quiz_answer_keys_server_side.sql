@@ -31,8 +31,25 @@
 --      RPC's own returned score is an oracle a candidate can query
 --      repeatedly (fixing all-but-one answer and cycling the rest) to
 --      reconstruct the whole answer key through the "legitimate" endpoint.
---      Retaking a quiz after the fact is out of scope for this migration —
---      see knownLimits in this task's report.
+--      An employer sending a candidate back to redo a quiz step (Ava's
+--      move_applicant_to_phase tool, supabase/functions/ava-voice-tools)
+--      now clears that step's saved notes/quizResult as part of the same
+--      move, which is what actually reopens the one-shot guard — see that
+--      function for why. The notes/phase_ai_analysis this RPC writes never
+--      carry correctAnswer / correctAnswers / fit_context: applications.
+--      notes is readable by the candidate via their own unrestricted SELECT
+--      policy (and QuizPhase.tsx holds a live realtime subscription on
+--      their own application row), so writing the key into notes would
+--      hand it straight back to the candidate's browser seconds after they
+--      submit — the exact bug this migration exists to close, one layer
+--      down. Only the candidate's own answers and per-question isCorrect/
+--      isPartialCredit are stored; an employer view that needs the actual
+--      key merges it in separately via get_job_quiz_keys, the same
+--      owner/team-only RPC the job edit screen already uses (src/lib/
+--      quizAnswerKeys.ts) — no employer-facing code today reads a
+--      per-question correctAnswer out of notes (checked: src/cockpit/lib/
+--      mappers.ts and src/cockpit/pages/Applicants.tsx only ever read the
+--      aggregate notes.quizResult.score/passed).
 --   5. Adds a BEFORE UPDATE trigger on applications that blocks a candidate
 --      from rewriting their own status, job_id, candidate_id, any AI/score
 --      column, or a quiz result inside notes — outside of
@@ -337,10 +354,15 @@ BEGIN
   -- so two attempts racing each other still serialize correctly — the
   -- second sees the first's committed result before it grades anything.
   --
-  -- Known limitation (see knownLimits in this task's report): there is
-  -- currently no way to let a candidate retake a quiz after the fact —
-  -- reopening one requires a future employer/service-role action that
-  -- explicitly clears notes[stepId] and notes.quizResult first.
+  -- Retaking a quiz after the fact: move_applicant_to_phase (supabase/
+  -- functions/ava-voice-tools/index.ts), the one live employer/Ava action
+  -- that sends a candidate back to a quiz step, now clears notes[stepId]
+  -- and notes.quizResult as part of that same move when the destination
+  -- phase is a quiz step — an employer write, not this RPC, since only the
+  -- employer/team member has standing to decide a retake is warranted.
+  -- That is the only place in the app that reopens this guard today; any
+  -- future feature that wants to allow a retake must clear the same two
+  -- keys before the candidate calls this RPC again.
   IF (existing_notes -> p_step_id ->> 'completedAt') IS NOT NULL
      OR (existing_notes -> 'quizResult') IS NOT NULL THEN
     RAISE EXCEPTION 'This quiz has already been submitted';
@@ -436,6 +458,10 @@ BEGIN
       BEGIN
         ans_idx := CASE WHEN jsonb_typeof(user_answer) = 'number' THEN (user_answer)::int ELSE NULL END;
         opt_text := CASE WHEN ans_idx IS NOT NULL THEN (q->'options'->ans_idx) ELSE NULL END;
+        -- fit_context is answer-key content (an internal rubric note, not
+        -- anything the candidate chose), so it is deliberately NOT written
+        -- into notes here — see the big comment above this function for why
+        -- notes must never carry answer-key material.
         question_summary := jsonb_build_object(
           'questionId', q_id,
           'question', q->'question',
@@ -443,8 +469,7 @@ BEGIN
           'selectedAnswer', ans_idx,
           'selectedAnswerText', COALESCE(opt_text, to_jsonb('Not answered'::text)),
           'correctAnswer', NULL,
-          'isCorrect', NULL,
-          'fit_context', COALESCE(key_obj->'fit_context', 'null'::jsonb)
+          'isCorrect', NULL
         );
       END;
 
@@ -487,6 +512,10 @@ BEGIN
         correct_total := correct_total + 0.5;
       END IF;
 
+      -- correctAnswers is the answer key itself — deliberately omitted from
+      -- what gets written to notes (see the big comment above this
+      -- function). isCorrect/isPartialCredit report on THIS candidate's own
+      -- answer, which is fine for them to read back.
       question_summary := jsonb_build_object(
         'questionId', q_id,
         'question', q->'question',
@@ -495,7 +524,6 @@ BEGIN
           SELECT COALESCE(jsonb_agg(COALESCE(q->'options'->(idx.value::int), to_jsonb(''::text))), '[]'::jsonb)
           FROM jsonb_array_elements_text(COALESCE(user_answer, '[]'::jsonb)) idx
         ),
-        'correctAnswers', COALESCE(key_obj->'correct_answers', '[]'::jsonb),
         'isCorrect', (all_correct_sel AND no_extras),
         'isPartialCredit', ((NOT all_correct_sel) AND any_overlap)
       );
@@ -525,6 +553,9 @@ BEGIN
         correct_total := correct_total + 1;
       END IF;
 
+      -- correct_answer_idx is the answer key itself — used above only to
+      -- compute isCorrect/credit, deliberately never written into notes
+      -- (see the big comment above this function).
       question_summary := jsonb_build_object(
         'questionId', q_id,
         'question', q->'question',
@@ -534,7 +565,6 @@ BEGIN
           WHEN jsonb_typeof(user_answer) = 'number' THEN COALESCE(q->'options'->((user_answer)::int), to_jsonb('Not answered'::text))
           ELSE to_jsonb('Not answered'::text)
         END,
-        'correctAnswer', correct_answer_idx,
         'isCorrect', (correct_answer_idx IS NOT NULL AND jsonb_typeof(user_answer) = 'number' AND (user_answer)::int = correct_answer_idx)
       );
     END IF;

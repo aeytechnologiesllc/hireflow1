@@ -118,4 +118,78 @@ export default [
       return detail.length ? { ok: false, detail } : { ok: true };
     },
   },
+
+  {
+    id: "submit-quiz-attempt-never-writes-the-key-into-notes",
+    why:
+      "submit_quiz_attempt() writes applications.notes, and that column has no column-level " +
+      "RLS restriction — the same candidate who just submitted can read their own notes right " +
+      "back (their own SELECT policy, and QuizPhase.tsx's own realtime subscription on that " +
+      "row). Writing correctAnswer / correctAnswers / fit_context into notes there would hand " +
+      "the answer key to the candidate's browser seconds after they submit — the exact 'reaches " +
+      "the candidate's browser' bug this migration exists to close, just moved from the " +
+      "pre-submission jobs row to the post-submission notes column. Only a bare 'correctAnswer', " +
+      "NULL placeholder (the text/fit question shapes, which never had a key-derived answer to " +
+      "report) is allowed; every other occurrence, and any 'correctAnswers'/'fit_context' key at " +
+      "all, inside the function body means the key is leaking into notes again.",
+    async run({ read }) {
+      const file = "supabase/migrations/20260915110000_quiz_answer_keys_server_side.sql";
+      const text = await read(file);
+      if (text == null) return { ok: false, detail: [`${file} is missing`] };
+
+      const start = text.indexOf("CREATE OR REPLACE FUNCTION public.submit_quiz_attempt(");
+      if (start === -1) return { ok: false, detail: ["submit_quiz_attempt() definition not found"] };
+      const end = text.indexOf("$function$;", start);
+      if (end === -1) return { ok: false, detail: ["submit_quiz_attempt() body has no closing $function$; — can't scope the check"] };
+      const body = text.slice(start, end);
+      const bodyLines = body.split("\n");
+      const bodyStartLine = text.slice(0, start).split("\n").length;
+
+      const detail = [];
+
+      bodyLines.forEach((line, i) => {
+        if (/'correctAnswers'/.test(line) || /'fit_context'/.test(line)) {
+          detail.push(`${file}:${bodyStartLine + i}  answer-key field written into notes: ${line.trim().slice(0, 120)}`);
+        }
+        if (/'correctAnswer'\s*,/.test(line) && !/'correctAnswer'\s*,\s*NULL\b/.test(line)) {
+          detail.push(`${file}:${bodyStartLine + i}  'correctAnswer' written as something other than a NULL placeholder: ${line.trim().slice(0, 120)}`);
+        }
+      });
+
+      return detail.length ? { ok: false, detail } : { ok: true };
+    },
+  },
+
+  {
+    id: "sending-a-candidate-back-to-quiz-reopens-it",
+    why:
+      "submit_quiz_attempt() is unconditionally one-shot per (application, step): once " +
+      "notes[stepId]/notes.quizResult exist it refuses to grade again. move_applicant_to_phase " +
+      "(supabase/functions/ava-voice-tools/index.ts) is the one live employer/Ava action that " +
+      "sends a candidate back to a quiz step, and it commonly does so without touching " +
+      "application.status — so QuizPhase.tsx shows the quiz form again, but submitting it hits " +
+      "the one-shot guard and the candidate is stuck with no way to ever finish that phase. If " +
+      "this function stops clearing the quiz step's saved notes when moving a candidate onto a " +
+      "quiz-type phase, that regression is back.",
+    async run({ read }) {
+      const file = "supabase/functions/ava-voice-tools/index.ts";
+      const text = await read(file);
+      if (text == null) return { ok: false, detail: [`${file} is missing`] };
+
+      const start = text.indexOf('case "move_applicant_to_phase"');
+      if (start === -1) return { ok: false, detail: ["move_applicant_to_phase case not found"] };
+      const end = text.indexOf('case "reject_applicant"', start);
+      const body = end === -1 ? text.slice(start) : text.slice(start, end);
+
+      const detail = [];
+      if (!/matchedPhase\?\.type\s*===\s*["']quiz["']/.test(body)) {
+        detail.push(`${file}: move_applicant_to_phase no longer branches on the destination phase being a quiz step`);
+      }
+      if (!/updates\.notes\s*=/.test(body)) {
+        detail.push(`${file}: move_applicant_to_phase no longer clears notes when reopening a quiz step`);
+      }
+
+      return detail.length ? { ok: false, detail } : { ok: true };
+    },
+  },
 ];
