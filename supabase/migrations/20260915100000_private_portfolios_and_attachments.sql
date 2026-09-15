@@ -42,9 +42,19 @@ using (
 -- actually references the file. There is no dedicated column for it — the path
 -- is recorded inside applications.notes (a JSON blob) as a workflow step's
 -- `files[].url` / the legacy `portfolioResult.files[].url` — so match it the
--- same way "Employers can view applicant requested documents" already matches
--- document_requests.file_url: a LIKE match on the stored path, quoted so a
--- shorter path can never accidentally match as a substring of a longer one.
+-- same way "Employers can view applicant requested documents" and "Employers
+-- read applicant resumes" already match document_requests.file_url /
+-- applications.resume_url: an unquoted LIKE against the stored path.
+--
+-- An earlier version of this policy wrapped the path in literal double quotes
+-- (`'%"' || objects.name || '"%'`), matching only the bare-path JSON shape
+-- PortfolioUploadPhase.tsx writes today (`"url":"<path>"`). Live data has at
+-- least one application whose notes still hold the OLD shape — a full public
+-- URL (`.../storage/v1/object/public/portfolios/<uid>/<file>`) — where the
+-- character before the path is `/`, not `"`, so the quoted match never fires
+-- and the job owner/team lose access to that (and any other legacy) file.
+-- Dropping the quotes fixes both shapes and matches the sibling resumes
+-- policies' already-proven pattern in this same schema.
 drop policy if exists "Employers can view candidate portfolio files" on storage.objects;
 create policy "Employers can view candidate portfolio files"
 on storage.objects for select
@@ -59,7 +69,7 @@ using (
       on tm.employer_id = j.employer_id
      and tm.user_id = auth.uid()
      and tm.status = 'active'
-    where a.notes like ('%"' || objects.name || '"%')
+    where a.notes like ('%' || objects.name || '%')
       and (j.employer_id = auth.uid() or tm.id is not null)
   )
 );
