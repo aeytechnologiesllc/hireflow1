@@ -145,6 +145,14 @@ const isResumeQuestion = (question: { id: string; question: string; type: string
   return text.includes("resume") || text.includes("cv") || text.includes("curriculum");
 };
 
+// Validation copy, shared between validateForm (which decides whether a
+// field is wrong) and the live-clearing helpers below (which decide whether
+// a message already on screen is now stale). Kept as one string per case so
+// the two never drift apart.
+const REQUIRED_FIELD_MESSAGE = "This one's needed to continue";
+const EMAIL_FIELD_MESSAGE = "That doesn't look like a valid email — mind double-checking?";
+const RESUME_REQUIRED_MESSAGE = `Add your resume to continue — ${RESUME_FORMATS_LABEL}, under 10 MB`;
+
 const parseCriteriaItems = (value?: string | null) => {
   if (!value) return [];
 
@@ -223,6 +231,12 @@ export default function ApplicationFormPhase() {
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  // Flips true the first time the candidate presses Continue (set inside
+  // validateForm()) and then stays true for the rest of the session — it's
+  // what tells syncQuestionError below "a submit attempt has happened, so
+  // live-sync this field's warning" instead of gating on the field's own
+  // entry, which disappears the moment it's fixed.
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [questionFiles, setQuestionFiles] = useState<Record<string, File>>({});
   const [questionFileUrls, setQuestionFileUrls] = useState<Record<string, string>>({});
   const [uploadingQuestions, setUploadingQuestions] = useState<Record<string, boolean>>({});
@@ -342,6 +356,83 @@ export default function ApplicationFormPhase() {
   const hasQuestions = questions.length > 0;
   const isAutoPilot = application?.jobs?.processing_mode === "auto";
   const hasUploadsInProgress = isUploading || Object.values(uploadingQuestions).some(Boolean);
+
+  // Same predicate validateForm uses to find a resume-type file question —
+  // kept in one place so the live-clearing helpers below can't drift from
+  // what submit-time validation considers "answered".
+  const findResumeFileQuestion = () =>
+    questions.find(
+      (q) =>
+        normalizeQuestionType(q.type) === "file" &&
+        (q.question.toLowerCase().includes("resume") ||
+          q.question.toLowerCase().includes("cv") ||
+          q.question.toLowerCase().includes("curriculum") ||
+          q.id.toLowerCase().includes("resume")),
+    );
+
+  // The dedicated Resume field carries its own validationErrors.resume
+  // entry, set only inside validateForm() on submit. Left alone, it never
+  // clears again — a candidate who fixes it by attaching a file still sees
+  // the red "add your resume" warning until they hit Continue a second
+  // time. These two helpers keep that one entry in sync with what's
+  // actually attached, without touching how validateForm decides pass/fail.
+  const clearResumeError = () => {
+    setValidationErrors((prev) => {
+      if (!prev.resume) return prev;
+      const next = { ...prev };
+      delete next.resume;
+      return next;
+    });
+  };
+
+  // `overrides` covers the state setters just called alongside this in the
+  // same click handler — their new value hasn't landed in this render's
+  // closure yet, so callers that just flipped one of these pass the value
+  // they set instead of letting this read the stale one.
+  const markResumeMissingIfNoOtherSource = (overrides?: { usingProfileResume?: boolean }) => {
+    if (!requiresResume) return;
+    const hasValidApplicationResume = isSupportedResumeUrl(application?.resume_url);
+    const resumeFileQuestion = findResumeFileQuestion();
+    const hasResumeFromFileQuestion = resumeFileQuestion && !!answers[resumeFileQuestion.id];
+    const stillUsingProfileResume = overrides?.usingProfileResume ?? usingProfileResume;
+    if (hasValidApplicationResume || stillUsingProfileResume || hasResumeFromFileQuestion) return;
+    setValidationErrors((prev) =>
+      prev.resume === RESUME_REQUIRED_MESSAGE ? prev : { ...prev, resume: RESUME_REQUIRED_MESSAGE },
+    );
+  };
+
+  // Same idea as the resume helpers above, generalized to every other
+  // validationErrors entry (per-question required/email checks, and
+  // question-level file uploads). Gated on hasAttemptedSubmit rather than on
+  // this question's own entry still being present — that entry gets deleted
+  // the instant the field is fixed (right below), so gating on it meant a
+  // question that was ever fixed once could never show its warning again:
+  // upload a required file, then remove it, and nothing brought the "needed
+  // to continue" message back — only the next full Continue click did.
+  // hasAttemptedSubmit instead remembers "the candidate has tried to submit
+  // at least once" and stays true for the rest of the session, so a field
+  // that gets re-broken after being fixed still live-syncs. Before the first
+  // Continue press it's false, so a fresh required field still stays quiet
+  // until then, exactly like before.
+  const syncQuestionError = (question: ApplicationQuestion, value: string) => {
+    if (!hasAttemptedSubmit) return;
+    setValidationErrors((prev) => {
+      let message: string | undefined;
+      if (question.required && !value?.trim()) {
+        message = REQUIRED_FIELD_MESSAGE;
+      } else if (normalizeQuestionType(question.type) === "email" && value && !isValidEmail(value)) {
+        message = EMAIL_FIELD_MESSAGE;
+      }
+      if (!message) {
+        if (!prev[question.id]) return prev;
+        const next = { ...prev };
+        delete next[question.id];
+        return next;
+      }
+      if (prev[question.id] === message) return prev;
+      return { ...prev, [question.id]: message };
+    });
+  };
 
   // Where the candidate is in the whole journey — derived from the job's real
   // workflow_steps via the shared candidateJourney builder, so this screen
@@ -548,6 +639,10 @@ export default function ApplicationFormPhase() {
     }
 
     setResumeFile(file);
+    // A valid resume is attached right here — the moment the candidate
+    // picked it, not the moment the upload finishes. Any "add your resume"
+    // warning still on screen from an earlier submit attempt is stale now.
+    clearResumeError();
     setIsUploading(true);
 
     try {
@@ -605,6 +700,10 @@ export default function ApplicationFormPhase() {
       console.error("Error uploading resume:", error);
       toast.error("That upload didn't go through — please try again.");
       setResumeFile(null);
+      // The attach didn't actually take — put the warning back if nothing
+      // else already covers the requirement, instead of leaving the field
+      // looking empty and silently fine.
+      markResumeMissingIfNoOtherSource();
     } finally {
       setIsUploading(false);
     }
@@ -720,6 +819,7 @@ export default function ApplicationFormPhase() {
 
       setQuestionFileUrls(prev => ({ ...prev, [questionId]: fileName }));
       setAnswers(prev => ({ ...prev, [questionId]: fileName }));
+      if (question) syncQuestionError(question, fileName);
       toast.success("File uploaded.");
     } catch (error) {
       console.error("Error uploading file:", error);
@@ -735,6 +835,9 @@ export default function ApplicationFormPhase() {
   };
 
   const validateForm = () => {
+    // From here on, every field's live onChange/remove handler is allowed to
+    // sync its own warning in real time (see syncQuestionError above).
+    setHasAttemptedSubmit(true);
     const errors: Record<string, string> = {};
 
     // IMPORTANT: Only validate questions that are VISIBLE to the user
@@ -750,10 +853,10 @@ export default function ApplicationFormPhase() {
     // Validate required questions (only visible ones)
     visibleQuestions.forEach(q => {
       if (q.required && !answers[q.id]?.trim()) {
-        errors[q.id] = "This one's needed to continue";
+        errors[q.id] = REQUIRED_FIELD_MESSAGE;
       }
       if (normalizeQuestionType(q.type) === "email" && answers[q.id] && !isValidEmail(answers[q.id])) {
-        errors[q.id] = "That doesn't look like a valid email — mind double-checking?";
+        errors[q.id] = EMAIL_FIELD_MESSAGE;
       }
     });
 
@@ -761,19 +864,13 @@ export default function ApplicationFormPhase() {
     // FIXED: Only accept application.resume_url if it looks like an actual resume (PDF in resumes bucket)
     // This prevents non-resume uploads (like "proof of internet speed") from bypassing resume validation
     const hasValidApplicationResume = isSupportedResumeUrl(application?.resume_url);
-    
+
     // Check if there's a resume-specific file question that has been answered
-    const resumeFileQuestion = questions.find(q => 
-      normalizeQuestionType(q.type) === "file" && 
-      (q.question.toLowerCase().includes("resume") || 
-       q.question.toLowerCase().includes("cv") || 
-       q.question.toLowerCase().includes("curriculum") ||
-       q.id.toLowerCase().includes("resume"))
-    );
+    const resumeFileQuestion = findResumeFileQuestion();
     const hasResumeFromFileQuestion = resumeFileQuestion && !!answers[resumeFileQuestion.id];
-    
+
     if (requiresResume && !resumeFile && !hasValidApplicationResume && !usingProfileResume && !hasResumeFromFileQuestion) {
-      errors.resume = `Add your resume to continue — ${RESUME_FORMATS_LABEL}, under 10 MB`;
+      errors.resume = RESUME_REQUIRED_MESSAGE;
     }
 
     setValidationErrors(errors);
@@ -1214,7 +1311,7 @@ export default function ApplicationFormPhase() {
                   id={fieldId}
                   type="text"
                   value={answers[question.id] || ""}
-                  onChange={(e) => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
+                  onChange={(e) => { setAnswers(prev => ({ ...prev, [question.id]: e.target.value })); syncQuestionError(question, e.target.value); }}
                   placeholder="Your answer"
                   className={cn(FIELD_CLASS, validationErrors[question.id] && "border-destructive")}
                   onCopy={handleCopy}
@@ -1230,12 +1327,14 @@ export default function ApplicationFormPhase() {
                   inputMode="numeric"
                   pattern="[0-9]*"
                   value={answers[question.id] || ""}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const numericValue = e.target.value.replace(/[^\d.]/g, "");
                     setAnswers((prev) => ({
                       ...prev,
-                      [question.id]: e.target.value.replace(/[^\d.]/g, ""),
-                    }))
-                  }
+                      [question.id]: numericValue,
+                    }));
+                    syncQuestionError(question, numericValue);
+                  }}
                   placeholder="Your answer"
                   className={cn(FIELD_CLASS, validationErrors[question.id] && "border-destructive")}
                   onCopy={handleCopy}
@@ -1248,7 +1347,7 @@ export default function ApplicationFormPhase() {
                 <Input
                   id={fieldId}
                   value={answers[question.id] || ""}
-                  onChange={(e) => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
+                  onChange={(e) => { setAnswers(prev => ({ ...prev, [question.id]: e.target.value })); syncQuestionError(question, e.target.value); }}
                   placeholder="Your answer"
                   className={cn(FIELD_CLASS, validationErrors[question.id] && "border-destructive")}
                   onCopy={handleCopy}
@@ -1261,7 +1360,7 @@ export default function ApplicationFormPhase() {
                 <Textarea
                   id={fieldId}
                   value={answers[question.id] || ""}
-                  onChange={(e) => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
+                  onChange={(e) => { setAnswers(prev => ({ ...prev, [question.id]: e.target.value })); syncQuestionError(question, e.target.value); }}
                   placeholder="Your answer"
                   rows={4}
                   className={cn(FIELD_CLASS, validationErrors[question.id] && "border-destructive")}
@@ -1276,7 +1375,7 @@ export default function ApplicationFormPhase() {
                   id={fieldId}
                   type="email"
                   value={answers[question.id] || ""}
-                  onChange={(e) => setAnswers(prev => ({ ...prev, [question.id]: e.target.value }))}
+                  onChange={(e) => { setAnswers(prev => ({ ...prev, [question.id]: e.target.value })); syncQuestionError(question, e.target.value); }}
                   placeholder="email@example.com"
                   className={cn(FIELD_CLASS, validationErrors[question.id] && "border-destructive")}
                   /* No anti-cheat on contact details. Pasting your own email is
@@ -1312,7 +1411,9 @@ export default function ApplicationFormPhase() {
                       const dial = (phoneCountryCodes[question.id] || "+1").replace(/\D/g, "");
                       let raw = e.target.value.replace(/\D/g, "");
                       if (dial && raw.length > 10 && raw.startsWith(dial)) raw = raw.slice(dial.length);
-                      setAnswers(prev => ({ ...prev, [question.id]: formatPhoneNumber(raw) }));
+                      const formatted = formatPhoneNumber(raw);
+                      setAnswers(prev => ({ ...prev, [question.id]: formatted }));
+                      syncQuestionError(question, formatted);
                     }}
                     placeholder="123-456-7890"
                     className={cn(FIELD_CLASS, "flex-1", validationErrors[question.id] && "border-destructive")}
@@ -1347,10 +1448,11 @@ export default function ApplicationFormPhase() {
                     <Calendar
                       mode="single"
                       selected={answers[question.id] ? new Date(answers[question.id]) : undefined}
-                      onSelect={(date) => setAnswers(prev => ({ 
-                        ...prev, 
-                        [question.id]: date ? format(date, "yyyy-MM-dd") : "" 
-                      }))}
+                      onSelect={(date) => {
+                        const value = date ? format(date, "yyyy-MM-dd") : "";
+                        setAnswers(prev => ({ ...prev, [question.id]: value }));
+                        syncQuestionError(question, value);
+                      }}
                       captionLayout="dropdown"
                       fromYear={1920}
                       toYear={new Date().getFullYear()}
@@ -1365,7 +1467,7 @@ export default function ApplicationFormPhase() {
               {questionType === "select" && hasSelectOptions && (
                 <RadioGroup
                   value={answers[question.id] || ""}
-                  onValueChange={(value) => setAnswers(prev => ({ ...prev, [question.id]: value }))}
+                  onValueChange={(value) => { setAnswers(prev => ({ ...prev, [question.id]: value })); syncQuestionError(question, value); }}
                 >
                   {question.options.map((option, idx) => (
                     <div key={idx} className="flex items-center space-x-2">
@@ -1449,6 +1551,7 @@ export default function ApplicationFormPhase() {
                                   delete newAnswers[question.id];
                                   return newAnswers;
                                 });
+                                syncQuestionError(question, "");
                               }}
                             >
                               <X className="h-4 w-4" />
@@ -1509,6 +1612,7 @@ export default function ApplicationFormPhase() {
                                   delete newAnswers[question.id];
                                   return newAnswers;
                                 });
+                                syncQuestionError(question, "");
                               }}
                             >
                               <X className="h-4 w-4" />
@@ -1606,6 +1710,7 @@ export default function ApplicationFormPhase() {
                             onClick={(e) => {
                               e.stopPropagation();
                               setResumeFile(null);
+                              markResumeMissingIfNoOtherSource();
                             }}
                           >
                             <X className="h-4 w-4" />
@@ -1650,6 +1755,7 @@ export default function ApplicationFormPhase() {
                             onClick={(e) => {
                               e.stopPropagation();
                               setUsingProfileResume(false);
+                              markResumeMissingIfNoOtherSource({ usingProfileResume: false });
                             }}
                           >
                             <X className="h-4 w-4" />
