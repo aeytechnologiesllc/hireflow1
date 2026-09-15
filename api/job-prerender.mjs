@@ -43,6 +43,40 @@ function esc(s) {
     .replace(/"/g, "&quot;");
 }
 
+/**
+ * Allow-list HTML sanitizer for TipTap-authored job content embedded in the
+ * JobPosting JSON-LD `description` field. This file is deliberately
+ * dependency-free (see file header), so this is a small regex-based
+ * tag/attribute stripper rather than a DOM-based one: everything not
+ * explicitly allowed is dropped instead of escaped, so a malicious tag can't
+ * smuggle itself through as unexpected markup.
+ */
+const ALLOWED_TAGS = new Set([
+  "p", "br", "strong", "b", "em", "i", "u", "s", "strike",
+  "ul", "ol", "li", "h1", "h2", "h3", "h4", "blockquote", "a", "code", "pre", "hr",
+]);
+const SAFE_HREF = /^(?:https?:|mailto:|tel:|\/|#)/i;
+
+function sanitizeHtml(html) {
+  return String(html ?? "")
+    .replace(/<(script|style|iframe|object|embed|form|svg|math)[\s\S]*?<\/\1\s*>/gi, "")
+    .replace(/<(script|style|iframe|object|embed|form|svg|math)[^>]*>/gi, "")
+    .replace(/<[^>]+>/g, (tag) => {
+      const m = /^<\/?([a-zA-Z0-9]+)/.exec(tag);
+      const name = m ? m[1].toLowerCase() : "";
+      if (!ALLOWED_TAGS.has(name)) return "";
+      if (/^<\//.test(tag)) return `</${name}>`;
+      if (name === "a") {
+        const hrefMatch = /href\s*=\s*"([^"]*)"|href\s*=\s*'([^']*)'/i.exec(tag);
+        const href = hrefMatch ? (hrefMatch[1] ?? hrefMatch[2] ?? "") : "";
+        return SAFE_HREF.test(href.trim())
+          ? `<a href="${esc(href)}" rel="noopener noreferrer">`
+          : "<a>";
+      }
+      return `<${name}>`;
+    });
+}
+
 function isoDate(d) {
   return d.toISOString().slice(0, 10);
 }
@@ -80,12 +114,12 @@ function buildJobPostingSchema(job, { company, logo, origin }) {
 
   const descHtml =
     [
-      job.description ? `<p>${job.description}</p>` : "",
-      job.responsibilities ? `<h3>What you'll do</h3><p>${job.responsibilities}</p>` : "",
-      job.requirements ? `<h3>What we're looking for</h3><p>${job.requirements}</p>` : "",
+      job.description ? `<p>${sanitizeHtml(job.description)}</p>` : "",
+      job.responsibilities ? `<h3>What you'll do</h3><p>${sanitizeHtml(job.responsibilities)}</p>` : "",
+      job.requirements ? `<h3>What we're looking for</h3><p>${sanitizeHtml(job.requirements)}</p>` : "",
     ]
       .filter(Boolean)
-      .join("") || `<p>${job.title}</p>`;
+      .join("") || `<p>${esc(job.title)}</p>`;
 
   const empType = EMP_TYPE[(job.job_type ?? "").toLowerCase()] ?? "FULL_TIME";
   // Only state an expiry the employer actually set. We used to invent

@@ -80,6 +80,42 @@ function looksLikeHtml(s) {
   return /<[a-z][\s\S]*>/i.test(String(s ?? ""));
 }
 
+/**
+ * Allow-list HTML sanitizer for TipTap-authored job content that gets
+ * embedded in the public XML feeds (jobs.xml / adzuna.xml / jooble.xml).
+ * No DOM available in this runtime (dependency-free serverless functions),
+ * so this is a regex-based tag/attribute stripper — deliberately narrow:
+ * everything not explicitly allowed is removed rather than escaped, so a
+ * malicious tag can't smuggle itself through as unexpected markup.
+ */
+const ALLOWED_TAGS = new Set([
+  "p", "br", "strong", "b", "em", "i", "u", "s", "strike",
+  "ul", "ol", "li", "h1", "h2", "h3", "h4", "blockquote", "a", "code", "pre", "hr",
+]);
+const SAFE_HREF = /^(?:https?:|mailto:|tel:|\/|#)/i;
+
+function sanitizeFeedHtml(html) {
+  return String(html ?? "")
+    // Drop dangerous elements and everything inside them first.
+    .replace(/<(script|style|iframe|object|embed|form|svg|math)[\s\S]*?<\/\1\s*>/gi, "")
+    .replace(/<(script|style|iframe|object|embed|form|svg|math)[^>]*>/gi, "")
+    .replace(/<[^>]+>/g, (tag) => {
+      const m = /^<\/?([a-zA-Z0-9]+)/.exec(tag);
+      const name = m ? m[1].toLowerCase() : "";
+      if (!ALLOWED_TAGS.has(name)) return "";
+      const closing = /^<\//.test(tag);
+      if (closing) return `</${name}>`;
+      if (name === "a") {
+        const hrefMatch = /href\s*=\s*"([^"]*)"|href\s*=\s*'([^']*)'/i.exec(tag);
+        const href = hrefMatch ? (hrefMatch[1] ?? hrefMatch[2] ?? "") : "";
+        return SAFE_HREF.test(href.trim())
+          ? `<a href="${escapeHtml(href)}" rel="noopener noreferrer">`
+          : "<a>";
+      }
+      return `<${name}>`;
+    });
+}
+
 const BULLET = /^[•\-*·]\s*/;
 
 /** Plain text (blank-line paragraphs, "•"/"-" bullets, **bold**) → simple HTML. */
@@ -105,7 +141,7 @@ function textToHtml(text) {
 }
 
 function sectionHtml(text) {
-  return looksLikeHtml(text) ? String(text) : textToHtml(text);
+  return looksLikeHtml(text) ? sanitizeFeedHtml(text) : textToHtml(text);
 }
 
 /** The listing body as HTML — what every aggregator expects inside <description>. */
