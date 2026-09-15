@@ -15,9 +15,6 @@ import { motion } from "framer-motion";
 import { GOOGLE_AUTH_ENABLED } from "@/lib/googleAuth";
 
 interface InvitationData {
-  id: string;
-  invite_code: string;
-  inviter_id: string;
   invitee_email: string | null;
   invitee_name: string | null;
   department: string | null;
@@ -29,7 +26,6 @@ interface InvitationData {
   can_schedule_interviews: boolean;
   can_send_documents: boolean;
   assigned_job_ids: string[];
-  status: string;
   expires_at: string;
   inviter_profile?: {
     full_name: string;
@@ -65,44 +61,29 @@ export default function JoinTeam() {
       }
 
       try {
-        const { data: inviteData, error: inviteError } = await supabase
-          .from("team_invitations")
-          .select("*")
-          .eq("invite_code", code)
-          .maybeSingle();
+        // Server-side, code-gated lookup: only ever returns the one row
+        // whose invite_code exactly matches, and only while it's still
+        // pending and unexpired. Callable while signed out (the invitee
+        // hasn't created an account yet), and never lists other invitations.
+        const { data: rows, error: inviteError } = await supabase.rpc(
+          "get_team_invitation_by_code",
+          { p_code: code },
+        );
 
         if (inviteError) throw inviteError;
 
+        const inviteData = rows?.[0];
         if (!inviteData) {
-          setError("Invitation not found");
+          setError("This invitation link is invalid or has expired");
           setLoading(false);
           return;
         }
-
-        // Check if expired
-        if (new Date(inviteData.expires_at) < new Date()) {
-          setError("This invitation has expired");
-          setLoading(false);
-          return;
-        }
-
-        // Check if already accepted
-        if (inviteData.status !== "pending") {
-          setError("This invitation has already been used");
-          setLoading(false);
-          return;
-        }
-
-        // Fetch inviter profile
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("full_name, company_name")
-          .eq("user_id", inviteData.inviter_id)
-          .maybeSingle();
 
         setInvitation({
           ...inviteData,
-          inviter_profile: profileData || undefined,
+          inviter_profile: inviteData.company_name || inviteData.inviter_name
+            ? { full_name: inviteData.inviter_name, company_name: inviteData.company_name }
+            : undefined,
         });
 
         // Pre-fill email if specified
@@ -134,58 +115,34 @@ export default function JoinTeam() {
 
     setIsSubmitting(true);
     try {
-      // Check if email matches (if restricted)
-      if (invitation.invitee_email && user.email !== invitation.invitee_email) {
-        toast({
-          title: "Email Mismatch",
-          description: `This invitation is for ${invitation.invitee_email}. Please sign in with that email.`,
-          variant: "destructive",
-        });
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Create team member record
-      const { error: memberError } = await supabase.from("team_members").insert({
-        user_id: user.id,
-        employer_id: invitation.inviter_id,
-        invitation_id: invitation.id,
-        name: invitation.invitee_name || user.user_metadata?.full_name || "",
-        email: user.email || "",
-        department: invitation.department,
-        permission_level: invitation.permission_level,
-        can_create_jobs: invitation.can_create_jobs,
-        can_delete_jobs: invitation.can_delete_jobs,
-        can_message_candidates: invitation.can_message_candidates,
-        can_manage_pipeline: invitation.can_manage_pipeline,
-        can_schedule_interviews: invitation.can_schedule_interviews,
-        can_send_documents: invitation.can_send_documents,
-        assigned_job_ids: invitation.assigned_job_ids,
-        onboarding_completed: false,
+      // Everything that matters -- the pending/unexpired check, the invitee
+      // email match, and copying permissions/assigned_job_ids -- happens
+      // server-side inside this RPC, off the invitation row it looks up
+      // itself. The client never supplies permissions, and can't accept on
+      // someone else's behalf.
+      const { error: acceptError } = await supabase.rpc("accept_team_invitation", {
+        p_code: code!,
       });
 
-      if (memberError) {
-        if (memberError.code === "23505") {
+      if (acceptError) {
+        const message = acceptError.message || "";
+        if (message.includes("different email")) {
+          toast({
+            title: "Email Mismatch",
+            description: `This invitation is for ${invitation.invitee_email}. Please sign in with that email.`,
+            variant: "destructive",
+          });
+        } else if (message.includes("already been used")) {
           toast({
             title: "Already a Team Member",
             description: "You're already a member of this team.",
             variant: "destructive",
           });
         } else {
-          throw memberError;
+          throw acceptError;
         }
         setIsSubmitting(false);
         return;
-      }
-
-      // Update invitation status
-      const { error: updateError } = await supabase
-        .from("team_invitations")
-        .update({ status: "accepted" })
-        .eq("id", invitation.id);
-
-      if (updateError) {
-        console.error("Failed to update invitation status:", updateError);
       }
 
       // Add team_member role if not already present
