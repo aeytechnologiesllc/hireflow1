@@ -76,6 +76,7 @@ drop policy if exists "Users can delete their message attachments" on storage.ob
 
 -- Read: only the sender or receiver of the message this file is attached to
 -- (useMessages.ts stores the bare object path in messages.file_url).
+drop policy if exists "Message participants can view attachments" on storage.objects;
 create policy "Message participants can view attachments"
 on storage.objects for select
 to authenticated
@@ -92,6 +93,7 @@ using (
 -- doesn't exist until after the upload succeeds, so ownership of the folder is
 -- all an INSERT check can verify — same rule as the `videos`/`portfolios`
 -- upload policies.
+drop policy if exists "Message participants can upload attachments" on storage.objects;
 create policy "Message participants can upload attachments"
 on storage.objects for insert
 to authenticated
@@ -105,6 +107,7 @@ with check (
 -- previous policy allowed any authenticated user to delete any attachment —
 -- tightened here alongside the read/upload policies rather than left as the
 -- one door still standing open on this bucket.
+drop policy if exists "Message participants can delete attachments" on storage.objects;
 create policy "Message participants can delete attachments"
 on storage.objects for delete
 to authenticated
