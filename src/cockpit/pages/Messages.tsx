@@ -5,6 +5,7 @@ import { Paperclip } from "lucide-react";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { useAuth } from "@/hooks/useAuth";
 import { useMessageableEmployers, type MessageableEmployer } from "@/hooks/useMessages";
+import { resolveCandidateMediaUrls } from "@/utils/candidateMediaUrl";
 import CkAvatar from "../components/Avatar";
 import {
   useCockpitMessages,
@@ -334,6 +335,46 @@ export default function CockpitMessages() {
     }
     return map;
   }, [rawThread]);
+
+  // `message-attachments` is a private bucket now — `file.url` above is a bare
+  // storage path (or, for a message sent before that change, a full public URL
+  // that no longer serves anything), not something a browser can load directly.
+  // Resolve every attachment in the thread to a short-lived signed URL before
+  // rendering; a message with no file, or a signing failure, is left out and
+  // falls back to the stored value in `filesById`.
+  const [signedFileUrls, setSignedFileUrls] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    let cancelled = false;
+    const entries = Array.from(filesById.entries());
+    if (entries.length === 0) {
+      setSignedFileUrls(new Map());
+      return;
+    }
+    void (async () => {
+      const resolved = await resolveCandidateMediaUrls(
+        "message-attachments",
+        entries.map(([, f]) => f.url)
+      );
+      if (cancelled) return;
+      const next = new Map<string, string>();
+      entries.forEach(([id], i) => {
+        if (resolved[i]) next.set(id, resolved[i]!);
+      });
+      setSignedFileUrls(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [filesById]);
+
+  const resolvedFilesById = useMemo(() => {
+    const map = new Map<string, Attachment>();
+    filesById.forEach((f, id) => {
+      const signed = signedFileUrls.get(id);
+      map.set(id, signed ? { ...f, url: signed } : f);
+    });
+    return map;
+  }, [filesById, signedFileUrls]);
 
   const activeConv = conversations.find((c) => c.id === contactId);
   const activeCandidate = candidates.find((c) => c.avatar === contactId);
@@ -731,7 +772,7 @@ export default function CockpitMessages() {
                         who={m.from === "me" ? account.name : partnerShort}
                         time={m.time}
                         text={m.text}
-                        file={filesById.get(m.id)}
+                        file={resolvedFilesById.get(m.id)}
                       />
                     ))
                   )}

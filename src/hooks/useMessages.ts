@@ -364,11 +364,11 @@ export function useSendMessage() {
 
         if (uploadError) throw uploadError;
 
-        const { data: { publicUrl } } = supabase.storage
-          .from("message-attachments")
-          .getPublicUrl(filePath);
-
-        fileUrl = publicUrl;
+        // Persist the bare storage path, not a public URL — the bucket is
+        // private, so a public URL would be a permanent dead link. Viewers
+        // mint a short-lived signed URL from the path at render time (see
+        // candidateMediaUrl.ts).
+        fileUrl = filePath;
         fileName = file.name;
         fileType = file.type;
         fileSize = file.size;

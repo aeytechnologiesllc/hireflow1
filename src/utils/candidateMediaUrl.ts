@@ -1,27 +1,29 @@
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * Candidate media privacy — video introductions and portfolio work samples.
+ * Candidate media privacy — video introductions, portfolio work samples, and
+ * message attachments.
  *
  * The `videos` and `portfolios` buckets were created public, so every candidate
  * video intro sat at a permanent, unauthenticated URL: a recording of someone's
  * face and voice, made to apply for a job, readable by anyone who ever saw the
- * link and never expiring. Storage RLS policies were written for these buckets,
- * but a public bucket serves objects straight from the CDN and never consults
- * them, so those policies were decorative.
+ * link and never expiring. `message-attachments` had the same problem (public
+ * bucket, no owner check even on its RLS policies). Storage RLS policies were
+ * written for these buckets, but a public bucket serves objects straight from
+ * the CDN and never consults them, so those policies were decorative.
  *
  * This is the same treatment the `resumes` bucket already had (see
  * resumeSignedUrl.ts, written when that bucket was made private): store the
  * path, mint a short-lived signed URL at view time, and let storage RLS decide
- * who is allowed — the candidate who owns it, or the employer whose job they
- * applied to.
+ * who is allowed — the candidate who owns it, the employer whose job they
+ * applied to, or (for message attachments) the other person in the thread.
  *
  * Legacy rows hold full public URLs rather than bare paths, so the path is
  * recovered from either shape. Signing failures fall back to the stored value,
  * so a viewer degrades to the old behaviour instead of showing a broken player.
  */
 
-export type CandidateMediaBucket = "videos" | "portfolios";
+export type CandidateMediaBucket = "videos" | "portfolios" | "message-attachments";
 
 /** Pull the storage path within `bucket` out of a stored value. */
 export function candidateMediaPath(
