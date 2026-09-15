@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { getPasswordErrorMessage } from "@/lib/authErrorMessages";
 
 type AppRole = "employer" | "candidate" | "team_member" | "developer";
 
@@ -253,7 +254,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (error) {
-      return { error: error as Error, needsConfirmation: false };
+      const friendlyMessage = getPasswordErrorMessage(error);
+      const reportedError = friendlyMessage ? new Error(friendlyMessage) : (error as Error);
+      return { error: reportedError, needsConfirmation: false };
     }
 
     if (data?.session) {

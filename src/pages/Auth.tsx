@@ -11,6 +11,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { resolvePostAuthDestination } from "@/lib/authRouting";
+import { getPasswordErrorMessage } from "@/lib/authErrorMessages";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { HeroBackground } from "@/components/ava/HeroBackground";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -439,7 +440,7 @@ export default function Auth() {
       toast({
         variant: "warning",
         title: "Password Reset Failed",
-        description: error.message,
+        description: getPasswordErrorMessage(error) ?? error.message,
       });
     } else {
       toast({
