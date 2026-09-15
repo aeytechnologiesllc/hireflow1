@@ -303,6 +303,11 @@ async function run() {
   assert(await canSee(db, "portfolios", FILE_A), "job owner (employer1) can read the file their applicant's notes legitimately reference");
   await asUser(db, TEAM_ACTIVE);
   assert(await canSee(db, "portfolios", FILE_A), "an active team member assigned to job1 can read it too");
+  await asUser(db, TEAM_UNASSIGNED);
+  assert(
+    !(await canSee(db, "portfolios", FILE_A)),
+    "an active team member NOT assigned to job1 (assigned only to job2) cannot read job1's portfolio file, even though they could see it through applications' own SELECT policy being just as restrictive (mirrors is_active_team_member_for_job()'s assigned_job_ids gate)",
+  );
   await asUser(db, TEAM_INACTIVE);
   assert(!(await canSee(db, "portfolios", FILE_A)), "a revoked team member cannot");
   await asUser(db, EMPLOYER_2);

@@ -63,13 +63,27 @@ using (
   and auth.uid()::text = (storage.foldername(name))[1]
 );
 
--- The job owner, and any active team member of that job, once an application
--- actually references the file. There is no dedicated column for it — the path
--- is recorded inside applications.notes (a JSON blob) as a workflow step's
--- `files[].url` / the legacy `portfolioResult.files[].url` — so match it the
--- same way "Employers can view applicant requested documents" and "Employers
--- read applicant resumes" already match document_requests.file_url /
--- applications.resume_url: a substring match against the stored path.
+-- The job owner, and any active team member *assigned to that job* (mirrors
+-- is_active_team_member_for_job(), which the live "Team members can view
+-- applications for assigned jobs" policy on public.applications uses: active
+-- status AND (assigned_job_ids is null == unrestricted, OR this job is in
+-- it)), once an application actually references the file. There is no
+-- dedicated column for it — the path is recorded inside applications.notes (a
+-- JSON blob) as a workflow step's `files[].url` / the legacy
+-- `portfolioResult.files[].url` — so match it the same way "Employers can
+-- view applicant requested documents" and "Employers read applicant resumes"
+-- already match document_requests.file_url / applications.resume_url: a
+-- substring match against the stored path.
+--
+-- An earlier version of this policy's team-member join checked only
+-- employer_id + status = 'active', with no assigned_job_ids gate — unlike the
+-- sibling message-attachments SELECT policy below (which already has it) and
+-- unlike is_active_team_member_for_job() itself. That let a team member
+-- assigned only to job2 read a portfolio file submitted with job1's
+-- application, even though that same team member cannot see application_1
+-- through the applications table at all. Assignment to the job is exactly
+-- what the rest of the app treats as "a real relationship" for a team
+-- member, so the gate is required here too.
 --
 -- An earlier version of this policy wrapped the path in literal double quotes
 -- (`'%"' || objects.name || '"%'`), matching only the bare-path JSON shape
@@ -115,6 +129,7 @@ using (
       on tm.employer_id = j.employer_id
      and tm.user_id = auth.uid()
      and tm.status = 'active'
+     and (array_length(tm.assigned_job_ids, 1) is null or j.id = any (tm.assigned_job_ids))
     where (storage.foldername(objects.name))[1] = a.candidate_id::text
       and position(objects.name in a.notes) > 0
       and (j.employer_id = auth.uid() or tm.id is not null)
