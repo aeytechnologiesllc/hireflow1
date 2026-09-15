@@ -431,7 +431,7 @@ export default function InterviewSchedulingWizard({
       // The owner can still finish scheduling without Google, so name the fallback
       // rather than the missing config — setup is our job, not theirs.
       toast.error(
-        "I can't reach your Google Calendar yet — pick a time here and I'll send it by email instead."
+        "I can't reach your Google Calendar yet — pick a time here and I'll get it to them in HireFlow."
       );
       return;
     }
