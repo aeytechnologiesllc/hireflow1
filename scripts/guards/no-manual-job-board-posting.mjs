@@ -10,7 +10,12 @@
  * future paid Ava Boost) with a tooltip telling the owner to go post it on
  * Indeed/LinkedIn/ZipRecruiter themselves; and the kit that button opened
  * (ShareKitDialog.tsx) carried its own "Post it free on job boards" links
- * and "Post to outside boards manually" copy.
+ * and "Post to outside boards manually" copy. A second publish-success
+ * surface — AvaCreateJob.tsx's step-5 "Share your role" screen, which is
+ * what the live /jobs/create route actually renders — had the identical
+ * violation (a "Copy job post" button plus Indeed/LinkedIn/ZipRecruiter/
+ * Monster hrefs and "outside board posts are manual" copy) and was missed
+ * by the first pass of this fix.
  *
  * Fixed by keeping only true, automatic reach (the job's own public page,
  * already-sent Google notification) plus sharing-your-own-link actions
@@ -103,6 +108,30 @@ export default [
       if (/post it free on job boards/i.test(src)) {
         bad.push('ShareKitDialog.tsx reintroduced the "Post it free on job boards" section');
       }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+  {
+    id: "ava-create-job-publish-success-drops-manual-board-posting",
+    why:
+      "AvaCreateJob.tsx's step-5 \"Share your role\" screen — the publish-success screen the live " +
+      "/jobs/create route actually renders — must not send an employer off to post their job by hand " +
+      "on Indeed/LinkedIn/ZipRecruiter/Monster (the owner ruled this out permanently); it should only " +
+      "ever offer its own live link (copy / view) plus the honest, non-guaranteed Google Jobs note.",
+    run: async ({ read }) => {
+      const src = (await read("src/pages/AvaCreateJob.tsx")) ?? "";
+      const bad = [];
+      if (!src) {
+        bad.push("src/pages/AvaCreateJob.tsx not found");
+        return { ok: false, detail: bad };
+      }
+      for (const re of BOARD_HREF_PATTERNS) {
+        if (re.test(src)) bad.push(`AvaCreateJob.tsx references a job board (${re}) again`);
+      }
+      if (/Copy job post/i.test(src)) bad.push('AvaCreateJob.tsx reintroduced the "Copy job post" button');
+      if (/Need more reach/i.test(src)) bad.push('AvaCreateJob.tsx reintroduced the "Need more reach?" board-posting card');
+      if (/outside board posts are manual/i.test(src)) bad.push('AvaCreateJob.tsx reintroduced "outside board posts are manual" copy');
+      if (/finish posting there yourself/i.test(src)) bad.push('AvaCreateJob.tsx reintroduced "finish posting there yourself" copy');
       return bad.length ? { ok: false, detail: bad } : { ok: true };
     },
   },

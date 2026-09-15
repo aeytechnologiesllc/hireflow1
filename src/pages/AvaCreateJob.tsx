@@ -709,42 +709,6 @@ export default function AvaCreateJob() {
                       </div>
                     </div>
                   </div>
-                  <div className="mt-4 w-full rounded-2xl p-4 text-left" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }}>
-                    <div className="text-[13.5px] font-semibold" style={{ color: "hsl(var(--foreground))" }}>Need more reach? Post it on boards when you are ready</div>
-                    <p className="mt-1 text-[12.5px] leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
-                      Copy the post or open a board to finish posting there yourself. Keep the HireFlow apply link in the listing so screening stays here.
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        className="ck-btn ck-btn-outline !text-[12.5px]"
-                        onClick={() => {
-                          const origin = typeof window !== "undefined" ? window.location.origin : "";
-                          const applyUrl = publishedRoleId ? `${origin}/candidate/job/${publishedRoleId}` : "";
-                          const post = [
-                            `${briefFields.role || "We're hiring"}${briefFields.location ? ` — ${briefFields.location}` : ""}`,
-                            [briefFields.type, briefFields.pay].filter(Boolean).join(" · "),
-                            "",
-                            briefFields.work || "",
-                            "",
-                            applyUrl ? `Apply here: ${applyUrl}` : "",
-                          ].filter((l) => l !== undefined).join("\n").trim();
-                          navigator.clipboard?.writeText(post)
-                            .then(() => toast.success("Job post copied — paste it on any board"))
-                            .catch(() => toast.error("Couldn't copy — select and copy manually"));
-                        }}
-                      >
-                        Copy job post
-                      </button>
-                      <a href="https://employers.indeed.com/p/post-job" target="_blank" rel="noreferrer" className="ck-btn ck-btn-outline !text-[12.5px]">Indeed <ExternalLink className="h-3.5 w-3.5" /></a>
-                      <a href="https://www.linkedin.com/talent/post-a-job" target="_blank" rel="noreferrer" className="ck-btn ck-btn-outline !text-[12.5px]">LinkedIn <ExternalLink className="h-3.5 w-3.5" /></a>
-                      <a href="https://www.ziprecruiter.com/post-job" target="_blank" rel="noreferrer" className="ck-btn ck-btn-outline !text-[12.5px]">ZipRecruiter <ExternalLink className="h-3.5 w-3.5" /></a>
-                      <a href="https://hiring.monster.com/employer/post-jobs" target="_blank" rel="noreferrer" className="ck-btn ck-btn-outline !text-[12.5px]">Monster <ExternalLink className="h-3.5 w-3.5" /></a>
-                    </div>
-                    <p className="mt-2.5 flex items-center gap-1.5 text-[11.5px]" style={{ color: "hsl(var(--ck-mint))" }}>
-                      <Check className="h-3.5 w-3.5" /> HireFlow page is live - outside board posts are manual.
-                    </p>
-                  </div>
                   <div className="mt-4 flex w-full flex-col gap-2.5">
                     {publishedRoleId && (
                       <a
