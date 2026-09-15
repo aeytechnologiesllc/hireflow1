@@ -57,6 +57,11 @@ const ALLOWED_TAGS = new Set([
 ]);
 const SAFE_HREF = /^(?:https?:|mailto:|tel:|\/|#)/i;
 
+/** Descriptions written in the rich editor are stored as HTML already. */
+function looksLikeHtml(s) {
+  return /<[a-z][\s\S]*>/i.test(String(s ?? ""));
+}
+
 function sanitizeHtml(html) {
   return String(html ?? "")
     .replace(/<(script|style|iframe|object|embed|form|svg|math)[\s\S]*?<\/\1\s*>/gi, "")
@@ -75,6 +80,16 @@ function sanitizeHtml(html) {
       }
       return `<${name}>`;
     });
+}
+
+/**
+ * Ordinary job text (not TipTap HTML) must never go through the tag-stripping
+ * sanitizer above — its `<[^>]+>` regex treats any bare "<...>" in prose (e.g.
+ * "cycle time < 3 days and coverage > 80%") as an unrecognized tag and deletes
+ * it. Plain text gets escaped instead, matching api/job-feed.mjs's sectionHtml.
+ */
+function sectionHtml(text) {
+  return looksLikeHtml(text) ? sanitizeHtml(text) : esc(text);
 }
 
 function isoDate(d) {
@@ -114,9 +129,9 @@ function buildJobPostingSchema(job, { company, logo, origin }) {
 
   const descHtml =
     [
-      job.description ? `<p>${sanitizeHtml(job.description)}</p>` : "",
-      job.responsibilities ? `<h3>What you'll do</h3><p>${sanitizeHtml(job.responsibilities)}</p>` : "",
-      job.requirements ? `<h3>What we're looking for</h3><p>${sanitizeHtml(job.requirements)}</p>` : "",
+      job.description ? `<p>${sectionHtml(job.description)}</p>` : "",
+      job.responsibilities ? `<h3>What you'll do</h3><p>${sectionHtml(job.responsibilities)}</p>` : "",
+      job.requirements ? `<h3>What we're looking for</h3><p>${sectionHtml(job.requirements)}</p>` : "",
     ]
       .filter(Boolean)
       .join("") || `<p>${esc(job.title)}</p>`;

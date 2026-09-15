@@ -81,4 +81,58 @@ export default [
       return { ok: true };
     },
   },
+  {
+    id: "formatText-allow-list-matches-spec",
+    why:
+      "TipTap's StarterKit (Bold/Italic/BulletList only, per src/components/ui/rich-textarea.tsx) " +
+      "never emits <span> or a class attribute — allowing either lets a stored job description " +
+      "attach the app's own compiled Tailwind classes (position:fixed, inset-0, z-50, ...) to build " +
+      "a full-page phishing overlay that survives the sanitizer untouched.",
+    run: async ({ read }) => {
+      const src = (await read("src/lib/formatText.tsx")) ?? "";
+      const m = /ALLOWED_TAGS:\s*\[([\s\S]*?)\]/.exec(src);
+      const a = /ALLOWED_ATTR:\s*\[([\s\S]*?)\]/.exec(src);
+      const bad = [];
+      if (m && /["']span["']/.test(m[1])) bad.push('formatText.tsx ALLOWED_TAGS reintroduced "span"');
+      if (a && /["']class["']/.test(a[1])) bad.push('formatText.tsx ALLOWED_ATTR reintroduced "class"');
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+  {
+    id: "feed-href-attribute-cannot-break-out",
+    why:
+      "api/job-feed.mjs rebuilds <a href=\"...\"> for the public jobs.xml/adzuna.xml/jooble.xml feeds " +
+      "from an href captured out of raw job-description HTML (single- or double-quoted). If the " +
+      "escaper used on that value doesn't also escape a literal double-quote, an href like " +
+      "https://x.com\" onclick=\"alert(1) breaks out of the attribute and wires a live event handler " +
+      "straight into the feed.",
+    run: async ({ read }) => {
+      const src = (await read("api/job-feed.mjs")) ?? "";
+      const m = /function escapeHtml\(s\) \{([\s\S]*?)\n\}/.exec(src);
+      if (!m) return { ok: false, detail: ["api/job-feed.mjs: escapeHtml() not found"] };
+      if (!/"/.test(m[1]) || !/replace\(\/"/.test(m[1])) {
+        return { ok: false, detail: ["api/job-feed.mjs escapeHtml() no longer escapes a literal double-quote — href attribute breakout regressed"] };
+      }
+      return { ok: true };
+    },
+  },
+  {
+    id: "prerender-plain-text-not-run-through-tag-stripper",
+    why:
+      "api/job-prerender.mjs's sanitizeHtml() is a regex tag-stripper that deletes anything between " +
+      "two unrelated bare '<'/'>' characters (e.g. 'coverage > 80%'). Job descriptions are ordinary " +
+      "typed text, not always TipTap HTML, so buildJobPostingSchema() must gate sanitizeHtml() behind " +
+      "a looksLikeHtml() check (falling back to esc()) the same way api/job-feed.mjs's sectionHtml() " +
+      "does — otherwise plain-text descriptions get silently mangled in the public JobPosting JSON-LD.",
+    run: async ({ read }) => {
+      const src = (await read("api/job-prerender.mjs")) ?? "";
+      const bad = [];
+      if (!/function looksLikeHtml\(/.test(src)) bad.push("api/job-prerender.mjs lost its looksLikeHtml() gate");
+      if (!/function sectionHtml\(/.test(src)) bad.push("api/job-prerender.mjs lost its sectionHtml() gate around sanitizeHtml()");
+      if (/\$\{sanitizeHtml\(job\.(description|responsibilities|requirements)\)\}/.test(src)) {
+        bad.push("api/job-prerender.mjs calls sanitizeHtml() directly on job text instead of going through sectionHtml()");
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
 ];
