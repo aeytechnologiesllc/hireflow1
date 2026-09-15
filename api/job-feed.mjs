@@ -269,7 +269,11 @@ export async function loadFeedJobs() {
    *   - not explicitly excluded (QA/demo jobs)
    *   - deadline not passed
    *   - a REAL company name (never the "Private employer" placeholder)
-   *   - a REAL city (never a country or a state standing in for one) and a country
+   *   - a country, always — plus a REAL city (never a country or a state
+   *     standing in for one) UNLESS the job is explicitly marked remote, in
+   *     which case the country alone is enough ("Remote - United States"
+   *     geocodes to a country with no city, by design — geocode/index.ts
+   *     never invents a city for a country-only query)
    *   - a description with at least MIN_DESCRIPTION_CHARS of actual text
    * Anything failing is silently held back rather than poisoning the source.
    */
@@ -280,8 +284,8 @@ export async function loadFeedJobs() {
       if (job.application_deadline && new Date(job.application_deadline).getTime() < now) return false;
       const company = companies.get(job.employer_id);
       if (!company || !String(company).trim()) return false;
-      if (!city) return false;
       if (!(job.location_country_code || job.location_country)) return false;
+      if (!city && !job.is_remote) return false;
       if (plainTextLength(html) < MIN_DESCRIPTION_CHARS) return false;
       return true;
     })
@@ -343,6 +347,10 @@ export default async function handler(req, res) {
         `    <isremote>${cdata(e.isRemote ? "yes" : "no")}</isremote>`,
         // Kept for feeds that already read the older spelling.
         e.isRemote ? `    <remote>${cdata("yes")}</remote>` : null,
+        // Indeed's own documented tag (docs.indeed.com/job-sync-xml/xml-feed) —
+        // "Fully remote" is the only value HireFlow ever emits: is_remote only
+        // gets set true for definitive remote language, never hybrid/on-site.
+        e.isRemote ? `    <remotetype>${cdata("Fully remote")}</remotetype>` : null,
         "  </job>",
       ]
         .filter(Boolean)
