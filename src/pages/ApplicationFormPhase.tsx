@@ -231,6 +231,12 @@ export default function ApplicationFormPhase() {
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  // Flips true the first time the candidate presses Continue (set inside
+  // validateForm()) and then stays true for the rest of the session — it's
+  // what tells syncQuestionError below "a submit attempt has happened, so
+  // live-sync this field's warning" instead of gating on the field's own
+  // entry, which disappears the moment it's fixed.
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [questionFiles, setQuestionFiles] = useState<Record<string, File>>({});
   const [questionFileUrls, setQuestionFileUrls] = useState<Record<string, string>>({});
   const [uploadingQuestions, setUploadingQuestions] = useState<Record<string, boolean>>({});
@@ -397,13 +403,20 @@ export default function ApplicationFormPhase() {
 
   // Same idea as the resume helpers above, generalized to every other
   // validationErrors entry (per-question required/email checks, and
-  // question-level file uploads). Only touches a question that already has
-  // an error on screen — i.e. the candidate already tried to submit once —
-  // so a fresh required field still stays quiet until Continue is pressed,
-  // exactly like before. It just stops that message from outliving the fix.
+  // question-level file uploads). Gated on hasAttemptedSubmit rather than on
+  // this question's own entry still being present — that entry gets deleted
+  // the instant the field is fixed (right below), so gating on it meant a
+  // question that was ever fixed once could never show its warning again:
+  // upload a required file, then remove it, and nothing brought the "needed
+  // to continue" message back — only the next full Continue click did.
+  // hasAttemptedSubmit instead remembers "the candidate has tried to submit
+  // at least once" and stays true for the rest of the session, so a field
+  // that gets re-broken after being fixed still live-syncs. Before the first
+  // Continue press it's false, so a fresh required field still stays quiet
+  // until then, exactly like before.
   const syncQuestionError = (question: ApplicationQuestion, value: string) => {
+    if (!hasAttemptedSubmit) return;
     setValidationErrors((prev) => {
-      if (!prev[question.id]) return prev;
       let message: string | undefined;
       if (question.required && !value?.trim()) {
         message = REQUIRED_FIELD_MESSAGE;
@@ -411,6 +424,7 @@ export default function ApplicationFormPhase() {
         message = EMAIL_FIELD_MESSAGE;
       }
       if (!message) {
+        if (!prev[question.id]) return prev;
         const next = { ...prev };
         delete next[question.id];
         return next;
@@ -821,6 +835,9 @@ export default function ApplicationFormPhase() {
   };
 
   const validateForm = () => {
+    // From here on, every field's live onChange/remove handler is allowed to
+    // sync its own warning in real time (see syncQuestionError above).
+    setHasAttemptedSubmit(true);
     const errors: Record<string, string> = {};
 
     // IMPORTANT: Only validate questions that are VISIBLE to the user
