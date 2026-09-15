@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,14 +37,16 @@ const BRASS_RULE = (
   <div className="absolute inset-x-0 top-0 h-[3px]" style={{ background: "var(--brass-line)" }} aria-hidden="true" />
 );
 
+// The answer key is deliberately absent from this shape. It was moved
+// server-side into a private table by a database trigger (see migration
+// 20260915110000_quiz_answer_keys_server_side.sql), so the jobs row this
+// page reads never carries it in the first place. Grading now happens in
+// the submit_quiz_attempt RPC; this page only renders the question and the
+// candidate's own answer.
 interface QuizQuestion {
   id: string;
   question: string;
   options: string[];
-  correctAnswer?: number;
-  correct_answer?: string | number | null;
-  correct_answers?: string[]; // For multi_select type
-  fit_context?: string; // For personality/situational fit-based scoring
   time_limit_seconds?: number;
   type?: string;
   category?: string;
@@ -439,81 +442,24 @@ export default function QuizPhase() {
     }
   };
 
-  const calculateResults = useCallback(() => {
-    let correct = 0;
-    let multipleChoiceCount = 0;
-    
-    questions.forEach(q => {
-      const userAnswer = answers[q.id];
-      const qType = getQuestionType(q);
-      
-      // Text and fit questions don't count toward the scored total
-      if (qType === 'text' || qType === 'fit') {
-        return;
-      }
-      
-      // Multi-select scoring
-      if (qType === 'multi_select' && q.correct_answers && Array.isArray(q.correct_answers)) {
-        multipleChoiceCount++;
-        if (!Array.isArray(userAnswer) || userAnswer.length === 0) return;
-        
-        const selectedTexts = userAnswer.map(i => q.options?.[i]?.toLowerCase().trim());
-        const correctTexts = q.correct_answers.map(a => a.toLowerCase().trim());
-        
-        const allCorrectSelected = correctTexts.every(ct => selectedTexts.includes(ct));
-        const noExtras = selectedTexts.every(st => correctTexts.includes(st!));
-        
-        if (allCorrectSelected && noExtras) {
-          correct += 1; // Full credit
-        } else if (selectedTexts.some(st => correctTexts.includes(st!))) {
-          correct += 0.5; // Partial credit
-        }
-        return;
-      }
-      
-      multipleChoiceCount++;
-      if (userAnswer === undefined) return;
-      
-      // Get correct answer - handle both field names and formats
-      let correctAnswerIndex: number | undefined;
-      
-      if (q.correctAnswer !== undefined) {
-        correctAnswerIndex = q.correctAnswer;
-      } else if (q.correct_answer !== undefined && q.correct_answer !== null) {
-        if (typeof q.correct_answer === 'number') {
-          correctAnswerIndex = q.correct_answer;
-        } else if (typeof q.correct_answer === 'string') {
-          correctAnswerIndex = q.options?.findIndex(
-            opt => opt.toLowerCase().trim() === q.correct_answer?.toString().toLowerCase().trim()
-          );
-          if (correctAnswerIndex === -1) correctAnswerIndex = undefined;
-        }
-      }
-      
-      if (correctAnswerIndex !== undefined && userAnswer === correctAnswerIndex) {
-        correct++;
-      }
-    });
-    
-    const score = multipleChoiceCount > 0 ? Math.round((correct / multipleChoiceCount) * 100) : 100;
-    
-    return { correct, total: multipleChoiceCount, score, passed: false };
-  }, [questions, answers, application?.jobs?.passing_score]);
-
+  // Grading used to happen here, against the answer key the browser had
+  // just been sent. It doesn't anymore — submit_quiz_attempt grades
+  // server-side, against a key the browser never sees, when the candidate
+  // actually sends their answers. Finishing just stops the clock and shows
+  // the calm "ready to send" checkpoint; `results` is populated once the
+  // server responds in handleSubmit.
   const handleFinishQuiz = useCallback(() => {
     if (isFinishingRef.current) return;
     isFinishingRef.current = true;
-    
+
     // Clear the timer
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    
-    const calculatedResults = calculateResults();
-    setResults(calculatedResults);
+
     setShowResults(true);
-  }, [calculateResults]);
+  }, []);
 
   const syncTimerState = useCallback(() => {
     if (!quizInitialized || showResults || questions.length === 0) return;
@@ -611,10 +557,10 @@ export default function QuizPhase() {
   }, [currentQuestionIndex, questions.length, quizInitialized, showResults, syncTimerState]);
 
   const handleSubmit = async () => {
-    if (!results || !application) return;
-    
+    if (!application) return;
+
     setIsSubmitting(true);
-    
+
     try {
       // CRITICAL: Re-fetch fresh job data to get current processing_mode
       // This prevents stale cached data from causing auto-rejection in manual mode
@@ -623,127 +569,33 @@ export default function QuizPhase() {
         .select("processing_mode, passing_score")
         .eq("id", application.job_id)
         .single();
-      
+
       const isAutoMode = freshJob?.processing_mode === "auto";
-      const passingScore = freshJob?.passing_score || 60;
-      
+
       // For autopilot mode, show evaluation screen
       if (isAutoMode) {
         setEvaluationState("evaluating");
       }
-      // Parse existing notes (safe parser handles string, object, or null)
-      const existingNotes = parseApplicationNotes(application.notes);
-      
-      // Create answers summary
-      const answersSummary = questions.map(q => {
-        const userAnswer = answers[q.id];
-        const questionType = getQuestionType(q);
-        
-        // For text questions, store the text answer directly
-        if (questionType === 'text') {
-          return {
-            questionId: q.id,
-            question: q.question,
-            questionType: 'text',
-            textAnswer: typeof userAnswer === 'string' ? userAnswer : '',
-            selectedAnswer: null,
-            selectedAnswerText: typeof userAnswer === 'string' ? userAnswer : 'Not answered',
-            correctAnswer: null,
-            isCorrect: null,
-          };
-        }
-        
-        // Fit-based questions (personality/situational) - no right/wrong
-        if (questionType === 'fit') {
-          const answerIndex = typeof userAnswer === 'number' ? userAnswer : undefined;
-          return {
-            questionId: q.id,
-            question: q.question,
-            questionType: 'fit',
-            selectedAnswer: answerIndex,
-            selectedAnswerText: answerIndex !== undefined ? (q.options?.[answerIndex] || "Not answered") : "Not answered",
-            correctAnswer: null,
-            isCorrect: null, // Not scored - AVA evaluates qualitatively
-            fit_context: q.fit_context || null,
-          };
-        }
-        
-        // Multi-select questions
-        if (questionType === 'multi_select' && q.correct_answers) {
-          const selectedIndices = Array.isArray(userAnswer) ? userAnswer as number[] : [];
-          const selectedTexts = selectedIndices.map(i => q.options?.[i] || '');
-          const correctTexts = q.correct_answers;
-          
-          const allCorrectSelected = correctTexts.every(ct => selectedTexts.some(st => st.toLowerCase().trim() === ct.toLowerCase().trim()));
-          const noExtras = selectedTexts.every(st => correctTexts.some(ct => ct.toLowerCase().trim() === st.toLowerCase().trim()));
-          
-          return {
-            questionId: q.id,
-            question: q.question,
-            questionType: 'multi_select',
-            selectedAnswers: selectedTexts,
-            correctAnswers: correctTexts,
-            isCorrect: allCorrectSelected && noExtras,
-            isPartialCredit: !allCorrectSelected && selectedTexts.some(st => correctTexts.some(ct => ct.toLowerCase().trim() === st.toLowerCase().trim())),
-          };
-        }
-        
-        // Standard multiple choice
-        let correctAnswerIndex: number | undefined;
-        
-        if (q.correctAnswer !== undefined) {
-          correctAnswerIndex = q.correctAnswer;
-        } else if (q.correct_answer !== undefined && q.correct_answer !== null) {
-          if (typeof q.correct_answer === 'number') {
-            correctAnswerIndex = q.correct_answer;
-          } else if (typeof q.correct_answer === 'string') {
-            correctAnswerIndex = q.options?.findIndex(
-              opt => opt.toLowerCase().trim() === q.correct_answer?.toString().toLowerCase().trim()
-            );
-            if (correctAnswerIndex === -1) correctAnswerIndex = undefined;
-          }
-        }
-        
-        const answerIndex = typeof userAnswer === 'number' ? userAnswer : undefined;
-        
-        return {
-          questionId: q.id,
-          question: q.question,
-          questionType: 'multiple_choice',
-          selectedAnswer: answerIndex,
-          selectedAnswerText: answerIndex !== undefined ? (q.options?.[answerIndex] || "Not answered") : "Not answered",
-          correctAnswer: correctAnswerIndex,
-          isCorrect: answerIndex !== undefined && correctAnswerIndex !== undefined && answerIndex === correctAnswerIndex,
-        };
-      });
-      
-      // Add quiz results with anti-cheat violations
-      const updatedNotes = {
-        ...existingNotes,
-        [stepId!]: {
-          type: "quiz",
-          answers: answersSummary,
-          score: results.score,
-          correct: results.correct,
-          total: results.total,
-          passed: results.passed,
-          completedAt: new Date().toISOString(),
-          // Anti-cheat violation data for AVA and employer
-          antiCheatViolations: violations,
-          totalViolations: violations.length,
-          violationSummary: violations.length > 0 
-            ? `${violations.filter(v => v.type === 'tab_switch').length} tab switches, ${violations.filter(v => v.type === 'copy_attempt').length} copy attempts, ${violations.filter(v => v.type === 'paste_attempt').length} paste attempts, ${violations.filter(v => v.type === 'right_click').length} right-clicks`
-            : "No violations detected",
-        },
-        quizResult: {
-          score: results.score,
-          correct: results.correct,
-          total: results.total,
-          passed: results.passed,
-        },
-      };
 
-      // Build the real journey to find the next stage
+      // Grade server-side. submit_quiz_attempt is the only thing that ever
+      // touches the answer key — it reads the private key table, grades
+      // with the exact rules this page used to run in the browser, writes
+      // the application's own result fields itself, and hands back only
+      // the tally. This page never sees which answer was correct.
+      const { data: submission, error: submitError } = await supabase.rpc("submit_quiz_attempt", {
+        p_application_id: id!,
+        p_step_id: stepId!,
+        p_answers: answers as unknown as Json,
+        p_violations: violations as unknown as Json,
+      });
+
+      if (submitError) throw submitError;
+
+      const graded = submission as { score: number; correct: number; total: number; passed: boolean };
+      setResults(graded);
+
+      // Build the real journey to find the next stage — local UI navigation
+      // only, off the job's own (already answer-free) workflow_steps.
       const workflowSteps = application.jobs?.workflow_steps || [];
       const quizQuestions = application.jobs?.quiz_questions;
       const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
@@ -759,9 +611,6 @@ export default function QuizPhase() {
         );
       }
 
-      let newPhase = application.phase;
-      let newStatus = application.status;
-
       // Determine next phase
       let nextPhase: { id: string; type: string; title: string } | null = null;
       if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
@@ -772,9 +621,6 @@ export default function QuizPhase() {
         // UNIFIED SCORING: Do NOT make pass/fail decision locally
         // The backend (trigger-ava-analysis) is the SINGLE SOURCE OF TRUTH
         // It will calculate the weighted score and decide pass/fail
-
-        // Save phase data but do NOT set status=rejected locally
-        // Let the backend autopilot decision handle it
 
         // Determine next phase info for UI (if candidate passes) — not for
         // voice_interview (needs employer approval to start) or the closing
@@ -787,29 +633,6 @@ export default function QuizPhase() {
         }
       }
       // Manual mode - NEVER auto-advance or reject. Employer controls.
-
-      // Build phase_ai_analysis with violation info
-      let phaseAnalysis = `Quiz: ${results.correct}/${results.total} correct (${results.score}%). `;
-      phaseAnalysis += `Local calculation: ${results.passed ? "PASSED" : "FAILED"}. `;
-      phaseAnalysis += `Backend will compute final weighted score.`;
-      if (violations.length > 0) {
-        phaseAnalysis += ` ⚠️ ${violations.length} anti-cheat violation(s) detected during quiz.`;
-      }
-
-      // Update application with quiz data but do NOT set status to rejected
-      // The backend will handle status updates via autopilotDecision
-      const { error } = await supabase
-        .from("applications")
-        .update({
-          notes: JSON.stringify(updatedNotes),
-          // Do NOT change phase or status here - let backend handle in autopilot mode
-          phase: application.phase,
-          status: application.status as "pending" | "reviewing" | "interview" | "offered" | "hired" | "rejected",
-          phase_ai_analysis: phaseAnalysis,
-        })
-        .eq("id", id!);
-
-      if (error) throw error;
 
       // Clear saved progress after successful submission
       clearSavedProgress();

@@ -338,8 +338,8 @@ export default function ChatInterviewPhase() {
     // Extract quiz results
     if (notes.quizResult) {
       context.quizScore = notes.quizResult.score;
-      context.quizSummary = notes.quizResult.correctAnswers 
-        ? `${notes.quizResult.correctAnswers}/${notes.quizResult.totalQuestions} correct`
+      context.quizSummary = notes.quizResult.correct != null
+        ? `${notes.quizResult.correct}/${notes.quizResult.total} correct`
         : undefined;
       context.completedPhases.push('Quiz');
     }

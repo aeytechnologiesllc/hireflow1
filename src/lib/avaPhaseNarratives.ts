@@ -25,7 +25,6 @@ export interface QuizAnswerData {
   questionType: 'multiple_choice' | 'text';
   selectedAnswer?: number | null;
   selectedAnswerText: string;
-  correctAnswer?: number | null;
   textAnswer?: string;
   isCorrect: boolean | null;
 }

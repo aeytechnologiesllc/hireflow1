@@ -6,6 +6,7 @@ import { detectSchemaMode, updateShowcaseRole } from "@/cockpit/data/showcaseSou
 import { createShowcaseRole, SHOWCASE_EMPLOYER_ID } from "@/lib/showcaseApply";
 import { useSchemaMode } from "@/hooks/useSchemaMode";
 import { notifyGoogleJobIndexingInBackground } from "@/lib/googleIndexing";
+import { mergeQuizAnswerKeys, type JobQuizKeyRow } from "@/lib/quizAnswerKeys";
 
 export type Job = Tables<"jobs">;
 export type JobInsert = TablesInsert<"jobs">;
@@ -117,7 +118,18 @@ export function useJob(id: string | undefined) {
         .single();
 
       if (error) throw error;
-      return data as Job;
+
+      // The jobs row itself never carries quiz answer fields anymore (see
+      // migration 20260915110000). This is the job owner/team edit screen
+      // (CreateJob.tsx), so pull them back from job_quiz_keys and merge them
+      // in — the employer keeps seeing and editing exactly the correct
+      // answers they wrote. A candidate never reaches useJob (it's only
+      // wired into employer-side job editing), and the RPC itself refuses
+      // anyone who isn't the owner or an active team member, so this simply
+      // returns no rows for anyone else.
+      const { data: keyRows } = await supabase.rpc("get_job_quiz_keys", { p_job_id: id! });
+
+      return mergeQuizAnswerKeys(data as Job, keyRows as unknown as JobQuizKeyRow[]);
     },
     enabled: !!user && !!id && !!mode,
   });

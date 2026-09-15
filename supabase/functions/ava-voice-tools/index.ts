@@ -166,7 +166,7 @@ serve(async (req) => {
         // Verify the application belongs to this employer and get workflow steps
         const { data: app, error: appError } = await supabaseClient
           .from("applications")
-          .select("id, job_id, jobs!inner(employer_id, workflow_steps)")
+          .select("id, job_id, candidate_id, notes, jobs!inner(employer_id, workflow_steps, quiz_questions)")
           .eq("id", application_id)
           .eq("jobs.employer_id", user.id)
           .single();
@@ -177,8 +177,29 @@ serve(async (req) => {
 
         // Normalize the phase name to match actual workflow step IDs
         const workflowSteps = ((app.jobs as any)?.workflow_steps as any[]) || [];
+        // The dominant job shape (src/lib/jobFromFlow.ts,
+        // supabase/functions/ai-generate-workflow/index.ts — every real
+        // job-creation path) never writes a workflow_steps entry of type
+        // "quiz"; the quiz lives only on jobs.quiz_questions, and the
+        // candidate-facing quiz stage is the synthetic { id: "quiz", type:
+        // "quiz" } that src/lib/candidateJourney.ts's buildCandidateJourney()
+        // always assigns it (also the literal key_step_id submit_quiz_attempt
+        // writes results under for this shape — see this migration's own
+        // comment). Without adding that synthetic phase here, `allPhases`
+        // never contains a phase of type "quiz" for these jobs, so
+        // `matchedPhase` below is always undefined and the retake-granting
+        // block a few lines down (which gates on `matchedPhase?.type ===
+        // "quiz"`) never fires — an employer/Ava "send back to quiz" leaves
+        // notes untouched and never calls grant_quiz_retake. Only add it when
+        // workflow_steps doesn't already carry its own quiz-type entry (the
+        // rarer shape, where that entry's own real id is already the correct
+        // match via the .map() below).
+        const hasWorkflowQuizStep = workflowSteps.some((s: any) => s?.type === "quiz");
+        const quizQuestions = ((app.jobs as any)?.quiz_questions as any[]) || [];
+        const hasSyntheticQuiz = !hasWorkflowQuizStep && quizQuestions.length > 0;
         const allPhases = [
           { id: "application", type: "application", title: "Application" },
+          ...(hasSyntheticQuiz ? [{ id: "quiz", type: "quiz", title: "Skills check" }] : []),
           ...workflowSteps.map((s: any) => ({ id: s.id, type: s.type, title: s.title })),
           { id: "review", type: "review", title: "Review" },
           { id: "interview", type: "interview", title: "Interview" },
@@ -203,6 +224,41 @@ serve(async (req) => {
         const updates: any = { phase: normalizedPhase, updated_at: new Date().toISOString() };
         if (new_status) {
           updates.status = new_status;
+        }
+
+        // Sending a candidate back to a quiz step is a request to retake it.
+        // submit_quiz_attempt() refuses to grade again once
+        // public.quiz_attempt_ledger shows attempts >= 1 + retakes_granted
+        // for (candidate_id, job_id, step_id) — a gate that, unlike notes,
+        // survives the candidate deleting this application and re-applying.
+        // Clear that step's saved result (and the top-level quizResult
+        // summary, since a "which quiz step" isn't tracked separately from
+        // "the candidate's latest quiz result") here, as part of the
+        // employer's own write, AND grant exactly one more ledger attempt
+        // via grant_quiz_retake — clearing notes alone reopens the old
+        // notes-based check but not the ledger, which would otherwise still
+        // refuse the resubmission. Only fires when the destination phase
+        // really is a quiz step, and only touches the quiz-shaped keys in
+        // notes — every other note (application answers, typing test, chat
+        // transcripts, ...) is left untouched.
+        if (matchedPhase?.type === "quiz") {
+          let existingNotes: Record<string, any> = {};
+          try {
+            existingNotes = typeof app.notes === "string" ? JSON.parse(app.notes) : (app.notes as any) || {};
+          } catch {
+            existingNotes = {};
+          }
+          if (existingNotes[normalizedPhase] || existingNotes.quizResult) {
+            const { [normalizedPhase]: _droppedStep, quizResult: _droppedResult, ...rest } = existingNotes;
+            updates.notes = JSON.stringify(rest);
+
+            const { error: retakeError } = await supabaseClient.rpc("grant_quiz_retake", {
+              p_candidate_id: (app as any).candidate_id,
+              p_job_id: app.job_id,
+              p_step_id: normalizedPhase,
+            });
+            if (retakeError) throw retakeError;
+          }
         }
 
         const { error: updateError } = await supabaseClient
@@ -475,17 +531,56 @@ serve(async (req) => {
           throw new Error("Application ID required for interview tools");
         }
 
-        // Merge any previously flagged inconsistencies with final evaluation
-        const { data: currentApp } = await supabaseClient
+        // voice_interview_result is now guarded by protect_application_columns()
+        // (supabase/migrations/20260915110000_quiz_answer_keys_server_side.sql)
+        // against a candidate's own direct writes — a candidate can no longer
+        // devtools-PATCH it with a forged score. This handler is the
+        // legitimate write path, so it now performs the update with
+        // supabaseAdmin (service_role), which clears that trigger's
+        // auth.role() = 'service_role' bypass instead of going through the
+        // caller's own RLS-scoped client. Because that switches off RLS as
+        // the authorization check this call previously relied on, ownership
+        // must be verified explicitly here first: this tool is only ever
+        // invoked from the candidate's own live interview session
+        // (useAvaVoice mode: 'interview' in VoiceInterviewPhase.tsx), never
+        // by an employer, so the caller must be the application's own
+        // candidate.
+        const { data: ownerCheck, error: ownerCheckError } = await supabaseClient
           .from("applications")
-          .select("notes")
+          .select("id, candidate_id, notes, voice_interview_result")
           .eq("id", applicationId)
           .single();
 
-        const currentNotes = typeof currentApp?.notes === 'string' 
-          ? JSON.parse(currentApp?.notes || '{}') 
-          : (currentApp?.notes || {});
-        
+        if (ownerCheckError || !ownerCheck || ownerCheck.candidate_id !== user.id) {
+          throw new Error("Application not found or access denied");
+        }
+
+        // Refuse to overwrite an already-recorded evaluation. This tool is
+        // meant to be called at most once per interview (Ava calls it when
+        // the conversation ends); nothing before this enforced that, so a
+        // candidate who already has a real, possibly bad, evaluation on
+        // file could call this edge function directly a second time (e.g.
+        // via supabase.functions.invoke, the same client useAvaVoice.ts
+        // already uses) with hand-crafted `parameters` to overwrite it with
+        // a forged score. This does not by itself stop a *first* forged
+        // call with no prior real interview — this handler has no way to
+        // confirm the caller's tool_name:'end_interview' request actually
+        // originated from a real OpenAI Realtime API tool-call rather than
+        // a direct invoke with hand-typed parameters, and closing that
+        // fully needs a server-side proof-of-session marker that does not
+        // exist in the schema today. That is a known, accepted limit here
+        // (flagged back to the orchestrator as a follow-up), not something
+        // this fix resolves — but it at least closes the reproduced
+        // "erase a real bad score" half of the exploit, the same guard
+        // submit_voice_interview_manual_end now applies on the DB side.
+        if (ownerCheck.voice_interview_result) {
+          throw new Error("This interview has already been evaluated");
+        }
+
+        const currentNotes = typeof ownerCheck.notes === 'string'
+          ? JSON.parse(ownerCheck.notes || '{}')
+          : (ownerCheck.notes || {});
+
         // Combine flagged inconsistencies with final evaluation inconsistencies
         const allInconsistencies = [
           ...(currentNotes.voiceInterviewInconsistencies || []),
@@ -499,7 +594,7 @@ serve(async (req) => {
         };
 
         // Store interview results
-        const { error } = await supabaseClient
+        const { error } = await supabaseAdmin
           .from("applications")
           .update({
             voice_interview_result: evaluationWithFlags,
