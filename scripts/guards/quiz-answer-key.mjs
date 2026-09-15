@@ -214,7 +214,13 @@ export default [
       "in the same operation, the ledger still refuses the resubmission and the candidate is stuck " +
       "with no way to ever finish that phase — the same regression this guard exists to catch, one " +
       "layer deeper. If this function stops clearing the quiz step's saved notes, or stops calling " +
-      "grant_quiz_retake, when moving a candidate onto a quiz-type phase, that regression is back.",
+      "grant_quiz_retake, when moving a candidate onto a quiz-type phase, that regression is back. " +
+      "Also: matchedPhase is found by matching new_phase against allPhases, and 8 of 9 live jobs " +
+      "keep their quiz on the top-level jobs.quiz_questions column with NO workflow_steps entry of " +
+      "type 'quiz' (src/lib/jobFromFlow.ts and ai-generate-workflow never emit one) — so unless " +
+      "allPhases also synthesizes a { type: 'quiz' } phase for that shape (mirroring " +
+      "src/lib/candidateJourney.ts's synthetic 'quiz' stage), matchedPhase is always undefined for " +
+      "those jobs and this whole block is unreachable no matter how correct it reads.",
     async run({ read }) {
       const file = "supabase/functions/ava-voice-tools/index.ts";
       const text = await read(file);
@@ -234,6 +240,45 @@ export default [
       }
       if (!/\.rpc\(\s*["']grant_quiz_retake["']/.test(body)) {
         detail.push(`${file}: move_applicant_to_phase no longer calls grant_quiz_retake — clearing notes alone no longer reopens the ledger-gated quiz step`);
+      }
+      // matchedPhase must be reachable for the dominant (quiz_questions-only,
+      // no workflow_steps quiz entry) job shape — not just for the 1-in-9
+      // shape that already carries its own workflow_steps quiz step.
+      if (!/quiz_questions/.test(body)) {
+        detail.push(`${file}: move_applicant_to_phase no longer selects jobs.quiz_questions — it cannot tell whether a job with no workflow_steps quiz entry has a quiz stage at all, so matchedPhase can never resolve to type "quiz" for that (dominant) job shape`);
+      }
+      if (!/\{\s*id:\s*["']quiz["']\s*,\s*type:\s*["']quiz["']/.test(body)) {
+        detail.push(`${file}: move_applicant_to_phase no longer synthesizes a { id: "quiz", type: "quiz" } phase into allPhases — for jobs whose quiz lives only on jobs.quiz_questions (no workflow_steps quiz entry), allPhases would contain no phase of type "quiz", matchedPhase would always be undefined, and the retake block above would be permanently unreachable`);
+      }
+
+      return detail.length ? { ok: false, detail } : { ok: true };
+    },
+  },
+
+  {
+    id: "ava-system-context-lists-quiz-as-a-valid-phase",
+    why:
+      "ava-voice-session/index.ts builds its own, separate 'validPhases' list to tell Ava — in the " +
+      "'WORKFLOW PHASES FOR THIS JOB (use exact step IDs)' system-prompt block — which step ids " +
+      "move_applicant_to_phase will accept. If this list is built only from workflow_steps (never " +
+      "referencing jobs.quiz_questions), it never contains a 'quiz' step id for the 8-of-9 live jobs " +
+      "whose quiz lives only on quiz_questions, so Ava has no valid id to send a candidate back to " +
+      "in the first place — even after ava-voice-tools' own allPhases is fixed to accept one.",
+    async run({ read }) {
+      const file = "supabase/functions/ava-voice-session/index.ts";
+      const text = await read(file);
+      if (text == null) return { ok: false, detail: [`${file} is missing`] };
+
+      const start = text.indexOf("const validPhases = [");
+      if (start === -1) return { ok: false, detail: [`${file}: validPhases construction not found`] };
+      const body = text.slice(Math.max(0, start - 1500), start + 800);
+
+      const detail = [];
+      if (!/quiz_questions/.test(body)) {
+        detail.push(`${file}: validPhases (Ava's system-context phase list) no longer looks at jobs.quiz_questions — for jobs with no workflow_steps quiz entry, Ava is never told "quiz" is a valid destination step id`);
+      }
+      if (!/\{\s*id:\s*["']quiz["']\s*,\s*type:\s*["']quiz["']/.test(body)) {
+        detail.push(`${file}: validPhases no longer synthesizes a { id: "quiz", type: "quiz" } entry — Ava's own phase list would disagree with move_applicant_to_phase's allPhases for the dominant job shape`);
       }
 
       return detail.length ? { ok: false, detail } : { ok: true };

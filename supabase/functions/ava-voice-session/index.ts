@@ -573,7 +573,7 @@ serve(async (req) => {
           .select(`
             id, status, phase, ai_score, ai_analysis, phase_ai_analysis, notes, created_at, candidate_id,
             voice_interview_result, voice_interview_transcript, voice_interview_duration,
-            jobs!inner(id, title, employer_id, workflow_steps)
+            jobs!inner(id, title, employer_id, workflow_steps, quiz_questions)
           `)
           .eq("id", applicationId)
           .eq("jobs.employer_id", user.id)
@@ -588,10 +588,23 @@ serve(async (req) => {
             .single();
 
           const workflowSteps = ((currentApp.jobs as any)?.workflow_steps as any[]) || [];
-          
+
+          // The dominant job shape never writes a workflow_steps entry of
+          // type "quiz" — the quiz lives only on jobs.quiz_questions, and
+          // the candidate-facing quiz stage is the synthetic "quiz" id (see
+          // src/lib/candidateJourney.ts and ava-voice-tools/index.ts's
+          // move_applicant_to_phase, which this list must agree with so Ava
+          // is told a step id that actually reopens the quiz). Only add it
+          // when workflow_steps doesn't already carry its own quiz-type
+          // entry.
+          const hasWorkflowQuizStep = workflowSteps.some((s: any) => s?.type === "quiz");
+          const quizQuestions = ((currentApp.jobs as any)?.quiz_questions as any[]) || [];
+          const hasSyntheticQuiz = !hasWorkflowQuizStep && quizQuestions.length > 0;
+
           // Build list of all valid phases with their exact IDs
           const validPhases = [
             { id: "application", type: "application", title: "Application" },
+            ...(hasSyntheticQuiz ? [{ id: "quiz", type: "quiz", title: "Skills check" }] : []),
             ...workflowSteps.map((step: any) => ({
               id: step.id,
               type: step.type,

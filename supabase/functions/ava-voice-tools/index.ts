@@ -166,7 +166,7 @@ serve(async (req) => {
         // Verify the application belongs to this employer and get workflow steps
         const { data: app, error: appError } = await supabaseClient
           .from("applications")
-          .select("id, job_id, candidate_id, notes, jobs!inner(employer_id, workflow_steps)")
+          .select("id, job_id, candidate_id, notes, jobs!inner(employer_id, workflow_steps, quiz_questions)")
           .eq("id", application_id)
           .eq("jobs.employer_id", user.id)
           .single();
@@ -177,8 +177,29 @@ serve(async (req) => {
 
         // Normalize the phase name to match actual workflow step IDs
         const workflowSteps = ((app.jobs as any)?.workflow_steps as any[]) || [];
+        // The dominant job shape (src/lib/jobFromFlow.ts,
+        // supabase/functions/ai-generate-workflow/index.ts — every real
+        // job-creation path) never writes a workflow_steps entry of type
+        // "quiz"; the quiz lives only on jobs.quiz_questions, and the
+        // candidate-facing quiz stage is the synthetic { id: "quiz", type:
+        // "quiz" } that src/lib/candidateJourney.ts's buildCandidateJourney()
+        // always assigns it (also the literal key_step_id submit_quiz_attempt
+        // writes results under for this shape — see this migration's own
+        // comment). Without adding that synthetic phase here, `allPhases`
+        // never contains a phase of type "quiz" for these jobs, so
+        // `matchedPhase` below is always undefined and the retake-granting
+        // block a few lines down (which gates on `matchedPhase?.type ===
+        // "quiz"`) never fires — an employer/Ava "send back to quiz" leaves
+        // notes untouched and never calls grant_quiz_retake. Only add it when
+        // workflow_steps doesn't already carry its own quiz-type entry (the
+        // rarer shape, where that entry's own real id is already the correct
+        // match via the .map() below).
+        const hasWorkflowQuizStep = workflowSteps.some((s: any) => s?.type === "quiz");
+        const quizQuestions = ((app.jobs as any)?.quiz_questions as any[]) || [];
+        const hasSyntheticQuiz = !hasWorkflowQuizStep && quizQuestions.length > 0;
         const allPhases = [
           { id: "application", type: "application", title: "Application" },
+          ...(hasSyntheticQuiz ? [{ id: "quiz", type: "quiz", title: "Skills check" }] : []),
           ...workflowSteps.map((s: any) => ({ id: s.id, type: s.type, title: s.title })),
           { id: "review", type: "review", title: "Review" },
           { id: "interview", type: "interview", title: "Interview" },
