@@ -203,14 +203,18 @@ export default [
   {
     id: "sending-a-candidate-back-to-quiz-reopens-it",
     why:
-      "submit_quiz_attempt() is unconditionally one-shot per (application, step): once " +
-      "notes[stepId]/notes.quizResult exist it refuses to grade again. move_applicant_to_phase " +
-      "(supabase/functions/ava-voice-tools/index.ts) is the one live employer/Ava action that " +
-      "sends a candidate back to a quiz step, and it commonly does so without touching " +
-      "application.status — so QuizPhase.tsx shows the quiz form again, but submitting it hits " +
-      "the one-shot guard and the candidate is stuck with no way to ever finish that phase. If " +
-      "this function stops clearing the quiz step's saved notes when moving a candidate onto a " +
-      "quiz-type phase, that regression is back.",
+      "submit_quiz_attempt() refuses to grade again once public.quiz_attempt_ledger shows " +
+      "attempts >= 1 + retakes_granted for (candidate_id, job_id, step_id) — a gate that survives " +
+      "the candidate deleting and re-applying, unlike the notes-only fast path it sits alongside. " +
+      "move_applicant_to_phase (supabase/functions/ava-voice-tools/index.ts) is the one live " +
+      "employer/Ava action that sends a candidate back to a quiz step, and it commonly does so " +
+      "without touching application.status — so QuizPhase.tsx shows the quiz form again, but " +
+      "submitting it must actually be allowed to grade. Clearing notes[stepId]/notes.quizResult " +
+      "alone only reopens the notes-only fast-path check; without also calling grant_quiz_retake " +
+      "in the same operation, the ledger still refuses the resubmission and the candidate is stuck " +
+      "with no way to ever finish that phase — the same regression this guard exists to catch, one " +
+      "layer deeper. If this function stops clearing the quiz step's saved notes, or stops calling " +
+      "grant_quiz_retake, when moving a candidate onto a quiz-type phase, that regression is back.",
     async run({ read }) {
       const file = "supabase/functions/ava-voice-tools/index.ts";
       const text = await read(file);
@@ -227,6 +231,9 @@ export default [
       }
       if (!/updates\.notes\s*=/.test(body)) {
         detail.push(`${file}: move_applicant_to_phase no longer clears notes when reopening a quiz step`);
+      }
+      if (!/\.rpc\(\s*["']grant_quiz_retake["']/.test(body)) {
+        detail.push(`${file}: move_applicant_to_phase no longer calls grant_quiz_retake — clearing notes alone no longer reopens the ledger-gated quiz step`);
       }
 
       return detail.length ? { ok: false, detail } : { ok: true };

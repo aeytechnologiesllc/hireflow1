@@ -166,7 +166,7 @@ serve(async (req) => {
         // Verify the application belongs to this employer and get workflow steps
         const { data: app, error: appError } = await supabaseClient
           .from("applications")
-          .select("id, job_id, notes, jobs!inner(employer_id, workflow_steps)")
+          .select("id, job_id, candidate_id, notes, jobs!inner(employer_id, workflow_steps)")
           .eq("id", application_id)
           .eq("jobs.employer_id", user.id)
           .single();
@@ -206,18 +206,20 @@ serve(async (req) => {
         }
 
         // Sending a candidate back to a quiz step is a request to retake it.
-        // submit_quiz_attempt() is one-shot per (application, step) — it
-        // refuses to grade again once notes[stepId] or notes.quizResult
-        // already holds a result, which is exactly the state a candidate
-        // who already finished the quiz once is in. Clear that step's saved
-        // result (and the top-level quizResult summary, since a "which quiz
-        // step" isn't tracked separately from "the candidate's latest quiz
-        // result") here, as part of the employer's own write, so the
-        // reopened quiz step is actually retakeable instead of erroring
-        // with "This quiz has already been submitted." Only fires when the
-        // destination phase really is a quiz step, and only touches the
-        // quiz-shaped keys in notes — every other note (application
-        // answers, typing test, chat transcripts, ...) is left untouched.
+        // submit_quiz_attempt() refuses to grade again once
+        // public.quiz_attempt_ledger shows attempts >= 1 + retakes_granted
+        // for (candidate_id, job_id, step_id) — a gate that, unlike notes,
+        // survives the candidate deleting this application and re-applying.
+        // Clear that step's saved result (and the top-level quizResult
+        // summary, since a "which quiz step" isn't tracked separately from
+        // "the candidate's latest quiz result") here, as part of the
+        // employer's own write, AND grant exactly one more ledger attempt
+        // via grant_quiz_retake — clearing notes alone reopens the old
+        // notes-based check but not the ledger, which would otherwise still
+        // refuse the resubmission. Only fires when the destination phase
+        // really is a quiz step, and only touches the quiz-shaped keys in
+        // notes — every other note (application answers, typing test, chat
+        // transcripts, ...) is left untouched.
         if (matchedPhase?.type === "quiz") {
           let existingNotes: Record<string, any> = {};
           try {
@@ -228,6 +230,13 @@ serve(async (req) => {
           if (existingNotes[normalizedPhase] || existingNotes.quizResult) {
             const { [normalizedPhase]: _droppedStep, quizResult: _droppedResult, ...rest } = existingNotes;
             updates.notes = JSON.stringify(rest);
+
+            const { error: retakeError } = await supabaseClient.rpc("grant_quiz_retake", {
+              p_candidate_id: (app as any).candidate_id,
+              p_job_id: app.job_id,
+              p_step_id: normalizedPhase,
+            });
+            if (retakeError) throw retakeError;
           }
         }
 

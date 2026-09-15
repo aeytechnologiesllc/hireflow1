@@ -180,9 +180,100 @@
 --          Now uses key_step_id, exactly as the job_quiz_keys lookup two
 --          lines earlier already does.
 --
+--   9. Final round, orchestrator-directed: submit_quiz_attempt's one-shot
+--      guard lived entirely in applications.notes — delete the application
+--      and re-apply (a fresh row, fresh notes) and the guard is gone, even
+--      though nothing about the candidate's actual attempt history changed.
+--      Adds public.quiz_attempt_ledger, keyed by (candidate_id, job_id,
+--      step_id) rather than application_id specifically so it survives that
+--      delete-and-reapply: no FK to applications at all, so an application
+--      being deleted (or cascade-deleted with its job) never touches a
+--      ledger row. It DOES cascade with jobs (job_id references jobs(id) ON
+--      DELETE CASCADE) — a deleted job's per-candidate attempt history has
+--      nothing left to gate. RLS is enabled with zero policies for any
+--      client role: every read/write from `authenticated` or `anon` gets
+--      zero rows / a denied write, same as job_quiz_keys' service-only
+--      shape above. The two functions that touch it (submit_quiz_attempt
+--      below, and the new grant_quiz_retake) are SECURITY DEFINER, owned by
+--      the migration role, which — like table owners generally — bypasses
+--      RLS regardless of policy count; that's the only way in or out.
+--      submit_quiz_attempt now refuses once attempts >= 1 + retakes_granted
+--      for the row matching the actually-graded (candidate_id, job_id,
+--      key_step_id) — not the old notes-only check, which stays in place
+--      alongside it as a cheap same-application fast path, not the
+--      authority. grant_quiz_retake is the only way retakes_granted moves;
+--      it's called from ava-voice-tools' move_applicant_to_phase (the one
+--      live path that already clears notes[stepId]/quizResult to reopen a
+--      quiz step) at the exact moment that clear happens, so the reopened
+--      step actually accepts one more submission instead of the ledger
+--      still refusing it. Backfilled from every application that already
+--      carries a completed quiz result (a top-level notes key whose value
+--      has type:'quiz'), grouped per (candidate_id, job_id, step_id) so a
+--      candidate who already had more than one such application before this
+--      migration counts for that many real historical attempts — otherwise
+--      deleting a completed application today and re-applying tomorrow,
+--      right after this migration ships, would read as a first attempt.
+--
+--   10. Also orchestrator-directed: the notes guard inside
+--      protect_application_columns keyed off two exact key names
+--      ('quiz', 'quizResult') plus a content check (any entry whose own
+--      'type' is 'quiz') plus two more exact names (avaScorecard,
+--      avaAnalysisMeta) — four separate IF blocks, each only as broad as
+--      the specific bypass a prior review round had found. That is
+--      necessarily reactive: a new top-level key that starts with "quiz"
+--      but isn't spelled exactly 'quiz'/'quizResult' — quizAnswers,
+--      quizScore, QuizX, anything — was never checked at all and would sail
+--      through exactly like the bare-'quiz'-key hole item 7 found, just one
+--      new key name away. Replaced with one helper,
+--      protected_application_notes_subset(notes jsonb), that extracts every
+--      top-level key whose name starts with "quiz" case-insensitively, every
+--      entry whose value is an object with type = 'quiz', and avaScorecard
+--      (avaAnalysisMeta kept too, unchanged from item 8 — not asked to
+--      change this round) into one jsonb object; the trigger now does one
+--      comparison, protected_application_notes_subset(OLD.notes) IS
+--      DISTINCT FROM protected_application_notes_subset(NEW.notes), instead
+--      of one IF per known name. A candidate adding, changing, or removing
+--      ANY key matching that shape is rejected, regardless of what the key
+--      is called beyond the "quiz" prefix.
+--
+--   11. Repairer round found submit_quiz_attempt writing the detailed
+--      per-question result under the wrong notes key for the standard job
+--      shape (no workflow_steps entry of type "quiz" — the shape every real
+--      job-creation path produces: src/lib/jobFromFlow.ts and
+--      supabase/functions/ai-generate-workflow/index.ts both deliberately
+--      keep the quiz on jobs.quiz_questions only). The ELSE branch below
+--      used the same key_step_id ('__quiz_questions__') for both the
+--      job_quiz_keys lookup AND the notes write. '__quiz_questions__' is
+--      right for the former (extract_quiz_answer_keys, item 2 above, stored
+--      the answer rows under exactly that step_id) but wrong for the
+--      latter: src/lib/candidateJourney.ts's buildCandidateJourney()
+--      always synthesizes this stage's id as the literal string "quiz", so
+--      that's what QuizPhase.tsx sends as p_step_id and what every reader
+--      of the per-question breakdown already looks for (src/cockpit/lib/
+--      mappers.ts's notes.quiz?.score, CandidateApplicationDetail.tsx's
+--      notes[phase.id]?.completedAt with phase.id === "quiz",
+--      generate-applicant-dossier's notes.quiz || notes.quizResult).
+--      Writing under '__quiz_questions__' left every one of those readers
+--      empty-handed for the dominant job shape going forward (notes.
+--      quizResult, written unconditionally under its own fixed key
+--      regardless of step_key, kept the aggregate score/passed working by
+--      coincidence, masking the regression). Split into two variables:
+--      key_lookup_step_id (job_quiz_keys lookup — stays
+--      '__quiz_questions__' for this branch) and key_step_id (the notes
+--      write key — now the fixed literal 'quiz' for this branch, unchanged
+--      for the workflow_steps-quiz branch, where both still point at the
+--      same real, job-config-derived step id). 'quiz' is a fixed literal,
+--      not p_step_id itself — using the raw caller-supplied p_step_id here
+--      would reopen the exact "clobber an unrelated real notes entry" hole
+--      item 8 closed.
+--
 -- Idempotent: CREATE OR REPLACE FUNCTION, DROP TRIGGER IF EXISTS + CREATE,
--- CREATE TABLE IF NOT EXISTS, DROP POLICY IF EXISTS + CREATE. Safe to run
--- once against the live database as it stands today.
+-- CREATE TABLE IF NOT EXISTS, DROP POLICY IF EXISTS + CREATE, an
+-- INSERT ... ON CONFLICT DO UPDATE SET x = GREATEST(...) backfill that only
+-- ever raises a ledger's stored count to match what applications.notes
+-- already shows, never lowers one a real post-migration attempt already
+-- incremented past that. Safe to run more than once against the live
+-- database as it stands today.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -230,6 +321,93 @@ CREATE POLICY "Team members can write quiz keys"
 -- no matching policy, every other role gets zero rows. Nothing here grants
 -- service_role anything: service_role bypasses RLS entirely, which is how
 -- edge functions read this table.
+
+-- ----------------------------------------------------------------------------
+-- 1b. quiz_attempt_ledger — the one-shot gate that survives delete + reapply
+-- ----------------------------------------------------------------------------
+-- Keyed by (candidate_id, job_id, step_id), not application_id: a candidate
+-- who deletes a completed application and re-applies gets a brand-new
+-- application row (and brand-new, empty notes), but the same candidate_id
+-- and job_id, so this row — and its attempts count — survives that and
+-- keeps gating. Deliberately no FK to applications at all, so an
+-- application (or a batch of them) being deleted never cascades into this
+-- table. It DOES cascade with jobs: once a job itself is gone there is
+-- nothing left for a per-candidate attempt count on it to gate.
+CREATE TABLE IF NOT EXISTS public.quiz_attempt_ledger (
+  candidate_id    uuid NOT NULL,
+  job_id          uuid NOT NULL REFERENCES public.jobs(id) ON DELETE CASCADE,
+  step_id         text NOT NULL,
+  attempts        int NOT NULL DEFAULT 0,
+  retakes_granted int NOT NULL DEFAULT 0,
+  last_attempt_at timestamptz,
+  PRIMARY KEY (candidate_id, job_id, step_id)
+);
+
+ALTER TABLE public.quiz_attempt_ledger ENABLE ROW LEVEL SECURITY;
+
+-- Deliberately zero policies, for every role, including `authenticated` and
+-- `anon` — this table is server-only. With RLS enabled and no matching
+-- policy, any direct client read or write gets zero rows / a denied write,
+-- exactly like job_quiz_keys above. The only writers are: submit_quiz_attempt
+-- and grant_quiz_retake (both SECURITY DEFINER, both below), which bypass
+-- RLS as the table owner regardless of policy count — the same mechanism
+-- that already lets submit_quiz_attempt's SECURITY DEFINER body write
+-- applications despite protect_application_columns' trigger existing to
+-- restrict a candidate's own direct writes to that table (a trigger, not
+-- RLS, but the same "table owner" bypass principle applies to RLS here) —
+-- and service_role, which bypasses RLS entirely regardless of this table's
+-- policy count, same as everywhere else in this file.
+
+-- Backfill: one attempt per application that already carries a completed
+-- quiz result (a top-level notes key whose own value has type:'quiz' — the
+-- exact shape submit_quiz_attempt below writes under key_step_id, and the
+-- same shape protect_application_columns' notes guard already keys off of),
+-- grouped per (candidate_id, job_id, step_id) so a candidate who — before
+-- this ledger existed — already had more than one application to the same
+-- job with a completed quiz result counts for that many real historical
+-- attempts, not just one. pg_temp.try_parse_jsonb absorbs applications.notes
+-- rows that aren't valid JSON (the same failure protect_application_columns'
+-- own old_notes/new_notes casts already guard against elsewhere in this
+-- file) rather than aborting the whole backfill; jsonb_each never runs
+-- against a NULL/non-object result because the WHERE clause filters those
+-- out one CTE level before the LATERAL join reaches them. Idempotent:
+-- GREATEST(existing, freshly-computed) only ever raises the stored count to
+-- match what's derivable from applications.notes today — since this
+-- backfill statement doesn't touch notes, that computed value is identical
+-- on every rerun, so rerunning this after real post-migration attempts have
+-- already incremented a row further never claws that count back down.
+CREATE OR REPLACE FUNCTION pg_temp.try_parse_jsonb(p text) RETURNS jsonb
+LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN p::jsonb;
+EXCEPTION WHEN others THEN
+  RETURN NULL;
+END;
+$$;
+
+WITH parsed_notes AS (
+  SELECT candidate_id, job_id, notes_json
+  FROM (
+    SELECT a.candidate_id, a.job_id, pg_temp.try_parse_jsonb(a.notes) AS notes_json
+    FROM public.applications a
+    WHERE a.notes IS NOT NULL
+  ) t
+  WHERE jsonb_typeof(notes_json) = 'object'
+),
+quiz_entries AS (
+  SELECT pn.candidate_id, pn.job_id, kv.key AS step_id
+  FROM parsed_notes pn,
+       LATERAL jsonb_each(pn.notes_json) AS kv(key, value)
+  WHERE (kv.value ->> 'type') = 'quiz'
+)
+INSERT INTO public.quiz_attempt_ledger (candidate_id, job_id, step_id, attempts, retakes_granted)
+SELECT candidate_id, job_id, step_id, count(*)::int, 0
+FROM quiz_entries
+GROUP BY candidate_id, job_id, step_id
+ON CONFLICT (candidate_id, job_id, step_id)
+DO UPDATE SET attempts = GREATEST(public.quiz_attempt_ledger.attempts, EXCLUDED.attempts);
+
+DROP FUNCTION IF EXISTS pg_temp.try_parse_jsonb(text);
 
 -- ----------------------------------------------------------------------------
 -- 2. Strip answer fields out of the jobs row into job_quiz_keys
@@ -395,6 +573,7 @@ DECLARE
   ordv                int;
   step_elem           jsonb;
   key_step_id         text;
+  key_lookup_step_id  text;
   questions           jsonb;
   q                   jsonb;
   q_idx               int;
@@ -421,6 +600,8 @@ DECLARE
   step_key            text;
   phase_analysis      text;
   result              jsonb;
+  ledger_attempts     int;
+  ledger_retakes      int;
 BEGIN
   SELECT * INTO app FROM public.applications WHERE id = p_application_id FOR UPDATE;
   IF NOT FOUND THEN
@@ -516,14 +697,78 @@ BEGIN
       RAISE EXCEPTION 'Step % is not a quiz step', p_step_id;
     END IF;
     questions := quiz_step->'config'->'questions';
+    -- A real workflow_steps quiz entry: its own id is both the safe notes
+    -- key (it comes from the job's own config, never from the caller) and
+    -- the job_quiz_keys lookup key (extract_quiz_answer_keys stored answer
+    -- rows under this same step id — see item 2 above).
     key_step_id := COALESCE(quiz_step->>'id', '__step_' || quiz_step_idx::text);
+    key_lookup_step_id := key_step_id;
   ELSE
+    -- No workflow_steps quiz entry — the standard job shape every real
+    -- job-creation path in this codebase produces (src/lib/jobFromFlow.ts,
+    -- supabase/functions/ai-generate-workflow/index.ts both deliberately
+    -- never emit a workflow_steps entry of type "quiz"; the quiz lives only
+    -- in the top-level jobs.quiz_questions column). job_quiz_keys still
+    -- must be looked up under '__quiz_questions__' — that's the fixed
+    -- step_id extract_quiz_answer_keys wrote those rows under (see item 2's
+    -- INSERT above) — but the notes-write key cannot reuse that same
+    -- constant: it must be 'quiz', because that is the literal, hardcoded
+    -- synthetic step id src/lib/candidateJourney.ts's buildCandidateJourney()
+    -- always assigns to this stage (`steps.push({ id: "quiz", ... })`), and
+    -- therefore the literal id QuizPhase.tsx sends as p_step_id and the
+    -- literal key every reader of the per-question detail already looks
+    -- for (src/cockpit/lib/mappers.ts's notes.quiz?.score,
+    -- CandidateApplicationDetail.tsx's notes[phase.id]?.completedAt check
+    -- with phase.id === "quiz", generate-applicant-dossier's
+    -- notes.quiz || notes.quizResult). Writing under '__quiz_questions__'
+    -- instead (a prior draft of this function did) left every one of those
+    -- readers unable to find the per-question answer breakdown, even though
+    -- notes.quizResult (written unconditionally below, under its own fixed
+    -- key regardless of key_step_id) kept the aggregate score/passed
+    -- working by coincidence. 'quiz' is a fixed literal here, not
+    -- p_step_id — using the caller-supplied p_step_id directly would
+    -- reopen exactly the "clobber an unrelated real notes entry" hole item
+    -- 8 closed (a candidate could pass p_step_id = 'video' and have their
+    -- quiz result overwrite a real, already-graded notes.video entry) —
+    -- 'quiz' is safe because it is not attacker-influenceable and is the
+    -- only id this job's synthesized quiz stage can ever have.
     questions := COALESCE(job.quiz_questions, '[]'::jsonb);
-    key_step_id := '__quiz_questions__';
+    key_step_id := 'quiz';
+    key_lookup_step_id := '__quiz_questions__';
   END IF;
 
   IF questions IS NULL OR jsonb_typeof(questions) <> 'array' OR jsonb_array_length(questions) = 0 THEN
     RAISE EXCEPTION 'No quiz questions found for this step';
+  END IF;
+
+  -- The authoritative one-shot gate: public.quiz_attempt_ledger, keyed by
+  -- (candidate_id, job_id, key_step_id) — the actually-matched step, same
+  -- as everywhere else this function uses key_step_id rather than the raw
+  -- p_step_id (see item 8 in the file header for why). Unlike the
+  -- notes-based check above, this survives the candidate deleting this
+  -- application and re-applying: a fresh application has fresh (empty)
+  -- notes, but the same candidate_id/job_id, so the ledger row (and its
+  -- attempts count) is still there. Insert-then-lock rather than a bare
+  -- SELECT ... FOR UPDATE: two concurrent first-time submissions for the
+  -- same (candidate, job, step) — from two different application rows, so
+  -- `app`'s own FOR UPDATE lock above does not serialize them — must not
+  -- both see "no row yet, attempts = 0" and both pass. ON CONFLICT DO
+  -- NOTHING makes the insert a no-op on the second racer; the SELECT ...
+  -- FOR UPDATE that follows then blocks it on the first racer's row lock
+  -- until that transaction commits, and re-reads the now-current (already
+  -- incremented) row once unblocked, exactly as READ COMMITTED's lock-wait
+  -- re-check guarantees.
+  INSERT INTO public.quiz_attempt_ledger (candidate_id, job_id, step_id, attempts, retakes_granted)
+  VALUES (auth.uid(), app.job_id, key_step_id, 0, 0)
+  ON CONFLICT (candidate_id, job_id, step_id) DO NOTHING;
+
+  SELECT attempts, retakes_granted INTO ledger_attempts, ledger_retakes
+    FROM public.quiz_attempt_ledger
+   WHERE candidate_id = auth.uid() AND job_id = app.job_id AND step_id = key_step_id
+     FOR UPDATE;
+
+  IF ledger_attempts >= 1 + ledger_retakes THEN
+    RAISE EXCEPTION 'This quiz has already been submitted';
   END IF;
 
   -- Let this transaction's writes through the applications write-guard.
@@ -536,7 +781,7 @@ BEGIN
 
     SELECT jqk.key INTO key_obj
       FROM public.job_quiz_keys jqk
-     WHERE jqk.job_id = job.id AND jqk.step_id = key_step_id AND jqk.question_id = q_id;
+     WHERE jqk.job_id = job.id AND jqk.step_id = key_lookup_step_id AND jqk.question_id = q_id;
     key_obj := COALESCE(key_obj, '{}'::jsonb);
 
     user_answer := p_answers -> q_id;
@@ -702,14 +947,16 @@ BEGIN
   -- FOR UPDATE the whole time), so it's still current here.
   --
   -- step_key is the ACTUALLY-MATCHED quiz step's own id (key_step_id) —
-  -- never the caller-supplied p_step_id. The step-lookup loop above matches
+  -- never the caller-supplied p_step_id, and never key_lookup_step_id
+  -- either (the two differ for the standard/no-workflow-steps job shape —
+  -- see where both are set above). The step-lookup loop above matches
   -- the first workflow step whose id equals p_step_id OR whose type is
   -- 'quiz', so a caller can pass ANY p_step_id (one belonging to a
   -- different, real step on the same job, or one matching nothing at all)
   -- and still have it resolve to the real quiz step and grade correctly
   -- against the real key — key_step_id already reflects that resolved step,
-  -- not the raw input, exactly like the job_quiz_keys lookup above uses it.
-  -- Writing under p_step_id instead would let a candidate pick an existing,
+  -- not the raw input, exactly like the job_quiz_keys lookup above uses
+  -- key_lookup_step_id. Writing under p_step_id instead would let a candidate pick an existing,
   -- unrelated step key (e.g. a real 'portfolio' entry with its own
   -- already-graded aiAnalysis.score) and have this call's result silently
   -- clobber it via the top-level `existing_notes || jsonb_build_object(...)`
@@ -757,6 +1004,14 @@ BEGIN
          phase_ai_analysis = phase_analysis
    WHERE id = p_application_id;
 
+  -- Record the attempt now that grading actually happened. The row was
+  -- already inserted (if it didn't exist) and locked FOR UPDATE above, so
+  -- this is a plain UPDATE, never an upsert race.
+  UPDATE public.quiz_attempt_ledger
+     SET attempts = attempts + 1,
+         last_attempt_at = now()
+   WHERE candidate_id = auth.uid() AND job_id = app.job_id AND step_id = key_step_id;
+
   result := jsonb_build_object(
     'score', score_pct,
     'correct', correct_total,
@@ -764,6 +1019,51 @@ BEGIN
     'passed', score_pct >= passing
   );
   RETURN result;
+END;
+$function$;
+
+-- ----------------------------------------------------------------------------
+-- 4b. grant_quiz_retake — the only way retakes_granted moves
+-- ----------------------------------------------------------------------------
+-- Called from ava-voice-tools' move_applicant_to_phase at the exact moment
+-- it clears notes[stepId]/notes.quizResult to reopen a quiz step (see that
+-- function): a genuine employer/Ava decision that a retake is warranted, not
+-- something submit_quiz_attempt or the candidate can trigger themselves.
+-- Authorization mirrors get_job_quiz_keys / the job_quiz_keys write
+-- policies above: job owner, or a team member with manage-pipeline
+-- standing (the same permission move_applicant_to_phase's own caller must
+-- already hold to reach this point), or service_role. p_candidate_id/
+-- p_step_id are not independently verified against a real application —
+-- move_applicant_to_phase already resolved both from an application row it
+-- confirmed belongs to this employer's job before calling this; a caller
+-- who invoked this RPC directly with an unrelated candidate_id could only
+-- ever create a stray, harmless ledger row (it grants nothing by itself —
+-- submit_quiz_attempt still requires that candidate to hold a real
+-- application and a real job_quiz_keys entry to grade anything), the same
+-- class of accepted, narrow limit as this file's other documented ones.
+CREATE OR REPLACE FUNCTION public.grant_quiz_retake(
+  p_candidate_id uuid,
+  p_job_id uuid,
+  p_step_id text
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public', 'pg_temp'
+AS $function$
+BEGIN
+  IF NOT (
+    auth.role() = 'service_role'
+    OR public.is_job_owner(p_job_id, auth.uid())
+    OR public.is_active_team_member_for_job(p_job_id, auth.uid(), true)
+  ) THEN
+    RAISE EXCEPTION 'Not authorized to grant a quiz retake for this job';
+  END IF;
+
+  INSERT INTO public.quiz_attempt_ledger (candidate_id, job_id, step_id, attempts, retakes_granted)
+  VALUES (p_candidate_id, p_job_id, p_step_id, 0, 1)
+  ON CONFLICT (candidate_id, job_id, step_id)
+  DO UPDATE SET retakes_granted = public.quiz_attempt_ledger.retakes_granted + 1;
 END;
 $function$;
 
@@ -883,6 +1183,55 @@ END;
 $function$;
 
 -- ----------------------------------------------------------------------------
+-- 5b. protected_application_notes_subset — one helper, not one IF per name
+-- ----------------------------------------------------------------------------
+-- Extracts, from a parsed applications.notes object, every top-level entry a
+-- candidate must never add/change/remove directly: any key whose name starts
+-- with "quiz" case-insensitively (quiz, quizResult, quizAnswers, quizScore,
+-- QuizX, ... — matches by prefix, not by one fixed list of exact names, so a
+-- new key spelled any other way than the ones prior review rounds happened
+-- to catch is covered too), any entry whose own value is a JSON object with
+-- type = 'quiz' (covers a quiz-shaped result saved under an unrelated key
+-- name, e.g. a step id that doesn't itself start with "quiz"), and
+-- avaScorecard / avaAnalysisMeta (item 8's fix, unchanged — ai-shortlist
+-- trusts notes.avaScorecard ahead of the real, protected ai_score/
+-- ai_scorecard columns; avaAnalysisMeta is displayed alongside it). Returns
+-- an empty object for NULL or non-object input, never raises — callers
+-- decide what a parse failure of the raw column means, this function only
+-- ever sees an already-parsed jsonb value. protect_application_columns below
+-- calls this once on OLD.notes and once on NEW.notes and compares the two
+-- results with IS DISTINCT FROM, instead of the four separate exact-name/
+-- content IF blocks item 7 and item 8 each added narrowly for the specific
+-- bypass that review round found.
+CREATE OR REPLACE FUNCTION public.protected_application_notes_subset(p_notes jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SET search_path TO 'public', 'pg_temp'
+AS $function$
+DECLARE
+  result jsonb := '{}'::jsonb;
+  k      text;
+  v      jsonb;
+BEGIN
+  IF p_notes IS NULL OR jsonb_typeof(p_notes) <> 'object' THEN
+    RETURN result;
+  END IF;
+
+  FOR k, v IN SELECT key, value FROM jsonb_each(p_notes)
+  LOOP
+    IF lower(k) LIKE 'quiz%'
+       OR (v ->> 'type') = 'quiz'
+       OR k = 'avaScorecard'
+       OR k = 'avaAnalysisMeta' THEN
+      result := result || jsonb_build_object(k, v);
+    END IF;
+  END LOOP;
+
+  RETURN result;
+END;
+$function$;
+
+-- ----------------------------------------------------------------------------
 -- 6. Stop a candidate from rewriting their own status/score/quiz result
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.protect_application_columns()
@@ -894,9 +1243,6 @@ AS $function$
 DECLARE
   old_notes       jsonb;
   new_notes       jsonb;
-  note_key        text;
-  old_entry       jsonb;
-  new_entry       jsonb;
 BEGIN
   -- service_role (edge functions, migrations) bypasses RLS entirely but
   -- NOT triggers — this BEFORE UPDATE trigger still fires for their writes,
@@ -1014,8 +1360,10 @@ BEGIN
 
   -- notes: candidates freely record their own self-reported phase results
   -- (typing test WPM, chat/sales simulation transcripts, video/portfolio
-  -- links, ...) — that's out of scope for this fix. A quiz result is not:
-  -- it may only be written by submit_quiz_attempt.
+  -- links, ...) — that's out of scope for this fix. A quiz result, or the
+  -- Ava scorecard, is not: see protected_application_notes_subset above for
+  -- exactly what's covered and why. This now does one comparison instead of
+  -- one IF per known name/shape.
   IF NEW.notes IS DISTINCT FROM OLD.notes THEN
     BEGIN
       old_notes := COALESCE(OLD.notes::jsonb, '{}'::jsonb);
@@ -1028,70 +1376,10 @@ BEGIN
       RAISE EXCEPTION 'Application notes must be valid JSON';
     END;
 
-    IF (new_notes -> 'quizResult') IS DISTINCT FROM (old_notes -> 'quizResult') THEN
-      RAISE EXCEPTION 'Candidates cannot edit quiz results directly';
+    IF public.protected_application_notes_subset(old_notes)
+       IS DISTINCT FROM public.protected_application_notes_subset(new_notes) THEN
+      RAISE EXCEPTION 'Candidates cannot edit quiz results or the Ava scorecard directly';
     END IF;
-
-    -- The per-question type='quiz' check below (and the quizResult check
-    -- above) both key off CONTENT, not the key name — a candidate can add a
-    -- brand-new top-level key literally named "quiz" with no "type" field
-    -- at all (e.g. {"quiz": {"score": 100, "correct": 99, "total": 99}}) and
-    -- neither check fires. That exact shape is read as a fully trusted
-    -- fallback for notes.quizResult in ai-shortlist, trigger-ava-analysis,
-    -- autopilot-batch, generate-applicant-dossier, src/cockpit/lib/
-    -- mappers.ts and src/utils/getApplicationDisplayState.ts (all read
-    -- `notes.quiz` interchangeably with `notes.quizResult`), and it is also
-    -- exactly where submit_quiz_attempt itself legitimately writes when a
-    -- job's quiz step id is literally "quiz" — the common case, since the
-    -- step id defaults to "quiz" in the job editor. So the key name "quiz"
-    -- must be guarded the same way "quizResult" is, independent of whatever
-    -- shape (or absence of a "type" field) the value happens to have.
-    IF (new_notes -> 'quiz') IS DISTINCT FROM (old_notes -> 'quiz') THEN
-      RAISE EXCEPTION 'Candidates cannot edit quiz results directly';
-    END IF;
-
-    -- trigger-ava-analysis (supabase/functions/trigger-ava-analysis/
-    -- index.ts) writes the exact same scorecard object into BOTH the
-    -- protected ai_scorecard column AND applications.notes.avaScorecard on
-    -- every run (plus notes.avaAnalysisMeta alongside it), as a service_role
-    -- write, so it never reaches this far — service_role already returned
-    -- at the top of this function. But nothing here stopped a CANDIDATE
-    -- from writing straight over notes.avaScorecard themselves: it isn't a
-    -- 'type':'quiz' entry and isn't named 'quiz'/'quizResult', so neither
-    -- check above catches it. ai-shortlist's buildScorecard()
-    -- (supabase/functions/ai-shortlist/index.ts) reads notes.avaScorecard
-    -- FIRST, ahead of the real (protected) ai_score/ai_scorecard columns,
-    -- and trusts its overallScore/confidence/recommendedAction/
-    -- autopilotAction/riskFlags/rationale essentially verbatim — so an
-    -- unguarded notes.avaScorecard is a direct forgery path onto a
-    -- hiring-decision surface, the exact class of hole this migration
-    -- exists to close. Guarded the same way as the 'quiz'/'quizResult' key
-    -- names: by key name, so it does not matter what shape (or lack of a
-    -- 'type' field) the candidate's forged value takes. avaAnalysisMeta is
-    -- read by CondensedAIAnalysis.tsx as trusted display metadata
-    -- alongside avaScorecard, so it gets the same treatment for
-    -- consistency even though no ranking surface derives a score from it
-    -- today.
-    IF (new_notes -> 'avaScorecard') IS DISTINCT FROM (old_notes -> 'avaScorecard') THEN
-      RAISE EXCEPTION 'Candidates cannot edit the Ava scorecard directly';
-    END IF;
-    IF (new_notes -> 'avaAnalysisMeta') IS DISTINCT FROM (old_notes -> 'avaAnalysisMeta') THEN
-      RAISE EXCEPTION 'Candidates cannot edit Ava analysis metadata directly';
-    END IF;
-
-    FOR note_key IN
-      SELECT key FROM jsonb_object_keys(new_notes) AS key
-      UNION
-      SELECT key FROM jsonb_object_keys(old_notes) AS key
-    LOOP
-      new_entry := new_notes -> note_key;
-      old_entry := old_notes -> note_key;
-      IF new_entry IS DISTINCT FROM old_entry THEN
-        IF (new_entry ->> 'type') = 'quiz' OR (old_entry ->> 'type') = 'quiz' THEN
-          RAISE EXCEPTION 'Candidates cannot edit quiz answers directly';
-        END IF;
-      END IF;
-    END LOOP;
   END IF;
 
   RETURN NEW;
@@ -1106,3 +1394,4 @@ CREATE TRIGGER protect_applications_candidate_writes
 GRANT EXECUTE ON FUNCTION public.get_job_quiz_keys(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.submit_quiz_attempt(uuid, text, jsonb, jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.submit_voice_interview_manual_end(uuid, jsonb, integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.grant_quiz_retake(uuid, uuid, text) TO authenticated;

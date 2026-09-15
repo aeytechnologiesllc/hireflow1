@@ -89,6 +89,30 @@ function ok(cond, label) {
   }
 }
 
+// A single uncaught throw inside one numbered section used to abort the
+// whole process (process.exit(1) from the top-level `main().catch()`
+// below) before later sections ever ran — repairer-round finding: a
+// resubmission the retake test forgot to actually grant threw
+// "This quiz has already been submitted" out of an unguarded db.query,
+// and every section after it (voice-interview grading/guards,
+// job_quiz_keys extraction) silently never executed at all, even though
+// the run still printed a pass/fail count and exited nonzero for what
+// looked like just that one section. Every section body below now runs
+// through this wrapper: a throw is recorded as one failed assertion (so
+// the run stays visibly red) and the harness moves on to the next section
+// instead of dying, so one section's bug can never hide every later
+// section's coverage again.
+async function guardedSection(label, fn) {
+  try {
+    await fn();
+  } catch (e) {
+    fail++;
+    const msg = `section crashed: ${label} — ${e.message}`;
+    failures.push(msg);
+    console.log(`  FAIL: ${msg}`);
+  }
+}
+
 async function main() {
   const db = new PGlite();
   const migrationSql = await readFile(MIGRATION_PATH, "utf8");
@@ -392,14 +416,49 @@ async function main() {
   }
 
   {
+    // Broader quiz-prefix coverage: protected_application_notes_subset
+    // matches by case-insensitive "quiz" PREFIX, not one fixed list of
+    // exact names — quizAnswers, quizScore, and a differently-cased
+    // "QuizX" must all be caught the same way "quiz"/"quizResult" are.
+    for (const forgedKey of ["quizAnswers", "quizScore", "QuizX"]) {
+      const appId = await newApplication("pending", { notes: "{}" });
+      await expectFail(
+        () => updateAsCandidate(appId, "notes = $2", [JSON.stringify({ [forgedKey]: { score: 100 } })]),
+        `candidate cannot forge a quiz-prefixed key named "${forgedKey}"`
+      );
+    }
+  }
+
+  {
+    // Content-based coverage: a quiz-shaped object ({type:"quiz"}) stored
+    // under a key name that does NOT itself start with "quiz" — e.g. a step
+    // id like "assessment1". The prefix check alone wouldn't catch this;
+    // protected_application_notes_subset's separate (v->>'type')='quiz'
+    // check must.
+    const appId = await newApplication("pending", { notes: "{}" });
+    await expectFail(
+      () =>
+        updateAsCandidate(appId, "notes = $2", [
+          JSON.stringify({ assessment1: { type: "quiz", score: 100, correct: 99, total: 99, passed: true } }),
+        ]),
+      'candidate cannot forge a {type:"quiz"} object under a non-quiz-prefixed key name'
+    );
+  }
+
+  {
     // Non-quiz notes keys stay freely writable (typing/chat/portfolio/etc).
     const appId = await newApplication("pending", { notes: "{}" });
     await expectOk(
       () =>
         updateAsCandidate(appId, "notes = $2", [
-          JSON.stringify({ typingTestResult: { wpm: 80 }, portfolioResult: { overallScore: 90 } }),
+          JSON.stringify({
+            typingTestResult: { wpm: 80 },
+            portfolioResult: { overallScore: 90 },
+            applicationAnswers: [{ question: "Why us?", answer: "..." }],
+            chatSimulationResult: { transcript: [], score: 85 },
+          }),
         ]),
-      "candidate can still write non-quiz notes keys freely"
+      "candidate can still write non-quiz notes keys freely (typingTestResult, applicationAnswers, chatSimulationResult, portfolioResult)"
     );
   }
 
@@ -504,7 +563,7 @@ async function main() {
 
   console.log("\n== 6. submit_quiz_attempt grading ==");
 
-  {
+  await guardedSection("6a. grading + one-shot guard + retake + retake-limit", async () => {
     const appId = await newApplication("pending", { phase: "quiz" });
     await actAs(candidateId, "authenticated");
     const answers = {
@@ -550,25 +609,42 @@ async function main() {
       "already been submitted"
     );
 
-    // Retake: move_applicant_to_phase's clearing of notes[stepId]/quizResult
-    // — a write ava-voice-tools makes as service_role, not the candidate
-    // (protect_application_columns denies the candidate's own writes to
-    // notes.quizResult, by design — only an employer/Ava decides a retake
-    // is warranted).
+    // Retake: move_applicant_to_phase (ava-voice-tools) clears
+    // notes[stepId]/notes.quizResult AND calls grant_quiz_retake in the
+    // SAME operation (see the diff to that file) — clearing notes alone
+    // reopens the old notes-only fast-path check but NOT the ledger, which
+    // — as of the attempt-ledger round — is the actual authority and would
+    // otherwise still refuse the resubmission with "already been
+    // submitted". Reproduce both halves of that real employer/Ava write,
+    // in the same order, rather than only the notes-clear half.
     const cleared = { ...notes };
     delete cleared.quiz;
     delete cleared.quizResult;
+    await actAs(employerId, "authenticated");
+    await expectOk(
+      () => db.query(`SELECT public.grant_quiz_retake($1, $2, 'quiz')`, [candidateId, jobId]),
+      "job owner can call grant_quiz_retake"
+    );
     await actAs(null, "service_role");
     await db.query(`UPDATE public.applications SET notes = $2 WHERE id = $1`, [appId, JSON.stringify(cleared)]);
     await actAs(candidateId, "authenticated");
     await expectOk(
       () => db.query(`SELECT public.submit_quiz_attempt($1, 'quiz', $2::jsonb, '[]'::jsonb) AS r`, [appId, JSON.stringify(answers)]),
-      "after a retake-clear, submit_quiz_attempt grades again"
+      "after grant_quiz_retake + a retake-clear, submit_quiz_attempt grades again"
     );
-  }
 
-  {
-    // Candidate cannot grade someone else's application.
+    // The one retake granted exactly one more attempt, not unlimited ones:
+    // a THIRD submission for this same (candidate, job, step) — even from a
+    // brand-new application row — must be refused again.
+    const thirdAppId = await newApplication("pending", { phase: "quiz" });
+    await expectFail(
+      () => db.query(`SELECT public.submit_quiz_attempt($1, 'quiz', $2::jsonb, '[]'::jsonb) AS r`, [thirdAppId, JSON.stringify(answers)]),
+      "a single grant_quiz_retake grants exactly one extra attempt, not unlimited — third submission refused",
+      "already been submitted"
+    );
+  });
+
+  await guardedSection("6b. candidate cannot grade someone else's application", async () => {
     const appId = await newApplication("pending", { phase: "quiz" });
     await actAs(randomUUID(), "authenticated");
     await expectFail(
@@ -576,9 +652,9 @@ async function main() {
       "submit_quiz_attempt refuses a caller who isn't the application's candidate",
       "Not authorized"
     );
-  }
+  });
 
-  {
+  await guardedSection("6c. mismatched p_step_id still grades correctly without clobbering", async () => {
     // Reviewer-proved: the step-lookup loop matches the first workflow step
     // whose id equals p_step_id OR whose type is 'quiz' — jobId's own steps
     // are [{id:'quiz',type:'quiz',...}, {id:'video',type:'video_intro'}], so
@@ -588,11 +664,24 @@ async function main() {
     // key_step_id) AND the notes write must land under key_step_id ('quiz'),
     // never under the caller-supplied p_step_id ('video') — which would
     // otherwise silently clobber a real, already-written notes.video entry.
-    const appId = await newApplication("pending", {
-      phase: "video",
-      notes: JSON.stringify({ video: { type: "video_intro", aiAnalysis: { score: 91, summary: "Strong delivery" } } }),
-    });
-    await actAs(candidateId, "authenticated");
+    // Fresh candidate/application — the shared `candidateId`'s ledger row
+    // for (jobId, 'quiz') was already exhausted by the retake tests just
+    // above (2 attempts, 1 retake granted); reusing it here would make this
+    // call fail on the ledger check for a reason unrelated to what this
+    // test is actually proving (step-id-mismatch safety), not the key
+    // clobber this test exists to catch.
+    const mismatchCandidateId = randomUUID();
+    const appIdRow = await db.query(
+      `INSERT INTO public.applications (job_id, candidate_id, status, phase, notes)
+       VALUES ($1, $2, 'pending', 'video', $3) RETURNING id`,
+      [
+        jobId,
+        mismatchCandidateId,
+        JSON.stringify({ video: { type: "video_intro", aiAnalysis: { score: 91, summary: "Strong delivery" } } }),
+      ]
+    );
+    const appId = appIdRow.rows[0].id;
+    await actAs(mismatchCandidateId, "authenticated");
     const answers = { q1: 1, q2: 1, q3: 0, q4: [0, 1], q5: [0], q6: "text", q7: 1 };
     const result = await db.query(
       `SELECT public.submit_quiz_attempt($1, 'video', $2::jsonb, '[]'::jsonb) AS r`,
@@ -612,11 +701,11 @@ async function main() {
       "the quiz result is written under key_step_id ('quiz'), not the caller-supplied p_step_id ('video')"
     );
     ok(notes.quizResult?.score === 70, "notes.quizResult is still set regardless of step_key");
-  }
+  });
 
   console.log("\n== 7. submit_voice_interview_manual_end (manual-end fallback, server-graded) ==");
 
-  {
+  await guardedSection("7. submit_voice_interview_manual_end grading + guards", async () => {
     const appId = await newApplication("pending");
     await actAs(candidateId, "authenticated");
     const transcript = [
@@ -656,9 +745,9 @@ async function main() {
       () => updateAsCandidate(appId, "voice_interview_result = $2::jsonb", ['{"overall_score":100}']),
       "candidate still cannot forge voice_interview_result after a manual-end submission"
     );
-  }
+  });
 
-  {
+  await guardedSection("7. candidate cannot manual-end someone else's application", async () => {
     // Candidate cannot manual-end someone else's application.
     const appId = await newApplication("pending");
     await actAs(randomUUID(), "authenticated");
@@ -667,10 +756,10 @@ async function main() {
       "submit_voice_interview_manual_end refuses a caller who isn't the application's candidate",
       "Not authorized"
     );
-  }
+  });
 
   console.log("\n== 7b. submit_voice_interview_manual_end refuses to overwrite an existing evaluation ==");
-  {
+  await guardedSection("7b. refuses to overwrite an existing evaluation", async () => {
     // Reproduces the reviewer-proved exploit: a real, bad, service-role-
     // written evaluation (exactly what ava-voice-tools' end_interview now
     // legitimately writes) already sits on the row. The candidate then
@@ -694,10 +783,10 @@ async function main() {
       appRow.voice_interview_result.overall_score === 22 && appRow.voice_interview_result.recommendation === "reject",
       "the real bad evaluation survives untouched after the refused overwrite attempt"
     );
-  }
+  });
 
   console.log("\n== 8. job_quiz_keys extraction (still intact) ==");
-  {
+  await guardedSection("8. job_quiz_keys extraction integrity", async () => {
     const keys = await db.query(
       `SELECT step_id, question_id, key FROM public.job_quiz_keys WHERE job_id = $1 ORDER BY question_id`,
       [jobId]
@@ -708,7 +797,81 @@ async function main() {
     for (const forbidden of ["correct_answer", "correctAnswer", "correct_answers", "fit_context"]) {
       ok(!stepsRaw.includes(forbidden), `jobs.workflow_steps no longer carries "${forbidden}"`);
     }
-  }
+  });
+
+  console.log("\n== 9. quiz_attempt_ledger survives delete + reapply ==");
+  await guardedSection("9. delete + reapply + employer retake, isolated from section 6's state", async () => {
+    // A dedicated candidate for this section, so its ledger row starts
+    // empty and nothing above (section 6's own ledger exercises) can
+    // contaminate what this section proves.
+    const ledgerCandidateId = randomUUID();
+    const answers = { q1: 1, q2: 1, q3: 0, q4: [0, 1], q5: [0], q6: "text", q7: 1 };
+
+    async function insertApp() {
+      const r = await db.query(
+        `INSERT INTO public.applications (job_id, candidate_id, status, phase)
+         VALUES ($1, $2, 'pending', 'quiz') RETURNING id`,
+        [jobId, ledgerCandidateId]
+      );
+      return r.rows[0].id;
+    }
+
+    const app1 = await insertApp();
+    await actAs(ledgerCandidateId, "authenticated");
+    await expectOk(
+      () => db.query(`SELECT public.submit_quiz_attempt($1, 'quiz', $2::jsonb, '[]'::jsonb) AS r`, [app1, JSON.stringify(answers)]),
+      "first submission on a fresh candidate/job succeeds"
+    );
+
+    // Delete the application entirely (not just clear its notes) — the
+    // scenario the orchestrator specifically called out: a fresh row with
+    // fresh (empty) notes must NOT read as a first attempt.
+    await actAs(null, "service_role");
+    await db.query(`DELETE FROM public.applications WHERE id = $1`, [app1]);
+
+    const app2 = await insertApp();
+    await actAs(ledgerCandidateId, "authenticated");
+    await expectFail(
+      () => db.query(`SELECT public.submit_quiz_attempt($1, 'quiz', $2::jsonb, '[]'::jsonb) AS r`, [app2, JSON.stringify(answers)]),
+      "delete application + reapply + submit again is refused (ledger survives the delete)",
+      "already been submitted"
+    );
+
+    // Employer decides a retake is warranted: grant_quiz_retake + clear the
+    // (nonexistent, since app2 was never graded) notes — mirrors
+    // move_applicant_to_phase's real write.
+    await actAs(employerId, "authenticated");
+    await expectOk(
+      () => db.query(`SELECT public.grant_quiz_retake($1, $2, 'quiz')`, [ledgerCandidateId, jobId]),
+      "employer can grant a retake for this candidate/job/step"
+    );
+
+    await actAs(ledgerCandidateId, "authenticated");
+    await expectOk(
+      () => db.query(`SELECT public.submit_quiz_attempt($1, 'quiz', $2::jsonb, '[]'::jsonb) AS r`, [app2, JSON.stringify(answers)]),
+      "after exactly one grant_quiz_retake, the (re-applied) candidate can submit exactly once more"
+    );
+
+    // Delete + reapply again, with no further retake granted: must be
+    // refused again — the retake was a one-time grant, not a standing
+    // allowance, and it survives yet another delete just as the original
+    // attempt did.
+    await actAs(null, "service_role");
+    await db.query(`DELETE FROM public.applications WHERE id = $1`, [app2]);
+    const app3 = await insertApp();
+    await actAs(ledgerCandidateId, "authenticated");
+    await expectFail(
+      () => db.query(`SELECT public.submit_quiz_attempt($1, 'quiz', $2::jsonb, '[]'::jsonb) AS r`, [app3, JSON.stringify(answers)]),
+      "after the one granted retake is used, a further delete + reapply + submit is refused again",
+      "already been submitted"
+    );
+
+    const ledgerRow = (await db.query(
+      `SELECT attempts, retakes_granted FROM public.quiz_attempt_ledger WHERE candidate_id = $1 AND job_id = $2 AND step_id = 'quiz'`,
+      [ledgerCandidateId, jobId]
+    )).rows[0];
+    ok(ledgerRow.attempts === 2 && ledgerRow.retakes_granted === 1, `ledger ends at attempts=2/retakes_granted=1 (got attempts=${ledgerRow?.attempts}, retakes_granted=${ledgerRow?.retakes_granted})`);
+  });
 
   console.log(`\n${pass} passed, ${fail} failed.`);
   await db.close();
