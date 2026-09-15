@@ -69,6 +69,7 @@ const JobDetails = lazyWithReload(() => import("./pages/JobDetails"));
  */
 const CandidateContinue = lazyWithReload(() => import("./pages/CandidateContinue"));
 const Applications = lazyWithReload(routeImporters["/applications"]);
+const MyDocuments = lazyWithReload(routeImporters["/my-documents"]);
 const CandidateApplicationDetail = lazyWithReload(() => import("./pages/CandidateApplicationDetail"));
 const ApplicationFormPhase = lazyWithReload(() => import("./pages/ApplicationFormPhase"));
 const TypingTestPhase = lazyWithReload(() => import("./pages/TypingTestPhase"));
@@ -195,6 +196,7 @@ const App = () => (
                     <Route path="/apply" element={<ApplyWithCode />} />
                     <Route path="/job/:id" element={<JobDetails />} />
                     <Route path="/applications" element={<Applications />} />
+                    <Route path="/my-documents" element={<MyDocuments />} />
                     <Route path="/applications/:id" element={<CandidateApplicationDetail />} />
                     <Route path="/applications/:id/application/:stepId" element={<CandidateStepGate phase="application"><ApplicationFormPhase /></CandidateStepGate>} />
                     <Route path="/applications/:id/typing-test/:stepId" element={<CandidateStepGate phase="typing_test"><TypingTestPhase /></CandidateStepGate>} />

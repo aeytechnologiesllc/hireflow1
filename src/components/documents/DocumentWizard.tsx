@@ -744,7 +744,7 @@ export function DocumentWizard({
           title: "New Document to Sign",
           message: `You have a new document to review and sign: ${docName}`,
           type: "system" as const,
-          link: "/documents",
+          link: "/my-documents",
         }]);
         
         // Email notification

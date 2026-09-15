@@ -273,7 +273,7 @@ const getEmailContent = (
         `<p>The hiring team has sent you a document to review and sign.</p>
          <p><strong>Document:</strong> ${esc(data.document_name)}</p>`,
         "Review & Sign",
-        candidateLink("/applications")
+        candidateLink("/my-documents")
       ),
     },
     
@@ -298,7 +298,7 @@ const getEmailContent = (
          ${data.document_name ? `<p><strong>Document Type:</strong> ${esc(data.document_name)}</p>` : ''}
          <p style="color: #666;">Please upload the requested document in your dashboard.</p>`,
         "Upload Document",
-        candidateLink("/applications")
+        candidateLink("/my-documents")
       ),
     },
     

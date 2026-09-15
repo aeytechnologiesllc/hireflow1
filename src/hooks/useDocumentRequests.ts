@@ -229,7 +229,7 @@ export function useCreateDocumentRequest() {
         type: "system" as const,
         title: "New Document Request",
         message: `You have ${documentCount} new ${documentWord} to upload. Please submit the required documents.`,
-        link: "/documents",
+        link: "/my-documents",
         is_read: false,
       }));
 

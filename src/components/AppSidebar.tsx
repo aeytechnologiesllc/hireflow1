@@ -161,13 +161,17 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
     { icon: FileText, label: "Documents", to: "/documents", badge: employerPendingDocuments || 0, highlight: (employerPendingDocuments || 0) > 0 },
   ];
 
+  // Candidates have no dashboard or interviews list of their own — Applications
+  // is their home base, and each application's own page shows its interview
+  // status — so those two employer-cockpit routes are left off this menu
+  // entirely rather than linking somewhere that only shows an empty employer
+  // screen. Documents points at the candidate's own document hub, not the
+  // employer cockpit page at /documents.
   const candidateNavItems: NavItemProps[] = [
-    { icon: LayoutDashboard, label: "Dashboard", to: "/dashboard" },
     { icon: Briefcase, label: "Enter Job Code", to: "/apply" },
     { icon: ClipboardCheck, label: "Applications", to: "/applications", badge: pendingActions || 0, highlight: (pendingActions || 0) > 0 },
-    { icon: Calendar, label: "Interviews", to: "/interviews", badge: upcomingInterviews || 0 },
     { icon: MessageSquare, label: "Messages", to: "/messages", badge: unreadMessages || 0, highlight: (unreadMessages || 0) > 0 },
-    { icon: FileText, label: "Documents", to: "/documents", badge: pendingDocuments || 0, highlight: (pendingDocuments || 0) > 0 },
+    { icon: FileText, label: "Documents", to: "/my-documents", badge: pendingDocuments || 0, highlight: (pendingDocuments || 0) > 0 },
     { icon: User, label: "Profile", to: "/profile" },
   ];
 

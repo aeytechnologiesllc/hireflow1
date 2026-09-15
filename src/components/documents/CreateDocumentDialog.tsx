@@ -218,7 +218,7 @@ export function CreateDocumentDialog({ open, onOpenChange, applications }: Creat
           title: "New Document to Sign",
           message: `You have a new ${DOCUMENT_TYPES.find(t => t.value === documentType)?.label} to review and sign.`,
           type: "system" as const,
-          link: "/documents",
+          link: "/my-documents",
         }]);
       }
 

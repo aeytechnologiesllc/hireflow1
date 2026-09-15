@@ -345,7 +345,7 @@ export function useSendDocumentPackage() {
         type: "system",
         title: "Hiring Document Package",
         message: `Congratulations! You have received a hiring document package for ${jobTitle} with ${totalItems} item${totalItems !== 1 ? "s" : ""} to complete.`,
-        link: "/documents",
+        link: "/my-documents",
         is_read: false,
       });
 

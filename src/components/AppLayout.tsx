@@ -54,6 +54,10 @@ const CANDIDATE_ALLOWED_PATH_PREFIXES = [
   // /messages renders the same shared page for both roles — the candidate's
   // sidebar links here and their unread badge depends on it being reachable.
   "/messages",
+  // The candidate's own document hub — everything an employer has sent them
+  // to sign or asked them to upload. /documents (the employer cockpit page)
+  // is NOT here on purpose; see the legacy-link redirect below.
+  "/my-documents",
   "/notifications",
   "/settings",
   "/profile",
@@ -290,9 +294,19 @@ export default function AppLayout() {
 
   useEffect(() => {
     if (!loading && user && shouldRedirectCandidate) {
-      navigate("/applications", { replace: true });
+      // /documents is the employer cockpit page and doesn't work for a
+      // candidate — but it's also the link every document-request/offer
+      // notification and email stored before /my-documents existed (and
+      // still what a candidate's own sidebar pointed at). Send those here
+      // instead of the generic /applications fallback so a stale link still
+      // lands somewhere that actually shows the request.
+      const destination =
+        location.pathname === "/documents" || location.pathname.startsWith("/documents/")
+          ? "/my-documents"
+          : "/applications";
+      navigate(destination, { replace: true });
     }
-  }, [loading, user, shouldRedirectCandidate, navigate]);
+  }, [loading, user, shouldRedirectCandidate, location.pathname, navigate]);
 
   // Candidate-facing routes aren't all under /candidate — the application flow
   // lives at /applications/*, the public job page at /job/:id, and the code
@@ -304,7 +318,7 @@ export default function AppLayout() {
   // possible place to show them an employer dashboard message. It was missing
   // from this list, along with /apply, which is the same screen as
   // /candidate/apply mounted inside the layout.
-  const CANDIDATE_ROUTE_PREFIXES = ["/candidate", "/applications", "/job/", "/apply"] as const;
+  const CANDIDATE_ROUTE_PREFIXES = ["/candidate", "/applications", "/job/", "/apply", "/my-documents"] as const;
   const isCandidateRoute = CANDIDATE_ROUTE_PREFIXES.some((prefix) =>
     location.pathname.startsWith(prefix)
   );

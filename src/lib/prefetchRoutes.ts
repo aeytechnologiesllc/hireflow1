@@ -21,6 +21,7 @@ export const routeImporters = {
   "/team-portal": () => import("@/pages/TeamPortal"),
   "/apply": () => import("@/pages/ApplyWithCode"),
   "/applications": () => import("@/pages/Applications"),
+  "/my-documents": () => import("@/pages/MyDocuments"),
 } satisfies Record<string, () => Promise<unknown>>;
 
 type RoutePrefix = keyof typeof routeImporters;
