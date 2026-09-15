@@ -1458,6 +1458,7 @@ export type Database = {
       }
     }
     Functions: {
+      accept_team_invitation: { Args: { p_code: string }; Returns: string }
       assign_user_role: { Args: { p_role: string }; Returns: undefined }
       can_create_document_workflows_for_user: {
         Args: { target_user_id: string }
@@ -1498,6 +1499,26 @@ export type Database = {
       }
       email_exists: { Args: { p_email: string }; Returns: boolean }
       ensure_profile_exists: { Args: { p_user_id: string }; Returns: undefined }
+      get_team_invitation_by_code: {
+        Args: { p_code: string }
+        Returns: {
+          assigned_job_ids: string[]
+          can_create_jobs: boolean
+          can_delete_jobs: boolean
+          can_manage_pipeline: boolean
+          can_message_candidates: boolean
+          can_schedule_interviews: boolean
+          can_send_documents: boolean
+          company_name: string
+          department: string
+          expires_at: string
+          invitee_email: string
+          invitee_name: string
+          inviter_name: string
+          permission_level: string
+          status: Database["public"]["Enums"]["invitation_status"]
+        }[]
+      }
       get_team_member_permissions: {
         Args: { _employer_id: string; _user_id: string }
         Returns: {
