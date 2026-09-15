@@ -673,6 +673,38 @@ export type Database = {
           },
         ]
       }
+      job_quiz_keys: {
+        Row: {
+          job_id: string
+          key: Json
+          question_id: string
+          step_id: string
+          updated_at: string
+        }
+        Insert: {
+          job_id: string
+          key: Json
+          question_id: string
+          step_id: string
+          updated_at?: string
+        }
+        Update: {
+          job_id?: string
+          key?: Json
+          question_id?: string
+          step_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_quiz_keys_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jobs: {
         Row: {
           ai_bias_feedback: string | null
@@ -1498,6 +1530,10 @@ export type Database = {
       }
       email_exists: { Args: { p_email: string }; Returns: boolean }
       ensure_profile_exists: { Args: { p_user_id: string }; Returns: undefined }
+      get_job_quiz_keys: {
+        Args: { p_job_id: string }
+        Returns: { key: Json; question_id: string; step_id: string }[]
+      }
       get_team_member_permissions: {
         Args: { _employer_id: string; _user_id: string }
         Returns: {
@@ -1542,6 +1578,15 @@ export type Database = {
       }
       job_limit_for_user: { Args: { target_user_id: string }; Returns: number }
       prune_rate_limits: { Args: never; Returns: undefined }
+      submit_quiz_attempt: {
+        Args: {
+          p_answers: Json
+          p_application_id: string
+          p_step_id: string
+          p_violations?: Json
+        }
+        Returns: Json
+      }
       subscription_plan_for_limits: {
         Args: { target_user_id: string }
         Returns: string
