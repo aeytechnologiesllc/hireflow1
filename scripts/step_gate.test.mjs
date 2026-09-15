@@ -43,12 +43,13 @@ const steps = buildCandidateJourney(workflowSteps, { hasQuiz: true });
 // `expectedType` — and only then compares against the candidate's real
 // position. A route is always exercised with the expectedType the real
 // route that route segment carries in App.tsx (see scripts/guards/step-gate.mjs).
-function hasReached({ actualPhase, actualStatus, urlStepId, expectedType }) {
-  const resolution = resolveGatedStep(steps, { stepId: urlStepId, expectedType });
+function hasReachedFor(journeySteps, { actualPhase, actualStatus, urlStepId, expectedType }) {
+  const resolution = resolveGatedStep(journeySteps, { stepId: urlStepId, expectedType });
   if (!resolution.matched) return false;
-  const actual = positionFor(steps, { phase: actualPhase, status: actualStatus });
+  const actual = positionFor(journeySteps, { phase: actualPhase, status: actualStatus });
   return actual.index >= resolution.index;
 }
+const hasReached = (query) => hasReachedFor(steps, query);
 
 console.log("Realistic journeys — the reached-step decision:\n");
 
@@ -177,6 +178,44 @@ check(
   check(
     "a legacy 'video_message' step still does not resolve under an unrelated route",
     resolveGatedStep(videoSteps, { stepId: "wf-video", expectedType: "quiz" }).matched === false,
+  );
+}
+
+console.log("\nJobDetails.tsx's own stepId, for a job whose workflow_steps carries an explicit application/quiz entry:\n");
+
+// 12. A round-two review found: some jobs' `workflow_steps` includes an
+//     explicit application- or quiz-typed entry with its OWN raw id (e.g.
+//     "step-app"/"step-quiz" — real, on a live job). buildCandidateJourney
+//     always filters those out and synthesizes the application/quiz stages
+//     under the fixed literal ids "application"/"quiz" (candidateJourney.ts
+//     line ~112) — so a caller that instead reads the raw workflow_steps id
+//     for a brand-new candidate's first navigation (as JobDetails.tsx used
+//     to) sends them to a stepId that resolveGatedStep can never find,
+//     locking them out of their own application before they've seen it.
+//     JobDetails.tsx now always navigates to the canonical "application" id;
+//     prove that id is what a fresh candidate's own route needs.
+{
+  const stepsWithExplicitAppAndQuiz = buildCandidateJourney(
+    [
+      { id: "step-app", type: "application", title: "Application" },
+      { id: "step-quiz", type: "quiz", title: "Skills check" },
+      { id: "step-voice", type: "voice_interview", title: "Interview" },
+    ],
+    { hasQuiz: true },
+  );
+  // steps: [application, quiz, step-voice, decision] — "step-app"/"step-quiz"
+  // never appear; they were filtered out as duplicates of the synthesized stages.
+  check(
+    "a job whose workflow_steps has an explicit application-typed entry still resolves under the canonical 'application' id",
+    resolveGatedStep(stepsWithExplicitAppAndQuiz, { stepId: "application", expectedType: "application" }).matched === true,
+  );
+  check(
+    "...and a brand-new candidate (phase 'application') can actually open it",
+    hasReachedFor(stepsWithExplicitAppAndQuiz, { actualPhase: "application", actualStatus: "pending", urlStepId: "application", expectedType: "application" }) === true,
+  );
+  check(
+    "the raw workflow_steps id ('step-app') that JobDetails.tsx used to send candidates to is NOT a real step — confirms that was the bug",
+    resolveGatedStep(stepsWithExplicitAppAndQuiz, { stepId: "step-app", expectedType: "application" }).matched === false,
   );
 }
 

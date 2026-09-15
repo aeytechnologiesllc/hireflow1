@@ -243,11 +243,13 @@ export default function JobDetails() {
 
       if (createError) throw createError;
 
-      const workflowSteps = job.workflow_steps as Array<{ id: string; type: string }> | null;
-      const applicationStep = workflowSteps?.find(s => s.type === "application");
-      const stepId = applicationStep?.id || "application";
-
-      navigate(`/applications/${newApp.id}/application/${stepId}`);
+      // candidateJourney's buildCandidateJourney always synthesizes the
+      // application stage with the literal id "application" — it never uses
+      // an "application"-typed entry from workflow_steps (that would
+      // duplicate the stage, so it's filtered out there). Use the same
+      // canonical id here so CandidateStepGate's strict resolveGatedStep
+      // check finds it.
+      navigate(`/applications/${newApp.id}/application/application`);
     } catch (err) {
       console.error("Error starting application:", err);
       toast.error("Failed to start application. Please try again.");
