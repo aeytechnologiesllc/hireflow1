@@ -9,6 +9,7 @@ import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/hooks/useAuth";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import AppLayout from "@/components/AppLayout";
+import CandidateStepGate from "@/components/candidate/CandidateStepGate";
 import DeveloperLayout from "@/components/DeveloperLayout";
 import { OrbLoader } from "@/components/ava/OrbLoader";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
@@ -195,15 +196,15 @@ const App = () => (
                     <Route path="/job/:id" element={<JobDetails />} />
                     <Route path="/applications" element={<Applications />} />
                     <Route path="/applications/:id" element={<CandidateApplicationDetail />} />
-                    <Route path="/applications/:id/application/:stepId" element={<ApplicationFormPhase />} />
-                    <Route path="/applications/:id/typing-test/:stepId" element={<TypingTestPhase />} />
-                    <Route path="/applications/:id/quiz/:stepId" element={<QuizPhase />} />
-                    <Route path="/applications/:id/video-intro/:stepId" element={<VideoIntroPhase />} />
-                    <Route path="/applications/:id/chat-simulation/:stepId" element={<ChatSimulationPhase />} />
-                    <Route path="/applications/:id/chat-interview/:stepId" element={<ChatInterviewPhase />} />
-                    <Route path="/applications/:id/sales-simulation/:stepId" element={<SalesSimulationPhase />} />
-                    <Route path="/applications/:id/voice-interview/:stepId" element={<VoiceInterviewPhase />} />
-                    <Route path="/applications/:id/portfolio/:stepId" element={<PortfolioUploadPhase />} />
+                    <Route path="/applications/:id/application/:stepId" element={<CandidateStepGate><ApplicationFormPhase /></CandidateStepGate>} />
+                    <Route path="/applications/:id/typing-test/:stepId" element={<CandidateStepGate><TypingTestPhase /></CandidateStepGate>} />
+                    <Route path="/applications/:id/quiz/:stepId" element={<CandidateStepGate><QuizPhase /></CandidateStepGate>} />
+                    <Route path="/applications/:id/video-intro/:stepId" element={<CandidateStepGate><VideoIntroPhase /></CandidateStepGate>} />
+                    <Route path="/applications/:id/chat-simulation/:stepId" element={<CandidateStepGate><ChatSimulationPhase /></CandidateStepGate>} />
+                    <Route path="/applications/:id/chat-interview/:stepId" element={<CandidateStepGate><ChatInterviewPhase /></CandidateStepGate>} />
+                    <Route path="/applications/:id/sales-simulation/:stepId" element={<CandidateStepGate><SalesSimulationPhase /></CandidateStepGate>} />
+                    <Route path="/applications/:id/voice-interview/:stepId" element={<CandidateStepGate><VoiceInterviewPhase /></CandidateStepGate>} />
+                    <Route path="/applications/:id/portfolio/:stepId" element={<CandidateStepGate><PortfolioUploadPhase /></CandidateStepGate>} />
                     <Route path="/applications/:appId/interview-room" element={<InterviewRoom />} />
                     <Route path="/notifications" element={<Notifications />} />
                     <Route path="/settings" element={<Settings />} />
