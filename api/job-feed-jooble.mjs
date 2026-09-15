@@ -14,7 +14,11 @@ export default async function handler(req, res) {
   try {
     const entries = await loadFeedJobs();
     const items = entries.map((e) => {
-      const region = [e.city, e.state, e.country].filter(Boolean).join(", ");
+      // Jooble's <region> is free text with no dedicated remote field (per
+      // jooble.org/files/xml_feed_specifications.pdf) — a remote job with no
+      // city still needs a non-empty region, and "Remote" up front reads
+      // correctly however Jooble tokenizes it.
+      const region = [e.isRemote ? "Remote" : null, e.city, e.state, e.country].filter(Boolean).join(", ");
       return [
         `  <job id="${String(e.reference).replace(/"/g, "")}">`,
         `    <link>${cdata(e.urlFor("jooble"))}</link>`,

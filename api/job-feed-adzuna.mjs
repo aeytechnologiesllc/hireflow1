@@ -19,7 +19,11 @@ export default async function handler(req, res) {
     const entries = await loadFeedJobs();
     const items = entries.map((e) => {
       const { job } = e;
-      const location = [e.city, e.state].filter(Boolean).join(", ");
+      // <location> is a mandatory Adzuna field with no dedicated remote flag —
+      // a remote job with no city still has to send something, so it falls
+      // back to "Remote" (loadFeedJobs never lets a non-remote job through
+      // with an empty city, so this only fires for the remote case).
+      const location = [e.city, e.state].filter(Boolean).join(", ") || (e.isRemote ? "Remote" : "");
       const frequency = FREQUENCY[String(e.period || "").toUpperCase()] || null;
       return [
         "  <job>",

@@ -4,9 +4,12 @@
 //
 // A job is listed here ONLY when its page will carry JobPosting markup — the same
 // conditions api/job-prerender.mjs applies before it serves a page as indexable
-// (real company name, city, country, unexpired deadline) plus the exclude_from_feed
-// flag QA/demo jobs carry. Listing a page that is served noindex tells Google the
-// site does not know its own content, so the two gates must never disagree.
+// (real company name, country, unexpired deadline, and a real city UNLESS the
+// job is explicitly remote, in which case the country alone is enough — mirrors
+// applicantLocationRequirements in job-prerender.mjs's buildJobPostingSchema)
+// plus the exclude_from_feed flag QA/demo jobs carry. Listing a page that is
+// served noindex tells Google the site does not know its own content, so the
+// two gates must never disagree.
 const SITE = Deno.env.get("PUBLIC_SITE_URL") || "https://hireflownow.com";
 const COUNTRY_TEXT_HINTS: Array<[RegExp, string]> = [
   [/\b(united states|u\.s\.a\.?|usa|us)\b/i, "US"],
@@ -78,6 +81,7 @@ interface SitemapJob {
   location_city?: string | null;
   location_country?: string | null;
   location_country_code?: string | null;
+  is_remote?: boolean | null;
   employer_id?: string | null;
   exclude_from_feed?: boolean | null;
 }
@@ -143,7 +147,7 @@ Deno.serve(async () => {
     const params = new URLSearchParams({
       status: "eq.published",
       exclude_from_feed: "eq.false",
-      select: "id,created_at,updated_at,application_deadline,location,location_city,location_country,location_country_code,employer_id,exclude_from_feed",
+      select: "id,created_at,updated_at,application_deadline,location,location_city,location_country,location_country_code,is_remote,employer_id,exclude_from_feed",
       order: "updated_at.desc",
       limit: "5000",
       or: `(application_deadline.is.null,application_deadline.gt.${now})`,
@@ -158,12 +162,16 @@ Deno.serve(async () => {
 
     // Mirror of the prerender's `indexable` gate — a page listed here is a page
     // that will actually carry JobPosting markup when Google fetches it.
+    // Prerender's gate accepts jobLocation OR applicantLocationRequirements,
+    // and the latter needs only a country (see api/job-prerender.mjs), so a
+    // job explicitly marked remote can pass on country alone; an on-site job
+    // still needs a real city.
     const indexableJobs = jobs.filter((job) => {
       if (job.exclude_from_feed) return false;
       if (job.application_deadline && new Date(job.application_deadline).getTime() < nowMs) return false;
       if (!job.employer_id || !companies.get(job.employer_id)) return false;
-      if (!cityOf(job)) return false;
-      return hasCountry(job);
+      if (!hasCountry(job)) return false;
+      return !!cityOf(job) || !!job.is_remote;
     });
 
     const staticUrls = [
