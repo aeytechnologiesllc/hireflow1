@@ -184,19 +184,31 @@ async function callEdgeFunction(req: GenerateFlowRequest): Promise<JobFlow> {
   const { data: { session } } = await supabase.auth.getSession();
   const accessToken = session?.access_token;
   if (!accessToken) throw new Error("Not signed in — sign in to generate with Ava");
-  const res = await fetch(`${SB_URL}/functions/v1/generate-flow`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      apikey: SB_KEY,
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({
-      brief: req.brief,
-      rigor: rigorToLegacy(req.rigor),
-      rigorPlan: req.rigor,
-    }),
-  });
+  // A dropped connection or an edge function that never responds must not hang this
+  // request forever — the "Building your hiring flow…" screen has nothing else timing
+  // it out. Bound it so a stall surfaces as an ordinary failure and falls through to
+  // the template flow below, same as any other generate-flow error.
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 18000);
+  let res: Response;
+  try {
+    res = await fetch(`${SB_URL}/functions/v1/generate-flow`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SB_KEY,
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        brief: req.brief,
+        rigor: rigorToLegacy(req.rigor),
+        rigorPlan: req.rigor,
+      }),
+      signal: controller.signal,
+    });
+  } finally {
+    window.clearTimeout(timeout);
+  }
   const data = (await res.json()) as EdgeFlowPayload & { error?: string };
   if (!res.ok || data.error) {
     throw new Error(data.error ?? `generate-flow ${res.status}`);

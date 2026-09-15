@@ -11,6 +11,7 @@ import {
   Clock,
   Plus,
   GripVertical,
+  AlertCircle,
 } from "lucide-react";
 import { AvaGlyph } from "@/components/ava/AvaGlyph";
 
@@ -330,6 +331,26 @@ export function BuildStep({
             </motion.div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+/** Belt-and-suspenders for BuildStep: `generating` clears once the generate-flow request
+ * settles (success or the timeout-bounded fallback in flowGenerator.ts), but nothing else
+ * times this screen out — a future regression anywhere in that chain must not leave the
+ * employer staring at "Building your hiring flow…" forever with no way out. */
+export function BuildStuckNotice({ onRetry, onBack }: { onRetry: () => void; onBack: () => void }) {
+  return (
+    <div className="mx-auto max-w-md rounded-2xl p-6 text-center" style={{ background: "hsl(var(--card))", border: "1px solid color-mix(in srgb, var(--hf-danger) 35%, transparent)", boxShadow: "var(--shadow-lg)" }}>
+      <AlertCircle className="mx-auto h-5 w-5" style={{ color: "var(--hf-danger)" }} />
+      <div className="mt-2 text-[15px] font-semibold" style={{ color: "hsl(var(--foreground))" }}>That took longer than it should have</div>
+      <p className="mt-1 text-[13.5px] leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
+        Nothing was lost — try again, or go back and adjust the details first.
+      </p>
+      <div className="mt-4 flex items-center justify-center gap-4">
+        <button type="button" onClick={onRetry} className="ck-btn ck-btn-primary !py-2 !text-[13px]">Try again</button>
+        <button type="button" onClick={onBack} className="text-[13px] font-medium transition hover:opacity-80" style={{ color: "hsl(var(--muted-foreground))" }}>Back</button>
       </div>
     </div>
   );

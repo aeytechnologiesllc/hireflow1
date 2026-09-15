@@ -40,6 +40,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import {
   BuildStep,
+  BuildStuckNotice,
   DISPLAY,
   FOCUS_CSS,
   PhaseRow,
@@ -175,10 +176,26 @@ export default function AvaCreateJob() {
   // gates Ava's "here's your plan" so she never announces it while the build loader is still up.
   const [planVisible, setPlanVisible] = useState(false);
   const advanceBuildRef = useRef(false);
+  // Belt-and-suspenders for the build screen itself: `generating` is meant to always settle
+  // (flowGenerator.ts now bounds its own network call and falls back to a template on any
+  // stall), but nothing upstream of this component can promise that forever — a future
+  // regression there must not leave the employer staring at "Building your hiring flow…"
+  // with no way out.
+  const [buildStuck, setBuildStuck] = useState(false);
 
   useEffect(() => {
     if (step !== 4) setPlanVisible(false);
   }, [step]);
+
+  useEffect(() => {
+    if (step !== 3) setBuildStuck(false);
+  }, [step]);
+
+  useEffect(() => {
+    if (step !== 3 || !generating) return;
+    const t = window.setTimeout(() => setBuildStuck(true), 25000);
+    return () => window.clearTimeout(t);
+  }, [step, generating]);
 
   const family = useMemo(() => detectFamily(briefFromForm({ ...briefFields, followUps: [] })), [briefFields]);
   const playbook = PLAYBOOKS[family];
@@ -625,17 +642,28 @@ export default function AvaCreateJob() {
               )}
 
               {step === 3 && (
-                <BuildStep
-                  role={briefFields.role}
-                  rigorLabel={rigorLabel}
-                  reasoning={playbook.reasoning}
-                  generating={generating}
-                  onDone={() => {
-                    if (advanceBuildRef.current || !flow) return;
-                    advanceBuildRef.current = true;
-                    setStep(4);
-                  }}
-                />
+                buildStuck ? (
+                  <BuildStuckNotice
+                    onRetry={() => {
+                      setBuildStuck(false);
+                      advanceBuildRef.current = false;
+                      void runGeneration();
+                    }}
+                    onBack={() => setStep(2)}
+                  />
+                ) : (
+                  <BuildStep
+                    role={briefFields.role}
+                    rigorLabel={rigorLabel}
+                    reasoning={playbook.reasoning}
+                    generating={generating}
+                    onDone={() => {
+                      if (advanceBuildRef.current || !flow) return;
+                      advanceBuildRef.current = true;
+                      setStep(4);
+                    }}
+                  />
+                )
               )}
 
               {step === 4 && (
