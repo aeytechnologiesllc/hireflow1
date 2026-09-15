@@ -88,19 +88,15 @@ export function EmployerRescheduleReviewDialog({
 
       if (error) throw error;
 
-      // Create notification for candidate
+      // The bell notification is handled server-side now — see
+      // notify_interview_scheduled_or_rescheduled() (on_interview_reschedule_notify,
+      // 20260915122000_in_app_notifications_for_key_moments.sql), which fires
+      // on this same scheduled_at change and would otherwise double up with a
+      // client-side insert here.
       const candidateId = (interview?.applications as { candidate_id?: string; jobs?: { title?: string } | null } | null)?.candidate_id;
       const jobTitle = (interview?.applications as { candidate_id?: string; jobs?: { title?: string } | null } | null)?.jobs?.title || "Interview";
-      
-      if (candidateId) {
-        await supabase.from("notifications").insert({
-          user_id: candidateId,
-          type: "interview",
-          title: "Interview Rescheduled",
-          message: `Your interview for ${jobTitle} has been rescheduled to a new time. Please confirm.`,
-          link: `/applications`,
-        });
 
+      if (candidateId) {
         // Send email notification to candidate
         try {
           const { notifyInterviewRescheduled } = await import("@/utils/emailNotifications");
