@@ -1,10 +1,48 @@
 import React from "react";
+import DOMPurify, { type Config } from "dompurify";
 
 /**
  * Detects if a string contains HTML tags (from TipTap WYSIWYG editor).
  */
 function isHTML(text: string): boolean {
   return /<[a-z][\s\S]*>/i.test(text);
+}
+
+/**
+ * Allow-list config for TipTap-authored job/company/message content. A
+ * coworker who opens /jobs/edit/:id renders whatever HTML is stored for a
+ * job, so this has to be safe against a malicious editor, not just a
+ * malicious viewer — no script/style/iframe/object/form, no event handlers,
+ * no javascript:/data: URLs. Keeps every element TipTap's default toolbar
+ * can produce.
+ */
+const SANITIZE_CONFIG: Config = {
+  ALLOWED_TAGS: [
+    "p", "br", "strong", "b", "em", "i", "u", "s", "strike",
+    "ul", "ol", "li",
+    "h1", "h2", "h3", "h4",
+    "blockquote", "a", "code", "pre", "hr",
+  ],
+  ALLOWED_ATTR: ["href", "target", "rel"],
+  ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel):|[^a-z]|[a-z+.-]+(?:[^a-z+.:-]|$))/i,
+  ADD_ATTR: ["target", "rel"],
+  RETURN_TRUSTED_TYPE: false,
+};
+
+/**
+ * Sanitizes TipTap HTML for display: strips scripts/styles/forms/iframes and
+ * any on* handler or javascript:/data: URL, keeps normal rich-text
+ * formatting, and forces every surviving link to open safely.
+ */
+function sanitizeJobHtml(html: string): string {
+  const clean = String(DOMPurify.sanitize(html, SANITIZE_CONFIG));
+  const container = document.createElement("div");
+  container.innerHTML = clean;
+  container.querySelectorAll("a[href]").forEach((a) => {
+    a.setAttribute("target", "_blank");
+    a.setAttribute("rel", "noopener noreferrer");
+  });
+  return container.innerHTML;
 }
 
 /**
@@ -50,7 +88,7 @@ export function renderFormattedText(text: string | null | undefined): React.Reac
     return (
       <div
         className="prose prose-sm max-w-none break-words [overflow-wrap:anywhere] prose-strong:text-inherit prose-em:text-inherit prose-p:text-inherit prose-li:text-inherit prose-p:my-0.5 prose-ul:my-1 prose-ol:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_p]:break-words [&_li]:break-words [&_*]:[overflow-wrap:anywhere]"
-        dangerouslySetInnerHTML={{ __html: text }}
+        dangerouslySetInnerHTML={{ __html: sanitizeJobHtml(text) }}
       />
     );
   }
