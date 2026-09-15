@@ -283,7 +283,7 @@ function buildApplicantSummaries(applications: any[]) {
     ];
 
     if (notes.quizResult) {
-      summaryParts.push(`- Quiz Score: ${notes.quizResult.score}% (${notes.quizResult.correctAnswers}/${notes.quizResult.totalQuestions} correct)`);
+      summaryParts.push(`- Quiz Score: ${notes.quizResult.score}% (${notes.quizResult.correct}/${notes.quizResult.total} correct)`);
     }
 
     if (notes.typingTestResult) {

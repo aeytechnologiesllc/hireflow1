@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "typecheck:ratchet": "node scripts/typecheck_ratchet.mjs",
     "guardrails": "node scripts/guardrails.mjs",
+    "test:quiz-guard": "node scripts/quiz_guard_pglite_check.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -86,6 +87,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@eslint/js": "^9.32.0",
     "@tailwindcss/typography": "^0.5.16",
     "@types/node": "^22.16.5",

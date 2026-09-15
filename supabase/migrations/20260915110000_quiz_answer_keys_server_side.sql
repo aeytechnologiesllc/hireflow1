@@ -51,13 +51,35 @@
 --      mappers.ts and src/cockpit/pages/Applicants.tsx only ever read the
 --      aggregate notes.quizResult.score/passed).
 --   5. Adds a BEFORE UPDATE trigger on applications that blocks a candidate
---      from rewriting their own status, job_id, candidate_id, any AI/score
---      column, or a quiz result inside notes — outside of
---      submit_quiz_attempt, which is given a transaction-local pass via
---      set_config('hireflow.in_quiz_submit', ...). service_role (edge
---      functions, migrations) is exempted via auth.role() = 'service_role'
---      — not current_user, which inside this SECURITY DEFINER function is
---      always the function's owner, never the calling role.
+--      from rewriting their own job_id, candidate_id, any AI/score column
+--      (ai_score, ai_scorecard, ai_analysis, resume_score — every live
+--      column that holds an Ava score, scorecard or analysis; there is no
+--      separate ranking/shortlist/autopilot-decision column on applications
+--      or jobs today, so guarding ai_scorecard covers those, since ai-
+--      shortlist/autopilot-batch derive them from it rather than storing
+--      them separately), rejected_by/rejected_by_type, or a quiz result
+--      inside notes (the notes.quizResult key, or any notes entry whose own
+--      "type" is "quiz") — outside of submit_quiz_attempt, which is given a
+--      transaction-local pass via set_config('hireflow.in_quiz_submit', ...).
+--      service_role (edge functions, migrations) is exempted via
+--      auth.role() = 'service_role' — not current_user, which inside this
+--      SECURITY DEFINER function is always the function's owner, never the
+--      calling role.
+--
+--      An earlier draft of this trigger allow-listed exactly what a
+--      candidate's own status/phase write was allowed to be — reviewers
+--      proved that allow-list too fragile: it rejected the actual submit
+--      flow (ApplicationFormPhase.tsx's in_progress -> pending write) and
+--      auto-mode's own move into the synthetic "decision" stage, because
+--      neither value was on the list. This trigger now denies only what a
+--      candidate must never do instead: it cannot move its own status INTO
+--      'interview', 'offered' or 'hired', and cannot change status at all
+--      once it is already 'rejected', 'offered' or 'hired' — every other
+--      status write a candidate page makes today (pending, reviewing,
+--      in_progress, a same-value passthrough) is unrestricted. `phase` is
+--      not guarded here at all — routing is the separate step gate's job;
+--      self-reported phase progression is a known, accepted limit of this
+--      migration (see the comment inline above, at the removed phase check).
 --
 -- Idempotent: CREATE OR REPLACE FUNCTION, DROP TRIGGER IF EXISTS + CREATE,
 -- CREATE TABLE IF NOT EXISTS, DROP POLICY IF EXISTS + CREATE. Safe to run
@@ -117,7 +139,7 @@ CREATE OR REPLACE FUNCTION public.extract_quiz_answer_keys()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path TO 'public'
+SET search_path TO 'public', 'pg_temp'
 AS $function$
 DECLARE
   step           jsonb;
@@ -643,7 +665,6 @@ DECLARE
   note_key        text;
   old_entry       jsonb;
   new_entry       jsonb;
-  valid_step_ids  text[];
 BEGIN
   -- service_role (edge functions, migrations) bypasses RLS entirely but
   -- NOT triggers — this BEFORE UPDATE trigger still fires for their writes,
@@ -715,32 +736,44 @@ BEGIN
     RAISE EXCEPTION 'Candidates cannot change rejected_by_type';
   END IF;
 
-  -- status: the only self-service transition every phase page makes today
-  -- is into "reviewing" after submitting a phase (see ChatInterviewPhase.tsx,
-  -- ChatSimulationPhase.tsx, SalesSimulationPhase.tsx). A candidate can never
-  -- set themselves to interview/offered/hired/rejected, and can't reopen a
-  -- row that's already rejected or hired.
+  -- status: a deny-list, not an allow-list. An earlier draft of this guard
+  -- only let a candidate's own write land exactly on "reviewing" — which
+  -- blocked the actual submit flow (ApplicationFormPhase.tsx moving
+  -- in_progress -> pending) the first time it met real candidate traffic.
+  -- Candidate pages set status to several different values today (pending on
+  -- submit; reviewing after a phase's local grade; and application.status
+  -- unchanged — a same-value passthrough NEW.status IS DISTINCT FROM
+  -- OLD.status already skips — from TypingTestPhase.tsx's auto-mode write).
+  -- Rather than track every value a future phase page might legitimately
+  -- write, this only denies what a candidate must never be able to do:
+  -- promote themselves into an employer-decided stage, or touch status at
+  -- all once an employer/system has already made a decision. Every other
+  -- self-write (pending, reviewing, in_progress, even setting their own row
+  -- back to something else) is a UI-navigation concern, not a privilege one
+  -- — the candidate can only ever act on their own application, and none of
+  -- these targets grants them interview/offer/hire standing.
   IF NEW.status IS DISTINCT FROM OLD.status THEN
-    IF NEW.status <> 'reviewing' OR OLD.status IN ('rejected', 'hired') THEN
+    IF NEW.status IN ('interview', 'offered', 'hired') THEN
       RAISE EXCEPTION 'Candidates cannot set application status to %', NEW.status;
     END IF;
-  END IF;
-
-  -- phase: candidates self-advance to the next workflow step after an
-  -- auto-mode phase completes (ChatInterviewPhase.tsx, PortfolioUploadPhase.
-  -- tsx, VideoIntroPhase.tsx, TypingTestPhase.tsx all write phase directly).
-  -- Any step id that actually belongs to this job's own workflow is allowed;
-  -- this is UI navigation, not a scoring or access decision.
-  IF NEW.phase IS DISTINCT FROM OLD.phase THEN
-    SELECT COALESCE(array_agg(step->>'id'), ARRAY[]::text[])
-      INTO valid_step_ids
-      FROM public.jobs j, jsonb_array_elements(COALESCE(j.workflow_steps, '[]'::jsonb)) step
-     WHERE j.id = NEW.job_id;
-
-    IF NEW.phase IS NULL OR NOT (NEW.phase = ANY (valid_step_ids)) THEN
-      RAISE EXCEPTION 'Candidates cannot set application phase to %', NEW.phase;
+    IF OLD.status IN ('rejected', 'offered', 'hired') THEN
+      RAISE EXCEPTION 'Candidates cannot change application status once it is %', OLD.status;
     END IF;
   END IF;
+
+  -- phase: deliberately NOT guarded here. Every auto-mode phase page
+  -- (ChatInterviewPhase.tsx, VideoIntroPhase.tsx, PortfolioUploadPhase.tsx,
+  -- TypingTestPhase.tsx) self-advances `phase` after a phase completes,
+  -- including into the synthetic "decision" stage id that closes an
+  -- auto-mode workflow — a value that never appears in the job's own
+  -- workflow_steps array, so the previous allow-list (any step id belonging
+  -- to this job's workflow) rejected exactly that write. Routing off `phase`
+  -- is now the separate step-gate's job, not this trigger's. Known limit:
+  -- self-reported phase progression itself is unguarded here — a candidate
+  -- could in principle set `phase` to any step id via devtools and skip
+  -- steps client-side. That does not grant them anything this trigger is
+  -- responsible for (no status/score/AI-column access follows from `phase`
+  -- alone), and closing it is the step gate's scope, not this migration's.
 
   -- notes: candidates freely record their own self-reported phase results
   -- (typing test WPM, chat/sales simulation transcripts, video/portfolio
