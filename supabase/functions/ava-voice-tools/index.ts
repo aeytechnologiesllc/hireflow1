@@ -517,12 +517,34 @@ serve(async (req) => {
         // candidate.
         const { data: ownerCheck, error: ownerCheckError } = await supabaseClient
           .from("applications")
-          .select("id, candidate_id, notes")
+          .select("id, candidate_id, notes, voice_interview_result")
           .eq("id", applicationId)
           .single();
 
         if (ownerCheckError || !ownerCheck || ownerCheck.candidate_id !== user.id) {
           throw new Error("Application not found or access denied");
+        }
+
+        // Refuse to overwrite an already-recorded evaluation. This tool is
+        // meant to be called at most once per interview (Ava calls it when
+        // the conversation ends); nothing before this enforced that, so a
+        // candidate who already has a real, possibly bad, evaluation on
+        // file could call this edge function directly a second time (e.g.
+        // via supabase.functions.invoke, the same client useAvaVoice.ts
+        // already uses) with hand-crafted `parameters` to overwrite it with
+        // a forged score. This does not by itself stop a *first* forged
+        // call with no prior real interview — this handler has no way to
+        // confirm the caller's tool_name:'end_interview' request actually
+        // originated from a real OpenAI Realtime API tool-call rather than
+        // a direct invoke with hand-typed parameters, and closing that
+        // fully needs a server-side proof-of-session marker that does not
+        // exist in the schema today. That is a known, accepted limit here
+        // (flagged back to the orchestrator as a follow-up), not something
+        // this fix resolves — but it at least closes the reproduced
+        // "erase a real bad score" half of the exploit, the same guard
+        // submit_voice_interview_manual_end now applies on the DB side.
+        if (ownerCheck.voice_interview_result) {
+          throw new Error("This interview has already been evaluated");
         }
 
         const currentNotes = typeof ownerCheck.notes === 'string'

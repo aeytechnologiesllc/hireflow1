@@ -115,6 +115,44 @@
 --      self-reported phase progression is a known, accepted limit of this
 --      migration (see the comment inline above, at the removed phase check).
 --
+--   7. Two review rounds against this same file found the notes guard and
+--      submit_voice_interview_manual_end still forgeable in narrower ways
+--      than the deny-list above describes, both fixed in place rather than
+--      redesigned:
+--        - The notes guard's quiz check keyed off CONTENT (the literal
+--          'quizResult' key, or any entry whose own 'type' is 'quiz'), never
+--          the key NAME. A brand-new top-level key literally named "quiz"
+--          with no 'type' field — the exact shape every candidate-page
+--          `.update({ notes: ... })` call already sends, and the exact
+--          shape ai-shortlist / trigger-ava-analysis / autopilot-batch /
+--          generate-applicant-dossier / src/cockpit/lib/mappers.ts /
+--          src/utils/getApplicationDisplayState.ts all read as a trusted
+--          fallback for notes.quizResult — sailed straight through. The
+--          guard now also denies any change to the 'quiz' key by name,
+--          exactly like 'quizResult'.
+--        - submit_voice_interview_manual_end had no precondition at all: a
+--          candidate could call it to silently overwrite a real, already-
+--          graded (possibly bad) voice_interview_result with its own fixed
+--          neutral "needs manual review" result, or call it as the very
+--          first action on a fresh application to fabricate phase
+--          completion with no interview ever having happened. It now
+--          refuses when voice_interview_result is already non-null, which
+--          closes the "erase a real score" half. The "fabricate from
+--          nothing" half needs a server-side proof that a real interview
+--          session occurred, which the schema has no marker for today —
+--          accepted as a known limit here, same footing as the
+--          self-reported voice_interview_transcript, rather than solved by
+--          adding new schema unilaterally in this pass. ava-voice-tools'
+--          end_interview handler (supabase/functions/ava-voice-tools/
+--          index.ts) got the matching fix on the edge-function side: it now
+--          also refuses to overwrite an already-set voice_interview_result.
+--          It has the same accepted "fabricate from nothing" limit — it
+--          cannot distinguish a real OpenAI Realtime tool-call from a
+--          candidate directly invoking the function with hand-crafted
+--          parameters, which needs the same session-proof mechanism to
+--          close and is flagged back to the orchestrator rather than
+--          resolved here.
+--
 -- Idempotent: CREATE OR REPLACE FUNCTION, DROP TRIGGER IF EXISTS + CREATE,
 -- CREATE TABLE IF NOT EXISTS, DROP POLICY IF EXISTS + CREATE. Safe to run
 -- once against the live database as it stands today.
@@ -734,6 +772,28 @@ BEGIN
     RAISE EXCEPTION 'Not authorized to end this interview';
   END IF;
 
+  -- Refuse to overwrite an already-graded interview. Without this, a
+  -- candidate who received a real, bad, service-role-written evaluation
+  -- from ava-voice-tools' end_interview handler could call this RPC
+  -- afterwards to silently replace it with this fixed, neutral
+  -- "needs manual review" result — erasing a genuine negative signal
+  -- (trigger-ava-analysis's weighted average even fully excludes a null
+  -- overall_score rather than counting it as 0, and autopilot-batch reads
+  -- any non-null voice_interview_result as phase-complete) via a call only
+  -- the candidate can make. This does not require the interview to have
+  -- actually happened first — a candidate can still call this RPC as the
+  -- very first action on a fresh application, before ever opening the
+  -- interview UI, to fabricate phase completion out of nothing. Proving a
+  -- real session occurred needs a server-side "interview started" marker
+  -- that does not exist in the schema today; closing that half is a
+  -- separate, larger design question flagged back to the orchestrator
+  -- rather than resolved unilaterally here — same accepted-limit footing
+  -- as the self-reported voice_interview_transcript and phase columns
+  -- elsewhere in this migration.
+  IF app.voice_interview_result IS NOT NULL THEN
+    RAISE EXCEPTION 'This interview has already been evaluated';
+  END IF;
+
   transcript_turns := CASE WHEN jsonb_typeof(p_transcript) = 'array' THEN jsonb_array_length(p_transcript) ELSE 0 END;
 
   SELECT count(*) INTO candidate_turns
@@ -924,6 +984,24 @@ BEGIN
     END;
 
     IF (new_notes -> 'quizResult') IS DISTINCT FROM (old_notes -> 'quizResult') THEN
+      RAISE EXCEPTION 'Candidates cannot edit quiz results directly';
+    END IF;
+
+    -- The per-question type='quiz' check below (and the quizResult check
+    -- above) both key off CONTENT, not the key name — a candidate can add a
+    -- brand-new top-level key literally named "quiz" with no "type" field
+    -- at all (e.g. {"quiz": {"score": 100, "correct": 99, "total": 99}}) and
+    -- neither check fires. That exact shape is read as a fully trusted
+    -- fallback for notes.quizResult in ai-shortlist, trigger-ava-analysis,
+    -- autopilot-batch, generate-applicant-dossier, src/cockpit/lib/
+    -- mappers.ts and src/utils/getApplicationDisplayState.ts (all read
+    -- `notes.quiz` interchangeably with `notes.quizResult`), and it is also
+    -- exactly where submit_quiz_attempt itself legitimately writes when a
+    -- job's quiz step id is literally "quiz" — the common case, since the
+    -- step id defaults to "quiz" in the job editor. So the key name "quiz"
+    -- must be guarded the same way "quizResult" is, independent of whatever
+    -- shape (or absence of a "type" field) the value happens to have.
+    IF (new_notes -> 'quiz') IS DISTINCT FROM (old_notes -> 'quiz') THEN
       RAISE EXCEPTION 'Candidates cannot edit quiz results directly';
     END IF;
 

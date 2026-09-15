@@ -373,6 +373,25 @@ async function main() {
   }
 
   {
+    // Reviewer-proved bypass: a brand-new top-level key literally named
+    // "quiz" with NO "type" field at all — the exact shape every existing
+    // candidate-page `.update({ notes: ... })` call already uses, and the
+    // exact shape ai-shortlist/trigger-ava-analysis/autopilot-batch/
+    // generate-applicant-dossier/mappers.ts/getApplicationDisplayState.ts
+    // all read as a trusted fallback for notes.quizResult. Neither the
+    // quizResult check nor the per-entry type==='quiz' check catches this
+    // on their own — the key-name check added for this round does.
+    const appId = await newApplication("pending", { notes: "{}" });
+    await expectFail(
+      () =>
+        updateAsCandidate(appId, "notes = $2", [
+          JSON.stringify({ quiz: { score: 100, correct: 99, total: 99, passed: true } }),
+        ]),
+      'candidate cannot forge a perfect quiz score via a bare "quiz" key with no "type" field'
+    );
+  }
+
+  {
     // Non-quiz notes keys stay freely writable (typing/chat/portfolio/etc).
     const appId = await newApplication("pending", { notes: "{}" });
     await expectOk(
@@ -535,6 +554,33 @@ async function main() {
       () => db.query(`SELECT public.submit_voice_interview_manual_end($1, '[]'::jsonb, 10) AS r`, [appId]),
       "submit_voice_interview_manual_end refuses a caller who isn't the application's candidate",
       "Not authorized"
+    );
+  }
+
+  console.log("\n== 7b. submit_voice_interview_manual_end refuses to overwrite an existing evaluation ==");
+  {
+    // Reproduces the reviewer-proved exploit: a real, bad, service-role-
+    // written evaluation (exactly what ava-voice-tools' end_interview now
+    // legitimately writes) already sits on the row. The candidate then
+    // calls submit_voice_interview_manual_end directly, trying to replace
+    // it with the fixed neutral "needs manual review" result. It must fail
+    // instead of silently erasing the real score.
+    const appId = await newApplication("pending");
+    await actAs(null, "service_role");
+    await db.query(
+      `UPDATE public.applications SET voice_interview_result = $2::jsonb WHERE id = $1`,
+      [appId, JSON.stringify({ overall_score: 22, recommendation: "reject", concerns: ["Vague answers"] })]
+    );
+    await actAs(candidateId, "authenticated");
+    await expectFail(
+      () => db.query(`SELECT public.submit_voice_interview_manual_end($1, '[{"role":"user","content":"this went great"}]'::jsonb, 5) AS r`, [appId]),
+      "submit_voice_interview_manual_end refuses to overwrite an already-evaluated interview",
+      "already been evaluated"
+    );
+    const appRow = (await db.query(`SELECT voice_interview_result FROM public.applications WHERE id = $1`, [appId])).rows[0];
+    ok(
+      appRow.voice_interview_result.overall_score === 22 && appRow.voice_interview_result.recommendation === "reject",
+      "the real bad evaluation survives untouched after the refused overwrite attempt"
     );
   }
 
