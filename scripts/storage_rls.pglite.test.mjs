@@ -48,6 +48,7 @@ const APPLICATION_2 = "60000000-0000-4000-8000-000000000002"; // B -> job3 (empl
 const APPLICATION_3 = "60000000-0000-4000-8000-000000000003"; // A -> job1, notes reference FILE_A_LEGACY as a full public URL
 const APPLICATION_4 = "60000000-0000-4000-8000-000000000004"; // A -> job2 (employer2), notes do not mention FILE_A at all
 const APPLICATION_5 = "60000000-0000-4000-8000-000000000005"; // A -> job1, notes reference FILE_WILDCARD (name has literal % and _)
+const APPLICATION_6 = "60000000-0000-4000-8000-000000000006"; // B -> job3 (employer3), a fresh/real application; notes say nothing about FILE_A yet — the UPDATE-forgery target
 
 const SUPABASE_HOST = "https://yqklrkpptnhubsnijqze.supabase.co";
 
@@ -113,7 +114,8 @@ async function main() {
       sender_id uuid not null,
       receiver_id uuid not null,
       application_id uuid references applications(id),
-      file_url text
+      file_url text,
+      is_read boolean not null default false
     );
 
     -- Real, unprivileged Postgres roles — no BYPASSRLS, distinct from the
@@ -123,8 +125,14 @@ async function main() {
     create role authenticated;
     grant usage on schema auth, storage, public to anon, authenticated;
     grant select, insert, update, delete on storage.objects to anon, authenticated;
-    grant select on storage.buckets, jobs, applications, team_members, messages to anon, authenticated;
-    grant insert on messages to anon, authenticated;
+    grant select on storage.buckets, jobs, team_members to anon, authenticated;
+    -- applications/messages additionally get insert+update here (matching the
+    -- live, table-wide grants confirmed via information_schema.role_table_grants
+    -- for both tables) so the UPDATE-forgery assertions below can actually issue
+    -- the UPDATE and observe what the migration's trigger / column grant does to
+    -- it, rather than being blocked one layer earlier by a grant the harness
+    -- never gave them.
+    grant select, insert, update on applications, messages to anon, authenticated;
 
     alter table storage.objects enable row level security;
   `);
@@ -351,6 +359,54 @@ async function run() {
     assert(exact.rows[0].v === false, "the new position()-based predicate does not — unrelated text is correctly not matched");
   }
 
+  console.log("\nPortfolios — point (2): a forged UPDATE cannot rebind candidate_id:\n");
+  await asAdmin(db);
+  // A fresh, entirely legitimate application from candidateB to employer3's
+  // own job3 — notes say nothing about FILE_A yet.
+  await db.query(`insert into applications (id, job_id, candidate_id, notes) values ($1,$2,$3,$4)`, [
+    APPLICATION_6, JOB_3, CANDIDATE_B, JSON.stringify({ files: [] }),
+  ]);
+  await asUser(db, EMPLOYER_3);
+  // The forgery the reviewer demonstrated: employer3 owns job3 and so can
+  // already UPDATE application_6 (is_job_owner) — rewrite that row's
+  // candidate_id to candidateA and paste candidateA's real portfolio path
+  // into its notes, in one statement. Before the candidate_id-pin trigger,
+  // this satisfied every check the SELECT policy above makes, with data
+  // employer3 just forged on their own, unrelated application.
+  let appForgeryThrew = false;
+  try {
+    await db.query(`update applications set candidate_id = $1, notes = $2 where id = $3`, [
+      CANDIDATE_A, JSON.stringify({ files: [{ url: FILE_A }] }), APPLICATION_6,
+    ]);
+  } catch {
+    appForgeryThrew = true;
+  }
+  assert(
+    appForgeryThrew,
+    "employer3's forged UPDATE (candidate_id -> candidateA, notes -> candidateA's real path) is rejected by the candidate_id-pin trigger",
+  );
+  assert(!(await canSee(db, "portfolios", FILE_A)), "...and employer3 still cannot read candidateA's file afterward");
+  await asAdmin(db);
+  const app6Check = await db.query(`select candidate_id, notes from applications where id = $1`, [APPLICATION_6]);
+  assert(
+    app6Check.rows[0].candidate_id === CANDIDATE_B && !/fileA\.png/.test(app6Check.rows[0].notes ?? ""),
+    "application_6 is entirely unchanged (candidate_id still candidateB, notes still empty) after the rejected forgery — the whole statement rolled back, not just the candidate_id column",
+  );
+  // Sanity: employer3 can still legitimately edit their own application's
+  // notes when candidate_id is left untouched — the same shape as
+  // ava-voice-tools writing voice-interview notes as the employer's own
+  // authenticated session.
+  await asUser(db, EMPLOYER_3);
+  await db.query(`update applications set notes = $1 where id = $2`, [
+    JSON.stringify({ voiceInterviewNotes: "no concerns" }), APPLICATION_6,
+  ]);
+  await asAdmin(db);
+  const app6NotesCheck = await db.query(`select notes from applications where id = $1`, [APPLICATION_6]);
+  assert(
+    /voiceInterviewNotes/.test(app6NotesCheck.rows[0].notes ?? ""),
+    "employer3 can still edit their own application's notes when candidate_id is left untouched",
+  );
+
   console.log("\nMessage attachments — participants and legacy URLs:\n");
   await asUser(db, CANDIDATE_A);
   assert(await canSee(db, "message-attachments", MSG_FILE_REAL), "candidateA (the sender) can read their own real attachment");
@@ -391,6 +447,50 @@ async function run() {
     !(await canDelete(db, "message-attachments", MSG_FILE_REAL)),
     "employer1 (a real receiver, not the uploader) can no longer delete a file they didn't upload",
   );
+
+  console.log("\nMessage attachments — point (1): a forged UPDATE cannot rebind sender_id/file_url:\n");
+  await asUser(db, RANDOM_USER);
+  // RANDOM_USER inserts a message to themselves — sender_id = receiver_id =
+  // their own uid, allowed by "Users can send messages" — then attempts the
+  // exact forgery the reviewer demonstrated: UPDATE that same row's
+  // sender_id to candidateA and file_url to candidateA's real, already-
+  // uploaded attachment, while receiver_id stays their own. Before the
+  // column-privilege fix, this satisfied every check in the SELECT policy
+  // with data RANDOM_USER just wrote themselves.
+  const SELF_MSG_ID = "70000000-0000-4000-8000-000000000010";
+  await db.query(
+    `insert into messages (id, sender_id, receiver_id, application_id, file_url) values ($1,$2,$2,null,$3)`,
+    [SELF_MSG_ID, RANDOM_USER, "placeholder"],
+  );
+  let msgForgeryThrew = false;
+  try {
+    await db.query(`update messages set sender_id = $1, file_url = $2 where id = $3`, [
+      CANDIDATE_A, MSG_FILE_REAL, SELF_MSG_ID,
+    ]);
+  } catch {
+    msgForgeryThrew = true;
+  }
+  assert(
+    msgForgeryThrew,
+    "RANDOM_USER's forged UPDATE (sender_id -> candidateA, file_url -> candidateA's real attachment) is rejected — UPDATE is now granted on is_read only",
+  );
+  assert(
+    !(await canSee(db, "message-attachments", MSG_FILE_REAL)),
+    "...and RANDOM_USER still cannot read candidateA's real attachment through the (unchanged) self-message row",
+  );
+  await asAdmin(db);
+  const selfMsgCheck = await db.query(`select sender_id, file_url from messages where id = $1`, [SELF_MSG_ID]);
+  assert(
+    selfMsgCheck.rows[0].sender_id === RANDOM_USER && selfMsgCheck.rows[0].file_url === "placeholder",
+    "the self-message row itself is unchanged after the rejected forgery attempt",
+  );
+  // Sanity: the one legitimate UPDATE — a real receiver marking a real
+  // message read — still works.
+  await asUser(db, EMPLOYER_1);
+  await db.query(`update messages set is_read = true where id = $1`, ["70000000-0000-4000-8000-000000000001"]);
+  await asAdmin(db);
+  const readCheck = await db.query(`select is_read from messages where id = $1`, ["70000000-0000-4000-8000-000000000001"]);
+  assert(readCheck.rows[0].is_read === true, "employer1 (a real receiver) can still mark a real message read via UPDATE(is_read)");
 
   console.log("\nMessage attachments — point (3): team members of a readable thread:\n");
   await asUser(db, TEAM_ACTIVE);

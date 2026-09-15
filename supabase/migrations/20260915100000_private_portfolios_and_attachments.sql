@@ -28,6 +28,19 @@
 -- against attacker-influenced text uses `position()`/`right()` instead of
 -- `like`, so `%`, `_` and `\` in an object name can't widen the match.
 --
+-- Those two bindings only hold if the row doing the binding — an
+-- application's candidate_id, a message's sender_id/file_url — can itself be
+-- trusted. Neither could be: the live UPDATE policies on `applications`
+-- (employer/team) and `messages` (receiver, read-status) carry no
+-- `with_check` at all, so anyone who can UPDATE a row they already have some
+-- foothold on (their own job's application; a message they received, even
+-- one they sent to themselves) could rewrite candidate_id/sender_id/file_url
+-- to a victim's and walk straight through the notes/file_url match above.
+-- `applications.candidate_id` is now pinned immutable by trigger (nothing
+-- legitimate ever changes it after insert); `messages` UPDATE is now
+-- restricted at the grant level to the one column the app ever touches,
+-- `is_read`.
+--
 -- Idempotent: safe to run once against the live DB as it stands today, and
 -- safe to re-run.
 
@@ -107,6 +120,59 @@ using (
       and (j.employer_id = auth.uid() or tm.id is not null)
   )
 );
+
+-- ---------------------------------------------------------------------------
+-- public.applications: pin candidate_id so it can never change after insert.
+-- ---------------------------------------------------------------------------
+--
+-- The candidate_id binding on "Employers can view candidate portfolio files"
+-- above only holds if applications.candidate_id can be trusted — and as
+-- written it cannot be. Neither "Employers can update applications to their
+-- jobs" (using is_job_owner(job_id, auth.uid())) nor "Team members can
+-- update applications if permitted" (using
+-- is_active_team_member_for_job(job_id, auth.uid(), true)) carries a
+-- with_check clause (confirmed live via Supabase MCP against pg_policies —
+-- both show with_check: null), so Postgres reuses each policy's USING
+-- clause as its WITH CHECK, which says nothing about candidate_id or notes.
+-- That lets any employer UPDATE candidate_id on an application to one of
+-- their own jobs to a victim candidate's uid, then paste the victim's real
+-- portfolio path into that same row's notes — satisfying the SELECT policy
+-- above with data the employer forged, with no legitimate application from
+-- that candidate involved anywhere.
+--
+-- No legitimate write anywhere — not "Candidates can create applications"
+-- (the only place candidate_id is ever set), not the employer/team UPDATE
+-- paths above, not linkGuestApplications (which links a different column,
+-- linked_user_id), not any edge function (trigger-ava-analysis,
+-- ava-voice-tools, autopilot-batch — all searched) — ever changes
+-- candidate_id after insert. Pinning it unconditionally, for every role,
+-- changes no real behavior: an employer can still edit their own
+-- application's `notes` (ava-voice-tools legitimately does, logging voice-
+-- interview notes as the employer's own authenticated session), but can
+-- never make that application claim a candidate it doesn't have, so the
+-- storage policy's `(storage.foldername(objects.name))[1] =
+-- a.candidate_id::text` check stays bound to the row's real, original
+-- candidate no matter what its notes say.
+--
+-- A plain RLS WITH CHECK cannot see OLD.candidate_id, so this needs a
+-- trigger rather than a policy clause.
+create or replace function public.applications_pin_candidate_id()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.candidate_id is distinct from old.candidate_id then
+    raise exception 'applications.candidate_id cannot be changed after the application is created';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists applications_pin_candidate_id on public.applications;
+create trigger applications_pin_candidate_id
+  before update on public.applications
+  for each row
+  execute function public.applications_pin_candidate_id();
 
 -- ---------------------------------------------------------------------------
 -- message-attachments
@@ -200,3 +266,31 @@ using (
   bucket_id = 'message-attachments'
   and (storage.foldername(name))[1] = auth.uid()::text
 );
+
+-- ---------------------------------------------------------------------------
+-- public.messages: UPDATE is restricted to is_read only.
+-- ---------------------------------------------------------------------------
+--
+-- The SELECT policy above trusts messages.sender_id and messages.file_url to
+-- name who uploaded an attachment. Neither is protected: "Receivers can
+-- update message read status" only gates on `auth.uid() = receiver_id`
+-- (confirmed live via Supabase MCP against pg_policies — with_check: null),
+-- so Postgres reuses that USING clause as the WITH CHECK too, which says
+-- nothing about sender_id or file_url. "Users can send messages" lets anyone
+-- insert a message to themselves (sender_id = receiver_id = their own uid),
+-- so any authenticated user can: insert a self-message, then UPDATE that
+-- same row's sender_id to a victim's uid and file_url to the victim's real,
+-- already-uploaded attachment path while receiver_id stays their own —
+-- satisfying every check in the SELECT policy above (folder(name)[1] =
+-- m.sender_id, and m.receiver_id = auth.uid()) with data they just forged.
+--
+-- The app only ever updates one column of messages, anywhere — grepped
+-- across src/ and every supabase/functions/*/index.ts: exactly one call
+-- site, useMessages.ts's `.update({ is_read: true })`, marking a thread
+-- read. Restricting the UPDATE privilege itself to that column is a hard,
+-- RLS-independent backstop: even a future policy bug can never again let
+-- anyone rewrite sender_id, receiver_id, application_id or file_url through
+-- an UPDATE, because the connecting role lacks the grant to touch those
+-- columns at all, regardless of what any USING/WITH CHECK clause allows.
+revoke update on public.messages from authenticated, anon;
+grant update (is_read) on public.messages to authenticated, anon;
