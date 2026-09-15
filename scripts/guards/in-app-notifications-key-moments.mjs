@@ -14,6 +14,17 @@
  * on_interview_reschedule_notify trigger would double up with on the exact
  * same scheduled_at change), and a toast in InterviewSchedulingWizard.tsx
  * that promised "I'll send it by email instead" — false with email off.
+ *
+ * Scheduling an interview (InterviewSchedulingWizard.tsx handleSchedule;
+ * ava-voice-tools/index.ts) always does two writes for one action: an
+ * interviews INSERT, then applications.status -> 'interview'. Each write is
+ * its own AFTER trigger, so the migration also stops the pre-existing
+ * notify_application_status_change() from building its own "Interview
+ * scheduled" notification for status -> 'interview' — on_interview_insert_
+ * notify (fired by the INSERT, same action) already covers it, and more
+ * accurately (it knows exact-time vs. windows-offered, which bare status
+ * can't). Without this, the candidate got two bell notifications per
+ * scheduling action.
  */
 export default [
   {
@@ -92,6 +103,25 @@ export default [
       // real cockpit applicant route, not a dead/placeholder link.
       if (!migration.includes("'/applicants/' || NEW.id::text")) {
         detail.push("the new-application notification's employer link doesn't point at /applicants/<application id>");
+      }
+
+      // Scheduling always pairs an interviews INSERT with an applications
+      // status -> 'interview' UPDATE (InterviewSchedulingWizard.tsx,
+      // ava-voice-tools/index.ts). notify_application_status_change() must
+      // be re-declared here to stop building its own notification for
+      // status -> 'interview' — otherwise the candidate gets that one AND
+      // on_interview_insert_notify's, for the same scheduling action.
+      const statusFnMatch = migration.match(
+        /CREATE OR REPLACE FUNCTION public\.notify_application_status_change\(\)[\s\S]*?\$\$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;/,
+      );
+      if (!statusFnMatch) {
+        detail.push(
+          `${migrationPath} does not re-declare notify_application_status_change() — it must stop notifying on status -> 'interview', since scheduling's interviews INSERT (on_interview_insert_notify) already does, more accurately`,
+        );
+      } else if (/WHEN\s+'interview'\s+THEN\s*\n\s*notification_title/.test(statusFnMatch[0])) {
+        detail.push(
+          "notify_application_status_change() still builds its own notification for status -> 'interview' — this duplicates (and, for windows-offered scheduling, contradicts) the notification on_interview_insert_notify already writes for the same scheduling action",
+        );
       }
 
       // --- stale client-side pieces that must be gone ------------------------

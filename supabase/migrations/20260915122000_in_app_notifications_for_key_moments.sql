@@ -24,11 +24,19 @@
 --      is being extended next cycle on top of this trigger — see the guard
 --      below.
 --
--- `status` moving to rejected / hired / interview / offered is UNTOUCHED —
+-- `status` moving to rejected / hired / offered is UNTOUCHED —
 -- notify_application_status_change() (20251217214606_*.sql, relinked by
 -- 20260904120000_candidate_notification_links.sql) already writes an in-app
--- notification for every one of those, including "offered". Nothing here
--- duplicates it.
+-- notification for every one of those. `status` moving to "interview" is the
+-- one exception: that trigger's own "Interview scheduled" notification is
+-- now retired (section 4 below) because every status -> "interview"
+-- transition in the app (InterviewSchedulingWizard.tsx handleSchedule;
+-- ava-voice-tools/index.ts) first inserts the public.interviews row that
+-- moment 2's own trigger already notifies the candidate for — more
+-- accurately, since it can tell an exact time from windows-offered, which
+-- bare status can't. Leaving both triggers active double-notified the
+-- candidate for one scheduling action (sometimes with contradictory copy);
+-- section 4 is the fix.
 --
 -- All three triggers below follow the exact shape notify_new_message()
 -- (20260904121000_*.sql) established: SECURITY DEFINER, fixed search_path,
@@ -218,7 +226,9 @@ $$;
 COMMENT ON FUNCTION public.notify_interview_scheduled_or_rescheduled() IS
   'AFTER INSERT ON public.interviews (scheduled or windows offered), and AFTER '
   'UPDATE when scheduled_at changes and the actor is not the candidate (rescheduled): '
-  'one notifications row (type ''interview'') for the candidate. Fail-open.';
+  'one notifications row (type ''interview'') for the candidate. Fail-open. This INSERT '
+  'trigger is now the sole notifier for a scheduling action -- section 4 below stops '
+  'notify_application_status_change() from also firing when status moves to ''interview''.';
 
 REVOKE ALL ON FUNCTION public.notify_interview_scheduled_or_rescheduled() FROM PUBLIC, anon, authenticated;
 
@@ -298,3 +308,119 @@ CREATE TRIGGER on_application_phase_advanced_notify
   FOR EACH ROW
   WHEN (OLD.phase IS DISTINCT FROM NEW.phase)
   EXECUTE FUNCTION public.notify_application_phase_advanced();
+
+-- ----------------------------------------------------------------------------
+-- 4. Stop notify_application_status_change() from also notifying on
+--    status -> "interview" -- moment 2's own trigger (section 2 above)
+--    already covers it, more accurately.
+-- ----------------------------------------------------------------------------
+-- handleSchedule() in InterviewSchedulingWizard.tsx (the only client path
+-- that sets applications.status to 'interview' -- confirmed by grep, one
+-- call site) always does two writes for one scheduling action: it INSERTs
+-- into public.interviews first, then updates applications.status to
+-- 'interview'. ava-voice-tools/index.ts (voice-driven scheduling) does the
+-- same pair of writes. Before this section, BOTH writes fired their own
+-- notification -- on_interview_insert_notify (section 2) from the INSERT,
+-- and this trigger from the status UPDATE -- so the candidate got two bell
+-- notifications for one action, and for windows-offered scheduling the
+-- second one ("You've been invited to interview... Check the details and
+-- prepare!") was actively wrong: no exact time exists yet, only offered
+-- windows. Since every status -> 'interview' transition in the app already
+-- carries an interviews INSERT in the same action, and section 2's trigger
+-- fires on that INSERT with the right copy for either case (exact time vs.
+-- windows offered), this trigger simply stops treating 'interview' as a
+-- notify-worthy status. rejected / hired / offered are unchanged.
+CREATE OR REPLACE FUNCTION public.notify_application_status_change()
+RETURNS TRIGGER AS $$
+DECLARE
+  job_title TEXT;
+  company_name TEXT;
+  team_label TEXT;
+  notification_title TEXT;
+  notification_message TEXT;
+  notification_type notification_type;
+  notification_link TEXT;
+BEGIN
+  -- Only process if status actually changed
+  IF NEW.status IS DISTINCT FROM OLD.status THEN
+    -- Job title and the employer's company name (for the decision copy)
+    SELECT j.title, p.company_name
+      INTO job_title, company_name
+      FROM jobs j
+      LEFT JOIN profiles p ON p.user_id = j.employer_id
+     WHERE j.id = NEW.job_id;
+
+    team_label := CASE
+      WHEN NULLIF(TRIM(company_name), '') IS NOT NULL THEN 'The ' || TRIM(company_name) || ' team'
+      ELSE 'The hiring team'
+    END;
+
+    -- Candidate links go through candidate sign-in with the destination as a
+    -- redirect. A UUID needs no encoding beyond the slashes.
+    notification_link := '/candidate/auth?redirect=' || replace('/applications/' || NEW.id::text, '/', '%2F');
+
+    -- Set notification details based on new status
+    CASE NEW.status
+      WHEN 'rejected' THEN
+        notification_title := 'Application update';
+        notification_message := team_label || ' has made a decision on your application'
+          || CASE WHEN job_title IS NOT NULL THEN ' for ' || job_title ELSE '' END || '.';
+        notification_type := 'status_update';
+      WHEN 'hired' THEN
+        notification_title := 'Congratulations! You''re hired';
+        notification_message := 'Great news! You''ve been selected for ' || COALESCE(job_title, 'the position') || '. Welcome aboard!';
+        notification_type := 'status_update';
+      WHEN 'offered' THEN
+        notification_title := 'Offer extended';
+        notification_message := 'Congratulations! You''ve received an offer for ' || COALESCE(job_title, 'a position') || '.';
+        notification_type := 'status_update';
+      ELSE
+        -- Don't create notification for other status changes. 'interview'
+        -- falls in here now too -- see section 4's header comment: moment
+        -- 2's on_interview_insert_notify trigger (section 2 above) already
+        -- notified the candidate, for the same scheduling action, with more
+        -- accurate copy than this trigger can produce from the status alone.
+        RETURN NEW;
+    END CASE;
+
+    -- Insert the notification
+    INSERT INTO notifications (
+      user_id,
+      type,
+      title,
+      message,
+      link,
+      is_read
+    ) VALUES (
+      NEW.candidate_id,
+      notification_type,
+      notification_title,
+      notification_message,
+      notification_link,
+      false
+    );
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+COMMENT ON FUNCTION public.notify_application_status_change() IS
+  'AFTER UPDATE ON public.applications when status changes: one notifications row for '
+  'rejected / hired / offered. ''interview'' is deliberately excluded -- '
+  'notify_interview_scheduled_or_rescheduled() (this migration, section 2) already '
+  'notifies the candidate when the accompanying interviews row is inserted, with more '
+  'accurate copy than status alone can produce. Re-stated here (unchanged trigger) so '
+  'this migration is complete on its own if the original is ever squashed away.';
+
+-- Grants intentionally left as-is (this function's permissions were never
+-- touched by 20251217214606_*.sql or 20260904120000_*.sql either) -- this
+-- section only changes which statuses produce a notification, not who can
+-- invoke the function.
+
+DROP TRIGGER IF EXISTS on_application_status_change ON applications;
+CREATE TRIGGER on_application_status_change
+AFTER UPDATE ON applications
+FOR EACH ROW
+WHEN (OLD.status IS DISTINCT FROM NEW.status)
+EXECUTE FUNCTION public.notify_application_status_change();

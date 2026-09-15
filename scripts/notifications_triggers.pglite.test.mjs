@@ -406,6 +406,63 @@ async function main() {
   await db.query("update public.interviews set candidate_note = 'left early' where id = $1", [interviewExactId]);
   check("editing an unrelated interview column does not notify", (await countAll()) === 0);
 
+  console.log("\n2b. The real scheduling flow: an interviews INSERT and status -> 'interview' UPDATE together, exactly once\n");
+
+  // InterviewSchedulingWizard.tsx handleSchedule() (and ava-voice-tools/
+  // index.ts) always do both writes for one scheduling action -- never one
+  // without the other: INSERT into interviews, then UPDATE
+  // applications.status to 'interview'. Reproduce that pairing exactly, not
+  // the writes in isolation like the checks above do -- that pairing is
+  // exactly what the two blocking review findings on this migration
+  // described: without section 4 (notify_application_status_change() no
+  // longer treating 'interview' as notify-worthy), each write fires its own
+  // trigger and the candidate gets two bell notifications for one action.
+  await db.query("delete from public.notifications");
+  await asActor(employerId);
+  const schedAppId = "40000000-0000-0000-0000-000000000002";
+  await db.query(
+    "insert into public.applications (id, job_id, candidate_id, status, phase) values ($1,$2,$3,'reviewing','application')",
+    [schedAppId, jobId, candidateId],
+  );
+  check("inserting directly as 'reviewing' notifies nobody", (await countAll()) === 0);
+
+  // Exact-time: interviews INSERT, then status -> 'interview', same action.
+  const schedInterviewExactId = "50000000-0000-0000-0000-000000000003";
+  await db.query(
+    "insert into public.interviews (id, application_id, scheduled_at, candidate_response) values ($1,$2, now() + interval '4 days', 'pending')",
+    [schedInterviewExactId, schedAppId],
+  );
+  await db.query("update public.applications set status = 'interview' where id = $1", [schedAppId]);
+  candNotifs = await notifsFor(candidateId);
+  check(
+    "exact-time scheduling (interviews insert + status update together) notifies the candidate exactly once",
+    candNotifs.length === 1 && candNotifs[0]?.title === "Interview scheduled",
+    JSON.stringify(candNotifs),
+  );
+
+  // Windows-offered, on a second application: interviews INSERT
+  // (awaiting_pick), then status -> 'interview', same action.
+  await db.query("delete from public.notifications");
+  const schedAppId2 = "40000000-0000-0000-0000-000000000003";
+  await db.query(
+    "insert into public.applications (id, job_id, candidate_id, status, phase) values ($1,$2,$3,'reviewing','application')",
+    [schedAppId2, jobId, candidateId],
+  );
+  const schedInterviewWindowsId = "50000000-0000-0000-0000-000000000004";
+  await db.query(
+    "insert into public.interviews (id, application_id, scheduled_at, candidate_response, employer_windows) values ($1,$2, now() + interval '3 days', 'awaiting_pick', '[]'::jsonb)",
+    [schedInterviewWindowsId, schedAppId2],
+  );
+  await db.query("update public.applications set status = 'interview' where id = $1", [schedAppId2]);
+  candNotifs = await notifsFor(candidateId);
+  check(
+    "windows-offered scheduling (interviews insert + status update together) notifies the candidate exactly once, with 'pick a time' copy -- not the status trigger's 'scheduled' copy",
+    candNotifs.length === 1 && candNotifs[0]?.title === "Pick a time for your interview",
+    JSON.stringify(candNotifs),
+  );
+
+  await db.query("delete from public.notifications");
+
   console.log("\n3. Meaningful phase advance -> candidate (status is untouched)\n");
 
   await db.query("delete from public.notifications");
@@ -437,6 +494,11 @@ async function main() {
   // useCockpitData.ts): pending -> reviewing -> interview -> offered.
   await db.query("update public.applications set status = 'reviewing' where id = $1", [appId]);
   await db.query("update public.applications set status = 'interview' where id = $1", [appId]);
+  check(
+    "status -> interview alone (no accompanying interviews insert) notifies nobody -- section 4",
+    (await countAll()) === 0,
+    JSON.stringify(await notifsFor(candidateId)),
+  );
   await db.query("delete from public.notifications"); // isolate just the offered transition
   await db.query("update public.applications set status = 'offered' where id = $1", [appId]);
 
