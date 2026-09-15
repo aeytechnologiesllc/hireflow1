@@ -142,10 +142,20 @@ export function mapJobBriefToFormPayload(b: JobBrief): BriefFormPayload {
 // (see canContinueBrief in AvaCreateJob.tsx: role, location, pay, what they'll do). Employment
 // type and start date stay optional here too — the typed form ships sane defaults for both
 // ("Full-time · On-site", "Within a few weeks") instead of forcing the employer to state them.
+// A bare workMode of "onsite"/"hybrid" says nothing about WHERE — publishing (and the
+// map/geocode/feed pipeline downstream) needs real place text for those, same as the typed
+// path. Only "remote" is exempt, because mapJobBriefToFormPayload fills remote's location
+// with the literal text "Remote" when none was given, so onsite/hybrid without a real
+// location must still count as missing or the build step hangs waiting on a location that
+// will never arrive (see doCreate() / onComplete in TalkToAva.tsx and AvaCreateJob.tsx).
+function hasLocationOrRemote(b: JobBrief): boolean {
+  return !!b.location || b.workMode === "remote";
+}
+
 const CRITICAL: { label: string; required: boolean; has: (b: JobBrief) => boolean }[] = [
   { label: "Role", required: true, has: (b) => !!b.roleTitle },
   { label: "Full-time or part-time", required: false, has: (b) => !!b.employmentType },
-  { label: "Location or remote", required: true, has: (b) => !!b.location || !!b.workMode },
+  { label: "Location or remote", required: true, has: hasLocationOrRemote },
   { label: "Pay", required: true, has: (b) => !!payToText(b.pay) },
   { label: "Start date", required: false, has: (b) => !!b.startDateText },
   { label: "What they'll do", required: true, has: (b) => b.responsibilities.length > 0 },
@@ -176,7 +186,7 @@ export function canCreate(b: JobBrief): boolean {
 
 /** True once we have enough to read back a confident summary. */
 export function hasEssentials(b: JobBrief): boolean {
-  return !!b.roleTitle && (!!b.location || !!b.workMode) && !!payToText(b.pay) && b.responsibilities.length > 0;
+  return !!b.roleTitle && hasLocationOrRemote(b) && !!payToText(b.pay) && b.responsibilities.length > 0;
 }
 
 export function briefHasAnyData(b: JobBrief): boolean {

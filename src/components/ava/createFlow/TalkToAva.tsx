@@ -23,7 +23,7 @@ import {
 
 const DISPLAY = "'Fraunces', serif";
 
-type Phase = "idle" | "listening" | "thinking" | "speaking" | "readback" | "creating" | "error";
+type Phase = "idle" | "listening" | "thinking" | "speaking" | "readback" | "creating" | "stuck" | "error";
 type Msg = { id: number; role: "user" | "ava"; text: string };
 
 interface TalkToAvaProps {
@@ -61,6 +61,10 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
   const [messages, setMessages] = useState<Msg[]>([]);
   const [readback, setReadback] = useState(false);
   const [creating, setCreating] = useState(false);
+  // Belt-and-suspenders can still bail out of the handoff (see onComplete in AvaCreateJob.tsx)
+  // without ever advancing `step`, or the realtime session can just stall — either way the
+  // employer must never be left staring at "Ava is building your workflow…" forever.
+  const [buildStuck, setBuildStuck] = useState(false);
   const [handedBack, setHandedBack] = useState(false);
   const [vw, setVw] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1280));
 
@@ -71,6 +75,8 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
   const handedOff = useRef(false);
   const jobBriefRef = useRef(jobBrief);
   jobBriefRef.current = jobBrief;
+  const stepRef = useRef(step);
+  stepRef.current = step;
   // Live, not reactive-state — always reflects the current brief so the readback card and the
   // "ask Ava" effect below never lag a beat behind a voice update.
   const missingRequired = computeMissingRequired(jobBrief);
@@ -119,9 +125,18 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
       setReadback(true);
       return;
     }
+    setBuildStuck(false);
     finishing.current = true;
     setCreating(true); // show "building…" while Ava finishes her handoff line; the effects below transition
   }, []);
+
+  // Give up on this attempt and let the employer try again instead of sitting on a dead spinner.
+  const retryBuild = useCallback(() => {
+    finishing.current = false;
+    handedOff.current = false;
+    setCreating(false);
+    doCreate();
+  }, [doCreate]);
 
   // Fill in a still-missing field directly (from the inline form on the readback card),
   // routed through the same tool-args merge voice uses — same parsing, same missing-field
@@ -222,6 +237,28 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
     if (step >= 4) setCreating(false);
   }, [step]);
 
+  // Safety net: "creating" only ever clears by `step` moving on to the build/review pipeline
+  // (above) or by disconnecting. If a handoff bails out silently (e.g. onComplete's own
+  // belt-and-suspenders field check in AvaCreateJob.tsx) or the realtime session just stalls,
+  // `step` never moves and the employer would otherwise watch "building your workflow…" spin
+  // forever. Give it a generous window past handoff's own 6s hard cap, then offer a way out.
+  useEffect(() => {
+    if (!creating) return;
+    const stepAtStart = stepRef.current;
+    const t = window.setTimeout(() => {
+      if (stepRef.current <= stepAtStart) {
+        // Release the "already finishing/handed off" latches too, so whichever way the
+        // employer chooses to retry (the button below, or Create again from Review) actually
+        // re-runs the handoff instead of silently no-op'ing on stale refs from this attempt.
+        finishing.current = false;
+        handedOff.current = false;
+        setCreating(false);
+        setBuildStuck(true);
+      }
+    }, 11000);
+    return () => window.clearTimeout(t);
+  }, [creating]);
+
   // REVIEW: prompt Ava — ONCE — to present the plan and invite changes. Gated on planVisible (set
   // by AvaCreateJob when the review cards have ACTUALLY finished animating in) so she never says
   // "it's ready" while the build loader is still up — and on her being quiet so we don't cut her off.
@@ -244,7 +281,8 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
   }, [handedBack, isConnected, isSpeaking, disconnect]);
 
   const hasData = briefHasAnyData(jobBrief);
-  const phase: Phase = creating ? "creating"
+  const phase: Phase = buildStuck ? "stuck"
+    : creating ? "creating"
     : error ? "error"
     : !isConnected ? "idle"
     : readback ? "readback"
@@ -260,6 +298,7 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
     speaking: "Ava",
     readback: "Does this sound right?",
     creating: "Building your hiring workflow…",
+    stuck: "That took too long",
     error: "Microphone unavailable",
   };
 
@@ -274,7 +313,8 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
       case "speaking": return { scale: 1.03, glow: `drop-shadow(0 0 86px hsl(${GREEN} / 0.46)) drop-shadow(0 0 44px hsl(${GOLD} / 0.22))` };
       case "listening": return { scale: 1.02, glow: `drop-shadow(0 0 76px hsl(${GREEN} / 0.42))` };
       case "thinking": return { scale: 1.0, glow: `drop-shadow(0 0 62px hsl(${GREEN} / 0.34))` };
-      case "error": return { scale: 1.0, glow: "drop-shadow(0 0 40px color-mix(in srgb, var(--hf-danger) 30%, transparent))" };
+      case "error":
+      case "stuck": return { scale: 1.0, glow: "drop-shadow(0 0 40px color-mix(in srgb, var(--hf-danger) 30%, transparent))" };
       default: return { scale: 1.0, glow: `drop-shadow(0 0 56px hsl(${GREEN} / 0.3))` };
     }
   })();
@@ -386,9 +426,11 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
       </div>
 
       {/* Conversation surface — appears only when there's something to show */}
-      {(error || readback || hasData || (isConnected && !creating)) && (
+      {(buildStuck || error || readback || hasData || (isConnected && !creating)) && (
         <div className="mt-9 w-full text-left">
-          {error ? (
+          {buildStuck ? (
+            <BuildStuckCard onRetry={retryBuild} onReview={() => { setBuildStuck(false); setReadback(true); }} onPreferType={onPreferType} />
+          ) : error ? (
             <ErrorCard message={error || ""} onPreferType={onPreferType} />
           ) : readback ? (
             <ReadbackCard brief={jobBrief} canCreate={canCreate(jobBrief)} missingRequired={missingRequired} onFixFields={applyInlineFix} onCreate={doCreate} onAddDetail={() => setReadback(false)} onPreferType={onPreferType} />
@@ -577,6 +619,33 @@ const LiveCaption = forwardRef<HTMLDivElement, { messages: Msg[]; status: string
     );
   },
 );
+
+/** Shown when the build handoff stalls or bails out silently — never leave the employer
+ * staring at a spinner with no way forward. Retry re-runs the same handoff; Review pulls
+ * the brief back up (with inline fields for anything still missing) in case that's why it
+ * stalled. */
+function BuildStuckCard({ onRetry, onReview, onPreferType }: { onRetry: () => void; onReview: () => void; onPreferType: () => void }) {
+  return (
+    <div className="rounded-2xl p-6" style={{ ...PANEL, border: "1px solid color-mix(in srgb, var(--hf-danger) 35%, transparent)" }}>
+      <div className="flex items-start gap-3">
+        <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" style={{ color: "var(--hf-danger)" }} />
+        <div className="min-w-0 flex-1">
+          <div className="text-[15px] font-semibold" style={{ color: "hsl(var(--foreground))" }}>That took longer than it should have</div>
+          <p className="mt-1 text-[13.5px] leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
+            Ava didn't get your hiring flow built. Nothing was lost — try again, or take a look at what she's got so far.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button type="button" onClick={onRetry} className="ck-btn ck-btn-primary !py-2 !text-[13px]">Try again</button>
+            <button type="button" onClick={onReview} className="text-[13px] font-medium transition hover:opacity-80" style={{ color: "hsl(var(--muted-foreground))" }}>Review details</button>
+            <button type="button" onClick={onPreferType} className="inline-flex items-center gap-1.5 text-[13px] font-medium transition hover:opacity-80" style={{ color: "hsl(var(--muted-foreground))" }}>
+              <Keyboard className="h-3.5 w-3.5" /> Type it instead
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ErrorCard({ message, onPreferType }: { message: string; onPreferType: () => void }) {
   const denied = message?.toLowerCase().includes("permission") || message?.toLowerCase().includes("denied");
