@@ -25,12 +25,22 @@
 --      quiz submission server-side with the exact rules QuizPhase.tsx used
 --      to run in the browser, and returns only {score, correct, total,
 --      passed}. QuizPhase.tsx no longer selects, sees, or grades against
---      the key.
+--      the key. It is unconditionally one-shot per application/step (see
+--      the comment above the guard inside the function): once a result
+--      exists it refuses to grade again, full stop. Without this, the
+--      RPC's own returned score is an oracle a candidate can query
+--      repeatedly (fixing all-but-one answer and cycling the rest) to
+--      reconstruct the whole answer key through the "legitimate" endpoint.
+--      Retaking a quiz after the fact is out of scope for this migration —
+--      see knownLimits in this task's report.
 --   5. Adds a BEFORE UPDATE trigger on applications that blocks a candidate
 --      from rewriting their own status, job_id, candidate_id, any AI/score
 --      column, or a quiz result inside notes — outside of
 --      submit_quiz_attempt, which is given a transaction-local pass via
---      set_config('hireflow.in_quiz_submit', ...).
+--      set_config('hireflow.in_quiz_submit', ...). service_role (edge
+--      functions, migrations) is exempted via auth.role() = 'service_role'
+--      — not current_user, which inside this SECURITY DEFINER function is
+--      always the function's owner, never the calling role.
 --
 -- Idempotent: CREATE OR REPLACE FUNCTION, DROP TRIGGER IF EXISTS + CREATE,
 -- CREATE TABLE IF NOT EXISTS, DROP POLICY IF EXISTS + CREATE. Safe to run
@@ -287,6 +297,55 @@ BEGIN
     RAISE EXCEPTION 'This application has already been decided';
   END IF;
 
+  BEGIN
+    existing_notes := COALESCE(app.notes::jsonb, '{}'::jsonb);
+  EXCEPTION WHEN others THEN
+    existing_notes := '{}'::jsonb;
+  END;
+
+  -- One-shot, unconditionally: once this application already carries a
+  -- graded result for this step, submit_quiz_attempt refuses to grade
+  -- again — no exceptions. Without this, the RPC's own returned {score,
+  -- correct, total} is an adaptive oracle: fix every answer but one, cycle
+  -- that one through its options, and the score change reveals whether it
+  -- was correct. A handful of calls per question fully reconstructs the
+  -- key (and, since keys are shared per job, hands it to every other
+  -- candidate applying to the same job) — exactly the "candidate can
+  -- rewrite their own score" hole this migration exists to close, just
+  -- moved one layer down.
+  --
+  -- QuizPhase.tsx's own existingResult check (and every sibling phase
+  -- page's) treats status="pending" AND phase=stepId as "the employer
+  -- reconsidered, let them retake" and was mirrored here in an earlier
+  -- draft of this guard — that turned out to be a second, worse hole:
+  -- submit_quiz_attempt never changes status or phase itself, so once that
+  -- condition is true it stays true forever, turning "one legitimate
+  -- retake" into unlimited retries — the exact brute-force oracle this
+  -- guard exists to close, just gated behind one extra UPDATE the
+  -- candidate's own devtools can issue directly (protect_application_
+  -- columns allows a candidate to move their own status to "reviewing",
+  -- not to set it to "pending" — but nothing stops the *employer*, or a
+  -- future feature, from doing so, and this RPC must not then reopen the
+  -- oracle). Grep across src/ turned up no code path that actually sets
+  -- applications.status back to "pending" as a reconsideration signal for
+  -- the quiz phase — real reconsideration (CandidateApplicationDetail.tsx)
+  -- transitions rejected -> reviewing, never -> pending — so this carve-out
+  -- was dead for the happy path and live only as an attack surface; it has
+  -- been removed rather than hardened. A first-time candidate is unaffected
+  -- either way, since no completedAt/quizResult exists yet for them and
+  -- this check is a no-op until one does. `app` is locked FOR UPDATE above,
+  -- so two attempts racing each other still serialize correctly — the
+  -- second sees the first's committed result before it grades anything.
+  --
+  -- Known limitation (see knownLimits in this task's report): there is
+  -- currently no way to let a candidate retake a quiz after the fact —
+  -- reopening one requires a future employer/service-role action that
+  -- explicitly clears notes[stepId] and notes.quizResult first.
+  IF (existing_notes -> p_step_id ->> 'completedAt') IS NOT NULL
+     OR (existing_notes -> 'quizResult') IS NOT NULL THEN
+    RAISE EXCEPTION 'This quiz has already been submitted';
+  END IF;
+
   SELECT * INTO job FROM public.jobs WHERE id = app.job_id;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Job not found for this application';
@@ -487,12 +546,9 @@ BEGIN
   score_pct := CASE WHEN scored_total > 0 THEN round((correct_total / scored_total) * 100) ELSE 100 END;
   passing := COALESCE(job.passing_score, 60);
 
-  BEGIN
-    existing_notes := COALESCE(app.notes::jsonb, '{}'::jsonb);
-  EXCEPTION WHEN others THEN
-    existing_notes := '{}'::jsonb;
-  END;
-
+  -- existing_notes was already computed (and checked) above, before the
+  -- one-shot guard; app.notes hasn't changed since (the row has been held
+  -- FOR UPDATE the whole time), so it's still current here.
   step_key := p_step_id;
   new_notes := existing_notes || jsonb_build_object(
     step_key, jsonb_build_object(
@@ -559,10 +615,20 @@ DECLARE
   new_entry       jsonb;
   valid_step_ids  text[];
 BEGIN
-  -- service_role (edge functions, this trigger's own SECURITY DEFINER
-  -- callers via submit_quiz_attempt, migrations) bypasses RLS entirely and
-  -- is never the actor this guard is protecting against.
-  IF current_user = 'service_role' THEN
+  -- service_role (edge functions, migrations) bypasses RLS entirely but
+  -- NOT triggers — this BEFORE UPDATE trigger still fires for their writes,
+  -- so it still needs to exempt them explicitly. current_user is the wrong
+  -- check here: this function is SECURITY DEFINER, and inside a SECURITY
+  -- DEFINER function current_user is the function's OWNER for the whole
+  -- call, never the role that invoked it — so `current_user = 'service_role'`
+  -- can never be true (confirmed directly in PGlite: a SECURITY DEFINER
+  -- probe called from a session genuinely SET ROLE service_role reported
+  -- current_user as the function owner, not service_role). auth.role()
+  -- instead reads the request.jwt.claim.role / request.jwt.claims GUC that
+  -- PostgREST sets from the caller's JWT for the whole request — a plain
+  -- session setting, unaffected by SECURITY DEFINER's role switch either
+  -- way, and it's the same signal auth.uid() itself already relies on.
+  IF auth.role() = 'service_role' THEN
     RETURN NEW;
   END IF;
 
