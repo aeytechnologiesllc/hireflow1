@@ -9,19 +9,18 @@ import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 
 interface VerificationData {
-  documentCode: string;
   documentName: string;
   status: string;
   completionTimestamp: string | null;
   finalHash: string | null;
-  signingOrder: string;
-  signers: {
+  verified: boolean;
+  errorMessage?: string;
+  // Only present when the viewer is signed in as a party to this document.
+  signers?: {
     name: string;
     role: string;
     signedAt: string | null;
   }[];
-  verified: boolean;
-  errorMessage?: string;
 }
 
 export default function VerifyDocument() {
@@ -45,13 +44,10 @@ export default function VerifyDocument() {
 
       if (error) {
         setData({
-          documentCode: code,
           documentName: "Unknown",
           status: "error",
           completionTimestamp: null,
           finalHash: null,
-          signingOrder: "unknown",
-          signers: [],
           verified: false,
           errorMessage: error.message || "Failed to verify document"
         });
@@ -60,13 +56,10 @@ export default function VerifyDocument() {
       }
     } catch (err) {
       setData({
-        documentCode: code,
         documentName: "Unknown",
         status: "error",
         completionTimestamp: null,
         finalHash: null,
-        signingOrder: "unknown",
-        signers: [],
         verified: false,
         errorMessage: "Failed to connect to verification service"
       });
@@ -170,27 +163,21 @@ export default function VerifyDocument() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Document ID</p>
-                <p className="font-mono font-medium">{data.documentCode}</p>
+                <p className="font-mono font-medium">{documentCode}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Document Title</p>
                 <p className="font-medium">{data.documentName}</p>
               </div>
             </div>
-            
+
             <Separator />
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Execution Status</p>
-                <Badge variant={data.status === 'signed' ? "default" : "secondary"}>
-                  {data.status === 'signed' ? 'Fully Executed' : data.status}
-                </Badge>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Signing Order</p>
-                <p className="font-medium capitalize">{data.signingOrder.replace(/_/g, ' → ')}</p>
-              </div>
+
+            <div>
+              <p className="text-sm text-muted-foreground">Execution Status</p>
+              <Badge variant={data.status === 'signed' ? "default" : "secondary"}>
+                {data.status === 'signed' ? 'Fully Executed' : data.status}
+              </Badge>
             </div>
 
             {data.completionTimestamp && (
@@ -238,7 +225,7 @@ export default function VerifyDocument() {
         )}
 
         {/* Signers */}
-        {data.signers.length > 0 && (
+        {data.signers && data.signers.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -278,6 +265,9 @@ export default function VerifyDocument() {
         <div className="text-center text-xs text-muted-foreground space-y-1">
           <p>This is a read-only verification page.</p>
           <p>Document content is not exposed for security reasons.</p>
+          {(!data.signers || data.signers.length === 0) && data.status !== 'not_found' && data.status !== 'error' && (
+            <p>Sign in as the candidate or employer on this document to see who signed it.</p>
+          )}
         </div>
       </div>
     </div>
