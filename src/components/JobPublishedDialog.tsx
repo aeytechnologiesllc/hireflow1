@@ -11,25 +11,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { 
-  Check, 
-  Copy, 
-  Share2, 
-  MapPin, 
-  Briefcase,
+  Check,
+  Copy,
+  Share2,
+  MapPin,
   ExternalLink,
   CheckCircle2,
-  Linkedin,
-  Facebook,
   Globe,
   Download,
-  Megaphone,
   Users
 } from "lucide-react";
 import { toast } from "sonner";
@@ -72,39 +61,6 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
       toast.success(`${type === "code" ? "Job code" : "Link"} copied!`);
     } catch {
       toast.error("Failed to copy");
-    }
-  };
-
-  const shareToJobBoard = (platform: string) => {
-    const encodedTitle = encodeURIComponent(job?.title || "");
-    const encodedUrl = encodeURIComponent(shareLink);
-    const encodedDescription = encodeURIComponent(`Apply for ${job?.title || "this position"} - ${shareLink}`);
-    
-    const urls: Record<string, string> = {
-      indeed: `https://www.indeed.com/hire/post-a-job?title=${encodedTitle}`,
-      linkedin: `https://www.linkedin.com/talent/post-a-job`,
-      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedDescription}`,
-      monster: `https://hiring.monster.com/employer/post-jobs`,
-      ziprecruiter: `https://www.ziprecruiter.com/post-a-job`,
-    };
-
-    window.open(urls[platform], "_blank", "noopener,noreferrer");
-    toast.success(`Opening ${platform.charAt(0).toUpperCase() + platform.slice(1)}...`);
-  };
-
-  const copyJobPost = async () => {
-    const post = [
-      job.title,
-      [job.location, job.job_type].filter(Boolean).join(" · "),
-      "",
-      shareLink ? `Apply here: ${shareLink}` : "",
-    ].filter(Boolean).join("\n").trim();
-
-    try {
-      await navigator.clipboard.writeText(post);
-      toast.success("Job post copied — paste it on any board");
-    } catch {
-      toast.error("Failed to copy job post");
     }
   };
 
@@ -210,7 +166,7 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
             </button>
           </motion.div>
 
-          {/* Boost on Job Boards */}
+          {/* Share your job */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -218,67 +174,27 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
             className="space-y-2"
           >
             <label className="text-sm font-medium text-foreground flex items-center gap-2">
-              <Megaphone className="h-4 w-4 text-primary" />
-              Boost only when you need more applicants
+              <Share2 className="h-4 w-4 text-primary" />
+              Share your job
             </label>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              HireFlow is live first. Open a board or copy the post when you want extra reach; keep the HireFlow apply link in the listing.
+              Your job page is live and Google has already been told. Share the link anywhere you like.
             </p>
-            <div className="grid gap-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="default" className="flex-1 gap-2">
-                    <Share2 className="h-4 w-4" />
-                    Open a Job Board
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="center" className="w-56">
-                  <DropdownMenuItem onClick={() => shareToJobBoard("indeed")} className="gap-3 cursor-pointer">
-                    <div className="h-5 w-5 rounded bg-[#003A9B] flex items-center justify-center">
-                      <span className="text-[10px] font-bold text-white">in</span>
-                    </div>
-                    <span>Indeed</span>
-                    <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => shareToJobBoard("linkedin")} className="gap-3 cursor-pointer">
-                    <Linkedin className="h-5 w-5 text-[#0A66C2]" />
-                    <span>LinkedIn</span>
-                    <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => shareToJobBoard("ziprecruiter")} className="gap-3 cursor-pointer">
-                    <div className="h-5 w-5 rounded bg-[#5BA51E] flex items-center justify-center">
-                      <span className="text-[10px] font-bold text-white">Z</span>
-                    </div>
-                    <span>ZipRecruiter</span>
-                    <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => shareToJobBoard("monster")} className="gap-3 cursor-pointer">
-                    <div className="h-5 w-5 rounded bg-[#6E45A5] flex items-center justify-center">
-                      <Globe className="h-3 w-3 text-white" />
-                    </div>
-                    <span>Monster</span>
-                    <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => shareToJobBoard("facebook")} className="gap-3 cursor-pointer">
-                    <Facebook className="h-5 w-5 text-[#1877F2]" />
-                    <span>Facebook</span>
-                    <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={copyJobPost} className="gap-3 cursor-pointer">
-                    <Briefcase className="h-5 w-5 text-muted-foreground" />
-                    <span>Copy Job Post</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => copyToClipboard(shareLink, "link")} className="gap-3 cursor-pointer">
-                    {copiedLink ? (
-                      <Check className="h-5 w-5 text-primary" />
-                    ) : (
-                      <Copy className="h-5 w-5 text-muted-foreground" />
-                    )}
-                    <span>Copy Job Page Link</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="outline" className="gap-2" onClick={() => copyToClipboard(shareLink, "link")}>
+                {copiedLink ? (
+                  <Check className="h-4 w-4 text-primary" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+                Copy link
+              </Button>
+              <Button variant="outline" className="gap-2" asChild>
+                <a href={shareLink} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4" />
+                  View job page
+                </a>
+              </Button>
             </div>
           </motion.div>
 
@@ -332,12 +248,6 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
                   <Globe className="h-3 w-3 text-primary" />
                 </div>
                 <span>Google Jobs can pick up your public job page when it is indexed, but traffic is never guaranteed</span>
-              </div>
-              <div className="flex items-start gap-2.5 text-muted-foreground">
-                <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                  <Megaphone className="h-3 w-3 text-primary" />
-                </div>
-                <span>Boost manually on Indeed, LinkedIn, ZipRecruiter, or Monster when you need more reach</span>
               </div>
               <div className="flex items-start gap-2.5 text-muted-foreground">
                 <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">

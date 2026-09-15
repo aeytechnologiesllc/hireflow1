@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { X, Copy, Check, ExternalLink, Printer } from "lucide-react";
+import { X, Copy, Check, Printer } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 import { toast } from "sonner";
 
 /**
  * ShareKitDialog — theme-locked (Deep Jade) per-job share kit: apply link +
- * QR code, ready-to-paste post text, one-tap job-board posters, and a
- * printable "We're hiring" QR flyer for the shop window. Opens from the Jobs
- * list so an employer can re-share any job long after publish day.
+ * QR code, ready-to-paste post text, and a printable "We're hiring" QR flyer
+ * for the shop window. Opens from the Jobs list so an employer can re-share
+ * any job long after publish day. Everything here shares HireFlow's own
+ * link — it never sends anyone to post the job by hand on an outside board.
  */
 interface ShareKitJob {
   id: string;
@@ -115,12 +116,6 @@ export function ShareKitDialog({ open, job, applyUrl, onClose }: ShareKitDialogP
 
   const getQrCanvas = () => qrWrapRef.current?.querySelector("canvas") ?? null;
 
-  const boards = [
-    { label: "Indeed", href: "https://employers.indeed.com/p/post-job" },
-    { label: "LinkedIn", href: "https://www.linkedin.com/talent/post-a-job" },
-    { label: "ZipRecruiter", href: "https://www.ziprecruiter.com/post-job" },
-  ];
-
   return (
     // Rendered inside a clickable job tile — swallow clicks so the tile's
     // whole-card navigation never fires while the kit is open.
@@ -203,26 +198,10 @@ export function ShareKitDialog({ open, job, applyUrl, onClose }: ShareKitDialogP
           </div>
         </div>
 
-        {/* ── Job boards ─────────────────────────────── */}
+        {/* ── Status note ────────────────────────────── */}
         <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--hf-border-strong)" }}>
-          <div className="text-[11px] uppercase" style={{ color: "var(--hf-text-muted)", letterSpacing: "0.12em" }}>
-            Post it free on job boards
-          </div>
-          <div className="mt-2.5 grid grid-cols-3 gap-2">
-            {boards.map((b) => (
-              <a
-                key={b.label}
-                href={b.href}
-                target="_blank"
-                rel="noreferrer"
-                className="ck-btn ck-btn-outline justify-center !px-2 !text-[12.5px]"
-              >
-                {b.label} <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            ))}
-          </div>
-          <div className="mt-3 flex items-center gap-1.5 text-[12px]" style={{ color: "var(--hf-text-soft)" }}>
-            <Check className="h-3.5 w-3.5" /> Your HireFlow page is live; Google may index it. Post to outside boards manually.
+          <div className="flex items-center gap-1.5 text-[12px]" style={{ color: "var(--hf-text-soft)" }}>
+            <Check className="h-3.5 w-3.5" /> Your HireFlow page is live and Google has already been told.
           </div>
         </div>
       </div>
