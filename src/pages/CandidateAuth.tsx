@@ -11,6 +11,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { resolvePostAuthDestination } from "@/lib/authRouting";
+import { getPasswordErrorMessage } from "@/lib/authErrorMessages";
 import { HeroBackground } from "@/components/ava/HeroBackground";
 import { Wordmark } from "@/cockpit/components/Wordmark";
 import { GlyphLetter } from "@/components/candidate/glyphs";
@@ -249,10 +250,13 @@ export default function CandidateAuth() {
 
     if (error) {
       console.error("Candidate password update failed:", error);
+      const friendlyMessage = getPasswordErrorMessage(error);
       toast({
         variant: "destructive",
-        title: "We couldn't change your password",
-        description: "The reset link may have expired — request a new one and try again.",
+        title: friendlyMessage ? "That password isn't safe to use" : "We couldn't change your password",
+        description:
+          friendlyMessage ??
+          "The reset link may have expired — request a new one and try again.",
       });
       return;
     }
