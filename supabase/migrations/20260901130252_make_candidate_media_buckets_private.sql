@@ -1,0 +1,29 @@
+-- Recovered from the live migration history on 2026-09-16.
+-- This migration exists in supabase_migrations.schema_migrations on the live
+-- project (yqklrkpptnhubsnijqze) but had no matching file in supabase/migrations.
+-- See docs/MIGRATION-HISTORY.md for how this was found and verified.
+
+-- Candidate face-and-voice recordings and work samples were world-readable.
+--
+-- The `videos` bucket holds video introductions — a recording of a candidate's
+-- face and voice, made to apply for a job — and `portfolios` holds their work
+-- samples. Both were created with public = true, so every object sat at a
+-- permanent, unauthenticated URL that never expires and cannot be revoked.
+--
+-- Both buckets already had storage RLS policies written for them (2 and 3
+-- respectively). Those policies were decorative: a public bucket serves objects
+-- straight from the CDN and never consults them. Making the buckets private is
+-- what turns those existing policies on.
+--
+-- Nothing depended on the public access:
+--   * No client component plays or links a stored candidate video — every
+--     consumer, in the app and in the edge functions, is a presence check
+--     (`!!notes.videoIntroUrl`).
+--   * ai-analyze-portfolio DID fetch portfolio files by public URL, and passed
+--     images to the model provider as a raw URL for it to fetch. It now reads
+--     through the storage API with the service role and inlines images as
+--     base64, and was deployed before this migration ran.
+--   * src/utils/candidateMediaUrl.ts mints short-lived signed URLs for any
+--     viewer added later, the same pattern resumeSignedUrl.ts already uses for
+--     the `resumes` bucket, which has been private all along.
+update storage.buckets set public = false where name in ('videos', 'portfolios');

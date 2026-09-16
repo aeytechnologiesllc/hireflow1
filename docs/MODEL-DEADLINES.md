@@ -4,14 +4,22 @@ Every model name in HireFlow is now read from an environment variable. Swapping 
 model is a **config change in the Supabase dashboard**, not a code change and not a
 deploy. Nothing here requires touching the repo.
 
+**Updated 2026-09-16.** The Oct-2026 `gpt-4.1` / `gpt-4o-mini` retirement and the
+Jan-2027 `gpt-realtime` / `gpt-4o-transcribe` retirement described in earlier
+versions of this doc are **already defused** — every function listed below is live
+on the newer model families. See `docs/OVERNIGHT-LOG.md` for the migration record.
+Verified against the deployed edge function source (`supabase/functions/*/index.ts`)
+on 2026-09-16, not against provider docs — confirm current retirement dates with the
+provider before relying on "no announced date" below.
+
 ## The dates that matter
 
 | When | What retires | Who uses it |
 |---|---|---|
-| **~14–23 Oct 2026** | `gpt-4.1` | job writing, candidate analysis, shortlisting, workflow + flow generation, chat/sales evaluation |
-| **no announced date** | `gpt-5.6-luna`, `gpt-5.6-terra` | performance reports, document generation, document field placement, portfolio analysis (moved off Gemini/Lovable, Sep 2026) |
-| **no announced date** | `gpt-4o-mini` | live conversational turns in chat/sales/interview simulations |
-| **20 Jan 2027** | `gpt-realtime`, `gpt-4o-transcribe` | Ava's voice interviews and transcription |
+| **~14–23 Oct 2026** | `gpt-4.1`, `gpt-4o-mini` | already migrated off — no function defaults to these any more (`ai-models-come-from-env` guard also blocks a regression) |
+| **no announced date** | `gpt-5.6-luna`, `gpt-5.6-terra` | job writing, candidate analysis, shortlisting, workflow + flow generation, chat/sales live turns + evaluation, performance reports, document generation, document field placement, portfolio analysis |
+| **20 Jan 2027** | `gpt-realtime`, `gpt-4o-transcribe` | already migrated off — voice now runs on `gpt-realtime-2.1` / `gpt-live-transcribe` |
+| **no announced date** | `gpt-realtime-2.1`, `gpt-live-transcribe` | Ava's voice interviews and transcription (current) |
 
 ## How to swap (5 minutes, no deploy)
 
@@ -23,17 +31,20 @@ deploy. Nothing here requires touching the repo.
 
 | Variable | Default today | Function |
 |---|---|---|
-| `OPENAI_ANALYSIS_MODEL` | `gpt-4.1` | `ai-analyze` — the candidate scorecard |
-| `OPENAI_SHORTLIST_MODEL` | `gpt-4.1` | `ai-shortlist` |
-| `OPENAI_JOB_MODEL` | `gpt-4.1` | `ai-generate-job-content` |
-| `OPENAI_WORKFLOW_MODEL` | `gpt-4.1` | `ai-generate-workflow` |
-| `OPENAI_MODEL` | `gpt-4.1` | `generate-flow` — Ava's job-creation flow |
-| `OPENAI_CHAT_INTERVIEW_MODEL` | `gpt-4o-mini` | live turns, chat interview |
-| `OPENAI_CHAT_INTERVIEW_EVAL_MODEL` | `gpt-4.1` | scoring, chat interview |
-| `OPENAI_CHAT_SIMULATION_MODEL` | `gpt-4o-mini` | live turns, chat simulation |
-| `OPENAI_CHAT_SIMULATION_EVAL_MODEL` | `gpt-4.1` | scoring, chat simulation |
-| `OPENAI_SALES_SIMULATION_MODEL` | `gpt-4o-mini` | live turns, sales simulation |
-| `OPENAI_SALES_SIMULATION_EVAL_MODEL` | `gpt-4.1` | scoring, sales simulation |
+| `OPENAI_ANALYSIS_MODEL` | `gpt-5.6-terra` | `ai-analyze` — the candidate scorecard |
+| `OPENAI_SHORTLIST_MODEL` | `gpt-5.6-terra` | `ai-shortlist` |
+| `OPENAI_JOB_MODEL` | `gpt-5.6-luna` | `ai-generate-job-content` |
+| `OPENAI_WORKFLOW_MODEL` | `gpt-5.6-luna` | `ai-generate-workflow` |
+| `OPENAI_MODEL` | `gpt-5.6-luna` | `generate-flow` — Ava's job-creation flow |
+| `OPENAI_CHAT_INTERVIEW_MODEL` | `gpt-5.6-luna` | live turns, chat interview |
+| `OPENAI_CHAT_INTERVIEW_EVAL_MODEL` | `gpt-5.6-luna` | scoring, chat interview |
+| `OPENAI_CHAT_SIMULATION_MODEL` | `gpt-5.6-luna` | live turns, chat simulation |
+| `OPENAI_CHAT_SIMULATION_EVAL_MODEL` | `gpt-5.6-luna` | scoring, chat simulation |
+| `OPENAI_SALES_SIMULATION_MODEL` | `gpt-5.6-luna` | live turns, sales simulation |
+| `OPENAI_SALES_SIMULATION_EVAL_MODEL` | `gpt-5.6-luna` | scoring, sales simulation |
+
+GPT-5.6 models reject a non-default `temperature`; the shared OpenAI helpers strip
+that param before calling out, so callers do not need to special-case it.
 
 ### Documents & portfolio (OpenAI)
 
@@ -52,8 +63,8 @@ variables are dead — unset them if they are still in Secrets.
 
 | Variable | Default today | Note |
 |---|---|---|
-| `OPENAI_REALTIME_MODEL` | `gpt-realtime` | the replacement generation is also **~3× cheaper per audio minute** — this swap improves margin, not just compatibility |
-| `OPENAI_REALTIME_TRANSCRIPTION_MODEL` | `gpt-4o-transcribe` | |
+| `OPENAI_REALTIME_MODEL` | `gpt-realtime-2.1` | already the newer generation — **~3× cheaper per audio minute** than the retiring `gpt-realtime` |
+| `OPENAI_REALTIME_TRANSCRIPTION_MODEL` | `gpt-live-transcribe` | already the newer generation, replacing the retiring `gpt-4o-transcribe` |
 | `ELEVENLABS_API_KEY` (`elevenlabs-tts`) | — | not a model variable. The `elevenlabs-tts` function is called **only by the `/marketing-demo` page**; no candidate or employer flow depends on it. If ElevenLabs breaks, the product does not. |
 
 ## Swap procedure (do this once, per family)
