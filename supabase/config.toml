@@ -134,3 +134,26 @@ verify_jwt = true
 
 [functions.send-test-push]
 verify_jwt = true
+
+# Job billing (owner-decided pricing, 2026-08-27) — every one of these does
+# its own manual Authorization-header verification, same convention as
+# stripe-checkout/purchase-voice-credits/check-applicant-limit above.
+[functions.unlock-job-checkout]
+verify_jwt = false
+
+[functions.purchase-applicant-pack-checkout]
+verify_jwt = false
+
+[functions.ava-boost-checkout]
+verify_jwt = false
+
+[functions.ava-boost-reach-estimate]
+verify_jwt = false
+
+[functions.job-billing-status]
+verify_jwt = false
+
+# No user JWT at all -- authorizes on a shared x-worker-secret header instead
+# (see BOOST_WORKER_SECRET), same shape as stripe-webhook's signature check.
+[functions.ava-boost-worker]
+verify_jwt = false

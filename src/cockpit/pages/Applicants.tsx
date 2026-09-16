@@ -39,6 +39,9 @@ import {
 } from "../hooks/useCockpitData";
 import { getInitials, parseApplicationNotes } from "../lib/mappers";
 import { GemRail } from "@/components/rail/GemRail";
+import { useJobBilling } from "@/hooks/useJobBilling";
+import JobLockBanner from "@/components/billing/JobLockBanner";
+import SealedApplicantsCard from "@/components/billing/SealedApplicantsCard";
 import { candidateApplyUrl } from "@/lib/showcaseApply";
 import { clearDraft } from "@/lib/avaEngine/draft";
 import {
@@ -775,6 +778,11 @@ export default function CockpitApplicants() {
   const roleIdFilter = searchParams.get("roleId");
   const { candidates, applications, isLoading, isError, refetch } = useCockpitCandidates();
   const { jobs } = useCockpitJobsData();
+  // Billing status for the job in view — undefined outside a single-job
+  // view (roleIdFilter null) or while billing is off; both JobLockBanner and
+  // the sealed-envelope summary card below check billingEnabled themselves
+  // too, so this never shows lock/price UI on its own.
+  const { data: jobBillingForSealedCard } = useJobBilling(roleIdFilter);
   const { advance, hire, reject, isUpdating } = useCockpitActions();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [bucket, setBucket] = useState<Bucket>("sealed");
@@ -1117,6 +1125,8 @@ export default function CockpitApplicants() {
         </div>
       </header>
 
+      {shareJob && <JobLockBanner jobId={shareJob.id} jobTitle={shareJob.title} />}
+
       {filtersOpen && (
         <div className="ck-reveal flex flex-wrap items-center gap-2.5">
           <SearchInput placeholder="Search applicants…" className="min-w-[160px] flex-1" value={search} onChange={setSearch} />
@@ -1175,6 +1185,17 @@ export default function CockpitApplicants() {
                     onSelect={() => setSelectedId(c.id)}
                   />
                 ))}
+              </div>
+            )}
+            {/* Sealed-by-billing summary — additive, not a replacement for
+                the real rows above: those still show every applicant
+                exactly as they do today. This card is the "N more waiting"
+                moment for a locked job, shown once at the end of its own
+                list rather than as fabricated stand-ins for specific
+                people. */}
+            {shareJob && jobBillingForSealedCard && pageClamped === totalPages && (
+              <div className="mt-3">
+                <SealedApplicantsCard jobId={shareJob.id} jobTitle={shareJob.title} billing={jobBillingForSealedCard} />
               </div>
             )}
           </div>

@@ -1531,6 +1531,27 @@ export type Database = {
       }
       email_exists: { Args: { p_email: string }; Returns: boolean }
       ensure_profile_exists: { Args: { p_user_id: string }; Returns: undefined }
+      get_billing_flags: {
+        Args: Record<PropertyKey, never>
+        Returns: { billing_enabled: boolean; boost_enabled: boolean }[]
+      }
+      get_job_billing_status: {
+        Args: { p_job_id: string }
+        Returns: {
+          active_unlock_expires_at: string | null
+          applicant_count: number
+          billing_enabled: boolean
+          has_active_unlock: boolean
+          is_locked: boolean
+          pack_count: number
+          processed_allowance: number
+          sealed_count: number
+          unlock_count: number
+          voice_included_total: number
+          voice_next_is_billable: boolean
+          voice_used: number
+        }[]
+      }
       get_job_quiz_keys: {
         Args: { p_job_id: string }
         Returns: { key: Json; question_id: string; step_id: string }[]

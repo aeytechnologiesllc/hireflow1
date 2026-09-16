@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@14.21.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { handleJobBillingCheckoutCompleted, isJobBillingCheckout } from "../_shared/jobBillingWebhookHandlers.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -50,6 +51,18 @@ serve(async (req) => {
         const session = event.data.object as Stripe.Checkout.Session;
         const userId = session.metadata?.user_id;
         const sessionType = session.metadata?.type;
+
+        // Job-billing purchases (owner-decided pricing, 2026-08-27): unlock
+        // / applicant pack / Ava Boost. See unlock-job-checkout /
+        // purchase-applicant-pack-checkout / ava-boost-checkout for where
+        // these rows and this metadata.kind get created, and
+        // _shared/jobBillingWebhookHandlers.ts for the actual (idempotent)
+        // row-update logic and its own test coverage.
+        if (isJobBillingCheckout(session)) {
+          const result = await handleJobBillingCheckoutCompleted(supabaseAdmin, stripe, session);
+          console.log("Job-billing checkout completed:", result);
+          break;
+        }
 
         // Handle voice credits purchase
         if (sessionType === "voice_credits" && userId) {
