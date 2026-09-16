@@ -51,6 +51,49 @@ serve(async (req) => {
         const userId = session.metadata?.user_id;
         const sessionType = session.metadata?.type;
 
+        // Handle Improvement Blueprint purchase. purchase-blueprint sets
+        // metadata.type = "improvement_blueprint" with metadata.userId /
+        // metadata.applicationId (camelCase — that function's own
+        // metadata, distinct from the snake_case metadata.user_id other
+        // checkout flows in this file use). This is a belt-and-braces path:
+        // verify-blueprint-purchase (called from the success redirect) is
+        // the primary writer; if the candidate never returns to that page
+        // after paying, this webhook still records the purchase so they
+        // aren't charged without getting access. The unique index on
+        // stripe_session_id (20260916160000_blueprint_entitlement_and_purchase_integrity.sql)
+        // makes the two writers safe to race.
+        if (sessionType === "improvement_blueprint") {
+          const blueprintUserId = session.metadata?.userId;
+          const applicationId = session.metadata?.applicationId;
+
+          if (blueprintUserId && applicationId && session.payment_status === "paid") {
+            const { error: blueprintError } = await supabaseAdmin
+              .from("blueprint_purchases")
+              .upsert(
+                {
+                  user_id: blueprintUserId,
+                  application_id: applicationId,
+                  stripe_session_id: session.id,
+                  amount_paid: session.amount_total || 199,
+                },
+                { onConflict: "stripe_session_id", ignoreDuplicates: true },
+              );
+
+            if (blueprintError) {
+              console.error("Error recording blueprint purchase from webhook:", blueprintError);
+            } else {
+              console.log("Blueprint purchase recorded from webhook for user:", blueprintUserId, "application:", applicationId);
+            }
+          } else {
+            console.warn("improvement_blueprint checkout.session.completed missing expected metadata or not paid", {
+              hasUserId: !!blueprintUserId,
+              hasApplicationId: !!applicationId,
+              paymentStatus: session.payment_status,
+            });
+          }
+          break;
+        }
+
         // Handle voice credits purchase
         if (sessionType === "voice_credits" && userId) {
           const packSize = session.metadata?.pack_size;

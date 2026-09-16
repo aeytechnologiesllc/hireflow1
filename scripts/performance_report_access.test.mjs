@@ -5,8 +5,9 @@
  * edge function calls, `canAccessPerformanceReport` from
  * supabase/functions/_shared/performanceReportAccess.ts, over every caller
  * shape that matters: the candidate before/after paying, a total stranger,
- * the job's employer, an active team member, and a revoked/other-employer
- * team member.
+ * the job's employer, an active team member, a revoked/other-employer team
+ * member, and the free-tier ('blueprint_paid' off) entitlement switch added
+ * 2026-09-16.
  *
  * Run with: node scripts/performance_report_access.test.mjs
  */
@@ -27,21 +28,25 @@ function check(name, condition, detail = "") {
 
 console.log("Performance report / Improvement Blueprint access decision:\n");
 
+// ---- billing ON (paid mode): unchanged from the original IDOR fix --------
+
 check(
   "blocks a total stranger (not the candidate, not employer-side)",
   canAccessPerformanceReport({
     isCandidateOwner: false,
     hasPurchasedBlueprint: false,
     isEmployerSide: false,
+    billingEnabled: true,
   }) === false,
 );
 
 check(
-  "blocks the candidate before they've purchased the blueprint",
+  "blocks the candidate before they've purchased the blueprint (billing on)",
   canAccessPerformanceReport({
     isCandidateOwner: true,
     hasPurchasedBlueprint: false,
     isEmployerSide: false,
+    billingEnabled: true,
   }) === false,
 );
 
@@ -51,6 +56,7 @@ check(
     isCandidateOwner: true,
     hasPurchasedBlueprint: true,
     isEmployerSide: false,
+    billingEnabled: true,
   }) === true,
 );
 
@@ -60,6 +66,7 @@ check(
     isCandidateOwner: false,
     hasPurchasedBlueprint: false,
     isEmployerSide: true,
+    billingEnabled: true,
   }) === true,
 );
 
@@ -69,6 +76,7 @@ check(
     isCandidateOwner: false,
     hasPurchasedBlueprint: false,
     isEmployerSide: true,
+    billingEnabled: true,
   }) === true,
 );
 
@@ -78,6 +86,7 @@ check(
     isCandidateOwner: true,
     hasPurchasedBlueprint: false,
     isEmployerSide: true,
+    billingEnabled: true,
   }) === true,
 );
 
@@ -87,7 +96,52 @@ check(
     isCandidateOwner: false,
     hasPurchasedBlueprint: true,
     isEmployerSide: false,
+    billingEnabled: true,
   }) === false,
+);
+
+// ---- billing OFF (free tier, app_settings 'blueprint_paid' = false) ------
+// Owner decision 2026-09-16: nothing may sit behind a paywall while billing
+// is off, so the candidate gets their own report without a purchase row.
+
+check(
+  "billing off: the candidate is allowed their own report with NO purchase row",
+  canAccessPerformanceReport({
+    isCandidateOwner: true,
+    hasPurchasedBlueprint: false,
+    isEmployerSide: false,
+    billingEnabled: false,
+  }) === true,
+);
+
+check(
+  "billing off: a total stranger is still blocked — the switch never widens WHO, only whether payment is required",
+  canAccessPerformanceReport({
+    isCandidateOwner: false,
+    hasPurchasedBlueprint: false,
+    isEmployerSide: false,
+    billingEnabled: false,
+  }) === false,
+);
+
+check(
+  "billing off: employer-side access is unaffected either way",
+  canAccessPerformanceReport({
+    isCandidateOwner: false,
+    hasPurchasedBlueprint: false,
+    isEmployerSide: true,
+    billingEnabled: false,
+  }) === true,
+);
+
+check(
+  "billing off + an already-recorded purchase: still allowed (idempotent, not a double gate)",
+  canAccessPerformanceReport({
+    isCandidateOwner: true,
+    hasPurchasedBlueprint: true,
+    isEmployerSide: false,
+    billingEnabled: false,
+  }) === true,
 );
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -1,9 +1,11 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { callOpenAIJson, openAIErrorStatus, requireJsonKeys } from "../_shared/openai.ts";
+import { callOpenAIJson, openAIErrorStatus } from "../_shared/openai.ts";
 import { guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { canAccessPerformanceReport } from "../_shared/performanceReportAccess.ts";
+import { isBlueprintBillingEnabled } from "../_shared/appSettings.ts";
+import { validateBlueprintReport, REQUIRED_DEVELOPMENTAL_DISCLAIMER, type ImprovementBlueprintData } from "../_shared/blueprintReport.ts";
 
 // Model is configurable so a retirement is a config change, not a code change.
 // Set OPENAI_REPORT_MODEL to the replacement model when swapping.
@@ -36,8 +38,8 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // This report contains a candidate's private evaluation (voice transcript,
-    // notes, AI analysis) and is also the paid Improvement Blueprint content.
-    // It must never be reachable by an arbitrary signed-in user just by
+    // notes, AI analysis) and is also the Improvement Blueprint content. It
+    // must never be reachable by an arbitrary signed-in user just by
     // guessing an applicationId — verify the caller first, before any other
     // DB or OpenAI work.
     const authHeader = req.headers.get('authorization') || req.headers.get('Authorization');
@@ -64,7 +66,7 @@ serve(async (req) => {
     }
 
     // Cost/abuse guard, keyed by the authenticated caller rather than IP —
-    // this is a paid, signed-in-only feature.
+    // this is a signed-in-only feature that calls OpenAI.
     const rateLimitResponse = await guardPublicAiCall(
       req,
       'ai-generate-performance-report',
@@ -102,7 +104,7 @@ serve(async (req) => {
     // other jobs access to this candidate's report -- call the same
     // SECURITY DEFINER function the RLS policy uses instead of
     // re-implementing the scoping rule here.
-    const [{ data: isScopedTeamMember }, { data: blueprintPurchase }] = await Promise.all([
+    const [{ data: isScopedTeamMember }, { data: blueprintPurchase }, billingEnabled] = await Promise.all([
       !isCandidateOwner && !isEmployerOwner && employerId
         ? supabaseUserClient.rpc('is_active_team_member_for_job', {
             p_job_id: candidateApp.job_id,
@@ -117,12 +119,16 @@ serve(async (req) => {
             .eq('user_id', requestingUser.id)
             .maybeSingle()
         : Promise.resolve({ data: null }),
+      // 'blueprint_paid' (app_settings): false while billing is off, so the
+      // candidate path below doesn't require a purchase row. See
+      // supabase/functions/_shared/appSettings.ts.
+      isBlueprintBillingEnabled(supabase),
     ]);
 
     const isEmployerSide = isEmployerOwner || !!isScopedTeamMember;
     const hasPurchasedBlueprint = isCandidateOwner && !!blueprintPurchase;
 
-    if (!canAccessPerformanceReport({ isCandidateOwner, hasPurchasedBlueprint, isEmployerSide })) {
+    if (!canAccessPerformanceReport({ isCandidateOwner, hasPurchasedBlueprint, isEmployerSide, billingEnabled })) {
       console.warn('[Report] Unauthorized performance report request', {
         requesterId: requestingUser.id,
         applicationId,
@@ -185,228 +191,100 @@ serve(async (req) => {
 
     // Build phase-specific data for rich context
     const phaseData = buildPhaseData(application, parsedNotes);
-    const applicationContext = buildApplicationContext(application, parsedNotes, profile, phaseData);
-    
     const jobData = Array.isArray(application.jobs) ? application.jobs[0] : application.jobs;
+    const applicationContext = buildApplicationContext(application, parsedNotes, profile, phaseData, jobData);
+
     const passingScore = jobData?.passing_score || 70;
+    const completedPhases = Object.keys(phaseData);
+    const dataDepth: ImprovementBlueprintData['metadata']['dataDepth'] =
+      completedPhases.length >= 4 ? 'comprehensive' : completedPhases.length >= 2 ? 'moderate' : 'minimal';
 
     if (!OPENAI_API_KEY) {
       // Surfaces as a 500 JSON { error } via the catch below.
       throw new Error('OPENAI_API_KEY is not configured');
     }
 
-    const systemPrompt = `You are a friendly, supportive career coach creating a PREMIUM improvement blueprint for a rejected candidate.
+    // Design notes (2026-09-16, owner decision: keep + rework this report):
+    // structure follows what actually helps a rejected candidate — lead with
+    // real strengths, name the specific gap against THIS job's real
+    // requirements and screening steps (never generic advice), give a
+    // concrete way to practice each gap with a worked example, help them
+    // present their real experience better, and suggest role types their
+    // demonstrated strengths fit. Never invent a fact about the candidate,
+    // never promise an outcome, never name AI or Ava — this is candidate-
+    // facing copy and those words never appear there.
+    const systemPrompt = `You write a warm, honest, specific coaching report for someone who applied to a job and was not moved forward. You are their advocate, not the employer's. You never invent a fact, quote, or score the candidate's data does not support. You never promise that following this advice will get them hired — practice reduces gaps, it does not guarantee outcomes. You never use the words "AI" or "Ava", or describe any part of the hiring process as automated or AI-driven — write as if a thoughtful person wrote every sentence.
 
-TONE & LANGUAGE RULES (CRITICAL):
-- Write in simple, conversational English - as if explaining to a friend over coffee
-- Use PROFESSIONAL, role-relative language. Anchor all critiques to job requirements, not personal assessment.
-- NEVER USE these emotionally charged phrases - use the professional alternatives instead:
-  * NEVER: "extremely poor" or "very poor" -> SAY: "Significantly below role requirements"
-  * NEVER: "failed" or "failure" -> SAY: "Did not meet" or "Was below requirements"
-  * NEVER: "critical" (as severity) -> SAY: "Significant" or "Notable"
-  * NEVER: "deficiency" or "deficiencies" -> SAY: "Gap" or "Area for development"
-  * NEVER: "terrible" or "awful" -> SAY: "Needs substantial improvement"
-  * NEVER: "major deficiencies" or "severe deficiencies" -> SAY: "Substantial gaps relative to expectations"
-  * NEVER: "severely damaged credibility" -> SAY: "Reduced employer confidence due to inconsistencies"
-  * NEVER: "unacceptable" -> SAY: "Below baseline requirements"
-  * NEVER: "incompetent" -> SAY: "Not yet at required skill level"
-- When describing low performance, frame it relative to role expectations:
-  * EXAMPLE: "Your typing speed of 28 WPM is below the typical 40+ WPM requirement for chat support roles"
-  * NOT: "Your typing speed was extremely low"
-- Be direct and specific but warm - you're helping someone improve, not judging them
-- When referencing data, explain what it MEANS for them, not just what the numbers are
-- For cover letters: If they submitted something brief, say "Your cover letter was just X words" not "N/A"
-- Don't repeat technical data verbatim - summarize it in plain English
+WRITE IN PLAIN, WARM, EVERYDAY LANGUAGE:
+- Talk to "you", like a supportive mentor, not a form letter.
+- Never use clinical or harsh words: no "failed", "poor", "deficient", "unacceptable", "critical", "incompetent". Say what happened plainly and kindly instead — e.g. "You typed 28 words per minute; this role's screening step looks for 40+."
+- Every gap you name must be anchored to something specific about THIS job — its stated requirements, skills, or one of its actual screening steps (typing test, quiz, chat interview, sales simulation, voice interview, cover letter, screening questions) — never a generic "improve your communication skills".
+- Every strength you name must cite the specific evidence for it (a quote, an answer, a score) — never a flattering guess.
+- Every gap needs at least one practiceStep with a concrete, worked example the person can literally copy and practice with today (a sample phrase, a mini-script, a specific free resource) — not just "practice more".
+- presentingYourExperience must reference what they actually submitted (their real cover letter or answers) and show a concrete before/after style rewrite using only facts they already gave you — never invent an accomplishment they didn't mention.
+- rolesToConsiderNext must follow from strengths you already identified in THIS application, not be generic career advice unrelated to the evidence.
+- closing.disclaimer must be exactly this sentence, word for word: "${REQUIRED_DEVELOPMENTAL_DISCLAIMER}"
 
-FRAMING GUIDANCE:
-- For "topRejectionDrivers", frame them as "Key Factors in Your Application Outcome" - focus on the gap between performance and requirements, not personal judgment
-- Always anchor critiques to "relative to employer expectations" or "relative to role requirements"
-
-AI-ASSISTED CONTENT CLARIFICATION:
-- If you detect or mention "AI-assisted content", "POSSIBLY_AI_ASSISTED", or similar patterns in resume/cover letter analysis:
-  * ALWAYS add this clarification: "Note: This does not confirm AI usage. It indicates language patterns commonly associated with generic or template-based content."
-  * This must be informational and educational, not accusatory
-  * Suggest how to make content more personal and authentic
-
-EXTREME SCORE CONTEXT (<20% SCORES):
-- For any phase score below 20%, you MUST add context that explains:
-  1. What employers typically expect for this skill in this role type
-  2. Why the gap matters operationally (e.g., "Chat support agents handle 3-5 conversations simultaneously, so 28 WPM would mean customers wait too long for responses")
-  3. A reassuring note that this is a skill that can be learned with practice
-
-YOUR OUTPUT MUST BE DETAILED, SPECIFIC, AND EVIDENCE-BASED:
-- Reference EXACT scores, quotes, and behaviors from the data
-- For each phase, cite EVERY specific mistake with evidence (not just 2)
-- No generic advice - give exact strategies with step-by-step explanations
-- Every improvement must reference what they actually did wrong
-- Frameworks MUST include a 1-2 sentence plain-English explanation of what they mean and how to use them
-
-CRITICAL: Generate a JSON with this EXACT structure:
-
+Return ONLY a JSON object with this exact shape (no markdown, no extra top-level keys):
 {
-  "executiveSummary": {
-    "overallScore": 15,
-    "scoreContext": "Your score of 15/100 indicates significant gaps relative to role requirements. This is a starting point, not a final verdict.",
-    "topRejectionDrivers": [
-      "Typing speed (28 WPM) is below the 40+ WPM requirement for chat support",
-      "Quiz score (43%) did not meet the 70% passing threshold",
-      "Cover letter was very brief (5 words) and didn't showcase your qualifications"
-    ],
-    "topPriorityFixes": [
-      "Practice typing daily on TypingClub.com to reach 40+ WPM within 2 weeks",
-      "Review customer service fundamentals using free resources like HubSpot Academy",
-      "Prepare a 150-300 word cover letter template you can customize for each role",
-      "Practice answering behavioral questions using the STAR method",
-      "Take practice customer service quizzes on Indeed's skill assessments"
-    ]
+  "summary": {
+    "whatHappened": "3-4 warm, plain-English sentences on the outcome for THIS job, citing real numbers where you have them",
+    "keyTakeaway": "One clear, memorable sentence — the single most useful thing to understand"
   },
-  "topRejectionReasons": [
-    "Plain-English reason with exact evidence (e.g., 'Your quiz score of 43% (3 out of 7 correct) was below the 70% passing threshold')",
-    "Another reason explained with professional, role-relative language",
-    "Third reason - be specific but use neutral professional tone"
+  "whatWentWell": [
+    { "strength": "specific strength", "evidence": "the exact quote/answer/score that shows it", "howToUseItNextTime": "how to lean on this in their next application" }
   ],
-  "phaseBreakdown": [
+  "gapsForThisRole": [
     {
-      "phase": "Phase Name (e.g., 'Cover Letter' not 'Cover Letter (N/A)')",
-      "score": "43%" or "28 WPM" or "Very Brief",
-      "employerExpectation": "For scores below 20%, explain what employers typically expect and why it matters operationally",
-      "issues": [
-        "Professional description of issue (e.g., 'Your cover letter was only 5 words, which doesn't provide enough context about your qualifications')",
-        "Another issue using neutral language",
-        "Third issue - include ALL issues you find in the data"
-      ],
-      "evidence": [
-        "Direct quote from their response",
-        "Another quote showing the area for improvement"
-      ],
-      "fix": "Detailed, actionable fix written like advice from a mentor. At least 2 sentences explaining exactly what to do and why it helps."
-    }
-  ],
-  "quickWins": [
-    "Specific action with exact resource (e.g., 'Go to TypingClub.com and complete the first 3 lessons - takes about 15 minutes')",
-    "Another specific action with tool/resource",
-    "Third quick win with specific website or app",
-    "Fourth quick win",
-    "Fifth quick win"
-  ],
-  "honestReflection": {
-    "whatHappened": "3-4 sentences explaining the application outcome using professional language. Use specific numbers but frame them relative to role requirements.",
-    "keyInsight": "One specific, memorable takeaway in simple language - what's the #1 thing they need to understand?"
-  },
-  "strengthsToLeverage": {
-    "identified": [
-      {
-        "strength": "Specific strength you noticed",
-        "evidence": "Exact quote or behavior that showed this strength"
-      }
-    ]
-  },
-  "improvementCoaching": [
-    {
-      "area": "Skill they need to work on (e.g., 'Typing Speed')",
-      "whatWasObserved": "Explain what happened using professional language. For example: 'Your typing speed of 28 WPM is below the typical 40+ WPM requirement for chat support roles. At this speed, customers would experience longer wait times between messages.' 2-3 sentences.",
-      "employerExpectation": "For scores below 20%, explain: 'Employers typically expect X because Y. This matters operationally because Z.'",
-      "improvementStrategy": {
-        "framework": "Named method (e.g., 'The CARE Approach')",
-        "explanation": "REQUIRED: Explain what this means in simple terms."
-      },
-      "resource": {
-        "name": "Specific resource (e.g., 'TypingClub')",
-        "url": "https://actual-url.com"
-      }
-    }
-  ],
-  "thirtyDayPlan": {
-    "week1": {
-      "focus": "Main skill to focus on first",
-      "dailyActions": [
-        "Day 1-2: Specific action with measurable goal",
-        "Day 3-4: Next specific action with clear goal",
-        "Day 5-7: End of week action with checkpoint to measure progress"
-      ]
-    },
-    "week2": {
-      "focus": "Secondary skill or building on week 1",
-      "dailyActions": [
-        "Day 1-2: Specific action with measurable goal",
-        "Day 3-4: Specific action with clear goal",
-        "Day 5-7: Specific action with review checkpoint"
-      ]
-    },
-    "week3": {
-      "focus": "Practice putting it together",
-      "dailyActions": [
-        "Day 1-2: Mock practice scenario with specific instructions",
-        "Day 3-4: Self-review and adjustment activities",
-        "Day 5-7: Timed practice to build confidence"
-      ]
-    },
-    "week4": {
-      "focus": "Apply with confidence",
-      "dailyActions": [
-        "Day 1-2: Update resume with new skills learned",
-        "Day 3-4: Submit 2-3 applications using your improved skills",
-        "Day 5-7: Follow up on applications and continue practicing"
+      "area": "the specific skill or step (e.g. 'Typing speed', 'Quiz: policy questions')",
+      "requirement": "what THIS job's requirements or screening step actually called for",
+      "whatWeObserved": "the specific, evidence-based observation — plain language, not clinical",
+      "whyItMatters": "why this matters for doing the job day to day",
+      "practiceSteps": [
+        { "action": "a concrete practice action", "example": "a worked example, script, or sample they can use today" }
       ]
     }
+  ],
+  "presentingYourExperience": {
+    "observation": "how they presented themselves in their cover letter/answers — grounded in what they actually wrote",
+    "suggestion": "one concrete, specific way to present their real experience better next time",
+    "example": "a short before/after example using ONLY facts already in their submission"
   },
-  "closingMessage": {
-    "personalNote": "3-4 warm, encouraging sentences. Reference something SPECIFIC they did well or showed potential in. Be genuine and supportive.",
-    "developmentalDisclaimer": "This report is intended as developmental feedback to support improvement and does not represent a judgment of personal character or future potential.",
-    "immediateActions": [
-      "First thing to do TODAY - very specific and easy to start",
-      "Second thing to do TODAY",
-      "Third thing to do TODAY",
-      "Fourth thing to do TODAY",
-      "Fifth thing to do TODAY"
-    ]
+  "practicePlan": {
+    "thisWeek": ["specific action for this week", "another"],
+    "nextTwoWeeks": ["specific action for the next two weeks", "another"]
+  },
+  "rolesToConsiderNext": [
+    { "roleType": "a role type that fits their demonstrated strengths", "why": "grounded in a strength you identified above, not generic" }
+  ],
+  "closing": {
+    "note": "3-4 warm, genuine sentences referencing something specific from their application",
+    "disclaimer": "${REQUIRED_DEVELOPMENTAL_DISCLAIMER}"
   }
 }
 
-DEVELOPMENTAL DISCLAIMER (REQUIRED):
-- You MUST include this exact sentence in closingMessage.developmentalDisclaimer: "This report is intended as developmental feedback to support improvement and does not represent a judgment of personal character or future potential."
-- This disclaimer is legally important and must be present in every report.
+Include EVERY gap the data supports (not just one), and give whatWentWell at least one real, evidenced entry even for a low score — look for effort, honesty, or a specific good answer.`;
 
-RULES:
-1. phaseBreakdown MUST include EVERY phase from the provided data with ALL specific issues
-2. Write like a supportive mentor, not a robot - use "you" and "your" naturally
-3. Use PROFESSIONAL language - no emotionally charged words like "poor", "failed", "critical"
-4. topRejectionReasons must cite exact scores/quotes but explain what they mean in context
-5. quickWins must be actionable TODAY with specific websites/apps and time estimates
-6. improvementStrategy.explanation is REQUIRED - if you don't explain the framework, you've failed
-7. thirtyDayPlan must have detailed dailyActions for each week (3+ per week) with measurable goals
-8. NEVER say "N/A" for a phase - describe what was submitted, even if brief
-9. Use simple ASCII characters only - no special Unicode symbols like checkmarks or arrows
-10. executiveSummary is REQUIRED with overallScore, scoreContext, top 3 rejection drivers, and top 5 priority fixes
-11. For any score below 20%, include employerExpectation field explaining what's typically expected and why it matters`;
-
-    const userPrompt = `Create a PREMIUM Improvement Blueprint for this rejected candidate. This is a paid feature - be THOROUGH and SPECIFIC.
+    const userPrompt = `Write this candidate's Improvement Blueprint using ONLY the data below. Do not invent anything not present here.
 
 ${applicationContext}
 
 PASSING SCORE FOR THIS JOB: ${passingScore}%
-CANDIDATE'S SCORE: ${application.ai_score || 0}%
+CANDIDATE'S OVERALL SCORE: ${application.ai_score || 0}%
+DATA AVAILABLE: ${dataDepth}${dataDepth === 'minimal' ? ' — very little data was captured for this application. Be honest and general where the data is thin rather than inventing specifics, but still give at least one genuinely useful, concrete practice step.' : ''}
 
-CRITICAL REQUIREMENTS:
-1. For EACH phase, identify ALL issues (not just 2) with exact quotes/scores as evidence
-2. topRejectionReasons must cite specific evidence (exact scores, quotes, behaviors)
-3. Every framework in improvementStrategy must include an "explanation" field in plain English
-4. thirtyDayPlan must have 3+ detailed dailyActions per week with specific activities
-5. quickWins must reference specific websites or tools they can use TODAY
-6. Be detailed - this is a premium feature worth real money
-
-Return ONLY valid JSON, no markdown.`;
+Return ONLY the JSON object described in the system prompt.`;
 
     console.log(`Calling OpenAI (${OPENAI_REPORT_MODEL}) for improvement blueprint...`);
 
     // callOpenAIJson sends response_format: { type: "json_object" } and
-    // max_completion_tokens, strips any stray code fences, and retries once on
-    // an unparseable/invalid body before giving up. No temperature is sent: the
-    // gpt-5.x family rejects non-default sampling params, and the old 0.5 was
-    // a Gemini setting anyway.
-    let reportData: any;
+    // max_completion_tokens, strips any stray code fences, and retries on an
+    // unparseable/invalid body (validateBlueprintReport) before giving up.
+    // No temperature is sent: the gpt-5.x family rejects non-default
+    // sampling params.
+    let reportData: ImprovementBlueprintData;
     try {
-      const { data } = await callOpenAIJson<any>({
+      const { data } = await callOpenAIJson<ImprovementBlueprintData>({
         apiKey: OPENAI_API_KEY,
         model: OPENAI_REPORT_MODEL,
         messages: [
@@ -415,7 +293,8 @@ Return ONLY valid JSON, no markdown.`;
         ],
         maxCompletionTokens: 8000, // long, detailed report — reasoning tokens count against this too
         timeoutMs: 120000,
-        validator: (value) => requireJsonKeys(value, ['executiveSummary']),
+        retries: 3,
+        validator: validateBlueprintReport,
       });
       reportData = data;
     } catch (error) {
@@ -424,26 +303,27 @@ Return ONLY valid JSON, no markdown.`;
         console.error('AI API error:', status, error);
         throw new Error(`AI API error: ${status}`);
       }
-      console.error('Failed to parse AI response:', error);
-      throw new Error('Failed to parse AI analysis');
+      console.error('Failed to generate a valid blueprint report:', error);
+      throw new Error('Failed to generate improvement blueprint');
     }
 
-    // Validate and enhance phaseBreakdown with actual data if AI missed phases
-    reportData.phaseBreakdown = validatePhaseBreakdown(reportData.phaseBreakdown || [], phaseData);
-
-    // Add metadata
-    const jobDataForMetadata = Array.isArray(application.jobs) ? application.jobs[0] : application.jobs;
+    // Add metadata (authoritative, server-side — never trust anything the
+    // model returned under a "metadata" key, since it wasn't asked for one).
     reportData.metadata = {
       candidateName: profile?.full_name || 'Candidate',
-      candidateEmail: profile?.email || '',
-      jobTitle: jobDataForMetadata?.title || 'Position',
+      jobTitle: jobData?.title || 'Position',
       overallScore: application.ai_score || parsedNotes?.overallScore || 0,
+      passingScore,
       generatedAt: new Date().toISOString(),
-      applicationId: applicationId,
-      completedPhases: Object.keys(phaseData),
+      applicationId,
+      completedPhases,
+      dataDepth,
+      ...(dataDepth === 'minimal'
+        ? { dataDepthMessage: 'Only limited data was captured for this application, so this report is shorter than usual.' }
+        : {}),
     };
 
-    console.log('Generated blueprint with phases:', Object.keys(phaseData));
+    console.log('Generated blueprint with phases:', completedPhases);
 
     return new Response(
       JSON.stringify(reportData),
@@ -477,12 +357,12 @@ function buildPhaseData(application: any, parsedNotes: any): PhaseData {
     const wpm = t.wpm || 0;
     const accuracy = t.accuracy || 0;
     const errors = t.errors || 0;
-    
+
     // Build conversational, plain-English details
-    const speedNote = wpm < 40 
+    const speedNote = wpm < 40
       ? `You typed at ${wpm} words per minute. Chat support roles typically need 40 or more WPM to keep up with customer conversations.`
       : `You typed at ${wpm} words per minute, which is a solid speed for chat support.`;
-    
+
     // Only call out accuracy as a major issue if below 85%
     let accuracyNote = '';
     if (accuracy < 85) {
@@ -492,7 +372,7 @@ function buildPhaseData(application: any, parsedNotes: any): PhaseData {
     } else {
       accuracyNote = `Your accuracy was ${accuracy}%, which is excellent.`;
     }
-    
+
     phases['Typing Test'] = {
       score: `${wpm} WPM, ${accuracy}% accuracy`,
       details: [
@@ -512,7 +392,7 @@ function buildPhaseData(application: any, parsedNotes: any): PhaseData {
     const totalQuestions = q.total ?? q.totalQuestions ?? 0;
     const score = q.score || 0;
     const timeTaken = q.timeTaken ? Math.round(q.timeTaken / 60) : null;
-    
+
     phases['Quiz'] = {
       score: `${score}%`,
       details: [
@@ -560,7 +440,7 @@ function buildPhaseData(application: any, parsedNotes: any): PhaseData {
       details: [],
       evidence: [],
     };
-    
+
     if (c.summary) phases[phaseName].details.push(`Summary: ${c.summary}`);
     if (c.issues?.length) {
       c.issues.forEach((issue: string) => {
@@ -572,7 +452,7 @@ function buildPhaseData(application: any, parsedNotes: any): PhaseData {
         phases[phaseName].details.push(`Critical Error: ${err}`);
       });
     }
-    
+
     // Extract candidate responses as evidence
     if (c.transcript) {
       c.transcript.forEach((t: any) => {
@@ -652,13 +532,29 @@ function buildPhaseData(application: any, parsedNotes: any): PhaseData {
   return phases;
 }
 
-function buildApplicationContext(application: any, parsedNotes: any, profile: any, phaseData: PhaseData): string {
+function buildApplicationContext(application: any, parsedNotes: any, profile: any, phaseData: PhaseData, jobData: any): string {
   const sections: string[] = [];
 
   sections.push(`## Candidate: ${profile?.full_name || 'Unknown'}
-- Position: ${application.jobs?.title || 'Unknown'}
+- Position: ${jobData?.title || 'Unknown'}
 - Status: REJECTED
 - AI Score: ${application.ai_score || 0}/100`);
+
+  // The actual job this candidate applied to — every gap named in the
+  // report must trace back to something in here, not a generic skill.
+  if (jobData) {
+    const jobLines = [`\n## This Job's Real Requirements`];
+    if (jobData.description) jobLines.push(`Description: ${String(jobData.description).slice(0, 600)}`);
+    if (jobData.requirements) jobLines.push(`Requirements: ${String(jobData.requirements).slice(0, 600)}`);
+    if (jobData.skills_required?.length) jobLines.push(`Skills required: ${jobData.skills_required.join(', ')}`);
+    if (jobData.workflow_steps?.length) {
+      const stepNames = jobData.workflow_steps
+        .map((s: any) => (typeof s === 'string' ? s : s?.type || s?.name))
+        .filter(Boolean);
+      if (stepNames.length) jobLines.push(`Actual screening steps used for this job: ${stepNames.join(', ')}`);
+    }
+    if (jobLines.length > 1) sections.push(jobLines.join('\n'));
+  }
 
   // Cover letter - provide context about length
   if (application.cover_letter) {
@@ -688,35 +584,8 @@ function buildApplicationContext(application: any, parsedNotes: any, profile: an
 
   // Previous AI analysis
   if (application.ai_analysis) {
-    sections.push(`\n## Previous AI Analysis\n${application.ai_analysis}`);
+    sections.push(`\n## Previous Evaluation Notes\n${application.ai_analysis}`);
   }
 
   return sections.join('\n');
-}
-
-function validatePhaseBreakdown(aiPhases: any[], phaseData: PhaseData): any[] {
-  const result = [...aiPhases];
-  const existingPhases = new Set(aiPhases.map((p: any) => p.phase?.toLowerCase()));
-
-  // Add any phases the AI missed
-  Object.entries(phaseData).forEach(([phase, data]) => {
-    if (!existingPhases.has(phase.toLowerCase())) {
-      result.push({
-        phase,
-        score: data.score || data.result || 'Completed',
-        issues: data.details.filter(d => 
-          d.toLowerCase().includes('wrong') || 
-          d.toLowerCase().includes('error') || 
-          d.toLowerCase().includes('below') ||
-          d.toLowerCase().includes('incorrect') ||
-          d.toLowerCase().includes('issue') ||
-          d.toLowerCase().includes('concern')
-        ),
-        evidence: data.evidence,
-        fix: 'Review this phase carefully and practice the specific skills tested. Focus on the issues identified above.',
-      });
-    }
-  });
-
-  return result;
 }

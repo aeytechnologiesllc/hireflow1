@@ -5,54 +5,45 @@ import { useAuth } from "@/hooks/useAuth";
 import { parseApplicationNotes } from "@/lib/applicationNotes";
 
 export interface ImprovementBlueprintData {
-  honestReflection: {
+  summary: {
     whatHappened: string;
-    scoreContext: string;
-    keyInsight: string;
+    keyTakeaway: string;
   };
-  strengthsToLeverage: {
-    identified: Array<{
-      strength: string;
-      evidence: string;
-      futureStrategy: string;
-    }>;
-    hiddenEdge: string;
-  };
-  improvementCoaching: Array<{
-    area: string;
-    whatWasObserved: string;
-    whyThisMatters: string;
-    improvementStrategy: {
-      framework: string;
-      practiceScript: string;
-      dailyHabit: string;
-    };
-    resource: {
-      name: string;
-      url: string;
-      whyHelpful: string;
-    };
+  whatWentWell: Array<{
+    strength: string;
+    evidence: string;
+    howToUseItNextTime: string;
   }>;
-  thirtyDayPlan: {
-    week1: { focus: string; dailyActions: string[]; successMetric: string };
-    week2: { focus: string; dailyActions: string[]; successMetric: string };
-    week3: { focus: string; dailyActions: string[]; successMetric: string };
-    week4: { focus: string; dailyActions: string[]; successMetric: string };
+  gapsForThisRole: Array<{
+    area: string;
+    requirement: string;
+    whatWeObserved: string;
+    whyItMatters: string;
+    practiceSteps: Array<{ action: string; example: string }>;
+  }>;
+  presentingYourExperience: {
+    observation: string;
+    suggestion: string;
+    example: string;
   };
-  closingMessage: {
-    personalNote: string;
-    immediateActions: string[];
-    finalThought: string;
+  practicePlan: {
+    thisWeek: string[];
+    nextTwoWeeks: string[];
+  };
+  rolesToConsiderNext: Array<{ roleType: string; why: string }>;
+  closing: {
+    note: string;
+    disclaimer: string;
   };
   metadata: {
     candidateName: string;
-    candidateEmail: string;
     jobTitle: string;
     overallScore: number;
+    passingScore: number;
     generatedAt: string;
     applicationId: string;
-    completedPhases?: string[];
-    dataDepth?: 'minimal' | 'moderate' | 'comprehensive';
+    completedPhases: string[];
+    dataDepth: "minimal" | "moderate" | "comprehensive";
     dataDepthMessage?: string;
   };
 }
@@ -60,16 +51,64 @@ export interface ImprovementBlueprintData {
 // Permanent cache key - blueprints are locked forever after first generation
 const BLUEPRINT_CACHE_KEY = "improvement_blueprint";
 
-// Blueprint price in cents
+// Blueprint price in cents — only charged once app_settings 'blueprint_paid'
+// is true (see useBlueprintBilling below). While it's false the report is
+// free/included, matching the free tier being open on purpose.
 export const BLUEPRINT_PRICE_CENTS = 199;
 export const BLUEPRINT_PRICE_FORMATTED = "$1.99";
+
+/**
+ * Reads the single server-side switch that decides whether the Improvement
+ * Blueprint is a paid purchase or included free — app_settings key
+ * 'blueprint_paid' (supabase/migrations/20260916160000_blueprint_entitlement_and_purchase_integrity.sql).
+ * Public, read-only table; no auth required. Actual access is still
+ * enforced server-side in ai-generate-performance-report regardless of what
+ * this returns — this only drives what the UI offers/says.
+ */
+export function useBlueprintBilling() {
+  const [billingEnabled, setBillingEnabled] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("app_settings")
+          .select("value")
+          .eq("key", "blueprint_paid")
+          .maybeSingle();
+        if (!cancelled) {
+          setBillingEnabled(!error && data?.value === true);
+        }
+      } catch {
+        if (!cancelled) setBillingEnabled(false);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return { billingEnabled, isLoadingBilling: isLoading };
+}
 
 export function useImprovementBlueprint() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [isCheckingPurchase, setIsCheckingPurchase] = useState(false);
   const [hasPurchased, setHasPurchased] = useState(false);
+  const [blueprintData, setBlueprintData] = useState<ImprovementBlueprintData | null>(null);
   const { user } = useAuth();
+  const { billingEnabled, isLoadingBilling } = useBlueprintBilling();
+
+  // A candidate has access when they've actually purchased, OR billing is
+  // off entirely (free tier) — mirrors canAccessPerformanceReport's
+  // candidate path server-side. The server re-checks this independently on
+  // every call; this is only for what the UI shows.
+  const hasAccess = hasPurchased || !billingEnabled;
 
   // Check if user has purchased the blueprint for a given application
   const checkPurchaseStatus = useCallback(async (applicationId: string) => {
@@ -131,7 +170,9 @@ export function useImprovementBlueprint() {
     }
   }, []);
 
-  // Initiate purchase flow
+  // Initiate purchase flow (only reachable when billing is on — the UI
+  // hides this behind hasAccess, and purchase-blueprint itself refuses to
+  // open checkout while app_settings 'blueprint_paid' is false)
   const purchaseBlueprint = async (applicationId: string) => {
     if (!applicationId) {
       toast.error("Application ID not available");
@@ -154,7 +195,7 @@ export function useImprovementBlueprint() {
         // Redirect to Stripe checkout
         window.location.href = data.url;
       } else {
-        toast.error("Failed to create checkout session");
+        toast.error(data?.error || "Failed to create checkout session");
       }
     } catch (error: unknown) {
       console.error("Error purchasing blueprint:", error);
@@ -165,6 +206,79 @@ export function useImprovementBlueprint() {
     }
   };
 
+  // Fetch the cached blueprint from application notes, or generate it once
+  // (permanently locked after that — see BLUEPRINT_CACHE_KEY). Shared by
+  // both the in-app view and the PDF download so a candidate never gets two
+  // different reports for the same application.
+  const loadBlueprint = useCallback(async (applicationId: string): Promise<ImprovementBlueprintData | null> => {
+    const { data: application, error: fetchError } = await supabase
+      .from("applications")
+      .select("notes")
+      .eq("id", applicationId)
+      .single();
+
+    if (fetchError) {
+      console.error("Error fetching application:", fetchError);
+      throw new Error("Failed to check for existing blueprint");
+    }
+
+    const notes = parseApplicationNotes(application?.notes as string | null);
+
+    if (notes[BLUEPRINT_CACHE_KEY]) {
+      return notes[BLUEPRINT_CACHE_KEY] as ImprovementBlueprintData;
+    }
+
+    const { data, error } = await supabase.functions.invoke('ai-generate-performance-report', {
+      body: { applicationId }
+    });
+
+    if (error) {
+      console.error("Error from edge function:", error);
+      throw new Error(error.message || "Failed to generate blueprint");
+    }
+
+    if (!data || data.error) {
+      throw new Error(data?.error || "No data received");
+    }
+
+    const generated = data as ImprovementBlueprintData;
+
+    const updatedNotes = {
+      ...notes,
+      [BLUEPRINT_CACHE_KEY]: generated,
+      improvement_blueprint_generated_at: new Date().toISOString(),
+    };
+
+    await supabase
+      .from("applications")
+      .update({ notes: JSON.stringify(updatedNotes) })
+      .eq("id", applicationId);
+
+    return generated;
+  }, []);
+
+  // Load the blueprint into state for an in-app view (no PDF, no download)
+  const viewBlueprint = useCallback(async (applicationId: string) => {
+    if (!applicationId) {
+      toast.error("Application ID not available");
+      return null;
+    }
+    setIsGenerating(true);
+    try {
+      toast.info("Preparing your report...", { duration: 3000 });
+      const data = await loadBlueprint(applicationId);
+      setBlueprintData(data);
+      return data;
+    } catch (error: unknown) {
+      console.error("Error loading blueprint:", error);
+      const message = error instanceof Error ? error.message : "Failed to load your report";
+      toast.error(message);
+      return null;
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [loadBlueprint]);
+
   const downloadBlueprint = async (applicationId: string) => {
     if (!applicationId) {
       toast.error("Application ID not available");
@@ -173,62 +287,15 @@ export function useImprovementBlueprint() {
 
     setIsGenerating(true);
     try {
-      // Check if blueprint was already generated (cached in application notes)
-      const { data: application, error: fetchError } = await supabase
-        .from("applications")
-        .select("notes")
-        .eq("id", applicationId)
-        .single();
-
-      if (fetchError) {
-        console.error("Error fetching application:", fetchError);
-        throw new Error("Failed to check for existing blueprint");
-      }
-
-      let blueprintData: ImprovementBlueprintData | null = null;
-      const notes = parseApplicationNotes(application?.notes as string | null);
-
-      // Check if blueprint already exists - if so, it's permanently locked
-      if (notes[BLUEPRINT_CACHE_KEY]) {
-        toast.info("Retrieving your saved blueprint...", { duration: 2000 });
-        blueprintData = notes[BLUEPRINT_CACHE_KEY] as ImprovementBlueprintData;
-      } else {
-        // Generate blueprint ONCE - this is permanent and can never be regenerated
-        toast.info("Creating your personalized improvement blueprint...", { duration: 5000 });
-
-        const { data, error } = await supabase.functions.invoke('ai-generate-performance-report', {
-          body: { applicationId }
-        });
-
-        if (error) {
-          console.error("Error from edge function:", error);
-          throw new Error(error.message || "Failed to generate blueprint");
-        }
-
-        if (!data || data.error) {
-          throw new Error(data?.error || "No data received");
-        }
-
-        blueprintData = data as ImprovementBlueprintData;
-
-        // Permanently lock the blueprint in application notes with generation timestamp
-        const updatedNotes = {
-          ...notes,
-          [BLUEPRINT_CACHE_KEY]: blueprintData,
-          improvement_blueprint_generated_at: new Date().toISOString(),
-        };
-
-        await supabase
-          .from("applications")
-          .update({ notes: JSON.stringify(updatedNotes) })
-          .eq("id", applicationId);
-      }
+      toast.info("Preparing your report...", { duration: 3000 });
+      const blueprintDataForPdf = await loadBlueprint(applicationId);
+      setBlueprintData(blueprintDataForPdf);
 
       // Generate PDF using server-side edge function
       toast.info("Generating your PDF...", { duration: 2000 });
-      
+
       const { data: pdfResult, error: pdfError } = await supabase.functions.invoke('generate-blueprint-pdf', {
-        body: { blueprintData }
+        body: { blueprintData: blueprintDataForPdf }
       });
 
       if (pdfError) {
@@ -248,7 +315,7 @@ export function useImprovementBlueprint() {
         bytes[i] = binaryString.charCodeAt(i);
       }
       const blob = new Blob([bytes], { type: 'application/pdf' });
-      
+
       // Create download link
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -258,7 +325,7 @@ export function useImprovementBlueprint() {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      
+
       toast.success("Your Improvement Blueprint has been downloaded!");
     } catch (error: unknown) {
       console.error("Error generating blueprint:", error);
@@ -269,14 +336,19 @@ export function useImprovementBlueprint() {
     }
   };
 
-  return { 
-    downloadBlueprint, 
+  return {
+    downloadBlueprint,
+    viewBlueprint,
+    blueprintData,
     isGenerating,
     purchaseBlueprint,
     isPurchasing,
     checkPurchaseStatus,
     isCheckingPurchase,
     hasPurchased,
+    hasAccess,
+    billingEnabled,
+    isLoadingBilling,
     verifyPurchase,
   };
 }

@@ -16,6 +16,7 @@ import {
   Loader2,
   Download,
   Lock,
+  FileText,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -25,6 +26,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { CandidateRescheduleRequestDialog } from "@/components/CandidateRescheduleRequestDialog";
 import { AvaSeal } from "@/components/ava/AvaSeal";
 import { useImprovementBlueprint, BLUEPRINT_PRICE_FORMATTED } from "@/hooks/useImprovementBlueprint";
+import { ImprovementBlueprintView } from "@/components/ImprovementBlueprintView";
 
 /* ── Shared pieces ──────────────────────────────────────────────────────
    Every state is the same shell: a quiet icon mark, one Fraunces headline
@@ -109,28 +111,29 @@ function InterviewDetailsCard({
   );
 }
 
-/* ── Rejected — with the optional, paid Improvement Blueprint upsell ───── */
-
-/** The Blueprint is sold through Stripe Checkout. With no publishable key the
- *  checkout cannot open, so offering "Unlock for $1.99" to someone who has just
- *  been turned down would be a button that does nothing. Hide the offer until
- *  billing is configured; a completed purchase still gets its download. */
-const BLUEPRINT_PURCHASE_ENABLED = !!import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+/* ── Rejected — with the Improvement Blueprint (free while billing is off,
+   otherwise a paid upsell) ──────────────────────────────────────────────── */
 
 function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; applicationId?: string }) {
   const {
+    viewBlueprint,
     downloadBlueprint,
+    blueprintData,
     isGenerating,
     purchaseBlueprint,
     isPurchasing,
     checkPurchaseStatus,
     isCheckingPurchase,
     hasPurchased,
+    hasAccess,
+    billingEnabled,
+    isLoadingBilling,
     verifyPurchase,
   } = useImprovementBlueprint();
 
   const [searchParams, setSearchParams] = useSearchParams();
   const [hasVerified, setHasVerified] = useState(false);
+  const [isBlueprintOpen, setIsBlueprintOpen] = useState(false);
 
   // Check purchase status on mount
   useEffect(() => {
@@ -149,7 +152,7 @@ function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; app
 
       verifyPurchase(sessionId, applicationId).then((success) => {
         if (success) {
-          toast.success("Payment successful! You can now download your blueprint.");
+          toast.success("Payment successful! Your report is ready below.");
           const newParams = new URLSearchParams(searchParams);
           newParams.delete("blueprint_success");
           newParams.delete("session_id");
@@ -168,6 +171,12 @@ function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; app
     }
   }, [searchParams, applicationId, verifyPurchase, hasVerified, setSearchParams]);
 
+  const handleView = async () => {
+    if (!applicationId) return;
+    const data = await viewBlueprint(applicationId);
+    if (data) setIsBlueprintOpen(true);
+  };
+
   const handleDownload = () => {
     if (applicationId) downloadBlueprint(applicationId);
   };
@@ -175,6 +184,10 @@ function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; app
   const handlePurchase = () => {
     if (applicationId) purchaseBlueprint(applicationId);
   };
+
+  if (isBlueprintOpen && blueprintData) {
+    return <ImprovementBlueprintView data={blueprintData} onDownloadPdf={handleDownload} isDownloading={isGenerating} />;
+  }
 
   return (
     <Card className="bg-card border-border overflow-hidden">
@@ -195,38 +208,51 @@ function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; app
           </p>
         </div>
 
-        {/* Improvement Blueprint — a paid upsell, so it reads as brass (money), never the primary jade action */}
-        {applicationId && (BLUEPRINT_PURCHASE_ENABLED || hasPurchased) && (
+        {/* Improvement Blueprint — free/included while billing is off; a paid
+            upsell (brass, never the primary jade action) once it's on. */}
+        {applicationId && (
           <div className="space-y-3 border-t border-border pt-6 text-left">
             <div className="flex items-start gap-3">
               <Lightbulb className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--brass)" }} />
               <div className="space-y-1">
                 <p className="text-sm font-medium text-foreground">Improvement Blueprint</p>
                 <p className="text-sm text-muted-foreground">
-                  A personalized coaching guide with concrete steps to strengthen your next application.
+                  A coaching guide with concrete, practice-ready steps to strengthen your next application.
                 </p>
               </div>
             </div>
 
-            {isCheckingPurchase ? (
+            {isCheckingPurchase || isLoadingBilling ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Checking…
               </div>
-            ) : hasPurchased ? (
-              <Button onClick={handleDownload} disabled={isGenerating} className="w-full gap-2">
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Preparing your blueprint…
-                  </>
-                ) : (
-                  <>
-                    <Download className="h-4 w-4" />
-                    Download blueprint
-                  </>
-                )}
-              </Button>
+            ) : hasAccess ? (
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={handleView} disabled={isGenerating} className="gap-2">
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Preparing…
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="h-4 w-4" />
+                      View your report
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={handleDownload}
+                  disabled={isGenerating}
+                  variant="outline"
+                  className="gap-2"
+                  style={{ borderColor: "var(--brass-line)", color: "var(--brass)" }}
+                >
+                  <Download className="h-4 w-4" />
+                  PDF
+                </Button>
+              </div>
             ) : (
               <Button
                 onClick={handlePurchase}
@@ -247,6 +273,9 @@ function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; app
                   </>
                 )}
               </Button>
+            )}
+            {hasAccess && !billingEnabled && (
+              <p className="text-xs text-muted-foreground">Included at no charge right now — read it anytime.</p>
             )}
           </div>
         )}
