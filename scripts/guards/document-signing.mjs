@@ -125,6 +125,57 @@ export default [
     },
   },
   {
+    id: "protect-document-columns-blocks-content-swap-after-candidate-signs",
+    why:
+      "name/file_url/document_type/expires_at must become read-only on a still-pending document once " +
+      "candidate_signed_at is set — otherwise an employer (or a can_send_documents team member) can rewrite " +
+      "the document's actual content in the window after the candidate signs and before the employer " +
+      "countersigns, then countersign the swapped content: status/is_locked/hash chain all read as continuous " +
+      "while the served final.pdf reflects content the candidate never reviewed or signed.",
+    run: async ({ read }) => {
+      const sqlRaw = await read(MIGRATION);
+      if (!sqlRaw) return { ok: false, detail: [`${MIGRATION} not found`] };
+      const sql = stripSqlComments(sqlRaw);
+      const bad = [];
+      if (!/old\.candidate_signed_at\s+is\s+not\s+null/i.test(sql)) {
+        bad.push("no `old.candidate_signed_at IS NOT NULL` guard found — content columns must be blocked once the candidate has signed");
+      }
+      // That guard must actually gate the content columns, not some
+      // unrelated check — look for it in the same IF condition as at least
+      // file_url and name.
+      const guardMatch = /IF\s+old\.candidate_signed_at\s+is\s+not\s+null\s+and\s*\(([\s\S]*?)\)\s*THEN/i.exec(sql);
+      if (guardMatch) {
+        const cond = guardMatch[1];
+        for (const col of ["new.name", "new.file_url", "new.document_type", "new.expires_at"]) {
+          if (!cond.includes(col)) bad.push(`candidate_signed_at content-swap guard does not cover ${col}`);
+        }
+      } else if (!bad.length) {
+        bad.push("could not locate the candidate_signed_at content-swap IF block covering name/file_url/document_type/expires_at");
+      }
+      return { ok: bad.length === 0, detail: bad };
+    },
+  },
+  {
+    id: "protect-document-columns-fences-recipient-id",
+    why:
+      "recipient_id must be included in the identity-fields check — the migration's own header comment " +
+      "claims it's 'checked below', but without this it stays writable by any employer/team-member client " +
+      "UPDATE at any time, including on a locked document, letting them grant an arbitrary account " +
+      "document_audit_logs read access (its SELECT policy is sender_id = auth.uid() OR recipient_id = " +
+      "auth.uid()) and /verify's party-only signer-name reveal (isPartyToDocument() treats recipient_id " +
+      "match as sufficient).",
+    run: async ({ read }) => {
+      const sqlRaw = await read(MIGRATION);
+      if (!sqlRaw) return { ok: false, detail: [`${MIGRATION} not found`] };
+      const sql = stripSqlComments(sqlRaw);
+      const bad = [];
+      if (!/new\.recipient_id\s+is\s+distinct\s+from\s+old\.recipient_id/i.test(sql)) {
+        bad.push("no `new.recipient_id IS DISTINCT FROM old.recipient_id` check found anywhere in the trigger");
+      }
+      return { ok: bad.length === 0, detail: bad };
+    },
+  },
+  {
     id: "document-signing-requires-auth-and-401s-without-it",
     why:
       "Unlike verify-document (public), document-signing must be config.toml verify_jwt = true AND its own " +
@@ -343,6 +394,45 @@ export default [
       }
       if (!/candidateParsed\?\.\s*signerEmail/.test(countersignBody)) {
         bad.push("countersign does not read candidateParsed?.signerEmail at all");
+      }
+      return { ok: bad.length === 0, detail: bad };
+    },
+  },
+  {
+    id: "render-signed-uploaded-pdf-guards-typed-signature-dataurl",
+    why:
+      "overlaySignature's dataUrlToBytes(sig.signatureDataUrl) call must be wrapped in its own try/catch — a " +
+      "typed signature's value is a plain name string, not a data: URL, and dataUrlToBytes's fetch(dataUrl) " +
+      "throws a hard TypeError for it. Only embedPng/embedJpg being guarded (the pre-fix state) still crashes " +
+      "on the fetch() call itself, permanently failing every countersign of an uploaded-PDF document where " +
+      "either party typed rather than drew their signature.",
+    run: async ({ read }) => {
+      const srcRaw = await read(RENDER_PDF);
+      if (!srcRaw) return { ok: false, detail: [`${RENDER_PDF} not found`] };
+      const src = stripTsComments(srcRaw);
+      const bad = [];
+      const fnMatch = /const overlaySignature = async[\s\S]*?\n  \};/.exec(src);
+      if (!fnMatch) {
+        bad.push("overlaySignature(...) not found in renderSignedUploadedPdf");
+      } else {
+        const body = fnMatch[0];
+        // The fixed shape: an outer `try {` whose first real statement is
+        // the dataUrlToBytes call (with embedPng/embedJpg's own try/catch
+        // nested inside it) — i.e. no `}` between `try {` and the
+        // dataUrlToBytes call.
+        const tryIdx = body.search(/try\s*\{/);
+        const dataUrlIdx = body.indexOf("dataUrlToBytes(sig.signatureDataUrl)");
+        if (dataUrlIdx === -1) {
+          bad.push("dataUrlToBytes(sig.signatureDataUrl) call not found");
+        } else if (tryIdx === -1 || tryIdx > dataUrlIdx || body.slice(tryIdx, dataUrlIdx).includes("}")) {
+          bad.push(
+            "dataUrlToBytes(sig.signatureDataUrl) is not itself inside a try block — a typed signature's " +
+              "plain-string value will throw an unhandled TypeError out of fetch(), uncaught",
+          );
+        }
+        if (!/if\s*\(\s*sigImage\s*\)/.test(body)) {
+          bad.push("no `if (sigImage)` guard found before drawImage — a null/undefined sigImage from a failed embed must not reach page.drawImage");
+        }
       }
       return { ok: bad.length === 0, detail: bad };
     },

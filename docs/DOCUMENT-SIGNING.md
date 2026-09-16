@@ -326,6 +326,125 @@ two real bugs, both fixed in place (no design change needed):
    reads `candidateParsed?.signerEmail` directly, with no self-comparison,
    for both the certificate JSON and the burned-PDF certificate page.
 
+### Repairer pass (second round) — three blocking findings
+
+A second review of the migration and `renderFinalPdf.ts` (after the first
+repairer round above had already shipped) found three real bugs, all fixed
+in place:
+
+1. **Employer can bait-and-switch document content after the candidate
+   signs.** `protect_document_columns()`'s "still pending" branch never
+   blocked `new.file_url` / `new.name` / `new.document_type` /
+   `new.expires_at` — the closed-document branch blocks them, but the
+   pending branch never did, on the (correct, but too broad) reasoning that
+   `DocumentWizard` legitimately re-saves these fields right after insert,
+   before anyone has signed. That left a real window open: after the
+   candidate signs (`candidate_signed_at` set, `v2_hash` locked in) and
+   before the employer countersigns, the document is still `status =
+   'pending'`, so an employer (or a `can_send_documents` team member) could
+   rewrite the actual file/name/type via a plain client `UPDATE`, then
+   countersign the swapped content — `status` flips to `signed`,
+   `is_locked = true`, and the certificate is produced with
+   `v1_hash`/`v2_hash`/`candidate_signed_at` all unchanged (the hash chain
+   still reads as continuous), while the real `final.pdf`/`final_pdf_hash`
+   reflect content the candidate never reviewed or signed. Reproduced
+   directly against the migration applied verbatim in PGlite before fixing:
+   an employer `UPDATE` renaming/swapping `file_url` on a document with
+   `candidate_signed_at` set succeeded with no exception.
+
+   Fix: added a guard, scoped only to the window this finding actually
+   describes — `old.candidate_signed_at IS NOT NULL AND (new.name IS
+   DISTINCT FROM old.name OR new.file_url IS DISTINCT FROM old.file_url OR
+   new.document_type IS DISTINCT FROM old.document_type OR new.expires_at
+   IS DISTINCT FROM old.expires_at)` — inside the still-pending branch. An
+   employer can still freely re-save these fields before the candidate has
+   signed at all (the legitimate `DocumentWizard` case the original
+   reasoning was protecting), but not after. Proven in
+   `scripts/document_signing_guard_pglite_check.mjs` (both the blocked
+   post-signature swap and the still-allowed pre-signature edit) and
+   `scripts/guards/document-signing.mjs`
+   (`protect-document-columns-blocks-content-swap-after-candidate-signs`).
+
+2. **Countersign crashes on uploaded-PDF documents when either party typed
+   their signature.** `renderFinalPdf.ts`'s `renderSignedUploadedPdf` ->
+   `overlaySignature` called `dataUrlToBytes(sig.signatureDataUrl)` with no
+   try/catch around that specific call — only the following
+   `embedPng`/`embedJpg` was guarded. A typed signature's stored value
+   (`DocumentSigningPanel.tsx`'s "Type" tab: `typedValue.trim()`) is the
+   plain signer name, not a `data:` URL, and `dataUrlToBytes`'s `await
+   fetch(dataUrl)` throws a hard `TypeError: Invalid URL` for any non-URL
+   string. The exception propagated out of `renderSignedUploadedPdf` into
+   the countersign handler's outer `try`/`catch`, which rolled back the
+   reservation (`employer_signed_at` reset to `null`) and returned a
+   generic 500 — permanently, since the candidate's stored typed signature
+   never changes between retries; only re-signing by drawing instead of
+   typing would unblock it, and nothing told either party that. Confirmed
+   with a direct reproduction: `deno test` against the pre-fix file threw
+   `TypeError: Invalid URL: 'Erin Employer'` from exactly this call site;
+   the equivalent call with a real PNG data URL succeeded.
+   `renderTextDocumentPdf`'s own `drawSignatureBlock` (the AI-generated/text
+   document path) already wrapped the identical call, so only the
+   uploaded-PDF path — a first-class, common document-creation path in
+   `DocumentWizard.tsx` — was broken. No prior test exercised
+   `renderSignedUploadedPdf` at all.
+
+   Fix: wrapped `dataUrlToBytes` + the `embedPng`/`embedJpg` fallback in one
+   `try`/`catch` inside `overlaySignature`. On failure (a typed signature,
+   or any other non-image value), `sigImage` stays `null` and
+   `page.drawImage(...)` is skipped; instead the typed name itself is drawn
+   as the visual mark in the signature box (bold, in the same position a
+   real signature image would occupy), so the canonical PDF still visually
+   shows *something* signature-shaped for a typed signer rather than an
+   empty box — the signer's name/timestamp line underneath (drawn
+   unconditionally, as before) already existed for both cases. Proven with
+   three new `Deno.test`s in `renderFinalPdf.test.ts` — a typed/typed pair,
+   a real drawn (PNG) pair (confirming image embedding still works, since
+   nothing exercised it before), and a mixed typed+drawn pair — and a new
+   static guard,
+   `render-signed-uploaded-pdf-guards-typed-signature-dataurl`, in
+   `scripts/guards/document-signing.mjs`. Re-running the new tests against
+   the pre-fix file (via `git stash`) reproduces the original crash,
+   confirming the test fixture models the real bug rather than a strawman.
+
+3. **`protect_document_columns()` never fences `documents.recipient_id`.**
+   The migration's own header comment claimed `recipient_id` was "checked
+   below" alongside `sender_id`/`application_id`/`document_code` in the
+   shared identity-fields check, but the actual code only checked
+   `application_id`, `sender_id`, and `document_code` — `recipient_id` was
+   never checked anywhere, on a pending *or* closed/signed/locked document.
+   Reproduced directly against the migration applied verbatim in PGlite: as
+   the document's own employer, reassigning `recipient_id` to an arbitrary
+   uuid succeeded with no exception, on both a pending and a fully
+   signed+locked document. This matters because `recipient_id` is a live,
+   currently-enforced authorization signal in two places: (1)
+   `document_audit_logs`' SELECT policy is `d.sender_id = auth.uid() OR
+   d.recipient_id = auth.uid()` (untouched by this or the earlier forgery
+   migration), so rewriting `recipient_id` grants an arbitrary account full
+   read access to that document's entire audit trail — IPs, signature
+   methods, hashes, timestamps — including for an already-completed,
+   locked document; (2) `_shared/documentParties.ts`'s
+   `isPartyToDocument()` (used by the public `/verify/:documentCode`
+   endpoint) treats `document.recipient_id === userId` as sufficient to
+   count as a party, so the same rewrite grants an outside account the
+   party-only signer-name reveal on `/verify` too. Only candidates were
+   fully blocked from writing `documents` directly; this gap was specific
+   to the employer/team-member write path the trigger was built to fence.
+
+   Fix: added `new.recipient_id IS DISTINCT FROM old.recipient_id` to the
+   shared identity-fields check (the same `IF` that already covers
+   `application_id`/`sender_id`/`document_code`), matching how `sender_id`
+   is already handled — a one-line addition, same pattern as the six
+   must-change fixes above. Proven in
+   `scripts/document_signing_guard_pglite_check.mjs` (both the pending and
+   the locked-document case) and `scripts/guards/document-signing.mjs`
+   (`protect-document-columns-fences-recipient-id`).
+
+All checks re-run clean after this round: `npm run build`,
+`typecheck:ratchet`, `node scripts/guardrails.mjs`, every
+`scripts/*.test.mjs` and `scripts/*pglite*.mjs`, `deno check` on the edge
+function, and `deno test` on `renderFinalPdf.test.ts` (5 tests, including
+the 3 new ones).
+
 ## 0. What's broken today
 
 `public.documents` (offer letters, NDAs, contracts) has real columns for a

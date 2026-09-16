@@ -107,12 +107,29 @@ export async function renderSignedUploadedPdf(
     const page = pages[pageIndex];
     const { width: pageWidth, height: pageHeight } = page.getSize();
 
+    // A typed signature's value is the signer's plain name, not a data:
+    // URL — dataUrlToBytes's `fetch(dataUrl)` throws a hard TypeError for
+    // any non-URL string, not something embedPng/embedJpg's own try/catch
+    // below ever sees. Left unguarded, countersigning an uploaded-PDF
+    // document whenever either party typed (rather than drew) their
+    // signature threw out of this function, rolled back the reservation,
+    // and returned a generic 500 — permanently, since the candidate's
+    // stored typed signature never changes between retries. Mirrors
+    // renderTextDocumentPdf's drawSignatureBlock, which already wraps the
+    // equivalent call: a missing/invalid signature image never blocks
+    // rendering the rest of the canonical PDF — the DB columns remain the
+    // source of truth, and the signer's name/timestamp still get drawn
+    // below regardless.
     let sigImage;
-    const sigBytes = await dataUrlToBytes(sig.signatureDataUrl);
     try {
-      sigImage = await pdfDoc.embedPng(sigBytes);
+      const sigBytes = await dataUrlToBytes(sig.signatureDataUrl);
+      try {
+        sigImage = await pdfDoc.embedPng(sigBytes);
+      } catch {
+        sigImage = await pdfDoc.embedJpg(sigBytes);
+      }
     } catch {
-      sigImage = await pdfDoc.embedJpg(sigBytes);
+      sigImage = null;
     }
 
     const sigWidth = (sig.width / 100) * pageWidth;
@@ -120,7 +137,22 @@ export async function renderSignedUploadedPdf(
     const sigX = (sig.x / 100) * pageWidth;
     const sigY = pageHeight - (sig.y / 100) * pageHeight - sigHeight;
 
-    page.drawImage(sigImage, { x: sigX, y: sigY, width: sigWidth, height: sigHeight });
+    if (sigImage) {
+      page.drawImage(sigImage, { x: sigX, y: sigY, width: sigWidth, height: sigHeight });
+    } else {
+      // Typed signature (or any non-image value): render the typed name
+      // itself as the visual mark in the signature box, in a bold/italic
+      // hand-off font, rather than silently leaving the box blank — the
+      // design doc's should-consider item 6 requires the canonical PDF to
+      // visually contain the actual signature, not just body text.
+      page.drawText(sig.signerName || "Signed", {
+        x: sigX,
+        y: sigY + sigHeight / 2 - 5,
+        size: Math.min(16, sigHeight),
+        font: helveticaBold,
+        color: rgb(0.1, 0.1, 0.4),
+      });
+    }
 
     const infoY = sigY - 12;
     page.drawText(sig.signerName, { x: sigX, y: infoY, size: 7, font: helvetica, color: rgb(0.3, 0.3, 0.3) });

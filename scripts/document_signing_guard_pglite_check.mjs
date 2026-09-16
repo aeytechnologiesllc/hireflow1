@@ -376,6 +376,57 @@ async function main() {
     !(await asUser(EMP_A, "authenticated", `update public.documents set signature_data = 'forged' where id = '${DOC_PENDING}'`)).ok,
   );
 
+  console.log("\n-- repairer finding: employer cannot swap document content after the candidate has signed --");
+
+  // Recreate a fresh pending document and have the candidate "sign" it
+  // (service_role write, mirroring what document-signing's sign() does) so
+  // candidate_signed_at is set while status stays 'pending' — exactly the
+  // window the finding flagged.
+  const DOC_CAND_SIGNED = "70000000-0000-0000-0000-00000000000c";
+  await asPostgres(
+    `insert into public.documents (id, application_id, name, sender_id, recipient_id, status, candidate_signed_at, v2_hash)
+     values ($1, $2, 'Offer Letter (candidate signed, employer has not countersigned)', $3, $4, 'pending', now(), 'v2hash')`,
+    [DOC_CAND_SIGNED, APP_AX, EMP_A, CAND_X],
+  );
+  const swapAttempt = await asUser(
+    EMP_A,
+    "authenticated",
+    `update public.documents set file_url = 'data:text/plain;base64,SFdBQ0tFRA==', name = 'Swapped Offer', document_type = 'nda' where id = '${DOC_CAND_SIGNED}'`,
+  );
+  check(
+    "employer can no longer swap file_url/name/document_type once the candidate has signed but before countersigning",
+    !swapAttempt.ok,
+    swapAttempt.ok ? "UPDATE unexpectedly succeeded" : swapAttempt.error,
+  );
+  {
+    const res = await asPostgres(`select name, file_url from public.documents where id = $1`, [DOC_CAND_SIGNED]);
+    check(
+      "...and the content actually stayed the original, unswapped values",
+      res.rows[0]?.name === "Offer Letter (candidate signed, employer has not countersigned)",
+    );
+  }
+  // But before any signature, an employer can still legitimately re-save
+  // these fields (DocumentWizard right after insert) — must not be a full
+  // lockout of ordinary pending-document editing.
+  const preSignEdit = await asUser(EMP_A, "authenticated", `update public.documents set name = 'Retitled before anyone signs' where id = '${DOC_PENDING}'`);
+  check("employer CAN still edit name/file_url before the candidate has signed at all (not a full lockout)", preSignEdit.ok);
+
+  console.log("\n-- repairer finding: recipient_id is fenced, not just claimed as 'checked below' --");
+
+  const STRANGER_2 = "40000000-0000-0000-0000-000000000002";
+  const recipientHijack = await asUser(EMP_A, "authenticated", `update public.documents set recipient_id = '${STRANGER_2}' where id = '${DOC_PENDING}'`);
+  check("employer cannot reassign recipient_id on a pending document", !recipientHijack.ok, recipientHijack.ok ? "UPDATE unexpectedly succeeded" : recipientHijack.error);
+  const recipientHijackLocked = await asUser(EMP_A, "authenticated", `update public.documents set recipient_id = '${STRANGER_2}' where id = '${DOC_SIGNED}'`);
+  check(
+    "employer cannot reassign recipient_id on a fully signed, locked document either — the exact scenario the finding flagged (audit-log/verify-document party hijack)",
+    !recipientHijackLocked.ok,
+    recipientHijackLocked.ok ? "UPDATE unexpectedly succeeded" : recipientHijackLocked.error,
+  );
+  {
+    const res = await asPostgres(`select recipient_id from public.documents where id = $1`, [DOC_PENDING]);
+    check("...and recipient_id on the pending document actually stayed CAND_X, not the stranger", res.rows[0]?.recipient_id === CAND_X);
+  }
+
   console.log("\n-- a fully signed/locked document is otherwise closed to plain edits --");
 
   check(

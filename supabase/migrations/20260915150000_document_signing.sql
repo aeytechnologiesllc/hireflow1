@@ -62,6 +62,18 @@
 --       doc's revision log, item 4) — so leaving it client-writable would
 --       let an employer forge the displayed completion date on a locked,
 --       certificate-bearing document.
+--
+-- Repairer-pass fixes (second round, see the design doc's revision log for
+-- the full writeup of each finding):
+--   (d) name/file_url/document_type/expires_at are now blocked on a still-
+--       pending document once candidate_signed_at is set — closes the
+--       window where an employer could swap the document's actual content
+--       after the candidate signed it but before countersigning.
+--   (e) recipient_id is now included in the identity-fields check (it was
+--       claimed as "checked below" in a comment but never actually
+--       checked) — otherwise an employer/team-member could reassign a
+--       document's recipient to hijack document_audit_logs read access and
+--       /verify's party-only signer-name reveal, even on a locked document.
 CREATE OR REPLACE FUNCTION public.protect_document_columns()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -178,10 +190,34 @@ BEGIN
     THEN
       RAISE EXCEPTION 'Signing fields can only be set by the document-signing function';
     END IF;
+
+    -- Repairer finding: "Employer can bait-and-switch document content
+    -- after the candidate signs". While the document is still pending,
+    -- name/file_url/document_type/expires_at stay writable (DocumentWizard
+    -- legitimately re-saves them right after insert, before anyone has
+    -- signed — see the design doc's revision log, should-consider item 4's
+    -- neighbor discussion). But once the candidate has signed
+    -- (candidate_signed_at is set, v2_hash locked in) and before the
+    -- employer countersigns, the document's actual content must not change
+    -- out from under a signature the candidate already gave on the
+    -- original content — otherwise an employer could swap the file/name/
+    -- type after the candidate signs and countersign the swapped version;
+    -- the hash chain (v1/v2) and candidate_signed_at would read as
+    -- continuous while the served final.pdf reflects content the
+    -- candidate never actually reviewed.
+    IF old.candidate_signed_at IS NOT NULL AND (
+      new.name IS DISTINCT FROM old.name
+      OR new.file_url IS DISTINCT FROM old.file_url
+      OR new.document_type IS DISTINCT FROM old.document_type
+      OR new.expires_at IS DISTINCT FROM old.expires_at
+    ) THEN
+      RAISE EXCEPTION 'Document content cannot change after the candidate has signed';
+    END IF;
   END IF;
 
   IF new.application_id IS DISTINCT FROM old.application_id
     OR new.sender_id IS DISTINCT FROM old.sender_id
+    OR new.recipient_id IS DISTINCT FROM old.recipient_id
     OR new.document_code IS DISTINCT FROM old.document_code
   THEN
     RAISE EXCEPTION 'Cannot change document identity fields';
