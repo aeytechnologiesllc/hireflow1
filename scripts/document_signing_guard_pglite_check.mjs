@@ -493,6 +493,61 @@ async function main() {
   check("service_role's own write of v1_hash is unaffected by the trigger, even on a candidate-signed pending document", v1ServiceRole.ok, v1ServiceRole.ok ? "" : v1ServiceRole.error);
   await asPostgres(`update public.documents set v1_hash = 'v1hash-original' where id = $1`, [DOC_CAND_SIGNED]);
 
+  console.log("\n-- withdraw/void pass: service_role can write is_voided/voided_at/voided_reason, plain clients still can't --");
+
+  // document-signing's new "withdraw"/"void" actions (see stateMachine.ts's
+  // canWithdraw/canVoid) write exactly these three columns via the same
+  // service-role admin client every other terminal write already uses — no
+  // migration change was needed to unlock this, since protect_document_columns()
+  // has always exempted service_role outright (the early `auth.role() =
+  // 'service_role'` return). This proves that exemption genuinely still
+  // covers the withdraw/void write shape, on a document the candidate has
+  // NOT yet signed (the withdraw case).
+  const withdrawServiceRole = await asUser(
+    null,
+    "service_role",
+    `update public.documents set is_voided = true, voided_at = now(), voided_reason = 'role withdrawn' where id = '${DOC_PENDING}'`,
+  );
+  check(
+    "service_role can write is_voided/voided_at/voided_reason on a pending, not-yet-signed document (the withdraw shape)",
+    withdrawServiceRole.ok,
+    withdrawServiceRole.ok ? "" : withdrawServiceRole.error,
+  );
+  {
+    const res = await asPostgres(`select is_voided, voided_reason from public.documents where id = $1`, [DOC_PENDING]);
+    check("...and the write actually landed", res.rows[0]?.is_voided === true && res.rows[0]?.voided_reason === "role withdrawn");
+  }
+  await asPostgres(`update public.documents set is_voided = false, voided_at = null, voided_reason = null where id = $1`, [DOC_PENDING]);
+
+  // Same write shape, on a document the candidate HAS already signed (the
+  // void case) — must be equally unaffected by the trigger.
+  const voidServiceRole = await asUser(
+    null,
+    "service_role",
+    `update public.documents set is_voided = true, voided_at = now(), voided_reason = 'bad hire' where id = '${DOC_CAND_SIGNED}'`,
+  );
+  check(
+    "service_role can write is_voided/voided_at/voided_reason on a candidate-signed pending document (the void shape)",
+    voidServiceRole.ok,
+    voidServiceRole.ok ? "" : voidServiceRole.error,
+  );
+  await asPostgres(`update public.documents set is_voided = false, voided_at = null, voided_reason = null where id = $1`, [DOC_CAND_SIGNED]);
+
+  // The must-change #2 fence itself is proven above (a plain client can't
+  // set is_voided/voided_reason at all) — this re-proves it specifically
+  // against the exact three-column shape withdraw/void writes, so a future
+  // change to that write shape can't accidentally slip past the trigger.
+  const fakeWithdraw = await asUser(
+    EMP_A,
+    "authenticated",
+    `update public.documents set is_voided = true, voided_at = now(), voided_reason = 'trying to skip the edge function' where id = '${DOC_PENDING}'`,
+  );
+  check(
+    "an employer's own client still cannot fake a withdraw/void by writing is_voided/voided_at/voided_reason directly — must go through document-signing",
+    !fakeWithdraw.ok,
+    fakeWithdraw.ok ? "UPDATE unexpectedly succeeded" : fakeWithdraw.error,
+  );
+
   console.log("\n-- repairer finding: recipient_id is fenced, not just claimed as 'checked below' --");
 
   const STRANGER_2 = "40000000-0000-0000-0000-000000000002";

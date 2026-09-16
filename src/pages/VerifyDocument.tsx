@@ -15,12 +15,25 @@ interface VerificationData {
   finalHash: string | null;
   verified: boolean;
   errorMessage?: string;
+  // True once the employer has withdrawn or voided this document — status
+  // alone stays 'pending' either way, so the badge below checks this
+  // separately rather than showing a plain "pending" for a dead document.
+  isVoided?: boolean;
   // Only present when the viewer is signed in as a party to this document.
   signers?: {
     name: string;
     role: string;
     signedAt: string | null;
   }[];
+}
+
+/** What the status badge shows — "pending" reads as "Voided" once is_voided
+ *  is set, instead of implying signing is still open. The errorMessage
+ *  banner below carries the withdrawn-vs-voided distinction in words. */
+function statusLabel(data: VerificationData): string {
+  if (data.isVoided) return "Voided";
+  if (data.status === "signed") return "Fully Executed";
+  return data.status;
 }
 
 export default function VerifyDocument() {
@@ -133,7 +146,7 @@ export default function VerifyDocument() {
                 )}
               </CardTitle>
               <Badge variant={data.verified ? "default" : "destructive"}>
-                {data.status === 'signed' ? 'Fully Executed' : data.status}
+                {statusLabel(data)}
               </Badge>
             </div>
           </CardHeader>
@@ -176,7 +189,7 @@ export default function VerifyDocument() {
             <div>
               <p className="text-sm text-muted-foreground">Execution Status</p>
               <Badge variant={data.status === 'signed' ? "default" : "secondary"}>
-                {data.status === 'signed' ? 'Fully Executed' : data.status}
+                {statusLabel(data)}
               </Badge>
             </div>
 

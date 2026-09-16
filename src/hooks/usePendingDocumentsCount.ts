@@ -36,13 +36,17 @@ export function usePendingDocumentsCount() {
 
       // Count both unsigned documents AND pending document requests
       const [docResult, requestResult] = await Promise.all([
-        // Count documents that are pending and candidate hasn't signed yet
+        // Count documents that are pending and candidate hasn't signed yet.
+        // Excludes is_voided: a withdrawn document is still status='pending'
+        // (see document-signing's "withdraw" action) but there is nothing
+        // left for the candidate to do — it must not inflate "waiting on you".
         supabase
           .from("documents")
           .select("id", { count: "exact", head: true })
           .in("application_id", applicationIds)
           .eq("status", "pending")
-          .is("candidate_signed_at", null),
+          .is("candidate_signed_at", null)
+          .eq("is_voided", false),
         // Count pending document requests for this candidate that haven't been viewed yet
         supabase
           .from("document_requests")

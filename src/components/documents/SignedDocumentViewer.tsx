@@ -33,7 +33,8 @@ import {
   FileJson,
   Award,
   AlertTriangle,
-  Loader2
+  Loader2,
+  Ban
 } from "lucide-react";
 import { format } from "date-fns";
 import type { DocumentWithApplication } from "@/hooks/useDocuments";
@@ -104,6 +105,11 @@ const getActionIcon = (action: string) => {
     case "declined":
     case "document_declined":
       return <XCircle className="h-4 w-4" />;
+    case "withdrawn":
+    case "document_withdrawn":
+    case "voided":
+    case "document_voided":
+      return <Ban className="h-4 w-4" />;
     case "edited":
       return <Edit className="h-4 w-4" />;
     case "document_completed":
@@ -115,10 +121,12 @@ const getActionIcon = (action: string) => {
 };
 
 /** Drives every "is this actually signed" claim in the main document view off
- *  document.status, instead of the view assuming completion regardless of
- *  where the document really is in its lifecycle. */
+ *  document.status (and, since the withdraw/void pass, document.is_voided —
+ *  a withdrawn/voided document is still status='pending' underneath, see
+ *  document-signing's withdraw/void actions), instead of the view assuming
+ *  completion regardless of where the document really is in its lifecycle. */
 const DOCUMENT_STATUS_META: Record<
-  "signed" | "declined" | "pending",
+  "signed" | "declined" | "pending" | "withdrawn" | "voided",
   {
     icon: typeof CheckCircle;
     badgeClass: string;
@@ -160,6 +168,26 @@ const DOCUMENT_STATUS_META: Record<
     bannerTitle: "Awaiting Signature",
     bannerSubtitle: "Not yet verified",
   },
+  withdrawn: {
+    icon: Ban,
+    badgeClass: "bg-muted text-muted-foreground",
+    badgeLabel: "Withdrawn",
+    iconBoxClass: "bg-muted",
+    iconClass: "text-muted-foreground",
+    stripBgClass: "bg-muted/50",
+    bannerTitle: "Withdrawn",
+    bannerSubtitle: "Cancelled before it was signed",
+  },
+  voided: {
+    icon: Ban,
+    badgeClass: "bg-destructive/20 text-destructive",
+    badgeLabel: "Voided",
+    iconBoxClass: "bg-destructive/20",
+    iconClass: "text-destructive",
+    stripBgClass: "bg-destructive/5",
+    bannerTitle: "Voided",
+    bannerSubtitle: "Cancelled after signing, before it was countersigned",
+  },
 };
 
 export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDocumentViewerProps) {
@@ -181,12 +209,13 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
   // server-side — this is just what shows the panel, not what authorizes
   // the write.
   const canSignAsCandidate =
-    role === "candidate" && document?.status === "pending" && !document?.candidate_signed_at;
+    role === "candidate" && document?.status === "pending" && !document?.candidate_signed_at && !document?.is_voided;
   const canCountersignAsEmployer =
     (role === "employer" || role === "team_member") &&
     document?.status === "pending" &&
     !!document?.candidate_signed_at &&
-    !document?.employer_signed_at;
+    !document?.employer_signed_at &&
+    !document?.is_voided;
 
   useEffect(() => {
     if (document && open) {
@@ -772,7 +801,19 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
   if (!document) return null;
 
   const finalHash = document.v3_hash || document.v2_hash || document.document_hash;
-  const statusMeta = DOCUMENT_STATUS_META[document.status] ?? DOCUMENT_STATUS_META.pending;
+  // A withdrawn/voided document is still status='pending' underneath (see
+  // document-signing's withdraw/void actions) — is_voided must win over the
+  // raw status, or this would keep reading as "Awaiting Signature".
+  const displayStatusKey = document.is_voided
+    ? document.candidate_signed_at
+      ? "voided"
+      : "withdrawn"
+    : document.status;
+  const statusMeta = DOCUMENT_STATUS_META[displayStatusKey] ?? DOCUMENT_STATUS_META.pending;
+  const voidAuditLog = document.is_voided
+    ? [...auditLogs].reverse().find((log) => log.action === "document_withdrawn" || log.action === "document_voided")
+    : null;
+  const voidedByName = voidAuditLog?.signer_name || "the employer";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -987,9 +1028,13 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                           <div>
                             <p className={`text-sm font-medium ${statusMeta.iconClass}`}>{statusMeta.badgeLabel}</p>
                             <p className="text-xs text-muted-foreground">
-                              {document.status === "declined"
-                                ? "This document hasn't been completed, so there's no certificate to show."
-                                : "A certificate is issued once every signature has been collected."}
+                              {document.is_voided
+                                ? document.candidate_signed_at
+                                  ? `Voided by ${voidedByName}${document.voided_reason ? `: ${document.voided_reason}` : "."}`
+                                  : `Withdrawn by ${voidedByName}${document.voided_reason ? `: ${document.voided_reason}` : "."}`
+                                : document.status === "declined"
+                                  ? "This document hasn't been completed, so there's no certificate to show."
+                                  : "A certificate is issued once every signature has been collected."}
                             </p>
                           </div>
                         </div>
@@ -1072,6 +1117,11 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                   <Badge className="bg-success/20 text-success font-medium">
                     <CheckCircle className="h-3 w-3 mr-1.5" />
                     Finalized Audit Trail
+                  </Badge>
+                ) : document.is_voided ? (
+                  <Badge className="bg-destructive/20 text-destructive font-medium">
+                    <Ban className="h-3 w-3 mr-1.5" />
+                    {statusMeta.badgeLabel}
                   </Badge>
                 ) : (
                   <Badge className="bg-primary/20 text-primary font-medium">

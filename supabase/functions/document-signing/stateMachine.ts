@@ -73,7 +73,9 @@ export type PreconditionError =
   | "consent_required"
   | "review_required"
   | "invalid_signature"
-  | "invalid_reason";
+  | "invalid_reason"
+  | "candidate_already_signed"
+  | "countersign_in_progress";
 
 export type PreconditionResult = { ok: true } | { ok: false; error: PreconditionError };
 
@@ -138,6 +140,50 @@ export function canDecline(
   if (role === "employer" && (doc.candidateSignedAt === null || doc.employerSignedAt !== null)) {
     return { ok: false, error: "not_your_turn" };
   }
+  return { ok: true };
+}
+
+/**
+ * §1 (new) "withdraw" — the sender side (employer, or a can_send_documents
+ * team member scoped to the job — same `resolveDocumentRole` "employer"
+ * bucket as countersign/void) cancels a document before the candidate has
+ * signed it. Deliberately does NOT check `isExpired` — unlike sign/
+ * countersign/decline, this is an administrative cleanup action, not a step
+ * in the signing flow itself, so an employer must be able to withdraw a
+ * document that's sat pending long enough to expire.
+ *
+ * `isLocked` is checked before the plain `status !== "pending"` check so a
+ * completed, locked document reports the more accurate "locked" error
+ * (matching decline/countersign's own precondition ordering) rather than
+ * the generic "not_pending" — locked documents are closed for a different,
+ * more specific reason than "declined".
+ */
+export function canWithdraw(doc: DocumentSigningState, role: DocumentRole): PreconditionResult {
+  if (role !== "employer") return { ok: false, error: "role_mismatch" };
+  if (doc.isVoided) return { ok: false, error: "voided" };
+  if (doc.isLocked) return { ok: false, error: "locked" };
+  if (doc.status !== "pending") return { ok: false, error: "not_pending" };
+  if (doc.candidateSignedAt !== null) return { ok: false, error: "candidate_already_signed" };
+  return { ok: true };
+}
+
+/**
+ * §1 (new) "void" — the employer side voids a document after the candidate
+ * has signed it but before the employer's own countersignature locks it.
+ * Once `employerSignedAt` is set (the countersign handler's own reservation
+ * — see index.ts's two-phase countersign comment) a void is refused with
+ * `countersign_in_progress` rather than racing a concurrent countersign
+ * attempt: by construction only one of "void" or "countersign" can ever
+ * win that reservation window. A fully completed (`isLocked`) document
+ * cannot be voided in this pass — see docs/DOCUMENT-SIGNING.md.
+ */
+export function canVoid(doc: DocumentSigningState, role: DocumentRole): PreconditionResult {
+  if (role !== "employer") return { ok: false, error: "role_mismatch" };
+  if (doc.isVoided) return { ok: false, error: "voided" };
+  if (doc.isLocked) return { ok: false, error: "locked" };
+  if (doc.status !== "pending") return { ok: false, error: "not_pending" };
+  if (doc.candidateSignedAt === null) return { ok: false, error: "candidate_has_not_signed" };
+  if (doc.employerSignedAt !== null) return { ok: false, error: "countersign_in_progress" };
   return { ok: true };
 }
 

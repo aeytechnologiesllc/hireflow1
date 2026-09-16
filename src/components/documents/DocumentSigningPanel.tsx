@@ -8,27 +8,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { SignaturePad } from "./SignaturePad";
 import { Loader2, PenTool, XCircle } from "lucide-react";
+import { invokeDocumentSigning } from "@/lib/documentSigningErrors";
 
 // Same wording as src/lib/auditTrail.ts's electronic_consent_confirmed
 // audit entry — one consent statement, reused, not invented twice.
 const CONSENT_STATEMENT =
   "I acknowledge that I am signing this document electronically and that my electronic signature has the same legal effect as a handwritten signature.";
-
-const ERROR_MESSAGES: Record<string, string> = {
-  already_signed: "Someone already signed this — refresh to see the latest.",
-  not_pending: "This document is no longer pending — refresh to see its current state.",
-  candidate_has_not_signed: "The candidate hasn't signed yet.",
-  locked: "This document is locked and can no longer be changed.",
-  expired: "This document has expired.",
-  voided: "This document has been voided.",
-  not_your_turn: "It isn't your turn to act on this document.",
-  consent_required: "You must accept the electronic signature consent statement.",
-  review_required: "You must confirm you reviewed the document before countersigning.",
-  invalid_signature: "That signature isn't valid — try again.",
-  invalid_reason: "Please give a reason between 3 and 500 characters.",
-  role_mismatch: "You are not authorized to take this action on this document.",
-  unauthorized: "Sign in to continue.",
-};
 
 interface DocumentSigningPanelProps {
   documentId: string;
@@ -65,29 +50,7 @@ export function DocumentSigningPanel({ documentId, mode, onComplete }: DocumentS
     };
   }, []);
 
-  const invoke = async (body: Record<string, unknown>) => {
-    const { data, error } = await supabase.functions.invoke("document-signing", { body });
-    if (error) {
-      // supabase-js surfaces a non-2xx response as `error`, with the parsed
-      // body available on error.context — fall back to a generic message
-      // if that shape isn't there (network failure, etc).
-      let code: string | undefined;
-      try {
-        const ctx = (error as { context?: Response }).context;
-        if (ctx) {
-          const body = await ctx.clone().json();
-          code = body?.error;
-        }
-      } catch {
-        // ignore — fall through to the generic message below
-      }
-      throw new Error(ERROR_MESSAGES[code ?? ""] ?? "Something went wrong. Please try again.");
-    }
-    if (data?.error) {
-      throw new Error(ERROR_MESSAGES[data.error] ?? data.message ?? "Something went wrong. Please try again.");
-    }
-    return data;
-  };
+  const invoke = (body: Record<string, unknown>) => invokeDocumentSigning(supabase, body);
 
   const signatureValue = tab === "typed" ? typedValue.trim() : drawnValue;
   const hasSignature = tab === "typed" ? typedValue.trim().length >= 2 : !!drawnValue;

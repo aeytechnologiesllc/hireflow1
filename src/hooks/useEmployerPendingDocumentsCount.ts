@@ -38,6 +38,9 @@ export function useEmployerPendingDocumentsCount() {
       // 1. Are pending status
       // 2. Candidate HAS signed (candidate_signed_at is not null)
       // 3. Employer has NOT signed yet (employer_signed_at is null)
+      // 4. Are not voided — a document the employer already voided (after
+      //    the candidate signed, before countersigning) has nothing left
+      //    to countersign, so it must not inflate this count.
       // This means only documents awaiting the employer's countersignature are counted
       const { count: docCount, error: docError } = await supabase
         .from("documents")
@@ -45,7 +48,8 @@ export function useEmployerPendingDocumentsCount() {
         .in("application_id", applicationIds)
         .eq("status", "pending")
         .not("candidate_signed_at", "is", null)
-        .is("employer_signed_at", null);
+        .is("employer_signed_at", null)
+        .eq("is_voided", false);
 
       if (docError) throw docError;
 

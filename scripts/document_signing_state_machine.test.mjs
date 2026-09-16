@@ -18,6 +18,8 @@ import {
   canCountersign,
   canDecline,
   canSign,
+  canVoid,
+  canWithdraw,
   resolveDocumentRole,
   validateDeclineReason,
   validateReviewConfirmed,
@@ -282,6 +284,86 @@ check(
 check(
   "a signed document cannot be declined by either party (not_pending)",
   canDecline(doc({ status: "signed" }), "candidate", NOW).error === "not_pending",
+);
+
+// ---------------------------------------------------------------------------
+// canWithdraw — the sender cancels before the candidate signs
+// ---------------------------------------------------------------------------
+console.log("\n-- canWithdraw --");
+
+check("employer can withdraw a fresh pending document", canWithdraw(doc(), "employer").ok === true);
+check(
+  "candidate cannot withdraw (role_mismatch) — withdraw is employer-only",
+  canWithdraw(doc(), "candidate").error === "role_mismatch",
+);
+check(
+  "null role cannot withdraw (role_mismatch)",
+  canWithdraw(doc(), null).error === "role_mismatch",
+);
+check(
+  "a document the candidate already signed cannot be withdrawn (candidate_already_signed) — that's a void",
+  canWithdraw(doc({ candidateSignedAt: "2026-09-01T00:00:00Z" }), "employer").error === "candidate_already_signed",
+);
+check(
+  "a signed document cannot be withdrawn (not_pending)",
+  canWithdraw(doc({ status: "signed" }), "employer").error === "not_pending",
+);
+check(
+  "a declined document cannot be withdrawn (not_pending)",
+  canWithdraw(doc({ status: "declined" }), "employer").error === "not_pending",
+);
+check(
+  "a locked document cannot be withdrawn (locked) — reported before the generic not_pending",
+  canWithdraw(doc({ status: "signed", isLocked: true }), "employer").error === "locked",
+);
+check(
+  "an already-voided document cannot be withdrawn again (voided)",
+  canWithdraw(doc({ isVoided: true }), "employer").error === "voided",
+);
+check(
+  "withdraw is NOT blocked by expiry — it's an administrative cancel, not a step in the signing flow",
+  canWithdraw(doc({ expiresAt: "2026-01-01T00:00:00Z" }), "employer").ok === true,
+);
+
+// ---------------------------------------------------------------------------
+// canVoid — the employer cancels after the candidate signed, before
+// countersigning
+// ---------------------------------------------------------------------------
+console.log("\n-- canVoid --");
+
+check(
+  "employer can void a document the candidate has signed",
+  canVoid(doc({ candidateSignedAt: "2026-09-01T00:00:00Z" }), "employer").ok === true,
+);
+check(
+  "candidate cannot void (role_mismatch) — void is employer-only",
+  canVoid(doc({ candidateSignedAt: "2026-09-01T00:00:00Z" }), "candidate").error === "role_mismatch",
+);
+check(
+  "a document the candidate hasn't signed yet cannot be voided (candidate_has_not_signed) — that's a withdraw",
+  canVoid(doc(), "employer").error === "candidate_has_not_signed",
+);
+check(
+  "a fully countersigned, locked document cannot be voided (locked) — completed documents are out of scope for this pass",
+  canVoid(doc({ candidateSignedAt: "2026-09-01T00:00:00Z", employerSignedAt: "2026-09-02T00:00:00Z", status: "signed", isLocked: true }), "employer")
+    .error === "locked",
+);
+check(
+  "a document mid-countersign (employer_signed_at reserved, not yet finalized) cannot be voided (countersign_in_progress)",
+  canVoid(doc({ candidateSignedAt: "2026-09-01T00:00:00Z", employerSignedAt: "2026-09-02T00:00:01Z" }), "employer").error ===
+    "countersign_in_progress",
+);
+check(
+  "a declined document cannot be voided (not_pending)",
+  canVoid(doc({ status: "declined", candidateSignedAt: "2026-09-01T00:00:00Z" }), "employer").error === "not_pending",
+);
+check(
+  "an already-voided document cannot be voided again (voided)",
+  canVoid(doc({ candidateSignedAt: "2026-09-01T00:00:00Z", isVoided: true }), "employer").error === "voided",
+);
+check(
+  "void is NOT blocked by expiry — it's an administrative cancel, not a step in the signing flow",
+  canVoid(doc({ candidateSignedAt: "2026-09-01T00:00:00Z", expiresAt: "2026-01-01T00:00:00Z" }), "employer").ok === true,
 );
 
 // ---------------------------------------------------------------------------

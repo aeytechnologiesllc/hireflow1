@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { FileSignature, FileText, Paperclip, ShieldCheck, UserCheck } from "lucide-react";
 import { useCockpitDocuments } from "../hooks/useCockpitData";
 import { useApplicationsForDocuments } from "@/hooks/useApplicationsForDocuments";
@@ -7,6 +8,10 @@ import { useDocuments } from "@/hooks/useDocuments";
 import { DocumentWizard } from "@/components/documents/DocumentWizard";
 import { SignedDocumentViewer } from "@/components/documents/SignedDocumentViewer";
 import { CockpitErrorCard } from "../components/ErrorCard";
+import { ActionDialog } from "../components/ActionDialog";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { invokeDocumentSigning } from "@/lib/documentSigningErrors";
 import type { DocRow, DocStatus } from "../data";
 
 /**
@@ -51,6 +56,8 @@ const CHIPS: Record<DocStatus, { label: string; bg: string; fg: string }> = {
   Submitted: { label: "On file", bg: "var(--surface-2)", fg: "var(--ink-2)" },
   Signed: { label: "Signed", bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)" },
   Declined: { label: "Declined", bg: "var(--crit-bg)", fg: "var(--crit)" },
+  Withdrawn: { label: "Withdrawn", bg: "var(--surface-2)", fg: "var(--ink-3)" },
+  Voided: { label: "Voided", bg: "var(--crit-bg)", fg: "var(--crit)" },
 };
 
 /** Ready means nobody is waiting on it — it is signed, or it is on file. */
@@ -58,8 +65,10 @@ function isReady(row: DocRow) {
   return row.status === "Signed" || row.status === "Submitted";
 }
 
-/** Things that need a person rise to the top of their section. */
-const ATTENTION: Record<DocStatus, number> = { Pending: 0, Declined: 1, Submitted: 2, Signed: 3 };
+/** Things that need a person rise to the top of their section. Voided sits
+ *  with Declined (something went wrong, worth a look); Withdrawn — an
+ *  administrative cancel, nothing left to chase — sits last. */
+const ATTENTION: Record<DocStatus, number> = { Pending: 0, Declined: 1, Voided: 1, Submitted: 2, Signed: 3, Withdrawn: 4 };
 
 /** The mapper falls back to "Candidate"/"Role" when a document has no application. */
 function named(value: string | undefined, placeholder: string) {
@@ -130,11 +139,15 @@ function DocRowItem({
   index,
   primary,
   onOpenViewer,
+  onWithdraw,
+  onVoid,
 }: {
   row: DocRow;
   index: number;
   primary?: boolean;
   onOpenViewer: (row: DocRow) => void;
+  onWithdraw: (row: DocRow) => void;
+  onVoid: (row: DocRow) => void;
 }) {
   const Icon = typeIcon(row.type);
   const chip = CHIPS[row.status];
@@ -196,10 +209,12 @@ function DocRowItem({
       </span>
 
       <div className="flex shrink-0 gap-[7px] max-[620px]:w-full max-[620px]:justify-end">
-        {row.status === "Pending" || row.status === "Signed" ? (
+        {row.status === "Pending" || row.status === "Signed" || row.status === "Withdrawn" || row.status === "Voided" ? (
           // A real signing lifecycle exists for this row — open the same
           // countersign-capable viewer the candidate side uses, instead of
-          // just the raw file with no way to act on it.
+          // just the raw file with no way to act on it. Withdrawn/Voided
+          // rows open read-only, with an honest note instead of the sign/
+          // countersign panel (SignedDocumentViewer gates that on is_voided).
           <button
             type="button"
             className={`ck-btn !py-2 !text-[12.5px] ${primary ? "ck-btn-primary" : "ck-btn-outline"}`}
@@ -222,6 +237,31 @@ function DocRowItem({
             No file yet
           </span>
         )}
+        {/* Withdraw (before the candidate signs) or Void (after they sign,
+            before countersigning) — the sender's own cancel path. Only ever
+            shown on a live pending row; a withdrawn/voided/signed/declined
+            row has nothing left to cancel. */}
+        {row.status === "Pending" &&
+          (row.candidateSignedAt ? (
+            <button
+              type="button"
+              className="ck-btn ck-btn-outline !py-2 !text-[12.5px]"
+              style={{ color: "var(--crit)", borderColor: "color-mix(in srgb, var(--crit) 45%, transparent)" }}
+              onClick={() => onVoid(row)}
+              aria-label={`Void ${row.title}${person ? ` for ${person}` : ""}`}
+            >
+              Void
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="ck-btn ck-btn-ghost !py-2 !text-[12.5px]"
+              onClick={() => onWithdraw(row)}
+              aria-label={`Withdraw ${row.title}${person ? ` for ${person}` : ""}`}
+            >
+              Withdraw
+            </button>
+          ))}
       </div>
     </div>
   );
@@ -250,6 +290,42 @@ export default function CockpitDocuments() {
   const { data: fullDocuments = [] } = useDocuments();
   const [viewerDocId, setViewerDocId] = useState<string | null>(null);
   const viewerDocument = fullDocuments.find((d) => d.id === viewerDocId) ?? null;
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [actionDialog, setActionDialog] = useState<{ type: "withdraw" | "void"; row: DocRow } | null>(null);
+  const [isActing, setIsActing] = useState(false);
+
+  const confirmAction = async (reason?: string) => {
+    if (!actionDialog) return;
+    const trimmed = (reason ?? "").trim();
+    if (trimmed.length < 3) {
+      toast({ title: "Reason required", description: "Please give a reason between 3 and 500 characters.", variant: "destructive" });
+      return;
+    }
+    setIsActing(true);
+    try {
+      await invokeDocumentSigning(supabase, {
+        documentId: actionDialog.row.id,
+        action: actionDialog.type,
+        reason: trimmed,
+      });
+      toast({
+        title: actionDialog.type === "withdraw" ? "Document withdrawn" : "Document voided",
+        description: "The candidate has been notified.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      refetch();
+      setActionDialog(null);
+    } catch (e) {
+      toast({
+        title: actionDialog.type === "withdraw" ? "Couldn't withdraw" : "Couldn't void",
+        description: (e as Error).message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsActing(false);
+    }
+  };
 
   const openRow = (row: DocRow) => {
     // Showcase/demo rows have no matching real `documents` row to open in
@@ -446,7 +522,7 @@ export default function CockpitDocuments() {
           <SectionTitle flush>Hiring packet</SectionTitle>
           <div className="flex flex-col gap-2">
             {packet.map((row, i) => (
-              <DocRowItem key={row.id} row={row} index={i} primary={row.id === urgentId} onOpenViewer={openRow} />
+              <DocRowItem key={row.id} row={row} index={i} primary={row.id === urgentId} onOpenViewer={openRow} onWithdraw={(r) => setActionDialog({ type: "withdraw", row: r })} onVoid={(r) => setActionDialog({ type: "void", row: r })} />
             ))}
           </div>
         </>
@@ -457,7 +533,7 @@ export default function CockpitDocuments() {
           <SectionTitle flush={g === 0 && packet.length === 0}>{group.title}</SectionTitle>
           <div className="flex flex-col gap-2">
             {group.rows.map((row, i) => (
-              <DocRowItem key={row.id} row={row} index={i} primary={row.id === urgentId} onOpenViewer={openRow} />
+              <DocRowItem key={row.id} row={row} index={i} primary={row.id === urgentId} onOpenViewer={openRow} onWithdraw={(r) => setActionDialog({ type: "withdraw", row: r })} onVoid={(r) => setActionDialog({ type: "void", row: r })} />
             ))}
           </div>
         </div>
@@ -471,6 +547,37 @@ export default function CockpitDocuments() {
         onOpenChange={(open) => {
           if (!open) setViewerDocId(null);
         }}
+      />
+
+      <ActionDialog
+        open={!!actionDialog}
+        title={
+          actionDialog
+            ? actionDialog.type === "withdraw"
+              ? `Withdraw ${actionDialog.row.title}?`
+              : `Void ${actionDialog.row.title}?`
+            : ""
+        }
+        description={
+          actionDialog
+            ? (() => {
+                const person = named(actionDialog.row.candidate, "Candidate");
+                const who = person ? firstName(person) : "The candidate";
+                return actionDialog.type === "withdraw"
+                  ? `${who} hasn't signed yet — I'll cancel it and let them know why.`
+                  : `${who} already signed this, but it hasn't been countersigned. I'll void it and let them know why.`;
+              })()
+            : ""
+        }
+        confirmLabel={actionDialog?.type === "withdraw" ? "Confirm withdraw" : "Confirm void"}
+        tone="danger"
+        busy={isActing}
+        withReason
+        reasonRequired
+        reasonLabel="Why, in a line? The candidate will see this."
+        reasonPlaceholder="e.g. We're holding the role for now."
+        onConfirm={(reason) => void confirmAction(reason)}
+        onClose={() => !isActing && setActionDialog(null)}
       />
     </div>
   );

@@ -533,6 +533,154 @@ function and on `countersignReconciliation.ts`, and `deno test` on
 `renderFinalPdf.test.ts` (5 tests), `documentParties.test.ts` (7 tests), and
 the new `countersignReconciliation.test.ts` (6 tests).
 
+### Addendum (2026-09-16) — WITHDRAW / VOID, the gap Must-change 3 named
+
+Must-change 3 above (`is_voided`/`voided_at`/`voided_reason` unguarded)
+deliberately took the conservative fix — block the columns everywhere,
+invent no UI — and named the real gap as future work: *"An employer has no
+path in this design to withdraw/cancel a document before the candidate
+signs... worth a product call on whether at least a minimal void action
+belongs in this pass."* This addendum is that product call, made: two new
+lifecycle actions, through the same service-role `document-signing`
+function, no direct client write, every existing rule from Must-change 3
+untouched.
+
+**WITHDRAW** — the sender (job owner, or a `can_send_documents` team member
+scoped to the job — the same "employer" bucket `resolveDocumentRole` already
+resolves for countersign/decline) cancels a document before the candidate
+has signed it. `status` stays `'pending'` — nothing about the signing state
+machine actually moved, so there's nothing to revert — `is_voided` /
+`voided_at` / `voided_reason` record that it's dead. The document becomes
+read-only (the candidate-facing sign panel gates on `!is_voided`, same as
+every other precondition) and stops counting toward the candidate's
+"waiting on you" badge, with an honest "Withdrawn" state instead of
+"Awaiting your signature".
+
+**VOID** — the employer cancels a document the candidate already signed,
+before the employer's own countersignature would lock it. Same three
+columns, same required reason. A **completed (locked) document cannot be
+voided in this pass** — `canVoid()` refuses with `locked` before it ever
+reaches the generic `not_pending` check, the same way `canCountersign`
+already reports `locked` distinctly. This is a deliberate scope cut, not an
+oversight: voiding a document that already has a completion certificate,
+a served `final.pdf`, and a full v1→v2→v3 hash chain is a materially
+different, higher-stakes action (it would need its own certificate-
+invalidation story, and `/verify`'s "verified" claim already reads
+`is_voided`, so voiding a locked document retroactively unverifies
+something a third party may already have checked) — left for a real
+product decision later, same as Must-change 3 left the whole feature.
+
+**Why no migration.** `protect_document_columns()` has always exempted
+`service_role` outright — the very first check in the function body is
+`IF auth.role() = 'service_role' THEN RETURN NEW; END IF;` — so the
+`document-signing` function (which runs on `service_role`, same as every
+other terminal write it makes) could already write `is_voided`/`voided_at`/
+`voided_reason` with zero schema change. The columns themselves shipped in
+`20251215015158_*.sql`, long before this feature. Nothing about "who may
+attempt the write" changed; what changed is that the edge function now has
+two new, precondition-gated code paths that legitimately perform it — the
+same shape as every other action in this file.
+
+**Preconditions** (`supabase/functions/document-signing/stateMachine.ts`):
+
+```
+canWithdraw(doc, role):
+  role must be "employer"
+  doc.isVoided        -> "voided"    (already cancelled)
+  doc.isLocked         -> "locked"    (completed — out of scope, checked
+                                        before the generic status check so
+                                        the error is specific)
+  doc.status != pending -> "not_pending"
+  doc.candidateSignedAt != null -> "candidate_already_signed" (that's a void)
+  else ok
+
+canVoid(doc, role):
+  role must be "employer"
+  doc.isVoided        -> "voided"
+  doc.isLocked         -> "locked"    (completed — cannot be voided)
+  doc.status != pending -> "not_pending"
+  doc.candidateSignedAt == null -> "candidate_has_not_signed" (that's a withdraw)
+  doc.employerSignedAt != null -> "countersign_in_progress" (a concurrent
+                                    countersign has already reserved this
+                                    document — see the countersign two-phase
+                                    reservation in §1 above; void loses that
+                                    race by construction, never races Storage)
+```
+
+Neither function checks `expiresAt` — unlike sign/countersign/decline,
+withdraw and void are administrative cancel actions, not steps in the
+signing flow itself, so an employer must be able to withdraw or void a
+document that has already expired while sitting unsigned.
+
+**The writes** are a single compare-and-swap `UPDATE` each, the same shape
+as `decline`: the `WHERE` clause re-checks `status = 'pending'`,
+`is_locked = false`, `is_voided = false`, and (for withdraw)
+`candidate_signed_at IS NULL` / (for void) `candidate_signed_at IS NOT NULL
+AND employer_signed_at IS NULL` at the moment of the write — so two
+concurrent withdraw/void calls on the same document can only ever let one
+win, and a void racing an in-flight countersign reservation loses cleanly
+(0 rows updated, re-checked against a fresh read, reported as whatever the
+fresh precondition check says). A reason (3–500 chars, same
+`validateDeclineReason` the decline action already uses) is required and
+stored in `voided_reason`. Each writes one audit-log row
+(`document_withdrawn` / `document_voided`, `details: { reason }`) and
+notifies the candidate.
+
+**Everywhere else `is_voided` now has to be checked, because a
+withdrawn/voided document is still `status = 'pending'` underneath**:
+
+- `usePendingDocumentsCount` / `useEmployerPendingDocumentsCount` — both add
+  `is_voided = false` to their documents count query, or a cancelled
+  document keeps inflating "waiting on you" forever.
+- `SignedDocumentViewer.tsx` — `canSignAsCandidate` / `canCountersignAsEmployer`
+  both gate on `!document.is_voided`; the status banner, badge, and
+  Certificate-of-Completion strip read an `is_voided`-aware
+  `displayStatusKey` ("withdrawn"/"voided") instead of the raw
+  `document.status`, and show the reason.
+- `MyDocuments.tsx` — `signStatusChip` reports "Withdrawn"/"Voided" before
+  falling through to the pending/signed/declined cases.
+- Cockpit `src/cockpit/pages/Documents.tsx` / `lib/mappers.ts` — `DocStatus`
+  gains `"Withdrawn"` / `"Voided"`; `mapDocStatus` checks `is_voided` first;
+  the row gets a Withdraw (pre-signature) or Void (post-signature) action,
+  a reason dialog in the same `ActionDialog` (`ck-card`, letterhead-styled)
+  the Applicants page already uses for Hire/Pass.
+- `verify-document` / `VerifyDocument.tsx` — the wire response gains
+  `isVoided`, and a voided document gets honest copy ("withdrawn by the
+  employer before it was signed" / "voided ... after it was signed, before
+  it was countersigned") instead of the generic "Document integrity could
+  not be verified", which reads as tampering rather than a cancellation.
+  `verified` was already `hasRequiredHashes && !document.is_voided` from
+  Must-change 3's original implementation — untouched here.
+- Completion certificates: unaffected by construction — `canCountersign`
+  already refuses `is_voided`, so a voided document can never reach the
+  countersign handler that builds one; a withdrawn/voided document simply
+  never gets a `completion_certificate` written.
+
+Proven in:
+- `scripts/document_signing_state_machine.test.mjs` — `canWithdraw`/`canVoid`
+  table-driven cases, including the `locked`-before-`not_pending` ordering,
+  the `countersign_in_progress` race case, and the "not blocked by expiry"
+  cases for both.
+- `scripts/document_signing_guard_pglite_check.mjs` — `service_role` can
+  still write `is_voided`/`voided_at`/`voided_reason` in both the
+  pre-signature and post-signature shape (no migration regression); a plain
+  employer client still cannot write that same three-column shape directly
+  (Must-change 3's fence still holds against the exact shape withdraw/void
+  now legitimately uses).
+- `scripts/guards/document-void-withdraw.mjs` — seven static checks: the
+  precondition functions exist and enforce the right ordering; both actions
+  are real compare-and-swap `UPDATE`s with a required, validated reason and
+  an audit-log row; both badge-count hooks exclude `is_voided`; the signing
+  panel is gated; `/verify` reports voided documents truthfully; the cockpit
+  surfaces `Withdrawn`/`Voided` as their own status with row actions. All
+  seven fail against the pre-addendum source and pass against this one.
+
+All checks re-run clean after this addendum: `npm run build`,
+`typecheck:ratchet` (holding at the existing baseline, not above it),
+`node scripts/guardrails.mjs`, every `scripts/*.test.mjs` and
+`scripts/*pglite*.mjs`, and `deno check` on `document-signing/index.ts`,
+`document-signing/stateMachine.ts`, and `verify-document/index.ts`.
+
 ## 0. What's broken today
 
 `public.documents` (offer letters, NDAs, contracts) has real columns for a

@@ -30,6 +30,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   document_declined: "Document Declined",
   voided: "Document Voided",
   document_voided: "Document Voided",
+  withdrawn: "Document Withdrawn",
+  document_withdrawn: "Document Withdrawn",
   
   // Other events
   downloaded: "Document Downloaded",
@@ -77,6 +79,8 @@ export const AUDIT_ACTION_COLORS: Record<string, string> = {
   document_declined: "bg-destructive",
   voided: "bg-destructive",
   document_voided: "bg-destructive",
+  withdrawn: "bg-muted-foreground",
+  document_withdrawn: "bg-muted-foreground",
 
   // Download
   downloaded: "bg-muted-foreground",
@@ -237,7 +241,12 @@ export function formatAuditEventDescription(
     case "voided":
     case "document_voided":
       const voidReason = details?.void_reason || details?.reason || "Not specified";
-      return `Document was voided. Reason: ${voidReason}`;
+      return `Document was voided after the candidate signed, before it was countersigned. Reason: ${voidReason}`;
+    case "withdrawn":
+    case "document_withdrawn": {
+      const withdrawReason = details?.reason || "Not specified";
+      return `Document was withdrawn before the candidate signed it. Reason: ${withdrawReason}`;
+    }
     default:
       return details?.event ? String(details.event) : "Activity recorded.";
   }

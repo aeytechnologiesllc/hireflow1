@@ -19,6 +19,15 @@ const LetterIdentityGlyph = GlyphLetter as unknown as LucideIcon;
  *  (src/cockpit/pages/Documents.tsx) so "pending" reads the same color on
  *  both sides of the product. */
 function signStatusChip(doc: DocumentWithApplication): { label: string; bg: string; fg: string } {
+  // A withdrawn/voided document is still status='pending' underneath (see
+  // document-signing's withdraw/void actions) — is_voided must be checked
+  // first, or it would show as "Awaiting your signature"/"Sent to the
+  // employer" instead of the honest terminal state.
+  if (doc.is_voided) {
+    return doc.candidate_signed_at
+      ? { label: "Voided", bg: "var(--crit-bg)", fg: "var(--crit)" }
+      : { label: "Withdrawn", bg: "var(--surface-2)", fg: "var(--ink-3)" };
+  }
   if (doc.status === "declined") return { label: "Declined", bg: "var(--crit-bg)", fg: "var(--crit)" };
   if (doc.status === "signed") return { label: "Signed", bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)" };
   if (doc.candidate_signed_at) {
@@ -94,7 +103,7 @@ export default function MyDocuments() {
     (r) => r.status === "pending" || r.status === "rejected"
   ).length;
   const pendingSignature = signDocuments.filter(
-    (d) => d.status === "pending" && !d.candidate_signed_at
+    (d) => d.status === "pending" && !d.candidate_signed_at && !d.is_voided
   ).length;
   const hasAny = documentRequests.length > 0 || signDocuments.length > 0;
 

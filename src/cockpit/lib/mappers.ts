@@ -541,7 +541,13 @@ export function mapInterviewItem(interview: InterviewWithDetails): InterviewItem
   };
 }
 
-function mapDocStatus(status: string): DocStatus {
+/** A withdrawn/voided document is still status='pending' underneath (see
+ *  document-signing's withdraw/void actions), so is_voided must be checked
+ *  before the raw status or a cancelled document would keep reading as
+ *  "Pending" everywhere the cockpit shows it. Withdrawn = cancelled before
+ *  the candidate signed; Voided = cancelled after, before countersigning. */
+function mapDocStatus(status: string, isVoided: boolean, candidateSignedAt: string | null): DocStatus {
+  if (isVoided) return candidateSignedAt ? "Voided" : "Withdrawn";
   if (status === "signed") return "Signed";
   if (status === "declined") return "Declined";
   if (status === "pending") return "Pending";
@@ -552,6 +558,7 @@ export function mapDocumentRow(doc: DocumentWithApplication): DocRow {
   const profile = doc.applications?.profiles;
   const job = doc.applications?.jobs;
   const candidate = profile?.full_name ?? profile?.email ?? "Candidate";
+  const isVoided = !!doc.is_voided;
   return {
     id: doc.id,
     title: doc.name ?? "Document",
@@ -559,13 +566,21 @@ export function mapDocumentRow(doc: DocumentWithApplication): DocRow {
     candidate,
     avatar: doc.applications?.candidate_id ?? doc.id,
     role: job?.title ?? "Role",
-    status: mapDocStatus(doc.status),
-    statusNote: doc.status === "pending" ? "Awaiting signature" : doc.status,
+    status: mapDocStatus(doc.status, isVoided, doc.candidate_signed_at),
+    statusNote: isVoided
+      ? doc.candidate_signed_at
+        ? "Voided"
+        : "Withdrawn"
+      : doc.status === "pending"
+        ? "Awaiting signature"
+        : doc.status,
     updated: formatDistanceToNow(new Date(doc.updated_at ?? doc.created_at), { addSuffix: true }),
     created: doc.created_at ? format(new Date(doc.created_at), "MMM d, yyyy") : null,
     expires: doc.expires_at ? format(new Date(doc.expires_at), "MMM d, yyyy") : null,
     fileUrl: doc.file_url ?? null,
     rawStatus: doc.status ?? null,
+    candidateSignedAt: doc.candidate_signed_at ?? null,
+    isVoided,
   };
 }
 
