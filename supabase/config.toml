@@ -66,6 +66,9 @@ verify_jwt = true
 [functions.verify-document]
 verify_jwt = false
 
+[functions.document-signing]
+verify_jwt = true
+
 [functions.candidate-interview-response]
 verify_jwt = true
 

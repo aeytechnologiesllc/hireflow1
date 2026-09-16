@@ -237,7 +237,7 @@ CANDIDATE (Signing Position: ${cert.candidate_signature.signing_order_position})
   Name: ${cert.candidate_signature.name}
   Email: ${cert.candidate_signature.email}
   Signed At: ${cert.candidate_signature.timestamp_utc} (UTC)
-  IP Address: ${cert.candidate_signature.ip_address}
+  IP Address (self-reported): ${cert.candidate_signature.ip_address}
   Location: ${cert.candidate_signature.location.city}, ${cert.candidate_signature.location.region}, ${cert.candidate_signature.location.country}
   Signature Hash: ${cert.candidate_signature.signature_hash}
   Consent Confirmed: ${cert.candidate_signature.consent_confirmed_at}
@@ -250,7 +250,7 @@ EMPLOYER (Signing Position: ${cert.employer_signature.signing_order_position})
   Name: ${cert.employer_signature.name}
   Email: ${cert.employer_signature.email}
   Signed At: ${cert.employer_signature.timestamp_utc} (UTC)
-  IP Address: ${cert.employer_signature.ip_address}
+  IP Address (self-reported): ${cert.employer_signature.ip_address}
   Location: ${cert.employer_signature.location.city}, ${cert.employer_signature.location.region}, ${cert.employer_signature.location.country}
   Signature Hash: ${cert.employer_signature.signature_hash}
   Review Confirmed: ${cert.employer_signature.review_confirmed_at}
