@@ -425,6 +425,36 @@ async function run() {
     const r = await asPostgres(`select public.job_voice_interview_is_billable($1) as v`, [JOB_2]);
     check("a never-unlocked job's voice interviews are unmetered (never billable)", r.rows[0].v === false, JSON.stringify(r.rows));
   }
+  {
+    // Regression: re-unlock JOB_EMPTY a second time -- its first unlock's
+    // 30-day window already lapsed, so buying another one is exactly the
+    // documented flow ("once the active window lapses, buying another pack
+    // requires a fresh unlock", header comment), not a contrived edge case.
+    // job_unlock_count(JOB_EMPTY) goes from 1 to 2. voice_included_total
+    // must stay flat at 10 -- NOT scale with unlock count -- because
+    // job_voice_interview_is_billable() enforces a flat 10-per-job
+    // threshold regardless of how many times the job has been unlocked;
+    // the two must never disagree about how many free interviews are left.
+    await asPostgres(
+      `insert into public.job_unlocks (job_id, employer_id, status, unlocked_at, expires_at) values
+         ($1, $2, 'active', now(), now() + interval '30 days')`,
+      [JOB_EMPTY, EMP_1],
+    );
+    const unlockCount = await asPostgres(`select public.job_unlock_count($1) as v`, [JOB_EMPTY]);
+    check("JOB_EMPTY now has 2 completed unlocks", unlockCount.rows[0].v === 2, JSON.stringify(unlockCount.rows));
+
+    const status = await asUser(EMP_1, "authenticated", `select * from public.get_job_billing_status($1)`, [JOB_EMPTY]);
+    check(
+      "voice_included_total stays flat at 10 after a second unlock, not 10 * unlock_count",
+      status.ok && status.rows[0].voice_included_total === 10,
+      JSON.stringify(status.rows),
+    );
+    check(
+      "voice_next_is_billable agrees with voice_used >= voice_included_total (the two never contradict each other)",
+      status.ok && status.rows[0].voice_next_is_billable === (status.rows[0].voice_used >= status.rows[0].voice_included_total),
+      JSON.stringify(status.rows),
+    );
+  }
 
   console.log("\n-- (7) subscriptions carries the saved-payment-method column --");
   {

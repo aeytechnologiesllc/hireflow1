@@ -389,7 +389,12 @@ BEGIN
     public.job_has_active_unlock(p_job_id),
     (SELECT max(ju.expires_at) FROM public.job_unlocks ju WHERE ju.job_id = p_job_id AND ju.status = 'active'),
     public.job_active_pack_count(p_job_id),
-    10 * greatest(1, public.job_unlock_count(p_job_id)),
+    -- Flat 10 per job, cumulative from first unlock onward -- NOT
+    -- multiplied by how many times the job has been unlocked. Must always
+    -- match the threshold job_voice_interview_is_billable() actually
+    -- enforces (also a flat 10), or this column lies to the employer about
+    -- how many free interviews remain. See the header comment above.
+    10,
     public.job_voice_interviews_used(p_job_id),
     public.job_voice_interview_is_billable(p_job_id);
 END;
