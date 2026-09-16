@@ -270,6 +270,84 @@ export default [
     },
   },
   {
+    id: "countersign-writes-audit-rows-only-after-finalize-succeeds",
+    why:
+      "document_audit_logs is immutable (a live, unconditional BEFORE DELETE trigger with no service_role " +
+      "exemption — confirmed live 2026-09-16), so employer_review_confirmed/employer_countersigned/" +
+      "document_completed must not be inserted for real until AFTER the finalize UPDATE has actually " +
+      "succeeded (using in-memory records for the certificate's audit trail beforehand instead) — otherwise " +
+      "a failed-then-retried countersign permanently orphans an attestation for a countersign that never " +
+      "completed, with no way to remove it.",
+    run: async ({ read }) => {
+      const src = await read(FUNCTION);
+      if (!src) return { ok: false, detail: [`${FUNCTION} not found`] };
+      const bad = [];
+      const countersignStart = src.indexOf('if (action === "countersign")');
+      const declineStart = src.indexOf('if (action === "decline")');
+      const body =
+        countersignStart === -1
+          ? ""
+          : declineStart > countersignStart
+            ? src.slice(countersignStart, declineStart)
+            : src.slice(countersignStart);
+
+      // The finalize UPDATE and the real audit-log inserts must appear in
+      // that order — insertAuditLog(...) for employer_countersigned must
+      // come strictly after the finalizedRows/finalizeError check, never
+      // before it.
+      const finalizeCheckIdx = body.indexOf("finalizedRows || finalizedRows.length === 0");
+      const firstRealInsertIdx = body.indexOf('insertAuditLog({\n            action: "employer_review_confirmed"');
+      if (finalizeCheckIdx === -1) {
+        bad.push("no finalize-result check (finalizedRows/finalizeError) found in the countersign branch");
+      } else if (firstRealInsertIdx === -1) {
+        bad.push('no real insertAuditLog({ action: "employer_review_confirmed", ... }) call found after finalize');
+      } else if (firstRealInsertIdx < finalizeCheckIdx) {
+        bad.push("employer_review_confirmed is inserted before the finalize UPDATE is confirmed to have succeeded");
+      }
+
+      // Before the finalize write, the certificate's audit trail must be
+      // built from in-memory entries, not a DB insert — no `delete()` call
+      // is needed or possible against document_audit_logs.
+      if (/document_audit_logs['"]\)\s*\.\s*delete\(/.test(body.replace(/\s+/g, " "))) {
+        bad.push("countersign still attempts to delete() document_audit_logs rows — that table is immutable, this will always throw");
+      }
+      if (!/auditEntries:\s*CertificateAuditEntry\[\]\s*=\s*\[\.\.\.\(priorAuditRows/.test(body.replace(/\s+/g, " "))) {
+        bad.push("auditEntries for the certificate is not built from in-memory entries (...priorAuditRows, reviewConfirmedEntry, countersignedEntry)");
+      }
+
+      return { ok: bad.length === 0, detail: bad };
+    },
+  },
+  {
+    id: "candidate-email-flows-from-sign-into-countersign-certificate",
+    why:
+      "The candidate's own email must be captured once, in sign's candidate_signature_data JSON " +
+      "(signerEmail: callerEmail), and read back directly in countersign — not derived by comparing the " +
+      "employer's own callerEmail against a field that was never written, which always resolves to \"\" and " +
+      "leaves the completion certificate's candidate email permanently blank.",
+    run: async ({ read }) => {
+      const src = await read(FUNCTION);
+      if (!src) return { ok: false, detail: [`${FUNCTION} not found`] };
+      const bad = [];
+      const signStart = src.indexOf('if (action === "sign")');
+      const countersignStart = src.indexOf('if (action === "countersign")');
+      const signBody = signStart === -1 ? "" : src.slice(signStart, countersignStart === -1 ? undefined : countersignStart);
+      if (!/signerEmail:\s*callerEmail/.test(signBody)) {
+        bad.push("sign's candidate_signature_data JSON does not include signerEmail: callerEmail");
+      }
+      const declineStart = src.indexOf('if (action === "decline")');
+      const countersignBody =
+        countersignStart === -1 ? "" : declineStart > countersignStart ? src.slice(countersignStart, declineStart) : src.slice(countersignStart);
+      if (/callerEmail\s*===\s*candidateParsed\?\.\s*signerEmail/.test(countersignBody)) {
+        bad.push("countersign still self-compares callerEmail (the employer's own email) against candidateParsed?.signerEmail — always false");
+      }
+      if (!/candidateParsed\?\.\s*signerEmail/.test(countersignBody)) {
+        bad.push("countersign does not read candidateParsed?.signerEmail at all");
+      }
+      return { ok: bad.length === 0, detail: bad };
+    },
+  },
+  {
     id: "document-viewer-dialog-is-deleted",
     why:
       "DocumentViewerDialog.tsx wrote only the legacy (status/signed_at/signature_data) columns with a raw, " +

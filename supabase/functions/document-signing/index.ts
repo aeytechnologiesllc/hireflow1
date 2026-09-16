@@ -257,7 +257,14 @@ Deno.serve(async (req) => {
       postSignatureHash?: string | null;
       signingOrderPosition?: number | null;
       details?: Record<string, unknown>;
-    }) {
+      // Explicit created_at so a row written AFTER a countersign's
+      // render/upload finishes can still carry the exact moment the action
+      // logically happened (nowIso, captured before any I/O) — see the
+      // countersign handler's comment on why these rows are no longer
+      // inserted until after the finalize write succeeds. created_at has no
+      // DB-side generation constraint, so this is a plain column write.
+      createdAt?: string;
+    }): Promise<void> {
       await admin.from("document_audit_logs").insert({
         document_id: documentId,
         user_id: callerId,
@@ -275,6 +282,7 @@ Deno.serve(async (req) => {
         ip_address: ip,
         user_agent: userAgent,
         details: entry.details ?? {},
+        ...(entry.createdAt ? { created_at: entry.createdAt } : {}),
       });
     }
 
@@ -345,6 +353,7 @@ Deno.serve(async (req) => {
         signatures: { recipient: signature.value },
         method: signature.method,
         signerName: callerName,
+        signerEmail: callerEmail,
       });
 
       // Compare-and-swap: the WHERE clause re-checks every precondition at
@@ -504,37 +513,40 @@ Deno.serve(async (req) => {
           signerRole: "employer",
         };
 
-        // Audit entries first (matches how the client's own certificate
-        // builder always scanned the *completed* audit trail — see
-        // docs/DOCUMENT-SIGNING.md §3): employer_review_confirmed and
-        // employer_countersigned are written now, before the certificate is
-        // built, so audit_entries_count/audit_trail_hash on the certificate
-        // reflect the complete signing history, not a partial one.
-        await insertAuditLog({
-          action: "employer_review_confirmed",
-          signerRole: "employer",
-          documentHash: reserved.v2_hash,
-          details: { event: "Employer confirmed review of document and candidate signature" },
-        });
-        await insertAuditLog({
-          action: "employer_countersigned",
-          signerRole: "employer",
-          signatureMethod: signature.method,
-          consentConfirmed: true,
-          documentHash: v3Hash,
-          documentVersion: 3,
-          preSignatureHash: reserved.v2_hash,
-          postSignatureHash: v3Hash,
-          signingOrderPosition: 2,
-          details: { event: "Employer countersigned document", version_transition: "v2 -> v3" },
-        });
-
-        const { data: auditRows } = await admin
+        // Audit entries: computed in-memory, not yet inserted. See
+        // docs/DOCUMENT-SIGNING.md's revision log (repairer finding 1) —
+        // document_audit_logs is immutable by a live, unconditional
+        // BEFORE DELETE trigger (block_audit_modification(), confirmed
+        // live 2026-09-16; it has no service_role exemption, unlike
+        // enforce_audit_log_identity), so a row written here and then
+        // deleted on a later failure in this same attempt is not possible.
+        // Instead: build the employer_review_confirmed/employer_countersigned
+        // entries as plain in-memory records (everything they need —
+        // action, timestamp, caller id, hash — is already known before any
+        // render/Storage I/O happens) so the certificate can be built from
+        // the complete signing history exactly as before, and only WRITE
+        // them for real once the finalize UPDATE below has actually
+        // succeeded. A failed-then-retried attempt now leaves no audit rows
+        // behind at all, instead of leaving orphaned ones with no way to
+        // remove them.
+        const { data: priorAuditRows } = await admin
           .from("document_audit_logs")
           .select("action, created_at, user_id, document_hash")
           .eq("document_id", documentId)
           .order("created_at", { ascending: true });
-        const auditEntries: CertificateAuditEntry[] = auditRows ?? [];
+        const reviewConfirmedEntry: CertificateAuditEntry = {
+          action: "employer_review_confirmed",
+          created_at: nowIso,
+          user_id: callerId,
+          document_hash: reserved.v2_hash,
+        };
+        const countersignedEntry: CertificateAuditEntry = {
+          action: "employer_countersigned",
+          created_at: nowIso,
+          user_id: callerId,
+          document_hash: v3Hash,
+        };
+        const auditEntries: CertificateAuditEntry[] = [...(priorAuditRows ?? []), reviewConfirmedEntry, countersignedEntry];
 
         const certificateData = {
           documentId,
@@ -543,7 +555,7 @@ Deno.serve(async (req) => {
           documentType: reserved.document_type,
           completionTimestampUtc: nowIso,
           candidateName: candidateParsed?.signerName || "Candidate",
-          candidateEmail: undefined,
+          candidateEmail: candidateParsed?.signerEmail || undefined,
           candidateSignedAt: reserved.candidate_signed_at ?? nowIso,
           candidateIp: reserved.ip_address ?? undefined,
           employerName: callerName,
@@ -582,7 +594,7 @@ Deno.serve(async (req) => {
           v2Hash: reserved.v2_hash ?? "",
           v3Hash,
           candidateName: certificateData.candidateName,
-          candidateEmail: callerEmail === candidateParsed?.signerEmail ? callerEmail : (candidateParsed?.signerEmail ?? ""),
+          candidateEmail: candidateParsed?.signerEmail ?? "",
           candidateSignedAt: reserved.candidate_signed_at ?? nowIso,
           candidateIp: reserved.ip_address ?? "unknown",
           employerName: callerName,
@@ -593,13 +605,6 @@ Deno.serve(async (req) => {
           finalPdfHash,
           completionTimestampUtc: nowIso,
           auditEntries,
-        });
-
-        await insertAuditLog({
-          action: "document_completed",
-          signerRole: "employer",
-          documentHash: finalPdfHash,
-          details: { is_locked: true },
         });
 
         // Phase 2 finalize — CAS on the reservation timestamp is
@@ -628,6 +633,43 @@ Deno.serve(async (req) => {
           throw new Error("Could not finalize the countersigned document");
         }
 
+        // Only now — after the document is genuinely, durably signed — do
+        // the audit rows actually get written. A failure here is a real but
+        // low-severity gap (the document is correctly signed either way;
+        // only the audit trail going forward would be momentarily
+        // incomplete), so it's logged and swallowed rather than turned into
+        // a user-facing failure for an action that has already succeeded.
+        try {
+          await insertAuditLog({
+            action: "employer_review_confirmed",
+            signerRole: "employer",
+            documentHash: reserved.v2_hash,
+            details: { event: "Employer confirmed review of document and candidate signature" },
+            createdAt: nowIso,
+          });
+          await insertAuditLog({
+            action: "employer_countersigned",
+            signerRole: "employer",
+            signatureMethod: signature.method,
+            consentConfirmed: true,
+            documentHash: v3Hash,
+            documentVersion: 3,
+            preSignatureHash: reserved.v2_hash,
+            postSignatureHash: v3Hash,
+            signingOrderPosition: 2,
+            details: { event: "Employer countersigned document", version_transition: "v2 -> v3" },
+            createdAt: nowIso,
+          });
+          await insertAuditLog({
+            action: "document_completed",
+            signerRole: "employer",
+            documentHash: finalPdfHash,
+            details: { is_locked: true },
+          });
+        } catch (auditError) {
+          console.error("[document-signing] countersign succeeded but writing its audit rows failed:", auditError);
+        }
+
         const candidateId = application.candidate_id;
         if (candidateId) {
           await notify(
@@ -640,6 +682,9 @@ Deno.serve(async (req) => {
 
         return json({ ok: true });
       } catch (e) {
+        // No audit rows were written before this point (see the comment
+        // above auditEntries) — a failure here has nothing to clean up in
+        // document_audit_logs, only the reservation below.
         // Roll back the reservation so a transient failure (render error,
         // storage hiccup, network blip) doesn't leave the document
         // permanently stuck "claimed" with no way for a retry to proceed.

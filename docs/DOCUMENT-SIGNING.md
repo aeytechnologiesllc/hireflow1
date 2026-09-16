@@ -261,6 +261,71 @@ forge the displayed completion timestamp after the fact. Proven in
   critical path) for a field this design otherwise treats as best-effort.
   Flagged here rather than silently shipped as if it matched §3 exactly.
 
+### Repairer pass — two blocking findings on the first implementation
+
+A code review of the first `document-signing`/index.ts implementation found
+two real bugs, both fixed in place (no design change needed):
+
+1. **Orphaned audit rows on a failed-then-retried countersign.** The
+   `employer_review_confirmed` and `employer_countersigned`
+   `document_audit_logs` rows (and, further down, `document_completed`) were
+   inserted *before* the render/upload/finalize steps that can genuinely
+   fail (a bad fetch of the original PDF, a Storage hiccup, a network
+   blip — the countersign handler's own catch block already anticipated
+   this). The catch block only rolled back `employer_signed_at`, never the
+   audit rows already written, so a failed attempt left a permanent,
+   contradictory "employer countersigned" attestation for a countersign
+   that never completed — and a later successful retry's
+   `buildCompletionCertificate` call folds *every* audit row for the
+   document into `audit_trail_hash`/`audit_entries_count`, so the shipped
+   certificate would permanently include the duplicate. This is a distinct
+   failure mode from the concurrent-race case must-change 1 covers ("a
+   losing race never produces a duplicate audit row" — true for two
+   simultaneous callers, not for one caller's own failed-then-retried
+   attempt).
+
+   The finding's own suggested fix ("make the catch block also delete the
+   specific audit rows this attempt inserted") turned out not to be
+   available: `document_audit_logs` carries a live, unconditional
+   `BEFORE DELETE` trigger (`prevent_audit_delete` /
+   `block_audit_modification()`, confirmed against the live database while
+   fixing this — it `RAISE EXCEPTION`s for every caller, with no
+   `service_role` exemption, unlike `enforce_audit_log_identity`). A
+   `DELETE` from the edge function's own service-role client would itself
+   throw, inside the catch block, before the reservation rollback that
+   follows it ever ran — strictly worse than the original bug.
+
+   Fix actually shipped (the finding's *first* suggested option, adapted):
+   the `employer_review_confirmed`/`employer_countersigned` audit entries
+   are now built as plain in-memory `CertificateAuditEntry` records —
+   `action`, `created_at: nowIso`, `user_id: callerId`, `document_hash` —
+   before any render/Storage I/O, since every field they need is already
+   known at that point. `buildCompletionCertificate` reads that in-memory
+   array (existing DB rows plus these two), exactly reconstructing what the
+   old code got from re-querying the table after inserting into it. The
+   real `document_audit_logs` inserts for
+   `employer_review_confirmed`/`employer_countersigned`/`document_completed`
+   now happen only *after* the finalize `UPDATE` has been confirmed to
+   affect a row — by which point the document is genuinely, durably signed,
+   so a failure in this last, best-effort audit-write step is logged and
+   swallowed rather than surfaced as a user-facing failure for an action
+   that already succeeded. A failed-then-retried attempt now leaves zero
+   audit rows behind, rather than orphaned ones with no way to remove them.
+2. **Completion certificate's candidate email was always blank.** `sign`
+   never stored the candidate's own email in `candidate_signature_data`
+   (only `signerName`), so `countersign`'s attempt to recover it —
+   `callerEmail === candidateParsed?.signerEmail ? callerEmail : ...` —
+   compared the *employer's* own email (the countersign caller) against a
+   field that was always `undefined`, which can never match, so the
+   expression always resolved to `""`. The candidate's email was blank on
+   both the rendered PDF certificate page and the stored
+   `completion_certificate` JSON, while the employer's own email field on
+   the same certificate was correctly populated. Fix: `sign` now includes
+   `signerEmail: callerEmail` (the candidate's own profile email, already
+   in scope) in the stored `candidate_signature_data` JSON; `countersign`
+   reads `candidateParsed?.signerEmail` directly, with no self-comparison,
+   for both the certificate JSON and the burned-PDF certificate page.
+
 ## 0. What's broken today
 
 `public.documents` (offer letters, NDAs, contracts) has real columns for a
