@@ -38,13 +38,16 @@ every table below.
 | `subscription_usage` | 15 | Per-period usage counters (jobs created, applicants, AI analyses, voice minutes) used for limit checks once billing is re-enabled |
 | `voice_credits` | 32 | Voice-minute grants/purchases per user, with remaining balance and expiry |
 | `voice_session_log` | 0 | One row per Ava voice session: minutes charged, caller, time/hard caps — the source of truth for voice billing (`20260916140000_voice_session_log.sql`) |
-| `blueprint_purchases` | 0 | One-off Stripe purchases of a candidate's performance-report "blueprint" |
 | `push_subscriptions` | 0 | Web push registrations per user/device |
 | `google_indexing_notifications` | 0 | Log of Google Indexing API calls fired on job publish/close |
 | `private_rate_limit` | 11 | Fixed-window rate limiting for public edge functions; rows expire via `prune_rate_limits()` |
 | `job_quiz_keys` | 0 | Server-side quiz answer keys, kept out of any client-readable table (`20260915110000_quiz_answer_keys_server_side.sql`) |
 | `quiz_attempt_ledger` | 0 | Tracks quiz attempts/retakes per candidate per job step, to stop resubmission |
-| `trusted_result_enforcement` | 8 | Feature flags gating whether each self-reported step result (typing test, chat/voice interview, portfolio, …) must match a server-recorded trusted result before it is trusted |
+| `trusted_result_enforcement` | 8 | Feature flags gating whether each self-reported step result (typing test, chat/voice interview, portfolio, …) must match a server-recorded trusted result before it is trusted — all 8 rows read `enforced = true` as of 2026-09-16; see `docs/MIGRATION-HISTORY.md` section 2 |
+| `blueprint_purchases` | 0 | One-off Stripe purchases of a candidate's performance-report "blueprint"; the client-side INSERT policy was dropped 2026-09-16 (`blueprint_entitlement_and_purchase_integrity`) — only the service role can record a purchase now |
+| `app_settings` | 1 | Small server-only config table (`blueprint_paid`, default `false` while billing is off); readable by any client, writable only by the service role |
+| `client_error_events` | 0 | One row per grouped browser-error fingerprint (occurrence count, last-seen, dev-notification state); written only by `record_client_error_event()`, developer-role SELECT only |
+| `page_view_daily` | 5 | One row per (day, path, referrer/UTM, device class) with a running view count; written only by `record_page_view()`, developer-role SELECT only |
 
 ## Storage buckets
 
@@ -75,7 +78,7 @@ npx supabase db push
 
 **Do not run this blindly against `yqklrkpptnhubsnijqze`.** `db push` decides
 what to apply by matching each repo file's version prefix against
-`supabase_migrations.schema_migrations.version`. 28 repo migrations are
+`supabase_migrations.schema_migrations.version`. 38 repo migrations are
 currently stamped with a different version than the one recorded live (see
 `docs/MIGRATION-HISTORY.md`, "Same migration, different version stamp"), so an
 unreconciled push will treat those as new and re-run their DDL a second time

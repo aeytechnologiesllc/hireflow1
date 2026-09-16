@@ -75,21 +75,29 @@ gated by a flag); RPC caller checks (`has_role`, subscription/limit lookups,
 the calling user; `voice_session_log`-based voice-minute charging; and access
 scoping on the performance report and dossier views.
 
-**Trusted-results foundation is built but NOT yet live-enforced.** The
+**Trusted-results foundation is built AND live-enforced.** The
 `recordStepResult` path and the `public.trusted_result_enforcement` table
 (one boolean flag per self-reported step type: `chatInterviewResult`,
 `chatSimulationResult`, `phase`, `portfolioResult`, `salesSimulationResult`,
-`typingTestResult`, `videoIntroResult`, `voiceInterviewResult`) exist, but as
-verified live on 2026-09-16 **all 8 flags are `enforced = false`**. The 7
-repo migrations at `supabase/migrations/20260916150100`–`150700_enforce_*.sql`
-that would flip them on were never applied to production — they have no
-matching row in `supabase_migrations.schema_migrations`. Until one of these
-is actually applied, `protected_trusted_result_notes_subset` treats every one
-of those 8 keys as fully candidate-writable (per the comment in
-`20260915140000_trusted_step_results.sql`), so e.g. `voiceInterviewResult`
-can still be forged today via a direct client update to `notes`. Do not
-describe any of these 8 as "enforced" until its migration is confirmed live.
-Treat applying the `enforce_*` migrations as open follow-up work, not done.
+`typingTestResult`, `videoIntroResult`, `voiceInterviewResult`) exist, and as
+re-verified live on 2026-09-16 **all 8 flags are `enforced = true`**. The 7
+`enforce_*` migrations (repo files at
+`supabase/migrations/20260916150100`–`150700_enforce_*.sql`) plus
+`enforce_phase_lock` (which flips `phase`, the 8th flag — repo file
+`supabase/migrations/20260916180000_enforce_phase_lock.sql`) are all applied
+to production, under Management-API-restamped versions
+`20260916183325`–`20260916184013`; see `docs/MIGRATION-HISTORY.md` section 2
+for the version mapping. `protected_trusted_result_notes_subset` now refuses
+a direct client write to any of those 8 `notes` keys — confirmed for the
+voice case via `pg_get_functiondef` on the live
+`submit_voice_interview_manual_end()`, which no longer writes
+`voice_interview_transcript`/`phase_ai_analysis` directly (the post-migration
+body). A prior version of this section, and of
+`docs/MIGRATION-HISTORY.md`, claimed the opposite (`enforced = false`,
+"never applied") — that claim was already false when it was written, six
+minutes after these migrations actually ran; re-run the query above yourself
+before trusting either this line or that one, per
+`docs/MIGRATION-HISTORY.md`'s "Keeping this file honest across sessions."
 
 **One production account has no `profiles` row right now.** Verified live
 2026-09-16: `select count(*) from auth.users u left join public.profiles p
@@ -105,13 +113,16 @@ section 3a.
 See `docs/ARCHITECTURE.md` and `docs/BACKEND-SCHEMA.md` for the current live
 schema, and `docs/MIGRATION-HISTORY.md` for how migration history was
 reconciled with the live database on 2026-09-16 — including the full reverse
-check (every repo migration file with no matching live row, diffed by name
-against the complete live table, not a search scoped to one category) that
-found 20 such files, not 7, split into three different situations: 8 never
-applied with a real live consequence (the orphaned-profile fix plus all 7
-`enforce_*` trusted-result migrations — see "Security posture" above), 2
-never applied that would fail outright if run today (target dropped
-showcase tables), and 10 applied by hand with no tracking row at all.
+check (every one of the 144 repo migration files, diffed by name against the
+complete, freshly-queried live table, not a search scoped to one category)
+that found **82** such files, not 20 and not 7, split into three different
+situations: **1** never applied with a real live consequence (the
+orphaned-profile fix — the `enforce_*`/`enforce_phase_lock` migrations are
+now confirmed applied, see "Security posture" above), **2** never applied
+that would fail outright if run today (target dropped showcase tables), and
+**79** applied untracked (10 by hand against the current schema, 69 that
+predate `schema_migrations` tracking entirely and are this project's
+original foundational migrations).
 
 ## Before touching this clone
 
@@ -173,7 +184,7 @@ npx supabase functions deploy <function-name>
 - [ ] Stripe live keys — checkout is deliberately disabled (fails loudly, takes no money) until pay-per-job billing ships; see "Distribution & billing state" above
 - [ ] One real, complete, published job on production — the feed and Google indexing pipeline are wired and valid but currently serve 0 jobs because the live database has 0 rows in `jobs`/`applications`
 - [ ] Apply `20260831190000_reconcile_orphaned_profiles.sql` — one live account currently has no `profiles` row (see "Security posture" above), so its jobs are silently withheld from the feed/Google structured data
-- [ ] Apply the 7 `enforce_*` trusted-result migrations — see "Security posture" above
+  (the 7 `enforce_*` trusted-result migrations plus `enforce_phase_lock` are already applied live — re-verified 2026-09-16; do not re-add them here without re-running the query in "Security posture" first)
 - [ ] Verify `ONESIGNAL_*` push-notification secrets are current in Supabase Edge Function secrets — the wrong-project-ref bug that silently broke every push was fixed (`20260826221000_fix_push_notification_wrong_project_url`), but re-confirm a live send before relying on it
 - [ ] Custom domain settings beyond `hireflownow.com`, if any additional domain is wanted on Vercel
 
