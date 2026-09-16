@@ -584,6 +584,12 @@ export default function ChatInterviewPhase() {
           const { data: analysisResult } = await invokeTriggerAvaAnalysis({
             applicationId: id!,
             autopilotDecision: true,
+            // recordStepResult (called by the submit above) already advanced
+            // applications.phase to the next step for auto-mode jobs. Pass the
+            // TRUE prior step explicitly so trigger-ava-analysis computes its
+            // pass/fail decision relative to chat_interview, not the
+            // already-advanced phase it would otherwise re-read from the DB.
+            currentPhaseId: stepId,
           });
           
           // Backend returns decision: "rejected" | "advanced" | "needs_employer_approval"
