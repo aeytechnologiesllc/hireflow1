@@ -45,13 +45,7 @@ import {
 } from "@/components/ui/dialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImprovementBlueprintCard } from "@/components/ImprovementBlueprintCard";
-import { BLUEPRINT_PRICE_FORMATTED } from "@/hooks/useImprovementBlueprint";
-
-/** The Blueprint is sold through Stripe Checkout. Without a publishable key the
- *  checkout cannot open, so "Get Feedback Report — $1.99" would be a button that
- *  does nothing, shown to someone who has just been turned down. Hidden until
- *  billing is configured. */
-const BLUEPRINT_PURCHASE_ENABLED = !!import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+import { BLUEPRINT_PRICE_FORMATTED, useBlueprintBilling } from "@/hooks/useImprovementBlueprint";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 import {
   getApplicationDisplayState,
@@ -189,6 +183,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
   const navigate = useNavigate();
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmWithdrawOpen, setConfirmWithdrawOpen] = useState(false);
+  const { billingEnabled } = useBlueprintBilling();
   const job = application.jobs;
   const phase = application.phase || "application";
 
@@ -343,7 +338,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
           </button>
         )}
 
-        {displayState.isRejected && onOpenBlueprint && BLUEPRINT_PURCHASE_ENABLED && (
+        {displayState.isRejected && onOpenBlueprint && (
           <button
             type="button"
             onClick={(e) => {
@@ -354,13 +349,12 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
             style={{ borderColor: "var(--brass-line)", color: "var(--brass)" }}
           >
             <Download className="h-4 w-4" />
-            {/* The price belongs on the button, not behind it. This said "Get
-                Feedback Report" and opened a $1.99 payment wall — shown to
-                someone who has just been turned down for a job. Concealing a
-                charge until after the click is a dark pattern anywhere; here it
-                lands on a person at their least able to shrug it off. Whether
-                to charge at all is a pricing decision; hiding it is not. */}
-            Get Feedback Report — {BLUEPRINT_PRICE_FORMATTED}
+            {/* The price belongs on the button, not behind it — never conceal
+                a charge until after the click, especially here. While billing
+                is off (app_settings 'blueprint_paid' = false) the report is
+                free, so the button says so honestly instead of quoting a
+                price nobody will be charged. */}
+            {billingEnabled ? <>Get Feedback Report — {BLUEPRINT_PRICE_FORMATTED}</> : <>Get Improvement Report</>}
           </button>
         )}
 

@@ -24,6 +24,12 @@
  * scripts/performance_report_access.test.mjs -- run directly:
  * `node scripts/performance_report_access.test.mjs`); these are cheap static
  * checks over the source, not a substitute for that test.
+ *
+ * 2026-09-16: extended for the free-tier entitlement switch
+ * (app_settings 'blueprint_paid', supabase/functions/_shared/appSettings.ts)
+ * -- the candidate path is now "purchased OR billing is off", not purchase
+ * alone. See scripts/guards/blueprint-entitlement-and-pricing.mjs for the
+ * checks specific to that switch and to purchase-blueprint's pricing.
  */
 
 const FN = "supabase/functions/ai-generate-performance-report/index.ts";
@@ -75,8 +81,11 @@ export default [
       if (!/isEmployerSide\)\s*return\s*true/.test(accessSrc)) {
         bad.push("canAccessPerformanceReport no longer grants employer-side callers");
       }
-      if (!/isCandidateOwner\s*&&\s*hasPurchasedBlueprint\)\s*return\s*true/.test(accessSrc)) {
-        bad.push("canAccessPerformanceReport no longer requires hasPurchasedBlueprint for the candidate path");
+      if (!/isCandidateOwner\s*&&\s*\(hasPurchasedBlueprint\s*\|\|\s*!billingEnabled\)\)\s*return\s*true/.test(accessSrc)) {
+        bad.push(
+          "canAccessPerformanceReport's candidate path must be (hasPurchasedBlueprint || !billingEnabled) -- " +
+          "either a real purchase, or billing being off entirely (app_settings 'blueprint_paid')"
+        );
       }
       if (!/blueprint_purchases/.test(src)) {
         bad.push("no blueprint_purchases lookup -- candidate path isn't gated on payment");

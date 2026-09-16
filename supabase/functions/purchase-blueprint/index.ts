@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { isBlueprintBillingEnabled } from "../_shared/appSettings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,9 +13,6 @@ const logStep = (step: string, details?: unknown) => {
   console.log(`[PURCHASE-BLUEPRINT] ${step}${detailsStr}`);
 };
 
-// $1.99 Improvement Blueprint price ID
-const BLUEPRINT_PRICE_ID = Deno.env.get("STRIPE_BLUEPRINT_PRICE_ID") || "price_1SilejJoMc2msNl4FjnsSEb4";
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -23,15 +21,34 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
-    const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
-    logStep("Stripe key verified");
-
     // Create Supabase client
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? ""
     );
+
+    // The free tier has been open on purpose since 2026-09-04 -- nothing may
+    // sit behind a paywall while billing is off. If this function is somehow
+    // still reached (the UI hides the purchase button in that state), refuse
+    // rather than charge someone for something included for free.
+    const billingEnabled = await isBlueprintBillingEnabled(supabaseClient);
+    if (!billingEnabled) {
+      logStep("Billing is off — blueprint is free, refusing to open checkout");
+      return new Response(
+        JSON.stringify({ error: "The Improvement Blueprint is included at no charge right now — no purchase needed." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
+    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
+    logStep("Stripe key verified");
+
+    // No hardcoded fallback: a wrong or stale price id charged the wrong
+    // amount silently. With billing on, a missing price id must fail loudly
+    // instead of falling back to a guess.
+    const BLUEPRINT_PRICE_ID = Deno.env.get("STRIPE_BLUEPRINT_PRICE_ID");
+    if (!BLUEPRINT_PRICE_ID) throw new Error("STRIPE_BLUEPRINT_PRICE_ID is not set");
 
     // Authenticate user
     const authHeader = req.headers.get("Authorization");

@@ -77,47 +77,56 @@ serve(async (req) => {
       throw new Error("User ID mismatch");
     }
 
-    // Check if purchase already recorded (idempotency)
-    const { data: existingPurchase } = await supabaseAdmin
-      .from("blueprint_purchases")
-      .select("id")
-      .eq("stripe_session_id", sessionId)
-      .single();
-
-    if (existingPurchase) {
-      logStep("Purchase already recorded", { purchaseId: existingPurchase.id });
-      return new Response(JSON.stringify({ 
-        success: true, 
-        alreadyRecorded: true,
-        purchaseId: existingPurchase.id 
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      });
-    }
-
-    // Record the purchase
+    // Record the purchase. Idempotent via the unique index on
+    // stripe_session_id (20260916160000_blueprint_entitlement_and_purchase_integrity.sql):
+    // a prior check-then-insert here could race a second call for the same
+    // session (a double-click, a retry, or stripe-webhook's own insert for
+    // this same "improvement_blueprint" checkout.session.completed event)
+    // into two rows for one payment. ON CONFLICT DO NOTHING makes the second
+    // writer a no-op instead.
     const { data: purchase, error: insertError } = await supabaseAdmin
       .from("blueprint_purchases")
-      .insert({
-        user_id: user.id,
-        application_id: applicationId,
-        stripe_session_id: sessionId,
-        amount_paid: session.amount_total || 199,
-      })
+      .upsert(
+        {
+          user_id: user.id,
+          application_id: applicationId,
+          stripe_session_id: sessionId,
+          amount_paid: session.amount_total || 199,
+        },
+        { onConflict: "stripe_session_id", ignoreDuplicates: true },
+      )
       .select()
-      .single();
+      .maybeSingle();
 
     if (insertError) {
       logStep("Error inserting purchase", { error: insertError.message });
       throw new Error(`Failed to record purchase: ${insertError.message}`);
     }
 
+    if (!purchase) {
+      // ignoreDuplicates means a conflicting row returns no data here even
+      // though the purchase IS recorded (by this call or a racing one).
+      const { data: existingPurchase } = await supabaseAdmin
+        .from("blueprint_purchases")
+        .select("id")
+        .eq("stripe_session_id", sessionId)
+        .maybeSingle();
+      logStep("Purchase already recorded", { purchaseId: existingPurchase?.id });
+      return new Response(JSON.stringify({
+        success: true,
+        alreadyRecorded: true,
+        purchaseId: existingPurchase?.id,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+
     logStep("Purchase recorded successfully", { purchaseId: purchase.id });
 
-    return new Response(JSON.stringify({ 
-      success: true, 
-      purchaseId: purchase.id 
+    return new Response(JSON.stringify({
+      success: true,
+      purchaseId: purchase.id
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
