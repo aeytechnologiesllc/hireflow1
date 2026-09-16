@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,17 +27,13 @@ import { invokeTriggerAvaAnalysis, triggerAvaAnalysis, evaluatePhaseSubmission }
 import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
-import { buildCandidateJourney, DECISION_STAGE_ID } from "@/lib/candidateJourney";
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 
-// Sample typing test paragraphs
-const typingTexts = [
-  "The quick brown fox jumps over the lazy dog. This classic pangram contains every letter of the English alphabet at least once. It has been used for decades to test typewriters, keyboards, and typing software.",
-  "Customer service is about creating positive experiences for every client. Active listening, empathy, and clear communication are essential skills. A great support representative can turn a frustrated customer into a loyal advocate.",
-  "In today's fast-paced business environment, effective communication is more important than ever. Whether you're writing emails, preparing reports, or participating in meetings, your ability to express ideas clearly can make or break your career.",
-  "Technology continues to transform how we work and interact with customers. From chatbots to CRM systems, understanding these tools helps us provide better service. Embracing change while maintaining a human touch is the key to success.",
-  "Problem-solving is a critical skill in any workplace. When faced with challenges, taking a step back to analyze the situation, considering multiple solutions, and implementing the best approach can lead to positive outcomes for everyone involved."
-];
+// The candidate passage is now chosen server-side by submit-typing-test's
+// "start" action (supabase/functions/submit-typing-test/calculateResults.ts)
+// and echoed back here — not picked client-side any more, so the server
+// always grades against the exact same text the candidate was shown. See
+// docs/TRUSTED-RESULTS.md.
 
 interface WorkflowStep {
   id: string;
@@ -85,6 +80,7 @@ export default function TypingTestPhase() {
   const [typedText, setTypedText] = useState("");
   const [timeLeft, setTimeLeft] = useState(60);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
   const [targetText, setTargetText] = useState("");
   const [startTime, setStartTime] = useState<number | null>(null);
   const [results, setResults] = useState<{
@@ -210,12 +206,6 @@ export default function TypingTestPhase() {
     };
   }, [id, queryClient]);
 
-  // Initialize target text
-  useEffect(() => {
-    const randomIndex = Math.floor(Math.random() * typingTexts.length);
-    setTargetText(typingTexts[randomIndex]);
-  }, []);
-
   // Where the candidate is in the whole journey — derived from the job's real
   // workflow_steps via the shared candidateJourney builder, so this screen
   // agrees with every other candidate screen. Never invented.
@@ -260,16 +250,39 @@ export default function TypingTestPhase() {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [testState, recordViolation]);
 
-  const startTest = useCallback(() => {
-    setTestState("testing");
-    const now = Date.now();
-    setStartTime(now);
-    startTimeRef.current = now;
-    setTypedText("");
-    typedTextRef.current = "";
-    setTimeLeft(60);
-    setTimeout(() => textareaRef.current?.focus(), 100);
-  }, []);
+  // Records a SERVER-clock start time for this (application, step) and
+  // fetches the passage to type — supabase/functions/submit-typing-test's
+  // "start" action. The client no longer picks its own passage: the server
+  // is the one source of truth for what text a submission is graded
+  // against, and the elapsed time "submit" measures is always this
+  // started_at, never anything the browser reports. Called fresh every
+  // time the test truly begins, including a "Try again" retry.
+  const startTest = useCallback(async () => {
+    if (!id || !stepId) return;
+    setIsStarting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("submit-typing-test", {
+        body: { action: "start", applicationId: id, stepId },
+      });
+      if (error || !data?.targetText) {
+        throw error || new Error("No passage returned");
+      }
+      setTargetText(data.targetText as string);
+      setTestState("testing");
+      const now = Date.now();
+      setStartTime(now);
+      startTimeRef.current = now;
+      setTypedText("");
+      typedTextRef.current = "";
+      setTimeLeft(60);
+      setTimeout(() => textareaRef.current?.focus(), 100);
+    } catch (err) {
+      console.error("[TypingTestPhase] Failed to start typing test:", err);
+      toast.error("Couldn't start the typing test — please try again.");
+    } finally {
+      setIsStarting(false);
+    }
+  }, [id, stepId]);
 
   const calculateResults = useCallback(() => {
     const currentTypedText = typedTextRef.current;
@@ -322,114 +335,59 @@ export default function TypingTestPhase() {
 
   const handleSubmit = async () => {
     if (!results || !application) return;
-    
+
     setIsSubmitting(true);
-    
+
     try {
       // CRITICAL: Re-fetch fresh job data to get current processing_mode
       // This prevents stale cached data from causing auto-rejection in manual mode
       const { data: freshJob } = await supabase
         .from("jobs")
-        .select("processing_mode, passing_score, required_wpm")
+        .select("processing_mode")
         .eq("id", application.job_id)
         .single();
-      
+
       const isAutoMode = freshJob?.processing_mode === "auto";
-      const passingScore = freshJob?.passing_score || 60;
-      const requiredWpm = freshJob?.required_wpm || 40;
-      
+
       // For autopilot mode, show evaluation screen
       if (isAutoMode) {
         setEvaluationState("evaluating");
       }
-      // Parse existing notes or start fresh
-      const existingNotes = parseApplicationNotes(application.notes);
-      
-      // Add typing test results (include requiredWpm for proper assessment)
-      const tabSwitchViolations = violations.filter(v => v.type === 'tab_switch').length;
-      const updatedNotes = {
-        ...existingNotes,
-        [stepId!]: {
-          type: "typing_test",
-          wpm: results.wpm,
-          accuracy: results.accuracy,
-          score: results.score,
-          passed: results.passed,
-          requiredWpm: requiredWpm,
-          tabSwitches: tabSwitchViolations,
-          violations: violations,
-          completedAt: new Date().toISOString(),
+
+      // Grade server-side: submit-typing-test computes elapsed time from
+      // ITS OWN server-recorded start time (never anything this browser
+      // reports), reproduces the same wpm/accuracy/score formula this page
+      // used to compute locally, and writes notes.typingTestResult /
+      // notes[stepId] / phase via recordStepResult — this page no longer
+      // touches `applications` directly for this step at all.
+      const { data: submitData, error: submitError } = await supabase.functions.invoke("submit-typing-test", {
+        body: {
+          action: "submit",
+          applicationId: id,
+          stepId,
+          typedText: typedTextRef.current,
+          violations,
         },
-        typingTestResult: {
-          wpm: results.wpm,
-          accuracy: results.accuracy,
-          score: results.score,
-          passed: results.passed,
-          requiredWpm: requiredWpm,
-          tabSwitches: tabSwitchViolations,
-          violations: violations,
-        },
-      };
+      });
 
-      // Build the real journey to find the next stage
-      const workflowSteps = application.jobs?.workflow_steps || [];
-      const quizQuestions = application.jobs?.quiz_questions as Json[] | undefined;
-      const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
-
-      const allPhases = buildCandidateJourney(workflowSteps, { hasQuiz });
-
-      // Find current step index
-      let currentIndex = allPhases.findIndex((p) => p.id === stepId);
-      if (currentIndex === -1 && application.phase) {
-        currentIndex = allPhases.findIndex(
-          (p) => p.id === application.phase || p.type === application.phase
-        );
+      if (submitError || submitData?.error) {
+        throw submitError || new Error(submitData?.error || "Failed to submit typing test");
       }
 
-      let newPhase = application.phase;
-      let newStatus = application.status;
-
-      // Determine next phase
-      let nextPhase: { id: string; type: string; title: string } | null = null;
-      if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
-        nextPhase = allPhases[currentIndex + 1];
-      }
-
-      if (isAutoMode) {
-        // UNIFIED SCORING: Do NOT make pass/fail decision locally
-        // The backend (trigger-ava-analysis) is the SINGLE SOURCE OF TRUTH
-        // It will calculate the weighted score and decide pass/fail
-
-        // Determine next phase info for UI (if candidate passes) — not for
-        // voice_interview (needs employer approval to start) or the closing
-        // decision stage (nothing to click into, just wait).
-        if (nextPhase && nextPhase.type !== "voice_interview" && nextPhase.id !== DECISION_STAGE_ID) {
-          setNextPhaseInfo({
-            id: nextPhase.id,
-            title: nextPhase.title,
-          });
-        }
+      // UNIFIED SCORING: Do NOT make pass/fail decision locally — the
+      // backend (trigger-ava-analysis) is the SINGLE SOURCE OF TRUTH. The
+      // server's own next-step lookup (mirroring the same journey rules
+      // this page used to compute locally) drives the "Start Next Phase"
+      // button — not for voice_interview (needs employer approval to
+      // start) or the closing decision stage (nothing to click into, just
+      // wait), which the server already resolves to "waiting" for us.
+      if (isAutoMode && submitData?.next && submitData.next !== "waiting") {
+        setNextPhaseInfo({
+          id: submitData.next.id,
+          title: submitData.next.title,
+        });
       }
       // Manual mode - NEVER auto-advance or reject. Employer controls.
-
-      // Build detailed phase analysis
-      const speedPercent = Math.round((results.wpm / requiredWpm) * 100);
-      const phaseAiAnalysis = `Typing test: ${results.wpm} WPM (${speedPercent}% of ${requiredWpm} WPM target), Accuracy: ${results.accuracy}%, Combined Score: ${results.score}%. Local calculation: ${results.passed ? "PASSED" : "FAILED"}. Backend will compute final weighted score.`;
-
-      // Update application with typing test data but do NOT set status to rejected
-      // The backend will handle status updates via autopilotDecision
-      const { error } = await supabase
-        .from("applications")
-        .update({
-          notes: JSON.stringify(updatedNotes),
-          // Do NOT change phase or status here - let backend handle in autopilot mode
-          phase: application.phase,
-          status: application.status as "pending" | "reviewing" | "interview" | "offered" | "hired" | "rejected",
-          phase_ai_analysis: phaseAiAnalysis,
-        })
-        .eq("id", id!);
-
-      if (error) throw error;
 
       // Invalidate candidate applications to update the tile status
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
@@ -542,8 +500,9 @@ export default function TypingTestPhase() {
     setResults(null);
     setStartTime(null);
     setViolations([]);
-    const randomIndex = Math.floor(Math.random() * typingTexts.length);
-    setTargetText(typingTexts[randomIndex]);
+    // The next passage is chosen server-side, the moment "Start typing
+    // test" calls startTest() again.
+    setTargetText("");
   };
 
   // Check if already submitted
@@ -732,9 +691,18 @@ export default function TypingTestPhase() {
                 <p className="text-xs text-muted-foreground">
                   The clock starts the moment you press start.
                 </p>
-                <Button onClick={startTest} size="lg" className="w-full gap-2 sm:w-auto">
-                  <Play className="h-5 w-5" />
-                  Start typing test
+                <Button onClick={startTest} disabled={isStarting} size="lg" className="w-full gap-2 sm:w-auto">
+                  {isStarting ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      Starting...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-5 w-5" />
+                      Start typing test
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
