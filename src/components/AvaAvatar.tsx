@@ -106,10 +106,11 @@ export function AvaAvatar({
     const centerBias = 1 - (distanceFromCenter * 0.15); // Center bars slightly taller
 
     switch (expression) {
-      case "speaking":
+      case "speaking": {
         // Dynamic height based on actual audio levels
         const audioLevel = normalizedLevels[index] || 0;
         return baseHeight + (audioLevel * 0.7 * centerBias);
+      }
       case "listening":
         // Gentle pulse pattern
         return baseHeight + 0.2 * centerBias;

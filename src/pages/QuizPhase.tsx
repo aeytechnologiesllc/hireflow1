@@ -466,7 +466,7 @@ export default function QuizPhase() {
 
     const now = Date.now();
     const startIndex = Math.min(currentQuestionIndexRef.current, questions.length - 1);
-    let workingDeadlines = { ...questionDeadlinesRef.current };
+    const workingDeadlines = { ...questionDeadlinesRef.current };
     let resolvedIndex = startIndex;
     let lastBoundary: number | null = null;
 

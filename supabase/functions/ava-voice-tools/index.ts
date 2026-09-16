@@ -162,7 +162,7 @@ serve(async (req) => {
       }
 
       case "move_applicant_to_phase": {
-        let { application_id, new_phase, new_status } = parameters;
+        const { application_id, new_phase, new_status } = parameters;
 
         // Verify the application belongs to this employer and get workflow steps
         const { data: app, error: appError } = await supabaseClient

@@ -38,7 +38,13 @@ function sanitizeText(text: string): string {
     .replace(/"/g, '"')
     .replace(/"/g, '"')
     .replace(/…/g, '...')
+    // The pattern IS a literal non-breaking space (U+00A0), matched on
+    // purpose to normalize it.
+    // eslint-disable-next-line no-irregular-whitespace
     .replace(/ /g, ' ') // non-breaking space
+    // Deliberately stripping any remaining non-ASCII byte so jsPDF never
+    // chokes on an unsupported glyph.
+    // eslint-disable-next-line no-control-regex
     .replace(/[^\x00-\x7F]/g, ''); // Remove any remaining non-ASCII
 }
 

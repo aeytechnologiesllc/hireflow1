@@ -230,18 +230,20 @@ export function formatAuditEventDescription(
     case "completed":
       return "All signatures collected. Document is now fully executed and locked from further changes.";
     case "document_declined":
-    case "declined":
+    case "declined": {
       const reason = details?.decline_reason || details?.reason || "Not specified";
       return `Document was declined. Reason: ${reason}`;
+    }
     case "sent":
       return "Document was sent to the recipient for review and signing.";
     case "downloaded":
     case "document_downloaded":
       return "Document was downloaded.";
     case "voided":
-    case "document_voided":
+    case "document_voided": {
       const voidReason = details?.void_reason || details?.reason || "Not specified";
       return `Document was voided after the candidate signed, before it was countersigned. Reason: ${voidReason}`;
+    }
     case "withdrawn":
     case "document_withdrawn": {
       const withdrawReason = details?.reason || "Not specified";

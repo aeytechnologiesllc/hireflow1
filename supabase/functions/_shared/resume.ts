@@ -105,6 +105,8 @@ function decodeText(arrayBuffer: ArrayBuffer) {
 }
 
 function cleanExtractedText(text: string) {
+  // Deliberately stripping NUL bytes some PDF/DOC extractors leave in.
+  // eslint-disable-next-line no-control-regex
   return text.replace(/\u0000/g, "").replace(/\s+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 

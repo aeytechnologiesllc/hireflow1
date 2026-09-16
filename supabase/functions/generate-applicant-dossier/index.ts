@@ -35,6 +35,9 @@ function sanitizeText(text: string | null | undefined): string {
     .replace(/"/g, '"')
     .replace(/…/g, '...')
     .replace(/\u00A0/g, ' ')
+    // Deliberately stripping any remaining non-ASCII byte so jsPDF never
+    // chokes on an unsupported glyph.
+    // eslint-disable-next-line no-control-regex
     .replace(/[^\x00-\x7F]/g, '');
 }
 

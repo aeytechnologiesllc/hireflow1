@@ -603,7 +603,6 @@ function generateFullSummary(
   let hasNameMismatch = false;
   let hasResumeIssue = false;
   let noMatchingSkills = false;
-  let requiredSkillsFromJob: string[] = [];
   let recommendationText: string | null = recommendation;
   
   // Extract key findings from sections
@@ -832,7 +831,7 @@ function parseAIAnalysis(
     if (!trimmed) continue;
 
     // Score
-    const scoreMatch = trimmed.match(/^(?:\*\*)?Overall Score\s*[:\-]\s*(\d{1,3})(?:\*\*)?$/i);
+    const scoreMatch = trimmed.match(/^(?:\*\*)?Overall Score\s*[:-]\s*(\d{1,3})(?:\*\*)?$/i);
     if (scoreMatch) {
       const n = parseInt(scoreMatch[1], 10);
       result.score = Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : null;
@@ -840,7 +839,7 @@ function parseAIAnalysis(
     }
 
     // Recommendation
-    const recMatch = trimmed.match(/^(?:\*\*)?Recommendation\s*[:\-]\s*([^*\n]+?)(?:\*\*)?$/i);
+    const recMatch = trimmed.match(/^(?:\*\*)?Recommendation\s*[:-]\s*([^*\n]+?)(?:\*\*)?$/i);
     if (recMatch) {
       result.recommendation = recMatch[1].trim();
       continue;
@@ -855,7 +854,7 @@ function parseAIAnalysis(
     }
 
     // Start section on structured content
-    if (!currentSection && /^Status\s*[:\-]|^Confidence\s*[:\-]|^Notes\s*[:\-]|^Red Flags\s*[:\-]|^Summary\s*[:\-]|^Key Strengths\s*[:\-]|^Areas of Concern\s*[:\-]/i.test(trimmed)) {
+    if (!currentSection && /^Status\s*[:-]|^Confidence\s*[:-]|^Notes\s*[:-]|^Red Flags\s*[:-]|^Summary\s*[:-]|^Key Strengths\s*[:-]|^Areas of Concern\s*[:-]/i.test(trimmed)) {
       currentSection = { title: "Overview", items: [] };
     }
 

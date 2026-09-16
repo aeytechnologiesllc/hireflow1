@@ -243,13 +243,13 @@ export default function VideoIntroPhase() {
   };
 
   const stopRecording = () => {
-    mediaRecorderRef.current?.state !== "inactive" && mediaRecorderRef.current?.stop();
-    timerRef.current && clearInterval(timerRef.current);
+    if (mediaRecorderRef.current?.state !== "inactive") mediaRecorderRef.current?.stop();
+    if (timerRef.current) clearInterval(timerRef.current);
     streamRef.current?.getTracks().forEach(track => track.stop());
   };
 
   const resetRecording = () => {
-    recordedUrl && URL.revokeObjectURL(recordedUrl);
+    if (recordedUrl) URL.revokeObjectURL(recordedUrl);
     setRecordedBlob(null);
     setRecordedUrl(null);
     setRecordingTime(0);
