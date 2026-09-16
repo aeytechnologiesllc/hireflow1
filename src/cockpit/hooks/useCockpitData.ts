@@ -1,6 +1,7 @@
 import { useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -97,15 +98,42 @@ export function useCockpitJobsData() {
     enabled: mode === "showcase",
   });
 
+  // Distinct employer_ids across the fetched jobs (a team member's jobs all
+  // carry the OWNER's employer_id, but this stays generic rather than
+  // assuming exactly one). One query for all of them, read from the public
+  // branding view — the same thing the real "boards"/Google gates check.
+  const employerIds = useMemo(
+    () => [...new Set(jobs.map((j) => j.employer_id).filter((id): id is string => !!id))],
+    [jobs],
+  );
+  const companiesQ = useQuery({
+    queryKey: ["cockpit-jobs-employer-branding", employerIds],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employer_public_branding")
+        .select("user_id, company_name")
+        .in("user_id", employerIds);
+      if (error) throw error;
+      const map = new Map<string, string | null>();
+      for (const row of data ?? []) {
+        if (row.user_id) map.set(row.user_id, row.company_name ?? null);
+      }
+      return map;
+    },
+    enabled: mode !== "showcase" && employerIds.length > 0,
+  });
+
   const rows = useMemo(() => {
     if (mode === "showcase") return showcaseQ.data ?? [];
-    return jobs.map((j) => mapJobRow(j, applications));
-  }, [mode, showcaseQ.data, jobs, applications]);
+    const companies = companiesQ.data ?? new Map<string, string | null>();
+    return jobs.map((j) => mapJobRow(j, applications, j.employer_id ? companies.get(j.employer_id) : null));
+  }, [mode, showcaseQ.data, jobs, applications, companiesQ.data]);
 
   const refetch = () => {
     void refetchJobs();
     void refetchApps();
     void showcaseQ.refetch();
+    void companiesQ.refetch();
   };
 
   return {

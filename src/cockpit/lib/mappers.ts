@@ -14,6 +14,7 @@ import {
   DECISION_STAGE_ID,
   type WorkflowStepLike,
 } from "@/lib/candidateJourney";
+import { listingEligibility } from "./listingEligibility";
 import type {
   Candidate,
   CandidateStage,
@@ -73,7 +74,11 @@ function formatPay(job: JobWithApplicationCount): string {
   return job.job_type ? job.job_type.replace(/_/g, " ") : "Competitive pay";
 }
 
-export function mapJobRow(job: JobWithApplicationCount, apps: ApplicationWithCandidate[]): JobRow {
+export function mapJobRow(
+  job: JobWithApplicationCount,
+  apps: ApplicationWithCandidate[],
+  companyName?: string | null,
+): JobRow {
   const jobApps = apps.filter((a) => a.job_id === job.id && a.status !== "rejected");
   const voice = jobApps.filter((a) => !!a.voice_interview_result).length;
   const shortlist = jobApps.filter((a) => ["reviewing", "interview", "offered"].includes(a.status)).length;
@@ -95,6 +100,7 @@ export function mapJobRow(job: JobWithApplicationCount, apps: ApplicationWithCan
     dateLabel,
     date,
     stats: { voice, shortlist, interview, hired },
+    listings: status === "live" ? listingEligibility(job, companyName) : undefined,
   };
 }
 

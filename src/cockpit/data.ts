@@ -52,6 +52,13 @@ export interface JobRow {
   /** Public candidate-facing application code (showcase roles.role_code). */
   roleCode?: string | null;
   stats: { voice: number; shortlist: number; interview: number; hired: number };
+  /**
+   * Whether this LIVE job actually clears the real distribution gates
+   * (api/job-feed.mjs's loadFeedJobs() / supabase/functions/sitemap's
+   * indexableJobs — see src/cockpit/lib/listingEligibility.ts). Absent for
+   * drafts/closed roles and for showcase rows, where it does not apply.
+   */
+  listings?: { google: boolean; boards: boolean; reason: string | null };
 }
 
 export type CandidateStage = "Application" | "Quiz" | "Voice" | "Shortlist" | "Hired" | "Rejected";

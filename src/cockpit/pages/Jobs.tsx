@@ -23,12 +23,16 @@ import type { JobRow, JobStatus } from "../data";
  * jade edge because they are the ones costing you nothing and working right now.
  *
  * Every listing claim on this screen is something the app actually does: a
- * published role gets its own public page, carries JobPosting markup for Google
- * for Jobs, and sits in the employer's /jobs.xml feed. Nothing here implies a
- * board we do not actually post to.
+ * published role gets its own public page, and — when it actually clears the
+ * real gates in api/job-feed.mjs / supabase/functions/sitemap — carries
+ * JobPosting markup for Google for Jobs and sits in the employer's /jobs.xml
+ * feed. Nothing here implies a board we do not actually post to. A live role
+ * that is missing a city, a real company name, or a long-enough description
+ * shows the chip it hasn't earned yet dimmed rather than claiming it — see
+ * src/cockpit/lib/listingEligibility.ts, which mirrors both gates exactly.
  */
 
-/** The three places a published role is listed automatically. Drafts show these dimmed. */
+/** The three places a published role CAN be listed. Drafts show all three dimmed; a live role dims whichever it hasn't earned yet. */
 const LISTINGS = ["Your job page", "Google for Jobs", "Job boards"] as const;
 
 const CHIP: Record<JobStatus, { label: string; bg: string; fg: string }> = {
@@ -201,27 +205,38 @@ function JobListRow({
         </div>
       </div>
 
-      {/* where it is listed — automatic on publish, dimmed while it is a draft */}
+      {/* where it is listed — automatic on publish, dimmed while it is a draft
+          OR while a live role isn't actually clearing that gate yet */}
       {job.status !== "closed" && (
         <div
           className="hidden shrink-0 items-center gap-[5px] xl:flex"
-          // "Job boards" is not automatic the way the first two are, so the
-          // tooltip says which is which rather than claiming all three.
           title={
             live
-              ? "Your job page and Google go up automatically — boards list you once you send them your link"
+              ? job.listings?.reason
+                ? `Your job page is live. ${job.listings.reason}`
+                : "Your job page, Google for Jobs and the job board feed are all live for this role"
               : "Where it will be listed once you publish"
           }
         >
-          {LISTINGS.map((net) => (
-            <span
-              key={net}
-              className="whitespace-nowrap rounded-[5px] px-2 py-[3px] text-[11px]"
-              style={{ background: "var(--surface-2)", color: "var(--ink-2)", opacity: live ? 1 : 0.45 }}
-            >
-              {net}
-            </span>
-          ))}
+          {LISTINGS.map((net) => {
+            // Only a LIVE role has a real per-chip eligibility to check —
+            // drafts show every chip dimmed the same way they always have.
+            const eligible =
+              !live || net === "Your job page"
+                ? true
+                : net === "Google for Jobs"
+                  ? (job.listings?.google ?? true)
+                  : (job.listings?.boards ?? true);
+            return (
+              <span
+                key={net}
+                className="whitespace-nowrap rounded-[5px] px-2 py-[3px] text-[11px]"
+                style={{ background: "var(--surface-2)", color: "var(--ink-2)", opacity: live ? (eligible ? 1 : 0.45) : 0.45 }}
+              >
+                {net}
+              </span>
+            );
+          })}
         </div>
       )}
 
