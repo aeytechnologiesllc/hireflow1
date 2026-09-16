@@ -13,7 +13,6 @@ import {
   GripVertical,
   AlertCircle,
 } from "lucide-react";
-import { AvaGlyph } from "@/components/ava/AvaGlyph";
 
 export const DISPLAY = "'Fraunces', Georgia, serif";
 

@@ -17,7 +17,7 @@ import {
  * The one place a step's kind becomes a brand mark.
  *
  * This lived inside the employer create-flow's shared.tsx, which also pulls in
- * framer-motion, GemRail and AvaGlyph — so the candidate side could not reach
+ * framer-motion and GemRail — so the candidate side could not reach
  * it without dragging the whole create flow along, and instead carried its own
  * map of stock lucide icons (FileCheck, ClipboardList, Video, Keyboard,
  * MessageSquare, Briefcase, Mic, Eye). That map drew the candidate's own

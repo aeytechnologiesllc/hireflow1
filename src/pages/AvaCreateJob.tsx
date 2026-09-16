@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { AvaGlyph } from "@/components/ava/AvaGlyph";
+import { AvaSeal } from "@/components/ava/AvaSeal";
 import { HeroBackground } from "@/components/ava/HeroBackground";
 import { CountUp } from "@/cockpit/components/CountUp";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
@@ -537,7 +537,7 @@ export default function AvaCreateJob() {
                 <div className="grid items-center gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:gap-14">
                   <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
                     <span className="mt-4 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ borderColor: "hsl(var(--primary) / 0.3)", color: "hsl(var(--ck-brass))" }}>
-                      <AvaGlyph size={12} /> Ava · Hiring assistant
+                      <AvaSeal size={12} /> Ava · Hiring assistant
                     </span>
                     <h1 className="mt-4 text-3xl leading-[1.1] sm:text-4xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>Tell Ava what you're<br className="hidden sm:block" /> hiring for.</h1>
                     <p className="mt-3 max-w-sm text-sm leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
@@ -601,7 +601,7 @@ export default function AvaCreateJob() {
                   <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
                     <span className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--ck-brass))" }}>Ava · Question {fuIndex + 1} of {followUps.length}</span>
                     <span className="mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold" style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--ck-mint))", border: "1px solid hsl(var(--primary) / 0.22)" }}>
-                      <AvaGlyph size={11} /> Tailored to a {playbook.label} role
+                      <AvaSeal size={11} /> Tailored to a {playbook.label} role
                     </span>
                     <h2 className="mt-4 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>{fu.question}</h2>
                     <div className="mt-7 flex flex-wrap justify-center gap-2.5">
@@ -622,7 +622,7 @@ export default function AvaCreateJob() {
                 <div className="mx-auto max-w-3xl text-center">
                   <h2 className="mt-4 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>How thoroughly should I screen?</h2>
                   <div className="mx-auto mt-5 flex max-w-xl items-start gap-3 rounded-2xl p-4 text-left" style={{ background: "hsl(var(--primary) / 0.08)", border: "1px solid hsl(var(--primary) / 0.3)" }}>
-                    <AvaGlyph size={16} className="mt-1 shrink-0" />
+                    <AvaSeal size={16} className="mt-1 shrink-0" />
                     <p className="text-sm leading-relaxed">I'd screen this at <strong style={{ color: "hsl(var(--ck-brass-bright))" }}>{RIGOR_OPTIONS.find((o) => o.id === playbook.rigor.recommended)?.label}</strong>. {playbook.rigor.rationale}</p>
                   </div>
                   <div className="mt-6 grid gap-3 sm:grid-cols-3">
@@ -838,7 +838,7 @@ export default function AvaCreateJob() {
           >
             {publishing && <Loader2 className="h-4 w-4 animate-spin" />}
             {nextLabel}
-            {step === 2 ? <AvaGlyph size={16} /> : <ArrowRight className="h-4 w-4" />}
+            {step === 2 ? <AvaSeal size={16} /> : <ArrowRight className="h-4 w-4" />}
           </button>
         </footer>
       )}

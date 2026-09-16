@@ -4,7 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/hooks/useAuth";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -85,7 +85,6 @@ const CreateJob = lazyWithReload(() => import("./pages/AvaCreateJob"));
 const CreateJobLegacy = lazyWithReload(() => import("./pages/CreateJob"));
 const GuestJobCreator = lazyWithReload(() => import("./pages/GuestJobCreator"));
 const NotFound = lazyWithReload(() => import("./pages/NotFound"));
-const MarketingDemo = lazyWithReload(() => import("./pages/MarketingDemo"));
 const ShowcaseApplyForm = lazyWithReload(() => import("./pages/ShowcaseApplyForm"));
 const CandidatePortalLanding = lazyWithReload(() => import("./pages/CandidatePortalLanding"));
 const CandidateAuth = lazyWithReload(() => import("./pages/CandidateAuth"));
@@ -216,8 +215,9 @@ const App = () => (
                   {/* Join Team (outside AppLayout) */}
                   <Route path="/join-team/:code" element={<JoinTeam />} />
                   
-                  {/* Marketing Demo (full-screen, no layout) */}
-                  <Route path="/marketing-demo" element={<MarketingDemo />} />
+                  {/* Retired: the old neon marketing demo. Route kept as a redirect
+                      in case it's bookmarked anywhere. */}
+                  <Route path="/marketing-demo" element={<Navigate to="/" replace />} />
 
                   {/* Founder review prototype — canned data, no backend calls. Stays
                       reachable in production so it can be opened from a phone. */}

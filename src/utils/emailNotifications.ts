@@ -424,7 +424,7 @@ export async function notifyVoiceMinutesExhausted(
 // ============ INTERVIEW READY NOTIFICATIONS ============
 
 /**
- * Notify employer when a candidate is ready for AIVA voice interview
+ * Notify employer when a candidate is ready for Ava voice interview
  * (candidate passed automated assessments and awaits employer to configure interview)
  */
 export async function notifyInterviewReady(
