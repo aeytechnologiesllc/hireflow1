@@ -1,8 +1,11 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callOpenAIJson, requireJsonKeys, type OpenAIMessage } from "../_shared/openai.ts";
 import { streamOpenAIChatCompletion } from "../_shared/openaiStreaming.ts";
 import { guardPublicAiCall } from "../_shared/rateLimit.ts";
+import { recordStepResult, type MinimalSupabaseAdmin } from "../_shared/trustedResults.ts";
+import { buildChatSimulationResult, buildPhaseAiAnalysis, type AntiCheatViolation } from "./grading.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -26,6 +29,29 @@ interface ChatSimulationRequest {
   messages?: ChatMessage[];
   agentMessage?: string;
   messageCount?: number;
+  // Only required for mode "evaluate" — this is what lets the server own the
+  // write: recordStepResult verifies the caller really is this application's
+  // candidate and has actually reached this step before it ever touches
+  // `applications`. See docs/TRUSTED-RESULTS.md.
+  applicationId?: string;
+  stepId?: string;
+  violations?: AntiCheatViolation[];
+}
+
+/** The caller's user id, resolved from their own session JWT — never trust a
+ *  body-supplied id. Mirrors document-signing/index.ts's resolveCallerId. */
+async function resolveCallerId(req: Request): Promise<string | null> {
+  const authHeader = req.headers.get("Authorization");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const url = Deno.env.get("SUPABASE_URL");
+  if (!authHeader || !anonKey || !url) return null;
+  try {
+    const supabaseUser = createClient(url, anonKey, { global: { headers: { Authorization: authHeader } } });
+    const { data: { user } } = await supabaseUser.auth.getUser();
+    return user?.id ?? null;
+  } catch {
+    return null;
+  }
 }
 
 serve(async (req) => {
@@ -39,7 +65,7 @@ serve(async (req) => {
 
   try {
     const request: ChatSimulationRequest = await req.json();
-    const { mode, scenario, customerName, jobTitle, messages = [], agentMessage, messageCount = 0 } = request;
+    const { mode, scenario, customerName, jobTitle, messages = [], agentMessage, messageCount = 0, applicationId, stepId, violations = [] } = request;
 
     console.log("Chat simulation request:", { mode, scenario, customerName, messageCount });
 
@@ -119,16 +145,49 @@ Respond as the customer ${customerName}. Remember your scenario: ${scenario}. Th
     // For the AI, we flip the roles - the "agent" messages become "user" (since AI is the customer)
     const apiMessages: OpenAIMessage[] = [
       { role: "system", content: systemPrompt },
-      ...messages.map(m => ({ 
+      ...messages.map((m): OpenAIMessage => ({
         role: m.role === "user" ? "assistant" : "user", // Flip roles for AI perspective
-        content: m.content 
+        content: m.content
       })),
       { role: "user", content: userContent }
     ];
 
-    // For evaluation mode, return JSON directly
+    // For evaluation mode: the server grades the transcript itself (never a
+    // client-supplied score/evaluation) and then owns the write via
+    // recordStepResult — the browser no longer touches `applications` for
+    // this step at all. See docs/TRUSTED-RESULTS.md.
     if (mode === "evaluate") {
-      const { data } = await callOpenAIJson({
+      if (!applicationId || !stepId) {
+        return new Response(
+          JSON.stringify({ error: "applicationId and stepId are required to record a chat simulation result" }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const callerUserId = await resolveCallerId(req);
+      if (!callerUserId) {
+        return new Response(
+          JSON.stringify({ error: "Sign in to submit this step." }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (!supabaseUrl || !serviceKey) {
+        console.error("Supabase service credentials are not configured");
+        return new Response(
+          JSON.stringify({ error: "Service not configured" }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const admin = createClient(supabaseUrl, serviceKey);
+
+      // Graded here, server-side, every time — including the fallback path
+      // (OpenAI unreachable / bad JSON), so an honest candidate's submission
+      // still completes and gets recorded exactly like the client-side
+      // default evaluation used to guarantee before this conversion.
+      const { data: evaluation } = await callOpenAIJson({
         apiKey: OPENAI_API_KEY,
         model: OPENAI_CHAT_SIMULATION_EVAL_MODEL,
         messages: apiMessages,
@@ -156,8 +215,61 @@ Respond as the customer ${customerName}. Remember your scenario: ${scenario}. Th
         }),
       });
 
+      // Exact chatSimulationResult shape ChatSimulationPhase.tsx has always
+      // written at notes.chatSimulationResult (docs/TRUSTED-RESULTS.md's
+      // result_key table) — every existing reader (trigger-ava-analysis, the
+      // cockpit, CondensedAIAnalysis, ai-shortlist, ai-chat-interview,
+      // generate-applicant-dossier, ava-voice-session/ava-voice-tools,
+      // ai-generate-performance-report) keeps working unchanged. See
+      // grading.ts (buildAntiCheatLog/buildChatSimulationResult) — pulled out
+      // as pure functions so scripts/chat_simulation_grading.test.mjs can
+      // exercise this exact assembly under plain Node.
+      const chatSimulationResult = buildChatSimulationResult({
+        scenario,
+        messageCount: messages.length,
+        evaluation,
+        violations,
+      });
+
+      // recordStepResult only needs the minimal from().select().eq().maybeSingle()
+      // / from().update().eq() shape (see MinimalSupabaseAdmin in
+      // trustedResults.ts) — the real client's builders are structurally
+      // compatible (thenable) but not literally `Promise`, and comparing the
+      // full generated client type against that interface blows up
+      // TypeScript's instantiation depth. Same `as unknown as` pattern any
+      // part-B conversion needs here.
+      const outcome = await recordStepResult(admin as unknown as MinimalSupabaseAdmin, {
+        applicationId,
+        callerUserId,
+        stepId,
+        stepType: "chat_simulation",
+        resultKey: "chatSimulationResult",
+        result: chatSimulationResult as unknown as Record<string, unknown>,
+      });
+
+      if (!outcome.ok) {
+        return new Response(
+          JSON.stringify({ error: outcome.error }),
+          { status: outcome.code === "step_not_reached" ? 409 : 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // phase_ai_analysis is a display-only summary column recordStepResult
+      // itself doesn't own (it's not part of any notes[resultKey] shape) —
+      // written here, still service-role, with the exact text
+      // ChatSimulationPhase.tsx always wrote alongside notes. Best-effort:
+      // a failure here never undoes the trusted result write above.
+      const phaseAiAnalysis = buildPhaseAiAnalysis(evaluation);
+      const { error: analysisError } = await admin
+        .from("applications")
+        .update({ phase_ai_analysis: phaseAiAnalysis })
+        .eq("id", applicationId);
+      if (analysisError) {
+        console.error("Failed to write phase_ai_analysis:", analysisError);
+      }
+
       return new Response(
-        JSON.stringify(data),
+        JSON.stringify({ chatSimulationResult, phaseAiAnalysis, next: outcome.next }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
