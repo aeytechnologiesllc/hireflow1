@@ -215,6 +215,13 @@ function jobMetaDescription(job) {
   return raw.slice(0, 152).trimEnd() + "…";
 }
 
+/** Replace every robots meta tag in the page with a single one. */
+function withRobots(html, content) {
+  const tag = `<meta name="robots" content="${content}" />`;
+  const stripped = html.replace(/<meta\s+name="robots"[^>]*>\s*/gi, "");
+  return stripped.includes("</head>") ? stripped.replace("</head>", tag + "</head>") : stripped + tag;
+}
+
 function sb(path) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
@@ -237,7 +244,12 @@ export default async function handler(req, res) {
     }
 
     let job = null;
-    if (id && /^[0-9a-f][0-9a-f-]{10,40}$/i.test(id)) {
+    // `gone` means we KNOW there is no live listing: a malformed id, no row in
+    // published_jobs_public (closed, deleted, never existed), or past its
+    // deadline. A Supabase error is deliberately not "gone" — a hiccup must
+    // never tell Google that a real, open job was removed.
+    let gone = !(id && /^[0-9a-f][0-9a-f-]{10,40}$/i.test(id));
+    if (!gone) {
       const jr = await sb(`published_jobs_public?id=eq.${encodeURIComponent(id)}&select=${JOB_FIELDS}&limit=1`);
       if (jr.ok) {
         const rows = await jr.json();
@@ -245,14 +257,25 @@ export default async function handler(req, res) {
         if (job?.application_deadline && new Date(job.application_deadline).getTime() < Date.now()) {
           job = null;
         }
+        gone = !job;
       }
     }
 
     if (!job) {
-      res.statusCode = 200;
       res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
-      res.end(shell);
+      if (gone) {
+        // A removed listing used to answer 200 with the homepage's title and
+        // `index, follow` — a "soft 404" that kept the dead URL in Google. Answer
+        // 404 + noindex instead. The body is still the SPA shell, so a person on
+        // an old link gets the app's own "no longer available" screen.
+        res.statusCode = 404;
+        res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=60");
+        res.end(withRobots(shell, "noindex,follow"));
+      } else {
+        res.statusCode = 200;
+        res.setHeader("Cache-Control", "no-store");
+        res.end(shell);
+      }
       return;
     }
 
@@ -310,9 +333,7 @@ export default async function handler(req, res) {
       `<meta name="twitter:title" content="${esc(title)}" />` +
       `<meta name="twitter:description" content="${esc(desc)}" />` +
       `<link rel="canonical" href="${esc(url)}" />` +
-      (indexable
-        ? `<script type="application/ld+json" data-jobposting="server">${jsonLd}</script>`
-        : `<meta name="robots" content="noindex,follow" />`);
+      (indexable ? `<script type="application/ld+json" data-jobposting="server">${jsonLd}</script>` : "");
 
     let out = shell
       .replace(/<title>[\s\S]*?<\/title>/i, `<title>${esc(title)}</title>`)
@@ -327,10 +348,16 @@ export default async function handler(req, res) {
       // duplicated twitter:card alongside the one injected above.
       .replace(/<meta\s+name="(twitter:(card|title|description|image)|description)"[^>]*>\s*/gi, "");
     out = out.includes("</head>") ? out.replace("</head>", injected + "</head>") : out + injected;
+    // Exactly one robots tag: the shell ships `index, follow`, and appending a
+    // second, contradictory noindex tag left the outcome up to the crawler.
+    out = withRobots(out, indexable ? "index, follow" : "noindex,follow");
 
     res.statusCode = 200;
     res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.setHeader("Cache-Control", "public, s-maxage=600, stale-while-revalidate=86400");
+    // Short on purpose. Closing a job fires URL_DELETED at Google, which recrawls
+    // within minutes; a 10-minute cache plus a 24-hour stale window kept handing
+    // it the old JobPosting (seen live 2026-09-16 on a just-deleted test job).
+    res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=60");
     res.end(out);
   } catch {
     res.statusCode = 200;
