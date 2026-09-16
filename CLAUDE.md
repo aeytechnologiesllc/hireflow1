@@ -107,9 +107,11 @@ schema, and `docs/MIGRATION-HISTORY.md` for how migration history was
 reconciled with the live database on 2026-09-16 — including the full reverse
 check (every repo migration file with no matching live row, diffed by name
 against the complete live table, not a search scoped to one category) that
-found 20 such files, not 7, split into three different situations (never
-applied with a live consequence; never applied and would fail/is moot;
-applied by hand with no tracking row at all).
+found 20 such files, not 7, split into three different situations: 8 never
+applied with a real live consequence (the orphaned-profile fix plus all 7
+`enforce_*` trusted-result migrations — see "Security posture" above), 2
+never applied that would fail outright if run today (target dropped
+showcase tables), and 10 applied by hand with no tracking row at all.
 
 ## Before touching this clone
 
@@ -151,10 +153,10 @@ git push origin main
 npx supabase link --project-ref yqklrkpptnhubsnijqze
 
 # Push database migrations
-# DO NOT run this blind: db push matches by version, and 27 repo migrations
+# DO NOT run this blind: db push matches by version, and 28 repo migrations
 # are stamped with a different version than the one recorded live (see
 # docs/MIGRATION-HISTORY.md, "Same migration, different version stamp").
-# A blind push will re-apply those 27 against production and write a
+# A blind push will re-apply those 28 against production and write a
 # duplicate schema_migrations row. Reconcile against
 # docs/MIGRATION-HISTORY.md first.
 npx supabase db push

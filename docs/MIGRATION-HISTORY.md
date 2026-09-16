@@ -119,45 +119,49 @@ direction — every `supabase/migrations/*.sql` file's name against the full,
 unfiltered `name` column of `schema_migrations` (52 live rows; see the query
 in "Verifying this file stays true" below), not a search scoped to one
 category like `%enforce%` — found **20** repo files with no matching live row,
-not 7. A prior pass through this section undercounted because it only ran a
-targeted search for the `enforce_*` files; it did not diff the full name list
-both ways. The 20 split into three genuinely different situations, and they
-must not be treated as one bucket:
+not 7. The 20 split into three genuinely different situations, and they must
+not be treated as one bucket. A prior pass through this section undercounted
+group (a): it listed only `reconcile_orphaned_profiles` there and dropped the
+other 7 real-consequence files into group (b) mislabeled as "would fail or is
+moot" — they don't fail (each is idempotent: `CREATE TABLE IF NOT EXISTS` /
+`UPDATE ... WHERE result_key = ...` / `CREATE OR REPLACE FUNCTION`) and they
+are not moot — leaving them unapplied is an active, exploitable gap in
+production today, verified below, not a "safe to leave" no-op. Group (a) is
+**8 files**, not 1:
 
 **a) Never applied, and the gap has a live consequence (real follow-up work):**
 
 | Repo file | Name | Live consequence |
 |---|---|---|
 | `20260831190000_reconcile_orphaned_profiles.sql` | `reconcile_orphaned_profiles` | `public.reconcile_orphaned_profiles()` does not exist live (`select proname from pg_proc where proname ilike '%reconcile%'` returns zero rows, checked 2026-09-16). This function exists to self-heal `auth.users` rows with no matching `public.profiles` row. Live right now: `select count(*) from auth.users u left join public.profiles p on p.user_id=u.id where p.user_id is null` returns **1** — one production account has no `profiles` row, so it has no `company_name`, which the feed quality gate and Google structured data need; that employer's jobs would be silently withheld/anonymized until this migration is applied. Not superseded by any later file (grepped — nothing else recreates this function). |
-
-**b) Never applied, and would fail or is moot if applied today (safe to leave, not "safe to ignore" — verify before assuming either):**
-
-| Repo file | Name | Why |
-|---|---|---|
-| `20260916150100_enforce_typing_test_result.sql` | `enforce_typing_test_result` | see enforcement note below |
-| `20260916150200_enforce_chat_simulation_result.sql` | `enforce_chat_simulation_result` | see enforcement note below |
-| `20260916150300_enforce_chat_interview_result.sql` | `enforce_chat_interview_result` | see enforcement note below |
-| `20260916150400_enforce_sales_simulation_result.sql` | `enforce_sales_simulation_result` | see enforcement note below |
-| `20260916150500_enforce_portfolio_result.sql` | `enforce_portfolio_result` | see enforcement note below |
-| `20260916150600_enforce_video_intro_result.sql` | `enforce_video_intro_result` | see enforcement note below |
-| `20260916150700_enforce_voice_interview_result.sql` | `enforce_voice_interview_result` | see enforcement note below |
-| `20260625120000_accountless_candidate_flow.sql` | `accountless_candidate_flow` | targets `public.roles`/`public.candidates`, the "showcase" tables created (and dropped) in section 1 — neither table exists live (`information_schema.tables` count = 0 for both), so this migration would error if run today |
-| `20260625130000_phone_continue_flow.sql` | `phone_continue_flow` | same — targets the same long-gone `roles`/`candidates` showcase tables |
+| `20260916150100_enforce_typing_test_result.sql` | `enforce_typing_test_result` | `select result_key, enforced from public.trusted_result_enforcement` shows `typingTestResult` still `enforced = false` live, confirmed 2026-09-16. `src/pages/TypingTestPhase.tsx` no longer writes `notes.typingTestResult` from the browser (grepped — its only `applications` writes left are a `.select("status")` read and the initial fetch); grading already happens server-side in `supabase/functions/submit-typing-test`. Because enforcement is off, `protected_trusted_result_notes_subset` still leaves this `result_key` candidate-writable by a direct API call that bypasses the UI entirely — a candidate can forge their own typing-test score in production right now. Applying this migration (create `typing_test_starts`, flip the flag) is safe — it does not touch any table this repo's `roles`/`candidates` showcase schema depended on — and closes that gap. |
+| `20260916150200_enforce_chat_simulation_result.sql` | `enforce_chat_simulation_result` | Same shape: `chatSimulationResult` is `enforced = false` live; `src/pages/ChatSimulationPhase.tsx` has no `.update()` call on `applications` left (grepped) — grading moved to `supabase/functions/ai-chat-simulation`'s "evaluate" mode. A candidate can still forge this result via direct API call today because the enforcement flag was never flipped. The migration is a single idempotent `UPDATE`; safe to apply. |
+| `20260916150300_enforce_chat_interview_result.sql` | `enforce_chat_interview_result` | Same shape: `chatInterviewResult` is `enforced = false` live; `src/pages/ChatInterviewPhase.tsx` has no `.update()` call on `applications` left — grading moved to `supabase/functions/ai-chat-interview`'s "submit" mode. Forgeable today via direct API call; migration is a single idempotent `UPDATE`. |
+| `20260916150400_enforce_sales_simulation_result.sql` | `enforce_sales_simulation_result` | Same shape: `salesSimulationResult` is `enforced = false` live; `src/pages/SalesSimulationPhase.tsx` has no `.update()` call on `applications` left — grading moved to `supabase/functions/submit-sales-simulation`. Forgeable today via direct API call; migration is a single idempotent `UPDATE`. |
+| `20260916150500_enforce_portfolio_result.sql` | `enforce_portfolio_result` | Same shape: `portfolioResult` is `enforced = false` live; `src/pages/PortfolioUploadPhase.tsx` has no `.update()` call on `applications` left — grading moved to `supabase/functions/ai-analyze-portfolio`. Forgeable today via direct API call; migration is a single idempotent `UPDATE`. |
+| `20260916150600_enforce_video_intro_result.sql` | `enforce_video_intro_result` | Same shape: `videoIntroResult` is `enforced = false` live; `src/pages/VideoIntroPhase.tsx` has no `.update()` call on `applications` left — verification moved to `supabase/functions/complete-video-intro`. Forgeable today via direct API call; migration is a single idempotent `UPDATE`. |
+| `20260916150700_enforce_voice_interview_result.sql` | `enforce_voice_interview_result` | `voiceInterviewResult` is `enforced = false` live. Confirmed via `pg_get_functiondef`: the live `public.submit_voice_interview_manual_end()` still sets `voice_interview_transcript` and `phase_ai_analysis` directly in the same statement as `voice_interview_result` — the pre-migration body. This migration's `CREATE OR REPLACE` removes those two columns from that RPC's own `UPDATE` (they move to `ava-voice-tools`' new `record_interview_transcript` case instead, which `VoiceInterviewPhase.tsx` already calls — grepped, no remaining direct write of either column from the browser) and then flips the flag. Applying it is safe (`CREATE OR REPLACE FUNCTION` + idempotent `UPDATE`) and closes the same forgery gap as the other six. |
 
 Enforcement note: `select * from public.trusted_result_enforcement` still
 returns all 8 rows (`chatInterviewResult`, `chatSimulationResult`, `phase`,
 `portfolioResult`, `salesSimulationResult`, `typingTestResult`,
 `videoIntroResult`, `voiceInterviewResult`) with `enforced = false`, confirmed
-2026-09-16 — none of these 7 `enforce_*` migrations have run (there is no 8th
-file; `phase` has no corresponding `enforce_*` file in the repo). Per
-`20260915140000_trusted_step_results.sql`, an unenforced `result_key` is left
-fully candidate-writable by `protected_trusted_result_notes_subset`, so none
-of these step results are actually protected against client forgery today,
-despite files existing that would protect them. See `CLAUDE.md`, "Security
+2026-09-16 — none of the 7 `enforce_*` migrations above have run (there is no
+8th file; `phase` has no corresponding `enforce_*` file in the repo, and stays
+off by design until every phase above is enforced — see
+`20260915140000_trusted_step_results.sql`). See `CLAUDE.md`, "Security
 posture", for the corrected claim — do not describe any of these 8 as
 "enforced" until its migration is confirmed live via this same query.
-Applying these 7 migrations is open follow-up work, not part of this
-reconciliation pass (which is read-only).
+Applying these 7 migrations is open follow-up work — the highest-priority
+item in this document — not part of this reconciliation pass itself (which is
+read-only and applies nothing).
+
+**b) Never applied, and would fail if applied today (safe to leave — targets tables that no longer exist):**
+
+| Repo file | Name | Why |
+|---|---|---|
+| `20260625120000_accountless_candidate_flow.sql` | `accountless_candidate_flow` | targets `public.roles`/`public.candidates`, the "showcase" tables created (and dropped) in section 1 — neither table exists live (`information_schema.tables` count = 0 for both; the file's own first statement, `alter table public.roles add column ...`, would error immediately), so this migration would fail if run today |
+| `20260625130000_phone_continue_flow.sql` | `phone_continue_flow` | same — its last statement indexes `public.candidates`, the same long-gone showcase table |
 
 **c) No live `schema_migrations` row, but the migration's effects ARE live —
 applied untracked, most likely by hand through the SQL editor rather than
@@ -185,12 +189,21 @@ show the live function bodies have moved on from what the repo file contains.
 Nothing in the repo captures those later edits; this doc only records that
 they exist, not their exact SQL, since no migration file represents them.
 
-None of these 20 files should be re-run against production as-is: applying
+Not all 20 files carry equal weight, and they should not be re-run uniformly:
 group (b)'s `accountless_candidate_flow`/`phone_continue_flow` would error on
-missing tables; applying group (c)'s files would re-run DDL that already ran
-(duplicate-object errors at best, clobbering a since-diverged live definition
-with stale SQL at worst — see `fail_open_push_trigger` above). Only group (a)'s
-`reconcile_orphaned_profiles` is both safe and needed to run.
+missing tables, so leave them; applying group (c)'s files would re-run DDL
+that already ran (duplicate-object errors at best, clobbering a
+since-diverged live definition with stale SQL at worst — see
+`fail_open_push_trigger` above), so leave those too. Group (a)'s **8** files
+are the ones that are both safe and needed to run:
+`reconcile_orphaned_profiles` (self-heals one orphaned account) and all 7
+`enforce_*` files (each closes one phase's candidate-forgery gap — see the
+enforcement note above). This reconciliation pass is read-only and applies
+none of them; applying them is separate follow-up work, one migration at a
+time through the Management API with the 2-second pause below, stopping
+immediately if any fails. `phase` itself has no migration file yet and must
+stay `enforced = false` until all 7 phase-specific rows above read
+`enforced = true` (see `20260915140000_trusted_step_results.sql`).
 
 ## Why this happens: the Management API stamping rule
 
@@ -242,9 +255,15 @@ not assume any of them means the same thing:
 
 1. **No live row AND the gap has a live consequence** — genuinely missing,
    needs to be applied. (section 3a)
-2. **No live row AND applying it today would fail or is moot** — e.g. it
-   targets a table that was later dropped. Leave it, but verify the "would
-   fail" claim with a live query before repeating it — don't assume. (section 3b)
+2. **No live row AND applying it today would fail outright** — e.g. it
+   targets a table that was later dropped, so its own DDL would error. Leave
+   it, but verify the "would fail" claim with a live query before repeating
+   it — don't assume. (section 3b) Do **not** default a file into this
+   bucket just because it looks safe to skip: an idempotent migration
+   (`CREATE ... IF NOT EXISTS`, `UPDATE ... WHERE`, `CREATE OR REPLACE`) that
+   is missing live is not "moot" — check what it protects or enables before
+   deciding it has no consequence. This is exactly how the 7 `enforce_*`
+   files were miscategorized here once already (section 3a fixed it).
 3. **No live row but the migration's DDL/effects ARE live** — applied by hand
    outside both the CLI and the Management API (no `schema_migrations` row
    gets written either way), so "no row" does **not** mean "not applied."

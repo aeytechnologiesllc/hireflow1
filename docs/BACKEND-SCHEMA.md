@@ -75,7 +75,7 @@ npx supabase db push
 
 **Do not run this blindly against `yqklrkpptnhubsnijqze`.** `db push` decides
 what to apply by matching each repo file's version prefix against
-`supabase_migrations.schema_migrations.version`. 27 repo migrations are
+`supabase_migrations.schema_migrations.version`. 28 repo migrations are
 currently stamped with a different version than the one recorded live (see
 `docs/MIGRATION-HISTORY.md`, "Same migration, different version stamp"), so an
 unreconciled push will treat those as new and re-run their DDL a second time
