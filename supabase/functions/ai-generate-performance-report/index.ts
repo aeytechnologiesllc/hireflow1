@@ -2,6 +2,8 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callOpenAIJson, openAIErrorStatus, requireJsonKeys } from "../_shared/openai.ts";
+import { guardPublicAiCall } from "../_shared/rateLimit.ts";
+import { canAccessPerformanceReport } from "../_shared/performanceReportAccess.ts";
 
 // Model is configurable so a retirement is a config change, not a code change.
 // Set OPENAI_REPORT_MODEL to the replacement model when swapping.
@@ -32,6 +34,100 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // This report contains a candidate's private evaluation (voice transcript,
+    // notes, AI analysis) and is also the paid Improvement Blueprint content.
+    // It must never be reachable by an arbitrary signed-in user just by
+    // guessing an applicationId — verify the caller first, before any other
+    // DB or OpenAI work.
+    const authHeader = req.headers.get('authorization') || req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Authentication required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseUserClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: { user: requestingUser }, error: requestingUserError } = await supabaseUserClient.auth.getUser();
+
+    if (requestingUserError || !requestingUser) {
+      console.error('[Report] Invalid auth token:', requestingUserError);
+      return new Response(
+        JSON.stringify({ error: 'Invalid authentication token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Cost/abuse guard, keyed by the authenticated caller rather than IP —
+    // this is a paid, signed-in-only feature.
+    const rateLimitResponse = await guardPublicAiCall(
+      req,
+      'ai-generate-performance-report',
+      corsHeaders,
+      10,
+      3600,
+      requestingUser.id,
+    );
+    if (rateLimitResponse) return rateLimitResponse;
+
+    const { data: candidateApp, error: candidateAppError } = await supabase
+      .from('applications')
+      .select('candidate_id, job_id, jobs ( employer_id )')
+      .eq('id', applicationId)
+      .single();
+
+    if (candidateAppError || !candidateApp) {
+      console.error('[Report] Error fetching application for auth check:', candidateAppError);
+      return new Response(
+        JSON.stringify({ error: 'Application not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const employerId = (candidateApp.jobs as any)?.employer_id as string | undefined;
+    const isCandidateOwner = candidateApp.candidate_id === requestingUser.id;
+    const isEmployerOwner = !!employerId && employerId === requestingUser.id;
+
+    const [{ data: teamMembership }, { data: blueprintPurchase }] = await Promise.all([
+      !isCandidateOwner && !isEmployerOwner && employerId
+        ? supabase
+            .from('team_members')
+            .select('id')
+            .eq('user_id', requestingUser.id)
+            .eq('employer_id', employerId)
+            .eq('status', 'active')
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      isCandidateOwner
+        ? supabase
+            .from('blueprint_purchases')
+            .select('id')
+            .eq('application_id', applicationId)
+            .eq('user_id', requestingUser.id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+
+    const isEmployerSide = isEmployerOwner || !!teamMembership;
+    const hasPurchasedBlueprint = isCandidateOwner && !!blueprintPurchase;
+
+    if (!canAccessPerformanceReport({ isCandidateOwner, hasPurchasedBlueprint, isEmployerSide })) {
+      console.warn('[Report] Unauthorized performance report request', {
+        requesterId: requestingUser.id,
+        applicationId,
+        employerId,
+        candidateId: candidateApp.candidate_id,
+      });
+      return new Response(
+        JSON.stringify({ error: 'You do not have permission to access this report' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const { data: application, error: appError } = await supabase
       .from('applications')
@@ -65,12 +161,6 @@ serve(async (req) => {
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    const { data: candidateApp } = await supabase
-      .from('applications')
-      .select('candidate_id')
-      .eq('id', applicationId)
-      .single();
 
     const { data: profile } = await supabase
       .from('profiles')
