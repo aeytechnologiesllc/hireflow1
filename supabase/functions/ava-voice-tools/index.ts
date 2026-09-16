@@ -1033,22 +1033,16 @@ serve(async (req) => {
           })
           .eq("id", application_id);
 
-        // Send notification to candidate if requested
-        if (send_notification && candidateProfile?.email) {
-          try {
-            await supabaseClient
-              .from("notifications")
-              .insert({
-                user_id: app.candidate_id,
-                type: 'interview',
-                title: 'Interview Scheduled',
-                message: `Your interview for ${(app.jobs as any).title} has been scheduled for ${scheduledDate.toLocaleString()}`,
-                link: `/applications/${application_id}`
-              });
-          } catch (notifError) {
-            console.error("Failed to send notification:", notifError);
-          }
-        }
+        // In-app notification: on_interview_insert_notify (the DB trigger
+        // added by 20260915122000_in_app_notifications_for_key_moments.sql)
+        // already writes the candidate's "Interview scheduled" bell off the
+        // interviews INSERT above, with the correct candidate-sign-in link
+        // (/candidate/auth?redirect=...). A manual insert here duplicated
+        // it with a second, mis-linked ('/applications/<id>', no redirect
+        // prefix) notification every time. `send_notification` is kept as
+        // an accepted parameter for API compatibility even though nothing
+        // in this branch currently reads it.
+        void send_notification;
 
         const formattedDate = scheduledDate.toLocaleString('en-US', {
           weekday: 'long',
@@ -1574,18 +1568,12 @@ serve(async (req) => {
           .update({ status: 'offered', updated_at: new Date().toISOString() })
           .eq("id", application_id);
 
-        // Send notification
-        await supabaseClient
-          .from("notifications")
-          .insert({
-            user_id: app.candidate_id,
-            type: 'status_update',
-            title: 'Offer Extended!',
-            message: `Congratulations! You've received an offer for ${(app.jobs as any).title}.`,
-            link: `/applications/${application_id}`
-          });
+        // notify_application_status_change() (DB trigger, AFTER UPDATE ON
+        // applications) already writes the candidate's "Offer extended"
+        // in-app notification off this status change — a manual insert
+        // here duplicated it.
 
-        result = { 
+        result = {
           success: true, 
           action: "navigate",
           route: "/documents",
