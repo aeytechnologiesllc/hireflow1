@@ -76,6 +76,13 @@ export default [
       if (!/Interview scheduled — they'll see it in HireFlow/.test(wizard)) {
         detail.push("InterviewSchedulingWizard.tsx lost its neutral fallback line for when the email wasn't actually sent");
       }
+      if (/will be sent to \$\{candidateEmail\}/.test(wizard)) {
+        detail.push(
+          "InterviewSchedulingWizard.tsx review step still unconditionally promises " +
+            "\"...will be sent to <email>\" before the send is attempted — same false claim, " +
+            "one screen earlier."
+        );
+      }
 
       return { ok: detail.length === 0, detail };
     },

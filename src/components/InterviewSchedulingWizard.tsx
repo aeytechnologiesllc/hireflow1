@@ -1511,8 +1511,8 @@ export default function InterviewSchedulingWizard({
                         <Mail className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm text-muted-foreground">
                           {exactTimeMode
-                            ? `Calendar invite will be sent to ${candidateEmail}`
-                            : `An email will be sent to ${candidateEmail} to pick a time`}
+                            ? `${candidateName} will see this interview in HireFlow`
+                            : `${candidateName} will see this in HireFlow to pick a time`}
                         </span>
                       </div>
                     )}
