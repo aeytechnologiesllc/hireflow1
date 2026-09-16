@@ -27,6 +27,9 @@ verify_jwt = false
 [functions.ai-sales-simulation]
 verify_jwt = false
 
+[functions.submit-sales-simulation]
+verify_jwt = true
+
 [functions.ai-generate-document]
 verify_jwt = true
 

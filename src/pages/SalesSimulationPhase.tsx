@@ -138,11 +138,15 @@ const defaultScenarios: SalesScenario[] = [
 ];
 
 const SALES_URL = `${SUPABASE_URL}/functions/v1/ai-sales-simulation`;
+// The trusted write path — grades the transcript and records the result
+// server-side (see docs/TRUSTED-RESULTS.md). This page no longer writes
+// applications.notes/phase_ai_analysis itself.
+const SUBMIT_SALES_SIMULATION_URL = `${SUPABASE_URL}/functions/v1/submit-sales-simulation`;
 
 export default function SalesSimulationPhase() {
   const { id, stepId } = useParams<{ id: string; stepId: string }>();
   const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
+  const { user, session, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   
   const [state, setState] = useState<"intro" | "selling" | "evaluating" | "completed" | "rejected">("intro");
@@ -584,7 +588,7 @@ export default function SalesSimulationPhase() {
 
   const handleSubmit = async () => {
     if (!application || !currentScenario) return;
-    
+
     setIsSubmitting(true);
     try {
       const { data: freshJob } = await supabase
@@ -592,75 +596,50 @@ export default function SalesSimulationPhase() {
         .select("processing_mode, passing_score")
         .eq("id", application.job_id)
         .single();
-      
+
       const isAutoMode = freshJob?.processing_mode === "auto";
-      
-      const evalResponse = await fetch(SALES_URL, {
+
+      // The candidate's own session — the trusted write path verifies this
+      // is really this application's candidate before it records anything
+      // (see submit-sales-simulation/index.ts + _shared/trustedResults.ts).
+      const { data: { session: freshSession } } = await supabase.auth.getSession();
+      const accessToken = freshSession?.access_token ?? session?.access_token;
+      if (!accessToken) {
+        throw new Error("Your session expired — sign in again to submit.");
+      }
+
+      // Grades the transcript and records the trusted result server-side —
+      // this page no longer writes applications.notes/phase_ai_analysis
+      // itself. Same messages shape (salesRep -> "user", prospect ->
+      // "assistant") the old evaluate call always sent.
+      const submitResponse = await fetch(SUBMIT_SALES_SIMULATION_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+          apikey: SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
-          mode: "evaluate",
+          applicationId: id,
+          stepId,
           scenario: currentScenario.scenario,
           prospectName: currentScenario.prospectName,
           prospectCompany: currentScenario.prospectCompany,
           productService: currentScenario.productService,
           jobTitle: application.jobs?.title || "",
-          messages: messages.map(m => ({ 
-            role: m.role === "salesRep" ? "user" : "assistant", 
-            content: m.content 
+          messages: messages.map(m => ({
+            role: m.role === "salesRep" ? "user" : "assistant",
+            content: m.content
           })),
+          violations,
         }),
       });
 
-      let evaluation = {
-        score: 70, discovery: 70, objectionHandling: 70, valueProposition: 70,
-        closingSkills: 70, rapport: 70, strengths: ["Completed simulation"],
-        improvements: [], wouldBuy: "maybe", overallFeedback: "Simulation completed.",
-      };
+      const submitBody = await submitResponse.json().catch(() => null);
+      if (!submitResponse.ok) {
+        throw new Error(submitBody?.error || "Failed to submit sales simulation");
+      }
 
-      if (evalResponse.ok) evaluation = await evalResponse.json();
-
-      const existingNotes = parseApplicationNotes(application.notes);
-      const salesRepMessages = messages.filter((m) => m.role === "salesRep");
-      
-      const antiCheatLog = {
-        violations, totalViolations: violations.length,
-        tabSwitches: violations.filter(v => v.type === 'tab_switch').length,
-        copyAttempts: violations.filter(v => v.type === 'copy_attempt').length,
-        pasteAttempts: violations.filter(v => v.type === 'paste_attempt').length,
-        screenshotAttempts: violations.filter(v => v.type === 'screenshot_attempt').length,
-        rightClickAttempts: violations.filter(v => v.type === 'right_click').length,
-      };
-
-      const updatedNotes = {
-        ...existingNotes,
-        [stepId!]: {
-          type: "sales_simulation", scenario: currentScenario.scenario,
-          prospectName: currentScenario.prospectName, prospectCompany: currentScenario.prospectCompany,
-          messages: messages.map((m) => ({ role: m.role, content: m.content, timestamp: m.timestamp.toISOString() })),
-          evaluation, metrics: { totalMessages: messages.length, salesRepResponses: salesRepMessages.length },
-          phaseScore: evaluation.score, antiCheatLog, completedAt: new Date().toISOString(),
-        },
-        salesSimulationResult: {
-          scenario: currentScenario.scenario, prospectCompany: currentScenario.prospectCompany,
-          messageCount: messages.length, score: evaluation.score, discovery: evaluation.discovery,
-          objectionHandling: evaluation.objectionHandling, valueProposition: evaluation.valueProposition,
-          closingSkills: evaluation.closingSkills, wouldBuy: evaluation.wouldBuy,
-          strengths: evaluation.strengths, improvements: evaluation.improvements, completed: true,
-          antiCheatSummary: { hasViolations: violations.length > 0, violationCount: violations.length,
-            tabSwitches: antiCheatLog.tabSwitches, copyPasteAttempts: antiCheatLog.copyAttempts + antiCheatLog.pasteAttempts },
-        },
-      };
-
-      const { error } = await supabase.from("applications").update({
-        notes: JSON.stringify(updatedNotes),
-        phase_ai_analysis: `Sales simulation: ${evaluation.score}%. Discovery: ${evaluation.discovery}%, Objection handling: ${evaluation.objectionHandling}%. Would buy: ${evaluation.wouldBuy}.`,
-      }).eq("id", id!);
-
-      if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
       queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
 

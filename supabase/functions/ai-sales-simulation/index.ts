@@ -1,6 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { callOpenAIJson, requireJsonKeys, type OpenAIMessage } from "../_shared/openai.ts";
+import { type OpenAIMessage } from "../_shared/openai.ts";
 import { streamOpenAIChatCompletion } from "../_shared/openaiStreaming.ts";
 import { guardPublicAiCall } from "../_shared/rateLimit.ts";
 
@@ -11,7 +11,6 @@ const corsHeaders = {
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const OPENAI_SALES_SIMULATION_MODEL = Deno.env.get("OPENAI_SALES_SIMULATION_MODEL") || "gpt-5.6-luna";
-const OPENAI_SALES_SIMULATION_EVAL_MODEL = Deno.env.get("OPENAI_SALES_SIMULATION_EVAL_MODEL") || "gpt-5.6-luna";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -19,7 +18,13 @@ interface ChatMessage {
 }
 
 interface SalesSimulationRequest {
-  mode: "start" | "respond" | "evaluate";
+  // "evaluate" used to live here too — grading now happens, authenticated,
+  // in submit-sales-simulation/index.ts (see docs/TRUSTED-RESULTS.md), which
+  // also calls recordStepResult to write the trusted result server-side.
+  // This function stays public/unauthenticated on purpose for the roleplay
+  // chat itself (start/respond) — no candidate result is ever trusted from
+  // it.
+  mode: "start" | "respond";
   scenario: string;
   prospectName: string;
   prospectCompany: string;
@@ -92,21 +97,6 @@ BUYING SIGNALS (if salesperson does well):
 - Mention specific timelines or upcoming projects
 - Share more pain points without being asked
 
-${mode === 'evaluate' ? `
-EVALUATION MODE: Analyze the sales rep's performance and return JSON:
-{
-  "score": <number 0-100>,
-  "discovery": <number 0-100 - how well they uncovered needs>,
-  "objectionHandling": <number 0-100 - how well they addressed concerns>,
-  "valueProposition": <number 0-100 - how well they articulated value>,
-  "closingSkills": <number 0-100 - how well they advanced the deal>,
-  "rapport": <number 0-100 - how well they built relationship>,
-  "strengths": ["strength1", "strength2"],
-  "improvements": ["area1", "area2"],
-  "wouldBuy": "yes" | "maybe" | "no",
-  "overallFeedback": "Summary of sales performance"
-}
-` : `
 RESPONSE GUIDELINES:
 - Keep responses realistic - 1-4 sentences typically
 - Sometimes be brief ("Interesting. Go on." or "Hmm, I'm not sure about that")
@@ -115,68 +105,32 @@ RESPONSE GUIDELINES:
 - If they just pitch without asking, become disengaged
 - After ${messageCount >= 8 ? "this much conversation, if they've earned it" : "more conversation"}, you might show buying interest or firmly decline
 - CRITICAL: Do NOT repeat the sales rep's name in every response. Use their name ONLY in your very first greeting, then never again. Just respond naturally.
-`}`;
+`;
 
     let userContent = "";
-    
+
     if (mode === "start") {
       userContent = `The sales meeting is starting. Greet ${candidateName} briefly and set expectations for the call. You're busy but willing to listen. Remember to use their actual name naturally - never use brackets or placeholders.`;
     } else if (mode === "respond") {
       userContent = `The sales rep just said: "${salesRepMessage}"
-      
+
 Respond as ${prospectName} from ${prospectCompany}. This is message #${messageCount} in the sales conversation.`;
-    } else if (mode === "evaluate") {
-      userContent = `As the prospect who just experienced this sales interaction, evaluate the sales rep's performance. Would you buy from them? Why or why not?`;
     }
 
     // For the AI, flip roles - sales rep messages become "user" (since AI is the prospect)
+    // (Pre-existing TS narrowing gap, not introduced here: without this cast,
+    // .map()'s return type loses its literal union outside the array's own
+    // contextual typing once a spread sits between two plain-object
+    // elements — deno check on the untouched file shows the same two
+    // errors. Purely a type-level fix; the runtime mapping is unchanged.)
     const apiMessages: OpenAIMessage[] = [
       { role: "system", content: systemPrompt },
-      ...messages.map(m => ({ 
-        role: m.role === "user" ? "assistant" : "user",
-        content: m.content 
+      ...messages.map(m => ({
+        role: (m.role === "user" ? "assistant" : "user") as OpenAIMessage["role"],
+        content: m.content
       })),
-      { role: "user", content: userContent }
+      { role: "user" as const, content: userContent }
     ];
-
-    if (mode === "evaluate") {
-      const { data } = await callOpenAIJson({
-        apiKey: OPENAI_API_KEY,
-        model: OPENAI_SALES_SIMULATION_EVAL_MODEL,
-        messages: apiMessages,
-        temperature: 0.35,
-        maxCompletionTokens: 1300,
-        validator: (value) => requireJsonKeys(value, [
-          "score",
-          "discovery",
-          "objectionHandling",
-          "valueProposition",
-          "closingSkills",
-          "rapport",
-          "strengths",
-          "improvements",
-          "wouldBuy",
-          "overallFeedback",
-        ]),
-        fallback: () => ({
-          score: 70,
-          discovery: 70,
-          objectionHandling: 70,
-          valueProposition: 70,
-          closingSkills: 70,
-          rapport: 70,
-          strengths: ["Completed simulation"],
-          improvements: ["Unable to parse detailed evaluation"],
-          wouldBuy: "maybe",
-          overallFeedback: "Sales simulation completed successfully.",
-        }),
-      });
-
-      return new Response(
-        JSON.stringify(data),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
 
     console.log("Streaming prospect response via OpenAI");
     const response = await streamOpenAIChatCompletion({
