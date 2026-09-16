@@ -116,6 +116,27 @@
 
   window.__hfBeacon = { track: track };
 
+  // Skip the automatic initial track() call when this script is running
+  // inside an iframe (window.self !== window.top): src/pages/Index.tsx
+  // renders the "/" route as <iframe src="/landing.html">, a separate
+  // same-origin browsing context with its own window/document/location.
+  // public/landing.html carries this same "<script src=/beacon.js defer>"
+  // tag, so without this guard a single homepage view would fire this
+  // IIFE twice — once for the outer document (path "/") and once for the
+  // iframe's own navigated document (path "/landing.html") — double
+  // counting the site's single most-trafficked page. The outer document is
+  // the one whose URL actually represents "what the visitor is looking
+  // at", so only it should auto-report; a script running inside the iframe
+  // stays loaded (window.__hfBeacon still gets set, in case anything inside
+  // landing.html ever calls .track() explicitly) but does not self-fire.
+  try {
+    if (window.self !== window.top) return;
+  } catch (e) {
+    // Cross-origin parent (shouldn't happen for a same-origin iframe on
+    // this site) — treat as "can't tell", so don't auto-fire from inside.
+    return;
+  }
+
   // Initial page load.
   track(window.location.pathname);
 })();

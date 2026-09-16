@@ -242,4 +242,90 @@ export default [
       return bad.length ? { ok: false, detail: bad } : { ok: true };
     },
   },
+
+  {
+    id: "telemetry-route-is-pii-redacted-not-just-capped",
+    why:
+      "client-errors/index.ts's own header comment claims the payload is 'sanitized " +
+      "(message/stack/route capped and PII-redacted...)'. If normalizeRoute() ever goes back to " +
+      "capping/stripping-query only, without running the path through redactPii()/a bearer-code " +
+      "rule, a live capability embedded in a route segment (e.g. /join-team/TEAM-A1B2C3D4 — " +
+      "team_invitations.invite_code, a real bearer code per 20251215054759_*.sql) would be " +
+      "stored verbatim in client_error_events.route and become readable by EVERY developer-role " +
+      "account, even though RLS on team_invitations deliberately restricts SELECT to the " +
+      "inviter only (20260915120000_team_invitations_lockdown.sql). This is a real escalation " +
+      "path, not a theoretical one: reproduce with sanitizeClientErrorPayload({message:'x', " +
+      "route:'/join-team/TEAM-A1B2C3D4'}).route and it must not contain 'TEAM-A1B2C3D4'.",
+    async run({ read }) {
+      const telemetry = await read("supabase/functions/_shared/telemetry.ts");
+      if (telemetry == null) return { ok: false, detail: ["supabase/functions/_shared/telemetry.ts is missing"] };
+
+      const bad = [];
+      // normalizeRoute must itself call the PII/code redactor, not just cap/strip.
+      const fnMatch = telemetry.match(/export function normalizeRoute\([\s\S]*?\n\}/);
+      const fnBody = fnMatch ? fnMatch[0] : "";
+      if (!fnMatch || !/redactPii\(/.test(fnBody)) {
+        bad.push("normalizeRoute() must run the path through redactPii() before capping length");
+      }
+      // A dedicated rule for short PREFIX-CODE bearer capabilities (team
+      // invite / document codes), since the general 24-char TOKEN_RE alone
+      // does not catch a 13-char code like "TEAM-A1B2C3D4".
+      if (!/CODE_RE\s*=/.test(telemetry)) {
+        bad.push("telemetry.ts must have a dedicated short bearer-code redaction rule (e.g. CODE_RE for PREFIX-CODE formats like TEAM-XXXXXXXX), not just the 24+ char TOKEN_RE");
+      }
+
+      // Behavioral proof: actually run it.
+      try {
+        const mod = await import(new URL("../../supabase/functions/_shared/telemetry.ts", import.meta.url));
+        const result = mod.sanitizeClientErrorPayload({
+          message: "TypeError: x is not a function",
+          stack: "at foo (bar.js:1:1)",
+          route: "/join-team/TEAM-A1B2C3D4",
+        });
+        if (!result || typeof result.route !== "string" || result.route.includes("TEAM-A1B2C3D4")) {
+          bad.push(`sanitizeClientErrorPayload must redact a team-invite code embedded in route; got route=${result && result.route}`);
+        }
+        const normal = mod.normalizeRoute ? mod.normalizeRoute("/jobs/apply") : null;
+        if (normal !== "/jobs/apply") {
+          bad.push(`normalizeRoute must leave an ordinary lowercase, dash-separated route segment untouched; got ${normal}`);
+        }
+      } catch (e) {
+        bad.push(`could not import/execute telemetry.ts to verify redaction behavior: ${e.message}`);
+      }
+
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
+
+  {
+    id: "beacon-js-does-not-auto-fire-from-inside-the-landing-iframe",
+    why:
+      "src/pages/Index.tsx renders route '/' as <iframe src=/landing.html>, a separate " +
+      "same-origin browsing context. public/landing.html carries its own <script src=/beacon.js " +
+      "defer> tag (added alongside this feature), so without a same-origin-iframe guard, " +
+      "beacon.js's auto-firing IIFE runs in BOTH the outer document (path '/') and the iframe's " +
+      "own document (path '/landing.html') on every single homepage view — double-counting the " +
+      "site's single most-trafficked page in page_view_daily and splitting it across two rows " +
+      "in the Developer > Visitors 'top pages' list. usePageViewTracking.ts's own dedup logic " +
+      "only prevents the OUTER document's SPA-route-change effect from double-reporting; it has " +
+      "no visibility into the iframe's independently-executing script.",
+    async run({ read }) {
+      const beacon = await read("public/beacon.js");
+      if (beacon == null) return { ok: false, detail: ["public/beacon.js is missing"] };
+
+      const bad = [];
+      if (!/window\.self\s*!==\s*window\.top/.test(beacon)) {
+        bad.push("beacon.js must check `window.self !== window.top` to detect running inside an iframe");
+      }
+      // The guard must actually gate the auto-fire call, not just exist as
+      // dead code: the initial track() call must appear AFTER the check.
+      const selfTopIdx = beacon.indexOf("window.self !== window.top");
+      const autoFireIdx = beacon.lastIndexOf("track(window.location.pathname)");
+      if (selfTopIdx === -1 || autoFireIdx === -1 || autoFireIdx < selfTopIdx) {
+        bad.push("the window.self !== window.top guard must run BEFORE the automatic initial track(window.location.pathname) call");
+      }
+
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
 ];

@@ -170,6 +170,22 @@ console.log("\nRoute normalization:\n");
   check("falls back to '/' for empty input", normalizeRoute("") === "/");
   check("falls back to '/' for missing input", normalizeRoute(undefined) === "/");
   check("caps route length", normalizeRoute("/" + "a".repeat(1000)).length <= MAX_ROUTE_LEN);
+
+  // Regression: a route segment can itself be a live bearer capability, not
+  // just a path. team_invitations.invite_code is 'TEAM-' + 8 uppercase hex
+  // chars (generate_invite_code() in 20251215054759_*.sql) — accepting it
+  // lets the holder join that employer's team. If normalizeRoute only
+  // strips query/hash and caps length without redacting, this code would
+  // be stored verbatim in client_error_events.route and become readable by
+  // every developer-role account, even though team_invitations RLS
+  // deliberately restricts SELECT to the inviter only.
+  const inviteRoute = normalizeRoute("/join-team/TEAM-A1B2C3D4");
+  check("redacts a team-invite code embedded in a route segment", !inviteRoute.includes("TEAM-A1B2C3D4"), inviteRoute);
+  check("an ordinary lowercase, dash-separated route segment is left untouched", normalizeRoute("/join-team") === "/join-team");
+  check("an ordinary lowercase, dash-separated route segment with an id is left untouched", normalizeRoute("/candidates/jane-doe") === "/candidates/jane-doe");
+
+  const docCodeRoute = normalizeRoute("/verify/DOC-A1B2C3");
+  check("redacts a short document-verification code embedded in a route segment", !docCodeRoute.includes("DOC-A1B2C3"), docCodeRoute);
 }
 
 // =============================================================================
@@ -200,6 +216,18 @@ console.log("\nClient-error payload sanitizing:\n");
   });
   check("redacts an email address embedded in the message", !withPii.message.includes("@"), withPii.message);
   check("redacts a long opaque token embedded in the stack", !withPii.stack.includes("aVeryLongOpaqueSessionTokenValue123456"), withPii.stack);
+
+  // Same exploit path, exercised through the full sanitizer (not just
+  // normalizeRoute directly) since that's what client-errors/index.ts calls.
+  // Deliberately the REAL 13-char invite-code length ("TEAM-" + 8 hex) —
+  // short enough that the 24+ char TOKEN_RE alone would NOT catch it,
+  // which is exactly why a dedicated short-code rule is required.
+  const withInviteCodeRoute = sanitizeClientErrorPayload({
+    message: "TypeError: x is not a function",
+    stack: "at foo (bar.js:1:1)",
+    route: "/join-team/TEAM-A1B2C3D4",
+  });
+  check("sanitizeClientErrorPayload redacts an invite code in route, not just message/stack", !withInviteCodeRoute.route.includes("TEAM-A1B2C3D4"), withInviteCodeRoute.route);
 
   const unknownRole = sanitizeClientErrorPayload({ message: "x", userRole: "super-admin-backdoor" });
   check("an unrecognized userRole is dropped, not passed through", unknownRole.userRole === null);

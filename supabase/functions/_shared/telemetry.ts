@@ -196,16 +196,31 @@ const EMAIL_RE = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
 // Long opaque tokens (JWTs, API keys, session ids) that a stack trace or
 // error message might accidentally interpolate.
 const TOKEN_RE = /\b[a-z0-9_-]{24,}\b/gi;
+// Short-but-still-a-bearer-capability codes: PREFIX-ALNUM, e.g. team invite
+// codes ("TEAM-A1B2C3D4", 13 chars — generate_invite_code() in
+// 20251215054759_*.sql) and document verification codes ("DOC-...", see
+// 20251219173453_*.sql / 20260915123000_*.sql). These are generated
+// uppercase-hex-after-a-dash on purpose, which is what makes this pattern
+// safe against ordinary lowercase, dash-separated route segments like
+// "/join-team" or "/sign-document" — only an actual generated code matches.
+const CODE_RE = /\b[A-Z]{2,10}-[A-Z0-9]{6,}\b/g;
 
 function redactPii(input: string): string {
-  return input.replace(EMAIL_RE, "<email>").replace(TOKEN_RE, "<redacted>");
+  return input.replace(EMAIL_RE, "<email>").replace(CODE_RE, "<redacted>").replace(TOKEN_RE, "<redacted>");
 }
 
-/** Strip query string and hash, and cap length — a route is a path, not a URL with secrets in the query. */
+/**
+ * Strip query string and hash, cap length, and redact PII/bearer codes — a
+ * route is a path, not a URL with secrets in the query, but path SEGMENTS
+ * can themselves be secrets (e.g. /join-team/TEAM-A1B2C3D4 embeds a live
+ * team-invite bearer code). Shared by client-errors' `route` field and
+ * page-views' `path` field, so both get the same protection.
+ */
 export function normalizeRoute(route: string | null | undefined): string {
   if (!route) return "/";
   let path = String(route).split("?")[0].split("#")[0];
   if (!path.startsWith("/")) path = `/${path}`;
+  path = redactPii(path);
   return path.slice(0, MAX_ROUTE_LEN);
 }
 
