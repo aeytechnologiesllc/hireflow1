@@ -350,7 +350,7 @@ export default function VoiceInterviewPhase() {
       // Done processing - show completion state
       setIsProcessingEnd(false);
     }
-  }, [applicationId, candidateName, cleanupVideo, clearFallbackEndTimeout, job, messages, stopRecording, uploadRecording, videoEnabled]);
+  }, [applicationId, candidateName, cleanupVideo, clearFallbackEndTimeout, job, messages, stepId, stopRecording, uploadRecording]);
 
   const {
     isConnected,
@@ -421,90 +421,7 @@ export default function VoiceInterviewPhase() {
     return () => clearInterval(interval);
   }, [isConnected, interviewStartTime]);
 
-  useEffect(() => {
-    loadApplicationData();
-  }, [applicationId]);
-
-  useEffect(() => {
-    return () => {
-      clearFallbackEndTimeout();
-    };
-  }, [clearFallbackEndTimeout]);
-
-  // Real-time subscription for phase resets - ensures immediate refresh when employer resets
-  useEffect(() => {
-    if (!applicationId) return;
-
-    const channel = supabase
-      .channel(`voice-interview-phase-updates-${applicationId}`)
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'applications',
-        filter: `id=eq.${applicationId}`,
-      }, (payload) => {
-        // Refetch application data when it changes (e.g., phase reset)
-        loadApplicationData();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [applicationId]);
-
-  // Cleanup video on unmount
-  useEffect(() => {
-    return () => {
-      cleanupVideo();
-    };
-  }, [cleanupVideo]);
-
-  // Enable camera and microphone
-  const enableCamera = async () => {
-    const stream = await requestPermissions();
-    if (stream) {
-      // Store the stream to share with voice hook
-      setMicStream(stream);
-      // Set enabled first - this will cause video element to render
-      setCameraEnabled(true);
-    }
-  };
-
-  // Attach stream to video element after it mounts or when interview starts
-  // (interview UI has a different video element that needs the stream re-attached)
-  useEffect(() => {
-    if (cameraEnabled && videoPreviewRef.current && isPermissionGranted) {
-      const stream = getPreviewStream();
-      if (stream) {
-        videoPreviewRef.current.srcObject = stream;
-      }
-    }
-  }, [cameraEnabled, isPermissionGranted, getPreviewStream, interviewStarted]);
-
-  // Warn before a reload or a closed tab takes the interview down with it. The
-  // back arrow is guarded separately; this is the other half — a refresh, a
-  // swipe-close, a tapped link — which tore down the session and lost the
-  // recording with no warning at all. The browser shows its own wording here;
-  // preventDefault is what makes it appear.
-  useEffect(() => {
-    const isLive = interviewStarted && !isProcessingEnd;
-    if (!isLive) return;
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [interviewStarted, isProcessingEnd]);
-
-  // Confirm camera works
-  const confirmCameraWorks = () => {
-    setCameraTestPassed(true);
-    toast.success("Camera & microphone ready!");
-  };
-
-  const loadApplicationData = async () => {
+  const loadApplicationData = useCallback(async () => {
     if (!applicationId) return;
 
     try {
@@ -568,6 +485,89 @@ export default function VoiceInterviewPhase() {
     } finally {
       setLoading(false);
     }
+  }, [applicationId]);
+
+  useEffect(() => {
+    loadApplicationData();
+  }, [applicationId, loadApplicationData]);
+
+  useEffect(() => {
+    return () => {
+      clearFallbackEndTimeout();
+    };
+  }, [clearFallbackEndTimeout]);
+
+  // Real-time subscription for phase resets - ensures immediate refresh when employer resets
+  useEffect(() => {
+    if (!applicationId) return;
+
+    const channel = supabase
+      .channel(`voice-interview-phase-updates-${applicationId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'applications',
+        filter: `id=eq.${applicationId}`,
+      }, (payload) => {
+        // Refetch application data when it changes (e.g., phase reset)
+        loadApplicationData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [applicationId, loadApplicationData]);
+
+  // Cleanup video on unmount
+  useEffect(() => {
+    return () => {
+      cleanupVideo();
+    };
+  }, [cleanupVideo]);
+
+  // Enable camera and microphone
+  const enableCamera = async () => {
+    const stream = await requestPermissions();
+    if (stream) {
+      // Store the stream to share with voice hook
+      setMicStream(stream);
+      // Set enabled first - this will cause video element to render
+      setCameraEnabled(true);
+    }
+  };
+
+  // Attach stream to video element after it mounts or when interview starts
+  // (interview UI has a different video element that needs the stream re-attached)
+  useEffect(() => {
+    if (cameraEnabled && videoPreviewRef.current && isPermissionGranted) {
+      const stream = getPreviewStream();
+      if (stream) {
+        videoPreviewRef.current.srcObject = stream;
+      }
+    }
+  }, [cameraEnabled, isPermissionGranted, getPreviewStream, interviewStarted]);
+
+  // Warn before a reload or a closed tab takes the interview down with it. The
+  // back arrow is guarded separately; this is the other half — a refresh, a
+  // swipe-close, a tapped link — which tore down the session and lost the
+  // recording with no warning at all. The browser shows its own wording here;
+  // preventDefault is what makes it appear.
+  useEffect(() => {
+    const isLive = interviewStarted && !isProcessingEnd;
+    if (!isLive) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [interviewStarted, isProcessingEnd]);
+
+  // Confirm camera works
+  const confirmCameraWorks = () => {
+    setCameraTestPassed(true);
+    toast.success("Camera & microphone ready!");
   };
 
   const startInterview = async () => {
