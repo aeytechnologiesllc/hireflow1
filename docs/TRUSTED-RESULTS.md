@@ -42,6 +42,8 @@ const outcome = await recordStepResult(admin /* service-role client */, {
   resultKey,           // the notes key readers check today — see the table below
   result,              // the value written at notes[resultKey] — same shape today's readers expect
   legacyStepEntry,      // optional — also writes notes[stepId] for by-id readers (see table)
+  extraNotesEntries,    // optional — also writes other flat top-level notes keys some readers
+                        // check exclusively, e.g. video_intro's { videoIntroUrl } (see table)
 });
 
 if (!outcome.ok) {
@@ -64,7 +66,8 @@ write) if any of the first three fail:
    + `positionFor` from `candidateJourney.ts`) — and that the application
    isn't `rejected`.
 4. Merges `result` into `notes[resultKey]`, plus `notes[stepId]` if you
-   passed `legacyStepEntry`, plus a server-only
+   passed `legacyStepEntry`, plus any flat top-level keys you passed in
+   `extraNotesEntries`, plus a server-only
    `notes._trusted[stepId] = { stepType, completedAt }` marker no client
    write can ever produce.
 5. In auto mode, advances `phase`/`status` to the next configured step —
@@ -80,21 +83,30 @@ candidate's own browser already computes for its "Start next phase" button.
 
 ## The result_key map
 
-| `resultKey` (any casing) | notes `type` it pairs with | `legacyStepEntry`? |
-|---|---|---|
-| `typingTestResult` | `typing_test` | yes — `notes[stepId]`, TypingTestPhase.tsx:349-361 |
-| `chatSimulationResult` | `chat_simulation` | no — ChatSimulationPhase.tsx has no by-id reader |
-| `chatInterviewResult` | `chat_interview` | no |
-| `salesSimulationResult` | `sales_simulation` | no |
-| `portfolioResult` | `portfolio_upload` | yes — `notes[stepId]`, PortfolioUploadPhase.tsx:571 checks `notes[stepId] \|\| notes.portfolioResult` |
-| `videoIntroResult` | `video_intro` (or the legacy `video_message` alias) | yes — `notes[stepId]`, matches VideoIntroPhase.tsx's own write shape |
-| `voiceInterviewResult` | `voice_interview` | no — `CondensedAIAnalysis.tsx:277` reads this notes key as a fallback alongside the real `applications.voice_interview_result` column |
+| `resultKey` (any casing) | notes `type` it pairs with | `legacyStepEntry`? | `extraNotesEntries`? |
+|---|---|---|---|
+| `typingTestResult` | `typing_test` | yes — `notes[stepId]`, TypingTestPhase.tsx:349-361 | no |
+| `chatSimulationResult` | `chat_simulation` | no — ChatSimulationPhase.tsx has no by-id reader | no |
+| `chatInterviewResult` | `chat_interview` | no | no |
+| `salesSimulationResult` | `sales_simulation` | no | no |
+| `portfolioResult` | `portfolio_upload` | yes — `notes[stepId]`, PortfolioUploadPhase.tsx:571 checks `notes[stepId] \|\| notes.portfolioResult` | no |
+| `videoIntroResult` | `video_intro` (or the legacy `video_message` alias) | yes — `notes[stepId]`, matches VideoIntroPhase.tsx's own write shape | **yes, required** — `{ videoIntroUrl: result.videoUrl }`. VideoIntroPhase.tsx:390 writes a fourth, flat key today, `notes.videoIntroUrl`, that `autopilot-batch/index.ts:129` and `usePendingActionsCount.ts:77` read **exclusively** (never `videoIntroResult`) to decide whether a video was submitted. Drop this and those two readers go stale for every candidate who converts. `videoIntroUrl` is folded into the SAME `videoIntroResult` enforcement flag (not a separate `result_key`) — see the migration. |
+| `voiceInterviewResult` | `voice_interview` | no — `CondensedAIAnalysis.tsx:277` reads this notes key as a fallback alongside the real `applications.voice_interview_result` column | no |
 
 Before converting a phase, read that phase page's current
 `.update({ notes: ... })` call and match its `updatedNotes` shape exactly —
 `result` is whatever that phase's existing readers (`trigger-ava-analysis`,
 the cockpit, `CondensedAIAnalysis`) already expect at that key. Don't
-invent a new shape.
+invent a new shape. **Also grep every reader of that phase's notes** (not
+just the obvious `resultKey`) for a stray flat key like `videoIntroUrl` —
+`autopilot-batch/index.ts`, `usePendingActionsCount.ts`,
+`getApplicationDisplayState.ts`, `CandidateApplicationDetail.tsx`,
+`ChatInterviewPhase.tsx`, `ava-voice-session/index.ts` and
+`ava-voice-tools/index.ts` are all real, currently-wired examples of code
+that reads `notes` fields outside the `resultKey`/`legacyStepEntry` shapes
+above. `video_intro` is the one case the foundation already found and wired
+via `extraNotesEntries`; don't assume it's the only one for the phase you're
+converting.
 
 ## Converting one phase — the recipe
 
@@ -171,6 +183,10 @@ moment the flag flips, because the migration blocks
   threshold pass/fail decision inside `recordStepResult` — that's a
   separate, existing concern (and a separate call) `recordStepResult`
   deliberately leaves alone.
+- Don't assume `resultKey` + `legacyStepEntry` covers every reader. At least
+  one phase (`video_intro`) has a reader-facing flat key
+  (`notes.videoIntroUrl`) that neither covers — use `extraNotesEntries` for
+  it, and grep before you assume your phase has none.
 
 ## Where things live
 

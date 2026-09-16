@@ -344,5 +344,71 @@ check(
   })(),
 );
 
+check(
+  "extraNotesEntries writes flat top-level keys alongside resultKey — video_intro's videoIntroUrl case",
+  (() => {
+    const out = JSON.parse(
+      mergeTrustedNotes(
+        null,
+        {
+          stepId: "wf-video",
+          stepType: "video_intro",
+          resultKey: "videoIntroResult",
+          result: { duration: 30, completed: true, videoUrl: "https://x/video.webm" },
+          extraNotesEntries: { videoIntroUrl: "https://x/video.webm" },
+        },
+        "2026-09-16T00:00:00Z",
+      ),
+    );
+    return (
+      out.videoIntroUrl === "https://x/video.webm" &&
+      out.videoIntroResult.videoUrl === "https://x/video.webm" &&
+      out._trusted["wf-video"].stepType === "video_intro"
+    );
+  })(),
+);
+check(
+  "extraNotesEntries can never override resultKey, stepId, or _trusted even if it reuses those names",
+  (() => {
+    const out = JSON.parse(
+      mergeTrustedNotes(
+        null,
+        {
+          stepId: "wf-video",
+          stepType: "video_intro",
+          resultKey: "videoIntroResult",
+          result: { real: true },
+          legacyStepEntry: { real: true },
+          extraNotesEntries: {
+            videoIntroResult: { forged: true },
+            "wf-video": { forged: true },
+            _trusted: { forged: true },
+          },
+        },
+        "2026-09-16T00:00:00Z",
+      ),
+    );
+    return (
+      out.videoIntroResult.real === true &&
+      out["wf-video"].real === true &&
+      out._trusted["wf-video"].stepType === "video_intro" &&
+      out._trusted.forged === undefined
+    );
+  })(),
+);
+check(
+  "omitting extraNotesEntries changes nothing — same output as before it existed",
+  (() => {
+    const out = JSON.parse(
+      mergeTrustedNotes(
+        null,
+        { stepId: "wf-typing", stepType: "typing_test", resultKey: "typingTestResult", result: { wpm: 1 } },
+        "2026-09-16T00:00:00Z",
+      ),
+    );
+    return Object.keys(out).sort().join(",") === ["_trusted", "typingTestResult"].sort().join(",");
+  })(),
+);
+
 console.log(`\n${passed} passed, ${failed} failed.`);
 if (failed > 0) process.exit(1);

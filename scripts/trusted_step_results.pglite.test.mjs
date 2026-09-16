@@ -299,6 +299,21 @@ async function main() {
       );
     }
 
+    // video_intro's flat legacy key (notes.videoIntroUrl, not nested under
+    // videoIntroResult) — autopilot-batch/index.ts:129 and
+    // usePendingActionsCount.ts:77 read this exclusively. Flags off: still
+    // freely writable, same as every other still-unenforced key.
+    {
+      const appId = await newApplication("pending");
+      await expectOk(
+        () =>
+          updateAsCandidate(appId, "notes = $2", [
+            JSON.stringify({ videoIntroUrl: "https://example.com/video.webm" }),
+          ]),
+        "flags off: candidate can freely write notes.videoIntroUrl (the flat video_intro legacy key)"
+      );
+    }
+
     // A stepId-keyed entry whose own `type` matches one of the guarded
     // shapes, with flags off, is also untouched.
     {
@@ -489,6 +504,63 @@ async function main() {
     );
 
     await setFlag("typingTestResult", false); // reset for later sections
+  });
+
+  // ==========================================================================
+  console.log("\n== 3b. videoIntroUrl is folded into videoIntroResult's own flag ==");
+  await guardedSection("3b. videoIntroUrl", async () => {
+    await setFlag("videoIntroResult", true);
+
+    // The flat legacy key alone (no videoIntroResult entry even present) is
+    // blocked — this is the exact gap the foundation's own review caught:
+    // recordStepResult writes this key via extraNotesEntries, so it must be
+    // in the SAME protected subset as videoIntroResult itself, or a
+    // candidate could keep forging autopilot-batch's / the sidebar's
+    // "submitted" signal even after videoIntroResult is trusted.
+    const appId = await newApplication("pending", {
+      notes: JSON.stringify({ videoIntroUrl: "https://example.com/real.webm" }),
+    });
+    await expectFail(
+      () =>
+        updateAsCandidate(appId, "notes = $2", [
+          JSON.stringify({ videoIntroUrl: "https://example.com/forged.webm" }),
+        ]),
+      "enforced videoIntroResult: candidate cannot change notes.videoIntroUrl directly"
+    );
+    await expectFail(
+      () => updateAsCandidate(appId, "notes = $2", [JSON.stringify({})]),
+      "enforced videoIntroResult: candidate cannot REMOVE notes.videoIntroUrl either"
+    );
+
+    // Matches by any casing, same as every other result_key.
+    const casingApp = await newApplication("pending", {
+      notes: JSON.stringify({ VideoIntroUrl: "https://example.com/real.webm" }),
+    });
+    await expectFail(
+      () =>
+        updateAsCandidate(casingApp, "notes = $2", [
+          JSON.stringify({ VideoIntroUrl: "https://example.com/forged.webm" }),
+        ]),
+      "enforced videoIntroResult: matches notes.videoIntroUrl by any casing too"
+    );
+
+    // Employer / service_role remain unrestricted regardless.
+    await expectOk(
+      () =>
+        updateAsEmployer(appId, "notes = $2", [
+          JSON.stringify({ videoIntroUrl: "https://example.com/employer-edit.webm" }),
+        ]),
+      "employer stays unrestricted on notes.videoIntroUrl with the flag on"
+    );
+    await expectOk(
+      () =>
+        updateAsService(appId, "notes = $2", [
+          JSON.stringify({ videoIntroUrl: "https://example.com/service-edit.webm" }),
+        ]),
+      "service_role stays unrestricted on notes.videoIntroUrl with the flag on"
+    );
+
+    await setFlag("videoIntroResult", false);
   });
 
   // ==========================================================================

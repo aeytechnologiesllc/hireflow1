@@ -36,7 +36,20 @@
 --   videoIntroResult        notes.videoIntroResult; type IN ('video_intro',
 --                           'video_message' — the legacy alias
 --                           candidateJourney.ts's own typeMatchesPhase treats
---                           as the same step type)
+--                           as the same step type); ALSO notes.videoIntroUrl
+--                           directly — the flat legacy key VideoIntroPhase.tsx
+--                           :390 writes alongside videoIntroResult, which
+--                           autopilot-batch/index.ts:129 and
+--                           usePendingActionsCount.ts:77 read EXCLUSIVELY
+--                           (never videoIntroResult) to decide whether a
+--                           video intro was submitted. Leaving it out of this
+--                           result_key's protected subset would let a
+--                           candidate keep forging "submitted"/"not
+--                           submitted" for those two readers by hand-editing
+--                           notes.videoIntroUrl even after videoIntroResult
+--                           itself is trusted — trustedResults.ts's
+--                           recordStepResult writes both together via
+--                           `extraNotesEntries` for exactly this reason.
 --   voiceInterviewResult    notes.voiceInterviewResult (CondensedAIAnalysis.tsx
 --                           :277 reads this as a notes fallback alongside the
 --                           real applications.voice_interview_result column,
@@ -155,7 +168,15 @@ AS $function$
     WHEN lower(p_key) = lower('chatInterviewResult')  OR p_type = 'chat_interview'   THEN 'chatInterviewResult'
     WHEN lower(p_key) = lower('salesSimulationResult') OR p_type = 'sales_simulation' THEN 'salesSimulationResult'
     WHEN lower(p_key) = lower('portfolioResult')      OR p_type = 'portfolio_upload' THEN 'portfolioResult'
-    WHEN lower(p_key) = lower('videoIntroResult')     OR p_type IN ('video_intro', 'video_message') THEN 'videoIntroResult'
+    -- videoIntroUrl is the flat legacy key VideoIntroPhase.tsx:390 writes
+    -- alongside videoIntroResult — see this migration's header comment.
+    -- Folded into the SAME result_key (not its own row) since it is the
+    -- same underlying fact ("was a video submitted") duplicated at a second
+    -- key for two readers that check it exclusively; one enforcement flag
+    -- covers both.
+    WHEN lower(p_key) = lower('videoIntroResult')
+      OR lower(p_key) = lower('videoIntroUrl')
+      OR p_type IN ('video_intro', 'video_message')                                 THEN 'videoIntroResult'
     WHEN lower(p_key) = lower('voiceInterviewResult') OR p_type = 'voice_interview'  THEN 'voiceInterviewResult'
     ELSE NULL
   END;

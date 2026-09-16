@@ -122,6 +122,27 @@ export interface RecordStepResultInput {
    *  PortfolioUploadPhase.tsx:571 checks `notes[stepId] || notes.portfolioResult`.
    *  Omit when the phase being converted has no such by-id reader left. */
   legacyStepEntry?: Record<string, unknown>;
+  /** Optional flat, TOP-LEVEL `notes` keys to write alongside `result` — for
+   *  readers that check a different, unrelated flat key entirely rather than
+   *  `notes[resultKey]` or `notes[stepId]`. This exists because of exactly
+   *  one known case today: VideoIntroPhase.tsx:390 writes a fourth key,
+   *  `notes.videoIntroUrl`, that neither `resultKey` (`videoIntroResult`)
+   *  nor `legacyStepEntry` (`notes[stepId]`) covers — and two live readers
+   *  check that flat key EXCLUSIVELY: autopilot-batch/index.ts:129
+   *  (`case "video_intro": case "video_message": return !!parsedNotes.videoIntroUrl`)
+   *  and usePendingActionsCount.ts:77 (the employer sidebar's pending-actions
+   *  badge). A video_intro/video_message conversion MUST pass
+   *  `{ videoIntroUrl: result.videoUrl }` here or both of those readers go
+   *  stale the moment the browser stops writing that key itself — see
+   *  docs/TRUSTED-RESULTS.md's result_key table. Before adding a NEW
+   *  `resultKey`/`stepType`, grep every reader of that phase's notes shape
+   *  (trigger-ava-analysis, autopilot-batch, CondensedAIAnalysis,
+   *  getApplicationDisplayState, usePendingActionsCount, the cockpit) for a
+   *  similar stray flat key and add it here too, rather than discovering the
+   *  gap in production. Applied BEFORE `resultKey`/`stepId`/`_trusted` are
+   *  written below, so none of those three can ever be overridden by an
+   *  entry here even if a caller mistakenly reuses one of those names. */
+  extraNotesEntries?: Record<string, unknown>;
 }
 
 export type StepNotReachedReason =
@@ -272,6 +293,9 @@ export function nextStepForCandidate(
  * Merges one step's trusted result into `notes` — pure string-in,
  * string-out, so it's testable with plain fixtures. Always writes:
  *
+ *   - `notes[key] = value` for every entry in `extraNotesEntries`, if given
+ *     (e.g. `notes.videoIntroUrl = "..."` — see that field's own doc comment
+ *     on `RecordStepResultInput` for why this exists)
  *   - `notes[resultKey] = result` (e.g. `notes.typingTestResult = {...}`)
  *   - `notes[stepId] = legacyStepEntry`, only if `legacyStepEntry` was given
  *   - `notes._trusted[stepId] = { stepType, completedAt }` — the
@@ -279,13 +303,20 @@ export function nextStepForCandidate(
  *     notes guard, once enforced for a key, refuses any candidate edit to
  *     `_trusted` unconditionally)
  *
+ * The four are applied in that order, so `resultKey`/`stepId`/`_trusted`
+ * always win over anything in `extraNotesEntries` even if a caller
+ * accidentally reuses one of those key names there.
+ *
  * Every other existing key in `notes` (applicationAnswers, resumeImageUrls,
  * other steps' own results, ...) passes through untouched — this never
  * replaces the whole object, only merges.
  */
 export function mergeTrustedNotes(
   existingNotesJson: string | null | undefined,
-  input: Pick<RecordStepResultInput, "stepId" | "stepType" | "resultKey" | "result" | "legacyStepEntry">,
+  input: Pick<
+    RecordStepResultInput,
+    "stepId" | "stepType" | "resultKey" | "result" | "legacyStepEntry" | "extraNotesEntries"
+  >,
   completedAt: string,
 ): string {
   let existing: Record<string, unknown> = {};
@@ -307,6 +338,7 @@ export function mergeTrustedNotes(
 
   const updated: Record<string, unknown> = {
     ...existing,
+    ...(input.extraNotesEntries ?? {}),
     [input.resultKey]: input.result,
     _trusted: {
       ...existingTrusted,
