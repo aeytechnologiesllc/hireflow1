@@ -78,6 +78,9 @@ verify_jwt = true
 [functions.trigger-ava-analysis]
 verify_jwt = false
 
+[functions.complete-video-intro]
+verify_jwt = true
+
 [functions.autopilot-batch]
 verify_jwt = false
 

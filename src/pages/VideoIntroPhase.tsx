@@ -2,7 +2,6 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +11,6 @@ import { Progress } from "@/components/ui/progress";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { AvaSeal } from "@/components/ava/AvaSeal";
-import { buildCandidateJourney, DECISION_STAGE_ID } from "@/lib/candidateJourney";
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 import {
   ArrowLeft,
@@ -317,91 +315,34 @@ export default function VideoIntroPhase() {
       // mint a short-lived signed URL from the path (see candidateMediaUrl.ts).
       const videoUrl = fileName;
 
-      // 3. Build the real journey to determine the next stage
-      const workflowSteps = application.jobs?.workflow_steps as Array<{ id: string; type: string; title?: string }> || [];
-      const quizQuestions = application.jobs?.quiz_questions as Json[] | undefined;
-      const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
+      // 3. Record the result server-side. complete-video-intro verifies this
+      // is really this candidate's own upload for this application/step,
+      // grades it (video intro is completion-based: always passed once a
+      // real recording exists — same rule this screen always applied), and
+      // advances phase/status using the same journey rules this screen's
+      // own local computation used to apply — see its own doc comment and
+      // docs/TRUSTED-RESULTS.md. The browser no longer writes
+      // applications.notes/phase/phase_ai_analysis directly for this step.
+      const { data: completeData, error: completeError } = await supabase.functions.invoke(
+        "complete-video-intro",
+        { body: { applicationId: id, stepId, videoUrl, duration: recordingTime } }
+      );
 
-      const allPhases = buildCandidateJourney(workflowSteps, { hasQuiz });
-
-      // Find current step index
-      let currentIndex = allPhases.findIndex((p) => p.id === stepId);
-      if (currentIndex === -1 && application.phase) {
-        currentIndex = allPhases.findIndex(
-          (p) => p.id === application.phase || p.type === application.phase
-        );
+      if (completeError || !completeData?.success) {
+        const message =
+          (completeData && typeof completeData.error === "string" && completeData.error) ||
+          completeError?.message ||
+          "Failed to save your video";
+        throw new Error(message);
       }
 
-      // Determine next phase (video always passes since it's completion-based)
-      let newPhase = application.phase;
-      let nextPhase: { id: string; type: string; title: string } | null = null;
-      if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
-        nextPhase = allPhases[currentIndex + 1];
-      }
-
-      // Advance to next phase ONLY in auto mode
-      if (isAutoMode) {
-        if (nextPhase) {
-          // STOP before voice_interview - requires employer to configure
-          if (nextPhase.type === "voice_interview") {
-            // Don't advance to voice interview - stay at current phase completion
-            // Employer must manually configure and approve for Ava interview
-            // Don't set nextPhaseInfo - no "Start Next Phase" button
-          } else {
-            newPhase = nextPhase.id;
-
-            // DON'T show "Start Next Phase" button if next stage is the
-            // closing decision stage (only in auto mode) — nothing to click into.
-            if (nextPhase.id !== DECISION_STAGE_ID) {
-              setNextPhaseInfo({
-                id: nextPhase.id,
-                title: nextPhase.title,
-              });
-            }
-          }
-        }
-      }
-
-      // 4. Update database
-      const existingNotes = parseApplicationNotes(application.notes);
-      const currentStep = workflowSteps?.find((s: any) => s.id === stepId);
-      const stepType = currentStep?.type || "video_intro";
-
-      const updatedNotes = {
-        ...existingNotes,
-        [stepId!]: {
-          type: stepType,
-          duration: recordingTime,
-          recordedAt: new Date().toISOString(),
-          completed: true,
-          passed: true,
-          score: null,
-          videoUrl,
-          uploadMethod: "recorded",
-        },
-        videoIntroResult: {
-          duration: recordingTime,
-          completed: true,
-          passed: true,
-          score: null,
-          videoUrl,
-          uploadMethod: "recorded",
-        },
-        videoIntroUrl: videoUrl,
-      };
-
-      const { error: dbError } = await supabase
-        .from("applications")
-        .update({
-          notes: JSON.stringify(updatedNotes),
-          // Manual mode must NEVER auto-advance phases
-          phase: isAutoMode ? newPhase : application.phase,
-          phase_ai_analysis: `Video intro: ${formatTime(recordingTime)} duration. COMPLETED. Stored at: ${videoUrl}`,
-        })
-        .eq("id", id!);
-
-      if (dbError) {
-        throw new Error(`Database update failed: ${dbError.message}`);
+      // Mirrors this screen's own former "DON'T show Start Next Phase if the
+      // next stage is the closing decision stage" rule — complete-video-intro
+      // already applies that (and the voice_interview / manual-mode holds)
+      // before returning "waiting" instead of a real next step.
+      const nextStepInfo = completeData.next as { id: string; type: string; title: string } | "waiting";
+      if (nextStepInfo !== "waiting") {
+        setNextPhaseInfo({ id: nextStepInfo.id, title: nextStepInfo.title });
       }
 
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
