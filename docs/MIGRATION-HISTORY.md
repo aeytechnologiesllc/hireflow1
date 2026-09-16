@@ -112,6 +112,36 @@ only this mapping.
 `20260904121000_message_notifications.sql` are **not** in this table — their
 repo version and live version already match exactly.
 
+## 3. Repo migration files never applied live (the reverse check)
+
+Section 1 only catches "live migration with no repo file." Checking the other
+direction — repo file with no matching live `name` — turned up 7 files that
+exist in `supabase/migrations/` but have **never been applied to production**:
+
+| Repo file | Name |
+|---|---|
+| `20260916150100_enforce_typing_test_result.sql` | `enforce_typing_test_result` |
+| `20260916150200_enforce_chat_simulation_result.sql` | `enforce_chat_simulation_result` |
+| `20260916150300_enforce_chat_interview_result.sql` | `enforce_chat_interview_result` |
+| `20260916150400_enforce_sales_simulation_result.sql` | `enforce_sales_simulation_result` |
+| `20260916150500_enforce_portfolio_result.sql` | `enforce_portfolio_result` |
+| `20260916150600_enforce_video_intro_result.sql` | `enforce_video_intro_result` |
+| `20260916150700_enforce_voice_interview_result.sql` | `enforce_voice_interview_result` |
+
+Verified live on 2026-09-16: `select * from public.trusted_result_enforcement`
+returns all 8 rows (`chatInterviewResult`, `chatSimulationResult`, `phase`,
+`portfolioResult`, `salesSimulationResult`, `typingTestResult`,
+`videoIntroResult`, `voiceInterviewResult`) with `enforced = false` — none of
+these 7 migrations (there is no 8th; `phase` has no corresponding `enforce_*`
+file in the repo) have run. Per `20260915140000_trusted_step_results.sql`,
+an unenforced `result_key` is left fully candidate-writable by
+`protected_trusted_result_notes_subset`, so none of these step results are
+actually protected against client forgery today, despite files existing that
+would protect them. See `CLAUDE.md`, "Security posture", for the corrected
+claim — do not describe any of these 8 as "enforced" until its migration is
+confirmed live via this same query. Applying these 7 migrations is open
+follow-up work, not part of this reconciliation pass (which is read-only).
+
 ## Why this happens: the Management API stamping rule
 
 `npx supabase db push` (CLI) applies a migration file and records
@@ -143,4 +173,7 @@ select version, name from supabase_migrations.schema_migrations order by version
 
 Compare the `name` column against `supabase/migrations/*.sql` file names (not
 against the `version` prefix, for the reason above). Any live name with no repo
-file is missing and should be recovered the same way this pass did.
+file is missing and should be recovered the same way this pass did. Also check
+the **reverse** direction — any repo file whose name has no matching live row
+has never been applied (see section 3); do not assume a migration file in the
+repo means its effect is live.

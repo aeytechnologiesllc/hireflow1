@@ -66,20 +66,36 @@ reason and a re-verification pass: step gate on the candidate flow; input
 sanitizers; private storage (`resumes`, `videos`, `portfolios`, `interviews` —
 none are public buckets any more); quiz server-side grading plus
 `protect_application_columns`/`protect_document_columns` triggers that block a
-client from forging scored or signed columns; the trusted-results foundation
-(`recordStepResult`, `trusted_result_enforcement` flags, one flag per
-self-reported step type — voice interview and document signing are enforced,
-several step types still self-report and are tracked as open work); team
-invitation RPCs; forgery lockdown on public-facing insert/update policies;
-in-app + push notification triggers; document signing with a hash chain and
-audit log (`document-signing` function, `protect_document_columns` trigger);
-RPC caller checks (`has_role`, subscription/limit lookups, `is_job_owner`,
-`is_active_team_member_for_job`) that only ever answer about the calling user;
-`voice_session_log`-based voice-minute charging; and access scoping on the
-performance report and dossier views. See `docs/ARCHITECTURE.md` and
-`docs/BACKEND-SCHEMA.md` for the current live schema, and
-`docs/MIGRATION-HISTORY.md` for how migration history was reconciled with the
-live database on 2026-09-16.
+client from forging scored or signed columns; team invitation RPCs; forgery
+lockdown on public-facing insert/update policies; in-app + push notification
+triggers; document signing with a hash chain and audit log (`document-signing`
+function, `protect_document_columns` trigger — this one is unconditional, not
+gated by a flag); RPC caller checks (`has_role`, subscription/limit lookups,
+`is_job_owner`, `is_active_team_member_for_job`) that only ever answer about
+the calling user; `voice_session_log`-based voice-minute charging; and access
+scoping on the performance report and dossier views.
+
+**Trusted-results foundation is built but NOT yet live-enforced.** The
+`recordStepResult` path and the `public.trusted_result_enforcement` table
+(one boolean flag per self-reported step type: `chatInterviewResult`,
+`chatSimulationResult`, `phase`, `portfolioResult`, `salesSimulationResult`,
+`typingTestResult`, `videoIntroResult`, `voiceInterviewResult`) exist, but as
+verified live on 2026-09-16 **all 8 flags are `enforced = false`**. The 7
+repo migrations at `supabase/migrations/20260916150100`–`150700_enforce_*.sql`
+that would flip them on were never applied to production — they have no
+matching row in `supabase_migrations.schema_migrations`. Until one of these
+is actually applied, `protected_trusted_result_notes_subset` treats every one
+of those 8 keys as fully candidate-writable (per the comment in
+`20260915140000_trusted_step_results.sql`), so e.g. `voiceInterviewResult`
+can still be forged today via a direct client update to `notes`. Do not
+describe any of these 8 as "enforced" until its migration is confirmed live.
+Treat applying the `enforce_*` migrations as open follow-up work, not done.
+
+See `docs/ARCHITECTURE.md` and `docs/BACKEND-SCHEMA.md` for the current live
+schema, and `docs/MIGRATION-HISTORY.md` for how migration history was
+reconciled with the live database on 2026-09-16 — including the reverse
+check (repo migration files never applied live) that surfaced the 7
+`enforce_*` files above.
 
 ## Before touching this clone
 
@@ -121,6 +137,12 @@ git push origin main
 npx supabase link --project-ref yqklrkpptnhubsnijqze
 
 # Push database migrations
+# DO NOT run this blind: db push matches by version, and 27 repo migrations
+# are stamped with a different version than the one recorded live (see
+# docs/MIGRATION-HISTORY.md, "Same migration, different version stamp").
+# A blind push will re-apply those 27 against production and write a
+# duplicate schema_migrations row. Reconcile against
+# docs/MIGRATION-HISTORY.md first.
 npx supabase db push
 
 # Deploy all edge functions

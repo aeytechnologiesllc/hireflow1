@@ -73,6 +73,15 @@ From the repo root, with the Supabase CLI linked to `yqklrkpptnhubsnijqze`:
 npx supabase db push
 ```
 
+**Do not run this blindly against `yqklrkpptnhubsnijqze`.** `db push` decides
+what to apply by matching each repo file's version prefix against
+`supabase_migrations.schema_migrations.version`. 27 repo migrations are
+currently stamped with a different version than the one recorded live (see
+`docs/MIGRATION-HISTORY.md`, "Same migration, different version stamp"), so an
+unreconciled push will treat those as new and re-run their DDL a second time
+against production. Reconcile local migration history against
+`docs/MIGRATION-HISTORY.md` first.
+
 Migration files are named `<version>_<name>.sql` under `supabase/migrations/`.
 **The live `version` stamp and the repo filename's version prefix can differ** —
 see `docs/MIGRATION-HISTORY.md` for why, and for the mapping between the two for
