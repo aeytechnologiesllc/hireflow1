@@ -91,11 +91,25 @@ can still be forged today via a direct client update to `notes`. Do not
 describe any of these 8 as "enforced" until its migration is confirmed live.
 Treat applying the `enforce_*` migrations as open follow-up work, not done.
 
+**One production account has no `profiles` row right now.** Verified live
+2026-09-16: `select count(*) from auth.users u left join public.profiles p
+on p.user_id=u.id where p.user_id is null` returns 1. The self-healing fix
+for this, `public.reconcile_orphaned_profiles()`
+(`supabase/migrations/20260831190000_reconcile_orphaned_profiles.sql`), was
+never applied — the function does not exist live. Until it's applied, that
+account has no `company_name`, which the feed quality gate and Google
+structured data need, so its jobs are silently withheld/anonymized. This is
+a real, live gap, not a bookkeeping one; see `docs/MIGRATION-HISTORY.md`
+section 3a.
+
 See `docs/ARCHITECTURE.md` and `docs/BACKEND-SCHEMA.md` for the current live
 schema, and `docs/MIGRATION-HISTORY.md` for how migration history was
-reconciled with the live database on 2026-09-16 — including the reverse
-check (repo migration files never applied live) that surfaced the 7
-`enforce_*` files above.
+reconciled with the live database on 2026-09-16 — including the full reverse
+check (every repo migration file with no matching live row, diffed by name
+against the complete live table, not a search scoped to one category) that
+found 20 such files, not 7, split into three different situations (never
+applied with a live consequence; never applied and would fail/is moot;
+applied by hand with no tracking row at all).
 
 ## Before touching this clone
 
@@ -156,6 +170,8 @@ npx supabase functions deploy <function-name>
 
 - [ ] Stripe live keys — checkout is deliberately disabled (fails loudly, takes no money) until pay-per-job billing ships; see "Distribution & billing state" above
 - [ ] One real, complete, published job on production — the feed and Google indexing pipeline are wired and valid but currently serve 0 jobs because the live database has 0 rows in `jobs`/`applications`
+- [ ] Apply `20260831190000_reconcile_orphaned_profiles.sql` — one live account currently has no `profiles` row (see "Security posture" above), so its jobs are silently withheld from the feed/Google structured data
+- [ ] Apply the 7 `enforce_*` trusted-result migrations — see "Security posture" above
 - [ ] Verify `ONESIGNAL_*` push-notification secrets are current in Supabase Edge Function secrets — the wrong-project-ref bug that silently broke every push was fixed (`20260826221000_fix_push_notification_wrong_project_url`), but re-confirm a live send before relying on it
 - [ ] Custom domain settings beyond `hireflownow.com`, if any additional domain is wanted on Vercel
 

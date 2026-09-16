@@ -115,32 +115,82 @@ repo version and live version already match exactly.
 ## 3. Repo migration files never applied live (the reverse check)
 
 Section 1 only catches "live migration with no repo file." Checking the other
-direction — repo file with no matching live `name` — turned up 7 files that
-exist in `supabase/migrations/` but have **never been applied to production**:
+direction — every `supabase/migrations/*.sql` file's name against the full,
+unfiltered `name` column of `schema_migrations` (52 live rows; see the query
+in "Verifying this file stays true" below), not a search scoped to one
+category like `%enforce%` — found **20** repo files with no matching live row,
+not 7. A prior pass through this section undercounted because it only ran a
+targeted search for the `enforce_*` files; it did not diff the full name list
+both ways. The 20 split into three genuinely different situations, and they
+must not be treated as one bucket:
 
-| Repo file | Name |
-|---|---|
-| `20260916150100_enforce_typing_test_result.sql` | `enforce_typing_test_result` |
-| `20260916150200_enforce_chat_simulation_result.sql` | `enforce_chat_simulation_result` |
-| `20260916150300_enforce_chat_interview_result.sql` | `enforce_chat_interview_result` |
-| `20260916150400_enforce_sales_simulation_result.sql` | `enforce_sales_simulation_result` |
-| `20260916150500_enforce_portfolio_result.sql` | `enforce_portfolio_result` |
-| `20260916150600_enforce_video_intro_result.sql` | `enforce_video_intro_result` |
-| `20260916150700_enforce_voice_interview_result.sql` | `enforce_voice_interview_result` |
+**a) Never applied, and the gap has a live consequence (real follow-up work):**
 
-Verified live on 2026-09-16: `select * from public.trusted_result_enforcement`
+| Repo file | Name | Live consequence |
+|---|---|---|
+| `20260831190000_reconcile_orphaned_profiles.sql` | `reconcile_orphaned_profiles` | `public.reconcile_orphaned_profiles()` does not exist live (`select proname from pg_proc where proname ilike '%reconcile%'` returns zero rows, checked 2026-09-16). This function exists to self-heal `auth.users` rows with no matching `public.profiles` row. Live right now: `select count(*) from auth.users u left join public.profiles p on p.user_id=u.id where p.user_id is null` returns **1** — one production account has no `profiles` row, so it has no `company_name`, which the feed quality gate and Google structured data need; that employer's jobs would be silently withheld/anonymized until this migration is applied. Not superseded by any later file (grepped — nothing else recreates this function). |
+
+**b) Never applied, and would fail or is moot if applied today (safe to leave, not "safe to ignore" — verify before assuming either):**
+
+| Repo file | Name | Why |
+|---|---|---|
+| `20260916150100_enforce_typing_test_result.sql` | `enforce_typing_test_result` | see enforcement note below |
+| `20260916150200_enforce_chat_simulation_result.sql` | `enforce_chat_simulation_result` | see enforcement note below |
+| `20260916150300_enforce_chat_interview_result.sql` | `enforce_chat_interview_result` | see enforcement note below |
+| `20260916150400_enforce_sales_simulation_result.sql` | `enforce_sales_simulation_result` | see enforcement note below |
+| `20260916150500_enforce_portfolio_result.sql` | `enforce_portfolio_result` | see enforcement note below |
+| `20260916150600_enforce_video_intro_result.sql` | `enforce_video_intro_result` | see enforcement note below |
+| `20260916150700_enforce_voice_interview_result.sql` | `enforce_voice_interview_result` | see enforcement note below |
+| `20260625120000_accountless_candidate_flow.sql` | `accountless_candidate_flow` | targets `public.roles`/`public.candidates`, the "showcase" tables created (and dropped) in section 1 — neither table exists live (`information_schema.tables` count = 0 for both), so this migration would error if run today |
+| `20260625130000_phone_continue_flow.sql` | `phone_continue_flow` | same — targets the same long-gone `roles`/`candidates` showcase tables |
+
+Enforcement note: `select * from public.trusted_result_enforcement` still
 returns all 8 rows (`chatInterviewResult`, `chatSimulationResult`, `phase`,
 `portfolioResult`, `salesSimulationResult`, `typingTestResult`,
-`videoIntroResult`, `voiceInterviewResult`) with `enforced = false` — none of
-these 7 migrations (there is no 8th; `phase` has no corresponding `enforce_*`
-file in the repo) have run. Per `20260915140000_trusted_step_results.sql`,
-an unenforced `result_key` is left fully candidate-writable by
-`protected_trusted_result_notes_subset`, so none of these step results are
-actually protected against client forgery today, despite files existing that
-would protect them. See `CLAUDE.md`, "Security posture", for the corrected
-claim — do not describe any of these 8 as "enforced" until its migration is
-confirmed live via this same query. Applying these 7 migrations is open
-follow-up work, not part of this reconciliation pass (which is read-only).
+`videoIntroResult`, `voiceInterviewResult`) with `enforced = false`, confirmed
+2026-09-16 — none of these 7 `enforce_*` migrations have run (there is no 8th
+file; `phase` has no corresponding `enforce_*` file in the repo). Per
+`20260915140000_trusted_step_results.sql`, an unenforced `result_key` is left
+fully candidate-writable by `protected_trusted_result_notes_subset`, so none
+of these step results are actually protected against client forgery today,
+despite files existing that would protect them. See `CLAUDE.md`, "Security
+posture", for the corrected claim — do not describe any of these 8 as
+"enforced" until its migration is confirmed live via this same query.
+Applying these 7 migrations is open follow-up work, not part of this
+reconciliation pass (which is read-only).
+
+**c) No live `schema_migrations` row, but the migration's effects ARE live —
+applied untracked, most likely by hand through the SQL editor rather than
+`db push` or the Management API.** A missing row here does **not** mean
+"never applied"; it means "not tracked." Confirmed live on 2026-09-16:
+
+| Repo file | Name | Verified live |
+|---|---|---|
+| `20260703062047_jobs_google_structured_fields.sql` | `jobs_google_structured_fields` | `jobs.location_city` and `jobs.locations` columns exist |
+| `20260715010000_remove_join_distribution.sql` | `remove_join_distribution` | `job_distribution_posts` table is gone (also referenced as settled fact in section 1) |
+| `20260715011000_private_resume_storage.sql` | `private_resume_storage` | resumes bucket is private (consistent with "candidate video/portfolio were on public URLs" fix lineage) |
+| `20260715012000_public_safe_jobs_view.sql` | `public_safe_jobs_view` | `public.published_jobs_public` view exists |
+| `20260715013000_remove_demo_open_policies.sql` | `remove_demo_open_policies` | demo-era open RLS policies are gone |
+| `20260715014000_break_jobs_applications_rls_recursion.sql` | `break_jobs_applications_rls_recursion` | `public.did_candidate_apply_to_job()` function exists (unique to this file) |
+| `20260327204500_fix_team_portal_permissions.sql` | `fix_team_portal_permissions` | `public.team_member_limit_for_user()` exists live, but its live body has **further diverged** from this file (it now also calls `private.has_subscription_bypass_for_user`) — a later untracked change layered on top, not in any repo file |
+| `20260327214500_add_team_member_onboarding.sql` | `add_team_member_onboarding` | `team_members.onboarding_completed` column exists live |
+| `20260328102000_harden_subscription_enforcement.sql` | `harden_subscription_enforcement` | `public.subscription_plan_for_limits()` exists live, also further diverged live (same bypass-check addition as above, plus a "billing is off" trial carve-out) |
+| `20260329145000_fail_open_push_trigger.sql` | `fail_open_push_trigger` | `public.trigger_push_notification()` exists live, and its live body is **already fixed and better** than this repo file: it reads the project URL from `app.settings.supabase_url` with a fallback to the correct `yqklrkpptnhubsnijqze` ref, whereas this repo file still hardcodes the wrong `kcotpxlggfvgclwksmhl` ref the top of this document warns about. Do not "fix" the repo file by applying it as-is — it would regress the live function to the wrong ref. |
+
+The four `2026032*` files predate `schema_migrations` tracking entirely (the
+earliest tracked row is `20260617092255`), so their absence from the table is
+expected, not anomalous — but two of them (`fix_team_portal_permissions`,
+`harden_subscription_enforcement`) and one more (`fail_open_push_trigger`)
+show the live function bodies have moved on from what the repo file contains.
+Nothing in the repo captures those later edits; this doc only records that
+they exist, not their exact SQL, since no migration file represents them.
+
+None of these 20 files should be re-run against production as-is: applying
+group (b)'s `accountless_candidate_flow`/`phone_continue_flow` would error on
+missing tables; applying group (c)'s files would re-run DDL that already ran
+(duplicate-object errors at best, clobbering a since-diverged live definition
+with stale SQL at worst — see `fail_open_push_trigger` above). Only group (a)'s
+`reconcile_orphaned_profiles` is both safe and needed to run.
 
 ## Why this happens: the Management API stamping rule
 
@@ -173,7 +223,35 @@ select version, name from supabase_migrations.schema_migrations order by version
 
 Compare the `name` column against `supabase/migrations/*.sql` file names (not
 against the `version` prefix, for the reason above). Any live name with no repo
-file is missing and should be recovered the same way this pass did. Also check
-the **reverse** direction — any repo file whose name has no matching live row
-has never been applied (see section 3); do not assume a migration file in the
-repo means its effect is live.
+file is missing and should be recovered the same way this pass did.
+
+Also check the **reverse** direction, and do it as a full diff, not a search
+scoped to a category (e.g. `name like '%enforce%'`) — a targeted search is how
+section 3 undercounted once already. Concretely:
+
+```bash
+# every repo file's name, minus its version prefix
+ls supabase/migrations/*.sql | xargs -n1 basename | sed -E 's/^[0-9]+_//; s/\.sql$//' | sort > repo_names.txt
+# every live name (from the query above)
+# ...then:
+comm -23 repo_names.txt <(sort live_names.txt)
+```
+
+Any repo file with no matching live row falls into one of three buckets — do
+not assume any of them means the same thing:
+
+1. **No live row AND the gap has a live consequence** — genuinely missing,
+   needs to be applied. (section 3a)
+2. **No live row AND applying it today would fail or is moot** — e.g. it
+   targets a table that was later dropped. Leave it, but verify the "would
+   fail" claim with a live query before repeating it — don't assume. (section 3b)
+3. **No live row but the migration's DDL/effects ARE live** — applied by hand
+   outside both the CLI and the Management API (no `schema_migrations` row
+   gets written either way), so "no row" does **not** mean "not applied."
+   Verify by checking for the table/column/function/policy the migration
+   creates, not by trusting the absence of a row. (section 3c)
+
+A migration file existing in the repo never by itself means its effect is
+live, and a missing `schema_migrations` row never by itself means a
+migration's effect is absent — both directions require checking the actual
+live object the migration creates or drops.

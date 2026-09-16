@@ -20,7 +20,7 @@ every table below.
 
 | Table | Rows (2026-09-16) | Purpose |
 |---|---|---|
-| `profiles` | 23 | One row per authenticated user (employer or candidate): contact/company info, notification preferences, resume/LinkedIn/portfolio links |
+| `profiles` | 23 | One row per authenticated user (employer or candidate): contact/company info, notification preferences, resume/LinkedIn/portfolio links — except 1 live `auth.users` row currently has none; see `docs/MIGRATION-HISTORY.md` section 3a |
 | `user_roles` | 20 | Which `app_role` (`employer`, `candidate`, `team_member`, `developer`) each `auth.users` row has |
 | `jobs` | 0 | Employer job postings: brief, structured location/salary, screening workflow config, quiz/questions, feed-eligibility flag |
 | `applications` | 0 | One row per candidate application to a job: pipeline `phase`/`status`, resume + AI scoring, voice interview result, document rejection state |
