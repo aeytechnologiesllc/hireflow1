@@ -123,12 +123,16 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     optionsRef.current = options;
   }, [options]);
 
-  // Cleanup on unmount
+  // Cleanup on unmount — deliberately `[]`: clearProcessingTimeout/disconnect
+  // are recreated whenever their own deps change, and this effect must only
+  // ever run its cleanup on unmount, not whenever either of those changes
+  // reference (that would disconnect a live call on unrelated state updates).
   useEffect(() => {
     return () => {
       clearProcessingTimeout();
       disconnect();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Clear processing timeout helper
@@ -339,6 +343,13 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
         description: 'Unable to reconnect automatically. Please try manually.',
       });
     }
+    // cleanupConnection/connectInternal aren't added: this function and
+    // connectInternal call each other (connectInternal calls
+    // handleConnectionLost on several failure paths below), so adding
+    // either as a dep of the other would need breaking that cycle with a
+    // ref first — real surgery on live voice-call reconnection, out of
+    // scope for a lint-only pass and not something to risk unverified.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toast]);
 
   // Cleanup connection resources without full state reset
@@ -972,7 +983,11 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     };
 
     await pcRef.current.setRemoteDescription(answer);
-  }, [handleConnectionLost, startConnectionQualityMonitoring, startProcessingTimeout, clearProcessingTimeout, toast, state.isConnected]);
+  }, [
+    handleConnectionLost, startConnectionQualityMonitoring, startProcessingTimeout, clearProcessingTimeout,
+    toast, state.isConnected, clearFirstAudioSafetyTimeout, clearSilenceTimer, startFirstAudioSafetyTimeout,
+    startSilenceDetection,
+  ]);
 
   // Public connect function
   const connect = useCallback(async () => {

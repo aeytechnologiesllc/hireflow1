@@ -1840,7 +1840,7 @@ export function CondensedAIAnalysis({
     }
 
     return parsedSummary;
-  }, [isRejected, rejectedByType, rejectionReason, displayScore, passingScore, parsed.fullSummary, scorecard?.rationale, needsMoreEvidence, pendingSignals]);
+  }, [isRejected, rejectedByType, rejectionReason, displayScore, passingScore, parsed.fullSummary, scorecard?.rationale, needsMoreEvidence, pendingSignals, applicationNotes, wasManualRejection]);
   const cleanedDisplaySummary = sanitizeAnalysisCopy(displaySummary);
   const decisionStatusLabel = scorecard?.decisionState
     ? needsMoreEvidence

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -217,27 +217,9 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     !document?.employer_signed_at &&
     !document?.is_voided;
 
-  useEffect(() => {
-    if (document && open) {
-      fetchAuditLogs();
-      parseDocumentData();
-      parseSignatures();
-      loadCompletionCertificate();
-      setShowAuditTrail(false);
-      // Replaces DocumentViewerDialog.tsx's old recordDocumentView — the
-      // edge function is idempotent (only the first call per document sets
-      // viewed_at / writes an audit row), so firing this on every open is
-      // safe and doesn't need to block rendering.
-      supabase.functions.invoke("document-signing", { body: { documentId: document.id, action: "view" } })
-        .catch(() => {
-          // Best-effort — a failed "viewed" ping never blocks reading the document.
-        });
-    }
-  }, [document, open]);
-
-  const fetchAuditLogs = async () => {
+  const fetchAuditLogs = useCallback(async () => {
     if (!document) return;
-    
+
     const { data, error } = await supabase
       .from("document_audit_logs")
       .select("*")
@@ -247,9 +229,9 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     if (!error && data) {
       setAuditLogs(data as AuditLog[]);
     }
-  };
+  }, [document]);
 
-  const loadCompletionCertificate = async () => {
+  const loadCompletionCertificate = useCallback(async () => {
     if (!document || document.status !== 'signed') return;
     
     // Try to load from stored certificate first
@@ -278,9 +260,9 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     } catch (e) {
       console.error("Error generating certificate:", e);
     }
-  };
+  }, [document]);
 
-  const parseDocumentData = () => {
+  const parseDocumentData = useCallback(() => {
     if (!document?.file_url) return;
     
     try {
@@ -304,9 +286,9 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
       console.error("Error parsing document:", error);
       setDocumentData({ content: "Unable to parse document content" });
     }
-  };
+  }, [document]);
 
-  const parseSignatures = () => {
+  const parseSignatures = useCallback(() => {
     if (document?.candidate_signature_data) {
       try {
         const parsed = JSON.parse(document.candidate_signature_data);
@@ -335,7 +317,25 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
         console.error("Error parsing employer signature:", e);
       }
     }
-  };
+  }, [document]);
+
+  useEffect(() => {
+    if (document && open) {
+      fetchAuditLogs();
+      parseDocumentData();
+      parseSignatures();
+      loadCompletionCertificate();
+      setShowAuditTrail(false);
+      // Replaces DocumentViewerDialog.tsx's old recordDocumentView — the
+      // edge function is idempotent (only the first call per document sets
+      // viewed_at / writes an audit row), so firing this on every open is
+      // safe and doesn't need to block rendering.
+      supabase.functions.invoke("document-signing", { body: { documentId: document.id, action: "view" } })
+        .catch(() => {
+          // Best-effort — a failed "viewed" ping never blocks reading the document.
+        });
+    }
+  }, [document, open, fetchAuditLogs, parseDocumentData, parseSignatures, loadCompletionCertificate]);
 
   const getDocumentCode = () => {
     return document?.document_code || `DOC-${document?.id.slice(0, 6).toUpperCase()}`;
