@@ -18,6 +18,7 @@ import {
   type AutopilotAction,
 } from "../_shared/autopilot.ts";
 import { hasSubscriptionBypassForUser } from "../_shared/subscriptionBypass.ts";
+import { isScopedTeamMemberFromRpc } from "../_shared/teamMemberRpcAccess.ts";
 
 const ANALYSIS_VERSION = 4;
 
@@ -497,16 +498,24 @@ serve(async (req) => {
     const isCandidateOwner = application.candidate_id === requestingUser.id;
     const isEmployerOwner = employerId === requestingUser.id;
 
-    const [{ data: teamMembership }, { data: developerRole }] = await Promise.all([
-      employerId
-        ? supabaseAdmin
-            .from("team_members")
-            .select("id")
-            .eq("user_id", requestingUser.id)
-            .eq("employer_id", employerId)
-            .eq("status", "active")
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
+    // Team-member access must be scoped to THIS job the same way the live
+    // RLS policy on `applications` scopes it ("Team members can view
+    // applications for assigned jobs" -> is_active_team_member_for_job),
+    // whose definition requires assigned_job_ids to be null (whole-employer
+    // access) OR contain this job's id. A plain team_members row check
+    // (user_id + employer_id + active) would let a team member scoped to
+    // job A trigger/read analysis for job B's application at the same
+    // employer -- call the same SECURITY DEFINER function the applications
+    // RLS policy uses (via the caller's own JWT, so its
+    // p_user_id = auth.uid() check passes) instead of re-implementing the
+    // scoping rule here.
+    const [teamMemberRpc, { data: developerRole }] = await Promise.all([
+      !isCandidateOwner && !isEmployerOwner && employerId
+        ? supabaseUserClient.rpc("is_active_team_member_for_job", {
+            p_job_id: application.job_id,
+            p_user_id: requestingUser.id,
+          })
+        : Promise.resolve({ data: false, error: null }),
       supabaseAdmin
         .from("user_roles")
         .select("role")
@@ -515,7 +524,13 @@ serve(async (req) => {
         .maybeSingle(),
     ]);
 
-    if (!isCandidateOwner && !isEmployerOwner && !teamMembership && !developerRole) {
+    if (teamMemberRpc.error) {
+      // Fail closed: an RPC error must never be treated as access granted.
+      console.error("[trigger-ava-analysis] is_active_team_member_for_job RPC error:", teamMemberRpc.error);
+    }
+    const isScopedTeamMember = isScopedTeamMemberFromRpc(teamMemberRpc);
+
+    if (!isCandidateOwner && !isEmployerOwner && !isScopedTeamMember && !developerRole) {
       console.warn("[trigger-ava-analysis] Unauthorized analysis attempt", {
         requesterId: requestingUser.id,
         applicationId,

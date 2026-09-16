@@ -4,6 +4,7 @@ import {
   notifyGoogleIndexing,
   type GoogleIndexingNotificationType,
 } from "../_shared/googleIndexing.ts";
+import { isScopedTeamMemberFromRpc } from "../_shared/teamMemberRpcAccess.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,22 +23,38 @@ function isNotificationType(value: unknown): value is GoogleIndexingNotification
 }
 
 async function canAccessEmployer(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseUser: ReturnType<typeof createClient>,
   userId: string,
   employerId: string,
+  jobId: string,
 ) {
   if (employerId === userId) return true;
 
-  const { data: member, error: memberError } = await supabaseAdmin
-    .from("team_members")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("employer_id", employerId)
-    .eq("status", "active")
-    .maybeSingle();
+  // Team-member access must be scoped to THIS job the same way the live
+  // RLS policy on `applications` scopes it ("Team members can view
+  // applications for assigned jobs" -> is_active_team_member_for_job),
+  // whose definition requires assigned_job_ids to be null (whole-employer
+  // access) OR contain this job's id. A plain team_members row check
+  // (user_id + employer_id + active) would let a team member scoped to
+  // job A fire indexing pings for job B just by sharing an employer --
+  // call the same SECURITY DEFINER function the applications RLS policy
+  // uses, via the caller's own JWT (so its p_user_id = auth.uid() check
+  // passes), instead of re-implementing the scoping rule here. When the
+  // job row no longer exists (the hard-deleted-job fallback below), the
+  // RPC's own join against `jobs` can never match, so a non-owner is
+  // always denied there too -- fail closed, never fall back to a looser
+  // employer-only check.
+  const teamMemberRpc = await supabaseUser.rpc(
+    "is_active_team_member_for_job",
+    { p_job_id: jobId, p_user_id: userId },
+  );
 
-  if (memberError) throw memberError;
-  return !!member;
+  if (teamMemberRpc.error) {
+    // Fail closed: an RPC error must never be treated as access granted.
+    console.error("[google-indexing] is_active_team_member_for_job RPC error:", teamMemberRpc.error);
+  }
+
+  return isScopedTeamMemberFromRpc(teamMemberRpc);
 }
 
 async function getAuthorizedJob(
@@ -77,7 +94,7 @@ async function getAuthorizedJob(
     if (notificationType !== "URL_DELETED" || !employerId) {
       throw new Error("Job not found.");
     }
-    if (!(await canAccessEmployer(supabaseAdmin, user.id, employerId))) {
+    if (!(await canAccessEmployer(supabaseUser, user.id, employerId, jobId))) {
       throw new Error("You do not have access to this job.");
     }
     return {
@@ -87,7 +104,7 @@ async function getAuthorizedJob(
     };
   }
 
-  if (!(await canAccessEmployer(supabaseAdmin, user.id, job.employer_id))) {
+  if (!(await canAccessEmployer(supabaseUser, user.id, job.employer_id, job.id))) {
     throw new Error("You do not have access to this job.");
   }
 
