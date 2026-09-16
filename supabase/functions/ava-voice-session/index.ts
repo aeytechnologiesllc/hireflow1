@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 // Import unpdf for proper PDF text extraction
 import { extractText } from "https://esm.sh/unpdf@0.12.1";
 import { hasSubscriptionBypassForUser } from "../_shared/subscriptionBypass.ts";
+import { computeSessionTimeLimitMinutes, HARD_CAP_MINUTES } from "../_shared/voiceSessionCharge.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -358,6 +359,12 @@ serve(async (req) => {
     );
 
     let voiceOwnerUserId = user.id;
+    // Server-computed cap for this session's minutes (see
+    // supabase/functions/_shared/voiceSessionCharge.ts and the
+    // voice_session_log migration for why deduct-voice-minutes can no
+    // longer trust the client's reported duration alone). Assistant mode's
+    // value is filled in below, once we know the mode.
+    let sessionTimeLimitMinutes = computeSessionTimeLimitMinutes("assistant");
 
     if (mode === "interview") {
       if (!applicationId) {
@@ -366,7 +373,7 @@ serve(async (req) => {
 
       const { data: interviewApplication, error: interviewApplicationError } = await adminClient
         .from("applications")
-        .select("id, candidate_id, job_id, phase, status, jobs!inner(employer_id, workflow_steps)")
+        .select("id, candidate_id, job_id, phase, status, voice_interview_duration, jobs!inner(employer_id, workflow_steps)")
         .eq("id", applicationId)
         .single();
 
@@ -407,6 +414,14 @@ serve(async (req) => {
       }
 
       voiceOwnerUserId = (interviewApplication.jobs as { employer_id?: string } | null)?.employer_id || user.id;
+      // Authoritative server-side duration for the cap: the application's own
+      // voice_interview_duration column, set by the employer — never the
+      // client-supplied `duration` request field below, which only ever
+      // drives the interview prompt's own pacing language.
+      sessionTimeLimitMinutes = computeSessionTimeLimitMinutes(
+        "interview",
+        (interviewApplication as { voice_interview_duration?: number | null }).voice_interview_duration,
+      );
     } else {
       const { data: employerRole } = await adminClient
         .from("user_roles")
@@ -2588,6 +2603,34 @@ Style:
     const ephemeralValue = sessionData?.value ?? sessionData?.client_secret?.value;
     console.log("Voice session created:", { hasKey: !!ephemeralValue, voice: selectedVoice });
 
+    // Record this session server-side the instant it's actually minted (real
+    // money is now committed with OpenAI). deduct-voice-minutes charges
+    // against this row's started_at/time_limit_minutes instead of trusting
+    // the client's reported duration outright — see the voice_session_log
+    // migration's header comment. 'intake' is unmetered (never charged), so
+    // it's never logged here.
+    let voiceSessionId: string | null = null;
+    if (mode === "interview" || mode === "assistant") {
+      const { data: sessionLogRow, error: sessionLogError } = await adminClient
+        .from("voice_session_log")
+        .insert({
+          application_id: mode === "interview" ? applicationId : null,
+          employer_id: voiceOwnerUserId,
+          caller_user_id: user.id,
+          mode,
+          time_limit_minutes: sessionTimeLimitMinutes,
+          hard_cap_minutes: HARD_CAP_MINUTES,
+        })
+        .select("id")
+        .single();
+
+      if (sessionLogError) {
+        console.error("[ava-voice-session] Failed to record voice_session_log row:", sessionLogError);
+      } else {
+        voiceSessionId = sessionLogRow?.id ?? null;
+      }
+    }
+
     return new Response(
       JSON.stringify({
         ...sessionData,
@@ -2597,6 +2640,7 @@ Style:
         selectedTranscriptionModel: OPENAI_REALTIME_TRANSCRIPTION_MODEL,
         mode,
         tools: tools.map((t) => t.name),
+        voiceSessionId,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

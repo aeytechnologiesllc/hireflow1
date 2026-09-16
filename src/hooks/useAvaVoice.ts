@@ -98,6 +98,11 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
   
   // Session duration tracking for voice minute deduction
   const sessionStartTimeRef = useRef<number | null>(null);
+  // The voice_session_log row id ava-voice-session minted this call under.
+  // deduct-voice-minutes now requires this — it's what lets the server cap
+  // and idempotently settle the charge instead of trusting the client's
+  // reported duration alone.
+  const voiceSessionIdRef = useRef<string | null>(null);
   
   // Silence detection refs - track when candidate goes silent after Ava speaks
   const silenceTimerRef = useRef<number | null>(null);
@@ -443,6 +448,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
 
     const EPHEMERAL_KEY = response.data.client_secret.value;
     const voiceNameUsed = (response.data as any)?.selectedVoice ?? null;
+    voiceSessionIdRef.current = (response.data as any)?.voiceSessionId ?? null;
 
     setState(s => ({ ...s, voiceNameUsed }));
 
@@ -779,22 +785,26 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
                     const sessionDurationMs = Date.now() - sessionStartTimeRef.current;
                     const sessionDurationMinutes = Math.ceil(sessionDurationMs / 60000);
                     
-                    if (sessionDurationMs >= 5000) {
+                    if (sessionDurationMs >= 5000 && voiceSessionIdRef.current) {
                       // Fire and forget - don't block interview end on deduction
                       supabase.functions.invoke('deduct-voice-minutes', {
-                        body: { 
+                        body: {
                           sessionDurationMinutes,
-                          applicationId: optionsRef.current.applicationId 
+                          applicationId: optionsRef.current.applicationId,
+                          voiceSessionId: voiceSessionIdRef.current,
                         }
                       }).then(({ data, error }) => {
                         if (error) {
                           console.error('[AvaVoice] Failed to deduct voice minutes on end_interview:', error);
                         }
                       });
+                    } else if (sessionDurationMs >= 5000) {
+                      console.error('[AvaVoice] No voiceSessionId recorded — skipping deduction on end_interview');
                     }
-                    
+
                     // Clear so disconnect() doesn't double-deduct
                     sessionStartTimeRef.current = null;
+                    voiceSessionIdRef.current = null;
                   }
                   
                   // Wait for audio queue to finish playing before triggering end
@@ -1008,27 +1018,31 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       const sessionDurationMinutes = Math.ceil(sessionDurationMs / 60000); // Round up to nearest minute
       
       // Only deduct if session was at least 5 seconds (avoid connection test deductions)
-      if (sessionDurationMs >= 5000) {
+      if (sessionDurationMs >= 5000 && voiceSessionIdRef.current) {
         try {
           // Pass applicationId if in interview mode so we deduct from employer
           const { data, error } = await supabase.functions.invoke('deduct-voice-minutes', {
-            body: { 
+            body: {
               sessionDurationMinutes,
-              applicationId: optionsRef.current.applicationId // undefined in assistant mode
+              applicationId: optionsRef.current.applicationId, // undefined in assistant mode
+              voiceSessionId: voiceSessionIdRef.current,
             }
           });
-          
+
           if (error) {
             console.error('[AvaVoice] Failed to deduct voice minutes:', error);
           }
         } catch (err) {
           console.error('[AvaVoice] Error calling deduct-voice-minutes:', err);
         }
+      } else if (sessionDurationMs >= 5000) {
+        console.error('[AvaVoice] No voiceSessionId recorded — skipping deduction on disconnect');
       }
-      
+
       sessionStartTimeRef.current = null;
+      voiceSessionIdRef.current = null;
     }
-    
+
     clearProcessingTimeout();
     clearSilenceTimer(); // Stop silence detection on disconnect
     isResponseActiveRef.current = false; // Reset response tracking
