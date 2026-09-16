@@ -321,16 +321,16 @@ export default function VoiceInterviewPhase() {
       // Notify employer: email + in-app notification
       const employerId = (appData?.jobs as { employer_id?: string } | null)?.employer_id;
       if (employerId) {
-        // Email notification
+        // employer-facing: this email goes to employerId, never the candidate.
         import("@/utils/emailNotifications").then(({ notifyPhaseCompleted }) => {
-          notifyPhaseCompleted(employerId, candidateName, "AIVA Video Interview", job?.title || "Position").catch(console.error);
+          notifyPhaseCompleted(employerId, candidateName, "Ava Video Interview", job?.title || "Position").catch(console.error);
         });
 
-        // In-app notification
+        // employer-facing: notifications row is inserted for user_id: employerId.
         supabase.from("notifications").insert({
           user_id: employerId,
           type: "application" as const,
-          title: "AIVA Interview Completed",
+          title: "Ava Interview Completed",
           message: `${candidateName} has completed their video interview for ${job?.title || "a position"}. View the recording and scores.`,
           link: `/applicants?applicationId=${applicationId}`,
           is_read: false,
