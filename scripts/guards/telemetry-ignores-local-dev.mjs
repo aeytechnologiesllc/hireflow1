@@ -22,6 +22,9 @@ export default [
         const limitAt = src.indexOf("guardPublicAiCall(req");
         if (devAt > -1 && limitAt > -1 && devAt > limitAt) bad.push(`${fn} checks the rate limit before dropping local dev requests`);
       }
+      const pv = (await read("supabase/functions/page-views/index.ts")) ?? "";
+      if (/if \(limited\) return limited;/.test(pv)) bad.push("page-views answers a capped counter with 429 again (console error for visitors)");
+      if (pv.indexOf("isBotUserAgent(userAgent)") > pv.indexOf("guardPublicAiCall(req")) bad.push("page-views rate-limits before dropping bots");
       const reporter = (await read("src/lib/crashReporter.ts")) ?? "";
       if (!/if \(import\.meta\.env\.DEV\) return;/.test(reporter)) bad.push("crashReporter.reportError sends from DEV builds again");
       const beacon = (await read("public/beacon.js")) ?? "";
