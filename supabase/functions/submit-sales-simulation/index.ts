@@ -227,6 +227,11 @@ Deno.serve(async (req) => {
       callerUserId: callerId,
       stepId,
       stepType: "sales_simulation",
+      // SalesSimulationPhase.tsx's own `.update()` never wrote `phase`/
+      // `status` at all, in either mode — the whole advance/reject
+      // decision was left to a follow-up trigger-ava-analysis call. See
+      // StepAdvanceMode's doc comment on RecordStepResultInput.
+      advance: "never",
       resultKey: "salesSimulationResult",
       // SalesSimulationResult is a precise, documented shape (see grading.ts);
       // RecordStepResultInput only wants Record<string, unknown> because it's

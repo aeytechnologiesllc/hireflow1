@@ -300,6 +300,11 @@ Deno.serve(async (req) => {
         callerUserId: user.id,
         stepId,
         stepType: "typing_test",
+        // TypingTestPhase.tsx never advanced `phase`/`status` itself, in
+        // either mode — it resent them unchanged and left the whole
+        // advance/reject decision to a follow-up trigger-ava-analysis
+        // call. See StepAdvanceMode's doc comment on RecordStepResultInput.
+        advance: "never",
         resultKey: "typingTestResult",
         result: resultForKey,
         legacyStepEntry,

@@ -243,6 +243,11 @@ Respond as the customer ${customerName}. Remember your scenario: ${scenario}. Th
         callerUserId,
         stepId,
         stepType: "chat_simulation",
+        // ChatSimulationPhase.tsx's own `.update()` never wrote `phase`/
+        // `status` at all, in either mode — the whole advance/reject
+        // decision was left to a follow-up trigger-ava-analysis call. See
+        // StepAdvanceMode's doc comment on RecordStepResultInput.
+        advance: "never",
         resultKey: "chatSimulationResult",
         result: chatSimulationResult as unknown as Record<string, unknown>,
       });

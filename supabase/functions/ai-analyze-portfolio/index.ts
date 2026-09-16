@@ -702,6 +702,11 @@ serve(async (req) => {
       callerUserId,
       stepId,
       stepType: "portfolio_upload",
+      // PortfolioUploadPhase.tsx:444-450 did advance `phase` itself in auto
+      // mode (stopping one step short of voice_interview) as part of the
+      // same `.update()` as `notes` — see StepAdvanceMode's doc comment on
+      // RecordStepResultInput.
+      advance: "auto_mode",
       resultKey: "portfolioResult",
       result: portfolioResult,
       legacyStepEntry: portfolioResult,

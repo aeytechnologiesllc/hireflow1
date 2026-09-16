@@ -701,6 +701,13 @@ serve(async (req) => {
           callerUserId: user.id,
           stepId,
           stepType: "voice_interview",
+          // Neither VoiceInterviewPhase.tsx nor this same end_interview
+          // handler (already server-side before this conversion cycle)
+          // ever wrote `phase`/`status` — every advance past the final
+          // interview waits on a human or trigger-ava-analysis, never a
+          // local write. See StepAdvanceMode's doc comment on
+          // RecordStepResultInput.
+          advance: "never",
           resultKey: "voiceInterviewResult",
           result: evaluation,
         });
