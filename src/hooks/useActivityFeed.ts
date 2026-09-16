@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSchemaMode } from "@/hooks/useSchemaMode";
+import { fetchEmployerSealedApplicationIds } from "@/lib/sealedApplicationIds";
+import { SEALED_APPLICANT_NAME } from "@/lib/billingVisibility";
 
 export interface ActivityItem {
   id: string;
@@ -104,13 +106,25 @@ export function useActivityFeed(limit: number = 20) {
       const applicationMap = new Map((applications || []).map((app) => [app.id, app]));
       const profileMap = new Map((profiles || []).map((profile) => [profile.user_id, profile]));
 
+      // Billing paywall — the same gate useEmployerApplications applies to
+      // the applicant list, applied here too: a sealed applicant's real
+      // name must never leak through the dashboard's own activity feed
+      // (this was the reproduction a prior review found: "Jane Doe applied
+      // for Backend Engineer" on a locked job's Dashboard, with zero unlock
+      // purchased). get_employer_sealed_application_ids() is the single
+      // server-side source of truth; billing off or nothing locked resolves
+      // to an empty set, so this is a no-op on the free tier.
+      const sealedIds = await fetchEmployerSealedApplicationIds(supabase);
+      const nameFor = (applicationId: string, profile?: { full_name?: string | null; email?: string | null } | null) =>
+        sealedIds.has(applicationId) ? SEALED_APPLICANT_NAME : profile?.full_name || profile?.email || "Unknown";
+
       const activityItems: ActivityItem[] = [];
 
       // Process applications
       applications?.forEach((app) => {
         const profile = profileMap.get(app.candidate_id);
         const job = jobMap.get(app.job_id);
-        const candidateName = profile?.full_name || profile?.email || "Unknown";
+        const candidateName = nameFor(app.id, profile);
         const jobTitle = job?.title || "Unknown Position";
 
         if (app.status === "hired") {
@@ -161,7 +175,7 @@ export function useActivityFeed(limit: number = 20) {
         const app = applicationMap.get(interview.application_id);
         const profile = app ? profileMap.get(app.candidate_id) : null;
         const job = app ? jobMap.get(app.job_id) : null;
-        const candidateName = profile?.full_name || profile?.email || "Unknown";
+        const candidateName = app ? nameFor(app.id, profile) : profile?.full_name || profile?.email || "Unknown";
         const jobTitle = job?.title || "Unknown Position";
 
         activityItems.push({
@@ -180,7 +194,7 @@ export function useActivityFeed(limit: number = 20) {
         const app = applicationMap.get(doc.application_id);
         const profile = app ? profileMap.get(app.candidate_id) : null;
         const job = app ? jobMap.get(app.job_id) : null;
-        const candidateName = profile?.full_name || profile?.email || "Unknown";
+        const candidateName = app ? nameFor(app.id, profile) : profile?.full_name || profile?.email || "Unknown";
         const jobTitle = job?.title || "Unknown Position";
 
         if (doc.status === "signed" && doc.signed_at) {

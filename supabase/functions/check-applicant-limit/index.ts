@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { hasSubscriptionBypassForUser } from "../_shared/subscriptionBypass.ts";
+import { getBillingFlags } from "../_shared/billingFlags.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -54,6 +55,26 @@ serve(async (req) => {
       console.log("[check-applicant-limit] Internal test account bypass active", { employerId });
       return new Response(
         JSON.stringify({ limitReached: false, subscriptionBypass: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Owner-decided pricing (2026-08-27): once billing is on, submitting an
+    // application is NEVER refused for billing/plan reasons -- a locked job
+    // (past its free/unlocked allowance) keeps accepting applications and
+    // simply shows the arrivals as sealed envelopes to the employer until
+    // they unlock or buy a pack (see job_is_locked/job_sealed_count in
+    // 20260916170000_job_billing_schema.sql). The only reasons to refuse a
+    // submission are structural -- job not published, deadline passed --
+    // and those were already checked above, before this point. While
+    // billing is OFF, this function must behave exactly as it does today
+    // (free tier open): fall through to the unchanged subscription/plan
+    // logic below.
+    const billing = await getBillingFlags(supabaseAdmin);
+    if (billing.billingEnabled) {
+      console.log("[check-applicant-limit] Billing is on -- applications are never blocked by billing", { employerId, jobId });
+      return new Response(
+        JSON.stringify({ limitReached: false }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

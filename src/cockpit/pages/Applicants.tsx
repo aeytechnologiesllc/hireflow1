@@ -39,6 +39,10 @@ import {
 } from "../hooks/useCockpitData";
 import { getInitials, parseApplicationNotes } from "../lib/mappers";
 import { GemRail } from "@/components/rail/GemRail";
+import { useJobBilling } from "@/hooks/useJobBilling";
+import { computeBillingVisibleIds } from "@/lib/billingVisibility";
+import JobLockBanner from "@/components/billing/JobLockBanner";
+import SealedApplicantsCard from "@/components/billing/SealedApplicantsCard";
 import { candidateApplyUrl } from "@/lib/showcaseApply";
 import { clearDraft } from "@/lib/avaEngine/draft";
 import {
@@ -775,6 +779,11 @@ export default function CockpitApplicants() {
   const roleIdFilter = searchParams.get("roleId");
   const { candidates, applications, isLoading, isError, refetch } = useCockpitCandidates();
   const { jobs } = useCockpitJobsData();
+  // Billing status for the job in view — undefined outside a single-job
+  // view (roleIdFilter null) or while billing is off; both JobLockBanner and
+  // the sealed-envelope summary card below check billingEnabled themselves
+  // too, so this never shows lock/price UI on its own.
+  const { data: jobBillingForSealedCard } = useJobBilling(roleIdFilter);
   const { advance, hire, reject, isUpdating } = useCockpitActions();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [bucket, setBucket] = useState<Bucket>("sealed");
@@ -826,9 +835,40 @@ export default function CockpitApplicants() {
     return candidates.filter((c) => appIds.has(c.id));
   }, [candidates, applications, roleIdFilter]);
 
+  // Billing paywall — a VISIBILITY gate, not a banner. Per the migration's own
+  // model, "processed" vs "sealed" decides whether the employer sees the real
+  // card or a sealed placeholder for applicants beyond the paid allowance;
+  // it never changes what the candidate experiences. While billing is off, or
+  // the job isn't locked, or we're not viewing a single job, this is null and
+  // nothing is hidden. When active, the earliest arrivals (by application
+  // created_at) fill the allowance first, matching "first 3 applicants, by
+  // arrival order, are free" in the decided pricing — later arrivals are the
+  // ones still sealed. null (never a candidate id) means "no gate" so a job
+  // that hasn't finished loading its billing status never has cards
+  // incorrectly hidden or shown; the SealedApplicantsCard's own count comes
+  // straight from the server regardless.
+  //
+  // This is a UI-only, single-job-view gate on top of a data-level one: a
+  // sealed applicant's actual name/AI score/analysis/resume are ALREADY
+  // redacted at the source by useEmployerApplications
+  // (src/lib/billingVisibility.ts's redactSealedApplication, driven by
+  // get_employer_sealed_application_ids()) before `candidates`/`applications`
+  // above ever see them — that's what keeps the default "Applicants" nav
+  // view (no ?roleId=, so this is null and rows aren't removed) from leaking
+  // real value even though it renders a "Sealed applicant" placeholder card
+  // instead of hiding the row outright. This roleId-scoped gate only adds
+  // the nicer single-job UX of removing the row entirely in favor of
+  // SealedApplicantsCard's "N more waiting" summary.
+  const billingVisibleIds = useMemo(() => {
+    if (!roleIdFilter) return null;
+    const entries = roleScoped.map((c) => ({ id: c.id, createdAt: appById[c.id]?.created_at ?? "" }));
+    return computeBillingVisibleIds(entries, jobBillingForSealedCard);
+  }, [roleIdFilter, jobBillingForSealedCard, roleScoped, appById]);
+
   // Everything the search + filters allow through, before the tab split.
   const scoped = useMemo(() => {
     let list = roleScoped;
+    if (billingVisibleIds) list = list.filter((c) => billingVisibleIds.has(c.id));
     const q = search.trim().toLowerCase();
     if (q) list = list.filter((c) => c.name.toLowerCase().includes(q) || c.role.toLowerCase().includes(q));
     if (stageFilter) list = list.filter((c) => c.stage === stageFilter);
@@ -843,7 +883,7 @@ export default function CockpitApplicants() {
       });
     }
     return list;
-  }, [roleScoped, search, stageFilter, scoreFilter]);
+  }, [roleScoped, billingVisibleIds, search, stageFilter, scoreFilter]);
 
   const counts = useMemo(() => {
     const c = { sealed: 0, reading: 0, passed: 0 };
@@ -968,7 +1008,12 @@ export default function CockpitApplicants() {
     : "";
 
   const activeFilters = [search.trim(), stageFilter, scoreFilter].filter(Boolean).length;
-  const sealedTotal = roleScoped.filter((c) => bucketOf(c) === "sealed").length;
+  // Ava's "sealed" (analyzed) triage count — scoped to the same billing-visible
+  // set as everything else on the page, so a locked job's header line never
+  // hints at how the applicants beyond the paywall scored.
+  const sealedTotal = (billingVisibleIds ? roleScoped.filter((c) => billingVisibleIds.has(c.id)) : roleScoped).filter(
+    (c) => bucketOf(c) === "sealed",
+  ).length;
 
   /* ── While the record loads ───────────────────────────────────────────
      Shaped like the page it becomes — head, tab strip, then the list column
@@ -1117,6 +1162,8 @@ export default function CockpitApplicants() {
         </div>
       </header>
 
+      {shareJob && <JobLockBanner jobId={shareJob.id} jobTitle={shareJob.title} />}
+
       {filtersOpen && (
         <div className="ck-reveal flex flex-wrap items-center gap-2.5">
           <SearchInput placeholder="Search applicants…" className="min-w-[160px] flex-1" value={search} onChange={setSearch} />
@@ -1175,6 +1222,18 @@ export default function CockpitApplicants() {
                     onSelect={() => setSelectedId(c.id)}
                   />
                 ))}
+              </div>
+            )}
+            {/* Sealed-by-billing summary. The real rows above are already
+                filtered to the paid allowance (billingVisibleIds, computed
+                from roleScoped's arrival order) — this card is not additive
+                decoration, it is the only representation of the applicants
+                beyond that allowance: the "N more waiting" moment for a
+                locked job, shown once at the end of its own list rather than
+                as fabricated stand-ins for specific people. */}
+            {shareJob && jobBillingForSealedCard && pageClamped === totalPages && (
+              <div className="mt-3">
+                <SealedApplicantsCard jobId={shareJob.id} jobTitle={shareJob.title} billing={jobBillingForSealedCard} />
               </div>
             )}
           </div>

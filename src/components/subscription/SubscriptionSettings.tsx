@@ -1,17 +1,12 @@
 import { useState } from "react";
-import EmbeddedCheckoutDialog from "./EmbeddedCheckoutDialog";
-import { motion } from "framer-motion";
 import { useSubscription } from "@/hooks/useSubscription";
-import { usePricing } from "@/hooks/usePricing";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import {
   Crown,
-  ArrowUpCircle,
   Loader2,
-  Check,
   CreditCard,
   BarChart3,
   Users,
@@ -23,6 +18,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import VoiceCreditsSection from "./VoiceCreditsSection";
+import JobBillingSection from "@/components/billing/JobBillingSection";
 
 export default function SubscriptionSettings() {
   const {
@@ -34,48 +30,12 @@ export default function SubscriptionSettings() {
     isPaid,
     isTrialing,
     getTrialTimeRemaining,
-    createCheckoutSession,
     createBillingPortal,
     syncSubscription,
     refetch,
     subscriptionBypass,
   } = useSubscription();
-  const pricing = usePricing();
   const [loading, setLoading] = useState<string | null>(null);
-  const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
-  const [checkoutClientSecret, setCheckoutClientSecret] = useState<string | null>(null);
-  const [checkoutPlanType, setCheckoutPlanType] = useState<"growth" | "business">("growth");
-
-  const handleUpgrade = async (planType: "growth" | "business") => {
-    setLoading(planType);
-    setCheckoutPlanType(planType);
-    try {
-      const { clientSecret } = await createCheckoutSession.mutateAsync({ 
-        planType, 
-        countryCode: pricing.countryCode,
-        interval: billingInterval,
-      });
-      if (clientSecret) {
-        setCheckoutClientSecret(clientSecret);
-      } else {
-        toast({
-          variant: "warning",
-          title: "Upgrade unavailable",
-          description: "We couldn't start checkout right now. Please try again in a moment.",
-        });
-      }
-    } catch (error) {
-      console.error("Checkout error:", error);
-      const message = error instanceof Error ? error.message : "We couldn't start checkout right now. Please try again.";
-      toast({
-        variant: "warning",
-        title: "Unable to open checkout",
-        description: message,
-      });
-    } finally {
-      setLoading(null);
-    }
-  };
 
   const handleManageBilling = async () => {
     setLoading("billing");
@@ -146,175 +106,11 @@ export default function SubscriptionSettings() {
 
   return (
     <div className="space-y-6">
-      <EmbeddedCheckoutDialog
-        clientSecret={checkoutClientSecret}
-        planType={checkoutPlanType}
-        onClose={() => setCheckoutClientSecret(null)}
-      />
-      {/* Premium Upgrade Section - FIRST */}
-      {(!isPaid || subscription?.plan_type === "growth") && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="relative p-6 rounded-xl border border-primary/30 bg-card/50 overflow-hidden"
-        >
-          {/* Animated gradient orbs */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full blur-[100px] animate-pulse" />
-          <div className="absolute bottom-0 left-0 w-48 h-48 bg-[var(--brass)] rounded-full blur-[80px]" style={{ opacity: 0.15 }} />
-          
-          <div className="relative z-10">
-            <div className="text-center mb-6">
-              <motion.h3 
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.2 }}
-                className="text-2xl font-bold text-foreground flex items-center justify-center gap-2"
-              >
-                <ArrowUpCircle className="h-6 w-6 text-[var(--brass)]" />
-                {isTrialing ? "Choose Your Plan" : "Upgrade Your Plan"}
-              </motion.h3>
-              <p className="text-muted-foreground mt-2">Unlock the full power of HireFlow</p>
-            </div>
-
-            {/* Billing Toggle */}
-            <div className="flex items-center justify-center gap-3 p-1 rounded-full bg-muted/50 border border-border w-fit mx-auto mb-6">
-              <button
-                onClick={() => setBillingInterval("monthly")}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                  billingInterval === "monthly"
-                    ? "bg-primary text-primary-foreground shadow-lg"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Monthly
-              </button>
-              <button
-                onClick={() => setBillingInterval("yearly")}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2 ${
-                  billingInterval === "yearly"
-                    ? "bg-primary text-primary-foreground shadow-lg"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Yearly
-                <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
-                  2 months free
-                </span>
-              </button>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-4">
-              {/* Growth Plan */}
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 }}
-                whileHover={{ scale: 1.02 }}
-                className={`p-5 rounded-xl border transition-all ${
-                  subscription?.plan_type === "growth"
-                    ? "border-primary/50 bg-primary/5 shadow-[0_0_20px_hsl(var(--primary)/0.15)]"
-                    : "border-border bg-card/50 hover:border-primary/30 hover:shadow-[0_0_15px_hsl(var(--primary)/0.1)]"
-                }`}
-              >
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-semibold text-foreground">Growth</h4>
-                    {subscription?.plan_type === "growth" && (
-                      <Badge className="bg-primary/20 text-primary border-primary/30">Current</Badge>
-                    )}
-                  </div>
-                  <div className="flex items-baseline">
-                    <span className="text-2xl font-bold text-foreground">
-                      {billingInterval === "monthly" ? pricing.growth.monthlyFormatted : pricing.growth.yearlyMonthly}
-                    </span>
-                    <span className="text-muted-foreground ml-1 text-sm">
-                      {billingInterval === "monthly" ? "/mo" : "/mo"}
-                    </span>
-                  </div>
-                  {billingInterval === "yearly" && (
-                    <p className="text-xs text-muted-foreground">Billed {pricing.growth.yearlyFormatted}/year</p>
-                  )}
-                  <ul className="space-y-2 text-sm">
-                    {["3 Job Slots", "50 Applicants", "Ava Screening", "Document Workflows"].map((feature) => (
-                      <li key={feature} className="flex items-center gap-2">
-                        <Check className="h-4 w-4 text-primary flex-shrink-0" />
-                        <span className="text-muted-foreground">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  {subscription?.plan_type !== "growth" && subscription?.plan_type !== "business" && subscription?.plan_type !== "enterprise" && (
-                    <Button
-                      variant="outline"
-                      className="w-full bg-transparent border-[var(--brass-line)] text-[var(--brass)] hover:bg-[var(--hf-gold-soft)]"
-                      onClick={() => handleUpgrade("growth")}
-                      disabled={loading !== null}
-                    >
-                      {loading === "growth" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Subscribe"}
-                    </Button>
-                  )}
-                </div>
-              </motion.div>
-
-              {/* Business Plan - Now with Voice Features */}
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.4 }}
-                whileHover={{ scale: 1.02 }}
-                className={`p-5 rounded-xl border relative ${
-                  subscription?.plan_type === "business" || subscription?.plan_type === "enterprise"
-                    ? "border-[var(--brass-line)] bg-[var(--hf-gold-soft)] shadow-[0_0_20px_hsl(var(--warning)/0.15)]"
-                    : "border-[var(--brass-line)]/60 bg-gradient-to-b from-[var(--hf-gold-soft)] to-transparent shadow-[0_0_25px_hsl(var(--warning)/0.2)]"
-                }`}
-              >
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <span className="bg-[var(--brass)] text-[var(--btn-fg)] text-xs px-3 py-1 rounded-full flex items-center gap-1 shadow-lg">
-                    <Mic className="h-3 w-3" /> AVA Voice
-                  </span>
-                </div>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-semibold text-foreground">Business</h4>
-                    {(subscription?.plan_type === "business" || subscription?.plan_type === "enterprise") && (
-                      <Badge className="bg-[var(--hf-gold-soft)] text-[var(--brass)] border-[var(--brass-line)]">Current</Badge>
-                    )}
-                  </div>
-                  <div className="flex items-baseline">
-                    <span className="text-2xl font-bold text-foreground">
-                      {billingInterval === "monthly" ? pricing.business.monthlyFormatted : pricing.business.yearlyMonthly}
-                    </span>
-                    <span className="text-muted-foreground ml-1 text-sm">/mo</span>
-                  </div>
-                  {billingInterval === "yearly" && (
-                    <p className="text-xs text-muted-foreground">Billed {pricing.business.yearlyFormatted}/year</p>
-                  )}
-                  <ul className="space-y-2 text-sm">
-                    {["Unlimited Jobs", "Unlimited Applicants", "Team Portal", "Advanced Analytics", "AVA Voice Assistant", "Voice Interviews", "30 Voice Minutes/mo"].map((feature) => (
-                      <li key={feature} className="flex items-center gap-2">
-                        <Check className="h-4 w-4 text-[var(--brass)] flex-shrink-0" />
-                        <span className="text-muted-foreground">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  {subscription?.plan_type !== "business" && subscription?.plan_type !== "enterprise" && (
-                    <Button
-                      variant="outline"
-                      className="w-full gap-2 bg-transparent border-[var(--brass-line)] text-[var(--brass)] hover:bg-[var(--hf-gold-soft)]"
-                      onClick={() => handleUpgrade("business")}
-                      disabled={loading !== null}
-                    >
-                      {loading === "business" ? <Loader2 className="h-4 w-4 animate-spin" /> : (
-                        <><Mic className="h-4 w-4" />{subscription?.plan_type === "growth" ? "Upgrade" : "Subscribe"}</>
-                      )}
-                    </Button>
-                  )}
-                </div>
-              </motion.div>
-            </div>
-          </div>
-        </motion.div>
-      )}
+      {/* Owner-decided pricing (2026-08-27): no subscription — pay per job.
+          Replaces the old Growth/Business plan-picker section, which sold
+          a subscription the product no longer has. Shows honest
+          early-access copy of its own while billing is off. */}
+      <JobBillingSection />
 
       {/* Current Plan */}
       <div className="p-6 rounded-xl border border-border bg-card/50">
@@ -326,10 +122,10 @@ export default function SubscriptionSettings() {
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-lg font-semibold text-foreground">{planName} Plan</h3>
-                <Badge 
+                <Badge
                   className={
-                    isPaid 
-                      ? "bg-primary/20 text-primary border-primary/30" 
+                    isPaid
+                      ? "bg-primary/20 text-primary border-primary/30"
                       : isTrialing
                         ? "bg-secondary text-secondary-foreground border-border"
                         : "bg-destructive/20 text-destructive border-destructive/30"
@@ -383,10 +179,10 @@ export default function SubscriptionSettings() {
               </Button>
             )}
             {isPaid && !subscriptionBypass && (
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="border-border text-muted-foreground hover:bg-muted"
-                onClick={handleManageBilling} 
+                onClick={handleManageBilling}
                 disabled={loading === "billing"}
               >
                 {loading === "billing" ? (
