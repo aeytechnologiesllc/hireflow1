@@ -1,0 +1,735 @@
+# Document signing — design
+
+Status: design only, not yet built. Written 2026-09-15 against production schema
+(project `yqklrkpptnhubsnijqze`) with 0 rows in `public.documents`, so nothing here
+migrates live data — every change is additive or a fresh lockdown.
+
+## 0. What's broken today
+
+`public.documents` (offer letters, NDAs, contracts) has real columns for a
+candidate→employer signing flow — `candidate_signature_data`,
+`candidate_signed_at`, `employer_signature_data`, `employer_signed_at`,
+`v1_hash`/`v2_hash`/`v3_hash`/`document_hash`/`final_pdf_hash`, `is_locked`,
+`locked_at`, `completion_certificate` — but nothing writes them:
+
+- `SignedDocumentViewer.tsx` (mounted, schema-correct) is **view-only**: it
+  reads those columns and renders a certificate, but has no sign/countersign
+  UI.
+- `DocumentViewerDialog.tsx` has a Sign/Decline flow, but it's **unmounted**
+  dead code that writes the wrong (legacy) columns — `status`, `signed_at`,
+  `signature_data` — with a raw client UPDATE and no server-side validation.
+- `DocumentWizard.tsx` (mounted, employer side) creates the document and
+  computes `v1_hash`, but the cockpit's Documents drawer just opens
+  `file_url` in a new tab — no countersign UI exists there at all.
+- RLS on `documents` lets a candidate `UPDATE` and `DELETE` any column on
+  their own document with no column limits, and lets an employer do the same
+  — so even if a client-side flow existed, nothing stops a party from typing
+  their own `employer_signed_at`, hash, or `completion_certificate` straight
+  into the row.
+
+This design closes all of that: a single service-role edge function is the
+only path that can move a document through pending → signed, a `BEFORE
+UPDATE` trigger fences every other column, and the UI on both sides gets a
+real signing action.
+
+---
+
+## 1. Server path — `document-signing` edge function
+
+One new function, `supabase/functions/document-signing/index.ts`, `verify_jwt
+= true` (unlike `verify-document`, every caller here must be a logged-in
+party — there's no anonymous case). Service-role Supabase client inside, same
+shape as every other mutation-performing function in this repo.
+
+### Request
+
+```ts
+POST /functions/v1/document-signing
+Authorization: Bearer <candidate or employer JWT>
+
+{
+  documentId: string;
+  action: "view" | "sign" | "countersign" | "decline";
+  // sign / countersign only:
+  signature?: {
+    method: "typed" | "drawn";
+    value: string;          // typed: the full legal name; drawn: a data: PNG URL
+    consentAccepted: true;  // must be present and true, or the call is rejected
+  };
+  // employer countersign only:
+  reviewConfirmed?: true;   // "I have reviewed the document and the candidate's signature"
+  // decline only:
+  declineReason?: string;   // required, 3-500 chars after trim
+}
+```
+
+### Identity & party resolution (first thing the handler does, every action)
+
+1. Resolve the caller the same way `verify-document`'s
+   `resolveAuthorizedUserId` does (anon-key client scoped to the
+   `Authorization` header, `auth.getUser()`), except here a missing/invalid
+   token is a hard `401`, not a silent "no signers".
+2. Load the document by `documentId` with the service-role client, plus its
+   `application_id → applications(candidate_id, job_id) → jobs(employer_id)`.
+   Not found → `404`.
+3. Determine the caller's role on this document — mirrors the RLS policies
+   already on `documents` (`Team members can update documents if permitted`,
+   `Employers can update their documents`) so the edge function's notion of
+   "employer" never diverges from what RLS already allows to see the row:
+   - `candidate`: `application.candidate_id === callerId`.
+   - `employer`: `job.employer_id === callerId`, **or** an active
+     `team_members` row for `job.employer_id` with `user_id = callerId`,
+     `status = 'active'`, `can_send_documents = true`, and (`assigned_job_ids
+     IS NULL` or `job_id = ANY(assigned_job_ids)`).
+   - Neither → `403`.
+4. `document.is_voided` → `409 { error: "voided" }` for every action except
+   `view`.
+
+### `view` — replaces the client's direct `viewed_at` UPDATE
+
+Any resolved party may call this. If `viewed_at IS NULL`, the function sets
+it (service-role UPDATE, so it's exempt from the new trigger — see §5) and
+writes one `document_audit_logs` row (`action: 'document_viewed'`, see §4).
+Idempotent: a second call from either party is a no-op on `viewed_at` but
+still safe to call (no audit spam — only insert when this is the first
+view). Both `SignedDocumentViewer.tsx` and the future cockpit dialog call
+this once on open, replacing `DocumentViewerDialog.tsx`'s old
+`recordDocumentView`.
+
+### `sign` (candidate) — v1 → v2
+
+Preconditions, each its own `409` with a distinct `error` code the UI can
+show a real sentence for:
+- caller role must be `candidate` (`role_mismatch`)
+- `document.status === 'pending'` (`not_pending`)
+- `document.candidate_signed_at IS NULL` (`already_signed`)
+- `document.is_locked === false` (`locked`)
+- `document.expires_at IS NULL OR expires_at > now()` (`expired`)
+- `signature.consentAccepted === true` (`consent_required`)
+- `signature.method === 'typed'` → `signature.value` trimmed, 2–120 chars.
+  `signature.method === 'drawn'` → `signature.value` is a `data:image/png`
+  URL, decoded size ≤ 200 KB (reject bigger before touching the DB — a
+  drawn signature is a name-sized squiggle, not a photo).
+
+On success: compute `v2_hash` (§2), then a single service-role `UPDATE
+documents SET candidate_signature_data = <signature JSON>, candidate_signed_at
+= now(), v2_hash = ..., document_hash = v2_hash, ip_address = <from headers>,
+user_agent = <from headers> WHERE id = documentId`. `candidate_signature_data`
+is stored as `{"signatures":{"recipient": <value or drawn data URL>},
+"method": "...", "signerName": "..."}` — same shape
+`SignedDocumentViewer.tsx`'s `parseSignatures()` already reads
+(`parsed.signatures?.recipient`), so no viewer change is needed there.
+`ip_address`/`user_agent` come from `x-forwarded-for` (first hop, same
+helper as `callerId()` in `_shared/rateLimit.ts`) and the `user-agent`
+request header — never trust a client-supplied IP/UA field, this function
+doesn't accept one.
+
+Then: audit log (`candidate_signed`, §4) and a notification to the employer
+side (§6). Status stays `pending` — it only flips to `signed` once the
+employer countersigns (see below), matching `signing_order = 'candidate_first'`.
+
+### `countersign` (employer) — v2 → v3, completes the document
+
+Preconditions:
+- caller role must be `employer` (`role_mismatch`)
+- `document.status === 'pending'` (`not_pending`)
+- `document.candidate_signed_at IS NOT NULL` (`candidate_has_not_signed` —
+  this *is* the signing-order enforcement: an employer literally cannot
+  countersign before the candidate's signature lands, because this check
+  runs on every call)
+- `document.employer_signed_at IS NULL` (`already_signed`)
+- `document.is_locked === false`, not expired, same as above
+- `reviewConfirmed === true` (`review_required`)
+- `signature.consentAccepted === true` (`consent_required`)
+- same typed/drawn validation as `sign`
+
+On success, in one transaction (a single Postgres function called via `rpc`,
+so the hash/lock/certificate write is atomic — see §5 for why a plain
+multi-statement `UPDATE` sequence from the edge function isn't safe here):
+1. Compute `v3_hash` (§2).
+2. Render and store the canonical final PDF, compute `final_pdf_hash` (§2).
+3. `UPDATE documents SET employer_signature_data = ..., employer_signed_at =
+   now(), v3_hash = ..., document_hash = v3_hash, final_pdf_hash = ...,
+   status = 'signed', is_locked = true, locked_at = now(),
+   completion_certificate = <cert jsonb>, ip_address = ..., user_agent = ...`.
+4. Audit logs: `employer_review_confirmed` then `employer_countersigned` then
+   `document_completed` (§4).
+5. Notification to the candidate (§6).
+
+### `decline`
+
+Either resolved party, but only while it's actually their turn to act —
+otherwise "declining" would let a party who has nothing left to do reopen a
+finished document:
+- candidate may decline only while `candidate_signed_at IS NULL`
+  (`not_your_turn` otherwise — once they've signed, only the employer's
+  countersign-or-decline is live).
+- employer may decline only while `candidate_signed_at IS NOT NULL AND
+  employer_signed_at IS NULL` (i.e. reviewing the candidate's signature) —
+  an employer withdrawing a document *before* the candidate has acted is a
+  void, not a decline, and voiding stays a direct employer column write
+  under the new trigger (§5), not part of this function; nothing in the
+  product exercises it today so it's out of scope here.
+- `document.status === 'pending'`, not locked, not expired, same as above.
+- `declineReason` required, 3–500 chars trimmed.
+
+`UPDATE documents SET status = 'declined', declined_at = now(), decline_reason
+= <reason>`. Audit log `document_declined` (§4). Notification to the other
+party (§6). A declined document is terminal — `is_locked` is **not** set
+(nothing to protect the way a completed document's bytes need protecting),
+but the column-lock trigger in §5 still blocks direct client edits to a
+declined row the same as a pending one, so nobody can "un-decline" a
+document from the client.
+
+### Errors
+
+Every failure returns `{ error: <stable machine code>, message: <one
+sentence> }` with the matching HTTP status (`400` bad payload, `401` no/bad
+JWT, `403` wrong party, `404` not found, `409` wrong document state). The UI
+maps `error` codes to copy — see §7.
+
+---
+
+## 2. Hashes — v1/v2/v3/document_hash/final_pdf_hash
+
+The existing client helper `src/lib/documentHash.ts` already defines the
+`v1`/`v2`/`v3` formula (`generateVersionedHash`); this design keeps that
+exact algorithm but moves the v2/v3 computation server-side so it's
+authoritative, and adds a concrete meaning for `final_pdf_hash`, which
+nothing computes today.
+
+**v1** (unchanged, stays client-side at creation): `DocumentWizard.tsx`
+already computes it before the document exists — either
+`generateV1Hash(generatedContent)` for AI-generated text, or
+`generatePdfHash(pdfBytes)` for an uploaded PDF (a plain SHA-256 of the raw
+file). There's no signing state yet at that point, so there's nothing for
+the server to authoritatively re-derive it from that the client didn't
+already supply straight into the INSERT it's already trusted to make (see
+§5 — `v1_hash` stays employer/team-writable, INSERT only).
+
+**v2** (server, on `sign`): `sha256("${v1_hash}|CANDIDATE|${signatureValue}|${candidateEmail}|${timestampUtc}|VERSION:2")`
+— same shape as `generateV2Hash`, but chained off the stored `v1_hash`
+instead of re-fetching/re-deriving document content. This is a deliberate
+change from the current client helper (which takes raw `content`): chaining
+off `v1_hash` means the server never needs to re-fetch a PDF from Storage or
+re-decode the `data:` JSON blob to hash it, works identically for both
+AI-generated and uploaded documents, and still detects any change to the
+underlying content (because `v1_hash` itself already covers it). `signatureValue`
+is the typed name or, for a drawn signature, the SHA-256 of the decoded PNG
+bytes (never the full data URL — keeps the hash input bounded).
+`candidateEmail` comes from `profiles.email` for `auth.uid()`, not anything
+client-supplied.
+
+**v3** (server, on `countersign`):
+`sha256("${v2_hash}|EMPLOYER|${signatureValue}|${employerEmail}|${timestampUtc}|VERSION:3")`.
+Same reasoning — chains off `v2_hash`.
+
+**document_hash**: always a mirror of "whatever the current version's hash
+is" — set to `v1_hash` at creation (already true today), `v2_hash` on sign,
+`v3_hash` on countersign. `SignedDocumentViewer.tsx` and `verify-document`
+already read `v3_hash || v2_hash || v1_hash` as their fallback chain, so this
+is belt-and-suspenders, not a new read path.
+
+**final_pdf_hash** (server, on `countersign`, new — nothing sets this
+today): the SHA-256 of the actual bytes of the final, canonical signed PDF —
+not a manifest hash like v1–v3, a hash of the file a human would download
+and open. Today `pdfSignatureBurner.ts`'s `burnSignaturesIntoPdf` runs
+**client-side**, on-demand, every time someone clicks "Signed PDF" download
+in `SignedDocumentViewer.tsx` — and it stamps the render with `Generated:
+${format(new Date(), ...)}` (`src/lib/pdfSignatureBurner.ts:430`), so two
+downloads of the "same" signed document produce byte-different PDFs. That's
+fine for a print-on-demand certificate footer, but it means there is no
+single canonical rendering to hash.
+
+Design: at `countersign` completion, the server renders the canonical PDF
+**once** and stores it — the hash and the artifact it describes are then the
+same object forever, and every future "Signed PDF" download for that
+document serves this stored file instead of re-rendering.
+
+- Port `burnSignaturesIntoPdf` (uploaded-PDF path) into a new
+  `supabase/functions/_shared/renderFinalPdf.ts`. It's already
+  framework-agnostic (`pdf-lib`, `date-fns`, `fetch`, no DOM), so it runs
+  unchanged under Deno via the same `esm.sh` import style every other
+  function here already uses for `@supabase/supabase-js`. One change:
+  replace the non-deterministic `Generated: ${format(new Date(), ...)}`
+  footer line with the document's own `completion_timestamp_utc` — makes the
+  render a pure function of stored data, which is what "hash the bytes"
+  requires.
+- For AI-generated (text) documents, add a second render path in the same
+  module that lays the stored `content` string onto a fresh `pdf-lib`
+  document with `page.drawText` (replacing the client's `jsPDF`-based
+  `handleDownloadGeneratedPdf` — same visual content, one PDF library
+  instead of two, and `jsPDF` doesn't need to exist inside the edge
+  function).
+- Store the result at `documents/<documentId>/final.pdf` in the existing
+  private `documents` Storage bucket (the bucket `DocumentWizard.tsx`
+  already uploads originals to), hash those exact bytes with
+  `crypto.subtle.digest('SHA-256', bytes)`, write the hash to
+  `final_pdf_hash`.
+- `SignedDocumentViewer.tsx`'s "Signed PDF" download button, once a document
+  is `signed`, switches from client-side burning to a signed URL for that
+  stored object (`supabase.storage.from('documents').createSignedUrl(...)`);
+  its current client-side burn/generate code paths (`handleDownloadGeneratedPdf`,
+  `handleDownloadSignedUploadedPdf`) stay as-is for a `pending`/`declined`
+  document, where there's nothing signed yet to serve back.
+
+`verify-document` and `completionCertificate.ts` are unaffected by this —
+both already read whichever of `v3_hash`/`v2_hash`/`document_hash` is
+populated and don't touch `final_pdf_hash`; this is additive.
+
+---
+
+## 3. Status, lock, and the completion certificate
+
+- `status` flips `pending → signed` **only** on a successful `countersign`
+  (never on `sign` alone — a candidate-signed, not-yet-countersigned
+  document is still `pending`, which is exactly what
+  `useEmployerPendingDocumentsCount.ts` already assumes with its
+  `not("candidate_signed_at", "is", null).is("employer_signed_at", null)`
+  query).
+- `status` flips `pending → declined` on a successful `decline`, from either
+  side, per §1.
+- `is_locked`/`locked_at` are set **only** together with `status = 'signed'`,
+  in the same `countersign` transaction — never independently, and never for
+  a declined document (there's nothing to protect: a declined document
+  can't be re-signed regardless, per the trigger in §5, so locking would be
+  a no-op that only confuses "is this final" UI).
+- `completion_certificate` is generated server-side in that same
+  transaction, reusing the existing shape from `src/lib/completionCertificate.ts`
+  (`CompletionCertificate`) verbatim — that interface, and
+  `SignedDocumentViewer.tsx`'s `loadCompletionCertificate()` (which already
+  prefers `document.completion_certificate` over generating one on the fly),
+  don't change. The server builds the same object today's client function
+  builds from audit-log entries, except it has the real signature/hash data
+  in hand directly rather than re-deriving it by scanning
+  `document_audit_logs` after the fact:
+
+  ```ts
+  {
+    certificate_id: `CERT-${...}`,           // same generator as today
+    document_id, document_name: document.name, document_type,
+    version_history: {
+      v1: { hash: document.v1_hash, timestamp: document.created_at },
+      v2: { hash: v2Hash, timestamp: document.candidate_signed_at },
+      v3: { hash: v3Hash, timestamp: now },
+    },
+    candidate_signature: {
+      name, email, timestamp_utc: document.candidate_signed_at,
+      ip_address: document.ip_address /* captured at sign time, not overwritten by countersign */,
+      location: { city, region, country },   // from the same geolocate-ip lookup as today
+      signature_hash: v2Hash,
+      consent_confirmed_at: document.candidate_signed_at,
+      signing_order_position: 1,
+    },
+    employer_signature: { ...mirror, signing_order_position: 2 },
+    signing_order: "candidate_first",
+    signing_order_verified: true,   // always true here — the server *enforced* the order, it isn't inferring it after the fact
+    final_document_hash: document.final_pdf_hash,
+    completion_timestamp_utc: now,
+    audit_trail_hash: sha256(<audit log entries for this document, same join as generateAuditTrailHashFromEntries>),
+    audit_entries_count,
+    compliance_statement: <unchanged text from completionCertificate.ts>,
+  }
+  ```
+
+  One field changes meaning: `final_document_hash` is now `final_pdf_hash`
+  (the real PDF bytes) instead of whatever `finalHash` fallback chain the
+  client used before — a strictly more correct value for a field literally
+  named "final document hash", and the certificate's own IP addresses are
+  captured once, at sign/countersign time (not looked up again for the
+  certificate), so it can't drift from what the audit trail says. `ip_address`
+  as stored on `documents` reflects the *countersign* call after
+  `countersign` runs; the candidate's own sign-time IP is only preserved
+  in the `candidate_signed` audit-log row and the certificate's own
+  `candidate_signature.ip_address`, both captured before the employer's
+  `UPDATE` overwrites the column — same one-row-per-document limit the
+  schema already has today (`documents.ip_address` is a single column, not
+  per-signer), just made explicit here rather than silently losing the
+  candidate's IP the moment the employer signs.
+
+---
+
+## 4. `document_audit_logs` rows the server writes
+
+All via the service-role client, so `enforce_document_audit_log_identity()`
+(§ live trigger, unchanged) takes its `auth.role() = 'service_role'` early
+return and leaves every field as the function sets it — this design relies
+on that trigger already existing exactly as-is, doesn't touch it.
+
+| Action | Written on | Key fields |
+|---|---|---|
+| `document_viewed` | first `view` call by either party | `signer_role`, `document_hash` = current |
+| `candidate_signed` | `sign` success | `signature_method`, `consent_confirmed: true`, `document_hash: v2_hash`, `document_version: 2`, `pre_signature_hash: v1_hash`, `post_signature_hash: v2_hash`, `signing_order_position: 1` |
+| `employer_review_confirmed` | `countersign`, before the signature itself | `document_hash: v2_hash` |
+| `employer_countersigned` | `countersign` success | `signature_method`, `consent_confirmed: true`, `document_hash: v3_hash`, `document_version: 3`, `pre_signature_hash: v2_hash`, `post_signature_hash: v3_hash`, `signing_order_position: 2` |
+| `document_completed` | `countersign` success, right after the above | `document_hash: final_pdf_hash`, `details.is_locked: true` |
+| `document_declined` | `decline` success | `signer_role` of the decliner, `details.decline_reason` |
+
+`signer_name`/`signer_email` come from `profiles` for the caller, exactly
+like `logDocumentCreated` etc. already do client-side today —
+`getGeolocation()`/IP/user-agent capture move server-side (headers, per §1)
+instead of the client's `geolocate-ip` round trip, which also closes the gap
+where a client could simply not call it.
+
+---
+
+## 5. `BEFORE UPDATE` trigger — `protect_document_columns()`
+
+No `BEFORE UPDATE` trigger exists on `documents` today (confirmed live:
+the only trigger is `set_document_code`, `BEFORE INSERT`). New migration
+adds one, modeled directly on `protect_application_columns()`
+(`src/...` pattern already in this repo — `service_role` early return via
+`auth.role()`, not `current_user`, for the same SECURITY DEFINER reason
+documented there).
+
+```sql
+create or replace function public.protect_document_columns()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'public', 'pg_temp'
+as $$
+declare
+  v_candidate_id uuid;
+  v_employer_id uuid;
+  v_is_employer_side boolean;
+begin
+  -- The signing edge function runs on service_role and is authoritative.
+  if auth.role() = 'service_role' then
+    return new;
+  end if;
+
+  select a.candidate_id, j.employer_id
+    into v_candidate_id, v_employer_id
+  from public.applications a
+  join public.jobs j on j.id = a.job_id
+  where a.id = old.application_id;
+
+  v_is_employer_side := v_employer_id = auth.uid()
+    or exists (
+      select 1 from public.team_members tm
+      where tm.user_id = auth.uid()
+        and tm.employer_id = v_employer_id
+        and tm.status = 'active'
+        and tm.can_send_documents = true
+        and (tm.assigned_job_ids is null
+             or old.application_id in (
+               select a2.id from public.applications a2
+               where a2.job_id = any(tm.assigned_job_ids)
+             ))
+    );
+
+  -- Candidates never write documents directly, full stop. `view`,
+  -- `sign`, `decline` all go through the edge function now.
+  if auth.uid() = v_candidate_id and not v_is_employer_side then
+    raise exception 'Candidates cannot update documents directly — use the document-signing function';
+  end if;
+
+  if not v_is_employer_side then
+    -- RLS should already have refused this write; don't second-guess it.
+    return new;
+  end if;
+
+  -- Employer/team side: an explicit allow-list of what they may still
+  -- change with a plain client UPDATE. Everything signing-related routes
+  -- through the edge function; this is what's left over from real,
+  -- observed client writes (DocumentWizard's own follow-up edits, package
+  -- assignment, reminders, voiding) that never touch a signature or hash.
+  if old.status in ('signed', 'declined') or old.is_locked then
+    -- A completed or declined document is closed. The only thing still
+    -- legitimately writable past that point is voiding it (see below) —
+    -- everything else about a finished document is permanent record.
+    if new.name is distinct from old.name
+      or new.file_url is distinct from old.file_url
+      or new.document_type is distinct from old.document_type
+      or new.expires_at is distinct from old.expires_at
+      or new.status is distinct from old.status
+      or new.candidate_signature_data is distinct from old.candidate_signature_data
+      or new.candidate_signed_at is distinct from old.candidate_signed_at
+      or new.employer_signature_data is distinct from old.employer_signature_data
+      or new.employer_signed_at is distinct from old.employer_signed_at
+      or new.is_locked is distinct from old.is_locked
+      or new.locked_at is distinct from old.locked_at
+      or new.completion_certificate is distinct from old.completion_certificate
+      or new.v1_hash is distinct from old.v1_hash
+      or new.v2_hash is distinct from old.v2_hash
+      or new.v3_hash is distinct from old.v3_hash
+      or new.document_hash is distinct from old.document_hash
+      or new.final_pdf_hash is distinct from old.final_pdf_hash
+      or new.document_code is distinct from old.document_code
+      or new.declined_at is distinct from old.declined_at
+      or new.decline_reason is distinct from old.decline_reason
+    then
+      raise exception 'This document is % — only voiding is allowed', old.status;
+    end if;
+  else
+    -- Still pending: block the columns that only the edge function may
+    -- ever set, on top of what's structurally read-only (id, application_id,
+    -- created_at, document_code, sender_id, recipient_id).
+    if new.candidate_signature_data is distinct from old.candidate_signature_data
+      or new.candidate_signed_at is distinct from old.candidate_signed_at
+      or new.employer_signature_data is distinct from old.employer_signature_data
+      or new.employer_signed_at is distinct from old.employer_signed_at
+      or new.status is distinct from old.status
+      or new.is_locked is distinct from old.is_locked
+      or new.locked_at is distinct from old.locked_at
+      or new.completion_certificate is distinct from old.completion_certificate
+      or new.v2_hash is distinct from old.v2_hash
+      or new.v3_hash is distinct from old.v3_hash
+      or new.final_pdf_hash is distinct from old.final_pdf_hash
+      or new.document_hash is distinct from old.document_hash
+      or new.declined_at is distinct from old.declined_at
+      or new.decline_reason is distinct from old.decline_reason
+      or new.viewed_at is distinct from old.viewed_at
+      or new.ip_address is distinct from old.ip_address
+      or new.user_agent is distinct from old.user_agent
+    then
+      raise exception 'Signing fields can only be set by the document-signing function';
+    end if;
+  end if;
+
+  if new.application_id is distinct from old.application_id
+    or new.sender_id is distinct from old.sender_id
+    or new.document_code is distinct from old.document_code
+  then
+    raise exception 'Cannot change document identity fields';
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger protect_document_columns_trigger
+  before update on public.documents
+  for each row execute function public.protect_document_columns();
+```
+
+Left writable for the employer/team side on a still-`pending` document (no
+`raise` above blocks them): `name`, `document_type`, `file_url`,
+`recipient_id`, `expires_at`, `reminder_sent_at`, `package_id`, `v1_hash`
+(covers `DocumentWizard.tsx` re-saving it right after insert if that ever
+happens), and `is_voided`/`voided_at`/`voided_reason` (the void path — no
+code writes these today per a repo-wide grep, but the columns and their
+intended shape already exist, so this leaves that door open rather than
+inventing new scope here). `RAISE EXCEPTION` text always says *why*, for the
+same reason `protect_application_columns()` does — a denied write should
+read like an error, not a mystery permission failure.
+
+### DELETE
+
+Two live policies today have no restriction at all:
+`"Candidates can delete their documents"` and `"Employers can delete their
+documents"`. Replace both:
+
+```sql
+drop policy "Candidates can delete their documents" on public.documents;
+-- Candidates were never supposed to delete evidence of their own
+-- signature; nothing in the product exercises this today.
+
+drop policy "Employers can delete their documents" on public.documents;
+create policy "Employers can delete undelivered documents"
+  on public.documents for delete
+  using (
+    exists (
+      select 1 from applications a join jobs j on j.id = a.job_id
+      where a.id = documents.application_id and j.employer_id = auth.uid()
+    )
+    and candidate_signed_at is null
+    and is_locked = false
+  );
+```
+
+Same tightening on `"Team members can update documents if permitted"` isn't
+needed — that policy only decides *who may attempt* an UPDATE; the new
+trigger decides *what* they may change regardless of which RLS policy let
+the statement through, so it stays as-is.
+
+---
+
+## 6. In-app notifications
+
+Reuse the existing `notifications` table exactly as `DocumentWizard.tsx`
+already does today (`type: "system"`, `link`) — no new columns, no new
+type. Written from inside the same service-role transaction as the
+triggering action, right after its audit-log row:
+
+| Event | To | Title / message |
+|---|---|---|
+| candidate signs | employer (`job.employer_id`; not every team member — same as today's single-recipient pattern) | "A candidate signed — your turn" / `"${candidateName} signed ${documentName}. Countersign it to finish."`, `link: "/documents"` |
+| employer countersigns (document completes) | candidate | "Your document is fully signed" / `"${documentName} is complete. Download your copy anytime."`, `link: "/my-documents"` |
+| either party declines | the other party | "A document was declined" / `"${declinerName} declined ${documentName}: ${reason}"`, `link` matching the recipient's side |
+
+No email — `RESEND_API_KEY` is unset project-wide (`send-notification-email`
+returns `skipped`), and this design doesn't add an email dependency; it only
+uses the in-app table, same as every other notification already shipped
+this cycle (applications, interviews, offers, phase moves).
+
+---
+
+## 7. UI
+
+### `DocumentViewerDialog.tsx` — delete it
+
+Justification: it is unmounted (no import anywhere reaches it — confirmed by
+`MyDocuments.tsx` using `SignedDocumentViewer`, `cockpit/pages/Documents.tsx`
+using neither), it writes only the legacy columns
+(`status`/`signed_at`/`signature_data`/`user_agent`) with a bare client
+`UPDATE` and no consent/state checks, and everything it does (view content,
+sign, decline, audit trail, download) has a schema-correct equivalent either
+already built in `SignedDocumentViewer.tsx` or added to it below. Keeping an
+unmounted file that still compiles against `documents` around is actively
+dangerous once §5's trigger ships: it's exactly the kind of forgotten
+client-write path that would start throwing `raise exception`s the moment
+someone re-mounts it, or — worse — silently no-op some of its writes (the
+ones the trigger allows) while others fail, which is a confusing way to
+fail. Delete the file and its one lingering reference, if any turns up in a
+grep at implementation time.
+
+### `SignedDocumentViewer.tsx` — gains the signing actions
+
+Stays the one dialog both `MyDocuments.tsx` (candidate) and the cockpit's
+Documents drawer open — no new component split. Additions:
+
+- On open, call `document-signing` with `action: "view"` (replacing nothing
+  that exists today — this is new).
+- New state derived from `document` + `useAuth()`'s `role`/`user`:
+  `canSignAsCandidate = role === 'candidate' && document.status === 'pending'
+  && !document.candidate_signed_at`, `canCountersignAsEmployer = role ===
+  'employer' && document.status === 'pending' && document.candidate_signed_at
+  && !document.employer_signed_at`, `canDecline` = either of those.
+- When `canSignAsCandidate` or `canCountersignAsEmployer`, replace the
+  read-only "Awaiting Signature" strip (`document.status !== "signed"`
+  branch, `SignedDocumentViewer.tsx:940-959`) with a signing panel:
+  - Consent checkbox with the exact statement `auditTrail.ts` already uses
+    for `electronic_consent_confirmed` ("I acknowledge that I am signing
+    this document electronically...") — one wording, reused instead of
+    invented twice.
+  - Employer side only: a second checkbox, "I've reviewed the document and
+    the candidate's signature before countersigning" (maps to
+    `reviewConfirmed`).
+  - A signature capture tab: **Type** (text input, pre-filled from
+    `profiles.full_name`, editable) or **Draw** (new small
+    `src/components/documents/SignaturePad.tsx` — a `<canvas>` with
+    pointer-event drawing and a Clear button, exporting `toDataURL('image/png')`
+    on submit; no new dependency, canvas is native). Either tab produces the
+    `signature.method`/`signature.value` pair §1 expects.
+  - Primary button ("Sign document" / "Countersign") disabled until consent
+    (+ review, for employer) is checked and a signature is present; calls
+    `supabase.functions.invoke("document-signing", { body: { documentId,
+    action: role === 'candidate' ? 'sign' : 'countersign', signature,
+    reviewConfirmed } })`, then `queryClient.invalidateQueries({ queryKey:
+    ["documents"] })` and closes or refreshes the dialog.
+  - Secondary "Decline" button opens the same reason textarea pattern
+    `DocumentViewerDialog.tsx` had (`showDeclineForm`/`declineReason`), now
+    posting `action: "decline"`.
+  - Every `error` code from §1 maps to one toast sentence (`already_signed`
+    → "Someone already signed this — refresh to see the latest.",
+    `candidate_has_not_signed` → "The candidate hasn't signed yet.", etc.)
+    instead of a raw Supabase error string.
+- The finished-document view (`document.status === "signed"` branch) is
+  unchanged — it already reads exactly the columns the server now
+  authoritatively writes.
+
+### Cockpit — `src/cockpit/pages/Documents.tsx`
+
+Every `DocRow` here already comes 1:1 from a `documents` row via
+`mapDocumentRow` (`useCockpitDocuments` sources only `useDocuments()`, never
+`document_requests` — confirmed by reading the hook). So the fix is narrow:
+`DocRowItem`'s "Open" button currently always calls `openDocument(row.fileUrl)`
+(`src/cockpit/pages/Documents.tsx:186-195`). Change it to open
+`SignedDocumentViewer` in a dialog (same component `MyDocuments.tsx` uses)
+whenever the row's status is `Pending` or `Signed` — i.e. whenever there's a
+real signing lifecycle to show — and keep the existing "open the raw file in
+a new tab" behavior only as the `Declined` fallback (nothing to sign there,
+just the original file). This needs the full `DocumentWithApplication` for
+the clicked row, not just the flattened `DocRow` — `CockpitDocuments` already
+holds `documents` from `useCockpitDocuments`'s underlying `useDocuments()`
+call one level up, so it's a matter of looking the row up by `id` from that
+list (already in scope, no new fetch) and passing it to `SignedDocumentViewer`
+the same way `MyDocuments.tsx` does with `viewerDocument`.
+
+### Typed vs. drawn
+
+Both are offered, candidate's choice, same for the employer — this project
+has no notarization or ID-verification requirement, and ESIGN/UETA (the
+compliance language already in `completionCertificate.ts`) don't require a
+drawn signature specifically, just clear consent and an identifiable
+signer. Typed is the accessible, low-friction default tab; Draw is there for
+people who want it to look like a signature.
+
+---
+
+## 8. Tests and guards
+
+New Deno unit tests, same style as the existing
+`documentParties.test.ts` (pure functions, no live Supabase needed):
+
+- `supabase/functions/document-signing/stateMachine.test.ts` — extract the
+  precondition checks in §1 into pure functions (`canSign(document, role)`,
+  `canCountersign(...)`, `canDecline(...)`) so every one of the `409` cases
+  above is a table-driven test, not something only exercisable through a
+  live call.
+- `supabase/functions/_shared/renderFinalPdf.test.ts` — feeds the same
+  fixed input twice, asserts identical output bytes (guards the
+  determinism fix in §2 from regressing back to a timestamp-stamped
+  footer).
+
+New PGlite proof, `scripts/document_signing_guard_pglite_check.mjs` (added
+to the "every `scripts/*pglite*.mjs`" check list this repo's CLAUDE.md
+already runs): loads `protect_document_columns()` and the two replaced
+DELETE policies verbatim from the new migration into PGlite with the
+auth stub, then proves — as a candidate — a direct
+`UPDATE documents SET employer_signed_at = now() WHERE id = ...` is
+rejected; as an employer, the same for `candidate_signed_at`; as either,
+that `name`/`expires_at` still succeed on a pending document; and that once
+`status = 'signed'`, even the employer's own client can no longer touch
+`file_url`.
+
+New `scripts/guards/document-signing.mjs` (one file per fix, per
+`scripts/guards/README.md`), following the `verify-document-hardening.mjs`
+shape (static source checks, no live server needed):
+- `protect_document_columns()` is defined in the new migration and contains
+  the `service_role` early return (fails on old code: no trigger exists
+  today).
+- `document-signing/index.ts` requires `Authorization` and 401s without it
+  (fails if someone builds this as `verify_jwt = false`).
+- `countersign`'s handler contains the `candidate_signed_at is not null`
+  check before it ever sets `employer_signed_at` (fails if signing-order
+  enforcement is dropped).
+- `DocumentViewerDialog.tsx` no longer exists in the tree (fails until it's
+  actually deleted, not just unmounted).
+
+---
+
+## 9. Legacy columns
+
+`documents.signature_data` and `documents.signed_at` (the pre-versioned
+columns `DocumentViewerDialog.tsx` wrote) are not deprecated by a migration
+here — no code outside the deleted dialog reads or writes them, so there's
+nothing to migrate. They stay in the schema, untouched, covered by §5's
+trigger like every other column (nobody can write them directly once the
+trigger ships; the new edge function never writes them either). A future,
+separate cleanup migration can drop them once someone's confirmed no
+external integration reads them — out of scope for this pass, which is
+additive-only per the ambient hard rules.
+
+---
+
+## Implementation order
+
+1. Migration: `protect_document_columns()` trigger + DELETE policy swap
+   (§5) — safe to land alone; 0 live rows, and it only *removes* client
+   write surface, so nothing currently working can regress from this step
+   by itself.
+2. `supabase/functions/_shared/renderFinalPdf.ts` (§2) + its determinism
+   test — no callers yet, safe in isolation.
+3. `supabase/functions/document-signing/index.ts` (§1, §2, §3, §4, §6) +
+   `stateMachine.test.ts`.
+4. `SignaturePad.tsx` + `SignedDocumentViewer.tsx` signing panel (§7).
+5. Cockpit `Documents.tsx` wiring (§7).
+6. Delete `DocumentViewerDialog.tsx` (§7).
+7. PGlite guard + `scripts/guards/document-signing.mjs` (§8) — written
+   alongside 1 and 3, not after; per this worktree's own rule, one guard
+   file per fix, and this fix has two distinct wrong-old-behaviors (the
+   missing trigger, the missing signing-order check) worth a guard each if
+   that reads cleaner than one combined file.
