@@ -31,6 +31,24 @@
  * for that permission -- the fix combines the job-scoped RPC with a
  * separate team_members lookup for that one flag, so this guard allows (and
  * requires) exactly one non-job-scoped team_members query there, not zero.
+ *
+ * google-indexing's hard-deleted-job fallback (canDeleteMissingJobAsTeamMember)
+ * can't use the RPC at all (its `jobs` join can never match once the job
+ * row is gone), so it re-checks the same can_delete_jobs + assigned_job_ids
+ * condition directly against team_members. A reviewer showed that this
+ * guard originally checked only that the substrings "can_delete_jobs" and
+ * "assigned_job_ids" appeared *somewhere* in the file -- not that the
+ * fallback's actual return value depended on them -- so patching the
+ * fallback's return to `!!membership && membership.can_delete_jobs ===
+ * true` (dropping assigned_job_ids scoping, the exact cross-job leak this
+ * task exists to fix) still passed, because the now-dead
+ * `.select("can_delete_jobs, assigned_job_ids")` line and comments still
+ * contained both substrings. The fix pulls that decision into a pure,
+ * separately-tested function -- canDeleteMissingJobAsTeamMemberFromMembership
+ * in supabase/functions/_shared/deletedJobTeamMemberAccess.ts (see
+ * scripts/deleted_job_team_member_access.test.mjs) -- and this guard now
+ * requires the fallback to import it and return it directly, the same
+ * call-site-shape check already used for isScopedTeamMemberFromRpc.
  */
 
 const RPC_ACCESS_FN = "supabase/functions/_shared/teamMemberRpcAccess.ts";
@@ -181,10 +199,13 @@ export default [
       "a team member scoped to job A can fire Google Indexing API pings for job B just by sharing an employer.",
     run: async ({ read }) => {
       const FN = "supabase/functions/google-indexing/index.ts";
+      const DECISION_FN = "supabase/functions/_shared/deletedJobTeamMemberAccess.ts";
       const src = await read(FN);
       const rpcAccessSrc = await read(RPC_ACCESS_FN);
+      const decisionSrc = await read(DECISION_FN);
       if (!src) return { ok: false, detail: [`${FN} not found`] };
       if (!rpcAccessSrc) return { ok: false, detail: [`${RPC_ACCESS_FN} not found`] };
+      if (!decisionSrc) return { ok: false, detail: [`${DECISION_FN} not found`] };
       const bad = [];
 
       requireSharedMapping(src, FN, bad);
@@ -202,18 +223,52 @@ export default [
       // exact, scoped fallback shape rather than banning team_members
       // queries outright.
       if (/\.from\(["']team_members["']\)/.test(src)) {
-        if (!/canDeleteMissingJobAsTeamMember/.test(src)) {
+        if (!/canDeleteMissingJobAsTeamMember\b/.test(src)) {
           bad.push(
             `${FN}: a direct team_members query was found but not inside a canDeleteMissingJobAsTeamMember-style ` +
             "fallback -- direct team_members queries must stay scoped to the hard-deleted-job fallback and check " +
             "both can_delete_jobs and assigned_job_ids, not re-implement a looser employer-only check"
           );
         }
-        if (!/can_delete_jobs/.test(src)) {
-          bad.push(`${FN}: the team_members fallback query must check can_delete_jobs -- the permission the live DELETE RLS policy requires`);
+
+        // Pin the DECISION, not just that the substrings appear somewhere in
+        // the file: canDeleteMissingJobAsTeamMember must import and directly
+        // return canDeleteMissingJobAsTeamMemberFromMembership(...) -- the
+        // pure, separately-tested function in deletedJobTeamMemberAccess.ts
+        // -- rather than reimplementing the can_delete_jobs/assigned_job_ids
+        // check inline, where a regressed boolean expression can hide behind
+        // an unrelated `.select("can_delete_jobs, assigned_job_ids")` line
+        // or comment still containing both substrings (see this guard's
+        // file header for the exact regression a reviewer found).
+        const DECISION_IMPORT_RE =
+          /import\s*\{[^}]*\bcanDeleteMissingJobAsTeamMemberFromMembership\b[^}]*\}\s*from\s*["']\.\.\/_shared\/deletedJobTeamMemberAccess\.ts["']/;
+        if (!DECISION_IMPORT_RE.test(src)) {
+          bad.push(
+            `${FN}: must import canDeleteMissingJobAsTeamMemberFromMembership from ` +
+            "../_shared/deletedJobTeamMemberAccess.ts -- the can_delete_jobs/assigned_job_ids decision must not " +
+            "be reimplemented inline, where a dropped assigned_job_ids check can hide behind an unrelated " +
+            "reference to that column elsewhere in the file"
+          );
         }
-        if (!/assignedJobIds\.includes\(jobId\)|assigned_job_ids/.test(src)) {
-          bad.push(`${FN}: the team_members fallback query must scope by assigned_job_ids, same as the live DELETE RLS policy`);
+
+        if (!/return\s+canDeleteMissingJobAsTeamMemberFromMembership\(\s*membership\s*,\s*jobId\s*\)/.test(src)) {
+          bad.push(
+            `${FN}: canDeleteMissingJobAsTeamMember must return exactly ` +
+            "canDeleteMissingJobAsTeamMemberFromMembership(membership, jobId) for the non-error case -- not an " +
+            "inline can_delete_jobs/assigned_job_ids expression, which a guard regex checking substring presence " +
+            "cannot tell apart from a weakened version that drops assigned_job_ids scoping"
+          );
+        }
+
+        if (!/export function canDeleteMissingJobAsTeamMemberFromMembership/.test(decisionSrc)) {
+          bad.push(`${DECISION_FN}: must export canDeleteMissingJobAsTeamMemberFromMembership`);
+        }
+        if (!/assignedJobIds\.includes\(jobId\)/.test(decisionSrc) || !/can_delete_jobs\s*!==\s*true/.test(decisionSrc)) {
+          bad.push(
+            `${DECISION_FN}: canDeleteMissingJobAsTeamMemberFromMembership must check both can_delete_jobs === true ` +
+            "and assigned_job_ids.includes(jobId) (or empty/null for whole-employer access) -- this is the actual " +
+            "decision every guard check above is pinning the call site to, so it must not be weakened here either"
+          );
         }
       } else {
         bad.push(

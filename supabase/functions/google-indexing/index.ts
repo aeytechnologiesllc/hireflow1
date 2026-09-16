@@ -5,6 +5,7 @@ import {
   type GoogleIndexingNotificationType,
 } from "../_shared/googleIndexing.ts";
 import { isScopedTeamMemberFromRpc } from "../_shared/teamMemberRpcAccess.ts";
+import { canDeleteMissingJobAsTeamMemberFromMembership } from "../_shared/deletedJobTeamMemberAccess.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -91,10 +92,7 @@ async function canDeleteMissingJobAsTeamMember(
     return false;
   }
 
-  if (!membership || membership.can_delete_jobs !== true) return false;
-
-  const assignedJobIds = membership.assigned_job_ids as string[] | null;
-  return !assignedJobIds || assignedJobIds.length === 0 || assignedJobIds.includes(jobId);
+  return canDeleteMissingJobAsTeamMemberFromMembership(membership, jobId);
 }
 
 async function getAuthorizedJob(
