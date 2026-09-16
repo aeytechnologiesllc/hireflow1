@@ -1,3 +1,5 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 /**
  * Human copy for every machine error code the document-signing edge
  * function (supabase/functions/document-signing/index.ts) returns — kept
@@ -25,3 +27,47 @@ export const DOCUMENT_SIGNING_ERROR_MESSAGES: Record<string, string> = {
   countersign_in_progress: "This document is being countersigned right now — try again in a moment.",
   chain_broken: "This document's signature chain no longer reconciles — it may have been altered. Contact support.",
 };
+
+/**
+ * Calls the document-signing edge function and throws a human-readable
+ * Error on any failure.
+ *
+ * @supabase/functions-js treats any non-2xx response as an error: it
+ * throws a FunctionsHttpError and returns `{ data: null, error }` — the
+ * function's own JSON error body (`{ error: "role_mismatch", ... }`) is
+ * NOT put on `data`, it's only reachable via `error.context`, which is
+ * the raw Response object. Every error this edge function returns
+ * (role_mismatch, not_pending, locked, voided, invalid_reason,
+ * candidate_already_signed, countersign_in_progress, unauthorized, …) is
+ * a non-2xx response, so reading `data?.error` after `invoke()` always
+ * sees `data === null` and silently falls back to a generic message.
+ * Every caller of the document-signing function should go through this
+ * helper instead of calling `supabase.functions.invoke` directly.
+ */
+export async function invokeDocumentSigning(
+  supabase: SupabaseClient,
+  body: Record<string, unknown>,
+): Promise<unknown> {
+  const { data, error } = await supabase.functions.invoke("document-signing", { body });
+  if (error) {
+    let code: string | undefined;
+    let message: string | undefined;
+    try {
+      const ctx = (error as { context?: Response }).context;
+      if (ctx) {
+        const parsed = await ctx.clone().json();
+        code = parsed?.error;
+        message = parsed?.message;
+      }
+    } catch {
+      // ignore — fall through to the generic message below
+    }
+    throw new Error(DOCUMENT_SIGNING_ERROR_MESSAGES[code ?? ""] ?? message ?? "Something went wrong. Please try again.");
+  }
+  if ((data as { error?: string } | null)?.error) {
+    const code = (data as { error?: string }).error;
+    const message = (data as { message?: string }).message;
+    throw new Error(DOCUMENT_SIGNING_ERROR_MESSAGES[code ?? ""] ?? message ?? "Something went wrong. Please try again.");
+  }
+  return data;
+}

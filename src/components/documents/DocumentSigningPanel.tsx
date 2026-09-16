@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { SignaturePad } from "./SignaturePad";
 import { Loader2, PenTool, XCircle } from "lucide-react";
-import { DOCUMENT_SIGNING_ERROR_MESSAGES as ERROR_MESSAGES } from "@/lib/documentSigningErrors";
+import { invokeDocumentSigning } from "@/lib/documentSigningErrors";
 
 // Same wording as src/lib/auditTrail.ts's electronic_consent_confirmed
 // audit entry — one consent statement, reused, not invented twice.
@@ -50,29 +50,7 @@ export function DocumentSigningPanel({ documentId, mode, onComplete }: DocumentS
     };
   }, []);
 
-  const invoke = async (body: Record<string, unknown>) => {
-    const { data, error } = await supabase.functions.invoke("document-signing", { body });
-    if (error) {
-      // supabase-js surfaces a non-2xx response as `error`, with the parsed
-      // body available on error.context — fall back to a generic message
-      // if that shape isn't there (network failure, etc).
-      let code: string | undefined;
-      try {
-        const ctx = (error as { context?: Response }).context;
-        if (ctx) {
-          const body = await ctx.clone().json();
-          code = body?.error;
-        }
-      } catch {
-        // ignore — fall through to the generic message below
-      }
-      throw new Error(ERROR_MESSAGES[code ?? ""] ?? "Something went wrong. Please try again.");
-    }
-    if (data?.error) {
-      throw new Error(ERROR_MESSAGES[data.error] ?? data.message ?? "Something went wrong. Please try again.");
-    }
-    return data;
-  };
+  const invoke = (body: Record<string, unknown>) => invokeDocumentSigning(supabase, body);
 
   const signatureValue = tab === "typed" ? typedValue.trim() : drawnValue;
   const hasSignature = tab === "typed" ? typedValue.trim().length >= 2 : !!drawnValue;

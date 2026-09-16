@@ -11,7 +11,7 @@ import { CockpitErrorCard } from "../components/ErrorCard";
 import { ActionDialog } from "../components/ActionDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { DOCUMENT_SIGNING_ERROR_MESSAGES } from "@/lib/documentSigningErrors";
+import { invokeDocumentSigning } from "@/lib/documentSigningErrors";
 import type { DocRow, DocStatus } from "../data";
 
 /**
@@ -304,13 +304,11 @@ export default function CockpitDocuments() {
     }
     setIsActing(true);
     try {
-      const { data, error } = await supabase.functions.invoke("document-signing", {
-        body: { documentId: actionDialog.row.id, action: actionDialog.type, reason: trimmed },
+      await invokeDocumentSigning(supabase, {
+        documentId: actionDialog.row.id,
+        action: actionDialog.type,
+        reason: trimmed,
       });
-      if (error || data?.error) {
-        const code = data?.error as string | undefined;
-        throw new Error(DOCUMENT_SIGNING_ERROR_MESSAGES[code ?? ""] ?? data?.message ?? "Something went wrong. Please try again.");
-      }
       toast({
         title: actionDialog.type === "withdraw" ? "Document withdrawn" : "Document voided",
         description: "The candidate has been notified.",

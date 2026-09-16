@@ -341,4 +341,41 @@ export default [
       return { ok: bad.length === 0, detail: bad };
     },
   },
+  {
+    id: "cockpit-withdraw-void-surfaces-the-real-server-error",
+    why:
+      "@supabase/functions-js treats every non-2xx response (which is every error the document-signing " +
+      "function returns — role_mismatch, not_pending, locked, voided, invalid_reason, candidate_already_signed, " +
+      "countersign_in_progress, unauthorized, all via errorResponse()) as a thrown FunctionsHttpError with " +
+      "`data: null` — the JSON error body only lives on `error.context`. Reading `data?.error` after " +
+      "`invoke()` (instead of going through invokeDocumentSigning, which parses error.context) always sees " +
+      "`data === null` and silently falls back to the generic \"Something went wrong\" message, so the " +
+      "purpose-built copy in documentSigningErrors.ts (e.g. \"void it instead of withdrawing\") never reaches " +
+      "the employer.",
+    run: async ({ read }) => {
+      const bad = [];
+      const helperSrc = await read("src/lib/documentSigningErrors.ts");
+      if (!helperSrc) bad.push("src/lib/documentSigningErrors.ts not found");
+      else if (!/export async function invokeDocumentSigning/.test(helperSrc) || !/error\.context/.test(helperSrc) && !/\}\)\.context/.test(helperSrc) && !/as \{ context\?: Response \}\)\.context/.test(helperSrc)) {
+        bad.push("invokeDocumentSigning is missing or does not parse error.context");
+      }
+      const pageSrc = await read(COCKPIT_DOCS_PAGE);
+      if (!pageSrc) bad.push(`${COCKPIT_DOCS_PAGE} not found`);
+      else {
+        if (!/invokeDocumentSigning/.test(pageSrc)) {
+          bad.push(`${COCKPIT_DOCS_PAGE} does not call invokeDocumentSigning — withdraw/void errors will be swallowed`);
+        }
+        const stripped = stripTsComments(pageSrc);
+        if (/data\?\.error/.test(stripped) || /data\.error/.test(stripped)) {
+          bad.push(`${COCKPIT_DOCS_PAGE} still reads data?.error directly — that field is always null on a FunctionsHttpError`);
+        }
+      }
+      const panelSrc = await read("src/components/documents/DocumentSigningPanel.tsx");
+      if (!panelSrc) bad.push("src/components/documents/DocumentSigningPanel.tsx not found");
+      else if (!/invokeDocumentSigning/.test(panelSrc)) {
+        bad.push("DocumentSigningPanel.tsx no longer routes through invokeDocumentSigning");
+      }
+      return { ok: bad.length === 0, detail: bad };
+    },
+  },
 ];
