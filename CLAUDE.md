@@ -164,10 +164,10 @@ git push origin main
 npx supabase link --project-ref yqklrkpptnhubsnijqze
 
 # Push database migrations
-# DO NOT run this blind: db push matches by version, and 28 repo migrations
+# DO NOT run this blind: db push matches by version, and 38 repo migrations
 # are stamped with a different version than the one recorded live (see
 # docs/MIGRATION-HISTORY.md, "Same migration, different version stamp").
-# A blind push will re-apply those 28 against production and write a
+# A blind push will re-apply those 38 against production and write a
 # duplicate schema_migrations row. Reconcile against
 # docs/MIGRATION-HISTORY.md first.
 npx supabase db push
