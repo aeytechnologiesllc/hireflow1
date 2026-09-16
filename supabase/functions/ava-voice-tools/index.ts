@@ -4,6 +4,7 @@ import {
   notifyGoogleIndexing,
   type GoogleIndexingNotificationType,
 } from "../_shared/googleIndexing.ts";
+import { recordStepResult, type MinimalSupabaseAdmin } from "../_shared/trustedResults.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -610,6 +611,116 @@ serve(async (req) => {
         if (error) throw error;
 
         result = { success: true, evaluation: evaluationWithFlags };
+        break;
+      }
+
+      case "record_interview_transcript": {
+        // The candidate-side finalize step for a voice interview — called
+        // directly by VoiceInterviewPhase.tsx's handleInterviewEnd, once an
+        // evaluation already exists (from either "end_interview" above or
+        // submit_voice_interview_manual_end), never by Ava herself. This is
+        // the part-B trusted-results conversion for voice_interview: see
+        // docs/TRUSTED-RESULTS.md's "voice_interview is special" section.
+        // Before this, VoiceInterviewPhase.tsx wrote
+        // applications.voice_interview_transcript (and phase_ai_analysis)
+        // straight from the candidate's own session — a plain write
+        // protect_application_columns() only starts blocking once
+        // 'voiceInterviewResult' is enforced (supabase/migrations/
+        // 20260916150700_enforce_voice_interview_result.sql), and one this
+        // handler must therefore fully replace before that flag flips.
+        if (!applicationId) {
+          throw new Error("Application ID required for interview tools");
+        }
+
+        const stepId = typeof parameters?.stepId === "string" ? parameters.stepId : null;
+        if (!stepId) {
+          throw new Error("Step ID required to record the interview transcript");
+        }
+
+        const rawTranscript = Array.isArray(parameters?.transcript) ? parameters.transcript : null;
+        if (!rawTranscript) {
+          throw new Error("Transcript is required");
+        }
+
+        // Reproduces exactly the shape VoiceInterviewPhase.tsx has always
+        // built client-side (role/content/timestamp/formatted_time) — never
+        // trust arbitrary extra fields into a candidate-authored transcript
+        // entry landing in a column employers read directly.
+        const transcript = rawTranscript.map((m: any) => ({
+          role: m?.role === "assistant" ? "assistant" : "user",
+          content: typeof m?.content === "string" ? m.content : "",
+          timestamp: typeof m?.timestamp === "number" ? m.timestamp : null,
+          formatted_time: typeof m?.formatted_time === "string" ? m.formatted_time : null,
+        }));
+
+        // Caller must be this application's own candidate — same reasoning
+        // as end_interview above: this runs with supabaseAdmin (service
+        // role), which clears protect_application_columns()'s
+        // auth.role() = 'service_role' bypass, so ownership has to be
+        // verified explicitly here rather than relying on RLS.
+        //
+        // voice_interview_result is written server-side ONLY (by
+        // end_interview above or by submit_voice_interview_manual_end) — it
+        // is re-read fresh here, never trusted from the client, both to
+        // confirm an evaluation actually exists yet and to use as the
+        // trusted notes[resultKey] value (docs/TRUSTED-RESULTS.md's
+        // result_key table: voiceInterviewResult / type 'voice_interview').
+        const { data: ownerCheck, error: ownerCheckError } = await supabaseAdmin
+          .from("applications")
+          .select("id, candidate_id, voice_interview_result, voice_interview_transcript")
+          .eq("id", applicationId)
+          .maybeSingle();
+
+        if (ownerCheckError || !ownerCheck || ownerCheck.candidate_id !== user.id) {
+          throw new Error("Application not found or access denied");
+        }
+
+        if (!ownerCheck.voice_interview_result) {
+          throw new Error("This interview has not been evaluated yet");
+        }
+
+        // Overwrite protection, same shape as end_interview's own guard
+        // above and submit_voice_interview_manual_end's — refuse a second
+        // call so a candidate can't hit this endpoint again afterwards with
+        // a forged transcript to replace the real one.
+        if (ownerCheck.voice_interview_transcript) {
+          throw new Error("This interview's transcript has already been recorded");
+        }
+
+        const evaluation = ownerCheck.voice_interview_result as Record<string, unknown>;
+
+        // supabase-js's real client is structurally awaitable at runtime
+        // (every builder below is a thenable resolving to {data, error})
+        // but isn't nominally typed as `Promise<...>`, which is all
+        // MinimalSupabaseAdmin requires — trustedResults.ts deliberately
+        // stays import-free (no supabase-js) so its pure functions run
+        // under plain Node too (see scripts/trusted_results_logic.test.mjs),
+        // so every real caller needs this same cast.
+        const outcome = await recordStepResult(supabaseAdmin as unknown as MinimalSupabaseAdmin, {
+          applicationId,
+          callerUserId: user.id,
+          stepId,
+          stepType: "voice_interview",
+          resultKey: "voiceInterviewResult",
+          result: evaluation,
+        });
+
+        if (!outcome.ok) {
+          throw new Error(outcome.error);
+        }
+
+        const { error: transcriptError } = await supabaseAdmin
+          .from("applications")
+          .update({
+            voice_interview_transcript: transcript,
+            phase_ai_analysis: typeof evaluation.summary === "string" ? evaluation.summary : null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", applicationId);
+
+        if (transcriptError) throw transcriptError;
+
+        result = { success: true, next: outcome.next };
         break;
       }
 

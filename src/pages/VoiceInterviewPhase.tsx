@@ -287,17 +287,33 @@ export default function VoiceInterviewPhase() {
       // for the normal Ava-ended path) or submitManualEnd()'s call to
       // submit_voice_interview_manual_end (for the manual-end/connection-lost
       // fallback below) — both run before handleInterviewEnd is invoked.
-      // Only the transcript (not written server-side by the tool-call path)
-      // and phase_ai_analysis need saving here.
-      const { error } = await supabase
-        .from("applications")
-        .update({
-          voice_interview_transcript: transcript,
-          phase_ai_analysis: evaluation.summary,
-        })
-        .eq("id", applicationId);
+      //
+      // The transcript (and phase_ai_analysis) used to be saved here too,
+      // straight from the candidate's own session — but that write is
+      // guarded the moment 'voiceInterviewResult' is enforced (supabase/
+      // migrations/20260916150700_enforce_voice_interview_result.sql), once
+      // voice_interview_result is already non-null, which by this point it
+      // always is. ava-voice-tools' "record_interview_transcript" is the
+      // trusted replacement: a service-role edge function that verifies the
+      // caller is this application's own candidate, re-reads the evaluation
+      // from the database (never trusting a client copy), records it at
+      // notes.voiceInterviewResult and advances phase/status via
+      // recordStepResult exactly like every other converted phase, and only
+      // then saves the transcript itself. See docs/TRUSTED-RESULTS.md's
+      // "voice_interview is special" section.
+      const { data: finalizeResult, error: finalizeError } = await supabase.functions.invoke(
+        "ava-voice-tools",
+        {
+          body: {
+            tool_name: "record_interview_transcript",
+            parameters: { stepId, transcript },
+            applicationId,
+          },
+        },
+      );
 
-      if (error) throw error;
+      if (finalizeError) throw finalizeError;
+      if (finalizeResult?.error) throw new Error(finalizeResult.error);
 
       // Trigger AVA analysis in background (fire-and-forget) - calculates score but NO auto pass/fail
       triggerAvaAnalysis(applicationId!).catch(console.error);
