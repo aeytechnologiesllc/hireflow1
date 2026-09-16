@@ -18,6 +18,14 @@ const corsHeaders = {
 };
 
 const MAX_FILES_TO_ANALYZE = 10;
+// A hard ceiling on how many file entries a single request may submit, well
+// above any realistic workflow-step `maxFiles` config (the UI caps at 10 by
+// default). Enforced BEFORE the ownership/existence check below ever touches
+// storage, so a request that just repeats one real owned path thousands of
+// times in the `files` array — trivial via curl/devtools, bypassing the UI's
+// own count limit entirely — is refused outright instead of turning into
+// thousands of sequential storage downloads.
+const MAX_SUBMITTED_FILES = 50;
 // Every file is inlined as base64 in the request body. Skip any single file
 // over 8 MB outright, and stop attaching once 20 MB of raw bytes are in
 // (≈27 MB encoded — under OpenAI's 32 MB per-request budget for file inputs).
@@ -616,6 +624,14 @@ serve(async (req) => {
     if (items.length === 0) {
       return jsonError("No valid portfolio files provided", 400);
     }
+    if (items.length > MAX_SUBMITTED_FILES) {
+      console.error("[ai-analyze-portfolio] rejected: too many files submitted", {
+        applicationId,
+        stepId,
+        submitted: items.length,
+      });
+      return jsonError(`Too many files submitted (max ${MAX_SUBMITTED_FILES})`, 400);
+    }
 
     // Ownership + existence, BEFORE spending anything on analysis. A path
     // that doesn't match this candidate's own upload naming for THIS
@@ -632,15 +648,23 @@ serve(async (req) => {
       return jsonError("One or more files were not uploaded by you for this application step", 403);
     }
 
+    // Download each DISTINCT storage path once, not once per submitted
+    // entry. The owned-path pattern above only proves a path's SHAPE is this
+    // candidate's own — it doesn't require paths to be unique — so without
+    // this de-dupe a request could still repeat a single real owned path up
+    // to MAX_SUBMITTED_FILES times and force that many redundant sequential
+    // storage round-trips for the cost of one legitimate upload.
+    const uniqueUrls = Array.from(new Set(items.map((item) => item.url)));
     const fileBytes = new Map<string, ArrayBuffer>();
     const missing: string[] = [];
-    for (const item of items) {
-      const { data, error } = await admin.storage.from("portfolios").download(item.url);
+    for (const url of uniqueUrls) {
+      const { data, error } = await admin.storage.from("portfolios").download(url);
       if (error || !data) {
-        missing.push(item.name);
+        const names = items.filter((item) => item.url === url).map((item) => item.name);
+        missing.push(...names);
         continue;
       }
-      fileBytes.set(item.url, await data.arrayBuffer());
+      fileBytes.set(url, await data.arrayBuffer());
     }
     if (missing.length > 0) {
       console.error("[ai-analyze-portfolio] rejected: file(s) not found in storage", { applicationId, stepId, missing });
