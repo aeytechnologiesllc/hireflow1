@@ -112,7 +112,7 @@ export default function VideoIntroPhase() {
   }, [id, queryClient]);
 
   const videoConfig = (() => {
-    const workflowSteps = application?.jobs?.workflow_steps as Array<{ id: string; type: string; config?: Record<string, unknown> }> | null;
+    const workflowSteps = application?.jobs?.workflow_steps as Array<{ id: string; type: string; config?: { maxDuration?: number; prompt?: string } }> | null;
     const videoStep = workflowSteps?.find(s => s.id === stepId || s.type === "video_intro" || s.type === "video_message");
     return {
       maxDuration: videoStep?.config?.maxDuration || 60,

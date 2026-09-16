@@ -174,7 +174,10 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
       const credentials = await fetchRoomCredentials(interviewId);
       if (cancelled) return;
 
-      if (!credentials.ok) {
+      // `credentials.ok === false` (not `!credentials.ok`) — TS only narrows
+      // this discriminated union's boolean discriminant on an equality check;
+      // truthiness narrowing leaves the `ok: true` member in the negated branch.
+      if (credentials.ok === false) {
         if (credentials.kind === "error") setErrorMessage(credentials.message);
         setPhase(credentials.kind);
         return;

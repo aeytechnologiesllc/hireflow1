@@ -135,7 +135,7 @@ export default function PortfolioUploadPhase() {
 
   // Get portfolio config
   const portfolioConfig = (() => {
-    const workflowSteps = application?.jobs?.workflow_steps as Array<{ id: string; type: string; config?: Record<string, unknown> }> | null;
+    const workflowSteps = application?.jobs?.workflow_steps as Array<{ id: string; type: string; config?: { prompt?: string; maxFiles?: number } }> | null;
     const portfolioStep = workflowSteps?.find(s => s.id === stepId || s.type === "portfolio_upload");
     return {
       prompt: portfolioStep?.config?.prompt || "Upload samples of your best work that demonstrate your skills relevant to this position.",

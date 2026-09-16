@@ -231,7 +231,7 @@ export default function SalesSimulationPhase() {
 
   // Get config from workflow
   const salesConfig = (() => {
-    const workflowSteps = application?.jobs?.workflow_steps as Array<{ id: string; type: string; config?: Record<string, unknown> }> | null;
+    const workflowSteps = application?.jobs?.workflow_steps as Array<{ id: string; type: string; config?: { minMessages?: number; scenarios?: unknown } }> | null;
     const salesStep = workflowSteps?.find(s => s.id === stepId || s.type === "sales_simulation");
     return {
       minMessages: salesStep?.config?.minMessages || 6,

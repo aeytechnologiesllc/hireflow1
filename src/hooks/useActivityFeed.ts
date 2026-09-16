@@ -157,7 +157,11 @@ export function useActivityFeed(limit: number = 20) {
             link: `/applicants/${app.id}`,
             metadata: { candidateName, jobTitle, status: app.status },
           });
-        } else if (app.status !== "pending") {
+        } else {
+          // Every other status ("reviewing" | "interview" | "offered" |
+          // "in_progress") falls here — "hired"/"rejected"/"pending" are all
+          // handled above, so status is provably never "pending" by this
+          // point (that's what TS's own "no overlap" check was catching).
           activityItems.push({
             id: `status-${app.id}-${app.updated_at}`,
             type: "status_change",

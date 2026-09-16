@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { TablesInsert } from "@/integrations/supabase/types";
+import type { Json, TablesInsert } from "@/integrations/supabase/types";
 import { 
   generateDocumentHash, 
   generateV1Hash, 
@@ -127,7 +127,11 @@ export async function createAuditLog(entry: AuditLogEntry): Promise<string | nul
       document_id: entry.document_id,
       user_id: entry.user_id,
       action: entry.action,
-      details: entry.details || {},
+      // entry.details is a plain object of audit-log detail values (strings,
+      // numbers, booleans, nested plain objects — never functions/symbols),
+      // so it's always valid JSON; narrowing here at the jsonb-column
+      // boundary rather than widening AuditLogEntry's own field to Json.
+      details: (entry.details || {}) as Json,
       ip_address: geo.ip,
       user_agent: userAgent,
       signer_name: entry.signer_name,

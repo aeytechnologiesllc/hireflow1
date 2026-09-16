@@ -165,7 +165,11 @@ function getSessionDesiredProgress(
     return stageFloor;
   }
 
-  let previousStop = INITIAL_PROGRESS[mode];
+  // Widened to `number`: INITIAL_PROGRESS/SESSION_PROGRESS_SEGMENTS are `as
+  // const` for readability at their definitions, but `previousStop` is
+  // reassigned below to whichever segment's `to` the loop reaches — a
+  // different literal from a much larger union — not just its starting value.
+  let previousStop: number = INITIAL_PROGRESS[mode];
   let consumedMs = 0;
 
   for (const segment of segments) {

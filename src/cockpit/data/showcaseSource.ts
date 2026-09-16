@@ -4,6 +4,7 @@
  * touching or migrating the showcase tables.
  */
 import { supabase } from "@/integrations/supabase/client";
+import { showcaseDb } from "@/lib/showcaseSchema";
 import type {
   Candidate,
   CandidateStage,
@@ -49,7 +50,7 @@ function scaleVoice(score: number | null): number | null {
 }
 
 export async function fetchShowcaseAccount() {
-  const { data } = await supabase
+  const { data } = await showcaseDb
     .from("employers")
     .select("name")
     .eq("id", DEFAULT_EMPLOYER_ID)
@@ -64,7 +65,7 @@ export async function fetchShowcaseAccount() {
 }
 
 export async function fetchShowcaseJobs(): Promise<JobRow[]> {
-  const { data: roles, error } = await supabase
+  const { data: roles, error } = await showcaseDb
     .from("roles")
     .select("*")
     .eq("employer_id", DEFAULT_EMPLOYER_ID)
@@ -76,13 +77,13 @@ export async function fetchShowcaseJobs(): Promise<JobRow[]> {
     id: r.id,
     title: r.title,
     icon: "coffee" as const,
-    location: r.location,
-    pay: r.pay,
+    location: r.location ?? "",
+    pay: r.pay ?? "",
     status: mapRoleStatus(r.status),
     applicants: r.applicant_count ?? 0,
     dateLabel: r.status === "draft" ? "Last edited" : "Posted",
     date: "Recently",
-    roleCode: (r as { role_code?: string | null }).role_code ?? null,
+    roleCode: r.role_code,
     stats: {
       voice: r.interview ?? 0,
       shortlist: r.shortlist ?? 0,
@@ -107,18 +108,18 @@ interface ShowcaseBundle {
 export async function fetchShowcaseCandidates(): Promise<ShowcaseBundle> {
   const [{ data: apps, error: appErr }, { data: candidates, error: candErr }, { data: details }] =
     await Promise.all([
-      supabase
+      showcaseDb
         .from("applications")
         .select("id, candidate_id, role_id, stage, voice_score, quiz_score, note, decision")
         .order("sort_order", { ascending: true }),
-      supabase.from("candidates").select("id, name, initials"),
-      supabase.from("candidate_details").select("id, ava_read, voice_score, quiz_score, role_title"),
+      showcaseDb.from("candidates").select("id, name, initials"),
+      showcaseDb.from("candidate_details").select("id, ava_read, voice_score, quiz_score, role_title"),
     ]);
 
   if (appErr) throw appErr;
   if (candErr) throw candErr;
 
-  const { data: roles } = await supabase
+  const { data: roles } = await showcaseDb
     .from("roles")
     .select("id, title")
     .eq("employer_id", DEFAULT_EMPLOYER_ID);
@@ -196,8 +197,8 @@ export function buildShowcasePipeline(candidates: Candidate[]): PipelineNode[] {
 }
 
 export async function fetchShowcaseDashboard() {
-  const { data: kpis } = await supabase.from("kpis").select("*").eq("id", 1).maybeSingle();
-  const { data: activity } = await supabase
+  const { data: kpis } = await showcaseDb.from("kpis").select("*").eq("id", 1).maybeSingle();
+  const { data: activity } = await showcaseDb
     .from("activity")
     .select("*")
     .order("sort_order", { ascending: true })
@@ -229,7 +230,7 @@ export async function fetchShowcaseDashboard() {
 }
 
 export async function updateShowcaseDecision(applicationId: string, decision: "offer" | "passed") {
-  const { error } = await supabase
+  const { error } = await showcaseDb
     .from("applications")
     .update({ decision })
     .eq("id", applicationId);
@@ -237,7 +238,7 @@ export async function updateShowcaseDecision(applicationId: string, decision: "o
 }
 
 export async function fetchShowcaseConversations() {
-  const { data: convs, error } = await supabase
+  const { data: convs, error } = await showcaseDb
     .from("conversations")
     .select("*")
     .order("sort_order", { ascending: true });
@@ -256,7 +257,7 @@ export async function fetchShowcaseConversations() {
 }
 
 export async function fetchShowcaseThread(conversationId: string) {
-  const { data, error } = await supabase
+  const { data, error } = await showcaseDb
     .from("messages")
     .select("*")
     .eq("conversation_id", conversationId)
@@ -272,7 +273,7 @@ export async function fetchShowcaseThread(conversationId: string) {
 }
 
 export async function fetchShowcaseDocuments() {
-  const { data, error } = await supabase
+  const { data, error } = await showcaseDb
     .from("documents")
     .select("*")
     .order("sort_order", { ascending: true });
@@ -431,7 +432,7 @@ export async function updateShowcaseRole(
   roleId: string,
   updates: { title?: string; description?: string | null; location?: string | null; pay?: string | null; status?: string },
 ) {
-  const { data, error } = await supabase.from("roles").update(updates).eq("id", roleId).select("*").single();
+  const { data, error } = await showcaseDb.from("roles").update(updates).eq("id", roleId).select("*").single();
   if (error) throw error;
   return data;
 }

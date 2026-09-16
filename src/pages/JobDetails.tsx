@@ -28,7 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { detectSchemaMode } from "@/cockpit/data/showcaseSource";
 import { fetchRoleById } from "@/lib/showcaseApply";
-import { JobPostingJsonLd } from "@/components/seo/JobPostingJsonLd";
+import { JobPostingJsonLd, type JobLocationStruct } from "@/components/seo/JobPostingJsonLd";
 
 export default function JobDetails() {
   const { id } = useParams<{ id: string }>();
@@ -129,6 +129,12 @@ export default function JobDetails() {
 
   // Check if application deadline has passed
   const isDeadlinePassed = job?.application_deadline && isPast(new Date(job.application_deadline));
+
+  // published_jobs_public never selects jobs.benefits (see its definition in
+  // supabase/migrations — every column it does select is audited there, and
+  // benefits has never been one of them), so this has always been null for
+  // every candidate; typed explicitly here rather than assumed on `job`.
+  const jobBenefits = (job as { benefits?: string[] } | null | undefined)?.benefits ?? null;
 
   // Check applicant limit when job loads
   useEffect(() => {
@@ -378,7 +384,16 @@ export default function JobDetails() {
   return (
     <>
       {job && (
-        <JobPostingJsonLd job={job} company={employerProfile?.company_name} logo={employerProfile?.company_logo} />
+        <JobPostingJsonLd
+          // job.locations is the raw jsonb column (Json — no writer populates
+          // it yet, so it's null in practice); JobPostingJob wants the
+          // specific JobLocationStruct[] shape this column is reserved for.
+          // Narrowing here at the boundary, same as this file's other jsonb
+          // reads, rather than widening JobPostingJob's own field to Json.
+          job={{ ...job, locations: job.locations as JobLocationStruct[] | null }}
+          company={employerProfile?.company_name}
+          logo={employerProfile?.company_logo}
+        />
       )}
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Back Button — "Back to Apply" is meaningless to an employer, who
@@ -664,7 +679,7 @@ export default function JobDetails() {
             )}
 
             {/* Benefits */}
-            {job.benefits && job.benefits.length > 0 && (
+            {jobBenefits && jobBenefits.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -674,7 +689,7 @@ export default function JobDetails() {
                   <CardContent className="p-6">
                     <h3 className="text-lg font-semibold text-foreground mb-3">Benefits</h3>
                     <ul className="space-y-2">
-                      {job.benefits.map((benefit, index) => (
+                      {jobBenefits.map((benefit, index) => (
                         <li key={index} className="flex items-start gap-2 text-sm text-muted-foreground">
                           <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                           {benefit}

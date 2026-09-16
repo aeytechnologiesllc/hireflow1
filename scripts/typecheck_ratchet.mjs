@@ -22,16 +22,37 @@ import { promisify } from "node:util";
 import process from "node:process";
 
 /**
- * 195 as of 2026-09-01 (was 196; fetching quiz_questions in TypingTestPhase
- * resolved one).
- *
- * 124 of these (76 in src/cockpit/data/showcaseSource.ts, 48 in
- * src/lib/showcaseApply.ts) are one root cause, not 124 problems: that code
- * queries a `roles`/`candidates` schema which does not exist on the live project
- * yqklrkpptnhubsnijqze, so every column access fails to resolve. Deleting or
- * gating the showcase path would clear roughly two thirds of this number at once.
+ * 0 as of 2026-09-16 (was 191). The showcase schema adapter
+ * (src/cockpit/data/showcaseSource.ts, src/lib/showcaseApply.ts) queries
+ * `roles`/`candidates`/etc., a schema that predates the live hireflow1
+ * project and was never in the generated Database type, which used to make
+ * every column access on those two files resolve to a SelectQueryError
+ * union (124 of the 191 errors, one root cause). Rather than delete or gate
+ * that still-reachable fallback path (detectSchemaMode() flips to it
+ * whenever `published_jobs_public` can't be found, which real forks/local
+ * DBs without the jobs migration can hit), src/lib/showcaseSchema.ts now
+ * hand-types that schema and re-types the one real Supabase client against
+ * it for those two modules — see its file header for why. The remaining 67
+ * were real, mostly small bugs: two more direct `supabase.from("roles"/
+ * "applications")` calls bypassing that adapter (src/hooks/useJobs.ts,
+ * useUpcomingInterviewsCount.ts); two leftover `.from("..." as any)` casts
+ * on `employer_public_branding` (Applications.tsx,
+ * CandidateApplicationDetail.tsx) from before that view was in the
+ * generated types; a `let` narrowed to a literal union by its `as const`
+ * initializer then reassigned outside it (AvaWorkflowGenerationOverlay.tsx);
+ * a boolean-discriminated union that only narrows on `=== false`, not `!x.ok`
+ * (MeetingRoom.tsx); an always-`never[]` empty-array branch in
+ * useAdvancedAnalytics.ts unioning with the real element type on every
+ * consumer; a handful of `config?: Record<string, unknown>` workflow-step
+ * casts narrowed to their two or three real keys; two edge-function
+ * `invokeAuthedFunction<T>()` calls with no `T`, defaulting to `unknown`;
+ * and two genuine latent gaps this pass left behavior-identical and typed
+ * honestly rather than "fixed" into new behavior: `published_jobs_public`
+ * never selects `jobs.benefits` (JobDetails.tsx — see the code comment
+ * there and task_4e14a421) and `documents` has no `updated_at` column
+ * (cockpit/lib/mappers.ts).
  */
-const BASELINE = 191;
+const BASELINE = 0;
 
 const run = promisify(execFile);
 

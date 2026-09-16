@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { detectSchemaMode, updateShowcaseRole } from "@/cockpit/data/showcaseSource";
 import { createShowcaseRole, SHOWCASE_EMPLOYER_ID } from "@/lib/showcaseApply";
+import { showcaseDb } from "@/lib/showcaseSchema";
 import { useSchemaMode } from "@/hooks/useSchemaMode";
 import { notifyGoogleJobIndexingInBackground } from "@/lib/googleIndexing";
 import { mergeQuizAnswerKeys, type JobQuizKeyRow } from "@/lib/quizAnswerKeys";
@@ -93,13 +94,13 @@ export function useJob(id: string | undefined) {
     queryKey: ["jobs", "single", id, mode],
     queryFn: async () => {
       if (mode === "showcase") {
-        const { data, error } = await supabase.from("roles").select("*").eq("id", id!).single();
+        const { data, error } = await showcaseDb.from("roles").select("*").eq("id", id!).single();
         if (error) throw error;
         return {
           id: data.id,
           title: data.title,
           description: data.description,
-          location: data.location,
+          location: data.location ?? "",
           status: data.status === "draft" ? "draft" : "published",
           job_type: data.employment_type,
           salary_min: null,

@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useSchemaMode } from "@/hooks/useSchemaMode";
 import { supabase } from "@/integrations/supabase/client";
+import { showcaseDb } from "@/lib/showcaseSchema";
 import { useEffect, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 
@@ -32,7 +33,7 @@ export function useUpcomingInterviewsCount() {
 
       const isEmployerOrTeam = role === "employer" || isTeamMember;
       if (mode === "showcase" && isEmployerOrTeam) {
-        const { count } = await supabase
+        const { count } = await showcaseDb
           .from("applications")
           .select("*", { count: "exact", head: true })
           .eq("stage", "interview");

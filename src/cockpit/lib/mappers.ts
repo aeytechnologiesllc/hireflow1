@@ -574,7 +574,10 @@ export function mapDocumentRow(doc: DocumentWithApplication): DocRow {
       : doc.status === "pending"
         ? "Awaiting signature"
         : doc.status,
-    updated: formatDistanceToNow(new Date(doc.updated_at ?? doc.created_at), { addSuffix: true }),
+    // documents has no updated_at column (never has — see Database types), so
+    // this has always resolved to created_at; written directly now rather
+    // than through a `??` that only ever takes its right side.
+    updated: formatDistanceToNow(new Date(doc.created_at), { addSuffix: true }),
     created: doc.created_at ? format(new Date(doc.created_at), "MMM d, yyyy") : null,
     expires: doc.expires_at ? format(new Date(doc.expires_at), "MMM d, yyyy") : null,
     fileUrl: doc.file_url ?? null,

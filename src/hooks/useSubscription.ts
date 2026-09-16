@@ -76,6 +76,23 @@ export interface SubscriptionState {
   subscriptionBypass: boolean;
 }
 
+/** JSON body shared by create-billing-portal and purchase-voice-credits: a
+ *  Stripe-hosted checkout/portal session's redirect URL. */
+export interface CheckoutUrlResult {
+  url: string;
+}
+
+/** supabase/functions/sync-subscription's JSON body, both outcomes it returns. */
+export interface SyncSubscriptionResult {
+  synced: boolean;
+  message?: string;
+  subscription?: {
+    plan_type: string;
+    status: string;
+    current_period_end: string;
+  };
+}
+
 const defaultTeamAccess: TeamAccessState = {
   isTeamMember: false,
   status: 'none',
@@ -192,7 +209,7 @@ export function useSubscription() {
 
   const createBillingPortal = useMutation({
     mutationFn: async () => {
-      return invokeAuthedFunction('create-billing-portal', {
+      return invokeAuthedFunction<CheckoutUrlResult>('create-billing-portal', {
         returnUrl: `${window.location.origin}/settings`,
       });
     },
@@ -200,7 +217,7 @@ export function useSubscription() {
 
   const purchaseVoiceCredits = useMutation({
     mutationFn: async ({ packSize }: { packSize?: string } = {}) => {
-      return invokeAuthedFunction('purchase-voice-credits', {
+      return invokeAuthedFunction<CheckoutUrlResult>('purchase-voice-credits', {
           packSize: packSize || 'standard',
           successUrl: `${window.location.origin}/settings?tab=subscription&voice_credits=success`,
           cancelUrl: `${window.location.origin}/settings?tab=subscription&voice_credits=canceled`,
@@ -226,7 +243,7 @@ export function useSubscription() {
 
   const syncSubscription = useMutation({
     mutationFn: async () => {
-      return invokeAuthedFunction('sync-subscription');
+      return invokeAuthedFunction<SyncSubscriptionResult>('sync-subscription');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subscription'] });

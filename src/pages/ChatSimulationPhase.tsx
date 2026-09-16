@@ -204,7 +204,7 @@ export default function ChatSimulationPhase() {
 
   // Get chat config
   const chatConfig = useMemo(() => {
-    const workflowSteps = application?.jobs?.workflow_steps as Array<{ id: string; type: string; config?: Record<string, unknown> }> | null;
+    const workflowSteps = application?.jobs?.workflow_steps as Array<{ id: string; type: string; config?: { minMessages?: number; scenarios?: unknown } }> | null;
     const chatStep = workflowSteps?.find(s => s.id === stepId || s.type === "chat_simulation");
     return {
       minMessages: chatStep?.config?.minMessages || 5,

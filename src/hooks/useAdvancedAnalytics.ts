@@ -72,10 +72,15 @@ export function useAdvancedAnalytics() {
       const jobIds = jobs?.map(j => j.id) || [];
 
       if (jobIds.length === 0) {
+        // Typed explicitly (not just `[]`) so this branch's shape unions
+        // cleanly with the populated branch below — otherwise these
+        // infer as `never[]`, and e.g. `data?.applicationTrends?.reduce(...)`
+        // in a consumer resolves against `never[] | ApplicationTrend[]`,
+        // which breaks reduce's generic overload for every caller.
         return {
-          applicationTrends: [],
+          applicationTrends: [] as ApplicationTrend[],
           jobPerformance: [],
-          aiScoreDistribution: [],
+          aiScoreDistribution: [] as AIScoreDistribution[],
           phaseDistribution: [],
           timeToHire: null,
           interviewMetrics: null,

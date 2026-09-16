@@ -467,15 +467,15 @@ export default function Applications() {
     queryKey: ["applications", "employer-branding", employerIds],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("employer_public_branding" as any)
+        .from("employer_public_branding")
         .select("user_id, company_name")
         .in("user_id", employerIds);
 
       if (error) throw error;
 
       const map: Record<string, string> = {};
-      ((data ?? []) as Array<{ user_id: string; company_name: string | null }>).forEach((row) => {
-        if (row.company_name) map[row.user_id] = row.company_name;
+      (data ?? []).forEach((row) => {
+        if (row.user_id && row.company_name) map[row.user_id] = row.company_name;
       });
       return map;
     },

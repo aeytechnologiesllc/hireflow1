@@ -129,13 +129,13 @@ export default function CandidateApplicationDetail() {
     queryKey: ["candidate-application", "employer-branding", employerId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("employer_public_branding" as any)
+        .from("employer_public_branding")
         .select("company_name")
         .eq("user_id", employerId!)
         .maybeSingle();
 
       if (error) throw error;
-      return (data as { company_name: string | null } | null)?.company_name ?? null;
+      return data?.company_name ?? null;
     },
     enabled: !!employerId,
   });

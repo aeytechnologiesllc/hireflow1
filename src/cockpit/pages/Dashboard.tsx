@@ -294,7 +294,7 @@ function LiveJobGuide({
   job,
   onView,
 }: {
-  job: { id: string; title: string; roleCode: string | null };
+  job: { id: string; title: string; roleCode?: string | null };
   onView: () => void;
 }) {
   const [copied, setCopied] = useState(false);

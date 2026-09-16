@@ -2,8 +2,9 @@
  * Showcase schema (roles / candidates / applications) — accountless apply path.
  * Job code finds the role; phone + email + job identifies the applicant.
  */
-import { supabase } from "@/integrations/supabase/client";
-import { rigorToDb, type Rigor } from "@/lib/avaEngine/rigor";
+import { showcaseDb } from "@/lib/showcaseSchema";
+import { rigorToDb } from "@/lib/avaEngine/rigor";
+import type { Rigor } from "@/lib/avaEngine/types";
 
 export const SHOWCASE_EMPLOYER_ID = "emp_marias_cafe";
 
@@ -92,7 +93,7 @@ function newId(prefix: string): string {
 
 export async function fetchRoleByCode(code: string): Promise<ShowcaseRole | null> {
   const normalized = code.trim().toUpperCase();
-  const { data, error } = await supabase
+  const { data, error } = await showcaseDb
     .from("roles")
     .select("id, title, location, pay, status, description, role_code, flow, traits, employment_type")
     .eq("role_code", normalized)
@@ -101,13 +102,14 @@ export async function fetchRoleByCode(code: string): Promise<ShowcaseRole | null
   if (!data || !isRoleAcceptingApplications(data.status)) return null;
   return {
     ...data,
-    traits: Array.isArray(data.traits) ? (data.traits as string[]) : null,
-    flow: data.flow as Record<string, unknown> | null,
+    location: data.location ?? "",
+    pay: data.pay ?? "",
+    traits: Array.isArray(data.traits) ? data.traits : null,
   };
 }
 
 export async function fetchRoleById(id: string): Promise<ShowcaseRole | null> {
-  const { data, error } = await supabase
+  const { data, error } = await showcaseDb
     .from("roles")
     .select("id, title, location, pay, status, description, role_code, flow, traits, employment_type")
     .eq("id", id)
@@ -116,8 +118,9 @@ export async function fetchRoleById(id: string): Promise<ShowcaseRole | null> {
   if (!data || !isRoleAcceptingApplications(data.status)) return null;
   return {
     ...data,
-    traits: Array.isArray(data.traits) ? (data.traits as string[]) : null,
-    flow: data.flow as Record<string, unknown> | null,
+    location: data.location ?? "",
+    pay: data.pay ?? "",
+    traits: Array.isArray(data.traits) ? data.traits : null,
   };
 }
 
@@ -125,7 +128,7 @@ export async function findApplicationByContact(roleId: string, email: string, ph
   const normalizedEmail = email.trim().toLowerCase();
   const normalizedPhone = normalizePhone(phone);
 
-  const { data, error } = await supabase
+  const { data, error } = await showcaseDb
     .from("applications")
     .select("id, candidate_id, current_phase, stage, applicant_email, applicant_phone")
     .eq("role_id", roleId)
@@ -145,7 +148,7 @@ export async function fetchApplicationsByPhone(phone: string): Promise<PhoneAppl
   const digits = normalizePhone(phone);
   if (digits.length < 10) return [];
 
-  const { data: apps, error: appErr } = await supabase
+  const { data: apps, error: appErr } = await showcaseDb
     .from("applications")
     .select("id, role_id, candidate_id, stage, current_phase, applicant_phone, applicant_email, sort_order")
     .not("applicant_phone", "is", null)
@@ -153,7 +156,7 @@ export async function fetchApplicationsByPhone(phone: string): Promise<PhoneAppl
 
   if (appErr) throw appErr;
 
-  const { data: candidates, error: candErr } = await supabase
+  const { data: candidates, error: candErr } = await showcaseDb
     .from("candidates")
     .select("id, name, phone, email");
 
@@ -161,7 +164,7 @@ export async function fetchApplicationsByPhone(phone: string): Promise<PhoneAppl
 
   const candMap = new Map((candidates ?? []).map((c) => [c.id, c]));
   const roleIds = [...new Set((apps ?? []).map((a) => a.role_id))];
-  const { data: roles } = await supabase
+  const { data: roles } = await showcaseDb
     .from("roles")
     .select("id, title, location")
     .in("id", roleIds.length ? roleIds : ["__none__"]);
@@ -209,7 +212,7 @@ export async function submitPhase1Application(input: Phase1Input): Promise<Phase
   const candidateId = newId("cand");
   const applicationId = newId("app");
 
-  const candRes = await supabase.from("candidates").insert({
+  const candRes = await showcaseDb.from("candidates").insert({
     id: candidateId,
     name: input.name.trim(),
     initials: initialsOf(input.name),
@@ -224,7 +227,7 @@ export async function submitPhase1Application(input: Phase1Input): Promise<Phase
     answers.push({ q: "Why are you interested in this role?", a: input.answer.trim() });
   }
 
-  const appRes = await supabase.from("applications").insert({
+  const appRes = await showcaseDb.from("applications").insert({
     id: applicationId,
     candidate_id: candidateId,
     role_id: input.roleId,
@@ -256,7 +259,7 @@ export async function linkGuestApplications(userId: string, phone: string, email
   const normalizedEmail = email.trim().toLowerCase();
   if (!digits && !normalizedEmail) return;
 
-  const { data: apps, error } = await supabase
+  const { data: apps, error } = await showcaseDb
     .from("applications")
     .select("id, applicant_phone, applicant_email, linked_user_id")
     .is("linked_user_id", null);
@@ -273,7 +276,7 @@ export async function linkGuestApplications(userId: string, phone: string, email
 
   await Promise.all(
     toLink.map((app) =>
-      supabase.from("applications").update({ linked_user_id: userId }).eq("id", app.id),
+      showcaseDb.from("applications").update({ linked_user_id: userId }).eq("id", app.id),
     ),
   );
 }
@@ -319,13 +322,13 @@ export async function createShowcaseRole(input: CreateShowcaseRoleInput) {
     traits: input.traits ?? null,
   };
 
-  const { data, error } = await supabase.from("roles").insert(row).select("*").single();
+  const { data, error } = await showcaseDb.from("roles").insert(row).select("*").single();
   if (error) throw new Error(error.message);
-  return data as ShowcaseRole & { role_code: string };
+  return { ...data, location: data.location ?? "", pay: data.pay ?? "" } as ShowcaseRole & { role_code: string };
 }
 
 export async function updateShowcaseApplicationPhase(applicationId: string, phase: string, stage?: string) {
-  const { error } = await supabase
+  const { error } = await showcaseDb
     .from("applications")
     .update({
       current_phase: phase,
