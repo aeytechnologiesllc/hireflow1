@@ -189,10 +189,36 @@ export default [
 
       requireSharedMapping(src, FN, bad);
 
+      // The RPC's own query joins against `jobs`, so once a job row is hard
+      // deleted it can never grant access to anyone but the owner -- even a
+      // team member who legitimately deleted their own assigned job under
+      // the live "Team members can delete assigned jobs if permitted" RLS
+      // policy (can_delete_jobs = true, scoped by assigned_job_ids). The fix
+      // must fall back to that same condition, checked directly against
+      // team_members (the RPC can't be used here -- there's no job row left
+      // for it to join against), for the hard-deleted-job fallback branch
+      // only. Any other direct team_members query would re-implement the
+      // job-scoping rule and risk missing assigned_job_ids, so require this
+      // exact, scoped fallback shape rather than banning team_members
+      // queries outright.
       if (/\.from\(["']team_members["']\)/.test(src)) {
+        if (!/canDeleteMissingJobAsTeamMember/.test(src)) {
+          bad.push(
+            `${FN}: a direct team_members query was found but not inside a canDeleteMissingJobAsTeamMember-style ` +
+            "fallback -- direct team_members queries must stay scoped to the hard-deleted-job fallback and check " +
+            "both can_delete_jobs and assigned_job_ids, not re-implement a looser employer-only check"
+          );
+        }
+        if (!/can_delete_jobs/.test(src)) {
+          bad.push(`${FN}: the team_members fallback query must check can_delete_jobs -- the permission the live DELETE RLS policy requires`);
+        }
+        if (!/assignedJobIds\.includes\(jobId\)|assigned_job_ids/.test(src)) {
+          bad.push(`${FN}: the team_members fallback query must scope by assigned_job_ids, same as the live DELETE RLS policy`);
+        }
+      } else {
         bad.push(
-          `${FN}: querying team_members directly re-implements the job-scoping rule and risks missing ` +
-          "assigned_job_ids -- call the is_active_team_member_for_job(...) RPC instead"
+          `${FN}: no team_members fallback found -- the hard-deleted-job branch needs a direct, scoped ` +
+          "team_members check (can_delete_jobs + assigned_job_ids) because the RPC can never match once the job row is gone"
         );
       }
 
