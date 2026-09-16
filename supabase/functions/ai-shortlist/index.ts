@@ -5,6 +5,8 @@ import {
   callOpenAIJson,
   requireJsonKeys,
 } from "../_shared/openai.ts";
+import { guardAuthenticatedAiCall } from "../_shared/rateLimit.ts";
+import { canAccessJobPipeline } from "../_shared/aiAccess.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -490,8 +492,9 @@ serve(async (req) => {
       throw new Error("No authorization header");
     }
 
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
+      supabaseUrl,
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       { global: { headers: { Authorization: authHeader } } }
     );
@@ -505,11 +508,119 @@ serve(async (req) => {
       throw new Error("OPENAI_API_KEY is not configured");
     }
 
-    const { jobId, jobTitle, jobDescription, applications } = await req.json();
+    const rateLimited = await guardAuthenticatedAiCall("ai-shortlist", user.id, corsHeaders, 20, 3600);
+    if (rateLimited) return rateLimited;
 
-    if (!applications || applications.length < 2) {
+    const body = await req.json();
+    const jobId = typeof body?.jobId === "string" ? body.jobId : null;
+    // Only the ids are trusted from the client — every score, note and PII
+    // field the model sees below comes from a server-side lookup, never
+    // from this payload (a caller could otherwise fabricate ai_score/notes
+    // to manipulate the ranking, or splice in application ids from a job
+    // they don't own).
+    const requestedIds: string[] = Array.isArray(body?.applications)
+      ? Array.from(new Set(
+          body.applications
+            .map((a: any) => a?.id)
+            .filter((id: unknown): id is string => typeof id === "string" && id.length > 0),
+        ))
+      : [];
+
+    if (!jobId) {
+      throw new Error("jobId is required");
+    }
+    if (requestedIds.length < 2) {
       throw new Error("Need at least 2 applicants to generate shortlist");
     }
+
+    // Admin client for the authoritative reads below — same pattern as
+    // trigger-ava-analysis: the user-scoped client above only ever proves
+    // who is calling, never what they're allowed to see.
+    const supabaseAdmin = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
+
+    const { data: job, error: jobError } = await supabaseAdmin
+      .from("jobs")
+      .select("id, title, description, employer_id")
+      .eq("id", jobId)
+      .maybeSingle();
+
+    if (jobError || !job) {
+      return new Response(JSON.stringify({ error: "Job not found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const isOwner = job.employer_id === user.id;
+    const [{ data: teamMembership }, { data: developerRole }] = await Promise.all([
+      isOwner
+        ? Promise.resolve({ data: null as { assigned_job_ids: string[] | null } | null })
+        : supabaseAdmin
+            .from("team_members")
+            .select("assigned_job_ids")
+            .eq("user_id", user.id)
+            .eq("employer_id", job.employer_id)
+            .eq("status", "active")
+            .eq("can_manage_pipeline", true)
+            .maybeSingle(),
+      supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "developer")
+        .maybeSingle(),
+    ]);
+
+    const isPermittedTeamMember = !!teamMembership &&
+      (!teamMembership.assigned_job_ids?.length || teamMembership.assigned_job_ids.includes(jobId));
+
+    if (!canAccessJobPipeline({ isOwner, isPermittedTeamMember, isDeveloper: !!developerRole })) {
+      console.warn("[ai-shortlist] Unauthorized shortlist attempt", {
+        requesterId: user.id,
+        jobId,
+        employerId: job.employer_id,
+      });
+      return new Response(
+        JSON.stringify({ error: "You do not have permission to shortlist this job's applicants" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const { data: rawApplications, error: applicationsError } = await supabaseAdmin
+      .from("applications")
+      .select("id, candidate_id, ai_score, ai_analysis, phase, status, notes, voice_interview_result")
+      .eq("job_id", jobId)
+      .in("id", requestedIds);
+
+    if (applicationsError) {
+      throw new Error("Failed to load applications for this job");
+    }
+    if (!rawApplications || rawApplications.length < 2) {
+      throw new Error("Need at least 2 applicants to generate shortlist");
+    }
+
+    // applications.candidate_id -> auth.users(id) and profiles.user_id ->
+    // auth.users(id) are two separate references to auth.users, not to each
+    // other, so PostgREST can't embed profiles(...) on this table — merge by
+    // hand, same as src/hooks/useApplications.ts does for the same reason.
+    const candidateIds = Array.from(new Set(rawApplications.map((app) => app.candidate_id)));
+    const { data: candidateProfiles, error: profilesError } = await supabaseAdmin
+      .from("profiles")
+      .select("user_id, full_name, experience_years, location")
+      .in("user_id", candidateIds);
+
+    if (profilesError) {
+      throw new Error("Failed to load candidate profiles for this job");
+    }
+
+    const profileByCandidateId = new Map((candidateProfiles || []).map((p) => [p.user_id, p]));
+    const applications = rawApplications.map((app) => ({
+      ...app,
+      profiles: profileByCandidateId.get(app.candidate_id) || null,
+    }));
+
+    const jobTitle = job.title as string;
+    const jobDescription = (job.description as string | null) ?? null;
 
     const applicantSummaries = buildApplicantSummaries(applications);
     const userPrompt = `Analyze and rank these ${applications.length} candidates for the position of "${jobTitle}".

@@ -108,3 +108,41 @@ export async function guardPublicAiCall(
     },
   );
 }
+
+/**
+ * Guard a money-spending endpoint that requires a signed-in user, keyed on
+ * that user's id rather than their IP. IP-keying is both looser (an office
+ * or campus NAT shares one IP across many accounts) and the wrong identity
+ * once every caller already carries a verified user id — this is what
+ * ai-shortlist and ai-analyze use once they've resolved `user.id` from
+ * auth.getUser(). Same fail-open behavior as guardPublicAiCall: this is cost
+ * protection, not an authorization boundary.
+ */
+export async function guardAuthenticatedAiCall(
+  bucket: string,
+  userId: string,
+  corsHeaders: Record<string, string>,
+  limit = 20,
+  windowSecs = 3600,
+): Promise<Response | null> {
+  const identifier = `user:${userId}`;
+  const result = await checkRateLimit(bucket, identifier, limit, windowSecs);
+  if (result.allowed) return null;
+
+  console.warn(`[rate-limit] ${bucket} blocked ${identifier} (${result.hits}/${limit})`);
+  return new Response(
+    JSON.stringify({
+      error: "rate_limited",
+      message: "Too many requests. Please wait a moment and try again.",
+      retryAfter: result.retryAfter,
+    }),
+    {
+      status: 429,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+        "Retry-After": String(result.retryAfter),
+      },
+    },
+  );
+}
