@@ -108,6 +108,13 @@ export default function JoinTeam() {
     if (user && invitation) {
       handleAcceptInvitation();
     }
+    // handleAcceptInvitation isn't added: it's unmemoized, and on any of its
+    // non-navigating failure paths (email mismatch, already used, generic
+    // error) it only calls setIsSubmitting — user/invitation stay truthy, so
+    // that re-render would give this effect a "changed" dependency and call
+    // it again, forever, on every one of those failures. It only leaves via
+    // window.location.replace on success, which tears the page down anyway.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, invitation]);
 
   const handleAcceptInvitation = async () => {

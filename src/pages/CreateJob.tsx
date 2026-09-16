@@ -751,7 +751,7 @@ export default function CreateJob() {
       // Clean up query params
       setSearchParams(prev => { prev.delete("title"); prev.delete("source"); return prev; }, { replace: true });
     }
-  }, [isEditMode, searchParams]);
+  }, [isEditMode, searchParams, formData.title, setSearchParams]);
 
   // Subscribe to AVA form commands for voice-controlled job creation
   useEffect(() => {
@@ -804,6 +804,14 @@ export default function CreateJob() {
     });
     
     return unsubscribe;
+    // generateFullJob/generateWorkflow/handleSubmit aren't added: each is a
+    // large (20-140 line), unmemoized function with its own wide dependency
+    // surface, and this effect only re-subscribes on currentStep — so a
+    // voice command issued without an intervening step change could run a
+    // slightly stale one. Bounded and self-correcting on the next step
+    // change, unlike the alternative of converting ~200 lines across three
+    // functions to useCallback sight-unseen for this pass.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep]);
 
   useEffect(() => {

@@ -66,6 +66,11 @@ export default function TeamPortal() {
     if (user) {
       fetchMembership();
     }
+    // fetchMembership isn't added: it's unmemoized and has no "already
+    // fetched" guard, only ends with setMembership/setLoading — each a
+    // re-render that would give this effect a "changed" dependency and
+    // call it again, forever, refetching on every one of its own renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading, navigate]);
 
   const fetchMembership = async () => {

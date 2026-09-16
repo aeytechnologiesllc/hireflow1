@@ -213,6 +213,80 @@ export default function TypingTestPhase() {
   // agrees with every other candidate screen. Never invented.
   const journeyStep = useJourneyPosition(application?.jobs, { stepId, phase: application?.phase });
 
+  const calculateResults = useCallback(() => {
+    const currentTypedText = typedTextRef.current;
+    const currentStartTime = startTimeRef.current;
+
+    // Calculate elapsed time in minutes
+    const elapsedMs = currentStartTime ? Date.now() - currentStartTime : 60000;
+    const elapsedMinutes = Math.max(elapsedMs / 60000, 0.1); // At least 0.1 minutes to avoid division issues
+
+    // Calculate Gross WPM (standard: 5 characters = 1 word)
+    const charCount = currentTypedText.length;
+    const grossWpm = Math.round((charCount / 5) / elapsedMinutes);
+
+    // Word-by-word accuracy comparison (more forgiving than character position matching)
+    const typedWords = currentTypedText.trim().split(/\s+/).filter(w => w.length > 0);
+    const targetWords = targetText.trim().split(/\s+/).filter(w => w.length > 0);
+
+    let correctWords = 0;
+    for (let i = 0; i < typedWords.length; i++) {
+      if (i < targetWords.length && typedWords[i] === targetWords[i]) {
+        correctWords++;
+      }
+    }
+
+    // Accuracy based on correctly typed words
+    const accuracy = typedWords.length > 0
+      ? Math.round((correctWords / typedWords.length) * 100)
+      : 0;
+
+    // Calculate overall score: Gross WPM weighted by accuracy
+    // Score formula: (grossWpm / requiredWpm * 100) * (accuracy / 100)
+    // The employer sets the required WPM (default 35)
+    const requiredWpm = application?.jobs?.required_wpm || 35;
+    const speedScore = Math.min(100, (grossWpm / requiredWpm) * 100);
+    const score = Math.round(speedScore * (accuracy / 100));
+
+    // NOTE: local 'passed' is for UI display ONLY. Backend trigger-ava-analysis is the SINGLE SOURCE OF TRUTH
+    // for the official pass/fail decision via weighted ai_score calculation
+    const passed = false; // Always false locally - backend decides
+
+    return { wpm: grossWpm, accuracy, score, passed };
+  }, [targetText, application]);
+
+  // Stamps the SERVER-recorded end-of-typing instant — supabase/functions/
+  // submit-typing-test's "complete" action. This must fire the moment
+  // typing actually stops, not later when "Submit results" is clicked:
+  // submit-typing-test's own "submit" step grades off ended_at - started_at
+  // when this ran, so any time the candidate spends reading the "Nice
+  // work" screen before pressing Submit never inflates the graded elapsed
+  // time. Fire-and-forget (best effort) — "submit" falls back to grading
+  // off its own request time if this never lands, matching the old
+  // (imperfect but pre-existing) behavior rather than blocking the UI.
+  const completeTest = useCallback(async () => {
+    if (!id || !stepId) return;
+    try {
+      const { error } = await supabase.functions.invoke("submit-typing-test", {
+        body: { action: "complete", applicationId: id, stepId },
+      });
+      if (error) throw error;
+    } catch (err) {
+      console.error("[TypingTestPhase] Failed to record server-side test completion:", err);
+    }
+  }, [id, stepId]);
+
+  const handleTestComplete = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    const calculatedResults = calculateResults();
+    setResults(calculatedResults);
+    setTestState("completed");
+    // Fired alongside the UI transition, not awaited — the results screen
+    // should render instantly, but the server-side "end of typing" stamp
+    // should also happen as close to this instant as possible.
+    void completeTest();
+  }, [calculateResults, completeTest]);
+
   // Timer countdown
   useEffect(() => {
     if (testState === "testing" && timeLeft > 0) {
@@ -231,7 +305,15 @@ export default function TypingTestPhase() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [testState]);
+    // `timeLeft` is deliberately not a dep: setTimeLeft above already reads
+    // the live value through the updater-function form specifically so this
+    // effect doesn't need to re-run every tick (that would tear down and
+    // restart the interval every second instead of letting it run).
+    // handleTestComplete IS added — safe, since calling it sets testState to
+    // "completed", which is this same effect's other guard, so a re-fire
+    // after that can't start a second interval.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [testState, handleTestComplete]);
 
   // Detect tab switching during test - record as violation
   useEffect(() => {
@@ -285,80 +367,6 @@ export default function TypingTestPhase() {
       setIsStarting(false);
     }
   }, [id, stepId]);
-
-  const calculateResults = useCallback(() => {
-    const currentTypedText = typedTextRef.current;
-    const currentStartTime = startTimeRef.current;
-    
-    // Calculate elapsed time in minutes
-    const elapsedMs = currentStartTime ? Date.now() - currentStartTime : 60000;
-    const elapsedMinutes = Math.max(elapsedMs / 60000, 0.1); // At least 0.1 minutes to avoid division issues
-    
-    // Calculate Gross WPM (standard: 5 characters = 1 word)
-    const charCount = currentTypedText.length;
-    const grossWpm = Math.round((charCount / 5) / elapsedMinutes);
-
-    // Word-by-word accuracy comparison (more forgiving than character position matching)
-    const typedWords = currentTypedText.trim().split(/\s+/).filter(w => w.length > 0);
-    const targetWords = targetText.trim().split(/\s+/).filter(w => w.length > 0);
-    
-    let correctWords = 0;
-    for (let i = 0; i < typedWords.length; i++) {
-      if (i < targetWords.length && typedWords[i] === targetWords[i]) {
-        correctWords++;
-      }
-    }
-    
-    // Accuracy based on correctly typed words
-    const accuracy = typedWords.length > 0 
-      ? Math.round((correctWords / typedWords.length) * 100)
-      : 0;
-
-    // Calculate overall score: Gross WPM weighted by accuracy
-    // Score formula: (grossWpm / requiredWpm * 100) * (accuracy / 100)
-    // The employer sets the required WPM (default 35)
-    const requiredWpm = application?.jobs?.required_wpm || 35;
-    const speedScore = Math.min(100, (grossWpm / requiredWpm) * 100);
-    const score = Math.round(speedScore * (accuracy / 100));
-
-    // NOTE: local 'passed' is for UI display ONLY. Backend trigger-ava-analysis is the SINGLE SOURCE OF TRUTH
-    // for the official pass/fail decision via weighted ai_score calculation
-    const passed = false; // Always false locally - backend decides
-
-    return { wpm: grossWpm, accuracy, score, passed };
-  }, [targetText, application]);
-
-  // Stamps the SERVER-recorded end-of-typing instant — supabase/functions/
-  // submit-typing-test's "complete" action. This must fire the moment
-  // typing actually stops, not later when "Submit results" is clicked:
-  // submit-typing-test's own "submit" step grades off ended_at - started_at
-  // when this ran, so any time the candidate spends reading the "Nice
-  // work" screen before pressing Submit never inflates the graded elapsed
-  // time. Fire-and-forget (best effort) — "submit" falls back to grading
-  // off its own request time if this never lands, matching the old
-  // (imperfect but pre-existing) behavior rather than blocking the UI.
-  const completeTest = useCallback(async () => {
-    if (!id || !stepId) return;
-    try {
-      const { error } = await supabase.functions.invoke("submit-typing-test", {
-        body: { action: "complete", applicationId: id, stepId },
-      });
-      if (error) throw error;
-    } catch (err) {
-      console.error("[TypingTestPhase] Failed to record server-side test completion:", err);
-    }
-  }, [id, stepId]);
-
-  const handleTestComplete = useCallback(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    const calculatedResults = calculateResults();
-    setResults(calculatedResults);
-    setTestState("completed");
-    // Fired alongside the UI transition, not awaited — the results screen
-    // should render instantly, but the server-side "end of typing" stamp
-    // should also happen as close to this instant as possible.
-    void completeTest();
-  }, [calculateResults, completeTest]);
 
   const handleSubmit = async () => {
     if (!results || !application) return;
