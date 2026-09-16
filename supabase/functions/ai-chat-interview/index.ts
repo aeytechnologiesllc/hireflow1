@@ -534,6 +534,17 @@ Return ONLY valid JSON with this structure:
         callerUserId: submitCallerUserId!,
         stepId: stepId!,
         stepType: "chat_interview",
+        // ChatInterviewPhase.tsx's own candidate-driven handleSubmit (the
+        // "End Interview" button — both submit `path`s, "manual" and
+        // "auto_end", now route through this one call) never wrote
+        // `phase`/`status` from that path at all, in either mode; the
+        // separate pre-conversion "AI auto-detected the end" branch did
+        // write `phase` directly in auto mode, but with no decline check
+        // and no voice_interview stop-gate — reproducing that exactly
+        // would reopen the very gap this fix closes, so "never" applies to
+        // both paths here. See StepAdvanceMode's doc comment on
+        // RecordStepResultInput.
+        advance: "never",
         resultKey: "chatInterviewResult",
         result: chatInterviewResult,
       });

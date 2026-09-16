@@ -23,6 +23,7 @@ import {
   computeNextStepDecision,
   nextStepForCandidate,
   mergeTrustedNotes,
+  recordStepResult,
 } from "../supabase/functions/_shared/trustedResults.ts";
 import { buildCandidateJourney, DECISION_STAGE_ID } from "../supabase/functions/_shared/candidateJourney.ts";
 
@@ -409,6 +410,239 @@ check(
     return Object.keys(out).sort().join(",") === ["_trusted", "typingTestResult"].sort().join(",");
   })(),
 );
+
+// ============================================================================
+// recordStepResult end-to-end, per phase's own `advance` value — a plain
+// in-memory MinimalSupabaseAdmin (no PGlite needed; this is exercising
+// recordStepResult's own decision logic, not the database trigger, which
+// scripts/trusted_step_results.pglite.test.mjs already proves separately).
+//
+// The bug this proves fixed: cycle 4 part B's recordStepResult used to
+// advance applications.phase/status in auto mode for EVERY step with a
+// real next step (other than voice_interview) — including the five step
+// types (typing_test, chat_simulation, chat_interview, sales_simulation,
+// voice_interview) whose pre-conversion pages never wrote phase/status
+// themselves at all, leaving that decision entirely to a follow-up
+// trigger-ava-analysis call. Since trigger-ava-analysis deliberately does
+// NOT move `phase` when Ava recommends declining (a human must review
+// first), the old behavior put a candidate one step ahead of that pending
+// review the moment their result happened to trigger a decline
+// recommendation — CandidateStepGate.tsx would then let them navigate
+// straight into the next step's route.
+// ============================================================================
+console.log("\nrecordStepResult — per-phase `advance` semantics:\n");
+
+/** A plain in-memory MinimalSupabaseAdmin backed by one mutable `applications`
+ *  row plus its job — enough surface for recordStepResult's own
+ *  `.select(...).eq(...).maybeSingle()` / `.update(...).eq(...)` calls. */
+function fakeAdmin(row) {
+  return {
+    from(table) {
+      if (table !== "applications") throw new Error(`unexpected table ${table}`);
+      return {
+        select() {
+          return {
+            eq(column, value) {
+              return {
+                async maybeSingle() {
+                  if (row[column] !== value) return { data: null, error: null };
+                  return {
+                    data: {
+                      id: row.id,
+                      candidate_id: row.candidate_id,
+                      phase: row.phase,
+                      status: row.status,
+                      notes: row.notes,
+                      jobs: row.jobs,
+                    },
+                    error: null,
+                  };
+                },
+              };
+            },
+          };
+        },
+        update(values) {
+          return {
+            async eq(column, value) {
+              if (row[column] !== value) return { error: { message: "not found" } };
+              Object.assign(row, values);
+              return { error: null };
+            },
+          };
+        },
+      };
+    },
+  };
+}
+
+function newRow(overrides = {}) {
+  return {
+    id: "app-1",
+    candidate_id: "cand-1",
+    phase: "wf-current",
+    status: "reviewing",
+    notes: null,
+    jobs: { processing_mode: "auto", workflow_steps: [], quiz_questions: undefined },
+    ...overrides,
+  };
+}
+
+// Every "never"-advance step type gets the SAME proof: in auto mode, with a
+// real next step available, recordStepResult must still succeed and merge
+// notes, but must NEVER move phase/status — even though computeNextStepDecision
+// itself (used only for the informational `next`) says it could.
+const neverAdvanceCases = [
+  { stepType: "typing_test", resultKey: "typingTestResult" },
+  { stepType: "chat_simulation", resultKey: "chatSimulationResult" },
+  { stepType: "chat_interview", resultKey: "chatInterviewResult" },
+  { stepType: "sales_simulation", resultKey: "salesSimulationResult" },
+  { stepType: "voice_interview", resultKey: "voiceInterviewResult" },
+];
+
+for (const { stepType, resultKey } of neverAdvanceCases) {
+  const workflowSteps = [
+    { id: "wf-current", type: stepType, title: "Current step" },
+    { id: "wf-next", type: "chat_simulation", title: "Next step" },
+  ];
+  const row = newRow({
+    jobs: { processing_mode: "auto", workflow_steps: workflowSteps, quiz_questions: undefined },
+  });
+  const admin = fakeAdmin(row);
+
+  const outcome = await recordStepResult(admin, {
+    applicationId: "app-1",
+    callerUserId: "cand-1",
+    stepId: "wf-current",
+    stepType,
+    advance: "never",
+    resultKey,
+    result: { score: 80 },
+  });
+
+  check(
+    `${stepType}: recordStepResult reports ok:true`,
+    outcome.ok === true,
+    outcome.ok ? "" : outcome.error,
+  );
+  check(
+    `${stepType}: applications.phase is untouched (still "wf-current", not advanced to "wf-next")`,
+    row.phase === "wf-current",
+    `phase is now "${row.phase}"`,
+  );
+  check(
+    `${stepType}: applications.status is untouched (still "reviewing")`,
+    row.status === "reviewing",
+    `status is now "${row.status}"`,
+  );
+  check(
+    `${stepType}: notes[resultKey] was still recorded, despite no phase move`,
+    outcome.ok && JSON.parse(row.notes)[resultKey]?.score === 80,
+  );
+}
+
+// The recommend-decline path itself, spelled out end to end for one
+// representative "never" step (chat_simulation): recordStepResult records
+// the result and leaves phase alone; trigger-ava-analysis's own
+// autopilotAction === "reject" branch (index.ts's reject branch) then only
+// ever writes status: "reviewing" + phase_ai_analysis — it NEVER touches
+// phase either. The candidate must end this whole flow still sitting on
+// the step they just submitted, never one step into the next.
+console.log("\nrecordStepResult — recommend-decline path leaves phase exactly where it was:\n");
+{
+  const workflowSteps = [
+    { id: "wf-chat", type: "chat_simulation", title: "Chat simulation" },
+    { id: "wf-voice2", type: "sales_simulation", title: "Sales simulation" },
+  ];
+  const row = newRow({
+    phase: "wf-chat",
+    jobs: { processing_mode: "auto", workflow_steps: workflowSteps, quiz_questions: undefined },
+  });
+  const admin = fakeAdmin(row);
+
+  const outcome = await recordStepResult(admin, {
+    applicationId: "app-1",
+    callerUserId: "cand-1",
+    stepId: "wf-chat",
+    stepType: "chat_simulation",
+    advance: "never",
+    resultKey: "chatSimulationResult",
+    result: { score: 20 }, // a low score — exactly the kind trigger-ava-analysis would decline
+  });
+  check("recommend-decline setup: recordStepResult still succeeds", outcome.ok === true);
+  check(
+    "recommend-decline setup: recordStepResult itself never advanced phase past chat_simulation",
+    row.phase === "wf-chat",
+  );
+
+  // Simulate trigger-ava-analysis's OWN reject-branch write exactly
+  // (index.ts's autopilotAction === "reject" branch): status flips to
+  // "reviewing" (it already was) with a phase_ai_analysis note — phase is
+  // never part of that update.
+  row.status = "reviewing";
+  row.phase_ai_analysis = "Ava recommends declining — needs your review.";
+
+  check(
+    "recommend-decline: after Ava's decline recommendation too, phase is STILL wf-chat — not one step ahead",
+    row.phase === "wf-chat",
+    `phase drifted to "${row.phase}"`,
+  );
+}
+
+// portfolio_upload / video_intro: the two step types that DID advance
+// phase locally pre-conversion keep doing so via recordStepResult itself —
+// this is the one existing behavior this fix must NOT regress.
+console.log("\nrecordStepResult — advance:\"auto_mode\" steps (portfolio_upload/video_intro) still advance:\n");
+{
+  const workflowSteps = [
+    { id: "wf-portfolio", type: "portfolio_upload", title: "Portfolio" },
+    { id: "wf-chat3", type: "chat_simulation", title: "Chat simulation" },
+  ];
+
+  // Auto mode: really advances.
+  const autoRow = newRow({
+    phase: "wf-portfolio",
+    jobs: { processing_mode: "auto", workflow_steps: workflowSteps, quiz_questions: undefined },
+  });
+  const autoOutcome = await recordStepResult(fakeAdmin(autoRow), {
+    applicationId: "app-1",
+    callerUserId: "cand-1",
+    stepId: "wf-portfolio",
+    stepType: "portfolio_upload",
+    advance: "auto_mode",
+    resultKey: "portfolioResult",
+    result: { score: 90 },
+  });
+  check("portfolio_upload auto mode: recordStepResult succeeds", autoOutcome.ok === true);
+  check(
+    "portfolio_upload auto mode: phase DOES advance to the next step (unlike the five 'never' steps above)",
+    autoRow.phase === "wf-chat3",
+    `phase is "${autoRow.phase}"`,
+  );
+  check("portfolio_upload auto mode: status becomes 'reviewing'", autoRow.status === "reviewing");
+
+  // Manual mode: advance:"auto_mode" is still passed (it's the phase's own
+  // fixed value), but computeNextStepDecision itself refuses to advance in
+  // manual mode — recordStepResult must respect that too.
+  const manualRow = newRow({
+    phase: "wf-portfolio",
+    jobs: { processing_mode: "manual", workflow_steps: workflowSteps, quiz_questions: undefined },
+  });
+  const manualOutcome = await recordStepResult(fakeAdmin(manualRow), {
+    applicationId: "app-1",
+    callerUserId: "cand-1",
+    stepId: "wf-portfolio",
+    stepType: "portfolio_upload",
+    advance: "auto_mode",
+    resultKey: "portfolioResult",
+    result: { score: 90 },
+  });
+  check("portfolio_upload manual mode: recordStepResult succeeds", manualOutcome.ok === true);
+  check(
+    "portfolio_upload manual mode: phase is NOT advanced — manual mode never advances regardless of advance:\"auto_mode\"",
+    manualRow.phase === "wf-portfolio",
+  );
+}
 
 console.log(`\n${passed} passed, ${failed} failed.`);
 if (failed > 0) process.exit(1);

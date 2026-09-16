@@ -434,6 +434,7 @@ async function main() {
       callerUserId: candidateId,
       stepId: "wf-video",
       stepType,
+      advance: "auto_mode",
       resultKey: "videoIntroResult",
       result,
       legacyStepEntry,
@@ -479,6 +480,7 @@ async function main() {
       callerUserId: otherCandidateId,
       stepId: "wf-video",
       stepType: "video_intro",
+      advance: "auto_mode",
       resultKey: "videoIntroResult",
       result: buildVideoIntroResult({ duration: 1, videoUrl: "x" }),
     });
@@ -494,6 +496,7 @@ async function main() {
       callerUserId: candidateId,
       stepId: "wf-video",
       stepType: "video_intro",
+      advance: "auto_mode",
       resultKey: "videoIntroResult",
       result: buildVideoIntroResult({ duration: 1, videoUrl: "x" }),
     });
@@ -510,6 +513,7 @@ async function main() {
       callerUserId: candidateId,
       stepId: "wf-video",
       stepType: "video_intro",
+      advance: "auto_mode",
       resultKey: "videoIntroResult",
       result: buildVideoIntroResult({ duration: 30, videoUrl: "m.webm" }),
       extraNotesEntries: { videoIntroUrl: "m.webm" },
@@ -531,6 +535,7 @@ async function main() {
       callerUserId: candidateId,
       stepId: "wf-video2",
       stepType: "video_intro",
+      advance: "auto_mode",
       resultKey: "videoIntroResult",
       result: buildVideoIntroResult({ duration: 20, videoUrl: "v.webm" }),
       extraNotesEntries: { videoIntroUrl: "v.webm" },
@@ -557,6 +562,7 @@ async function main() {
       callerUserId: candidateId,
       stepId: "wf-vm",
       stepType: aliasStepType,
+      advance: "auto_mode",
       resultKey: "videoIntroResult",
       result: buildVideoIntroResult({ duration: 10, videoUrl: "vm.webm" }),
       legacyStepEntry: buildVideoIntroLegacyStepEntry({

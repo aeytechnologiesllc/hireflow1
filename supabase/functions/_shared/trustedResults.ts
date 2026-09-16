@@ -34,7 +34,20 @@
  *      a `_trusted` marker no client write can ever produce;
  *   4. advances `phase` (and `status`) using exactly today's client rules —
  *      never anything new — and tells the caller what the candidate should
- *      see next.
+ *      see next. "Exactly today's client rules" is per-step-type, not
+ *      uniform: only `portfolio_upload` and `video_intro`/`video_message`
+ *      ever wrote `phase` from the browser (in auto mode; see
+ *      `StepAdvanceMode`'s own doc comment on `RecordStepResultInput` for
+ *      the full per-phase citation). Every other step type
+ *      (`typing_test`, `chat_simulation`, `chat_interview`,
+ *      `sales_simulation`, `voice_interview`) left the ENTIRE advance/
+ *      reject decision to a follow-up `trigger-ava-analysis` call — moving
+ *      `phase` for one of those locally, even just "one step ahead," would
+ *      let a candidate past a step Ava is about to recommend declining
+ *      while `trigger-ava-analysis` deliberately leaves `phase` alone on
+ *      that recommendation for a human to review. Each call site passes
+ *      its own step's correct value as the required `advance:
+ *      "auto_mode" | "never"` input.
  *
  * `recordStepResult` runs with the SERVICE-ROLE client, so it is not
  * restricted by `protect_application_columns` (that trigger exempts
@@ -100,6 +113,67 @@ export interface ApplicationLike {
   jobs?: JobLike | null;
 }
 
+/**
+ * Whether `recordStepResult` is allowed to write `phase`/`status` itself
+ * for this call, independent of whatever `computeNextStepDecision` would
+ * otherwise compute (that computation still runs either way, purely to
+ * populate the informational `next` the caller returns to the candidate —
+ * see `recordStepResult`'s own body). Reproduces each pre-conversion phase
+ * page's OWN `phase`/`status` write exactly, verified against the real
+ * pre-conversion source at commit 40e17d8:
+ *
+ *   - "auto_mode" — the page itself advanced `phase` (never `status`)
+ *     locally in auto mode: VideoIntroPhase.tsx:343-360/395-398 and
+ *     PortfolioUploadPhase.tsx:416-433/444-450 both compute `newPhase` and
+ *     write `phase: isAutoMode ? newPhase : application.phase` in the SAME
+ *     `.update()` as `notes` — stopping one step short of `voice_interview`
+ *     and never touching `status`. `portfolio_upload` and `video_intro`
+ *     (and its legacy alias `video_message`) are the only two step types
+ *     that ever get this value.
+ *   - "never" — the page computed nothing past `notes`/`phase_ai_analysis`
+ *     for `phase`/`status` at all; the ENTIRE advance/reject decision was
+ *     left to a follow-up `trigger-ava-analysis({ autopilotDecision: true,
+ *     currentPhaseId: stepId })` call, which is the only thing allowed to
+ *     move `phase`/`status` for these steps, and which deliberately leaves
+ *     `phase` untouched on a decline recommendation
+ *     (`trigger-ava-analysis/index.ts`'s `autopilotAction === "reject"`
+ *     branch only ever writes `status: "reviewing"` + `phase_ai_analysis`,
+ *     see the module doc comment above). Every other step type gets this
+ *     value:
+ *       - `typing_test` — TypingTestPhase.tsx:421-430 writes `notes` +
+ *         `phase_ai_analysis` but resends `phase: application.phase` /
+ *         `status: application.status` UNCHANGED in both modes; the
+ *         comment above it says so verbatim ("Do NOT change phase or
+ *         status here - let backend handle in autopilot mode").
+ *       - `chat_simulation` — ChatSimulationPhase.tsx:684-689's `.update()`
+ *         writes only `notes` + `phase_ai_analysis`; no `phase`/`status`
+ *         key at all, in either mode.
+ *       - `sales_simulation` — SalesSimulationPhase.tsx:658-661, identical
+ *         shape (`notes` + `phase_ai_analysis` only).
+ *       - `chat_interview` — ChatInterviewPhase.tsx's own candidate-driven
+ *         `handleSubmit` (the "End Interview" button, and the path every
+ *         `mode:"submit"` call from the current converted page actually
+ *         takes) writes only `notes` + `phase_ai_analysis` at :646-651, in
+ *         either mode — its separate "AI detected the interview ended"
+ *         auto-end branch (the pre-conversion file's :260-283, since
+ *         folded into the SAME `mode:"submit"` request) DID write `status:
+ *         "reviewing"` unconditionally and `phase: nextStep.id` in auto
+ *         mode directly, but with NO decline check and NO `voice_interview`
+ *         stop-gate at all — reproducing that half exactly would let a
+ *         candidate through exactly the gap this fix closes, so `never` is
+ *         used for both of chat_interview's paths; the auto-end path's
+ *         extra directness was never anything other than a second,
+ *         inconsistent bug in the pre-conversion app, not a rule to keep.
+ *       - `voice_interview` — VoiceInterviewPhase.tsx:281-296 writes only
+ *         `voice_interview_transcript` + `phase_ai_analysis`; `end_interview`
+ *         in `ava-voice-tools/index.ts` (already server-side before this
+ *         conversion cycle, since it is an AI realtime tool call, never a
+ *         browser write) writes only `voice_interview_result` +
+ *         `phase_ai_analysis`. Neither ever touches `phase`/`status` in
+ *         either mode — every advance past the interview waits on a human
+ *         or `trigger-ava-analysis`, never a local write. */
+export type StepAdvanceMode = "auto_mode" | "never";
+
 export interface RecordStepResultInput {
   applicationId: string;
   /** auth.uid() of the caller, as the edge function itself resolved it from
@@ -109,6 +183,12 @@ export interface RecordStepResultInput {
    *  a `jobs.workflow_steps[].id`, or the literal "quiz"/"application"). */
   stepId: string;
   stepType: StepType;
+  /** Whether this call may write `phase`/`status` at all — see
+   *  `StepAdvanceMode`'s own doc comment for the exact value every step
+   *  type uses and why. Required (no default) so every call site has to
+   *  make this choice consciously rather than silently inheriting
+   *  whatever `computeNextStepDecision` would otherwise do. */
+  advance: StepAdvanceMode;
   /** The camelCase notes key readers check today, e.g. "typingTestResult",
    *  "chatSimulationResult" — see docs/TRUSTED-RESULTS.md for the full map.
    *  Any casing is accepted by the migration's guard; callers should still
@@ -190,30 +270,41 @@ export function hasReachedStep(
 
 export type NextStepDecision =
   /** Auto mode, a real next step exists, and it isn't voice_interview — the
-   *  client always advances `phase` in this case (VideoIntroPhase.tsx:343-360,
-   *  PortfolioUploadPhase.tsx:416-433: `newPhase = nextPhase.id`, written at
-   *  VideoIntroPhase.tsx:398 / PortfolioUploadPhase.tsx:447). Neither of
-   *  those two writes itself also sets `status` — that page-local advance is
-   *  only ever an optimistic UI head start, and the real authoritative write
-   *  (both `phase` and `status: "reviewing"` together) lands moments later
-   *  from trigger-ava-analysis's own scored advance
-   *  (index.ts:363-368: `phase: nextPhase.nextPhaseId, status: "reviewing"`)
-   *  once it re-derives the next phase itself and applies its own
-   *  pass/fail/defer decision — ChatInterviewPhase.tsx's auto-end path
-   *  writes the same pairing directly, just split across two calls
-   *  (status: "reviewing" at :271, phase: nextStep.id at :283). Since
-   *  recordStepResult performs the step's ENTIRE write (notes, phase, and
-   *  status) atomically in one go rather than racing a client head-start
-   *  against a follow-up backend call, it adopts that same "advance ⇒
-   *  status: reviewing" pairing as its one write, carried here as
-   *  `nextStatus`. What it deliberately does NOT replicate is
-   *  trigger-ava-analysis's own score-vs-passing-threshold pass/fail/defer
-   *  decision (resolveAutopilotAction, index.ts:205-213) — recordStepResult
-   *  only ever decides whether to move to the NEXT CONFIGURED STEP, exactly
-   *  like the client's own local nextPhase lookup does; any real scoring a
-   *  part-B phase conversion still needs stays that phase's own job, done
-   *  before it calls recordStepResult (or via its own separate
-   *  trigger-ava-analysis call), never something this function computes. */
+   *  step's `phase`/`status` WOULD be written this way, exactly matching
+   *  what VideoIntroPhase.tsx:343-360/PortfolioUploadPhase.tsx:416-433
+   *  (`newPhase = nextPhase.id`, written at VideoIntroPhase.tsx:398 /
+   *  PortfolioUploadPhase.tsx:447) computed locally. Whether
+   *  `recordStepResult` actually APPLIES this to the database is a
+   *  separate decision, gated by the caller's own `advance: "auto_mode" |
+   *  "never"` input (see `StepAdvanceMode`'s doc comment) — this type only
+   *  describes what the client-side "next phase" computation itself would
+   *  have produced, which every phase page ran regardless of whether it
+   *  then wrote it anywhere; `recordStepResult` reuses it both to decide
+   *  its own write (when `advance: "auto_mode"`) and to populate the
+   *  informational `next` it always returns to the caller either way, so a
+   *  step like `typing_test` (whose original page never wrote `phase`
+   *  locally either) can still tell the candidate what's next without ever
+   *  touching the database for it. Neither of the two original writers
+   *  this mirrors (`video_intro`/`portfolio_upload`) themselves also set
+   *  `status` — that page-local advance was only ever an optimistic UI
+   *  head start, and the real authoritative write (both `phase` and
+   *  `status: "reviewing"` together) lands moments later from
+   *  trigger-ava-analysis's own scored advance (index.ts:363-368: `phase:
+   *  nextPhase.nextPhaseId, status: "reviewing"`) once it re-derives the
+   *  next phase itself and applies its own pass/fail/defer decision. Since
+   *  `recordStepResult` performs the step's ENTIRE write (notes, and phase
+   *  + status when `advance: "auto_mode"`) atomically in one go rather
+   *  than racing a client head-start against a follow-up backend call, it
+   *  adopts that same "advance ⇒ status: reviewing" pairing as its one
+   *  write, carried here as `nextStatus`. What it deliberately does NOT
+   *  replicate is trigger-ava-analysis's own score-vs-passing-threshold
+   *  pass/fail/defer decision (resolveAutopilotAction, index.ts:205-213)
+   *  — recordStepResult only ever decides whether to move to the NEXT
+   *  CONFIGURED STEP, exactly like the client's own local nextPhase lookup
+   *  does; any real scoring a part-B phase conversion still needs stays
+   *  that phase's own job, done before it calls recordStepResult (or via
+   *  its own separate trigger-ava-analysis call), never something this
+   *  function computes. */
   | { advance: true; nextStep: CandidateJourneyStep; nextStatus: "reviewing" }
   /** Manual mode never auto-advances — every phase page's own comment says
    *  so verbatim (TypingTestPhase.tsx:413 "Manual mode - NEVER auto-advance
@@ -429,10 +520,16 @@ export async function recordStepResult(
   const completedAt = new Date().toISOString();
   const newNotes = mergeTrustedNotes(application.notes, input, completedAt);
 
+  // Always computed, regardless of `input.advance` — this is also what
+  // populates the informational `next` this function returns below, which
+  // a step like typing_test (advance: "never") still needs to tell the
+  // candidate what's coming up even though it may never write `phase`
+  // itself. See `StepAdvanceMode`'s own doc comment for why each step type
+  // gets the `advance` value it does.
   const decision = computeNextStepDecision(steps, input.stepId, application.phase, job.processing_mode);
 
   const updatePayload: Record<string, unknown> = { notes: newNotes };
-  if (decision.advance) {
+  if (input.advance === "auto_mode" && decision.advance) {
     updatePayload.phase = decision.nextStep.id;
     updatePayload.status = decision.nextStatus;
   }

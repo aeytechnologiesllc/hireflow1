@@ -39,6 +39,10 @@ const outcome = await recordStepResult(admin /* service-role client */, {
   stepType,            // "typing_test" | "chat_simulation" | "chat_interview" |
                         // "sales_simulation" | "portfolio_upload" |
                         // "video_intro" | "video_message" | "voice_interview"
+  advance,             // REQUIRED — "auto_mode" | "never". Whether this call may write
+                        // applications.phase/status at all. See "The advance flag" below —
+                        // get this wrong and a candidate can end up one step ahead of a
+                        // decline recommendation the employer hasn't reviewed yet.
   resultKey,           // the notes key readers check today — see the table below
   result,              // the value written at notes[resultKey] — same shape today's readers expect
   legacyStepEntry,      // optional — also writes notes[stepId] for by-id readers (see table)
@@ -52,7 +56,10 @@ if (!outcome.ok) {
   return jsonResponse({ error: outcome.error }, outcome.code === "step_not_reached" ? 409 : 400);
 }
 
-// outcome.next: { id, type, title } | "waiting" — what the candidate should navigate to
+// outcome.next: { id, type, title } | "waiting" — what the candidate should navigate to.
+// Computed the same way regardless of `advance` — even an advance: "never" step (e.g.
+// typing_test) gets an informational "what's next" the way its original page did, without
+// that ever implying applications.phase actually moved.
 ```
 
 `recordStepResult` does five things, in order, and refuses (no partial
@@ -70,16 +77,50 @@ write) if any of the first three fail:
    `extraNotesEntries`, plus a server-only
    `notes._trusted[stepId] = { stepType, completedAt }` marker no client
    write can ever produce.
-5. In auto mode, advances `phase`/`status` to the next configured step —
-   unless that next step is `voice_interview` (stops, needs employer setup)
-   or there is no next step. Manual mode never advances; an employer/team
-   member moves `phase` from the cockpit as they do today.
+5. Computes what the next configured step would be (auto mode, next step
+   exists, and it isn't `voice_interview`) exactly like the candidate's own
+   browser always did — but only actually **writes** `phase`/`status` to
+   that next step when you passed `advance: "auto_mode"`. Manual mode never
+   advances regardless of `advance`; an employer/team member moves `phase`
+   from the cockpit as they do today.
 
 `recordStepResult` does **not** decide pass/fail — that's the phase's own
 grading, done before you call it (or via a separate
 `trigger-ava-analysis` call, exactly as today). It only ever decides whether
 to move the candidate to the **next configured step**, mirroring what the
 candidate's own browser already computes for its "Start next phase" button.
+
+## The `advance` flag
+
+`recordStepResult`'s own write to `applications` never advances `phase`/
+`status` — even when the current-step-to-next-step computation says it
+could — unless the caller passed `advance: "auto_mode"`. This exists
+because only TWO of the seven step types' pre-conversion pages ever wrote
+`phase` from the browser themselves; the other five always left the whole
+advance/reject decision to a follow-up
+`trigger-ava-analysis({ autopilotDecision: true, currentPhaseId })` call —
+which, critically, leaves `phase` untouched (only `status: "reviewing"` +
+`phase_ai_analysis`) when Ava recommends declining, so a human reviews
+before the candidate moves on. Advancing `phase` from `recordStepResult`
+itself for one of those five steps would put the candidate one step ahead
+of that still-pending human review the moment their result triggers a
+decline recommendation — `CandidateStepGate.tsx` would then let them
+navigate straight into the next step's route.
+
+| `stepType` | `advance` | why (verified against the pre-conversion source, commit `40e17d8`) |
+|---|---|---|
+| `typing_test` | `"never"` | TypingTestPhase.tsx:421-430 resent `phase`/`status` UNCHANGED in both modes — "Do NOT change phase or status here - let backend handle in autopilot mode." |
+| `chat_simulation` | `"never"` | ChatSimulationPhase.tsx:684-689's `.update()` wrote only `notes` + `phase_ai_analysis` — no `phase`/`status` key at all. |
+| `chat_interview` | `"never"` | ChatInterviewPhase.tsx's candidate-driven `handleSubmit` (:646-651) wrote only `notes` + `phase_ai_analysis`. Its separate pre-conversion "AI auto-detected the end" branch (:260-283) DID write `phase`/`status` directly in auto mode, but with no decline check and no `voice_interview` stop-gate — reproducing that half would reopen this exact bug, so `"never"` covers both of chat_interview's now-merged submit paths. |
+| `sales_simulation` | `"never"` | SalesSimulationPhase.tsx:658-661, same shape as chat_simulation — `notes` + `phase_ai_analysis` only. |
+| `portfolio_upload` | `"auto_mode"` | PortfolioUploadPhase.tsx:444-450 really did write `phase: isAutoMode ? newPhase : application.phase` (never `status`) in the same `.update()` as `notes`, stopping one step short of `voice_interview`. |
+| `video_intro` / `video_message` | `"auto_mode"` | VideoIntroPhase.tsx:343-360/395-398, identical shape to portfolio_upload. |
+| `voice_interview` | `"never"` | VoiceInterviewPhase.tsx:281-296 wrote only `voice_interview_transcript` + `phase_ai_analysis`; `ava-voice-tools`'s `end_interview` handler (already server-side before this cycle) wrote only `voice_interview_result` + `phase_ai_analysis`. Every advance past the final interview waits on a human or `trigger-ava-analysis`. |
+
+`advance` is a **required** input (no default) precisely so a new phase
+conversion has to make this choice consciously — read that phase's own
+pre-conversion `.update()` call (step 1 of the recipe below) and match
+what it actually did, not what seems convenient.
 
 ## The result_key map
 
@@ -119,7 +160,11 @@ converting.
    `trigger-ava-analysis` call, that stays; only the *candidate-authored*
    write of raw `notes`/`phase` needs to move.
 3. **Call `recordStepResult`** from that edge function with the result
-   shape from the table above.
+   shape from the table above, and the correct `advance` value from
+   "The `advance` flag" table — read the page's own pre-conversion
+   `.update()` call for `phase`/`status` yourself rather than assuming; two
+   step types that look alike (e.g. chat_simulation vs. portfolio_upload)
+   can differ here.
 4. **Delete the client-side write.** The phase page's own
    `supabase.from("applications").update(...)` call for this step's result
    goes away entirely — the edge function response (`outcome.next`) tells

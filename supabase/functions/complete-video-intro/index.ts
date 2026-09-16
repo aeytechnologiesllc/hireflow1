@@ -160,6 +160,11 @@ serve(async (req) => {
       callerUserId: user.id,
       stepId,
       stepType,
+      // VideoIntroPhase.tsx:343-360/395-398 did advance `phase` itself in
+      // auto mode (stopping one step short of voice_interview) as part of
+      // the same `.update()` as `notes` — see StepAdvanceMode's doc
+      // comment on RecordStepResultInput.
+      advance: "auto_mode",
       resultKey: "videoIntroResult",
       result,
       legacyStepEntry,
