@@ -215,74 +215,46 @@ export default function ChatInterviewPhase() {
         setIsSubmitting(true);
         try {
           const candidateContext = buildCandidateContext();
-          const evalResponse = await fetch(CHAT_URL, {
+
+          // The eval score, notes.chatInterviewResult write, and any auto-
+          // mode phase advance are now ONE trusted, server-side call —
+          // never a client-computed evaluation relayed into a plain
+          // .update(), never a client-decided phase advance. See
+          // docs/TRUSTED-RESULTS.md.
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.access_token) {
+            throw new Error("Your session expired — please sign in again.");
+          }
+
+          const submitResponse = await fetch(CHAT_URL, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+              Authorization: `Bearer ${session.access_token}`,
             },
             body: JSON.stringify({
-              mode: "evaluate",
+              mode: "submit",
+              applicationId: id,
+              stepId,
+              path: "auto_end",
               jobTitle: application.jobs?.title || "",
               jobDescription: application.jobs?.description || "",
               candidateName: application.profiles?.full_name || "Candidate",
               candidateContext,
-              messages: messages.map(m => ({ role: m.role, content: m.content })),
-            }),
-          });
-
-          let evaluation = null;
-          if (evalResponse.ok) {
-            evaluation = await evalResponse.json();
-          }
-
-          const existingNotes = parseApplicationNotes(application.notes);
-          const updatedNotes = {
-            ...existingNotes,
-            chatInterviewResult: {
               messages: messages.map(m => ({ role: m.role, content: m.content, timestamp: m.timestamp })),
               duration: getDuration(),
               questionCount,
-              violations: violations.length > 0 ? violations : undefined,
-              evaluation,
-            },
-          };
+              violations,
+            }),
+          });
 
-          const workflowSteps = application.jobs?.workflow_steps as Array<{ id: string; type: string }> || [];
-          const currentStepIndex = workflowSteps.findIndex(s => s.id === stepId);
-          const nextStep = workflowSteps[currentStepIndex + 1];
-
-          // Respect manual mode: NEVER auto-advance phases.
-          const { data: freshJobAutoEnd } = await supabase
-            .from("jobs")
-            .select("processing_mode")
-            .eq("id", application.job_id)
-            .single();
-
-          const isAutoModeAutoEnd = freshJobAutoEnd?.processing_mode === "auto";
-
-          // Save phase data only - do NOT write ai_score directly
-          // Backend trigger-ava-analysis is the SINGLE SOURCE OF TRUTH for scoring
-          await supabase
-            .from("applications")
-            .update({
-              notes: JSON.stringify(updatedNotes),
-              phase_ai_analysis: evaluation?.summary || null,
-              status: "reviewing",
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", id);
+          if (!submitResponse.ok) {
+            const errBody = await submitResponse.json().catch(() => ({}));
+            throw new Error(errBody.error || "Failed to submit interview");
+          }
 
           // Trigger backend analysis - it will calculate weighted ai_score and decide pass/fail
           await triggerAvaAnalysis(id!);
-          
-          // If auto mode, advance phase after backend processes
-          if (isAutoModeAutoEnd && nextStep) {
-            await supabase
-              .from("applications")
-              .update({ phase: nextStep.id })
-              .eq("id", id);
-          }
 
           queryClient.invalidateQueries({ queryKey: ["applications"] });
           queryClient.invalidateQueries({ queryKey: ["chat-interview-application", id] });
@@ -551,7 +523,7 @@ export default function ChatInterviewPhase() {
 
   const handleSubmit = async () => {
     if (!application) return;
-    
+
     setIsSubmitting(true);
     try {
       // CRITICAL: Re-fetch fresh job data to get current processing_mode
@@ -560,96 +532,47 @@ export default function ChatInterviewPhase() {
         .select("processing_mode, passing_score")
         .eq("id", application.job_id)
         .single();
-      
+
       const isAutoMode = freshJob?.processing_mode === "auto";
-      
-      // Get AI evaluation with full context (for notes/display only - NOT for pass/fail decision)
+
       const candidateContext = buildCandidateContext();
-      const evalResponse = await fetch(CHAT_URL, {
+      const duration = startTime ? Math.floor((new Date().getTime() - startTime.getTime()) / 1000) : 0;
+
+      // The eval score and the notes.chatInterviewResult write are now ONE
+      // trusted, server-side call — the score can never be relayed from an
+      // earlier client-side fetch a candidate could have edited before this
+      // write. See docs/TRUSTED-RESULTS.md.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error("Your session expired — please sign in again.");
+      }
+
+      const submitResponse = await fetch(CHAT_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          mode: "evaluate",
+          mode: "submit",
+          applicationId: id,
+          stepId,
+          path: "manual",
           jobTitle: application.jobs?.title || "",
           jobDescription: application.jobs?.description || "",
           candidateName: application.profiles?.full_name || "Candidate",
           candidateContext,
-          messages: messages.map(m => ({ role: m.role, content: m.content })),
+          messages: messages.map(m => ({ role: m.role, content: m.content, timestamp: m.timestamp })),
+          duration,
+          questionCount,
+          violations,
         }),
       });
 
-      let evaluation = {
-        score: 70,
-        strengths: ["Completed interview"],
-        concerns: [],
-        recommendation: "Maybe",
-        summary: "Interview completed successfully.",
-      };
-
-      if (evalResponse.ok) {
-        evaluation = await evalResponse.json();
+      if (!submitResponse.ok) {
+        const errBody = await submitResponse.json().catch(() => ({}));
+        throw new Error(errBody.error || "Failed to submit interview");
       }
-
-      const existingNotes = parseApplicationNotes(application.notes);
-      const duration = startTime ? Math.floor((new Date().getTime() - startTime.getTime()) / 1000) : 0;
-      
-      const antiCheatLog = {
-        violations,
-        totalViolations: violations.length,
-        tabSwitches: violations.filter(v => v.type === 'tab_switch').length,
-        copyAttempts: violations.filter(v => v.type === 'copy_attempt').length,
-        pasteAttempts: violations.filter(v => v.type === 'paste_attempt').length,
-        screenshotAttempts: violations.filter(v => v.type === 'screenshot_attempt').length,
-        rightClickAttempts: violations.filter(v => v.type === 'right_click').length,
-      };
-
-      // Save phase data to notes (NO local pass/fail decision)
-      const updatedNotes = {
-        ...existingNotes,
-        [stepId!]: {
-          type: "chat_interview",
-          messages: messages.map(m => ({
-            role: m.role,
-            content: m.content,
-            timestamp: m.timestamp.toISOString(),
-          })),
-          evaluation,
-          duration,
-          questionCount,
-          phaseScore: evaluation.score, // Store phase score for backend to use
-          antiCheatLog,
-          completedAt: new Date().toISOString(),
-        },
-        chatInterviewResult: {
-          messageCount: messages.length,
-          duration,
-          score: evaluation.score,
-          strengths: evaluation.strengths,
-          concerns: evaluation.concerns,
-          recommendation: evaluation.recommendation,
-          completed: true,
-          antiCheatSummary: {
-            hasViolations: violations.length > 0,
-            violationCount: violations.length,
-            tabSwitches: antiCheatLog.tabSwitches,
-            copyPasteAttempts: antiCheatLog.copyAttempts + antiCheatLog.pasteAttempts,
-          },
-        },
-      };
-
-      // Save notes first (DO NOT set status or make pass/fail decision)
-      const { error } = await supabase
-        .from("applications")
-        .update({
-          notes: JSON.stringify(updatedNotes),
-          phase_ai_analysis: `Interview: ${evaluation.recommendation} (${evaluation.score}%). ${evaluation.summary}`,
-        })
-        .eq("id", id!);
-
-      if (error) throw error;
 
       // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });

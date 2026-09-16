@@ -1,8 +1,18 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { callOpenAIJson, requireJsonKeys, type OpenAIMessage } from "../_shared/openai.ts";
 import { streamOpenAIChatCompletion } from "../_shared/openaiStreaming.ts";
 import { guardPublicAiCall } from "../_shared/rateLimit.ts";
+import { recordStepResult, type MinimalSupabaseAdmin } from "../_shared/trustedResults.ts";
+import {
+  buildChatInterviewResult,
+  buildPhaseAiAnalysis,
+  type AntiCheatViolationForNotes,
+  type ChatInterviewSubmitPath,
+  type EvaluationResult,
+  type TranscriptMessageForNotes,
+} from "./resultShape.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,6 +26,10 @@ const OPENAI_CHAT_INTERVIEW_EVAL_MODEL = Deno.env.get("OPENAI_CHAT_INTERVIEW_EVA
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  // Only ever used by mode "submit"'s "auto_end" shape, which stores the
+  // transcript verbatim in notes.chatInterviewResult.messages — ignored by
+  // every other mode.
+  timestamp?: string;
 }
 
 interface CandidateContext {
@@ -31,7 +45,7 @@ interface CandidateContext {
 }
 
 interface ChatInterviewRequest {
-  mode: "start" | "respond" | "evaluate";
+  mode: "start" | "respond" | "evaluate" | "submit";
   jobTitle: string;
   jobDescription: string;
   jobDetails?: {
@@ -46,6 +60,51 @@ interface ChatInterviewRequest {
   candidateContext?: CandidateContext;
   messages?: ChatMessage[];
   userMessage?: string;
+  // mode "submit" only — the trusted, server-side finalize. See
+  // docs/TRUSTED-RESULTS.md. The caller must be the candidate on
+  // `applicationId`, authenticated via a real user JWT (never the anon/
+  // publishable key start/respond/evaluate use).
+  applicationId?: string;
+  stepId?: string;
+  path?: ChatInterviewSubmitPath;
+  duration?: string | number;
+  questionCount?: number;
+  violations?: AntiCheatViolationForNotes[];
+}
+
+/**
+ * Adapts a real supabase-js client to the narrow `MinimalSupabaseAdmin`
+ * shape `recordStepResult` expects — the real client's query builder is
+ * PromiseLike, not a plain `Promise`, so it doesn't structurally satisfy
+ * that interface on its own; `.then(...)` here produces genuine Promises.
+ */
+function toMinimalAdmin(client: ReturnType<typeof createClient>): MinimalSupabaseAdmin {
+  return {
+    from(table: string) {
+      return {
+        select(columns: string) {
+          return {
+            eq(column: string, value: string) {
+              return {
+                async maybeSingle() {
+                  const { data, error } = await client.from(table).select(columns).eq(column, value).maybeSingle();
+                  return { data, error };
+                },
+              };
+            },
+          };
+        },
+        update(values: Record<string, unknown>) {
+          return {
+            async eq(column: string, value: string) {
+              const { error } = await client.from(table).update(values).eq(column, value);
+              return { error };
+            },
+          };
+        },
+      };
+    },
+  };
 }
 
 serve(async (req) => {
@@ -59,7 +118,22 @@ serve(async (req) => {
 
   try {
     const request: ChatInterviewRequest = await req.json();
-    const { mode, jobTitle, jobDescription, jobDetails, candidateName, candidateContext, messages = [], userMessage } = request;
+    const {
+      mode,
+      jobTitle,
+      jobDescription,
+      jobDetails,
+      candidateName,
+      candidateContext,
+      messages = [],
+      userMessage,
+      applicationId,
+      stepId,
+      path,
+      duration,
+      questionCount = 0,
+      violations = [],
+    } = request;
 
     console.log("Chat interview request:", { mode, jobTitle, candidateName, messageCount: messages.length, hasContext: !!candidateContext });
 
@@ -69,6 +143,54 @@ serve(async (req) => {
         JSON.stringify({ error: "AI service not configured" }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // mode "submit" is the trusted finalize: verify the caller really is a
+    // signed-in candidate BEFORE spending anything on OpenAI. Never trust a
+    // body-supplied candidate id — callerUserId comes only from the JWT
+    // itself, resolved via auth.getUser().
+    let submitCallerUserId: string | null = null;
+    let supabaseAdmin: ReturnType<typeof createClient> | null = null;
+    if (mode === "submit") {
+      if (!applicationId || !stepId || (path !== "auto_end" && path !== "manual")) {
+        return new Response(
+          JSON.stringify({ error: "applicationId, stepId and a valid path are required" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(
+          JSON.stringify({ error: "Missing authorization header" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (!supabaseUrl || !anonKey || !serviceKey) {
+        console.error("Supabase env vars missing for ai-chat-interview submit mode");
+        return new Response(
+          JSON.stringify({ error: "Server not configured" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const supabaseUser = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: { user }, error: userError } = await supabaseUser.auth.getUser();
+      if (userError || !user) {
+        console.error("ai-chat-interview submit auth error:", userError);
+        return new Response(
+          JSON.stringify({ error: "Unauthorized" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      submitCallerUserId = user.id;
+      supabaseAdmin = createClient(supabaseUrl, serviceKey);
     }
 
     // Build candidate context section
@@ -305,7 +427,7 @@ Before ending the interview naturally (after you've asked your questions), you M
 
 IMPORTANT: NEVER skip the "do you have any questions" step. Always give candidates a chance to ask.
 
-${mode === 'evaluate' ? `
+${(mode === 'evaluate' || mode === 'submit') ? `
 === EVALUATION MODE (BE BRUTALLY HONEST FOR THE EMPLOYER) ===
 You are evaluating for the EMPLOYER, not the candidate. Be DIRECT and HONEST. Do not sugarcoat.
 
@@ -352,7 +474,7 @@ Return ONLY valid JSON with this structure:
       userContent = "Start the interview with a brief, warm greeting and your first question. Keep the greeting to 1-2 sentences, then ask a short, focused opening question.";
     } else if (mode === "respond") {
       userContent = userMessage || "";
-    } else if (mode === "evaluate") {
+    } else if (mode === "evaluate" || mode === "submit") {
       userContent = `Please evaluate all the candidate's responses from this interview and provide a comprehensive assessment. The interview conversation is in the message history.`;
     }
 
@@ -363,7 +485,7 @@ Return ONLY valid JSON with this structure:
     ];
 
     // For evaluation mode, return JSON directly
-    if (mode === "evaluate") {
+    if (mode === "evaluate" || mode === "submit") {
       const { data } = await callOpenAIJson({
         apiKey: OPENAI_API_KEY,
         model: OPENAI_CHAT_INTERVIEW_EVAL_MODEL,
@@ -380,9 +502,65 @@ Return ONLY valid JSON with this structure:
         }),
       });
 
+      if (mode === "evaluate") {
+        return new Response(
+          JSON.stringify(data),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // mode === "submit" — `data` was just computed server-side, above,
+      // from messages the caller sent in THIS request; nothing about it was
+      // relayed from an earlier client-side fetch a candidate could have
+      // edited. Record it as this step's trusted result.
+      const evaluation = data as EvaluationResult;
+      const transcript: TranscriptMessageForNotes[] = messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+        timestamp: m.timestamp,
+      }));
+
+      const chatInterviewResult = buildChatInterviewResult({
+        path: path as ChatInterviewSubmitPath,
+        messages: transcript,
+        duration: duration ?? 0,
+        questionCount,
+        violations,
+        evaluation,
+      });
+
+      const outcome = await recordStepResult(toMinimalAdmin(supabaseAdmin!), {
+        applicationId: applicationId!,
+        callerUserId: submitCallerUserId!,
+        stepId: stepId!,
+        stepType: "chat_interview",
+        resultKey: "chatInterviewResult",
+        result: chatInterviewResult,
+      });
+
+      if (!outcome.ok) {
+        const status = outcome.code === "step_not_reached" ? 409 : 400;
+        return new Response(
+          JSON.stringify({ error: outcome.error }),
+          { status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // phase_ai_analysis is cosmetic display text, not a protected trusted
+      // result (protect_application_columns never guards it) — best-effort,
+      // never lets a failure here undo the result that already recorded.
+      try {
+        await supabaseAdmin!
+          .from("applications")
+          .update({ phase_ai_analysis: buildPhaseAiAnalysis(path as ChatInterviewSubmitPath, evaluation) })
+          .eq("id", applicationId!);
+      } catch (e) {
+        console.error("ai-chat-interview submit: phase_ai_analysis update failed:", e);
+      }
+
       return new Response(
-        JSON.stringify(data),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ evaluation, next: outcome.next }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
