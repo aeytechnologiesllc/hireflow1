@@ -20,7 +20,7 @@ export const SUPABASE_ANON_KEY = SUPABASE_PUBLISHABLE_KEY;
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+const realSupabaseClient = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: localStorage,
     persistSession: true,
@@ -29,3 +29,31 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     flowType: 'implicit',
   }
 });
+
+type SupabaseClientType = typeof realSupabaseClient;
+
+// Swappable backing client — everywhere in the app imports the `supabase`
+// binding below, which never changes identity; this is the only thing that
+// changes underneath it.
+let activeSupabaseClient: SupabaseClientType = realSupabaseClient;
+
+/**
+ * DEV-only dependency-injection seam for the `/__preview` harness
+ * (src/dev-preview/) — lets it point every `supabase.*` call at a local
+ * fixture client instead of the network, with zero changes to the hooks and
+ * pages that call `supabase`. A no-op outside DEV, and `import.meta.env.DEV`
+ * is statically `false` in the production bundle, so no production build
+ * ever calls this with anything but a dead branch around it — see
+ * scripts/guards/dev-preview-dev-only.mjs. Never call this from anything
+ * other than the preview harness's own bootstrap.
+ */
+export function __setPreviewSupabaseClient(client: SupabaseClientType | null): void {
+  if (!import.meta.env.DEV) return;
+  activeSupabaseClient = client ?? realSupabaseClient;
+}
+
+export const supabase: SupabaseClientType = new Proxy(realSupabaseClient, {
+  get(_target, prop, receiver) {
+    return Reflect.get(activeSupabaseClient as object, prop, activeSupabaseClient);
+  },
+}) as SupabaseClientType;

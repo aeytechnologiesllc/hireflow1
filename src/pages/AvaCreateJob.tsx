@@ -139,8 +139,20 @@ export default function AvaCreateJob() {
 
   const resumeDraft = typeof window !== "undefined" && sessionStorage.getItem(DRAFT_SESSION_KEY) === "1";
   const saved = resumeDraft ? loadDraft() : null;
-  const [step, setStep] = useState(0);
-  const [inputMode, setInputMode] = useState<"voice" | "form">("voice");
+  // Dev-preview-only seam (src/dev-preview/): lets the /__preview picker land
+  // directly on a given step/mode (e.g. the voice readback screen) instead of
+  // requiring a click-through. `import.meta.env.DEV` is statically `false` in
+  // production, so this never reads real query params there.
+  const previewParams =
+    import.meta.env.DEV && typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const [step, setStep] = useState(() => {
+    const raw = previewParams?.get("__previewStep");
+    return raw != null && !Number.isNaN(Number(raw)) ? Number(raw) : 0;
+  });
+  const [inputMode, setInputMode] = useState<"voice" | "form">(() => {
+    const raw = previewParams?.get("__previewInputMode");
+    return raw === "form" || raw === "voice" ? raw : "voice";
+  });
   const [fuIndex, setFuIndex] = useState(0);
   const [chipAnswers, setChipAnswers] = useState<Record<string, number>>(saved?.chipAnswers ?? {});
   const [rigor, setRigor] = useState<Rigor>(saved?.rigor ?? "standard");
