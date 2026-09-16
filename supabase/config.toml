@@ -130,7 +130,9 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.send-push-notification]
-verify_jwt = true
+# Called by a database trigger through pg_net, which has no JWT. The function
+# trusts only the notifications row it loads by id (see its header comment).
+verify_jwt = false
 
 [functions.send-test-push]
 verify_jwt = true

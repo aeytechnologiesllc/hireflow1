@@ -909,6 +909,7 @@ export type Database = {
           is_read: boolean
           link: string | null
           message: string
+          push_sent_at: string | null
           title: string
           type: Database["public"]["Enums"]["notification_type"]
           user_id: string
@@ -919,6 +920,7 @@ export type Database = {
           is_read?: boolean
           link?: string | null
           message: string
+          push_sent_at?: string | null
           title: string
           type: Database["public"]["Enums"]["notification_type"]
           user_id: string
@@ -929,6 +931,7 @@ export type Database = {
           is_read?: boolean
           link?: string | null
           message?: string
+          push_sent_at?: string | null
           title?: string
           type?: Database["public"]["Enums"]["notification_type"]
           user_id?: string
