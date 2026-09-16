@@ -72,6 +72,12 @@ export async function checkRateLimit(
 /**
  * Guard a public, money-spending endpoint.
  * Returns a ready-to-send 429 Response when the caller is over budget, else null.
+ *
+ * By default the caller is identified by IP (see `callerId`), which is right for
+ * accountless flows. When the endpoint requires sign-in, pass `identifierOverride`
+ * (e.g. the authenticated user's id) so the limit is per-account instead — two
+ * candidates behind the same NAT/VPN shouldn't share one budget, and a bucket
+ * keyed by user id also survives IP rotation.
  */
 export async function guardPublicAiCall(
   req: Request,
@@ -79,11 +85,13 @@ export async function guardPublicAiCall(
   corsHeaders: Record<string, string>,
   limit = 20,
   windowSecs = 3600,
+  identifierOverride?: string,
 ): Promise<Response | null> {
-  const result = await checkRateLimit(bucket, callerId(req), limit, windowSecs);
+  const identifier = identifierOverride || callerId(req);
+  const result = await checkRateLimit(bucket, identifier, limit, windowSecs);
   if (result.allowed) return null;
 
-  console.warn(`[rate-limit] ${bucket} blocked ${callerId(req)} (${result.hits}/${limit})`);
+  console.warn(`[rate-limit] ${bucket} blocked ${identifier} (${result.hits}/${limit})`);
   return new Response(
     JSON.stringify({
       error: "rate_limited",
