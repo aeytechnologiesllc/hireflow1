@@ -30,8 +30,13 @@
  *      owner, an active team member, and service_role.
  *   5. Voice interview billability: unmetered before any unlock, included
  *      for the first 10 after a job's first unlock, billable from #11, and
- *      flat at 10 (never scaling with unlock count) across a second unlock,
- *      an overlapping applicant pack, and a lapsed (expired) unlock window.
+ *      SCALING by 10 per completed unlock (a high-water mark, same shape as
+ *      the +25-per-unlock applicant allowance) across a second unlock, an
+ *      overlapping applicant pack (no effect on voice), and a lapsed
+ *      (expired) unlock window (no shrinkage — see job_voice_included_total
+ *      in 20260916170000_job_billing_schema.sql for the confirmed
+ *      2026-09-16 decision between the two competing readings of "10
+ *      included PER UNLOCKED JOB").
  *
  * Run with: node scripts/job_billing_schema.pglite.test.mjs
  */
@@ -64,6 +69,7 @@ const JOB_1 = "50000000-0000-0000-0000-00000000000a";
 const JOB_2 = "50000000-0000-0000-0000-00000000000b"; // EMP_2's, unrelated
 const JOB_EMPTY = "50000000-0000-0000-0000-00000000000c"; // EMP_1's, zero applicants
 const JOB_VOICE = "50000000-0000-0000-0000-00000000000d"; // EMP_1's, dedicated to the voice-billing matrix (section 6b)
+const JOB_SEALED = "50000000-0000-0000-0000-00000000000e"; // EMP_1's, dedicated to get_employer_sealed_application_ids() (section 10)
 
 async function main() {
   const db = new PGlite();
@@ -186,8 +192,8 @@ async function main() {
   `);
 
   // ---- seed data ----
-  await db.query(`insert into public.jobs (id, employer_id) values ($1,$2),($3,$4),($5,$6),($7,$8)`, [
-    JOB_1, EMP_1, JOB_2, EMP_2, JOB_EMPTY, EMP_1, JOB_VOICE, EMP_1,
+  await db.query(`insert into public.jobs (id, employer_id) values ($1,$2),($3,$4),($5,$6),($7,$8),($9,$10)`, [
+    JOB_1, EMP_1, JOB_2, EMP_2, JOB_EMPTY, EMP_1, JOB_VOICE, EMP_1, JOB_SEALED, EMP_1,
   ]);
   await db.query(
     `insert into public.team_members (user_id, employer_id, status) values ($1,$2,'active'), ($3,$2,'revoked')`,
@@ -196,6 +202,17 @@ async function main() {
   // JOB_1: 5 applicants (3 free + 2 sealed, with no unlock yet)
   for (let i = 0; i < 5; i++) {
     await db.query(`insert into public.applications (job_id, candidate_id) values ($1, gen_random_uuid())`, [JOB_1]);
+  }
+  // JOB_SEALED: 6 applicants, explicit ascending created_at so arrival order
+  // is unambiguous -- never unlocked, so allowance stays the 3-free default
+  // and the 3 latest arrivals are sealed once billing is on (section 10).
+  const jobSealedAppIds = [];
+  for (let i = 0; i < 6; i++) {
+    const r = await db.query(
+      `insert into public.applications (job_id, candidate_id, created_at) values ($1, gen_random_uuid(), now() + ($2 * interval '1 minute')) returning id`,
+      [JOB_SEALED, i],
+    );
+    jobSealedAppIds.push(r.rows[0].id);
   }
 
   async function asUser(uid, role, sql, params = []) {
@@ -241,11 +258,11 @@ async function main() {
     to anon, authenticated, service_role;
   `);
 
-  return { db, asUser, asPostgres };
+  return { db, asUser, asPostgres, jobSealedAppIds };
 }
 
 async function run() {
-  const { db, asUser, asPostgres } = await main();
+  const { db, asUser, asPostgres, jobSealedAppIds } = await main();
 
   console.log("\n-- (1) app_settings (shared key/value table) + get_billing_flags() --");
   {
@@ -459,10 +476,11 @@ async function run() {
     // documented flow ("once the active window lapses, buying another pack
     // requires a fresh unlock", header comment), not a contrived edge case.
     // job_unlock_count(JOB_EMPTY) goes from 1 to 2. voice_included_total
-    // must stay flat at 10 -- NOT scale with unlock count -- because
-    // job_voice_interview_is_billable() enforces a flat 10-per-job
-    // threshold regardless of how many times the job has been unlocked;
-    // the two must never disagree about how many free interviews are left.
+    // must SCALE to 20 (10 per completed unlock, a high-water mark exactly
+    // like the +25-per-unlock applicant allowance) -- the confirmed
+    // 2026-09-16 resolution of "10 voice interviews included PER UNLOCKED
+    // JOB". The two must never disagree about how many free interviews are
+    // left, whichever number that is.
     await asPostgres(
       `insert into public.job_unlocks (job_id, employer_id, status, unlocked_at, expires_at) values
          ($1, $2, 'active', now(), now() + interval '30 days')`,
@@ -473,8 +491,8 @@ async function run() {
 
     const status = await asUser(EMP_1, "authenticated", `select * from public.get_job_billing_status($1)`, [JOB_EMPTY]);
     check(
-      "voice_included_total stays flat at 10 after a second unlock, not 10 * unlock_count",
-      status.ok && status.rows[0].voice_included_total === 10,
+      "voice_included_total scales to 20 after a second unlock (10 * unlock_count), not flat at 10",
+      status.ok && status.rows[0].voice_included_total === 20,
       JSON.stringify(status.rows),
     );
     check(
@@ -499,7 +517,7 @@ async function run() {
     );
     const afterFirst = await asUser(EMP_1, "authenticated", `select * from public.get_job_billing_status($1)`, [JOB_VOICE]);
     check(
-      "first unlock: voice_included_total is 10, voice_used is 0, next interview is included",
+      "first unlock: voice_included_total is 10 (1 completed unlock), voice_used is 0, next interview is included",
       afterFirst.ok &&
         afterFirst.rows[0].voice_included_total === 10 &&
         afterFirst.rows[0].voice_used === 0 &&
@@ -515,16 +533,19 @@ async function run() {
     );
     const atCap = await asUser(EMP_1, "authenticated", `select * from public.get_job_billing_status($1)`, [JOB_VOICE]);
     check(
-      "first unlock, 10 used: voice_included_total still 10, next interview is now billable",
+      "first unlock, 10 used: voice_included_total still 10 (still 1 unlock), next interview is now billable",
       atCap.ok && atCap.rows[0].voice_included_total === 10 && atCap.rows[0].voice_next_is_billable === true,
       JSON.stringify(atCap.rows),
     );
   }
   {
     // -- second unlock (re-unlock) --
-    // A second unlock (job_unlock_count 1 -> 2) must NOT double the
-    // allowance to 20 -- it's flat 10 for the job, forever, per the header
-    // comment and the finding this guards against.
+    // A second unlock (job_unlock_count 1 -> 2) MUST raise the allowance to
+    // 20 -- 10 more included interviews for the fresh unlock, on top of
+    // whatever was already used, mirroring exactly how a second unlock adds
+    // another 25 to the applicant allowance. This is the confirmed
+    // 2026-09-16 resolution; the earlier "flat 10 forever" reading was
+    // reviewed and rejected as contradicting "10 included PER UNLOCKED JOB".
     await asPostgres(
       `insert into public.job_unlocks (job_id, employer_id, status, unlocked_at, expires_at) values
          ($1, $2, 'active', now(), now() + interval '30 days')`,
@@ -535,13 +556,14 @@ async function run() {
 
     const status = await asUser(EMP_1, "authenticated", `select * from public.get_job_billing_status($1)`, [JOB_VOICE]);
     check(
-      "second unlock: voice_included_total is still 10 (not 20 = 10 * unlock_count)",
-      status.ok && status.rows[0].voice_included_total === 10,
+      "second unlock: voice_included_total is now 20 (10 * unlock_count), not still flat 10",
+      status.ok && status.rows[0].voice_included_total === 20,
       JSON.stringify(status.rows),
     );
     check(
-      "second unlock: the 10 already-used interviews from the first unlock still count, next is still billable",
-      status.ok && status.rows[0].voice_used === 10 && status.rows[0].voice_next_is_billable === true,
+      "second unlock: the 10 already-used interviews from the first unlock still count as used, but the fresh unlock's " +
+        "10 more make the next interview included again, not billable",
+      status.ok && status.rows[0].voice_used === 10 && status.rows[0].voice_next_is_billable === false,
       JSON.stringify(status.rows),
     );
   }
@@ -562,8 +584,8 @@ async function run() {
       JSON.stringify({ before: beforePack.rows, after: afterPack.rows }),
     );
     check(
-      "overlapping pack: voice_included_total is untouched by the pack, still flat 10",
-      afterPack.ok && afterPack.rows[0].voice_included_total === 10,
+      "overlapping pack: voice_included_total is untouched by the pack, still 20 (driven only by unlock_count)",
+      afterPack.ok && afterPack.rows[0].voice_included_total === 20,
       JSON.stringify(afterPack.rows),
     );
   }
@@ -572,10 +594,11 @@ async function run() {
     // Both of JOB_VOICE's unlocks lapse (expires_at in the past, status
     // stays 'active' -- exactly how a real 30-day window lapsing looks,
     // per job_has_active_unlock's definition). voice_included_total is a
-    // lifetime, not a windowed, entitlement: it must stay flat 10 and
-    // voice_used must stay cumulative, same as job_processed_allowance
-    // never shrinking when a window lapses (section 3's high-water-mark
-    // proof) -- lapsing changes has_active_unlock, nothing about voice.
+    // lifetime, not a windowed, entitlement -- it stays at 10 * unlock_count
+    // (20 here) and voice_used stays cumulative, same as
+    // job_processed_allowance never shrinking when a window lapses
+    // (section 3's high-water-mark proof) -- lapsing changes
+    // has_active_unlock, nothing about the voice allowance itself.
     await asPostgres(`update public.job_unlocks set expires_at = now() - interval '1 day' where job_id = $1`, [JOB_VOICE]);
 
     const activeNow = await asPostgres(`select public.job_has_active_unlock($1) as v`, [JOB_VOICE]);
@@ -583,13 +606,13 @@ async function run() {
 
     const statusExpired = await asUser(EMP_1, "authenticated", `select * from public.get_job_billing_status($1)`, [JOB_VOICE]);
     check(
-      "expiry: voice_included_total is still flat 10 after both unlock windows lapse",
-      statusExpired.ok && statusExpired.rows[0].voice_included_total === 10,
+      "expiry: voice_included_total is still 20 (10 * 2 completed unlocks) after both unlock windows lapse",
+      statusExpired.ok && statusExpired.rows[0].voice_included_total === 20,
       JSON.stringify(statusExpired.rows),
     );
     check(
-      "expiry: voice_used stays at its cumulative 10 (lapsing never resets usage)",
-      statusExpired.ok && statusExpired.rows[0].voice_used === 10 && statusExpired.rows[0].voice_next_is_billable === true,
+      "expiry: voice_used stays at its cumulative 10 (lapsing never resets usage), next interview still included (10 < 20)",
+      statusExpired.ok && statusExpired.rows[0].voice_used === 10 && statusExpired.rows[0].voice_next_is_billable === false,
       JSON.stringify(statusExpired.rows),
     );
     check(
@@ -634,6 +657,70 @@ async function run() {
     await asPostgres(`update public.app_settings set value = 'false'::jsonb where key = 'billing_enabled'`);
     const restored = await asPostgres(`select * from public.get_billing_flags()`);
     check("flipping it back off is reflected immediately too", restored.rows[0].billing_enabled === false, JSON.stringify(restored.rows));
+  }
+
+  console.log("\n-- (10) get_employer_sealed_application_ids(): the client-facing redaction source of truth --");
+  console.log("   (JOB_SEALED: 6 applicants, never unlocked -> 3 free + 3 sealed, by arrival order)");
+  {
+    const [earliest3, latest3] = [jobSealedAppIds.slice(0, 3), jobSealedAppIds.slice(3)];
+
+    const beforeBilling = await asUser(EMP_1, "authenticated", `select * from public.get_employer_sealed_application_ids()`);
+    check(
+      "billing off: EMP_1 sees nothing sealed, even though JOB_SEALED has 3 applicants past the free allowance",
+      beforeBilling.ok && beforeBilling.rows.length === 0,
+      JSON.stringify(beforeBilling),
+    );
+
+    await asPostgres(`update public.app_settings set value = 'true'::jsonb where key = 'billing_enabled'`);
+
+    const asOwner = await asUser(EMP_1, "authenticated", `select * from public.get_employer_sealed_application_ids()`);
+    const ownerIds = new Set((asOwner.rows ?? []).map((r) => r.application_id));
+    check(
+      "billing on: EMP_1 (owner) sees exactly the 3 latest JOB_SEALED arrivals as sealed, not the 3 earliest",
+      asOwner.ok &&
+        ownerIds.size === 3 &&
+        latest3.every((id) => ownerIds.has(id)) &&
+        earliest3.every((id) => !ownerIds.has(id)),
+      JSON.stringify({ ownerIds: [...ownerIds], earliest3, latest3 }),
+    );
+
+    const asTeam = await asUser(TEAM_ACTIVE, "authenticated", `select * from public.get_employer_sealed_application_ids()`);
+    const teamIds = new Set((asTeam.rows ?? []).map((r) => r.application_id));
+    check(
+      "an active team member sees the SAME sealed set as the owner (their own scope, not a separate check)",
+      asTeam.ok && teamIds.size === 3 && [...teamIds].sort().join() === [...ownerIds].sort().join(),
+      JSON.stringify({ teamIds: [...teamIds], ownerIds: [...ownerIds] }),
+    );
+
+    const asRevoked = await asUser(TEAM_INACTIVE, "authenticated", `select * from public.get_employer_sealed_application_ids()`);
+    check(
+      "a revoked team member sees nothing (their team_members row is 'revoked', not 'active')",
+      asRevoked.ok && asRevoked.rows.length === 0,
+      JSON.stringify(asRevoked),
+    );
+
+    const asStranger = await asUser(STRANGER, "authenticated", `select * from public.get_employer_sealed_application_ids()`);
+    check(
+      "a stranger who owns no jobs sees an empty set, not an error -- this is caller-scoped, not job-scoped",
+      asStranger.ok && asStranger.rows.length === 0,
+      JSON.stringify(asStranger),
+    );
+
+    const asOtherEmployer = await asUser(EMP_2, "authenticated", `select * from public.get_employer_sealed_application_ids()`);
+    check(
+      "an unrelated employer (owns JOB_2, 0 applicants) never sees JOB_SEALED's ids",
+      asOtherEmployer.ok && asOtherEmployer.rows.every((r) => !ownerIds.has(r.application_id)),
+      JSON.stringify(asOtherEmployer),
+    );
+
+    const asAnon = await asUser(null, "anon", `select * from public.get_employer_sealed_application_ids()`);
+    check(
+      "anon cannot call it at all (revoked, unlike get_billing_flags)",
+      !asAnon.ok,
+      JSON.stringify(asAnon),
+    );
+
+    await asPostgres(`update public.app_settings set value = 'false'::jsonb where key = 'billing_enabled'`);
   }
 
   console.log(`\n${passed} passed, ${failed} failed.`);

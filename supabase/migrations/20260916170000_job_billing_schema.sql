@@ -28,15 +28,25 @@
 --     in code: check-applicant-limit never refuses a submission for billing
 --     reasons, ever.
 --   - Voice interviews are billed separately and for real (they cost real
---     OpenAI Realtime minutes): 10 included per job, counted cumulatively
---     from the job's first unlock onward (job_unlock_count(job) > 0), then
---     $2 each via an off-session charge against the card saved during that
---     unlock's Checkout Session. A job that has never been unlocked runs
---     voice interviews unmetered (nothing to charge yet, nothing charged).
---     If an overage charge fails (no saved card, declined, etc.) the
---     interview still proceeds -- a live candidate interview is never
---     blocked by a billing hiccup; the failed charge is left for the
---     employer to see and resolve.
+--     OpenAI Realtime minutes): 10 interviews included PER UNLOCK, exactly
+--     like the applicant allowance's +25-per-unlock -- a HIGH-WATER MARK
+--     that accumulates with every unlock this job has ever completed
+--     (job_voice_included_total(job) = 10 * job_unlock_count(job)) and never
+--     shrinks when a 30-day window lapses. A job re-unlocked for a fresh $49
+--     after its window lapses gets another 10 included interviews on top of
+--     whatever it already used, same as it gets another 25 applicants --
+--     this was an explicit, confirmed decision (2026-09-16) after a review
+--     flagged the earlier "flat 10 forever, never scaling with unlock
+--     count" implementation as contradicting the "PER UNLOCKED JOB" pricing
+--     text; that flat reading is REJECTED. A job that has never been
+--     unlocked runs voice interviews unmetered (nothing to charge yet,
+--     nothing charged), counted cumulatively once unlocked
+--     (job_unlock_count(job) > 0), then $2 each via an off-session charge
+--     against the card saved during that unlock's Checkout Session. If an
+--     overage charge fails (no saved card, declined, etc.) the interview
+--     still proceeds -- a live candidate interview is never blocked by a
+--     billing hiccup; the failed charge is left for the employer to see and
+--     resolve.
 --   - Ava Boost is a separate, per-job, per-purchase flat fee ($79/$149/
 --     $299) with its own authorize-then-capture lifecycle; unrelated to the
 --     unlock/pack allowance above.
@@ -327,8 +337,9 @@ AS $function$
   SELECT public.job_sealed_count(p_job_id) > 0;
 $function$;
 
--- Voice: 10 included per job, counted cumulatively once the job has ever
--- been unlocked; unmetered (unlimited, always "included") before that.
+-- Voice: interviews counted cumulatively once the job has ever been
+-- unlocked; unmetered (unlimited, always "included") before that. How many
+-- of these are included vs billable is job_voice_included_total() below.
 CREATE OR REPLACE FUNCTION public.job_voice_interviews_used(p_job_id uuid)
 RETURNS integer
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
@@ -337,14 +348,29 @@ AS $function$
   WHERE job_id = p_job_id AND status IN ('included', 'charged', 'pending');
 $function$;
 
+-- 10 voice interviews included PER UNLOCKED JOB, per unlock -- a high-water
+-- mark exactly like job_processed_allowance's +25-per-unlock applicants: it
+-- never shrinks when a 30-day window lapses, and a second (re-)unlock adds
+-- another 10 on top of whatever was already used/included, mirroring the
+-- applicant allowance's own +25-per-completed-unlock pattern. See the
+-- migration header and jobBillingPricing.ts's computeVoiceIncludedTotal,
+-- which this must always agree with.
+CREATE OR REPLACE FUNCTION public.job_voice_included_total(p_job_id uuid)
+RETURNS integer
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
+AS $function$
+  SELECT 10 * public.job_unlock_count(p_job_id);
+$function$;
+
 CREATE OR REPLACE FUNCTION public.job_voice_interview_is_billable(p_job_id uuid)
 RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
 AS $function$
   -- Unmetered until the job has ever been unlocked; included for the first
-  -- 10 interviews after that; billable ($2) from interview #11 onward.
+  -- job_voice_included_total() interviews after that (10 per completed
+  -- unlock); billable ($2) once voice_used reaches that total.
   SELECT public.job_unlock_count(p_job_id) > 0
-     AND public.job_voice_interviews_used(p_job_id) >= 10;
+     AND public.job_voice_interviews_used(p_job_id) >= public.job_voice_included_total(p_job_id);
 $function$;
 
 REVOKE ALL ON FUNCTION public.job_unlock_count(uuid) FROM PUBLIC, anon, authenticated;
@@ -355,6 +381,7 @@ REVOKE ALL ON FUNCTION public.job_applicant_count(uuid) FROM PUBLIC, anon, authe
 REVOKE ALL ON FUNCTION public.job_sealed_count(uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.job_is_locked(uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.job_voice_interviews_used(uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.job_voice_included_total(uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.job_voice_interview_is_billable(uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.job_unlock_count(uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.job_active_pack_count(uuid) TO service_role;
@@ -364,6 +391,7 @@ GRANT EXECUTE ON FUNCTION public.job_applicant_count(uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.job_sealed_count(uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.job_is_locked(uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.job_voice_interviews_used(uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION public.job_voice_included_total(uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.job_voice_interview_is_billable(uuid) TO service_role;
 
 -- ---------------------------------------------------------------------
@@ -412,12 +440,12 @@ BEGIN
     public.job_has_active_unlock(p_job_id),
     (SELECT max(ju.expires_at) FROM public.job_unlocks ju WHERE ju.job_id = p_job_id AND ju.status = 'active'),
     public.job_active_pack_count(p_job_id),
-    -- Flat 10 per job, cumulative from first unlock onward -- NOT
-    -- multiplied by how many times the job has been unlocked. Must always
-    -- match the threshold job_voice_interview_is_billable() actually
-    -- enforces (also a flat 10), or this column lies to the employer about
-    -- how many free interviews remain. See the header comment above.
-    10,
+    -- 10 per completed unlock -- a high-water mark, same shape as
+    -- job_processed_allowance's +25-per-unlock. Must always match the
+    -- threshold job_voice_interview_is_billable() actually enforces (both
+    -- call job_voice_included_total()), or this column lies to the employer
+    -- about how many free interviews remain. See the header comment above.
+    public.job_voice_included_total(p_job_id),
     public.job_voice_interviews_used(p_job_id),
     public.job_voice_interview_is_billable(p_job_id);
 END;
@@ -425,6 +453,65 @@ $function$;
 
 REVOKE ALL ON FUNCTION public.get_job_billing_status(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_job_billing_status(uuid) TO authenticated, service_role;
+
+-- ---------------------------------------------------------------------
+-- 4b) get_employer_sealed_application_ids(): the single, authoritative
+--     source of which application ids are currently sealed for the caller,
+--     across every job they own or actively team-member on. No p_job_id --
+--     it derives the caller's own scope from auth.uid(), exactly like
+--     get_billing_flags(), so it's safe to GRANT directly to `authenticated`
+--     and call straight from the client via supabase.rpc(), no edge function
+--     needed (the same pattern useBillingFlags.ts already uses).
+--
+--     Why this exists: a prior review found the employer applicant LIST
+--     (Applicants.tsx) filtering sealed cards out of one component's props,
+--     while the actual data underneath -- useEmployerApplications()'s full
+--     `select("*, jobs!inner(*)")`, the activity feed's own separate
+--     candidate-name query, and the /applicants/:id detail route -- stayed
+--     completely unfiltered: every sealed applicant's real name, AI score,
+--     Ava's analysis, and resume were already in the client's network
+--     response and query cache regardless of which page rendered them, and
+--     several pages (Dashboard's activity feed, Messages, Interviews,
+--     AIShortlistDialog) link straight to /applicants/:id with zero billing
+--     check of their own. Filtering a rendered array can never close that --
+--     only redacting the DATA before it leaves the server can. This
+--     function is the one place that decides "sealed or not", computed the
+--     same way the migration's other entitlement functions already do
+--     (earliest arrivals by created_at fill the allowance first); every
+--     hook that fetches raw application rows (useEmployerApplications,
+--     useActivityFeed) calls it once and redacts by id before returning,
+--     so every consumer of their data -- list, detail route, activity feed,
+--     messages, dashboards -- inherits the same gate for free instead of
+--     needing its own.
+-- ---------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.get_employer_sealed_application_ids()
+RETURNS TABLE(application_id uuid)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
+AS $function$
+  WITH my_jobs AS (
+    SELECT j.id AS job_id, public.job_processed_allowance(j.id) AS allowance
+    FROM public.jobs j
+    WHERE public.is_job_owner(j.id, auth.uid()) OR public.is_active_team_member_for_job(j.id, auth.uid())
+  ),
+  ranked AS (
+    -- Earliest arrivals fill the allowance first -- ties on created_at
+    -- broken by id so this is a deterministic total order, matching
+    -- src/lib/billingVisibility.ts's computeBillingVisibleIds on the client.
+    SELECT a.id, a.job_id,
+           row_number() OVER (PARTITION BY a.job_id ORDER BY a.created_at ASC, a.id ASC) AS rn
+    FROM public.applications a
+    JOIN my_jobs mj ON mj.job_id = a.job_id
+  )
+  SELECT r.id
+  FROM ranked r
+  JOIN my_jobs mj ON mj.job_id = r.job_id
+  WHERE coalesce((SELECT (s.value #>> '{}')::boolean FROM public.app_settings s WHERE s.key = 'billing_enabled'), false)
+    AND r.rn > mj.allowance;
+$function$;
+
+REVOKE ALL ON FUNCTION public.get_employer_sealed_application_ids() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_employer_sealed_application_ids() TO authenticated, service_role;
 
 -- ---------------------------------------------------------------------
 -- 5) A Stripe customer's saved payment method, for the $2 voice overage

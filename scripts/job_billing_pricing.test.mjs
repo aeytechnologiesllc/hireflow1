@@ -21,6 +21,7 @@ import {
   computeProcessedAllowance,
   computeSealedCount,
   isJobLocked,
+  computeVoiceIncludedTotal,
   isNextVoiceInterviewBillable,
   unlockExpiresAt,
   boostHoldExpiresAt,
@@ -67,6 +68,13 @@ check(
 );
 check("applicant count never negative-seals", computeSealedCount({ applicantCount: 0, allowance: 28 }) === 0);
 
+console.log("\n-- voice included total (high-water mark, 10 per completed unlock) --");
+check("never unlocked -> 0 included (but unmetered, not capped -- see billability below)", computeVoiceIncludedTotal({ completedUnlockCount: 0 }) === 0);
+check("1 completed unlock -> 10 included", computeVoiceIncludedTotal({ completedUnlockCount: 1 }) === 10);
+check("2 completed unlocks (re-unlocked once) -> 20 included, not still 10", computeVoiceIncludedTotal({ completedUnlockCount: 2 }) === 20);
+check("3 completed unlocks (re-unlocked twice) -> 30 included, not still 10", computeVoiceIncludedTotal({ completedUnlockCount: 3 }) === 30);
+check("negative/garbage input floors at zero", computeVoiceIncludedTotal({ completedUnlockCount: -5 }) === 0);
+
 console.log("\n-- voice interview billability --");
 check("never unlocked -> unmetered even after 50 prior interviews", !isNextVoiceInterviewBillable({ completedUnlockCount: 0, priorSettledInterviewCount: 50 }));
 check("unlocked, interview #1 (0 prior) -> included", !isNextVoiceInterviewBillable({ completedUnlockCount: 1, priorSettledInterviewCount: 0 }));
@@ -74,13 +82,19 @@ check("unlocked, interview #10 (9 prior) -> still included", !isNextVoiceIntervi
 check("unlocked, interview #11 (10 prior) -> billable", isNextVoiceInterviewBillable({ completedUnlockCount: 1, priorSettledInterviewCount: 10 }));
 check("unlocked, interview #12 (11 prior) -> still billable", isNextVoiceInterviewBillable({ completedUnlockCount: 1, priorSettledInterviewCount: 11 }));
 
-// Regression: the threshold is flat 10 per job, never 10 * completedUnlockCount
-// -- a re-unlock (completedUnlockCount going 1 -> 2 -> 3...) must not move
-// the goalposts. This is the JS twin of the SQL proof in
-// scripts/job_billing_schema.pglite.test.mjs section (6b) "second unlock".
-check("re-unlocked once (2 completed), interview #10 (9 prior) -> still included, not 20", !isNextVoiceInterviewBillable({ completedUnlockCount: 2, priorSettledInterviewCount: 9 }));
-check("re-unlocked once (2 completed), interview #11 (10 prior) -> billable at the SAME flat 10, not 20", isNextVoiceInterviewBillable({ completedUnlockCount: 2, priorSettledInterviewCount: 10 }));
-check("re-unlocked twice (3 completed), interview #11 (10 prior) -> still billable at flat 10, not 30", isNextVoiceInterviewBillable({ completedUnlockCount: 3, priorSettledInterviewCount: 10 }));
+// Confirmed 2026-09-16 resolution: the threshold is 10 * completedUnlockCount
+// (a high-water mark, same shape as computeProcessedAllowance's
+// +25-per-unlock) -- a re-unlock (completedUnlockCount going 1 -> 2 -> 3...)
+// DOES move the goalposts, adding another 10 included interviews each time.
+// The earlier "flat 10 forever" reading was reviewed and rejected as
+// contradicting the decided pricing's "10 included PER UNLOCKED JOB". This
+// is the JS twin of the SQL proof in scripts/job_billing_schema.pglite.test.mjs
+// section (6b) "second unlock".
+check("re-unlocked once (2 completed), interview #11 (10 prior) -> still included, not billable (10 < 20)", !isNextVoiceInterviewBillable({ completedUnlockCount: 2, priorSettledInterviewCount: 10 }));
+check("re-unlocked once (2 completed), interview #20 (19 prior) -> still included", !isNextVoiceInterviewBillable({ completedUnlockCount: 2, priorSettledInterviewCount: 19 }));
+check("re-unlocked once (2 completed), interview #21 (20 prior) -> billable at 20, not 10", isNextVoiceInterviewBillable({ completedUnlockCount: 2, priorSettledInterviewCount: 20 }));
+check("re-unlocked twice (3 completed), interview #30 (29 prior) -> still included at 30", !isNextVoiceInterviewBillable({ completedUnlockCount: 3, priorSettledInterviewCount: 29 }));
+check("re-unlocked twice (3 completed), interview #31 (30 prior) -> billable at 30, not 10", isNextVoiceInterviewBillable({ completedUnlockCount: 3, priorSettledInterviewCount: 30 }));
 
 console.log("\n-- unlock / boost hold expiry math --");
 {

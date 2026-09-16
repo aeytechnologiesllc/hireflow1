@@ -847,6 +847,18 @@ export default function CockpitApplicants() {
   // that hasn't finished loading its billing status never has cards
   // incorrectly hidden or shown; the SealedApplicantsCard's own count comes
   // straight from the server regardless.
+  //
+  // This is a UI-only, single-job-view gate on top of a data-level one: a
+  // sealed applicant's actual name/AI score/analysis/resume are ALREADY
+  // redacted at the source by useEmployerApplications
+  // (src/lib/billingVisibility.ts's redactSealedApplication, driven by
+  // get_employer_sealed_application_ids()) before `candidates`/`applications`
+  // above ever see them — that's what keeps the default "Applicants" nav
+  // view (no ?roleId=, so this is null and rows aren't removed) from leaking
+  // real value even though it renders a "Sealed applicant" placeholder card
+  // instead of hiding the row outright. This roleId-scoped gate only adds
+  // the nicer single-job UX of removing the row entirely in favor of
+  // SealedApplicantsCard's "N more waiting" summary.
   const billingVisibleIds = useMemo(() => {
     if (!roleIdFilter) return null;
     const entries = roleScoped.map((c) => ({ id: c.id, createdAt: appById[c.id]?.created_at ?? "" }));

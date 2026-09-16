@@ -65,11 +65,31 @@ export function isJobLocked(input: { applicantCount: number; allowance: number }
 }
 
 /**
+ * A job's voice-interview allowance: 10 included per completed unlock — a
+ * high-water mark with exactly the same shape as computeProcessedAllowance's
+ * +25-per-unlock (never shrinks when a 30-day window lapses; a re-unlock
+ * adds another 10 on top of whatever was already used). Zero before the
+ * job's first unlock, but that case runs unmetered (see
+ * isNextVoiceInterviewBillable) rather than being capped at zero.
+ *
+ * This is the confirmed (2026-09-16) resolution of "10 voice interviews
+ * included PER UNLOCKED JOB": PER unlock, not a flat 10 for the job's whole
+ * lifetime — the flat reading a prior pass shipped was reviewed and
+ * rejected as contradicting that pricing text. Must always match
+ * job_voice_included_total() in 20260916170000_job_billing_schema.sql.
+ */
+export function computeVoiceIncludedTotal(input: { completedUnlockCount: number }): number {
+  const unlocks = Math.max(0, Math.trunc(input.completedUnlockCount || 0));
+  return UNLOCK_INCLUDED_VOICE_INTERVIEWS * unlocks;
+}
+
+/**
  * Whether the NEXT voice interview for this job would be a billable ($2)
- * overage rather than one of the 10 included. Unmetered (never billable)
+ * overage rather than one of the included ones. Unmetered (never billable)
  * until the job has completed its first unlock — see the migration header's
  * "processed vs sealed is a visibility gate, voice is billed for real"
- * distinction.
+ * distinction. Once unlocked, included/billable is decided against
+ * computeVoiceIncludedTotal(), not a flat constant.
  */
 export function isNextVoiceInterviewBillable(input: {
   completedUnlockCount: number;
@@ -77,7 +97,8 @@ export function isNextVoiceInterviewBillable(input: {
 }): boolean {
   const everUnlocked = Math.max(0, Math.trunc(input.completedUnlockCount || 0)) > 0;
   if (!everUnlocked) return false;
-  return Math.max(0, Math.trunc(input.priorSettledInterviewCount || 0)) >= UNLOCK_INCLUDED_VOICE_INTERVIEWS;
+  const included = computeVoiceIncludedTotal(input);
+  return Math.max(0, Math.trunc(input.priorSettledInterviewCount || 0)) >= included;
 }
 
 export function unlockExpiresAt(unlockedAt: Date | string, now: Date = new Date()): Date {

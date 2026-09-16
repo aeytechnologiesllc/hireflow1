@@ -11,6 +11,8 @@ import {
   notifyPhaseAdvanced,
   notifyPhaseCompleted,
 } from "@/utils/emailNotifications";
+import { fetchEmployerSealedApplicationIds } from "@/lib/sealedApplicationIds";
+import { redactSealedApplications } from "@/lib/billingVisibility";
 
 export type Application = Tables<"applications">;
 export type ApplicationInsert = TablesInsert<"applications">;
@@ -165,10 +167,22 @@ export function useEmployerApplications() {
       // Map profiles to applications
       const profileMap = new Map(profiles?.map((p) => [p.user_id, p]) || []);
 
-      return filtered.map((app) => ({
+      const withProfiles = filtered.map((app) => ({
         ...app,
         profiles: profileMap.get(app.candidate_id) || null,
       })) as ApplicationWithCandidate[];
+
+      // Billing paywall — redact, don't just filter. get_employer_sealed_application_ids()
+      // is the one server-side source of truth for which of these ids are
+      // currently sealed (billing off or nothing locked => empty set, so this
+      // is a no-op on the free tier). Every consumer of useEmployerApplications
+      // (Applicants.tsx, CandidateDetail, Messages, Interviews, Dashboard,
+      // AIShortlistDialog — anything downstream of useCockpitCandidates) gets
+      // this for free instead of needing its own billing check. See
+      // src/lib/billingVisibility.ts's redactSealedApplication for exactly
+      // what gets blanked.
+      const sealedIds = await fetchEmployerSealedApplicationIds(supabase);
+      return redactSealedApplications(withProfiles, sealedIds);
     },
     enabled: !!user && mode === "hireflow1",
   });

@@ -1,51 +1,81 @@
 /**
- * get_job_billing_status()'s voice_included_total column must always be the
- * SAME flat, per-job constant that job_voice_interview_is_billable() itself
- * enforces as the free-interview threshold — never multiplied by how many
- * times the job has been unlocked.
+ * get_job_billing_status()'s voice_included_total column and
+ * job_voice_interview_is_billable()'s free-interview threshold must both
+ * read through the SAME function, job_voice_included_total(p_job_id) — never
+ * a bare literal or an inline expression duplicated in two places — so they
+ * can never quietly drift apart. And that shared function must scale PER
+ * unlock (10 * job_unlock_count), not be pinned to a flat constant.
  *
- * Regression this guards: this migration (originally filed as
+ * History: this migration (originally filed as
  * 20260916160000_job_billing_schema.sql, renamed to 20260916170000 to run
  * after fix/w1-coaching-report's same-day 20260916160000 migration)
- * originally computed voice_included_total as
- * `10 * greatest(1, job_unlock_count(job))`,
- * while job_voice_interview_is_billable() (same file) and its JS twin
- * isNextVoiceInterviewBillable() (_shared/jobBillingPricing.ts,
- * UNLOCK_INCLUDED_VOICE_INTERVIEWS = 10) both cap free voice interviews at a
- * FLAT 10 per job, forever — per the migration's own header comment ("10
- * included per job, counted cumulatively from the job's first unlock
- * onward"). A job unlocked a second time (job_unlock_count=2, which
- * unlock-job-checkout allows — there is no guard against re-unlocking, and
- * the header comment describes re-unlocking after the window lapses as the
- * intended way to buy more capacity) would report voice_included_total=20 to
- * the employer while the very next interview past #10 is still charged $2 —
- * a wrong balance shown to a paying customer. Runtime proof of the same
- * thing lives in scripts/job_billing_schema.pglite.test.mjs ("voice_included
- * _total stays flat across a second unlock"); this is the cheap static
- * backstop so the multiplication can't quietly come back.
+ * first shipped voice_included_total as `10 * greatest(1, job_unlock_count(job))`
+ * while job_voice_interview_is_billable() capped free interviews at a flat
+ * 10 forever — a wrong balance shown to a paying customer. A later pass
+ * "fixed" that by pinning BOTH sides to a flat 10, which was then reviewed
+ * and rejected: the decided pricing text is "10 voice interviews included
+ * PER UNLOCKED JOB", i.e. per unlock, exactly like the applicant allowance's
+ * own +25-per-completed-unlock high-water mark
+ * (job_processed_allowance/computeProcessedAllowance). The confirmed
+ * (2026-09-16) resolution is job_voice_included_total(job) =
+ * 10 * job_unlock_count(job), consumed by both get_job_billing_status() and
+ * job_voice_interview_is_billable() so they cannot disagree about how many
+ * free interviews remain. Runtime proof lives in
+ * scripts/job_billing_schema.pglite.test.mjs (section 6b: first unlock,
+ * second unlock, overlapping pack, expiry) and
+ * scripts/job_billing_pricing.test.mjs (computeVoiceIncludedTotal /
+ * isNextVoiceInterviewBillable); this is the cheap static backstop so
+ * either a hardcoded flat constant or a re-duplicated expression can't
+ * quietly come back.
  */
 
 const MIGRATION = "supabase/migrations/20260916170000_job_billing_schema.sql";
 
 export default [
   {
-    id: "voice-included-total-matches-flat-billable-threshold",
+    id: "voice-included-total-matches-billable-threshold",
     why:
-      "get_job_billing_status()'s voice_included_total must be the exact same bare, flat constant that " +
-      "job_voice_interview_is_billable() compares job_voice_interviews_used() against — not multiplied by " +
-      "job_unlock_count or anything else — or the UI tells the employer a different number of free voice " +
-      "interviews remain than the billing code actually honors.",
+      "get_job_billing_status()'s voice_included_total and job_voice_interview_is_billable()'s free-interview " +
+      "threshold must both call the single shared public.job_voice_included_total(p_job_id) function (10 per " +
+      "completed unlock, a high-water mark like the applicant allowance) — not a bare literal, not a re-duplicated " +
+      "expression, and not a flat per-job constant — or the UI can tell the employer a different number of free " +
+      "voice interviews remain than the billing code actually honors.",
     run: async ({ read }) => {
       const src = await read(MIGRATION);
       if (src == null) return { ok: false, detail: [`${MIGRATION} is missing`] };
       const bad = [];
 
-      const thresholdMatch = src.match(/job_voice_interviews_used\(p_job_id\)\s*>=\s*(\d+)/);
-      if (!thresholdMatch) {
-        bad.push("could not find job_voice_interview_is_billable()'s `job_voice_interviews_used(p_job_id) >= N` threshold — check this guard still matches the function");
+      const definitionMatch = src.match(
+        /CREATE OR REPLACE FUNCTION public\.job_voice_included_total\(p_job_id uuid\)[\s\S]*?AS \$function\$([\s\S]*?)\$function\$;/,
+      );
+      if (!definitionMatch) {
+        bad.push("could not find public.job_voice_included_total(p_job_id) — the shared per-unlock voice allowance function must exist");
         return { ok: false, detail: bad };
       }
-      const threshold = thresholdMatch[1];
+      const definitionBody = definitionMatch[1]
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0 && !line.startsWith("--"))
+        .join(" ");
+      if (!/^SELECT\s+10\s*\*\s*public\.job_unlock_count\(p_job_id\);?$/i.test(definitionBody)) {
+        bad.push(
+          `job_voice_included_total(p_job_id) is defined as \`${definitionBody}\`, not \`SELECT 10 * public.job_unlock_count(p_job_id);\` — ` +
+          "10 included interviews must scale per completed unlock (the confirmed 2026-09-16 decision), not be pinned to a flat per-job constant",
+        );
+      }
+
+      const thresholdMatch = src.match(/job_voice_interviews_used\(p_job_id\)\s*>=\s*([^;]+?);/);
+      if (!thresholdMatch) {
+        bad.push("could not find job_voice_interview_is_billable()'s `job_voice_interviews_used(p_job_id) >= ...` threshold — check this guard still matches the function");
+        return { ok: false, detail: bad };
+      }
+      const threshold = thresholdMatch[1].trim();
+      if (threshold !== "public.job_voice_included_total(p_job_id)") {
+        bad.push(
+          `job_voice_interview_is_billable()'s threshold is \`${threshold}\`, not \`public.job_voice_included_total(p_job_id)\` -- ` +
+          "it must read through the shared function so a re-unlocked job's balance and its actual charging never disagree",
+        );
+      }
 
       const startNeedle = "public.job_active_pack_count(p_job_id),";
       const endNeedle = "public.job_voice_interviews_used(p_job_id),";
@@ -63,11 +93,10 @@ export default [
         .filter((line) => line.length > 0 && !line.startsWith("--"))
         .join(" ");
 
-      if (code !== `${threshold},`) {
+      if (code !== "public.job_voice_included_total(p_job_id),") {
         bad.push(
-          `voice_included_total's expression is \`${code || "(empty)"}\`, not the bare flat constant \`${threshold},\` that ` +
-          `job_voice_interview_is_billable()'s own threshold uses — if this multiplies by job_unlock_count (or anything else), ` +
-          "a re-unlocked job will show a free-interview balance that contradicts what actually gets charged",
+          `voice_included_total's expression in get_job_billing_status() is \`${code || "(empty)"}\`, not \`public.job_voice_included_total(p_job_id),\` -- ` +
+          "it must call the same shared function job_voice_interview_is_billable() uses, or a re-unlocked job's shown balance can drift from what actually gets charged",
         );
       }
 
