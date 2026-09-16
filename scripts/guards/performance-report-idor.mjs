@@ -81,8 +81,19 @@ export default [
       if (!/blueprint_purchases/.test(src)) {
         bad.push("no blueprint_purchases lookup -- candidate path isn't gated on payment");
       }
-      if (!/team_members/.test(src)) {
-        bad.push("no team_members lookup -- employer-side access excludes active team members");
+      if (!/is_active_team_member_for_job/.test(src)) {
+        bad.push(
+          "no is_active_team_member_for_job(...) call -- employer-side access must be scoped to THIS " +
+          "job the same way the live RLS policy on applications scopes it (assigned_job_ids), not a " +
+          "plain team_members row check by employer_id alone"
+        );
+      }
+      if (/\.from\(['"]team_members['"]\)/.test(src)) {
+        bad.push(
+          "querying team_members directly re-implements the job-scoping rule and risks missing " +
+          "assigned_job_ids -- call the is_active_team_member_for_job(...) RPC (same function the " +
+          "applications RLS policy uses) instead"
+        );
       }
       if (!/canAccessPerformanceReport\(/.test(src.slice(src.indexOf("blueprint_purchases")))) {
         bad.push("canAccessPerformanceReport(...) is not called after the ownership lookups");

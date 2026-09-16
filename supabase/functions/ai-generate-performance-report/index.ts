@@ -93,16 +93,22 @@ serve(async (req) => {
     const isCandidateOwner = candidateApp.candidate_id === requestingUser.id;
     const isEmployerOwner = !!employerId && employerId === requestingUser.id;
 
-    const [{ data: teamMembership }, { data: blueprintPurchase }] = await Promise.all([
+    // Team-member access must be scoped to THIS job the same way the live
+    // RLS policy on `applications` scopes it ("Team members can view
+    // applications for assigned jobs" -> is_active_team_member_for_job),
+    // whose definition requires assigned_job_ids to be null (whole-employer
+    // access) OR contain this job's id. A plain team_members row check
+    // (user_id + employer_id + active) would grant a team member scoped to
+    // other jobs access to this candidate's report -- call the same
+    // SECURITY DEFINER function the RLS policy uses instead of
+    // re-implementing the scoping rule here.
+    const [{ data: isScopedTeamMember }, { data: blueprintPurchase }] = await Promise.all([
       !isCandidateOwner && !isEmployerOwner && employerId
-        ? supabase
-            .from('team_members')
-            .select('id')
-            .eq('user_id', requestingUser.id)
-            .eq('employer_id', employerId)
-            .eq('status', 'active')
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
+        ? supabaseUserClient.rpc('is_active_team_member_for_job', {
+            p_job_id: candidateApp.job_id,
+            p_user_id: requestingUser.id,
+          })
+        : Promise.resolve({ data: false }),
       isCandidateOwner
         ? supabase
             .from('blueprint_purchases')
@@ -113,7 +119,7 @@ serve(async (req) => {
         : Promise.resolve({ data: null }),
     ]);
 
-    const isEmployerSide = isEmployerOwner || !!teamMembership;
+    const isEmployerSide = isEmployerOwner || !!isScopedTeamMember;
     const hasPurchasedBlueprint = isCandidateOwner && !!blueprintPurchase;
 
     if (!canAccessPerformanceReport({ isCandidateOwner, hasPurchasedBlueprint, isEmployerSide })) {
