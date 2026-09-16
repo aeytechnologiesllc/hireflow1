@@ -422,7 +422,7 @@ export function useVideoInterviewRecorder({ applicationId, audioOnly = false }: 
       micLevels: [0, 0, 0, 0, 0],
       isAudioOnly: audioOnly,
     });
-  }, [stopMicMonitoring]);
+  }, [stopMicMonitoring, audioOnly]);
 
   // Get preview stream (for displaying video before/during recording)
   const getPreviewStream = useCallback(() => {

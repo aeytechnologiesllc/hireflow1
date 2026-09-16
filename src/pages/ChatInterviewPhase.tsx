@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
@@ -165,7 +165,7 @@ export default function ChatInterviewPhase() {
   }, [messages, isTyping]);
 
   // Log anti-cheat violation
-  const logViolation = (type: AntiCheatViolation['type'], details: string) => {
+  const logViolation = useCallback((type: AntiCheatViolation['type'], details: string) => {
     if (state === "interviewing") {
       setViolations(prev => [...prev, {
         type,
@@ -173,7 +173,7 @@ export default function ChatInterviewPhase() {
         details,
       }]);
     }
-  };
+  }, [state]);
 
   // Anti-cheat: Blur content when page loses focus
   useEffect(() => {
@@ -201,7 +201,78 @@ export default function ChatInterviewPhase() {
       window.removeEventListener("blur", handleBlur);
       window.removeEventListener("focus", handleFocus);
     };
-  }, [state]);
+  }, [state, logViolation]);
+
+  // Format elapsed time for display
+  const getDuration = useCallback(() => {
+    const mins = Math.floor(elapsedTime / 60);
+    const secs = elapsedTime % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }, [elapsedTime]);
+
+  // Extract candidate context from application notes
+  const buildCandidateContext = useCallback(() => {
+    if (!application) return undefined;
+
+    const notes = parseApplicationNotes(application.notes);
+    const context: any = {
+      completedPhases: [] as string[],
+    };
+
+    // Extract application answers
+    if (notes.applicationAnswers) {
+      context.applicationAnswers = notes.applicationAnswers;
+    }
+
+    // Extract resume analysis
+    if (notes.resumeAnalysis) {
+      context.resumeAnalysis = notes.resumeAnalysis;
+    }
+
+    // Extract quiz results
+    if (notes.quizResult) {
+      context.quizScore = notes.quizResult.score;
+      context.quizSummary = notes.quizResult.correct != null
+        ? `${notes.quizResult.correct}/${notes.quizResult.total} correct`
+        : undefined;
+      context.completedPhases.push('Quiz');
+    }
+
+    // Extract typing test results
+    if (notes.typingTestResult) {
+      context.typingTestResult = {
+        wpm: notes.typingTestResult.wpm,
+        accuracy: notes.typingTestResult.accuracy,
+      };
+      context.completedPhases.push('Typing Test');
+    }
+
+    // Extract chat simulation results
+    if (notes.chatSimulationResult) {
+      context.chatSimulationResult = {
+        score: notes.chatSimulationResult.score,
+        summary: notes.chatSimulationResult.recommendation || 'Completed',
+      };
+      context.completedPhases.push('Chat Simulation');
+    }
+
+    // Extract sales simulation results
+    if (notes.salesSimulationResult) {
+      context.salesSimulationResult = {
+        score: notes.salesSimulationResult.score,
+        summary: notes.salesSimulationResult.recommendation || 'Completed',
+      };
+      context.completedPhases.push('Sales Simulation');
+    }
+
+    // Extract video intro URL
+    if (notes.videoIntroUrl) {
+      context.videoIntroUrl = notes.videoIntroUrl;
+      context.completedPhases.push('Video Introduction');
+    }
+
+    return context;
+  }, [application]);
 
   // Auto-end interview when closing message is detected
   useEffect(() => {
@@ -274,83 +345,17 @@ export default function ChatInterviewPhase() {
       };
       runSubmit();
     }
-  }, [autoEndTriggered]);
+    // Safe to depend on all of these despite how often several of them
+    // change (messages/violations especially): `autoEndTriggered` is reset
+    // to false as the very first thing this body does once it runs, so a
+    // re-fire caused by any of the other deps hits that guard and no-ops
+    // instead of resubmitting.
+  }, [autoEndTriggered, application, buildCandidateContext, getDuration, id, messages, navigate, queryClient, questionCount, state, stepId, violations]);
 
   // Where the candidate is in the whole journey — derived from the job's real
   // workflow_steps via the shared candidateJourney builder, so this screen
   // agrees with every other candidate screen. Never invented.
   const journeyStep = useJourneyPosition(application?.jobs, { stepId, phase: application?.phase });
-
-  // Format elapsed time for display
-  const getDuration = () => {
-    const mins = Math.floor(elapsedTime / 60);
-    const secs = elapsedTime % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Extract candidate context from application notes
-  const buildCandidateContext = () => {
-    if (!application) return undefined;
-    
-    const notes = parseApplicationNotes(application.notes);
-    const context: any = {
-      completedPhases: [] as string[],
-    };
-
-    // Extract application answers
-    if (notes.applicationAnswers) {
-      context.applicationAnswers = notes.applicationAnswers;
-    }
-
-    // Extract resume analysis
-    if (notes.resumeAnalysis) {
-      context.resumeAnalysis = notes.resumeAnalysis;
-    }
-
-    // Extract quiz results
-    if (notes.quizResult) {
-      context.quizScore = notes.quizResult.score;
-      context.quizSummary = notes.quizResult.correct != null
-        ? `${notes.quizResult.correct}/${notes.quizResult.total} correct`
-        : undefined;
-      context.completedPhases.push('Quiz');
-    }
-
-    // Extract typing test results
-    if (notes.typingTestResult) {
-      context.typingTestResult = {
-        wpm: notes.typingTestResult.wpm,
-        accuracy: notes.typingTestResult.accuracy,
-      };
-      context.completedPhases.push('Typing Test');
-    }
-
-    // Extract chat simulation results
-    if (notes.chatSimulationResult) {
-      context.chatSimulationResult = {
-        score: notes.chatSimulationResult.score,
-        summary: notes.chatSimulationResult.recommendation || 'Completed',
-      };
-      context.completedPhases.push('Chat Simulation');
-    }
-
-    // Extract sales simulation results
-    if (notes.salesSimulationResult) {
-      context.salesSimulationResult = {
-        score: notes.salesSimulationResult.score,
-        summary: notes.salesSimulationResult.recommendation || 'Completed',
-      };
-      context.completedPhases.push('Sales Simulation');
-    }
-
-    // Extract video intro URL
-    if (notes.videoIntroUrl) {
-      context.videoIntroUrl = notes.videoIntroUrl;
-      context.completedPhases.push('Video Introduction');
-    }
-
-    return context;
-  };
 
   const streamChat = async (mode: "start" | "respond", userMessage?: string) => {
     if (!application?.jobs) return;

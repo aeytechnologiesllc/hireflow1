@@ -347,10 +347,17 @@ export default function ApplicationFormPhase() {
     };
   }, [id, queryClient]);
 
-  // Get questions from job
-  const questions: ApplicationQuestion[] = Array.isArray(application?.jobs?.application_questions)
-    ? (application.jobs.application_questions as ApplicationQuestion[])
-    : [];
+  // Get questions from job — memoized so its reference is stable across
+  // renders (the ternary below built a new array/fallback every render,
+  // which made the prefill effect further down think its `questions` dep
+  // had changed and re-run on every render, not just when the data did).
+  const questions: ApplicationQuestion[] = useMemo(
+    () =>
+      Array.isArray(application?.jobs?.application_questions)
+        ? (application.jobs.application_questions as ApplicationQuestion[])
+        : [],
+    [application?.jobs?.application_questions],
+  );
 
   const requiresResume = application?.jobs?.require_resume !== false;
   const hasQuestions = questions.length > 0;
@@ -360,15 +367,18 @@ export default function ApplicationFormPhase() {
   // Same predicate validateForm uses to find a resume-type file question —
   // kept in one place so the live-clearing helpers below can't drift from
   // what submit-time validation considers "answered".
-  const findResumeFileQuestion = () =>
-    questions.find(
-      (q) =>
-        normalizeQuestionType(q.type) === "file" &&
-        (q.question.toLowerCase().includes("resume") ||
-          q.question.toLowerCase().includes("cv") ||
-          q.question.toLowerCase().includes("curriculum") ||
-          q.id.toLowerCase().includes("resume")),
-    );
+  const findResumeFileQuestion = useCallback(
+    () =>
+      questions.find(
+        (q) =>
+          normalizeQuestionType(q.type) === "file" &&
+          (q.question.toLowerCase().includes("resume") ||
+            q.question.toLowerCase().includes("cv") ||
+            q.question.toLowerCase().includes("curriculum") ||
+            q.id.toLowerCase().includes("resume")),
+      ),
+    [questions],
+  );
 
   // The dedicated Resume field carries its own validationErrors.resume
   // entry, set only inside validateForm() on submit. Left alone, it never
@@ -376,20 +386,20 @@ export default function ApplicationFormPhase() {
   // the red "add your resume" warning until they hit Continue a second
   // time. These two helpers keep that one entry in sync with what's
   // actually attached, without touching how validateForm decides pass/fail.
-  const clearResumeError = () => {
+  const clearResumeError = useCallback(() => {
     setValidationErrors((prev) => {
       if (!prev.resume) return prev;
       const next = { ...prev };
       delete next.resume;
       return next;
     });
-  };
+  }, []);
 
   // `overrides` covers the state setters just called alongside this in the
   // same click handler — their new value hasn't landed in this render's
   // closure yet, so callers that just flipped one of these pass the value
   // they set instead of letting this read the stale one.
-  const markResumeMissingIfNoOtherSource = (overrides?: { usingProfileResume?: boolean }) => {
+  const markResumeMissingIfNoOtherSource = useCallback((overrides?: { usingProfileResume?: boolean }) => {
     if (!requiresResume) return;
     const hasValidApplicationResume = isSupportedResumeUrl(application?.resume_url);
     const resumeFileQuestion = findResumeFileQuestion();
@@ -399,7 +409,7 @@ export default function ApplicationFormPhase() {
     setValidationErrors((prev) =>
       prev.resume === RESUME_REQUIRED_MESSAGE ? prev : { ...prev, resume: RESUME_REQUIRED_MESSAGE },
     );
-  };
+  }, [requiresResume, application?.resume_url, findResumeFileQuestion, answers, usingProfileResume]);
 
   // Same idea as the resume helpers above, generalized to every other
   // validationErrors entry (per-question required/email checks, and
@@ -607,27 +617,7 @@ export default function ApplicationFormPhase() {
     }
   }, [profile, questions, hasPrefilledFromProfile, alreadySubmitted, application?.resume_url, resumeFile, questionFileUrls]);
 
-  // File upload handlers
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      handleFileSelect(files[0]);
-    }
-  }, []);
-
-  const handleFileSelect = async (file: File) => {
+  const handleFileSelect = useCallback(async (file: File) => {
     if (!isSupportedResumeFile(file)) {
       toast.error(`That file type won't work — please upload a ${RESUME_FORMATS_LABEL}.`);
       return;
@@ -707,7 +697,27 @@ export default function ApplicationFormPhase() {
     } finally {
       setIsUploading(false);
     }
-  };
+  }, [id, user?.id, clearResumeError, getLatestStoredNotes, updateApplication, markResumeMissingIfNoOtherSource]);
+
+  // File upload handlers
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      handleFileSelect(files[0]);
+    }
+  }, [handleFileSelect]);
 
   // Question file upload handlers - supports PDFs, docs, and images
   const handleQuestionFileSelect = async (file: File, questionId: string) => {

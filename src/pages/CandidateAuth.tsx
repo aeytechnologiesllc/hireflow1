@@ -226,7 +226,7 @@ export default function CandidateAuth() {
     });
 
     return () => subscription.unsubscribe();
-  }, [searchParams]);
+  }, [searchParams, isResetMode]);
 
   const handleSetNewPassword = async (e: React.FormEvent) => {
     e.preventDefault();
