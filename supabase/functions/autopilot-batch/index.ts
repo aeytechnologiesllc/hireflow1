@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { resolveAutopilotAction } from "../_shared/autopilot.ts";
+import { resolveAutopilotAction, type AvaScorecard } from "../_shared/autopilot.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,6 +14,15 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
   );
 }
 
+/** The subset of trigger-ava-analysis's JSON response this function reads. */
+interface AutopilotDecisionData {
+  scorecard?: AvaScorecard | null;
+  score?: number | null;
+  decision?: string | null;
+  nextPhaseId?: string | null;
+  nextPhaseTitle?: string | null;
+}
+
 async function invokeTriggerAvaAnalysis(params: {
   supabaseUrl: string;
   anonKey: string;
@@ -23,7 +32,10 @@ async function invokeTriggerAvaAnalysis(params: {
   force: boolean;
   autopilotDecision: boolean;
   previewOnly: boolean;
-}) {
+}): Promise<
+  | { data: AutopilotDecisionData | null; error: null }
+  | { data: null; error: { message: string; status: number; body: unknown } }
+> {
   const response = await fetch(`${params.supabaseUrl}/functions/v1/trigger-ava-analysis`, {
     method: "POST",
     headers: {
@@ -68,7 +80,11 @@ async function invokeTriggerAvaAnalysis(params: {
   }
 
   return {
-    data: parsedBody,
+    // A 2xx from our own trigger-ava-analysis; trust its documented shape
+    // here at the HTTP boundary rather than leaving every caller on
+    // `unknown` — every field below is already read through `?.`, so a
+    // genuinely empty body (data stays `null`) still resolves the same way.
+    data: parsedBody as AutopilotDecisionData | null,
     error: null,
   };
 }
@@ -309,12 +325,12 @@ serve(async (req) => {
         continue;
       }
 
-      const scorecard = (decisionData?.scorecard || null) as Record<string, any> | null;
+      const scorecard = decisionData?.scorecard || null;
       const decisionState = scorecard?.decisionState || "ready_for_decision";
       const autopilotAction = resolveAutopilotAction(
         typeof decisionData?.score === "number" ? decisionData.score : application.ai_score,
         passingScore,
-        scorecard as any,
+        scorecard,
       );
       const needsEmployerReview = decisionData?.decision === "needs_employer_approval"
         || (!decisionData?.nextPhaseId && autopilotAction !== "reject");

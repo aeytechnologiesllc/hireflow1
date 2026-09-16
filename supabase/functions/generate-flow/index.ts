@@ -7,7 +7,6 @@
  *
  * NOTE (pre-launch): deployed with verify_jwt=false for demo. Gate behind auth + rate-limit before launch.
  */
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 type RigorKey = "easy" | "medium" | "hard";

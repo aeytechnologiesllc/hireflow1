@@ -1,6 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   callOpenAIChat,
   callOpenAIJson,
@@ -898,7 +898,12 @@ Provide:
 Be thorough but concise in your analysis.`,
 };
 
-type AdminClient = ReturnType<typeof createClient>;
+// Not `ReturnType<typeof createClient>`: createClient is overloaded, and
+// ReturnType of an overloaded function type resolves against its LAST
+// signature — which, on the current @2 (floating) resolution, has stricter
+// generic defaults than the plain 2-argument call below actually returns.
+// SupabaseClient<any, any, any> matches what that call really produces.
+type AdminClient = SupabaseClient<any, any, any>;
 
 /**
  * Ownership facts for one job, scoped to the single permission flag that

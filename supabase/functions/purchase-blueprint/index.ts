@@ -1,6 +1,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+// Pinned (not @2.57.2, and not the floating @2): 2.57.2's own bundled types
+// import storage-js@2.99.1 by an extensionless esm.sh path that `deno check`
+// can't resolve, failing every check on this file. 2.45.0 is the version
+// most other functions already pin to and deno-checks clean.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { isBlueprintBillingEnabled } from "../_shared/appSettings.ts";
 
 const corsHeaders = {

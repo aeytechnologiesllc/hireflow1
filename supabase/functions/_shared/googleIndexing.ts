@@ -1,6 +1,10 @@
+// `insert()` on a real supabase-js client returns a PostgrestFilterBuilder —
+// a thenable, not a native Promise (no .catch/.finally/Symbol.toStringTag) —
+// so this only requires the `.then()` a `PromiseLike` gives, which is all
+// `await` ever needs and all recordAttempt() below ever does with the result.
 type SupabaseAdminClient = {
   from: (table: string) => {
-    insert: (row: Record<string, unknown>) => Promise<{ error: { message?: string } | null }>;
+    insert: (row: Record<string, unknown>) => PromiseLike<{ error: { message?: string } | null }>;
   };
 };
 

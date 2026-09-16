@@ -1,6 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { notifyGoogleIndexing } from "../_shared/googleIndexing.ts";
+
+// Not `ReturnType<typeof createClient>`: createClient is overloaded, and
+// ReturnType of an overloaded function type resolves against its LAST
+// signature — which, on the current @2 (floating) resolution, has stricter
+// generic defaults than the plain 2-argument call below actually returns.
+// SupabaseClient<any, any, any> matches what that call really produces.
+type AdminClient = SupabaseClient<any, any, any>;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -41,7 +48,7 @@ const storageBuckets = [
 const STORAGE_REMOVE_BATCH_SIZE = 100;
 
 async function fetchIds(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: AdminClient,
   table: string,
   column: string,
   value: string,
@@ -62,7 +69,7 @@ async function fetchIds(
 }
 
 async function fetchIdsIn(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: AdminClient,
   table: string,
   column: string,
   values: string[],
@@ -85,7 +92,7 @@ async function fetchIdsIn(
 }
 
 async function fetchPublishedJobsForEmployer(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: AdminClient,
   employerId: string,
 ) {
   const { data, error } = await supabaseAdmin
@@ -103,7 +110,7 @@ async function fetchPublishedJobsForEmployer(
 }
 
 async function deleteRowsByIds(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: AdminClient,
   table: string,
   column: string,
   ids: string[],
@@ -132,7 +139,7 @@ async function deleteRowsByIds(
 }
 
 async function cleanupUserStorage(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: AdminClient,
   userId: string,
 ) {
   for (const bucket of storageBuckets) {

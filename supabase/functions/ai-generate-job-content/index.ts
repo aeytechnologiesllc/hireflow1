@@ -319,7 +319,10 @@ serve(async (req) => {
     }
 
     body = await req.json();
-    const { field, title } = body;
+    if (!body) {
+      throw new Error("Request body is required");
+    }
+    const { field, title, department, experience_level, job_type, location } = body;
     const prompt = buildFieldPrompt(body);
 
     if (!field || !title) {
@@ -348,7 +351,7 @@ serve(async (req) => {
         retries: 3,
         validator: (value) =>
           requireJsonKeys(value, ["description", "responsibilities", "requirements", "skills", "benefits"]),
-        fallback: () => makeFallbackText(title, body.department, body.experience_level, body.job_type, body.location),
+        fallback: () => makeFallbackText(title, department, experience_level, job_type, location),
       });
 
       const parsed = data as Record<string, unknown>;
