@@ -19,7 +19,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { guardPublicAiCall } from "../_shared/rateLimit.ts";
-import { classifyDeviceClass, honorsOptOut, isBotUserAgent, sanitizePageViewPayload } from "../_shared/telemetry.ts";
+import { classifyDeviceClass, honorsOptOut, isBotUserAgent, isLocalDevOrigin, sanitizePageViewPayload } from "../_shared/telemetry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,6 +41,11 @@ Deno.serve(async (req) => {
   }
   if (req.method !== "POST") {
     return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+
+  // A page view on a developer's local dev server is not a visitor.
+  if (isLocalDevOrigin(req.headers.get("origin"), req.headers.get("referer"))) {
+    return jsonResponse({ ok: true, skipped: "local-dev" }, 200);
   }
 
   const limited = await guardPublicAiCall(req, "page-views", corsHeaders, 120, 3600);

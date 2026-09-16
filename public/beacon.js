@@ -42,7 +42,14 @@
     return false;
   }
 
-  if (isOptedOut()) {
+  // A developer's local server is not a visitor (page-views also drops these
+  // server-side by Origin).
+  function isLocalHost() {
+    var h = (window.location && window.location.hostname) || "";
+    return h === "localhost" || /\.localhost$/.test(h) || /^127\./.test(h) || h === "0.0.0.0" || h === "[::1]";
+  }
+
+  if (isOptedOut() || isLocalHost()) {
     window.__hfBeacon = { track: function () {} };
     return;
   }

@@ -80,6 +80,10 @@ function shouldSend(key: string): boolean {
 export function reportError(message: string | undefined | null, stack?: string | null): void {
   try {
     if (typeof window === "undefined") return;
+    // A local dev server's errors (HMR reloads, duplicate React from a linked
+    // node_modules) are not production crashes. client-errors also drops
+    // localhost origins server-side, for builds that predate this line.
+    if (import.meta.env.DEV) return;
     const trimmedMessage = (message || "Unknown error").toString().slice(0, 500);
     if (trimmedMessage.includes(SELF_ENDPOINT_MARKER) || (stack || "").includes(SELF_ENDPOINT_MARKER)) {
       return;

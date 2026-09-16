@@ -30,7 +30,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { guardPublicAiCall, callerId } from "../_shared/rateLimit.ts";
-import { classifyBrowserFamily, sanitizeClientErrorPayload } from "../_shared/telemetry.ts";
+import { classifyBrowserFamily, isLocalDevOrigin, sanitizeClientErrorPayload } from "../_shared/telemetry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -56,6 +56,11 @@ Deno.serve(async (req) => {
   }
   if (req.method !== "POST") {
     return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+
+  // A crash on a developer's local dev server is not a production crash.
+  if (isLocalDevOrigin(req.headers.get("origin"), req.headers.get("referer"))) {
+    return jsonResponse({ ok: true, skipped: "local-dev" }, 200);
   }
 
   const limited = await guardPublicAiCall(req, "client-errors", corsHeaders, 30, 3600);
