@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Inter:wght@400;500;600;700&display=swap">
+<script src="/beacon.js" defer></script>
 <style>
   /* ── Tokens. The page OPENS in Night; scrolling to morning interpolates
      every one of these toward Day on the root (script at the bottom). ── */
@@ -728,21 +729,60 @@
   @keyframes tickidle{0%,100%{opacity:var(--o)}50%{opacity:1}}
   @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 
-  /* ── How it works ── */
-  .steps{list-style:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:36px 0 0;padding:0;counter-reset:step}
-  @media(max-width:900px){.steps{grid-template-columns:1fr}}
-  .step{background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;box-shadow:var(--shadow-sm);
-    padding:24px 22px;position:relative;
-    transition:border-color var(--dur-base) var(--ease),box-shadow var(--dur-base) var(--ease),transform var(--dur-base) var(--ease)}
-  .step:hover{border-color:var(--hair);box-shadow:var(--shadow-md);transform:translateY(-1px)}
-  .step-n{font-family:Fraunces,Georgia,serif;font-size:34px;font-weight:600;color:var(--brass);line-height:1;letter-spacing:-.02em}
-  .step h3{font-family:Fraunces,Georgia,serif;font-size:20px;font-weight:600;letter-spacing:-.015em;margin:12px 0 8px}
-  .step p{margin:0;font-size:13.5px;color:var(--ink-2);line-height:1.6}
-  .step p b{color:var(--ink)}
-  .step .stseal{position:absolute;top:20px;right:20px;width:26px;height:26px}
-  .step .stseal svg{width:26px;height:26px;transform:rotate(5deg);filter:drop-shadow(0 1px 2px var(--seal-shadow));
-    transition:transform var(--dur-base) var(--ease)}
-  .step:hover .stseal svg{transform:rotate(5deg) scale(1.18)}
+  /* ── How it works: steps 1–2 (brief/publish) and steps 6–7 (interview/offer)
+     share one card system with the "trust" twocol below — each card shows the
+     REAL product moment for that step, not an icon standing in for it. ── */
+  .col-h2{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .col-h2 h3{font-family:Fraunces,Georgia,serif;font-size:18px;font-weight:600;letter-spacing:-.015em;margin:0;color:var(--ink)}
+  .beat-n{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:26px;height:26px;
+    border-radius:50%;border:1.5px solid var(--brass-line);color:var(--brass);
+    font-family:Fraunces,Georgia,serif;font-weight:600;font-size:13px;font-variant-numeric:tabular-nums}
+  .col p{margin:0 0 16px;font-size:13.5px;color:var(--ink-2);line-height:1.6}
+  .col p b{color:var(--ink)}
+  .mo{margin-top:2px}
+  .window.sm{margin-top:0}
+
+  /* step 1 — talk or type: a tab pill + one line typing itself out once in view */
+  .talk-tabs{display:inline-flex;gap:4px;padding:3px;background:var(--surface-2);border-radius:999px;margin-bottom:10px}
+  .talk-tab{padding:6px 14px;font-size:11.5px;font-weight:700;border-radius:999px;color:var(--ink-3)}
+  .talk-tab.is-on{background:var(--ground);color:var(--ink);box-shadow:var(--shadow-sm)}
+  .talk-box{background:var(--ground);border:1px solid var(--line-soft);border-radius:12px;padding:14px 16px;min-height:48px;display:flex;align-items:center;overflow:hidden}
+  .talk-line{margin:0;font-size:13.5px;color:var(--ink);line-height:1.5}
+  .tcaret{display:inline-block;width:2px;height:1em;margin-left:2px;background:var(--brass);vertical-align:-3px;
+    animation:bb-caret .8s step-end infinite}
+
+  /* step 2 — published: the job's own page, plus an honest "found by Google" line */
+  .joblet-in{padding:14px 16px}
+  .jl-role{margin:0;font-family:Fraunces,Georgia,serif;font-size:17px;font-weight:600;color:var(--ink)}
+  .jl-meta{margin:4px 0 0;font-size:12.5px;color:var(--ink-3)}
+  .live-line{display:flex;align-items:center;gap:7px;margin:12px 0 0;font-size:12.5px;font-weight:600;color:var(--ink-2)}
+  .live-dot{width:6px;height:6px;border-radius:50%;background:var(--jade-bright);flex-shrink:0;animation:pulse 2.4s ease-in-out infinite}
+
+  /* step 6 — interview: pick a slot, she confirms */
+  .sched-who{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .slots{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .slot{font-size:12px;font-weight:600;padding:8px 12px;border-radius:999px;border:1px solid var(--line);color:var(--ink-2);background:var(--ground)}
+  .slot.is-picked{background:var(--jade);border-color:var(--jade);color:var(--btn-fg);box-shadow:var(--btn-model)}
+  .anim .io.in .slot.is-picked{animation:rail-pop .5s var(--press) .5s both}
+  .confirm-line{display:flex;align-items:center;gap:8px;margin:0;font-size:13px;font-weight:600;color:var(--ink);opacity:0;transform:translateY(4px)}
+  .anim .io.in .confirm-line{animation:rise .5s var(--ease) .9s both}
+
+  /* step 7 — offer: two ink signatures draw themselves in, then the seal */
+  .offer-card{background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;box-shadow:var(--shadow-sm);padding:16px 18px}
+  .offer-t{margin:0 0 6px;font-family:Fraunces,Georgia,serif;font-size:15px;font-weight:600;color:var(--ink)}
+  .sig-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line-soft)}
+  .sig-row:first-of-type{border-top:0}
+  .sig-who{font-size:12.5px;color:var(--ink-2);min-width:70px;flex-shrink:0}
+  .sig-ink{height:22px;width:64px;flex-shrink:0;stroke:var(--jade);fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;
+    stroke-dasharray:300;stroke-dashoffset:300}
+  .sig-ok{margin-left:auto;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);opacity:0}
+  @keyframes sign-in{to{stroke-dashoffset:0}}
+  .anim .io.in .sig-ink{animation:sign-in 1s var(--ease) .3s forwards}
+  .anim .io.in .sig-ink2{animation:sign-in 1s var(--ease) 1.3s forwards}
+  .anim .io.in .sig-row:first-of-type .sig-ok{animation:rise .4s var(--ease) 1.15s both}
+  .anim .io.in .sig-row:last-of-type .sig-ok{animation:rise .4s var(--ease) 2.15s both}
+  .sealed-line{display:flex;align-items:center;gap:7px;margin:12px 0 0;font-size:12px;font-weight:600;color:var(--ink-3)}
+  .sealed-line svg{width:16px;height:16px;flex-shrink:0;filter:drop-shadow(0 1px 2px var(--seal-shadow))}
 
   /* ── Answered / no-ghosting: a slab band ── */
   .slabband{background:var(--slab);border-block:1px solid var(--line);color:var(--slab-ink)}
@@ -757,8 +797,8 @@
   .slabband .dim{color:var(--slab-ink-2);opacity:.75;display:block;margin-top:26px}
 
   /* ── Your call ── */
-  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:36px}
-  @media(max-width:860px){.twocol{grid-template-columns:1fr}}
+  .twocol{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:36px}
+  @media(max-width:860px){.twocol{grid-template-columns:minmax(0,1fr)}}
   .col{background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;box-shadow:var(--shadow-sm);padding:22px 24px}
   .col.yours{border-color:var(--brass-line);box-shadow:var(--shadow-md)}
   .col-h{display:flex;align-items:center;gap:10px;margin-bottom:14px}
@@ -852,8 +892,8 @@
     .nav .btn.go{min-height:44px}
     .racts{gap:8px}
     .racts .btn{min-height:44px;flex:1}
-    .steps{margin-top:26px}
-    .step{padding:20px 18px}
+    .twocol{margin-top:26px}
+    .col{padding:18px 18px}
     .bigstats{gap:22px;margin-top:28px}
     .faq{margin-top:26px}
     .faq summary{min-height:44px}
@@ -884,9 +924,8 @@
     html{scroll-behavior:auto}
     .amb i,.amb-day::after{animation:none!important}
     .stars i{animation:none!important} /* stars hold still — the scroll still fades them */
-    .wrow:hover,.step:hover,.btn:hover,.btn:active{transform:none}
+    .wrow:hover,.btn:hover,.btn:active{transform:none}
     .wrow:hover .rseal svg{transform:rotate(var(--tilt))}
-    .step:hover .stseal svg{transform:rotate(5deg)}
     /* the Gemline rail: JS never starts the travel loop under reduced motion,
        so this is just the markup's resting state — every gem sealed, held
        still — and the flowing gradient / breathing halo hold too */
@@ -1079,10 +1118,51 @@
     </div>
   </section>
 
+  <!-- ── NIGHT · how it works, steps 1–2 — real product moments, not icons ── -->
+  <section id="how" aria-label="How it works">
+    <div class="wrap">
+      <p class="kick lbl io">How it works</p>
+      <h2 class="io" style="--d:.08s">Here&#8217;s exactly how it goes.</h2>
+      <p class="sub io" style="--d:.16s">Two minutes today, and Ava takes the night shift from there.</p>
+      <div class="twocol">
+        <div class="col io" style="--d:.05s">
+          <div class="col-h2"><span class="beat-n" aria-hidden="true">1</span><h3>Tell Ava what you need</h3></div>
+          <p>Talk or type &mdash; whichever&#8217;s faster. A part-time mechanic, mornings, starting soon. She
+            asks a couple of follow-ups, the way a person would.</p>
+          <div class="mo mo-talk" aria-hidden="true">
+            <div class="talk-tabs"><span class="talk-tab">Talk</span><span class="talk-tab is-on">Type</span></div>
+            <div class="talk-box"><p class="talk-line">Need a part-time mechanic, mornings, Decatur, $19/hr.<span class="tcaret"></span></p></div>
+            <div class="ava-line" style="margin-top:14px">
+              <svg viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg>
+              <p>&ldquo;Got it &mdash; two more questions and I&#8217;ll write it up.&rdquo;&nbsp;<b>&mdash; Ava</b></p>
+            </div>
+          </div>
+        </div>
+        <div class="col io" style="--d:.18s">
+          <div class="col-h2"><span class="beat-n" aria-hidden="true">2</span><h3>She writes it and puts it live</h3></div>
+          <p>Ava turns your answers into a real job post and puts your own job page up under your shop&#8217;s
+            name. Google finds it on its own &mdash; nothing for you to submit.</p>
+          <div class="mo mo-live" aria-hidden="true">
+            <div class="window sm">
+              <div class="win-bar"><span class="brand-mark" style="width:16px;height:16px;border-radius:5px"><svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><use href="#rising"/></svg></span>
+                <span class="win-t">hireflownow.com/jobs/&hellip;</span></div>
+              <div class="joblet-in">
+                <p class="jl-role">Part-Time Mechanic</p>
+                <p class="jl-meta">Decatur &middot; mornings &middot; $19/hr</p>
+                <span class="btn go" style="margin-top:12px">Apply now</span>
+              </div>
+            </div>
+            <p class="live-line"><i class="live-dot"></i>Live &middot; Google indexes it automatically</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ── NIGHT · the night shift, scene by scene — scroll scrubs it, forward and back ── -->
   <section class="story" id="story" aria-label="Tonight, at your shop — the night shift, scene by scene">
     <div class="story-pin" id="story-pin">
-      <p class="story-kick lbl"><i></i>Tonight, at your shop</p>
+      <p class="story-kick lbl"><i></i>Tonight, at your shop &middot; steps 3&ndash;4</p>
       <div class="story-rail" id="story-rail" aria-hidden="true"><span class="sr on">11:47</span><span
         class="sr">11:51</span><span class="sr j">11:59</span></div>
       <div class="scene sc1" id="sc1">
@@ -1147,7 +1227,7 @@
   <section id="morning" aria-label="The morning read">
     <div class="wrap">
       <div class="demo-head">
-        <p class="kick lbl io">The morning read</p>
+        <p class="kick lbl io">Step 5 &middot; The morning read</p>
         <h2 class="io" style="--d:.08s">Open the shop. It&#8217;s already done.</h2>
         <p class="sub io" style="--d:.16s">Sample role — a <b>Part-Time Mechanic</b> at a neighborhood garage.
           Demo data, and the same screen you&#8217;ll see in the app.</p>
@@ -1197,32 +1277,41 @@
     </div>
   </section>
 
-  <!-- ── How it works ── -->
-  <section id="how" aria-label="How it works">
+  <!-- ── DAY · interview + offer, steps 6–7 — real product moments, not icons ── -->
+  <section id="hire" aria-label="Interview and offer">
     <div class="wrap">
-      <p class="kick lbl io">How it works</p>
-      <h2 class="io" style="--d:.08s">Brief her. She screens. You decide.</h2>
-      <ol class="steps">
-        <li class="step io" style="--d:.05s">
-          <div class="step-n" aria-hidden="true">1</div>
-          <h3>Tell Ava about the job</h3>
-          <p>Five minutes, talking or typing. She turns it into a proper job post, lists it where local
-            job-seekers actually look, and gives you a link and a QR code for the counter.</p>
-        </li>
-        <li class="step io" style="--d:.18s">
-          <div class="step-n" aria-hidden="true">2</div>
-          <h3>She interviews everyone</h3>
-          <p>Every applicant gets a real screening interview <b>minutes after applying</b> — 11 pm on a Sunday
-            included. Not a quiz, not a form: a conversation about the actual work.</p>
-        </li>
-        <li class="step io" style="--d:.31s">
-          <span class="stseal" aria-hidden="true"><svg viewBox="0 0 100 100"><use href="#wax-sm"/></svg></span>
-          <div class="step-n" aria-hidden="true">3</div>
-          <h3>You make the call</h3>
-          <p>You get a short, sealed shortlist — each score backed by evidence you can check: quotes, transcripts,
-            timings. Meet the ones you like. <b>Every yes and every no is your click.</b></p>
-        </li>
-      </ol>
+      <p class="kick lbl io">What happens next</p>
+      <h2 class="io" style="--d:.08s">You pick a time. Then you make it official.</h2>
+      <p class="sub io" style="--d:.16s">Interviewing and hiring happen right here too &mdash; no extra inbox,
+        no printer.</p>
+      <div class="twocol">
+        <div class="col io" style="--d:.05s">
+          <div class="col-h2"><span class="beat-n" aria-hidden="true">6</span><h3>You tap Interview</h3></div>
+          <p>Pick a time that works for you. Danielle gets it right away and confirms from her phone.</p>
+          <div class="mo mo-sched" aria-hidden="true">
+            <div class="sched-who"><div class="rav" style="width:32px;height:32px;font-size:11px">DO</div>
+              <div><div class="rname" style="font-size:13px">Danielle Okafor</div><div class="rmeta">Part-Time Mechanic</div></div></div>
+            <div class="slots"><span class="slot">Tue 9:00 am</span><span class="slot is-picked">Wed 10:00 am</span><span class="slot">Thu 1:00 pm</span></div>
+            <p class="confirm-line"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--jade)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9 17.5 20 6.5"/></svg>Danielle confirmed &mdash; <span class="dim">12 minutes later</span></p>
+          </div>
+        </div>
+        <div class="col io" style="--d:.18s">
+          <div class="col-h2"><span class="beat-n" aria-hidden="true">7</span><h3>You send the offer</h3></div>
+          <p>Write the offer, send it, and you both sign right here &mdash; no printing, no chasing paperwork.</p>
+          <div class="mo mo-sign" aria-hidden="true">
+            <div class="offer-card">
+              <p class="offer-t">Offer &middot; Part-Time Mechanic</p>
+              <div class="sig-row"><span class="sig-who">Ray (you)</span>
+                <svg class="sig-ink" viewBox="0 0 120 34"><path d="M4 24c6-14 12-16 16-6 3 7 5 7 8-2 3-9 6-10 10 2 3 9 6 3 9-4 3-8 7-9 11 0 4 10 8 2 11-6 3-7 7-6 11 2"/></svg>
+                <span class="sig-ok">Signed</span></div>
+              <div class="sig-row"><span class="sig-who">Danielle</span>
+                <svg class="sig-ink sig-ink2" viewBox="0 0 120 34"><path d="M4 22c5-12 10-14 14-5 3 6 6 6 9-3 3-8 6-9 9 1 3 9 6 4 9-3 3-7 7-8 10 0 3 9 7 3 10-4"/></svg>
+                <span class="sig-ok">Signed</span></div>
+            </div>
+            <p class="sealed-line"><svg width="16" height="16" viewBox="0 0 100 100" aria-hidden="true"><use href="#wax-sm"/></svg>Sealed &middot; both signed in HireFlow</p>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -1303,9 +1392,9 @@
         </details>
         <details>
           <summary>I already post on job boards. What changes?</summary>
-          <p>Keep whatever works. HireFlow lists your job where local job-seekers already look, and gives you a
-            link and QR code for the door, the counter, or your socials. Wherever people come from, every one
-            of them gets the same interview and lands in the same shortlist.</p>
+          <p>Keep whatever works. HireFlow puts up your own job page too, and Google picks it up automatically
+            &mdash; plus you get a link and QR code for the door, the counter, or your socials. Wherever people
+            come from, every one of them gets the same interview and lands in the same shortlist.</p>
         </details>
         <details>
           <summary>How fast is it, really?</summary>
@@ -1507,7 +1596,11 @@
     mTop=morning.getBoundingClientRect().top+y0;
     if(hero)heroEnd=hero.getBoundingClientRect().bottom+y0;
     if(story){var s=story.getBoundingClientRect();sTop=s.top+y0;sH=s.height;pinH=pin.offsetHeight||vh;}
-    hkEnd=Math.max(140,sTop-vh*0.35);
+    /* anchored to the hero's OWN bottom edge, not the (now more distant)
+       story section — steps 1–2 sit between them, so tying this to sTop
+       would let the rail's fade-out drag on long after it has scrolled out
+       of view. */
+    hkEnd=Math.max(140,heroEnd-vh*0.5);
   }
   function applyT(t){
     var e=t*t*(3-2*t); /* smoothstep — the sky eases, it doesn't snap */
@@ -1562,11 +1655,12 @@
       var label=h+":"+(m<10?"0":"")+m+" "+(total>=720?"pm":"am");
       if(label!==lastLabel){lastLabel=label;clockT.textContent=label;}
       var co=1-(y-(mTop-vh*0.40))/(vh*0.25);co=co<0?0:co>1?1:co;
-      /* one clock at a time: this corner chip stays hidden for as long as the
-         hero's own theater clock is on screen, and only takes over once the
-         hero has scrolled mostly out of view (i.e. the pinned story has taken
-         the page) — so the two never contradict each other */
-      var chg=cl((y-(heroEnd-vh*0.7))/(vh*0.35));
+      /* one clock at a time: this corner chip stays hidden through the hero
+         AND the timeless "how it works" prelude (steps 1–2 carry no time-of-
+         day claim), and only fades in as the pinned night-shift story (the
+         section that actually starts naming clock times again) takes the
+         page — so the two never contradict each other */
+      var chg=cl((y-(sTop-vh*0.7))/(vh*0.35));
       co=co*chg;
       if(Math.abs(co-lastCO)>0.015){lastCO=co;clock.style.opacity=co.toFixed(2);
         clock.style.visibility=co<0.01?"hidden":"visible";}
