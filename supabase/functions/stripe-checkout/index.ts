@@ -7,7 +7,7 @@
  * posting a job is free, a job unlocks for $49 at applicant #4, +$25 per
  * applicant pack, $2 per voice interview past the first 10, and Ava Boost is
  * a separate flat $79/$149/$299 per-job ad spend. See
- * supabase/migrations/20260916160000_job_billing_schema.sql and
+ * supabase/migrations/20260916170000_job_billing_schema.sql and
  * unlock-job-checkout / purchase-applicant-pack-checkout / ava-boost-checkout
  * for the functions that replaced this one.
  *

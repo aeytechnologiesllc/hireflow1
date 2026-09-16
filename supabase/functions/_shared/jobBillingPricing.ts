@@ -10,7 +10,7 @@
 // functions AND plain Node tests (Node 24+ strips these type annotations
 // natively, no build step — same convention as voiceSessionCharge.ts) run
 // the exact same arithmetic the SQL entitlement functions in
-// 20260916160000_job_billing_schema.sql implement. If these two ever
+// 20260916170000_job_billing_schema.sql implement. If these two ever
 // disagree, scripts/job_billing_schema.pglite.test.mjs (the SQL side) and
 // scripts/job_billing_pricing.test.mjs (this side) are where that would
 // show up — keep both green.

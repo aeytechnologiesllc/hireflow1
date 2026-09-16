@@ -51,29 +51,50 @@
 -- against the live database as it stands today, and safe to re-run.
 
 -- ---------------------------------------------------------------------
--- 0) app_settings: the one switch. Server-only, same shape as
---    voice_session_log/job_quiz_keys -- RLS on, zero client-facing
---    policies. Exposed to the UI ONLY through get_billing_flags() below,
---    which returns just the two booleans, nothing else on the row.
+-- 0) app_settings: the one switch, plus boost_enabled. This branch and
+--    fix/w1-coaching-report both landed a same-day migration named
+--    20260916160000 that wants a generic `app_settings` table; that one
+--    (20260916160000_blueprint_entitlement_and_purchase_integrity.sql) got
+--    the 160000 slot, seeds key='blueprint_paid', and shapes the table as a
+--    generic key/value store: `key text primary key, value jsonb not null,
+--    updated_at timestamptz`, RLS on with a public SELECT policy (the flags
+--    are non-sensitive config the client needs for honest pricing copy) and
+--    no client write policy (service_role only). This migration was
+--    renamed to 20260916170000 so it runs AFTER that one and reuses the
+--    exact same shape instead of colliding with it -- CREATE TABLE IF NOT
+--    EXISTS below is a no-op when 160000 already ran first, and creates the
+--    identical shape itself when this branch is deployed alone (coaching
+--    branch not yet merged). Either order converges on the same table.
+--    billing_enabled/boost_enabled live as two more keys/rows, exactly like
+--    'blueprint_paid' -- not new columns, since the table both branches
+--    share is key/value, not fixed-column.
 -- ---------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS public.app_settings (
-  id                boolean NOT NULL PRIMARY KEY DEFAULT true CHECK (id = true), -- singleton
-  billing_enabled   boolean NOT NULL DEFAULT false,
-  boost_enabled     boolean NOT NULL DEFAULT false,
-  updated_at        timestamptz NOT NULL DEFAULT now(),
-  updated_by        uuid
+  key        text NOT NULL PRIMARY KEY,
+  value      jsonb NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-INSERT INTO public.app_settings (id, billing_enabled, boost_enabled)
-VALUES (true, false, false)
-ON CONFLICT (id) DO NOTHING;
-
 ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
--- Deliberately zero policies for anon/authenticated -- service_role bypasses
--- RLS and is the only writer (no edge function here writes it today; the
--- owner flips it directly in the dashboard's table editor, or a future
--- admin-only function can, but nothing in this migration grants that).
+
+DROP POLICY IF EXISTS "app_settings readable by anyone" ON public.app_settings;
+CREATE POLICY "app_settings readable by anyone"
+  ON public.app_settings
+  FOR SELECT
+  USING (true);
+
+-- No insert/update/delete policy for anon or authenticated: with RLS on and
+-- no matching write policy, every client write is denied. Only the
+-- service-role key (or the owner, directly in the dashboard's table editor)
+-- can flip a flag -- it bypasses RLS entirely, same as every other
+-- server-only table in this project.
+REVOKE INSERT, UPDATE, DELETE ON public.app_settings FROM anon, authenticated;
+GRANT SELECT ON public.app_settings TO anon, authenticated;
+
+INSERT INTO public.app_settings (key, value)
+VALUES ('billing_enabled', 'false'::jsonb), ('boost_enabled', 'false'::jsonb)
+ON CONFLICT (key) DO NOTHING;
 
 CREATE OR REPLACE FUNCTION public.get_billing_flags()
 RETURNS TABLE(billing_enabled boolean, boost_enabled boolean)
@@ -81,7 +102,9 @@ LANGUAGE sql
 STABLE SECURITY DEFINER
 SET search_path TO 'public', 'pg_temp'
 AS $function$
-  SELECT s.billing_enabled, s.boost_enabled FROM public.app_settings s WHERE s.id = true;
+  SELECT
+    coalesce((SELECT (s.value #>> '{}')::boolean FROM public.app_settings s WHERE s.key = 'billing_enabled'), false),
+    coalesce((SELECT (s.value #>> '{}')::boolean FROM public.app_settings s WHERE s.key = 'boost_enabled'), false);
 $function$;
 
 -- Safe to expose broadly: two booleans, no secrets, no other user's data.
@@ -380,7 +403,7 @@ BEGIN
 
   RETURN QUERY
   SELECT
-    (SELECT s.billing_enabled FROM public.app_settings s WHERE s.id = true),
+    coalesce((SELECT (s.value #>> '{}')::boolean FROM public.app_settings s WHERE s.key = 'billing_enabled'), false),
     public.job_applicant_count(p_job_id),
     public.job_processed_allowance(p_job_id),
     public.job_sealed_count(p_job_id),

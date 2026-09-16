@@ -4,8 +4,11 @@
  * enforces as the free-interview threshold — never multiplied by how many
  * times the job has been unlocked.
  *
- * Regression this guards: 20260916160000_job_billing_schema.sql originally
- * computed voice_included_total as `10 * greatest(1, job_unlock_count(job))`,
+ * Regression this guards: this migration (originally filed as
+ * 20260916160000_job_billing_schema.sql, renamed to 20260916170000 to run
+ * after fix/w1-coaching-report's same-day 20260916160000 migration)
+ * originally computed voice_included_total as
+ * `10 * greatest(1, job_unlock_count(job))`,
  * while job_voice_interview_is_billable() (same file) and its JS twin
  * isNextVoiceInterviewBillable() (_shared/jobBillingPricing.ts,
  * UNLOCK_INCLUDED_VOICE_INTERVIEWS = 10) both cap free voice interviews at a
@@ -22,7 +25,7 @@
  * backstop so the multiplication can't quietly come back.
  */
 
-const MIGRATION = "supabase/migrations/20260916160000_job_billing_schema.sql";
+const MIGRATION = "supabase/migrations/20260916170000_job_billing_schema.sql";
 
 export default [
   {

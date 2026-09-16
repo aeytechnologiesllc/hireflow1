@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * PGlite proof for supabase/migrations/20260916160000_job_billing_schema.sql
+ * PGlite proof for supabase/migrations/20260916170000_job_billing_schema.sql
  * — plain assertions against a real Postgres (PGlite), not a text match.
  *
  * Builds a minimal fixture (auth shim, jobs/applications/team_members/
@@ -9,9 +9,12 @@
  * 20260915141000), applies the migration under test read from disk, and
  * proves:
  *
- *   1. app_settings is a true singleton, RLS is on with zero client
- *      policies, and get_billing_flags() is readable by anon/authenticated
- *      and returns the real row (false/false by default).
+ *   1. app_settings is the generic key/value table shared with
+ *      fix/w1-coaching-report's 20260916160000 migration (this one was
+ *      renamed to 20260916170000 to run after it), seeded with
+ *      billing_enabled/boost_enabled rows, publicly SELECT-able but not
+ *      writable by anon/authenticated, and get_billing_flags() returns the
+ *      real values (false/false by default).
  *   2. job_unlocks / applicant_packs / voice_interview_charges / boost_orders
  *      all have RLS on; the job owner and an active team member can SELECT
  *      their own job's rows, an unrelated employer and a stranger cannot,
@@ -26,7 +29,9 @@
  *      employer, and returns the correct computed snapshot for the job
  *      owner, an active team member, and service_role.
  *   5. Voice interview billability: unmetered before any unlock, included
- *      for the first 10 after a job's first unlock, billable from #11.
+ *      for the first 10 after a job's first unlock, billable from #11, and
+ *      flat at 10 (never scaling with unlock count) across a second unlock,
+ *      an overlapping applicant pack, and a lapsed (expired) unlock window.
  *
  * Run with: node scripts/job_billing_schema.pglite.test.mjs
  */
@@ -35,7 +40,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
-const MIGRATION_PATH = path.join(ROOT, "supabase/migrations/20260916160000_job_billing_schema.sql");
+const MIGRATION_PATH = path.join(ROOT, "supabase/migrations/20260916170000_job_billing_schema.sql");
 
 let passed = 0;
 let failed = 0;
@@ -58,6 +63,7 @@ const STRANGER = "40000000-0000-0000-0000-000000000001";
 const JOB_1 = "50000000-0000-0000-0000-00000000000a";
 const JOB_2 = "50000000-0000-0000-0000-00000000000b"; // EMP_2's, unrelated
 const JOB_EMPTY = "50000000-0000-0000-0000-00000000000c"; // EMP_1's, zero applicants
+const JOB_VOICE = "50000000-0000-0000-0000-00000000000d"; // EMP_1's, dedicated to the voice-billing matrix (section 6b)
 
 async function main() {
   const db = new PGlite();
@@ -180,8 +186,8 @@ async function main() {
   `);
 
   // ---- seed data ----
-  await db.query(`insert into public.jobs (id, employer_id) values ($1,$2),($3,$4),($5,$6)`, [
-    JOB_1, EMP_1, JOB_2, EMP_2, JOB_EMPTY, EMP_1,
+  await db.query(`insert into public.jobs (id, employer_id) values ($1,$2),($3,$4),($5,$6),($7,$8)`, [
+    JOB_1, EMP_1, JOB_2, EMP_2, JOB_EMPTY, EMP_1, JOB_VOICE, EMP_1,
   ]);
   await db.query(
     `insert into public.team_members (user_id, employer_id, status) values ($1,$2,'active'), ($3,$2,'revoked')`,
@@ -241,14 +247,20 @@ async function main() {
 async function run() {
   const { db, asUser, asPostgres } = await main();
 
-  console.log("\n-- (1) app_settings singleton + get_billing_flags() --");
+  console.log("\n-- (1) app_settings (shared key/value table) + get_billing_flags() --");
   {
-    const r = await asPostgres(`select count(*)::int as c from public.app_settings`);
-    check("exactly one app_settings row exists", r.rows[0].c === 1, JSON.stringify(r.rows));
+    const r = await asPostgres(
+      `select key, (value #>> '{}')::boolean as v from public.app_settings where key in ('billing_enabled', 'boost_enabled') order by key`,
+    );
+    check(
+      "billing_enabled and boost_enabled are both seeded, both false",
+      r.rows.length === 2 && r.rows.every((row) => row.v === false),
+      JSON.stringify(r.rows),
+    );
   }
   {
-    const bad = await asPostgres(`insert into public.app_settings (id, billing_enabled) values (false, true)`).catch((e) => e);
-    check("a second row is rejected by the singleton CHECK", bad instanceof Error, String(bad));
+    const dupe = await asPostgres(`insert into public.app_settings (key, value) values ('billing_enabled', 'true'::jsonb)`).catch((e) => e);
+    check("a duplicate key is rejected by the primary key (ON CONFLICT is required to reseed)", dupe instanceof Error, String(dupe));
   }
   {
     const r = await asUser(STRANGER, "authenticated", `select * from public.get_billing_flags()`);
@@ -261,8 +273,24 @@ async function run() {
     check("get_billing_flags() is also callable by anon (no PII on it)", r.ok && r.rows.length === 1, JSON.stringify(r));
   }
   {
-    const r = await asUser(STRANGER, "authenticated", `select * from public.app_settings`);
-    check("app_settings itself is NOT directly readable (RLS, zero policies)", r.ok && r.rows.length === 0, JSON.stringify(r));
+    // Unlike the old singleton shape, this table IS directly SELECT-able
+    // (shared with fix/w1-coaching-report's 'blueprint_paid' key, which the
+    // client reads directly for pricing copy) -- just not writable.
+    const r = await asUser(STRANGER, "authenticated", `select key from public.app_settings where key = 'billing_enabled'`);
+    check("app_settings is directly readable (public SELECT policy)", r.ok && r.rows.length === 1, JSON.stringify(r));
+
+    // No UPDATE policy exists, so RLS's implicit USING(false) makes the
+    // UPDATE affect zero rows rather than throw (that's Postgres RLS UPDATE
+    // semantics — contrast with INSERT in section 2, whose WITH CHECK
+    // failure DOES throw). Prove it via the value actually being unchanged
+    // afterward, not just "no error".
+    await asUser(STRANGER, "authenticated", `update public.app_settings set value = 'true'::jsonb where key = 'billing_enabled'`);
+    const stillFalse = await asPostgres(`select (value #>> '{}')::boolean as v from public.app_settings where key = 'billing_enabled'`);
+    check(
+      "...but not writable by authenticated (RLS has no write policy — the value is unchanged)",
+      stillFalse.rows[0].v === false,
+      JSON.stringify(stillFalse.rows),
+    );
   }
 
   console.log("\n-- (2) RLS on the four new tables --");
@@ -456,6 +484,121 @@ async function run() {
     );
   }
 
+  console.log("\n-- (6b) voice_included_total full matrix: first unlock, second unlock, overlapping pack, expiry --");
+  console.log("   (isolated on JOB_VOICE so each scenario's starting state is unambiguous)");
+  {
+    // -- first unlock --
+    // Before any unlock: unmetered, no charges yet.
+    const before = await asPostgres(`select public.job_voice_interview_is_billable($1) as v`, [JOB_VOICE]);
+    check("JOB_VOICE, never unlocked: voice is unmetered", before.rows[0].v === false, JSON.stringify(before.rows));
+
+    await asPostgres(
+      `insert into public.job_unlocks (job_id, employer_id, status, unlocked_at, expires_at) values
+         ($1, $2, 'active', now(), now() + interval '30 days')`,
+      [JOB_VOICE, EMP_1],
+    );
+    const afterFirst = await asUser(EMP_1, "authenticated", `select * from public.get_job_billing_status($1)`, [JOB_VOICE]);
+    check(
+      "first unlock: voice_included_total is 10, voice_used is 0, next interview is included",
+      afterFirst.ok &&
+        afterFirst.rows[0].voice_included_total === 10 &&
+        afterFirst.rows[0].voice_used === 0 &&
+        afterFirst.rows[0].voice_next_is_billable === false,
+      JSON.stringify(afterFirst.rows),
+    );
+
+    // Use up all 10 included interviews.
+    await asPostgres(
+      `insert into public.voice_interview_charges (job_id, employer_id, ordinal, status)
+       select $1, $2, gs, 'included' from generate_series(1, 10) gs`,
+      [JOB_VOICE, EMP_1],
+    );
+    const atCap = await asUser(EMP_1, "authenticated", `select * from public.get_job_billing_status($1)`, [JOB_VOICE]);
+    check(
+      "first unlock, 10 used: voice_included_total still 10, next interview is now billable",
+      atCap.ok && atCap.rows[0].voice_included_total === 10 && atCap.rows[0].voice_next_is_billable === true,
+      JSON.stringify(atCap.rows),
+    );
+  }
+  {
+    // -- second unlock (re-unlock) --
+    // A second unlock (job_unlock_count 1 -> 2) must NOT double the
+    // allowance to 20 -- it's flat 10 for the job, forever, per the header
+    // comment and the finding this guards against.
+    await asPostgres(
+      `insert into public.job_unlocks (job_id, employer_id, status, unlocked_at, expires_at) values
+         ($1, $2, 'active', now(), now() + interval '30 days')`,
+      [JOB_VOICE, EMP_1],
+    );
+    const unlockCount = await asPostgres(`select public.job_unlock_count($1) as v`, [JOB_VOICE]);
+    check("second unlock: JOB_VOICE now has 2 completed unlocks", unlockCount.rows[0].v === 2, JSON.stringify(unlockCount.rows));
+
+    const status = await asUser(EMP_1, "authenticated", `select * from public.get_job_billing_status($1)`, [JOB_VOICE]);
+    check(
+      "second unlock: voice_included_total is still 10 (not 20 = 10 * unlock_count)",
+      status.ok && status.rows[0].voice_included_total === 10,
+      JSON.stringify(status.rows),
+    );
+    check(
+      "second unlock: the 10 already-used interviews from the first unlock still count, next is still billable",
+      status.ok && status.rows[0].voice_used === 10 && status.rows[0].voice_next_is_billable === true,
+      JSON.stringify(status.rows),
+    );
+  }
+  {
+    // -- overlapping pack --
+    // An active $25 applicant pack raises the *applicant* allowance but
+    // must have zero effect on the *voice* allowance -- they are two
+    // unrelated entitlements that happen to live on the same job.
+    const beforePack = await asPostgres(`select public.job_processed_allowance($1) as allowance`, [JOB_VOICE]);
+    await asPostgres(
+      `insert into public.applicant_packs (job_id, employer_id, status) values ($1, $2, 'active')`,
+      [JOB_VOICE, EMP_1],
+    );
+    const afterPack = await asUser(EMP_1, "authenticated", `select * from public.get_job_billing_status($1)`, [JOB_VOICE]);
+    check(
+      "overlapping pack: the pack DID raise the applicant allowance by 25",
+      afterPack.ok && afterPack.rows[0].processed_allowance === beforePack.rows[0].allowance + 25,
+      JSON.stringify({ before: beforePack.rows, after: afterPack.rows }),
+    );
+    check(
+      "overlapping pack: voice_included_total is untouched by the pack, still flat 10",
+      afterPack.ok && afterPack.rows[0].voice_included_total === 10,
+      JSON.stringify(afterPack.rows),
+    );
+  }
+  {
+    // -- expiry --
+    // Both of JOB_VOICE's unlocks lapse (expires_at in the past, status
+    // stays 'active' -- exactly how a real 30-day window lapsing looks,
+    // per job_has_active_unlock's definition). voice_included_total is a
+    // lifetime, not a windowed, entitlement: it must stay flat 10 and
+    // voice_used must stay cumulative, same as job_processed_allowance
+    // never shrinking when a window lapses (section 3's high-water-mark
+    // proof) -- lapsing changes has_active_unlock, nothing about voice.
+    await asPostgres(`update public.job_unlocks set expires_at = now() - interval '1 day' where job_id = $1`, [JOB_VOICE]);
+
+    const activeNow = await asPostgres(`select public.job_has_active_unlock($1) as v`, [JOB_VOICE]);
+    check("expiry: JOB_VOICE no longer has an active (live-window) unlock", activeNow.rows[0].v === false, JSON.stringify(activeNow.rows));
+
+    const statusExpired = await asUser(EMP_1, "authenticated", `select * from public.get_job_billing_status($1)`, [JOB_VOICE]);
+    check(
+      "expiry: voice_included_total is still flat 10 after both unlock windows lapse",
+      statusExpired.ok && statusExpired.rows[0].voice_included_total === 10,
+      JSON.stringify(statusExpired.rows),
+    );
+    check(
+      "expiry: voice_used stays at its cumulative 10 (lapsing never resets usage)",
+      statusExpired.ok && statusExpired.rows[0].voice_used === 10 && statusExpired.rows[0].voice_next_is_billable === true,
+      JSON.stringify(statusExpired.rows),
+    );
+    check(
+      "expiry: has_active_unlock is false but unlock_count (high-water mark) stays 2",
+      statusExpired.ok && statusExpired.rows[0].has_active_unlock === false && statusExpired.rows[0].unlock_count === 2,
+      JSON.stringify(statusExpired.rows),
+    );
+  }
+
   console.log("\n-- (7) subscriptions carries the saved-payment-method column --");
   {
     const r = await asPostgres(`select stripe_default_payment_method_id from public.subscriptions limit 0`);
@@ -480,7 +623,7 @@ async function run() {
     const before = await asPostgres(`select * from public.get_billing_flags()`);
     check("before the flip, billing_enabled reads false", before.rows[0].billing_enabled === false, JSON.stringify(before.rows));
 
-    await asPostgres(`update public.app_settings set billing_enabled = true where id = true`);
+    await asPostgres(`update public.app_settings set value = 'true'::jsonb where key = 'billing_enabled'`);
 
     const after = await asPostgres(`select * from public.get_billing_flags()`);
     check("after the flip, get_billing_flags() reads true", after.rows[0].billing_enabled === true, JSON.stringify(after.rows));
@@ -488,7 +631,7 @@ async function run() {
     const statusAfter = await asUser(EMP_1, "authenticated", `select billing_enabled from public.get_job_billing_status($1)`, [JOB_1]);
     check("get_job_billing_status() also now reads billing_enabled = true for the same job", statusAfter.ok && statusAfter.rows[0].billing_enabled === true, JSON.stringify(statusAfter));
 
-    await asPostgres(`update public.app_settings set billing_enabled = false where id = true`);
+    await asPostgres(`update public.app_settings set value = 'false'::jsonb where key = 'billing_enabled'`);
     const restored = await asPostgres(`select * from public.get_billing_flags()`);
     check("flipping it back off is reflected immediately too", restored.rows[0].billing_enabled === false, JSON.stringify(restored.rows));
   }

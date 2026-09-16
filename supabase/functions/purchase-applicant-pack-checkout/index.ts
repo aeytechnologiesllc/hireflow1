@@ -1,7 +1,7 @@
 // Creates the Stripe Checkout Session for a $25 pack of 25 extra processed
 // applicants. Requires the job to have a currently-active unlock (its
 // 30-day window has not lapsed) -- see the migration header comment in
-// 20260916160000_job_billing_schema.sql for why a pack cannot be bought
+// 20260916170000_job_billing_schema.sql for why a pack cannot be bought
 // against a lapsed unlock (the employer re-unlocks for $49 instead, which
 // also grants a fresh 25 baseline and window).
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";

@@ -64,7 +64,7 @@ serve(async (req) => {
     // (past its free/unlocked allowance) keeps accepting applications and
     // simply shows the arrivals as sealed envelopes to the employer until
     // they unlock or buy a pack (see job_is_locked/job_sealed_count in
-    // 20260916160000_job_billing_schema.sql). The only reasons to refuse a
+    // 20260916170000_job_billing_schema.sql). The only reasons to refuse a
     // submission are structural -- job not published, deadline passed --
     // and those were already checked above, before this point. While
     // billing is OFF, this function must behave exactly as it does today

@@ -74,6 +74,14 @@ check("unlocked, interview #10 (9 prior) -> still included", !isNextVoiceIntervi
 check("unlocked, interview #11 (10 prior) -> billable", isNextVoiceInterviewBillable({ completedUnlockCount: 1, priorSettledInterviewCount: 10 }));
 check("unlocked, interview #12 (11 prior) -> still billable", isNextVoiceInterviewBillable({ completedUnlockCount: 1, priorSettledInterviewCount: 11 }));
 
+// Regression: the threshold is flat 10 per job, never 10 * completedUnlockCount
+// -- a re-unlock (completedUnlockCount going 1 -> 2 -> 3...) must not move
+// the goalposts. This is the JS twin of the SQL proof in
+// scripts/job_billing_schema.pglite.test.mjs section (6b) "second unlock".
+check("re-unlocked once (2 completed), interview #10 (9 prior) -> still included, not 20", !isNextVoiceInterviewBillable({ completedUnlockCount: 2, priorSettledInterviewCount: 9 }));
+check("re-unlocked once (2 completed), interview #11 (10 prior) -> billable at the SAME flat 10, not 20", isNextVoiceInterviewBillable({ completedUnlockCount: 2, priorSettledInterviewCount: 10 }));
+check("re-unlocked twice (3 completed), interview #11 (10 prior) -> still billable at flat 10, not 30", isNextVoiceInterviewBillable({ completedUnlockCount: 3, priorSettledInterviewCount: 10 }));
+
 console.log("\n-- unlock / boost hold expiry math --");
 {
   const start = new Date("2026-09-16T00:00:00.000Z");

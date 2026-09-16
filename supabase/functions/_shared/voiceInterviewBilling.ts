@@ -9,7 +9,7 @@
 //
 // While billing is off, this is a no-op — no read, no write — so the app
 // behaves exactly as it does today (see the header comment in
-// 20260916160000_job_billing_schema.sql for the full pricing model this
+// 20260916170000_job_billing_schema.sql for the full pricing model this
 // implements: 10 interviews included per job once it's ever been unlocked,
 // unmetered before that, $2 each after the 10th).
 import Stripe from "https://esm.sh/stripe@14.21.0";
