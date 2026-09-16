@@ -30,8 +30,15 @@ import process from "node:process";
  * queries a `roles`/`candidates` schema which does not exist on the live project
  * yqklrkpptnhubsnijqze, so every column access fails to resolve. Deleting or
  * gating the showcase path would clear roughly two thirds of this number at once.
+ *
+ * 188 as of 2026-09-16 (was 191): adding `benefits` to published_jobs_public's
+ * Row type (supabase/migrations/20260916200000_published_jobs_public_benefits.sql
+ * + src/integrations/supabase/types.ts) resolved the 3 `Property 'benefits' does
+ * not exist` errors in src/pages/JobDetails.tsx that this same migration's fix
+ * made moot; wiring src/lib/avaEngine/types.ts's JobBrief.benefits through
+ * jobFromFlow.ts (see src/lib/jobFromFlow.ts) introduced zero new errors.
  */
-const BASELINE = 191;
+const BASELINE = 188;
 
 const run = promisify(execFile);
 

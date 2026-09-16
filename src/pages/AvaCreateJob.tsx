@@ -167,6 +167,7 @@ export default function AvaCreateJob() {
       start: "Within a few weeks",
       work: "",
       openings: 1,
+      benefits: [] as string[],
     },
   );
   const [geoPreview, setGeoPreview] = useState<import("@/lib/geocode").GeoPlace | null>(null);

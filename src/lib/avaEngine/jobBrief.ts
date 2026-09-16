@@ -42,6 +42,8 @@ export interface BriefFormPayload {
   pay: string;
   start: string;
   work: string;
+  /** Carried through so a benefit mentioned to Ava (voice or typed) survives the handoff into briefFields -> briefFromForm -> createJobFromFlow. */
+  benefits: string[];
 }
 
 export function emptyJobBrief(): JobBrief {
@@ -135,6 +137,7 @@ export function mapJobBriefToFormPayload(b: JobBrief): BriefFormPayload {
     work: b.responsibilities.length
       ? b.responsibilities.map((r) => r.trim().replace(/\.$/, "")).join(". ") + "."
       : "",
+    benefits: b.benefits,
   };
 }
 

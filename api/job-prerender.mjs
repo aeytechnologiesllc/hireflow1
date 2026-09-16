@@ -21,7 +21,7 @@ const SUPABASE_URL = "https://yqklrkpptnhubsnijqze.supabase.co";
 const SUPABASE_KEY = "sb_publishable_oUcY5Ih_vL5DYIV74AMsug_4Qg4gZRu";
 const ORIGIN = "https://hireflownow.com";
 const JOB_FIELDS =
-  "id,title,description,responsibilities,requirements,location,job_type,salary_min,salary_max,salary_currency,salary_period,created_at,application_deadline,job_code,location_city,location_region,location_country,location_country_code,latitude,longitude,is_remote,locations,employer_id";
+  "id,title,description,responsibilities,requirements,location,job_type,salary_min,salary_max,salary_currency,salary_period,created_at,application_deadline,job_code,location_city,location_region,location_country,location_country_code,latitude,longitude,is_remote,locations,employer_id,benefits";
 
 const EMP_TYPE = {
   "full-time": "FULL_TIME",
@@ -143,6 +143,12 @@ function buildJobPostingSchema(job, { company, logo, origin }) {
   // de-indexed itself on day 60 while still published and still in the sitemap.
   const validThrough = job.application_deadline ? new Date(job.application_deadline) : null;
 
+  // schema.org jobBenefits is a plain Text field (not a list type), so a
+  // multi-item benefits array is joined into one comma-separated string.
+  const benefitsText = Array.isArray(job.benefits) && job.benefits.length > 0
+    ? job.benefits.filter((b) => typeof b === "string" && b.trim()).join(", ")
+    : "";
+
   const data = {
     "@context": "https://schema.org/",
     "@type": "JobPosting",
@@ -152,6 +158,7 @@ function buildJobPostingSchema(job, { company, logo, origin }) {
     ...(validThrough ? { validThrough: validThrough.toISOString() } : {}),
     employmentType: empType,
     directApply: true,
+    ...(benefitsText ? { jobBenefits: benefitsText } : {}),
     url,
     identifier: { "@type": "PropertyValue", name: company, value: job.job_code || job.id },
     hiringOrganization: {

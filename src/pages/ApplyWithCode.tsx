@@ -17,7 +17,8 @@ import {
   ClipboardList,
   FileText,
   RefreshCw,
-  CheckCircle2
+  CheckCircle2,
+  Gift
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +36,7 @@ interface JobPreview {
   job_type: string | null;
   experience_level: string | null;
   department: string | null;
+  benefits: string[] | null;
   application_questions: Array<{ id: string; question: string; type: string; required?: boolean }> | null;
   quiz_questions: Array<{ id: string; question: string; type: string; time_limit_seconds?: number }> | null;
   workflow_steps: Array<{ id: string; title?: string; type: string; description?: string }> | null;
@@ -161,7 +163,7 @@ export default function ApplyWithCode() {
 
       const { data, error: fetchError } = await supabase
         .from("published_jobs_public")
-        .select("id, title, description, location, job_type, experience_level, department, application_questions, quiz_questions, workflow_steps, require_resume, application_deadline, employer_id")
+        .select("id, title, description, location, job_type, experience_level, department, benefits, application_questions, quiz_questions, workflow_steps, require_resume, application_deadline, employer_id")
         .eq("job_code", normalizedCode)
         .maybeSingle();
 
@@ -435,6 +437,24 @@ export default function ApplyWithCode() {
                     </div>
                   </div>
                 </div>
+
+                {/* Compact benefits line — same source (jobs.benefits) as JobDetails' full
+                    Benefits card, just condensed to fit this pre-apply preview. */}
+                {previewJob.benefits && previewJob.benefits.length > 0 && (
+                  <div className="rounded-xl border border-border bg-muted/20 p-4">
+                    <p className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground">
+                      <Gift className="h-4 w-4 text-primary" />
+                      Benefits
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {previewJob.benefits.map((benefit, index) => (
+                        <Badge key={`${benefit}-${index}`} variant="secondary" className="max-w-full whitespace-normal text-left">
+                          {benefit}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Button

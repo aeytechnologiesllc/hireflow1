@@ -9,6 +9,7 @@
  *   - jobs.application_questions : ApplicationQuestion[]  (read by CandidateApplicationWizard / ApplicationFormPhase)
  *   - jobs.quiz_questions        : QuizQuestion[]         (read by QuizPhase)
  *   - jobs.workflow_steps        : WorkflowStep[]         (read by CandidateApplicationWizard / ApplyWithCode / getApplicationDisplayState)
+ *   - jobs.benefits              : string[]               (read by JobDetails' Benefits section; brief.benefits normalized via normalizeBenefits())
  *
  * NOTE: application + quiz are synthetic phases in the candidate runtime (derived from
  * application_questions / quiz_questions), so they are deliberately NOT emitted as
@@ -18,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { rigorToDb } from "@/lib/avaEngine/rigor";
 import { geocodePlace } from "@/lib/geocode";
 import { notifyGoogleJobIndexingInBackground } from "@/lib/googleIndexing";
+import { normalizeBenefits } from "@/lib/jobBenefits";
 import { inferCountryCode, isFullyRemoteText } from "@/lib/jobLocation";
 import { parseSalary } from "@/lib/salaryParse";
 import type {
@@ -411,6 +413,7 @@ export async function createJobFromFlow(
     salary_period: salaryPeriod,
     job_type: mapEmploymentType(brief.employmentType),
     skills_required: [] as string[],
+    benefits: normalizeBenefits(brief.benefits),
     status: (opts.status ?? "published") as "published" | "draft",
     application_questions: applicationQuestions as unknown as never,
     quiz_questions: quizQuestions as unknown as never,

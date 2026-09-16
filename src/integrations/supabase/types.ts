@@ -1408,6 +1408,7 @@ export type Database = {
         Row: {
           application_deadline: string | null
           application_questions: Json | null
+          benefits: string[] | null
           created_at: string | null
           department: string | null
           description: string | null
@@ -1441,6 +1442,7 @@ export type Database = {
         Insert: {
           application_deadline?: string | null
           application_questions?: never
+          benefits?: string[] | null
           created_at?: string | null
           department?: string | null
           description?: string | null
@@ -1474,6 +1476,7 @@ export type Database = {
         Update: {
           application_deadline?: string | null
           application_questions?: never
+          benefits?: string[] | null
           created_at?: string | null
           department?: string | null
           description?: string | null
