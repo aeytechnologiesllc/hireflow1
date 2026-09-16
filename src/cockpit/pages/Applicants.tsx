@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import {
@@ -825,15 +825,18 @@ export default function CockpitApplicants() {
 
   // The role identifier differs by schema: showcase apps carry `role_id`, hireflow1 apps carry
   // `job_id`. Support both so the Role filter + the Jobs "View" deep-link (?roleId=<jobId>) work.
-  const appRoleId = (a: (typeof applications)[number]): string | null =>
-    ((a as { role_id?: string | null }).role_id ?? (a as { job_id?: string | null }).job_id) ?? null;
+  const appRoleId = useCallback(
+    (a: (typeof applications)[number]): string | null =>
+      ((a as { role_id?: string | null }).role_id ?? (a as { job_id?: string | null }).job_id) ?? null,
+    [],
+  );
 
   // Role-scoped set — the job's own totals, never touched by search or filters.
   const roleScoped = useMemo(() => {
     if (!roleIdFilter) return candidates;
     const appIds = new Set(applications.filter((a) => appRoleId(a) === roleIdFilter).map((a) => a.id));
     return candidates.filter((c) => appIds.has(c.id));
-  }, [candidates, applications, roleIdFilter]);
+  }, [candidates, applications, roleIdFilter, appRoleId]);
 
   // Billing paywall — a VISIBILITY gate, not a banner. Per the migration's own
   // model, "processed" vs "sealed" decides whether the employer sees the real
@@ -926,7 +929,7 @@ export default function CockpitApplicants() {
       if (rid && c?.role) map.set(rid, c.role);
     }
     return [{ label: "All roles", value: "" }, ...[...map].map(([value, label]) => ({ label, value }))];
-  }, [applications, candidates]);
+  }, [applications, candidates, appRoleId]);
 
   const stageOptions: FilterOption[] = [{ label: "All stages", value: "" }, ...STAGES.map((s) => ({ label: s, value: s }))];
   const scoreOptions: FilterOption[] = [

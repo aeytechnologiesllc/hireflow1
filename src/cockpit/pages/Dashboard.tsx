@@ -743,6 +743,11 @@ export default function CockpitDashboard() {
     } catch {
       setFirstApplicantDismissed(false);
     }
+    // Keyed on the id, not the object: `candidates` gets a new array/object
+    // reference on every refetch even when the first applicant hasn't
+    // changed, and re-reading the same localStorage key would be a harmless
+    // but pointless re-run on every one of those.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firstApplicant?.id]);
   const dismissFirstApplicant = () => {
     if (firstApplicant) {

@@ -93,17 +93,17 @@ export function FeatureDiscoveryTooltip({
     }
   }, [storageKey, delayMs]);
 
+  const handleDismiss = useCallback(() => {
+    setIsVisible(false);
+    localStorage.setItem(storageKey, "dismissed");
+  }, [storageKey]);
+
   useEffect(() => {
     if (isVisible && autoDismissMs > 0) {
       const timer = setTimeout(() => handleDismiss(), autoDismissMs);
       return () => clearTimeout(timer);
     }
-  }, [isVisible, autoDismissMs]);
-
-  const handleDismiss = useCallback(() => {
-    setIsVisible(false);
-    localStorage.setItem(storageKey, "dismissed");
-  }, [storageKey]);
+  }, [isVisible, autoDismissMs, handleDismiss]);
 
   // Mobile: centered fixed overlay
   if (isMobile) {

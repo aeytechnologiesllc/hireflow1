@@ -218,6 +218,12 @@ export function DocumentWizard({
         setCompanyAddress(profile.location);
       }
     }
+    // Deliberately keyed on [open, profile] only: this fills in whichever
+    // fields are still empty once, when the wizard opens with a profile.
+    // Adding the five field values themselves would make every keystroke in
+    // any one of them re-run this whole block, re-populating a field the
+    // user had just cleared on their own.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, profile]);
 
   // Handle pre-selection when props are provided - must run after application data is loaded
@@ -300,7 +306,7 @@ export function DocumentWizard({
     onOpenChange(false);
   };
 
-  const getSelectedRecipient = () => {
+  const getSelectedRecipient = useCallback(() => {
     if (applications.length === 0 || isManualRecipient) {
       return { name: recipientName, email: recipientEmail, jobTitle };
     }
@@ -310,7 +316,7 @@ export function DocumentWizard({
       email: app?.profiles?.email || "",
       jobTitle: app?.jobs?.title || jobTitle,
     };
-  };
+  }, [applications, isManualRecipient, recipientName, recipientEmail, jobTitle, selectedApplication]);
 
   // Compute validation state
   const documentValidation = useMemo((): DocumentValidation => {
@@ -335,7 +341,7 @@ export function DocumentWizard({
     documentType, companyName, companyEmail, companyPhone, companyAddress,
     recipientName, recipientEmail, jobTitle, salary, startDate,
     generatedContent, legacySignatureFields, hiringManagerName, hiringManagerTitle,
-    selectedApplication, isManualRecipient, applications
+    getSelectedRecipient
   ]);
 
   const validationReady = useMemo(() => isDocumentReady(documentValidation), [documentValidation]);
@@ -399,28 +405,7 @@ export function DocumentWizard({
     }
   };
 
-  // File upload handlers
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      handleFileSelect(file);
-    }
-  }, []);
-
-  const handleFileSelect = async (file: File) => {
+  const handleFileSelect = useCallback(async (file: File) => {
     // Validate file type
     const validTypes = Object.keys(ACCEPTED_FILE_TYPES);
     if (!validTypes.includes(file.type)) {
@@ -495,7 +480,28 @@ export function DocumentWizard({
     } finally {
       setIsUploading(false);
     }
-  };
+  }, [toast]);
+
+  // File upload handlers
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      handleFileSelect(file);
+    }
+  }, [handleFileSelect]);
 
   const removeUploadedFile = () => {
     setUploadedFile(null);

@@ -248,6 +248,8 @@ export default function InterviewSchedulingWizard({
   // no virtualization needed for a scrollable strip this short.
   const dayOptions = useMemo(
     () => Array.from({ length: 60 }, (_, i) => addDays(startOfDay(new Date()), i)),
+    // `open` isn't read above; it's the deliberate trigger so "today" is re-read each open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [open]
   );
   const viewDay = dayOptions[viewDayIndex] ?? dayOptions[0];
@@ -347,18 +349,68 @@ export default function InterviewSchedulingWizard({
     [wheelCenterIndex, viewDay, toggleWindow, prefersReducedMotion]
   );
 
+  const canProceed = useCallback(() => {
+    switch (currentStep) {
+      case 0:
+        if (exactTimeMode) return !!(selectedDate && selectedTime);
+        return selectedWindows.length >= MIN_WINDOWS;
+      case 1:
+        return true;
+      case 2:
+        // For video interviews: require either Google auto-generate OR a valid manual link —
+        // but only in exact-time mode. Windows mode gets an in-app room, no link to collect.
+        if (interviewType === "video") {
+          if (!exactTimeMode) return true;
+          // Google connected with auto-generate enabled = valid
+          if (isGoogleConnected && generateMeetLink) {
+            return true;
+          }
+          // Otherwise, must have a valid manual meeting link
+          return isValidMeetingLink(manualMeetingLink);
+        }
+        // Non-video interviews don't need a meeting link
+        return true;
+      case 3:
+        return true;
+      default:
+        return true;
+    }
+  }, [
+    currentStep,
+    exactTimeMode,
+    selectedDate,
+    selectedTime,
+    selectedWindows,
+    interviewType,
+    isGoogleConnected,
+    generateMeetLink,
+    manualMeetingLink,
+  ]);
+
+  const handleNext = useCallback(() => {
+    if (currentStep < steps.length - 1) {
+      setCurrentStep((prev) => prev + 1);
+    }
+  }, [currentStep, steps.length]);
+
+  const handleBack = useCallback(() => {
+    if (currentStep > 0) {
+      setCurrentStep((prev) => prev - 1);
+    }
+  }, [currentStep]);
+
   // Swipe handlers for step navigation
   const handleSwipeLeft = useCallback(() => {
     if (canProceed() && currentStep < steps.length - 1) {
       handleNext();
     }
-  }, [currentStep, steps.length]);
+  }, [currentStep, steps.length, canProceed, handleNext]);
 
   const handleSwipeRight = useCallback(() => {
     if (currentStep > 0) {
       handleBack();
     }
-  }, [currentStep]);
+  }, [currentStep, handleBack]);
 
   const swipeProps = useSwipeGesture({
     onSwipeLeft: handleSwipeLeft,
@@ -677,46 +729,6 @@ export default function InterviewSchedulingWizard({
       setCurrentStep(2);
     }
   }, [open, initialState]);
-
-  const canProceed = () => {
-    switch (currentStep) {
-      case 0:
-        if (exactTimeMode) return !!(selectedDate && selectedTime);
-        return selectedWindows.length >= MIN_WINDOWS;
-      case 1:
-        return true;
-      case 2:
-        // For video interviews: require either Google auto-generate OR a valid manual link —
-        // but only in exact-time mode. Windows mode gets an in-app room, no link to collect.
-        if (interviewType === "video") {
-          if (!exactTimeMode) return true;
-          // Google connected with auto-generate enabled = valid
-          if (isGoogleConnected && generateMeetLink) {
-            return true;
-          }
-          // Otherwise, must have a valid manual meeting link
-          return isValidMeetingLink(manualMeetingLink);
-        }
-        // Non-video interviews don't need a meeting link
-        return true;
-      case 3:
-        return true;
-      default:
-        return true;
-    }
-  };
-
-  const handleNext = () => {
-    if (currentStep < steps.length - 1) {
-      setCurrentStep((prev) => prev + 1);
-    }
-  };
-
-  const handleBack = () => {
-    if (currentStep > 0) {
-      setCurrentStep((prev) => prev - 1);
-    }
-  };
 
   return (
     <>

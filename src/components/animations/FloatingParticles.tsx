@@ -20,8 +20,6 @@ export function FloatingParticles({
   className = "",
   intensity = "medium"
 }: FloatingParticlesProps) {
-  const colorKey = colors.join("|");
-
   const particles = useMemo(() => {
     // Reduce counts for performance
     const actualCount = intensity === "subtle" ? Math.min(count, 8) : 
@@ -39,7 +37,7 @@ export function FloatingParticles({
       duration: 5 + Math.random() * 3,
       delay: Math.random() * 2,
     }));
-  }, [count, colorKey, colors, intensity]);
+  }, [count, colors, intensity]);
 
   return (
     <div className={`absolute inset-0 overflow-hidden pointer-events-none ${className}`}>

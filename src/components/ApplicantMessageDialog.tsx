@@ -58,7 +58,7 @@ export default function ApplicantMessageDialog({
         markAsRead.mutate(unreadIds);
       }
     }
-  }, [open, messages, user?.id]);
+  }, [open, messages, user?.id, markAsRead]);
 
   const handleSend = async () => {
     if (!message.trim()) return;

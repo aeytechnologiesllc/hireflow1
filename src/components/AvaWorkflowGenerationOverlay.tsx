@@ -366,6 +366,11 @@ export default function AvaWorkflowGenerationOverlay({
         progressFrameRef.current = null;
       }
     };
+    // `stage` is read once here (seeding stageKeyRef), deliberately not a
+    // trigger: this effect is the session-reset on open/mode-change only.
+    // The effect right below re-fires on `stage` too and does the lighter,
+    // per-stage update (bump the message index without resetting progress).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isVisible, mode]);
 
   useEffect(() => {

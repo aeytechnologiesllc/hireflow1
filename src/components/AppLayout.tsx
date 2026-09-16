@@ -75,6 +75,10 @@ export default function AppLayout() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, loading, role, signOut, isTeamMember } = useAuth();
   const { subscription, teamAccess, isLoading: subLoading, error: subError, completeOnboarding, needsOnboarding: hookNeedsOnboarding, syncSubscription, refetch } = useSubscription();
+  const isExpiredCheck = subscription?.status === 'expired' ||
+                    (subscription?.status === 'trialing' &&
+                     subscription?.trial_end &&
+                     new Date(subscription.trial_end) < new Date());
   const isMobile = useIsMobile();
   usePushNotifications(); // Auto-registers device for push notifications in Natively
   const syncAttemptedRef = useRef(false);
@@ -182,12 +186,11 @@ export default function AppLayout() {
           return prev;
         });
       });
-  }, [user, searchParams]);
+    // globalSyncAttemptedRef makes the guarded work above run at most once
+    // per mount regardless of how often this effect itself re-fires, so the
+    // extra deps below (needed for the closures over them) can't re-trigger it.
+  }, [user, searchParams, isExpiredCheck, location.pathname, navigate, refetch, setSearchParams, syncSubscription]);
 
-  const isExpiredCheck = subscription?.status === 'expired' ||
-                    (subscription?.status === 'trialing' && 
-                     subscription?.trial_end && 
-                     new Date(subscription.trial_end) < new Date());
   const hasRevokedTeamAccess = role === "team_member" && teamAccess.status === "revoked";
   const hasExpiredTeamAccess = isTeamMember && isExpiredCheck;
   const shouldRedirectTeamMember =

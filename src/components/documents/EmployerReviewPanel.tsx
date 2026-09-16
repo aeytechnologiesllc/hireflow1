@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -38,11 +38,7 @@ export function EmployerReviewPanel({
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    loadAuditTrail();
-  }, [documentId]);
-
-  const loadAuditTrail = async () => {
+  const loadAuditTrail = useCallback(async () => {
     setIsLoading(true);
     const logs = await fetchAuditTrail(documentId);
     // Filter to show only events up to and including candidate signature
@@ -58,7 +54,11 @@ export function EmployerReviewPanel({
     });
     setAuditLogs(relevantLogs);
     setIsLoading(false);
-  };
+  }, [documentId]);
+
+  useEffect(() => {
+    loadAuditTrail();
+  }, [loadAuditTrail]);
 
   // Parse candidate signature for display
   const parsedSignature = candidateSignatureData ? (() => {

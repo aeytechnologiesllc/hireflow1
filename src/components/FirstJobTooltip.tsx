@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { AvaSeal } from "@/components/ava/AvaSeal";
 
 interface FirstJobTooltipProps {
@@ -25,11 +25,11 @@ export default function FirstJobTooltip({ show, onDismiss }: FirstJobTooltipProp
     }
   }, [show, isDismissed]);
 
-  const handleDismiss = () => {
+  const handleDismiss = useCallback(() => {
     localStorage.setItem(STORAGE_KEY, "true");
     setIsVisible(false);
     onDismiss();
-  };
+  }, [onDismiss]);
 
   // Auto-dismiss after 8 seconds
   useEffect(() => {
@@ -37,7 +37,7 @@ export default function FirstJobTooltip({ show, onDismiss }: FirstJobTooltipProp
       const timer = setTimeout(handleDismiss, 8000);
       return () => clearTimeout(timer);
     }
-  }, [isVisible]);
+  }, [isVisible, handleDismiss]);
 
   if (isDismissed || !show) return null;
 

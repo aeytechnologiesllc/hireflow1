@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Document, Page, pdfjs } from "react-pdf";
 import {
@@ -70,19 +70,6 @@ export function DocumentRequestViewerDialog({
     return () => window.removeEventListener('resize', updateWidth);
   }, [open]);
 
-  useEffect(() => {
-    if (open && request?.file_url) {
-      fetchSignedUrl();
-    } else {
-      setSignedUrl(null);
-      setError(null);
-      setZoom(1);
-      setRotation(0);
-      setNumPages(0);
-      setCurrentPage(1);
-      setPdfLoading(true);
-    }
-  }, [open, request?.file_url]);
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
@@ -98,7 +85,7 @@ export function DocumentRequestViewerDialog({
   const goToPreviousPage = () => setCurrentPage((p) => Math.max(p - 1, 1));
   const goToNextPage = () => setCurrentPage((p) => Math.min(p + 1, numPages));
 
-  const fetchSignedUrl = async () => {
+  const fetchSignedUrl = useCallback(async () => {
     if (!request?.file_url) return;
 
     setIsLoading(true);
@@ -135,7 +122,21 @@ export function DocumentRequestViewerDialog({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [request?.file_url]);
+
+  useEffect(() => {
+    if (open && request?.file_url) {
+      fetchSignedUrl();
+    } else {
+      setSignedUrl(null);
+      setError(null);
+      setZoom(1);
+      setRotation(0);
+      setNumPages(0);
+      setCurrentPage(1);
+      setPdfLoading(true);
+    }
+  }, [open, request?.file_url, fetchSignedUrl]);
 
   const handleDownload = async () => {
     if (!signedUrl || !request) return;

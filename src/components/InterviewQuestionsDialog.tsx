@@ -261,7 +261,7 @@ export default function InterviewQuestionsDialog({
       setRawQuestions(null);
       lastSyncedInterviewIdRef.current = interviewId;
     }
-  }, [open, interview?.id, interview?.ai_questions]);
+  }, [open, interview?.id, interview?.ai_questions, rawQuestions]);
 
   const application = interview?.applications;
   const job = application?.jobs;
