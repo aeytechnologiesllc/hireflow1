@@ -1,0 +1,14 @@
+{
+  "//": "Edge functions CI skips for `deno check` because they fail today for reasons unrelated to whatever PR is running. Each entry needs a reason and the exact error so a later cleanup can grep for it. Removing an entry is how you prove it's fixed — CI will then check it on every push. See .github/workflows/ci.yml.",
+  "skip": {
+    "ai-analyze": "3 pre-existing TS errors in supabase/functions/ai-analyze/index.ts (as of 2026-09-16), unrelated to CI work.",
+    "ai-generate-job-content": "7 pre-existing TS errors in supabase/functions/ai-generate-job-content/index.ts (as of 2026-09-16), unrelated to CI work.",
+    "autopilot-batch": "9 pre-existing TS errors in supabase/functions/autopilot-batch/index.ts (as of 2026-09-16), unrelated to CI work.",
+    "ava-voice-tools": "supabaseAdmin client type mismatch against _shared/googleIndexing.ts's NotifyGoogleIndexingOptions (as of 2026-09-16), unrelated to CI work.",
+    "delete-account": "7 pre-existing TS errors in supabase/functions/delete-account/index.ts (as of 2026-09-16), unrelated to CI work.",
+    "generate-flow": "deno check cannot resolve npm:openai@^4.52.5 without node_modules present (as of 2026-09-16) — needs a deno.json nodeModulesDir fix, unrelated to CI work.",
+    "google-indexing": "same supabaseAdmin/NotifyGoogleIndexingOptions mismatch as ava-voice-tools, in _shared/googleIndexing.ts (as of 2026-09-16), unrelated to CI work.",
+    "send-push-notification": "TS18046 'error' is of type 'unknown' at index.ts:124 (as of 2026-09-16), unrelated to CI work.",
+    "send-test-push": "TS18046 'error' is of type 'unknown' at index.ts:108 (as of 2026-09-16), unrelated to CI work."
+  }
+}

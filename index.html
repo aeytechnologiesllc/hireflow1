@@ -50,6 +50,11 @@
     <!-- Natively JS SDK for native app bridge (push notifications, etc.) -->
     <script>function nativelyOnLoad() { window.nativelyLoaded = true; }</script>
     <script async onload="nativelyOnLoad()" src="https://cdn.jsdelivr.net/npm/natively@2.20.0/natively-frontend.min.js"></script>
+
+    <!-- Privacy-friendly, cookieless page-view counting. Handles this initial
+         load; src/hooks/usePageViewTracking.ts calls window.__hfBeacon.track()
+         for later in-app route changes. See public/beacon.js. -->
+    <script src="/beacon.js" defer></script>
   </head>
 
   <body>

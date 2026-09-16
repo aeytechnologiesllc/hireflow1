@@ -134,3 +134,9 @@ verify_jwt = true
 
 [functions.send-test-push]
 verify_jwt = true
+
+[functions.client-errors]
+verify_jwt = false
+
+[functions.page-views]
+verify_jwt = false

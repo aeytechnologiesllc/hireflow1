@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  LayoutDashboard, 
-  Users, 
-  CreditCard, 
-  Briefcase, 
+import {
+  LayoutDashboard,
+  Users,
+  CreditCard,
+  Briefcase,
   Activity,
+  Bug,
+  Eye,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -50,14 +52,26 @@ const navItems = [
     icon: Briefcase,
     description: "All platform jobs"
   },
-  { 
-    title: "Activity", 
-    path: "/developer/activity", 
+  {
+    title: "Activity",
+    path: "/developer/activity",
     icon: Activity,
     description: "Platform activity logs"
   },
-  { 
-    title: "Settings", 
+  {
+    title: "Errors",
+    path: "/developer/errors",
+    icon: Bug,
+    description: "Client crash alerts"
+  },
+  {
+    title: "Visitors",
+    path: "/developer/visitors",
+    icon: Eye,
+    description: "Page views & referrers"
+  },
+  {
+    title: "Settings",
     path: "/developer/settings", 
     icon: Settings,
     description: "Developer settings"
