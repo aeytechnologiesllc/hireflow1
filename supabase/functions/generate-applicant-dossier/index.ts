@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { jsPDF } from "https://esm.sh/jspdf@2.5.1";
 import { canAccessDossier } from "../_shared/dossierAccess.ts";
+import { isScopedTeamMemberFromRpc } from "../_shared/teamMemberRpcAccess.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -283,7 +284,7 @@ serve(async (req) => {
       // Fail closed: an RPC error must never be treated as access granted.
       console.error('[Dossier] is_active_team_member_for_job RPC error:', teamMemberRpc.error);
     }
-    const isScopedTeamMember = !teamMemberRpc.error && teamMemberRpc.data === true;
+    const isScopedTeamMember = isScopedTeamMemberFromRpc(teamMemberRpc);
 
     const authorized = canAccessDossier({
       isCandidateOwner,

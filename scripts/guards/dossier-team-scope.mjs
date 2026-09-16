@@ -23,10 +23,36 @@
  * it's unit-tested with plain node at scripts/dossier_access.test.mjs --
  * run directly: `node scripts/dossier_access.test.mjs`); these are cheap
  * static checks over the source, not a substitute for that test.
+ *
+ * The fail-closed RPC-error check below used to be a regex over this
+ * file's raw text (roughly: "does the substring `teamMemberRpc.error`
+ * appear anywhere, or does some looser `isScopedTeamMember = !...error`
+ * pattern match"). A reviewer showed that was too weak: dropping
+ * `!teamMemberRpc.error &&` from the `isScopedTeamMember` assignment still
+ * passed, because the standalone `console.error('...', teamMemberRpc.error)`
+ * log line right above it still contained the substring `teamMemberRpc.error`
+ * -- satisfying the first branch of the check without the assigned boolean
+ * actually depending on it at all. A regex over a call site can always be
+ * fooled this way, because it can't tell "referenced" from "depended on".
+ *
+ * Fixed by moving the RPC-error -> access-decision mapping out of this
+ * file entirely, into a small pure function,
+ * isScopedTeamMemberFromRpc(...) in
+ * supabase/functions/_shared/teamMemberRpcAccess.ts, that's covered
+ * directly by scripts/team_member_rpc_access.test.mjs (including the exact
+ * "RPC error present, data true anyway" case the reviewer's regression
+ * would have produced). The guard below now checks two things instead of
+ * grepping this call site for a fail-closed pattern it can't verify: (a)
+ * this file calls that shared function -- not a hand-rolled boolean
+ * expression a future edit could weaken unnoticed -- and (b) the shared
+ * function's own body is still the fail-closed expression. Weakening
+ * either one fails a check that doesn't depend on an incidental nearby
+ * string.
  */
 
 const FN = "supabase/functions/generate-applicant-dossier/index.ts";
 const ACCESS_FN = "supabase/functions/_shared/dossierAccess.ts";
+const RPC_ACCESS_FN = "supabase/functions/_shared/teamMemberRpcAccess.ts";
 
 export default [
   {
@@ -39,8 +65,10 @@ export default [
     run: async ({ read }) => {
       const src = await read(FN);
       const accessSrc = await read(ACCESS_FN);
+      const rpcAccessSrc = await read(RPC_ACCESS_FN);
       if (!src) return { ok: false, detail: [`${FN} not found`] };
       if (!accessSrc) return { ok: false, detail: [`${ACCESS_FN} not found`] };
+      if (!rpcAccessSrc) return { ok: false, detail: [`${RPC_ACCESS_FN} not found`] };
       const bad = [];
 
       if (/\.from\(['"]team_members['"]\)/.test(src)) {
@@ -77,12 +105,35 @@ export default [
         );
       }
 
-      // Any RPC error must fail closed.
-      if (!/teamMemberRpc\.error/.test(src) && !/\.error\b[\s\S]{0,80}is_active_team_member_for_job/i.test(src)) {
-        // Looser secondary check: some error-handling reference to the RPC result must exist.
-        if (!/isScopedTeamMember\s*=\s*!.*error/.test(src)) {
-          bad.push("an error from the is_active_team_member_for_job RPC must be treated as denied (fail closed), not ignored");
-        }
+      // The RPC-error -> access-decision mapping must come from the shared,
+      // tested pure function, not be reimplemented inline here. An inline
+      // boolean expression can have its fail-closed half quietly deleted
+      // while an unrelated `.error` reference elsewhere in the file (e.g.
+      // a console.error log line) keeps a naive "does '.error' appear
+      // somewhere" regex happy -- that's the exact regression a reviewer
+      // found in an earlier version of this guard.
+      if (!/import\s*\{[^}]*\bisScopedTeamMemberFromRpc\b[^}]*\}\s*from\s*["']\.\.\/_shared\/teamMemberRpcAccess\.ts["']/.test(src)) {
+        bad.push(
+          `${FN} must import isScopedTeamMemberFromRpc from ../_shared/teamMemberRpcAccess.ts -- the ` +
+          "RPC error/data -> access mapping must not be reimplemented inline, where a dropped fail-closed " +
+          "check can hide behind an unrelated '.error' reference elsewhere in the file"
+        );
+      }
+      if (!/isScopedTeamMember\s*=\s*isScopedTeamMemberFromRpc\(\s*teamMemberRpc\s*\)/.test(src)) {
+        bad.push(
+          "isScopedTeamMember must be assigned exactly isScopedTeamMemberFromRpc(teamMemberRpc) -- not an " +
+          "inline boolean expression, which a future edit could weaken without any guard noticing"
+        );
+      }
+
+      // The mapping itself is only allowed to live in one place -- pin its
+      // actual fail-closed body down directly, rather than trusting every
+      // call site to have used it correctly.
+      if (!/return\s+!result\.error\s*&&\s*result\.data\s*===\s*true\s*;/.test(rpcAccessSrc)) {
+        bad.push(
+          `${RPC_ACCESS_FN} isScopedTeamMemberFromRpc must return "!result.error && result.data === true" -- ` +
+          "any RPC error, or a data value other than the literal true, must deny access"
+        );
       }
 
       if (!/function\s+canAccessDossier/.test(accessSrc)) {

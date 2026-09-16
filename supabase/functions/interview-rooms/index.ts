@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isScopedTeamMemberFromRpc } from "../_shared/teamMemberRpcAccess.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -100,17 +101,40 @@ Deno.serve(async (req) => {
     const isCandidate = application?.candidate_id === user.id;
     const isEmployer = employerId === user.id;
 
+    // Team-member access must be scoped to THIS job the same way the live
+    // RLS policy on `applications` scopes it ("Team members can view
+    // applications for assigned jobs" -> is_active_team_member_for_job),
+    // whose definition requires assigned_job_ids to be null (whole-employer
+    // access) OR contain this job's id. A plain team_members row check
+    // (employer_id + user_id + active + can_schedule_interviews) would let
+    // a team member scoped to job A join job B's interview room just by
+    // sharing an employer -- call the same SECURITY DEFINER function the
+    // applications RLS policy uses (via the caller's own JWT, so its
+    // p_user_id = auth.uid() check passes) for the job scoping, and keep
+    // the can_schedule_interviews permission check the RPC has no flag for.
     let isTeamMember = false;
     if (!isCandidate && !isEmployer && employerId) {
-      const { data: membership } = await supabaseAdmin
-        .from("team_members")
-        .select("id")
-        .eq("employer_id", employerId)
-        .eq("user_id", user.id)
-        .eq("status", "active")
-        .eq("can_schedule_interviews", true)
-        .maybeSingle();
-      isTeamMember = !!membership;
+      const [teamMemberRpc, { data: membership }] = await Promise.all([
+        supabaseUser.rpc("is_active_team_member_for_job", {
+          p_job_id: job.id,
+          p_user_id: user.id,
+        }),
+        supabaseAdmin
+          .from("team_members")
+          .select("can_schedule_interviews")
+          .eq("employer_id", employerId)
+          .eq("user_id", user.id)
+          .eq("status", "active")
+          .maybeSingle(),
+      ]);
+
+      if (teamMemberRpc.error) {
+        // Fail closed: an RPC error must never be treated as access granted.
+        console.error("is_active_team_member_for_job RPC error:", teamMemberRpc.error);
+      }
+      const isScopedTeamMember = isScopedTeamMemberFromRpc(teamMemberRpc);
+
+      isTeamMember = isScopedTeamMember && membership?.can_schedule_interviews === true;
     }
 
     if (!isCandidate && !isEmployer && !isTeamMember) {
