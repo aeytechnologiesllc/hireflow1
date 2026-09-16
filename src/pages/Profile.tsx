@@ -13,6 +13,11 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ProfileCompleteness } from "@/components/ProfileCompleteness";
 import { isSupportedResumeFile } from "@/utils/resumeFiles";
+
+// Must match allowed_mime_types on the public `avatars` bucket
+// (supabase/migrations/20260916223000_storage_bucket_limits.sql). No SVG: it can
+// carry script, and this bucket is public.
+const AVATAR_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/heic", "image/heif", "image/avif"];
 import { resolveResumeUrl } from "@/utils/resumeSignedUrl";
 
 export default function Profile() {
@@ -77,9 +82,9 @@ export default function Profile() {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
-    // Validate file type
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please upload an image file");
+    // Validate file type (the avatars bucket accepts these types only)
+    if (!AVATAR_IMAGE_TYPES.includes(file.type)) {
+      toast.error("Please upload a PNG, JPG, WebP or GIF image");
       return;
     }
 
@@ -123,8 +128,8 @@ export default function Profile() {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please upload an image file");
+    if (!AVATAR_IMAGE_TYPES.includes(file.type)) {
+      toast.error("Please upload a PNG, JPG, WebP or GIF image");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -304,7 +309,7 @@ export default function Profile() {
               <input
                 ref={avatarInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/png,image/jpeg,image/webp,image/gif,image/heic,image/heif,image/avif"
                 className="hidden"
                 onChange={handleAvatarUpload}
               />
@@ -509,7 +514,7 @@ export default function Profile() {
                 <input
                   ref={logoInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/png,image/jpeg,image/webp,image/gif,image/heic,image/heif,image/avif"
                   className="hidden"
                   onChange={handleLogoUpload}
                 />
