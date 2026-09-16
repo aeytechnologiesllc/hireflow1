@@ -140,7 +140,16 @@ export function useCockpitJobsData() {
     jobs: rows,
     rawJobs: jobs,
     applications,
-    isLoading: mode === "showcase" ? showcaseQ.isLoading : jobsLoading || appsLoading,
+    // companiesQ only becomes enabled once `jobs` has data, so it starts a
+    // beat after jobsLoading/appsLoading settle. Without it here, the page's
+    // skeleton would drop for one render with an empty company map, and every
+    // live job would flash a false "add your company name" chip/tooltip even
+    // when the employer's branding is already set. Gate on employerIds.length
+    // so this never waits on a query that will never run (no jobs yet).
+    isLoading:
+      mode === "showcase"
+        ? showcaseQ.isLoading
+        : jobsLoading || appsLoading || (employerIds.length > 0 && companiesQ.isLoading),
     // Failed ≠ empty: "You haven't posted a role yet" must not stand in for a
     // fetch that never came back.
     isError: mode === "showcase" ? showcaseQ.isError : jobsFailed || appsFailed,

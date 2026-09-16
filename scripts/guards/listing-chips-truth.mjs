@@ -100,4 +100,27 @@ export default [
       return bad.length ? { ok: false, detail: bad } : { ok: true };
     },
   },
+  {
+    id: "jobs-list-isLoading-waits-for-company-names",
+    why:
+      "useCockpitJobsData's companiesQ (employer_public_branding) only becomes enabled once `jobs` " +
+      "has data, so it necessarily starts after jobsLoading/appsLoading settle. If the hook's " +
+      "returned isLoading doesn't also wait on companiesQ, the Jobs page skeleton drops one render " +
+      "early with an empty company map, and every live job — including ones whose employer already " +
+      "has a company name set — flashes a false 'add your company name' chip/tooltip. That's the " +
+      "same class of falsehood this fix exists to remove, just inverted (a false negative flash " +
+      "instead of a permanently stale claim).",
+    run: async ({ read }) => {
+      const hook = (await read("src/cockpit/hooks/useCockpitData.ts")) ?? "";
+      const bad = [];
+      if (!/jobsLoading \|\| appsLoading \|\| \(employerIds\.length > 0 && companiesQ\.isLoading\)/.test(hook)) {
+        bad.push(
+          "useCockpitJobsData's isLoading no longer waits on companiesQ.isLoading (gated on employerIds.length > 0) " +
+            "alongside jobsLoading/appsLoading — the Jobs page can render live jobs with an empty company map " +
+            "and flash false 'add your company name' chips.",
+        );
+      }
+      return bad.length ? { ok: false, detail: bad } : { ok: true };
+    },
+  },
 ];
