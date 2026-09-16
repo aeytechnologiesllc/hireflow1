@@ -347,6 +347,10 @@ export default function InterviewQuestionsDialog({
           content: contentParts,
           resumeUrl,
           coverLetter,
+          // Lets ai-analyze verify server-side that the caller actually owns
+          // (or manages the pipeline for) this application's job before it
+          // spends anything generating questions for it.
+          applicationId: application?.id,
         },
       });
 

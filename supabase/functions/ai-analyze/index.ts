@@ -1,11 +1,14 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   callOpenAIChat,
   callOpenAIJson,
   requireNestedJsonPaths,
   type OpenAIMessage,
 } from "../_shared/openai.ts";
+import { guardAuthenticatedAiCall } from "../_shared/rateLimit.ts";
+import { isAiAnalyzeCallAuthorized, type JobAccessFacts } from "../_shared/aiAccess.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const OPENAI_MODEL = Deno.env.get("OPENAI_ANALYSIS_MODEL") || "gpt-5.6-terra";
@@ -26,6 +29,12 @@ interface AnalyzeRequest {
   applicantName?: string; // For cross-reference verification
   applicationAnswers?: Array<{ question: string; answer: string }>; // Structured answers
   coverLetter?: string; // Separate cover letter for cross-reference
+  // Ownership anchors, required per `type` — see resolveJobAccessFacts()
+  // below and the matrix documented in ../_shared/aiAccess.ts. Never used
+  // for anything except the server-side ownership lookup; the analysis
+  // itself still only sees `content`/`context`/the resume fields above.
+  applicationId?: string;
+  jobId?: string;
 }
 
 interface StructuredScore {
@@ -889,6 +898,93 @@ Provide:
 Be thorough but concise in your analysis.`,
 };
 
+type AdminClient = ReturnType<typeof createClient>;
+
+/**
+ * Ownership facts for one job, scoped to the single permission flag that
+ * "type" requires — mirrors the live RLS shapes in
+ * supabase/migrations/20260715014000_break_jobs_applications_rls_recursion.sql
+ * and 20251215060535_ff04f7dd-ee9c-4df4-925b-3b490f1ba9d3.sql (interviews).
+ */
+async function loadJobAccessFacts(
+  supabaseAdmin: AdminClient,
+  userId: string,
+  jobId: string,
+  employerId: string,
+  type: AnalyzeRequest["type"],
+): Promise<JobAccessFacts> {
+  const isOwner = employerId === userId;
+  const permissionColumn = type === "interview"
+    ? "can_schedule_interviews"
+    : type === "job-bias"
+      ? "can_create_jobs"
+      : "can_manage_pipeline"; // "phase"
+
+  const [{ data: teamMembership }, { data: developerRole }] = await Promise.all([
+    isOwner
+      ? Promise.resolve({ data: null as { assigned_job_ids: string[] | null } | null })
+      : supabaseAdmin
+          .from("team_members")
+          .select("assigned_job_ids")
+          .eq("user_id", userId)
+          .eq("employer_id", employerId)
+          .eq("status", "active")
+          .eq(permissionColumn, true)
+          .maybeSingle(),
+    supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("role", "developer")
+      .maybeSingle(),
+  ]);
+
+  const isPermittedTeamMember = !!teamMembership &&
+    (!teamMembership.assigned_job_ids?.length || teamMembership.assigned_job_ids.includes(jobId));
+
+  return { isOwner, isPermittedTeamMember, isDeveloper: !!developerRole };
+}
+
+/**
+ * Resolves the job/application named in the payload, server-side, for
+ * "interview" | "job-bias" | "phase" — never trusts the id alone. Returns
+ * null (always denies) when the required id is missing or doesn't resolve
+ * to a real row; "resume"/"application" never call this (service-role only,
+ * see isAiAnalyzeCallAuthorized).
+ */
+async function resolveJobAccessFacts(
+  supabaseAdmin: AdminClient,
+  userId: string,
+  type: AnalyzeRequest["type"],
+  applicationId: string | undefined,
+  jobId: string | undefined,
+): Promise<JobAccessFacts | null> {
+  if (type === "interview" || type === "phase") {
+    if (!applicationId) return null;
+    const { data: application } = await supabaseAdmin
+      .from("applications")
+      .select("id, jobs(id, employer_id)")
+      .eq("id", applicationId)
+      .maybeSingle();
+    const job = (application as { jobs?: { id: string; employer_id: string } | null } | null)?.jobs;
+    if (!job?.id || !job?.employer_id) return null;
+    return loadJobAccessFacts(supabaseAdmin, userId, job.id, job.employer_id, type);
+  }
+
+  if (type === "job-bias") {
+    if (!jobId) return null;
+    const { data: job } = await supabaseAdmin
+      .from("jobs")
+      .select("id, employer_id")
+      .eq("id", jobId)
+      .maybeSingle();
+    if (!job) return null;
+    return loadJobAccessFacts(supabaseAdmin, userId, job.id, job.employer_id, type);
+  }
+
+  return null;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -904,17 +1000,56 @@ serve(async (req) => {
       );
     }
 
-    const { 
-      type, 
-      content, 
-      context, 
-      resumeUrl, 
-      resumeText, 
+    // verify_jwt=true at the platform level only checks that the bearer
+    // token is a *validly signed* Supabase JWT — the public anon key is
+    // itself one, so it clears that gate with no signed-in user behind it at
+    // all. Every human caller must resolve to a real auth.getUser() identity
+    // below; only the project's own service role key (used by
+    // trigger-ava-analysis, which has already checked the requesting
+    // human's permission on that application before it calls this function)
+    // skips straight through as a trusted internal caller.
+    const authHeader = req.headers.get("Authorization") ?? req.headers.get("authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Authentication required" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const bearerToken = authHeader.replace(/^Bearer\s+/i, "").trim();
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const isServiceRole = !!serviceRoleKey && bearerToken === serviceRoleKey;
+
+    let callerId: string | null = null;
+    if (!isServiceRole) {
+      const supabaseUserClient = createClient(
+        Deno.env.get("SUPABASE_URL") ?? "",
+        Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+        { global: { headers: { Authorization: authHeader } } }
+      );
+      const { data: { user }, error: userError } = await supabaseUserClient.auth.getUser();
+      if (userError || !user) {
+        return new Response(
+          JSON.stringify({ error: "Invalid authentication token" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      callerId = user.id;
+    }
+
+    const {
+      type,
+      content,
+      context,
+      resumeUrl,
+      resumeText,
       resumeImage,
       resumeImages,
       applicantName,
       applicationAnswers,
-      coverLetter 
+      coverLetter,
+      applicationId,
+      jobId,
     } = (await req.json()) as AnalyzeRequest;
 
     if (!type || !content) {
@@ -930,6 +1065,30 @@ serve(async (req) => {
         JSON.stringify({ error: `Invalid analysis type: ${type}` }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    if (!isServiceRole) {
+      const supabaseAdmin = createClient(
+        Deno.env.get("SUPABASE_URL") ?? "",
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      );
+      const jobFacts = await resolveJobAccessFacts(supabaseAdmin, callerId!, type, applicationId, jobId);
+
+      if (!isAiAnalyzeCallAuthorized({ type, isServiceRole: false, job: jobFacts })) {
+        console.warn("[ai-analyze] Unauthorized analysis attempt", {
+          requesterId: callerId,
+          type,
+          applicationId,
+          jobId,
+        });
+        return new Response(
+          JSON.stringify({ error: "You do not have permission to run this analysis" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const rateLimited = await guardAuthenticatedAiCall(`ai-analyze:${type}`, callerId!, corsHeaders, 20, 3600);
+      if (rateLimited) return rateLimited;
     }
 
     const normalizedResumeImages = Array.isArray(resumeImages) && resumeImages.length > 0
