@@ -19,7 +19,7 @@ export interface ClientErrorEvent {
 // src/integrations/supabase/types.ts is generated FROM THE LIVE DATABASE
 // (see that file's own header) and this repo's guardrails forbid running a
 // live migration from here, so client_error_events/page_view_daily (added
-// by 20260916160000_client_error_events_and_page_views.sql) can't be in it
+// by 20260916165000_client_error_events_and_page_views.sql) can't be in it
 // yet. Once that migration is applied live, re-run
 // `npx supabase gen types typescript` and this cast goes away — RLS (the
 // "Developers can view client error events" policy) is what actually gates

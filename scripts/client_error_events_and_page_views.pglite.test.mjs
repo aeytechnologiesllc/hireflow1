@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * PGlite proof for supabase/migrations/20260916160000_client_error_events_and_page_views.sql
+ * PGlite proof for supabase/migrations/20260916165000_client_error_events_and_page_views.sql
  * — plain assertions, no framework, real Postgres (via PGlite), not a text match.
  *
  * Builds a minimal fixture of the tables this migration depends on
@@ -33,7 +33,7 @@ import path from "node:path";
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const MIGRATION_PATH = path.join(
   ROOT,
-  "supabase/migrations/20260916160000_client_error_events_and_page_views.sql",
+  "supabase/migrations/20260916165000_client_error_events_and_page_views.sql",
 );
 
 let passed = 0;

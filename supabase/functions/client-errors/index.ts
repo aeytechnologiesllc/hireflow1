@@ -25,7 +25,7 @@
  *
  * Grouping, upsert-by-fingerprint and developer notifications all happen
  * inside the record_client_error_event() SQL function
- * (20260916160000_client_error_events_and_page_views.sql) — this function's
+ * (20260916165000_client_error_events_and_page_views.sql) — this function's
  * job is auth, validation and sanitizing, not business logic.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";

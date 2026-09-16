@@ -171,9 +171,9 @@ export default [
       "caller could read or forge rows directly via PostgREST, bypassing record_client_error_" +
       "event()/record_page_view() entirely.",
     async run({ read }) {
-      const migration = await read("supabase/migrations/20260916160000_client_error_events_and_page_views.sql");
+      const migration = await read("supabase/migrations/20260916165000_client_error_events_and_page_views.sql");
       if (migration == null) {
-        return { ok: false, detail: ["supabase/migrations/20260916160000_client_error_events_and_page_views.sql is missing"] };
+        return { ok: false, detail: ["supabase/migrations/20260916165000_client_error_events_and_page_views.sql is missing"] };
       }
       const bad = [];
       for (const table of ["client_error_events", "page_view_daily"]) {
