@@ -439,11 +439,99 @@ in place:
    the locked-document case) and `scripts/guards/document-signing.mjs`
    (`protect-document-columns-fences-recipient-id`).
 
+### Blocker pass (fourth round) — v1_hash tamperable between sign and countersign
+
+A reviewer running `scripts/document_signing_guard_pglite_check.mjs`-style
+PGlite proofs against the shipped migration found one more real gap in
+`protect_document_columns()`'s still-pending branch:
+
+**`documents.v1_hash` was never blocked by the pending-branch content-swap
+guard the third round (repairer finding 1 above) added.** That guard covers
+`name`/`file_url`/`document_type`/`expires_at` once `candidate_signed_at` is
+set, but `v1_hash` — deliberately left out of the "signing fields" block
+earlier in the same branch, since `DocumentWizard` legitimately sets it
+pre-signature together with the content it hashes — had **no restriction at
+all** on a pending document, at any point in the signing lifecycle. So an
+employer/team member could raw-`UPDATE` `v1_hash` alone, after the candidate
+signs (`candidate_signed_at` set, `v2_hash` computed and stored from the
+*original* `v1_hash`) and before the employer countersigns. At countersign,
+`index.ts` reads `reserved.v1_hash` — the current, now-tampered column value
+— straight into the completion certificate (`v1Hash: reserved.v1_hash`),
+while `v3_hash`/`v2_hash` were computed from the untouched original. The
+certificate would then carry a `v1_hash` that doesn't correspond to what
+`v2_hash` was actually computed from — the completion certificate no longer
+reconciles with the v2/v3 chain the candidate actually signed. Reproduced
+directly against the migration applied verbatim in PGlite before fixing: an
+employer `UPDATE` of `v1_hash` alone, on a document with `candidate_signed_at`
+set, succeeded with no exception.
+
+Fix, two layers, per the orchestrator's decision:
+
+1. **DB trigger (`protect_document_columns()`, still-pending branch):**
+   - `v1_hash` added to the existing `old.candidate_signed_at IS NOT NULL`
+     content-swap guard's condition list (same guard that already blocks
+     `name`/`file_url`/`document_type`/`expires_at` in that window).
+   - A second, standalone guard: **any** `v1_hash` change on a pending
+     document is refused unless `name`/`file_url`/`document_type`/
+     `expires_at` is changing in the *same* `UPDATE` — `v1_hash` may only
+     ever move together with an actual content re-save, never alone. This
+     is the general case (closes the gap regardless of signing state); the
+     first guard above is now redundant with it post-signature (content
+     columns are already frozen then, so a `v1_hash`-only change would fail
+     the second guard anyway) but is kept for an explicit, readable error
+     message and defense in depth. `DocumentWizard.tsx`'s own re-save
+     path (~702–732) sets `v1_hash` and content together, pre-signature —
+     unaffected by either guard.
+2. **Edge function defense-in-depth
+   (`supabase/functions/document-signing/index.ts`, `countersign`):** even
+   if the DB trigger were ever bypassed or a future migration regressed it,
+   `countersign` now independently recomputes `v2_hash` and refuses to
+   proceed if it doesn't match. The recomputation never trusts
+   `documents.v1_hash` — it reads the `v1_hash` that was *actually* used at
+   sign time back out of `document_audit_logs`' `candidate_signed` row's
+   `pre_signature_hash` column (already written at sign time —
+   `preSignatureHash: document.v1_hash` — and, unlike `documents.v1_hash`,
+   completely immutable after insert: `document_audit_logs` carries a live,
+   unconditional `BEFORE UPDATE`/`DELETE` trigger,
+   `prevent_audit_update`/`prevent_audit_delete` ->
+   `block_audit_modification()`, `20251215015158_*.sql`, with no
+   `service_role` exemption). It combines that immutable `v1_hash` with the
+   stored `candidate_signature_data` (parsed the same way the certificate
+   builder already does) and `candidate_signed_at`, recomputes `v2_hash` via
+   the existing `computeV2Hash`, and compares it against the document row's
+   current `v2_hash`. A mismatch throws a `ChainReconciliationError`, caught
+   by the countersign handler's existing rollback `catch` block (which
+   already resets `employer_signed_at`), and reported as a new `chain_broken`
+   (409) error code instead of falling through to a generic `internal_error`
+   (500). The reconciliation logic itself lives in a new, pure,
+   dependency-free module,
+   `supabase/functions/_shared/countersignReconciliation.ts` (same
+   Deno/Node-portable convention as `documentHashChain.ts` — only depends on
+   it), so it can be unit-tested directly.
+
+Proven in:
+- `scripts/document_signing_guard_pglite_check.mjs` — new cases: a
+  `v1_hash`-only `UPDATE` is refused pre-signature; a `v1_hash` change paired
+  with a content re-save in the same statement still works pre-signature
+  (the legitimate `DocumentWizard` case); any `v1_hash` change (alone, or
+  paired with a content change that's independently refused too) is refused
+  once `candidate_signed_at` is set; `service_role` is completely unaffected.
+- `scripts/guards/document-signing.mjs` — two new static checks,
+  `protect-document-columns-blocks-v1-hash-tamper` and
+  `countersign-recomputes-and-verifies-v2-hash-reconciliation`.
+- `supabase/functions/_shared/countersignReconciliation.test.ts` (new
+  `Deno.test` file, 6 tests) — an untampered chain reconciles; a tampered
+  `v1_hash`-at-sign is refused with `reason: "hash_mismatch"`; each of the
+  four required inputs being missing/unparseable is refused with its own
+  distinct reason; `parseCandidateSignatureData` round-trips the exact JSON
+  shape `sign()` writes.
+
 All checks re-run clean after this round: `npm run build`,
 `typecheck:ratchet`, `node scripts/guardrails.mjs`, every
 `scripts/*.test.mjs` and `scripts/*pglite*.mjs`, `deno check` on the edge
-function, and `deno test` on `renderFinalPdf.test.ts` (5 tests, including
-the 3 new ones).
+function and on `countersignReconciliation.ts`, and `deno test` on
+`renderFinalPdf.test.ts` (5 tests), `documentParties.test.ts` (7 tests), and
+the new `countersignReconciliation.test.ts` (6 tests).
 
 ## 0. What's broken today
 

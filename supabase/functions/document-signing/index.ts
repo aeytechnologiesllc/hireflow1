@@ -19,6 +19,7 @@ import {
   type TeamMembership,
 } from "./stateMachine.ts";
 import { computeV2Hash, computeV3Hash, sha256HexOfBytes, signatureHashInput } from "../_shared/documentHashChain.ts";
+import { reconcileCandidateSignatureChain } from "../_shared/countersignReconciliation.ts";
 import { buildCompletionCertificate, type CertificateAuditEntry } from "../_shared/completionCertificateServer.ts";
 import { renderSignedUploadedPdf, renderTextDocumentPdf, type SignatureOverlay } from "../_shared/renderFinalPdf.ts";
 import { bestEffortIp } from "../_shared/bestEffortIp.ts";
@@ -54,6 +55,7 @@ const ERROR_STATUS: Record<string, number> = {
   review_required: 400,
   invalid_signature: 400,
   invalid_reason: 400,
+  chain_broken: 409,
 };
 
 const ERROR_MESSAGE: Record<string, string> = {
@@ -69,7 +71,19 @@ const ERROR_MESSAGE: Record<string, string> = {
   review_required: "You must confirm you reviewed the document before countersigning.",
   invalid_signature: "That signature isn't valid — try again.",
   invalid_reason: "Please give a reason between 3 and 500 characters.",
+  chain_broken: "This document's signature chain no longer reconciles — it may have been altered. Contact support.",
 };
+
+/** Thrown by the countersign handler when reconcileCandidateSignatureChain()
+ *  refuses the countersign — caught by the handler's own catch block so the
+ *  reservation still gets rolled back, but reported as chain_broken (409)
+ *  instead of a generic internal_error (500). */
+class ChainReconciliationError extends Error {
+  constructor(public readonly reason: string) {
+    super(`countersign refused — signature chain does not reconcile: ${reason}`);
+    this.name = "ChainReconciliationError";
+  }
+}
 
 interface DocumentRow {
   id: string;
@@ -468,6 +482,35 @@ Deno.serve(async (req) => {
       const reserved = reservedRows[0] as DocumentRow;
 
       try {
+        // Defense in depth on top of protect_document_columns()'s DB-level
+        // fence (20260915150000_*.sql): recompute v2_hash independently
+        // from the v1_hash that was actually used at sign time — read back
+        // from document_audit_logs' immutable 'candidate_signed' row, never
+        // from documents.v1_hash itself, which is the column an
+        // employer/team-member could otherwise have tampered with in the
+        // window between candidate sign and employer countersign — and
+        // refuse to countersign at all if it doesn't match the v2_hash this
+        // document row currently carries. See
+        // _shared/countersignReconciliation.ts for why this is trustworthy
+        // even if documents.v1_hash itself were altered.
+        const { data: signedAuditRow } = await admin
+          .from("document_audit_logs")
+          .select("pre_signature_hash")
+          .eq("document_id", documentId)
+          .eq("action", "candidate_signed")
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        const reconciliation = await reconcileCandidateSignatureChain({
+          v1HashAtSign: signedAuditRow?.pre_signature_hash,
+          candidateSignatureDataRaw: reserved.candidate_signature_data,
+          candidateSignedAt: reserved.candidate_signed_at,
+          storedV2Hash: reserved.v2_hash,
+        });
+        if (!reconciliation.ok) {
+          throw new ChainReconciliationError(reconciliation.reason);
+        }
+
         const signatureValue = await signatureHashInput({ method: signature.method!, value: signature.value! });
         const v3Hash = await computeV3Hash({
           v2Hash: reserved.v2_hash ?? "",
@@ -697,6 +740,10 @@ Deno.serve(async (req) => {
           .eq("employer_signed_at", nowIso)
           .eq("status", "pending")
           .eq("is_locked", false);
+        if (e instanceof ChainReconciliationError) {
+          console.error("[document-signing] countersign refused —", e.message);
+          return errorResponse("chain_broken", ERROR_MESSAGE.chain_broken, ERROR_STATUS.chain_broken);
+        }
         console.error("[document-signing] countersign failed:", e);
         return errorResponse("internal_error", "Could not countersign this document. Please try again.", 500);
       }

@@ -156,6 +156,82 @@ export default [
     },
   },
   {
+    id: "protect-document-columns-blocks-v1-hash-tamper",
+    why:
+      "documents.v1_hash must become read-only, together with the other content columns, once candidate_signed_at " +
+      "is set, AND any v1_hash change on a pending document must be refused unless a content column " +
+      "(name/file_url/document_type/expires_at) is changing in the same UPDATE — otherwise an employer/team-member " +
+      "can raw-UPDATE v1_hash alone in the window between candidate sign and employer countersign, so the stored " +
+      "v2_hash (computed from the ORIGINAL v1_hash at sign time) no longer reconciles against the v1_hash the " +
+      "completion certificate reads at countersign, breaking the v1->v2->v3 chain without touching any column the " +
+      "prior content-swap guard checked.",
+    run: async ({ read }) => {
+      const sqlRaw = await read(MIGRATION);
+      if (!sqlRaw) return { ok: false, detail: [`${MIGRATION} not found`] };
+      const sql = stripSqlComments(sqlRaw);
+      const bad = [];
+
+      // v1_hash must be in the same candidate_signed_at IS NOT NULL guard
+      // that already covers name/file_url/document_type/expires_at.
+      const guardMatch = /IF\s+old\.candidate_signed_at\s+is\s+not\s+null\s+and\s*\(([\s\S]*?)\)\s*THEN/i.exec(sql);
+      if (!guardMatch) {
+        bad.push("could not locate the candidate_signed_at content-swap IF block to check for v1_hash");
+      } else if (!guardMatch[1].includes("new.v1_hash")) {
+        bad.push("the candidate_signed_at content-swap guard does not cover new.v1_hash — a v1_hash-only UPDATE would still be allowed after the candidate signs");
+      }
+
+      // A standalone guard must also refuse ANY v1_hash change on a
+      // pending document unless a content column is changing in the same
+      // UPDATE — this is the general case, not scoped to post-signature.
+      if (!/new\.v1_hash\s+is\s+distinct\s+from\s+old\.v1_hash[\s\S]{0,400}?raise exception/i.test(sql)) {
+        bad.push("no standalone guard found refusing a v1_hash-only change on a pending document (v1_hash must only move together with a content re-save)");
+      }
+      if (!/new\.v1_hash\s+is\s+distinct\s+from\s+old\.v1_hash[\s\S]{0,400}?is\s+not\s+distinct\s+from\s+old\.name[\s\S]{0,400}?is\s+not\s+distinct\s+from\s+old\.file_url/i.test(sql)) {
+        bad.push("the standalone v1_hash guard does not appear to require name/file_url to be UNCHANGED (IS NOT DISTINCT FROM) for the refusal to fire — it must trigger only when no content column is changing");
+      }
+
+      return { ok: bad.length === 0, detail: bad };
+    },
+  },
+  {
+    id: "countersign-recomputes-and-verifies-v2-hash-reconciliation",
+    why:
+      "The countersign handler must independently recompute v2_hash from the v1_hash actually used at sign time " +
+      "(read back from document_audit_logs' immutable candidate_signed row, never from the current, potentially " +
+      "tampered documents.v1_hash) and refuse to countersign if it doesn't match the stored v2_hash — defense in " +
+      "depth on top of the DB trigger fence, in case that trigger is ever bypassed or regressed.",
+    run: async ({ read }) => {
+      const src = await read(FUNCTION);
+      const reconciliationSrc = await read("supabase/functions/_shared/countersignReconciliation.ts");
+      const bad = [];
+      if (!src) bad.push(`${FUNCTION} not found`);
+      if (!reconciliationSrc) bad.push("supabase/functions/_shared/countersignReconciliation.ts not found");
+      if (src) {
+        if (!/reconcileCandidateSignatureChain/.test(src)) {
+          bad.push("countersign handler does not call reconcileCandidateSignatureChain(...)");
+        }
+        if (!/pre_signature_hash/.test(src) || !/candidate_signed/.test(src)) {
+          bad.push("countersign handler does not read pre_signature_hash back from the 'candidate_signed' document_audit_logs row");
+        }
+        const countersignStart = src.indexOf('if (action === "countersign")');
+        const declineStart = src.indexOf('if (action === "decline")');
+        const body =
+          countersignStart === -1
+            ? ""
+            : declineStart > countersignStart
+              ? src.slice(countersignStart, declineStart)
+              : src.slice(countersignStart);
+        if (!/reconciliation\.ok/.test(body) && !/!reconciliation\.ok/.test(body)) {
+          bad.push("countersign branch does not check the reconciliation result's ok field before proceeding");
+        }
+        if (!/chain_broken/.test(src)) {
+          bad.push("no 'chain_broken' error code found — a reconciliation failure must be reported distinctly, not folded into a generic 500");
+        }
+      }
+      return { ok: bad.length === 0, detail: bad };
+    },
+  },
+  {
     id: "protect-document-columns-fences-recipient-id",
     why:
       "recipient_id must be included in the identity-fields check — the migration's own header comment " +

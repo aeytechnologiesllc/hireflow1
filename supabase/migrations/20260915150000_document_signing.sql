@@ -74,6 +74,22 @@
 --       checked) — otherwise an employer/team-member could reassign a
 --       document's recipient to hijack document_audit_logs read access and
 --       /verify's party-only signer-name reveal, even on a locked document.
+--
+-- Blocker fix (third round, see the design doc's revision log):
+--   (f) v1_hash is now blocked on a still-pending document once
+--       candidate_signed_at is set (added to guard (d)'s condition list),
+--       AND a v1_hash change is now refused outright on any pending
+--       document unless a content column (name/file_url/document_type/
+--       expires_at) is changing in the same UPDATE. Guard (d) above never
+--       covered v1_hash, so an employer/team-member could raw-UPDATE it
+--       alone in the window between candidate sign and employer
+--       countersign — the stored v2_hash (computed from the original
+--       v1_hash at sign time) would then no longer reconcile against a
+--       tampered v1_hash the completion certificate reads at countersign.
+--       supabase/functions/document-signing/index.ts's countersign handler
+--       now also independently recomputes and verifies this reconciliation
+--       server-side (defense in depth, in case this trigger is ever
+--       bypassed or a future migration regresses it).
 CREATE OR REPLACE FUNCTION public.protect_document_columns()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -205,13 +221,44 @@ BEGIN
     -- the hash chain (v1/v2) and candidate_signed_at would read as
     -- continuous while the served final.pdf reflects content the
     -- candidate never actually reviewed.
+    --
+    -- Blocker fix (see the design doc's revision log): v1_hash is now
+    -- included in this same guard. v1_hash was never listed in the
+    -- "signing fields" block above (on purpose — DocumentWizard legitimately
+    -- sets it pre-signature, together with the content it hashes) and was
+    -- therefore still writable with zero restriction on a pending document,
+    -- including after the candidate had already signed against it. An
+    -- employer/team-member could raw-UPDATE v1_hash alone in that window;
+    -- the stored v2_hash (computed from the ORIGINAL v1_hash at sign time)
+    -- would then no longer reconcile against the now-different v1_hash the
+    -- completion certificate reads at countersign, breaking the v1->v2->v3
+    -- chain without touching any column this guard used to check.
     IF old.candidate_signed_at IS NOT NULL AND (
       new.name IS DISTINCT FROM old.name
       OR new.file_url IS DISTINCT FROM old.file_url
       OR new.document_type IS DISTINCT FROM old.document_type
       OR new.expires_at IS DISTINCT FROM old.expires_at
+      OR new.v1_hash IS DISTINCT FROM old.v1_hash
     ) THEN
       RAISE EXCEPTION 'Document content cannot change after the candidate has signed';
+    END IF;
+
+    -- Same blocker fix, second half: even before the candidate has signed,
+    -- v1_hash may only ever move together with an actual content re-save
+    -- (name/file_url/document_type/expires_at) in the SAME UPDATE — never
+    -- on its own. v1_hash is a hash of the content, so a legitimate writer
+    -- always changes both together (DocumentWizard's insert sets them
+    -- together; any future content re-save must too). A v1_hash-only
+    -- UPDATE has no legitimate caller at all, on a pending document, full
+    -- stop — this closes the general case the guard above only closes for
+    -- the post-signature window.
+    IF new.v1_hash IS DISTINCT FROM old.v1_hash
+      AND new.name IS NOT DISTINCT FROM old.name
+      AND new.file_url IS NOT DISTINCT FROM old.file_url
+      AND new.document_type IS NOT DISTINCT FROM old.document_type
+      AND new.expires_at IS NOT DISTINCT FROM old.expires_at
+    THEN
+      RAISE EXCEPTION 'v1_hash can only change together with a document content re-save';
     END IF;
   END IF;
 

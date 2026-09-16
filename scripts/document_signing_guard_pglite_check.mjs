@@ -384,8 +384,8 @@ async function main() {
   // window the finding flagged.
   const DOC_CAND_SIGNED = "70000000-0000-0000-0000-00000000000c";
   await asPostgres(
-    `insert into public.documents (id, application_id, name, sender_id, recipient_id, status, candidate_signed_at, v2_hash)
-     values ($1, $2, 'Offer Letter (candidate signed, employer has not countersigned)', $3, $4, 'pending', now(), 'v2hash')`,
+    `insert into public.documents (id, application_id, name, sender_id, recipient_id, status, candidate_signed_at, v1_hash, v2_hash)
+     values ($1, $2, 'Offer Letter (candidate signed, employer has not countersigned)', $3, $4, 'pending', now(), 'v1hash-original', 'v2hash')`,
     [DOC_CAND_SIGNED, APP_AX, EMP_A, CAND_X],
   );
   const swapAttempt = await asUser(
@@ -410,6 +410,88 @@ async function main() {
   // lockout of ordinary pending-document editing.
   const preSignEdit = await asUser(EMP_A, "authenticated", `update public.documents set name = 'Retitled before anyone signs' where id = '${DOC_PENDING}'`);
   check("employer CAN still edit name/file_url before the candidate has signed at all (not a full lockout)", preSignEdit.ok);
+
+  console.log("\n-- BLOCKER: v1_hash can no longer be raw-UPDATEd independently of a content re-save --");
+
+  // Give DOC_PENDING a known v1_hash baseline to test against (it was
+  // inserted with no v1_hash at all above). Routed through service_role,
+  // same as every other post-migration direct column write in this file —
+  // a plain asPostgres() UPDATE would itself now hit the trigger, since
+  // protect_document_columns() only exempts auth.role() = 'service_role',
+  // not the Postgres superuser running the test harness.
+  await asUser(null, "service_role", `update public.documents set v1_hash = 'v1hash-pending-baseline' where id = '${DOC_PENDING}'`);
+
+  const v1OnlyPreSign = await asUser(
+    EMP_A,
+    "authenticated",
+    `update public.documents set v1_hash = 'forged-v1-no-content-change' where id = '${DOC_PENDING}'`,
+  );
+  check(
+    "a v1_hash-only UPDATE (no content column changing in the same statement) is refused, even before anyone has signed",
+    !v1OnlyPreSign.ok,
+    v1OnlyPreSign.ok ? "UPDATE unexpectedly succeeded" : v1OnlyPreSign.error,
+  );
+  {
+    const res = await asPostgres(`select v1_hash from public.documents where id = $1`, [DOC_PENDING]);
+    check("...and v1_hash actually stayed the original baseline value", res.rows[0]?.v1_hash === "v1hash-pending-baseline");
+  }
+
+  const contentPlusV1PreSign = await asUser(
+    EMP_A,
+    "authenticated",
+    `update public.documents set name = 'Re-saved with new content', v1_hash = 'v1hash-recomputed-for-new-content' where id = '${DOC_PENDING}'`,
+  );
+  check(
+    "a v1_hash change together with a content re-save (name changing in the SAME UPDATE) still works pre-signature — DocumentWizard's legitimate re-save case",
+    contentPlusV1PreSign.ok,
+    contentPlusV1PreSign.ok ? "" : contentPlusV1PreSign.error,
+  );
+  {
+    const res = await asPostgres(`select name, v1_hash from public.documents where id = $1`, [DOC_PENDING]);
+    check(
+      "...and both the new name and the new v1_hash actually landed together",
+      res.rows[0]?.name === "Re-saved with new content" && res.rows[0]?.v1_hash === "v1hash-recomputed-for-new-content",
+    );
+  }
+
+  const v1OnlyAfterSign = await asUser(
+    EMP_A,
+    "authenticated",
+    `update public.documents set v1_hash = 'forged-v1-after-candidate-signed' where id = '${DOC_CAND_SIGNED}'`,
+  );
+  check(
+    "THE BLOCKER: any v1_hash change is refused once the candidate has signed but before the employer countersigns — closes the window where v2_hash (computed from the original v1_hash at sign time) would stop reconciling",
+    !v1OnlyAfterSign.ok,
+    v1OnlyAfterSign.ok ? "UPDATE unexpectedly succeeded" : v1OnlyAfterSign.error,
+  );
+  const v1PlusContentAfterSign = await asUser(
+    EMP_A,
+    "authenticated",
+    // Content columns are already blocked post-signature by the existing
+    // guard; this proves v1_hash doesn't get a free pass by riding along
+    // with a content column that will itself be refused for an unrelated
+    // reason — the whole statement must still fail.
+    `update public.documents set name = 'Swapped post-signature', v1_hash = 'forged-v1-with-content-too' where id = '${DOC_CAND_SIGNED}'`,
+  );
+  check(
+    "...and pairing the v1_hash change with a simultaneous content change post-signature doesn't help either — both are refused",
+    !v1PlusContentAfterSign.ok,
+    v1PlusContentAfterSign.ok ? "UPDATE unexpectedly succeeded" : v1PlusContentAfterSign.error,
+  );
+  {
+    const res = await asPostgres(`select v1_hash from public.documents where id = $1`, [DOC_CAND_SIGNED]);
+    check("...and v1_hash on the candidate-signed document actually stayed the original signed-against value", res.rows[0]?.v1_hash === "v1hash-original");
+  }
+
+  console.log("\n-- service_role (the document-signing edge function) can still write v1_hash freely --");
+
+  const v1ServiceRole = await asUser(
+    null,
+    "service_role",
+    `update public.documents set v1_hash = 'service-role-can-still-set-this' where id = '${DOC_CAND_SIGNED}'`,
+  );
+  check("service_role's own write of v1_hash is unaffected by the trigger, even on a candidate-signed pending document", v1ServiceRole.ok, v1ServiceRole.ok ? "" : v1ServiceRole.error);
+  await asPostgres(`update public.documents set v1_hash = 'v1hash-original' where id = $1`, [DOC_CAND_SIGNED]);
 
   console.log("\n-- repairer finding: recipient_id is fenced, not just claimed as 'checked below' --");
 
