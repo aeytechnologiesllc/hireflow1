@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { hasSubscriptionBypassForUser } from "../_shared/subscriptionBypass.ts";
+import { computeChargeMinutes } from "../_shared/voiceSessionCharge.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -46,11 +47,26 @@ Deno.serve(async (req) => {
 
     // Parse request body
     const body = await req.json();
-    const { sessionDurationMinutes, applicationId } = body;
-    
+    const { sessionDurationMinutes, voiceSessionId } = body;
+    // applicationId is still read for backward-compat cross-checking below,
+    // but it is never the source of truth for which employer gets charged —
+    // that's resolved from the voice_session_log row itself, below.
+    const requestApplicationId = typeof body.applicationId === 'string' ? body.applicationId : undefined;
+
     if (typeof sessionDurationMinutes !== 'number' || sessionDurationMinutes <= 0) {
       return new Response(
         JSON.stringify({ error: 'Invalid session duration' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // A session id minted by ava-voice-session is now required. Without it
+    // there is no server-recorded started_at/time_limit_minutes to cap
+    // against, and no row to settle idempotently — this is exactly the gap
+    // that used to let a candidate post an arbitrary sessionDurationMinutes.
+    if (typeof voiceSessionId !== 'string' || voiceSessionId.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'Missing voice session id' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -61,8 +77,49 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
+    // Look up the session ava-voice-session recorded when it actually minted
+    // this call. Its application_id/mode/started_at/time_limit_minutes are
+    // all server-computed at mint time — trustworthy inputs the client
+    // cannot forge, unlike sessionDurationMinutes itself.
+    const { data: sessionLog, error: sessionLogError } = await supabaseAdmin
+      .from('voice_session_log')
+      .select('id, application_id, employer_id, caller_user_id, mode, started_at, ended_at, minutes_charged, time_limit_minutes, hard_cap_minutes')
+      .eq('id', voiceSessionId)
+      .maybeSingle();
+
+    if (sessionLogError || !sessionLog) {
+      console.error('[deduct-voice-minutes] Voice session not found:', sessionLogError);
+      return new Response(
+        JSON.stringify({ error: 'Voice session not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // The caller invoking this deduction must be the same identity the
+    // session was minted for — a candidate cannot settle another
+    // candidate's (or another user's) session.
+    if (sessionLog.caller_user_id !== user.id) {
+      console.error(`[deduct-voice-minutes] Security check failed: caller ${user.id} does not own voice session ${voiceSessionId} (owner ${sessionLog.caller_user_id})`);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized: caller does not own this voice session' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (requestApplicationId && sessionLog.application_id && requestApplicationId !== sessionLog.application_id) {
+      console.error(`[deduct-voice-minutes] Application mismatch: request said ${requestApplicationId}, session ${voiceSessionId} was minted for ${sessionLog.application_id}`);
+      return new Response(
+        JSON.stringify({ error: 'Application does not match this voice session' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // The authoritative application id for this deduction — from the
+    // session row ava-voice-session wrote at mint time, not the raw request.
+    const applicationId = sessionLog.application_id;
+
     // Determine whose credits to deduct:
-    // - If applicationId is provided, this is a candidate voice interview → deduct from EMPLOYER
+    // - If applicationId is set on the session, this is a candidate voice interview → deduct from EMPLOYER
     // - Otherwise, this is assistant mode → deduct from calling user (employer)
     let targetUserId = user.id;
     let mode = 'assistant';
@@ -134,7 +191,80 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`[deduct-voice-minutes] Mode: ${mode}, Deducting ${sessionDurationMinutes} minutes from user ${targetUserId}`);
+    // Defense in depth: the employer resolved above from applications/jobs
+    // (or user_roles/team_members) must match the employer_id recorded on
+    // the session at mint time — ava-voice-session runs the identical
+    // resolution, so a mismatch means either row was tampered with.
+    if (targetUserId !== sessionLog.employer_id) {
+      console.error(`[deduct-voice-minutes] Resolved employer ${targetUserId} does not match voice session ${voiceSessionId}'s recorded employer ${sessionLog.employer_id}`);
+      return new Response(
+        JSON.stringify({ error: 'Voice session does not match the resolved employer' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Cap the client-reported duration against server-side facts: how long
+    // the session has actually been open, this session's configured limit
+    // (the employer's own interview length + buffer, or the assistant
+    // ceiling — computed by ava-voice-session at mint time), and an
+    // absolute hard cap. This is the fix for the actual vulnerability —
+    // sessionDurationMinutes alone can no longer decide how much gets
+    // charged.
+    const minutesToCharge = computeChargeMinutes({
+      clientMinutes: sessionDurationMinutes,
+      startedAt: sessionLog.started_at,
+      timeLimitMinutes: sessionLog.time_limit_minutes,
+      hardCapMinutes: sessionLog.hard_cap_minutes,
+    });
+
+    if (sessionDurationMinutes > minutesToCharge) {
+      console.warn(`[deduct-voice-minutes] Capped client-reported duration for session ${voiceSessionId}: reported ${sessionDurationMinutes}m, charging ${minutesToCharge}m (limit ${sessionLog.time_limit_minutes}m, hard cap ${sessionLog.hard_cap_minutes}m)`);
+    }
+
+    // Settle this session exactly once, atomically: an UPDATE scoped to
+    // `ended_at IS NULL` matches zero rows on any second attempt (a retry,
+    // the end_interview tool-call path racing disconnect()'s cleanup path,
+    // or a replayed request), so it deducts nothing the second time no
+    // matter how many times this function is called for the same session.
+    const { data: settledRows, error: settleError } = await supabaseAdmin
+      .from('voice_session_log')
+      .update({ ended_at: new Date().toISOString(), minutes_charged: minutesToCharge })
+      .eq('id', voiceSessionId)
+      .is('ended_at', null)
+      .select('id');
+
+    if (settleError) {
+      console.error('[deduct-voice-minutes] Failed to settle voice session:', settleError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to settle voice session' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!settledRows || settledRows.length === 0) {
+      console.log(`[deduct-voice-minutes] Voice session ${voiceSessionId} was already settled — skipping duplicate deduction`);
+      const { data: currentCredits } = await supabaseAdmin
+        .from('voice_credits')
+        .select('minutes_remaining')
+        .eq('user_id', targetUserId)
+        .eq('status', 'active')
+        .gt('expires_at', new Date().toISOString());
+      const remainingBalance = currentCredits?.reduce((sum, c) => sum + c.minutes_remaining, 0) || 0;
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          minutesDeducted: 0,
+          remainingBalance,
+          targetUserId,
+          mode,
+          alreadySettled: true,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`[deduct-voice-minutes] Mode: ${mode}, Deducting ${minutesToCharge} minutes (reported ${sessionDurationMinutes}) from user ${targetUserId}`);
 
     if (await hasSubscriptionBypassForUser(supabaseAdmin, targetUserId)) {
       console.log('[deduct-voice-minutes] Internal test account bypass active; skipping deduction', {
@@ -191,7 +321,7 @@ Deno.serve(async (req) => {
     const balanceBefore = credits.reduce((sum, c) => sum + c.minutes_remaining, 0);
 
     // Deduct minutes using FIFO approach
-    let remainingToDeduct = sessionDurationMinutes;
+    let remainingToDeduct = minutesToCharge;
     let totalDeducted = 0;
     const updates: Array<{ id: string; minutes_remaining: number; status: string }> = [];
 
