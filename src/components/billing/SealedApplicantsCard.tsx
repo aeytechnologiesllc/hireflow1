@@ -16,9 +16,12 @@ const TILTS = [-5, 3, -2];
 /**
  * The sealed-envelope summary card appended to the end of a locked job's
  * applicant list, in place of individual cards for the applicants beyond
- * the allowance. Deliberately ONE card, not N fake rows: nothing about
- * those specific people is shown or implied until the employer unlocks —
- * only the count.
+ * the allowance — the caller (CockpitApplicants) is what actually removes
+ * those cards from the list (via billingVisibleIds, computed from the same
+ * processedAllowance this card's billing prop carries); this component only
+ * renders the placeholder for however many were removed. Deliberately ONE
+ * card, not N fake rows: nothing about those specific people is shown or
+ * implied until the employer unlocks — only the count.
  */
 export default function SealedApplicantsCard({ jobId, jobTitle, billing }: SealedApplicantsCardProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
