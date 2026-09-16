@@ -13,8 +13,25 @@ export default [
       "The push trigger must use net.http_post with only the notification id, and send-push-notification " +
       "must load the row itself, claim push_sent_at, run links through pushUrlForLink, and not demand a " +
       "header the trigger cannot send (verify_jwt stays off for it).",
-    async run({ read }) {
+    async run({ read, walk }) {
       const bad = [];
+      // Any later rewrite of the trigger (including one from a branch cut before
+      // this fix, whose filename may sort earlier) must keep the new contract.
+      const HISTORIC = new Set([
+        "20260312192158_10503616-a026-4354-8bc3-8f69e2d1b036.sql",
+        "20260329145000_fail_open_push_trigger.sql",
+        "20260826221000_fix_push_notification_wrong_project_url.sql",
+      ]);
+      for (const f of (await walk("supabase/migrations", [".sql"])).sort()) {
+        if (HISTORIC.has(f.split("/").pop())) continue;
+        const sql = ((await read(f)) ?? "").replace(/^\s*--.*$/gm, "");
+        const defs = sql.match(/CREATE\s+(OR\s+REPLACE\s+)?FUNCTION\s+public\.trigger_push_notification\s*\([\s\S]*?\$\$[\s\S]*?\$\$/gi) ?? [];
+        for (const def of defs) {
+          if (/extensions\.http_post/i.test(def) || !/net\.http_post/i.test(def) || /'user_id'|'title'|'message'/.test(def)) {
+            bad.push(`${f}: trigger_push_notification must call net.http_post with only { notification_id }`);
+          }
+        }
+      }
       const mig = (await read("supabase/migrations/20260916220000_push_notifications_actually_send.sql")) ?? "";
       if (!/net\.http_post\(/.test(mig)) bad.push("the trigger no longer calls net.http_post");
       if (/extensions\.http_post/.test(mig.replace(/^\s*--.*$/gm, ""))) bad.push("the trigger calls extensions.http_post again (does not exist)");

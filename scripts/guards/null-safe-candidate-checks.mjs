@@ -5,10 +5,19 @@
  * supabase/migrations/20260916210000_null_safe_candidate_ownership_checks.sql,
  * proven in scripts/null_safe_candidate_checks.pglite.test.mjs).
  *
- * This guard fails if any migration newer than the fix writes a NULL-unsafe
- * ownership check against auth.uid() again, or if the fix stops revoking anon.
+ * This guard fails if ANY migration outside the historic allowlist writes a
+ * NULL-unsafe ownership check against auth.uid(), or if the fix stops revoking
+ * anon. An allowlist, not "files named after the fix": a branch cut before the
+ * fix can carry a migration whose name sorts earlier but gets applied later,
+ * and that is exactly the migration that would reopen the hole.
  */
 const FIX = "supabase/migrations/20260916210000_null_safe_candidate_ownership_checks.sql";
+// Already applied, and superseded by FIX. Never add a new file here.
+const HISTORIC = new Set([
+  "20260915110000_quiz_answer_keys_server_side.sql",
+  "20260916150700_enforce_voice_interview_result.sql",
+  "20260916210000_null_safe_candidate_ownership_checks.sql",
+]);
 
 export default [
   {
@@ -29,7 +38,7 @@ export default [
       const files = (await walk("supabase/migrations", [".sql"])).sort();
       const unsafe = /\bIF\s+(NOT\s*\(?\s*)?[\w.]+\s*(<>|!=)\s*auth\.uid\(\)|\bIF\s+NOT\s*\(?\s*[\w.]+\s*=\s*auth\.uid\(\)|\bIF\s+auth\.uid\(\)\s*(<>|!=)/i;
       for (const f of files) {
-        if (path(f) <= path(FIX)) continue;
+        if (HISTORIC.has(path(f))) continue;
         const sql = (await read(f)) ?? "";
         sql.split("\n").forEach((line, i) => {
           if (unsafe.test(line) && !/^\s*--/.test(line)) bad.push(`${f}:${i + 1}: ${line.trim()}`);
