@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { jsPDF } from "https://esm.sh/jspdf@2.5.1";
+import { canAccessDossier } from "../_shared/dossierAccess.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -248,21 +249,28 @@ serve(async (req) => {
     }
 
     // Verify the requesting user actually owns this application's data (candidate,
-    // employer, an active team member of that employer, or a developer)
+    // employer, an active team member of that employer, or a developer).
+    //
+    // Team-member access must be scoped to THIS job the same way the live
+    // RLS policy on `applications` scopes it ("Team members can view
+    // applications for assigned jobs" -> is_active_team_member_for_job),
+    // whose definition requires assigned_job_ids to be null (whole-employer
+    // access) OR contain this job's id. A plain team_members row check
+    // (user_id + employer_id + active) would grant a team member scoped to
+    // other jobs access to this candidate's dossier -- call the same
+    // SECURITY DEFINER function the RLS policy uses instead of
+    // re-implementing the scoping rule here.
     const employerId = (application.jobs as any)?.employer_id;
     const isCandidateOwner = application.candidate_id === requestingUser.id;
     const isEmployerOwner = !!employerId && employerId === requestingUser.id;
 
-    const [{ data: teamMembership }, { data: developerRole }] = await Promise.all([
+    const [teamMemberRpc, { data: developerRole }] = await Promise.all([
       !isCandidateOwner && !isEmployerOwner && employerId
-        ? supabase
-            .from('team_members')
-            .select('id')
-            .eq('user_id', requestingUser.id)
-            .eq('employer_id', employerId)
-            .eq('status', 'active')
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
+        ? supabaseUserClient.rpc('is_active_team_member_for_job', {
+            p_job_id: application.job_id,
+            p_user_id: requestingUser.id,
+          })
+        : Promise.resolve({ data: false, error: null }),
       supabase
         .from('user_roles')
         .select('role')
@@ -271,7 +279,20 @@ serve(async (req) => {
         .maybeSingle(),
     ]);
 
-    if (!isCandidateOwner && !isEmployerOwner && !teamMembership && !developerRole) {
+    if (teamMemberRpc.error) {
+      // Fail closed: an RPC error must never be treated as access granted.
+      console.error('[Dossier] is_active_team_member_for_job RPC error:', teamMemberRpc.error);
+    }
+    const isScopedTeamMember = !teamMemberRpc.error && teamMemberRpc.data === true;
+
+    const authorized = canAccessDossier({
+      isCandidateOwner,
+      isEmployerOwner,
+      isScopedTeamMember,
+      isDeveloper: !!developerRole,
+    });
+
+    if (!authorized) {
       console.warn('[Dossier] Unauthorized dossier request', {
         requesterId: requestingUser.id,
         applicationId,
