@@ -4,6 +4,8 @@ import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/b
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { callOpenAIJson, openAIErrorStatus, requireJsonKeys } from "../_shared/openai.ts";
 import type { OpenAIMessageContent } from "../_shared/openai.ts";
+import { recordStepResult, type MinimalSupabaseAdmin } from "../_shared/trustedResults.ts";
+import { buildOwnedPortfolioPathPattern } from "./ownedPortfolioPath.ts";
 
 // Model is configurable so a retirement is a config change, not a code change.
 // Set OPENAI_PORTFOLIO_MODEL to the replacement model when swapping.
@@ -16,6 +18,14 @@ const corsHeaders = {
 };
 
 const MAX_FILES_TO_ANALYZE = 10;
+// A hard ceiling on how many file entries a single request may submit, well
+// above any realistic workflow-step `maxFiles` config (the UI caps at 10 by
+// default). Enforced BEFORE the ownership/existence check below ever touches
+// storage, so a request that just repeats one real owned path thousands of
+// times in the `files` array — trivial via curl/devtools, bypassing the UI's
+// own count limit entirely — is refused outright instead of turning into
+// thousands of sequential storage downloads.
+const MAX_SUBMITTED_FILES = 50;
 // Every file is inlined as base64 in the request body. Skip any single file
 // over 8 MB outright, and stop attaching once 20 MB of raw bytes are in
 // (≈27 MB encoded — under OpenAI's 32 MB per-request budget for file inputs).
@@ -59,6 +69,29 @@ function getAdminClient() {
     );
   }
   return adminClient;
+}
+
+/**
+ * The caller's own user id, resolved from the request's own Authorization
+ * header (never a body param) — same pattern as document-signing/index.ts's
+ * resolveCallerId and verify-document/index.ts's own equivalent. This
+ * function's `verify_jwt = true` config entry already makes the platform
+ * reject a request with no/invalid token before it reaches here; this just
+ * gets the actual uid out of that same token for our own authorization
+ * checks below.
+ */
+async function resolveCallerId(req: Request): Promise<string | null> {
+  const authHeader = req.headers.get("Authorization") ?? req.headers.get("authorization");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const url = Deno.env.get("SUPABASE_URL");
+  if (!authHeader || !anonKey || !url) return null;
+  try {
+    const supabaseUser = createClient(url, anonKey, { global: { headers: { Authorization: authHeader } } });
+    const { data: { user } } = await supabaseUser.auth.getUser();
+    return user?.id ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -184,30 +217,28 @@ function buildFallbackAnalysis(imageCount: number, pdfCount: number, skipped: Sk
   };
 }
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+/**
+ * Runs the actual AI review over already-verified, already-downloaded
+ * files. Returns `null` for exactly the failure modes that used to leave
+ * the CALLER's `aiAnalysis` null too (missing API key, 429, 402) — every
+ * other failure (unparseable model output, any other HTTP error, an empty
+ * attachable set) resolves to the same score-50/60 fallback body the old
+ * client-facing endpoint used to hand back with a 200. Never throws.
+ */
+async function runPortfolioAnalysis(
+  items: PortfolioItem[],
+  fileBytes: Map<string, ArrayBuffer>,
+  jobTitle: string | null | undefined,
+  jobDescription: string | null | undefined,
+): Promise<any | null> {
+  if (!OPENAI_API_KEY) {
+    console.error("[ai-analyze-portfolio] OPENAI_API_KEY is not configured");
+    return null;
   }
 
-  try {
-    const { portfolioUrls, jobTitle, jobDescription } = await req.json();
+  console.log(`Analyzing ${items.length} portfolio items for job: ${jobTitle} (model: ${OPENAI_PORTFOLIO_MODEL})`);
 
-    if (!Array.isArray(portfolioUrls) || portfolioUrls.length === 0) {
-      throw new Error("No portfolio URLs provided");
-    }
-
-    if (!OPENAI_API_KEY) {
-      console.error("[ai-analyze-portfolio] OPENAI_API_KEY is not configured");
-      return jsonResponse({ error: "OPENAI_API_KEY is not configured" }, 500);
-    }
-
-    const items = portfolioUrls
-      .map((raw: unknown, i: number) => normalizePortfolioItem(raw, i))
-      .filter((item: PortfolioItem | null): item is PortfolioItem => item !== null);
-
-    console.log(`Analyzing ${items.length} portfolio items for job: ${jobTitle} (model: ${OPENAI_PORTFOLIO_MODEL})`);
-
-    const promptHeader = `You are AIVA, an expert portfolio reviewer with a CRITICAL and DISCERNING eye. You analyze work samples for job applications with HIGH STANDARDS.
+  const promptHeader = `You are AIVA, an expert portfolio reviewer with a CRITICAL and DISCERNING eye. You analyze work samples for job applications with HIGH STANDARDS.
 
 **Job Title:** ${jobTitle || "Not specified"}
 **Job Description:** ${jobDescription || "Not specified"}
@@ -366,7 +397,7 @@ BE CRITICAL AND HONEST. A score of 85+ should be exceptional. Average portfolios
       }
 
       try {
-        const bytes = await fetchPortfolioFile(item.url);
+        const bytes = fileBytes.get(item.url) ?? await fetchPortfolioFile(item.url);
         if (!bytes) {
           skip("could not be downloaded");
           continue;
@@ -417,7 +448,7 @@ BE CRITICAL AND HONEST. A score of 85+ should be exceptional. Average portfolios
         "[ai-analyze-portfolio] FALLBACK: no files could be attached; returning default score 60 / CONSIDER without calling the model.",
         { submitted: items.length, skipped }
       );
-      return jsonResponse(buildFallbackAnalysis(0, 0, skipped));
+      return buildFallbackAnalysis(0, 0, skipped);
     }
 
     const promptText = `${promptHeader}${notes.length ? `\n\n${notes.join("\n")}` : ""}
@@ -452,20 +483,28 @@ IMPORTANT: For each PDF, report the number of pages you reviewed and describe ke
     } catch (error) {
       const status = openAIErrorStatus(error);
 
+      // These two used to come back as a non-200 the CLIENT treated as a
+      // failed analysis call, which left its own local `aiAnalysis` null and
+      // submitted anyway (PortfolioUploadPhase.tsx's try/catch around
+      // supabase.functions.invoke). Returning null here reproduces that
+      // exact outcome now that this function does the submit too, rather
+      // than blocking an honest candidate's whole submission on an OpenAI
+      // rate limit / billing issue.
       if (status === 429) {
-        return jsonResponse({ error: "Rate limit exceeded. Please try again later." }, 429);
+        console.error("[ai-analyze-portfolio] rate limited; proceeding with aiAnalysis = null");
+        return null;
       }
       if (status === 402) {
-        return jsonResponse({ error: "API credits exhausted. Please add credits." }, 402);
+        console.error("[ai-analyze-portfolio] API credits exhausted; proceeding with aiAnalysis = null");
+        return null;
       }
       if (status !== null) {
-        // Any other HTTP failure takes the same road as before: the outer
-        // catch answers 200 with the score-50 "processing error" body.
         console.error("AI API error:", status, error);
-        throw new Error(`AI API error: ${status}`);
       }
 
-      // Unparseable / structurally invalid JSON after the helper's retry.
+      // Unparseable / structurally invalid JSON after the helper's retry, or
+      // any other HTTP failure — same score-50/60 fallback body the old
+      // endpoint used to hand back with a 200 either way.
       console.error(
         "[ai-analyze-portfolio] FALLBACK: OpenAI returned no parseable analysis; defaulting to score 60 / CONSIDER.",
         {
@@ -503,21 +542,189 @@ IMPORTANT: For each PDF, report the number of pages you reviewed and describe ke
       skippedFiles: skipped.length,
     });
 
-    return jsonResponse(analysis);
+    return analysis;
+}
+
+function jsonError(message: string, status: number) {
+  return jsonResponse({ error: message }, status);
+}
+
+/**
+ * Trusted server path for the portfolio_upload step (see
+ * docs/TRUSTED-RESULTS.md). The candidate's own browser only uploads files
+ * to the private `portfolios` bucket (PortfolioUploadPhase.tsx's own
+ * `uploadFiles()`) and then calls this function with the application/step it
+ * just uploaded for and the exact `{ url, name, type }` entries it produced.
+ * Everything that used to be a candidate-authored
+ * `supabase.from("applications").update(...)` — the portfolio result, the
+ * `notes[stepId]` legacy entry, and the phase advance — happens here
+ * instead, after verifying:
+ *
+ *   1. the caller really is this application's own candidate;
+ *   2. every submitted file path was actually uploaded BY that candidate,
+ *      FOR this application and this step (not a stranger's file, not a
+ *      stale path from a different application/step), and genuinely exists
+ *      in storage — not just a string that looks right;
+ *
+ * before running the (unchanged) AI review and calling recordStepResult,
+ * which itself re-verifies the caller and that they've actually reached
+ * this step before writing anything.
+ */
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== "object") {
+      return jsonError("Invalid request body", 400);
+    }
+
+    const { applicationId, stepId, files } = body as {
+      applicationId?: unknown;
+      stepId?: unknown;
+      files?: unknown;
+    };
+
+    if (typeof applicationId !== "string" || !applicationId) {
+      return jsonError("applicationId is required", 400);
+    }
+    if (typeof stepId !== "string" || !stepId) {
+      return jsonError("stepId is required", 400);
+    }
+    if (!Array.isArray(files) || files.length === 0) {
+      return jsonError("No portfolio files provided", 400);
+    }
+
+    const callerUserId = await resolveCallerId(req);
+    if (!callerUserId) {
+      return jsonError("Not authenticated", 401);
+    }
+
+    const admin = getAdminClient();
+
+    const { data: appRow, error: appError } = await admin
+      .from("applications")
+      .select("id, candidate_id, status, jobs:job_id ( title, description )")
+      .eq("id", applicationId)
+      .maybeSingle();
+
+    if (appError || !appRow) {
+      return jsonError("Application not found", 404);
+    }
+    if ((appRow as any).candidate_id !== callerUserId) {
+      return jsonError("Caller is not this application's candidate", 403);
+    }
+
+    const items = files
+      .map((raw: unknown, i: number) => normalizePortfolioItem(raw, i))
+      .filter((item: PortfolioItem | null): item is PortfolioItem => item !== null);
+
+    if (items.length === 0) {
+      return jsonError("No valid portfolio files provided", 400);
+    }
+    if (items.length > MAX_SUBMITTED_FILES) {
+      console.error("[ai-analyze-portfolio] rejected: too many files submitted", {
+        applicationId,
+        stepId,
+        submitted: items.length,
+      });
+      return jsonError(`Too many files submitted (max ${MAX_SUBMITTED_FILES})`, 400);
+    }
+
+    // Ownership + existence, BEFORE spending anything on analysis. A path
+    // that doesn't match this candidate's own upload naming for THIS
+    // application/step is refused outright — never silently dropped the way
+    // an unsupported file type or a download failure is below.
+    const ownedPattern = buildOwnedPortfolioPathPattern(callerUserId, applicationId, stepId);
+    const notOwned = items.filter((item) => !ownedPattern.test(item.url));
+    if (notOwned.length > 0) {
+      console.error("[ai-analyze-portfolio] rejected: file path(s) not owned by this candidate/application/step", {
+        applicationId,
+        stepId,
+        paths: notOwned.map((f) => f.url),
+      });
+      return jsonError("One or more files were not uploaded by you for this application step", 403);
+    }
+
+    // Download each DISTINCT storage path once, not once per submitted
+    // entry. The owned-path pattern above only proves a path's SHAPE is this
+    // candidate's own — it doesn't require paths to be unique — so without
+    // this de-dupe a request could still repeat a single real owned path up
+    // to MAX_SUBMITTED_FILES times and force that many redundant sequential
+    // storage round-trips for the cost of one legitimate upload.
+    const uniqueUrls = Array.from(new Set(items.map((item) => item.url)));
+    const fileBytes = new Map<string, ArrayBuffer>();
+    const missing: string[] = [];
+    for (const url of uniqueUrls) {
+      const { data, error } = await admin.storage.from("portfolios").download(url);
+      if (error || !data) {
+        const names = items.filter((item) => item.url === url).map((item) => item.name);
+        missing.push(...names);
+        continue;
+      }
+      fileBytes.set(url, await data.arrayBuffer());
+    }
+    if (missing.length > 0) {
+      console.error("[ai-analyze-portfolio] rejected: file(s) not found in storage", { applicationId, stepId, missing });
+      return jsonError(`File(s) not found in storage: ${missing.join(", ")}`, 400);
+    }
+
+    const jobTitle = (appRow as any).jobs?.title ?? null;
+    const jobDescription = (appRow as any).jobs?.description ?? null;
+
+    const analysis = await runPortfolioAnalysis(items, fileBytes, jobTitle, jobDescription);
+
+    // Save phase data (NO local pass/fail decision — backend decides).
+    // Shape matches PortfolioUploadPhase.tsx's own former write exactly —
+    // see docs/TRUSTED-RESULTS.md's result_key table.
+    const portfolioResult = {
+      type: "portfolio_upload",
+      files: items.map((item) => ({ url: item.url, name: item.name, type: item.type })),
+      uploadedAt: new Date().toISOString(),
+      completed: true,
+      aiAnalysis: analysis,
+      phaseScore: analysis?.score || null,
+    };
+
+    const analysisText = analysis
+      ? `Portfolio: ${items.length} files. Score: ${analysis.score || 100}%. ${analysis.summary || ""}`
+      : `Portfolio: ${items.length} files uploaded successfully.`;
+
+    // supabase-js's real PostgrestBuilder is thenable (awaits fine at
+    // runtime) but isn't structurally a bare Promise, which is all
+    // MinimalSupabaseAdmin declares (kept import-free on purpose — see its
+    // own doc comment in trustedResults.ts) — a local cast at this one call
+    // site, not a change to that shared, unmodifiable interface.
+    const outcome = await recordStepResult(admin as unknown as MinimalSupabaseAdmin, {
+      applicationId,
+      callerUserId,
+      stepId,
+      stepType: "portfolio_upload",
+      resultKey: "portfolioResult",
+      result: portfolioResult,
+      legacyStepEntry: portfolioResult,
+    });
+
+    if (!outcome.ok) {
+      return jsonResponse({ error: outcome.error }, outcome.code === "step_not_reached" ? 409 : 400);
+    }
+
+    // phase_ai_analysis isn't part of recordStepResult's own contract (it
+    // only ever touches notes/phase/status) but the candidate write this
+    // replaces always set it alongside notes — best-effort, service-role,
+    // and never allowed to turn an already-recorded step result into a
+    // failure response for the candidate.
+    try {
+      await admin.from("applications").update({ phase_ai_analysis: analysisText }).eq("id", applicationId);
+    } catch (err) {
+      console.error("[ai-analyze-portfolio] failed to set phase_ai_analysis (non-fatal):", err);
+    }
+
+    return jsonResponse({ ok: true, analysis, next: outcome.next });
   } catch (error) {
     console.error("Error in ai-analyze-portfolio:", error);
-    return jsonResponse({
-      error: error instanceof Error ? error.message : "Unknown error",
-      // Return basic analysis even on error - but with low score requiring manual review
-      score: 50,
-      summary: "Portfolio upload encountered issues. Manual review strongly recommended.",
-      filesAnalyzed: { total: 0, images: 0, pdfs: 0, pdfPageDetails: [], skippedFiles: 0, skipped: [] },
-      authenticity: { assessment: "UNKNOWN", confidence: "LOW", concerns: ["Processing error occurred"] },
-      penaltiesApplied: ["-10: Processing error"],
-      bonusesApplied: [],
-      strengths: ["Portfolio submitted"],
-      areasForImprovement: ["Resubmission may be needed"],
-      recommendation: "CONSIDER - Manual review required",
-    }, 200);
+    return jsonError(error instanceof Error ? error.message : "Unknown error", 500);
   }
 });
