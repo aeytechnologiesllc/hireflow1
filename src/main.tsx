@@ -20,8 +20,27 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+async function bootstrap() {
+  // Dev-preview seam: `?__preview=1` swaps the app's supabase client for an
+  // offline fixture client before anything else mounts (see
+  // src/dev-preview/install.ts). `import.meta.env.DEV` is statically `false`
+  // in the production bundle, so this whole block — including the dynamic
+  // import, which is what actually pulls the fixture data in — is dead code
+  // the bundler drops. See scripts/guards/dev-preview-dev-only.mjs and
+  // docs/DEV-PREVIEW.md.
+  if (import.meta.env.DEV) {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("__preview") === "1") {
+      const { install } = await import("./dev-preview/install");
+      install(params);
+    }
+  }
+
+  ReactDOM.createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
+}
+
+void bootstrap();

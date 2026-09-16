@@ -119,6 +119,17 @@ const FlowLab = lazyWithReload(() => import("./pages/FlowLab"));
 /** Placeholder for a dev-only page in production builds — never rendered. */
 const DevOnlyPage = () => null;
 
+/**
+ * The dev-preview harness (src/dev-preview/) — signed-in screens rendered
+ * against offline fixture data, for verifying UI that needs a signed-in
+ * session without ever signing in. `import.meta.env.DEV` is statically
+ * `false` in the production bundle, so this ternary's true branch —
+ * including the `import()` call, which is what actually pulls the picker UI
+ * and fixture data in — is dead code the bundler drops. See
+ * scripts/guards/dev-preview-dev-only.mjs and docs/DEV-PREVIEW.md.
+ */
+const DevPreview = import.meta.env.DEV ? lazyWithReload(() => import("./pages/DevPreview")) : DevOnlyPage;
+
 
 
 // Standard premium loading state — a properly sized, centered Ava orb.
@@ -244,6 +255,7 @@ const App = () => (
                   {import.meta.env.DEV && (
                     <Route path="/preview/loading" element={<AuthLoadingScreen variant="employer" />} />
                   )}
+                  {import.meta.env.DEV && <Route path="/__preview" element={<DevPreview />} />}
                   <Route path="/flow-lab" element={<FlowLab />} />
                   
                   {/* Document Verification (public, outside AppLayout) */}
