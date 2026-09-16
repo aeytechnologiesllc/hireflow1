@@ -41,14 +41,11 @@ import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import {
   BuildStep,
   BuildStuckNotice,
-  DISPLAY,
-  FOCUS_CSS,
   PhaseRow,
   StepRail,
-  STEPS,
-  useWide,
   type ReviewPhaseCard,
 } from "@/components/ava/createFlow/shared";
+import { DISPLAY, FOCUS_CSS, STEPS, useWide } from "@/components/ava/createFlow/sharedAtoms";
 import {
   PLAYBOOKS,
   RIGOR_OPTIONS,
