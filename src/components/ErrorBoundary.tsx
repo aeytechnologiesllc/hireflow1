@@ -1,6 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { reportError } from '@/lib/crashReporter';
 
 interface Props {
   children: ReactNode;
@@ -26,6 +27,10 @@ class ErrorBoundary extends Component<Props, State> {
     if (import.meta.env.DEV) {
       console.error('ErrorBoundary caught an error:', error, errorInfo);
     }
+    // Crash alert — same client-errors pipeline as window 'error' /
+    // 'unhandledrejection' (src/lib/crashReporter.ts), so a React
+    // render-time throw reaches the developer dashboard too.
+    reportError(error.message, error.stack);
   }
 
   private handleReload = () => {

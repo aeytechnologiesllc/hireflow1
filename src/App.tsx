@@ -14,6 +14,7 @@ import DeveloperLayout from "@/components/DeveloperLayout";
 import { OrbLoader } from "@/components/ava/OrbLoader";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { routeImporters } from "@/lib/prefetchRoutes";
+import { usePageViewTracking } from "@/hooks/usePageViewTracking";
 
 // Core pages loaded eagerly for instant navigation
 import Dashboard from "./pages/Dashboard";
@@ -98,6 +99,8 @@ const DeveloperUsers = lazyWithReload(() => import("./pages/DeveloperUsers"));
 const DeveloperSubscriptions = lazyWithReload(() => import("./pages/DeveloperSubscriptions"));
 const DeveloperJobs = lazyWithReload(() => import("./pages/DeveloperJobs"));
 const DeveloperActivity = lazyWithReload(() => import("./pages/DeveloperActivity"));
+const DeveloperErrors = lazyWithReload(() => import("./pages/DeveloperErrors"));
+const DeveloperVisitors = lazyWithReload(() => import("./pages/DeveloperVisitors"));
 const DeveloperSettings = lazyWithReload(() => import("./pages/DeveloperSettings"));
 const AvaFlowPreview = lazyWithReload(() => import("./pages/AvaFlowPreview"));
 
@@ -139,6 +142,12 @@ const queryClient = new QueryClient({
   },
 });
 
+// Must live inside <BrowserRouter> to read route changes via useLocation().
+function PageViewTracker() {
+  usePageViewTracking();
+  return null;
+}
+
 const App = () => (
   <ErrorBoundary>
     <ThemeProvider attribute="class" defaultTheme="dark">
@@ -148,6 +157,7 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
+              <PageViewTracker />
               <Suspense fallback={<LazyFallback />}>
                 <Routes>
                   <Route path="/" element={<Index />} />
@@ -172,6 +182,8 @@ const App = () => (
                     <Route path="/developer/subscriptions" element={<DeveloperSubscriptions />} />
                     <Route path="/developer/jobs" element={<DeveloperJobs />} />
                     <Route path="/developer/activity" element={<DeveloperActivity />} />
+                    <Route path="/developer/errors" element={<DeveloperErrors />} />
+                    <Route path="/developer/visitors" element={<DeveloperVisitors />} />
                     <Route path="/developer/settings" element={<DeveloperSettings />} />
                   </Route>
                   
