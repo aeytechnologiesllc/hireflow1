@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { STORAGE_KEY_PREFIX } from "./featureDiscoveryStorage";
 
 interface FeatureDiscoveryTooltipProps {
   featureId: string;
@@ -16,7 +17,6 @@ interface FeatureDiscoveryTooltipProps {
   delayMs?: number;
 }
 
-const STORAGE_KEY_PREFIX = "feature_discovery_";
 
 const positionToSide = {
   top: "top",
@@ -161,18 +161,6 @@ export function FeatureDiscoveryTooltip({
       </PopoverContent>
     </Popover>
   );
-}
-
-export function resetFeatureDiscovery(featureId: string) {
-  localStorage.removeItem(`${STORAGE_KEY_PREFIX}${featureId}`);
-}
-
-export function resetAllFeatureDiscoveries() {
-  Object.keys(localStorage).forEach((key) => {
-    if (key.startsWith(STORAGE_KEY_PREFIX)) {
-      localStorage.removeItem(key);
-    }
-  });
 }
 
 export default FeatureDiscoveryTooltip;

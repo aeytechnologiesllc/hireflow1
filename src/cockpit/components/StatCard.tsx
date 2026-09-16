@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { ArrowUp, ArrowDown } from "lucide-react";
-import { CountUp, parseCountable } from "./CountUp";
+import { CountUp } from "./CountUp";
+import { parseCountable } from "./parseCountable";
 
 interface StatCardProps {
   label: string;

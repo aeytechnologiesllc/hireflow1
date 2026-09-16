@@ -11,33 +11,12 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PackageItem } from "@/hooks/useDocumentPackages";
+import { getDocumentTypeLabel } from "./documentTypeLabel";
 
 interface PackageItemCardProps {
   item: PackageItem;
   onRemove?: () => void;
   canRemove?: boolean;
-}
-
-const DOCUMENT_TYPE_LABELS: Record<string, string> = {
-  offer_letter: "Offer Letter",
-  nda: "NDA",
-  employment_contract: "Employment Contract",
-  background_check: "Background Check Authorization",
-  non_compete: "Non-Compete Agreement",
-  ip_assignment: "IP Assignment",
-  custom: "Custom Document",
-  drivers_license: "Driver's License",
-  ssn_card: "Social Security Card",
-  passport: "Passport",
-  work_authorization: "Work Authorization",
-  tax_form: "Tax Form",
-  id_card: "Government ID",
-  proof_of_address: "Proof of Address",
-  bank_details: "Bank Details",
-};
-
-export function getDocumentTypeLabel(type: string): string {
-  return DOCUMENT_TYPE_LABELS[type] || type.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 }
 
 export function PackageItemCard({ item, onRemove, canRemove = true }: PackageItemCardProps) {

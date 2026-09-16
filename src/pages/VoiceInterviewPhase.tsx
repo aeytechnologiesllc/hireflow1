@@ -16,7 +16,8 @@ import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
-import { AvaAvatar, useAvaExpression } from "@/components/AvaAvatar";
+import { AvaAvatar } from "@/components/AvaAvatar";
+import { useAvaExpression } from "@/components/useAvaExpression";
 import { GlyphVoice, GlyphClock, GlyphLetter, GlyphCheckSeal } from "@/components/candidate/glyphs";
 
 interface Message {

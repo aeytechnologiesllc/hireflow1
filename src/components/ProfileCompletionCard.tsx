@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useProfile } from "@/hooks/useProfile";
-import { calculateProfileCompleteness } from "@/components/ProfileCompleteness";
+import { calculateProfileCompleteness } from "@/components/calculateProfileCompleteness";
 
 export function ProfileCompletionCard() {
   const { data: profile, isLoading } = useProfile();

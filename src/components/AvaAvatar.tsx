@@ -313,38 +313,4 @@ export function AvaAvatar({
   );
 }
 
-// Hook to determine expression from voice hook state
-export function useAvaExpression({
-  isSpeaking,
-  isListening,
-  isProcessing,
-  isConnected,
-  justFinishedSpeaking,
-}: {
-  isSpeaking: boolean;
-  isListening: boolean;
-  isProcessing: boolean;
-  isConnected: boolean;
-  justFinishedSpeaking?: boolean;
-}): AvaExpression {
-  // Encouraging expression briefly after user finishes speaking
-  if (justFinishedSpeaking && isProcessing) {
-    return "encouraging";
-  }
-
-  if (isSpeaking) {
-    return "speaking";
-  }
-
-  if (isProcessing) {
-    return "thinking";
-  }
-
-  if (isListening && isConnected) {
-    return "listening";
-  }
-
-  return "neutral";
-}
-
 export default AvaAvatar;
