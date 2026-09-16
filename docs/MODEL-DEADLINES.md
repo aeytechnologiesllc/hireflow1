@@ -59,13 +59,13 @@ variables are dead — unset them if they are still in Secrets.
 | `OPENAI_DOC_FIELDS_MODEL` | `gpt-5.6-luna` | `ai-analyze-document-fields` — signature-field placement (JSON) |
 | `OPENAI_PORTFOLIO_MODEL` | `gpt-5.6-terra` | `ai-analyze-portfolio` — vision: images + PDFs inlined (needs a model with image and file input) |
 
-### Voice (OpenAI Realtime, plus one ElevenLabs demo)
+### Voice (OpenAI Realtime; the ElevenLabs demo is retired)
 
 | Variable | Default today | Note |
 |---|---|---|
 | `OPENAI_REALTIME_MODEL` | `gpt-realtime-2.1` | already the newer generation — **~3× cheaper per audio minute** than the retiring `gpt-realtime` |
 | `OPENAI_REALTIME_TRANSCRIPTION_MODEL` | `gpt-live-transcribe` | already the newer generation, replacing the retiring `gpt-4o-transcribe` |
-| `ELEVENLABS_API_KEY` (`elevenlabs-tts`) | — | not a model variable. The `elevenlabs-tts` function is called **only by the `/marketing-demo` page**; no candidate or employer flow depends on it. If ElevenLabs breaks, the product does not. |
+| `ELEVENLABS_API_KEY` (`elevenlabs-tts`) | — | not a model variable. `elevenlabs-tts` is **retired** (410 since 2026-09-16): its only caller, `/marketing-demo`, now redirects home, and it was a sign-in-free proxy with no text length cap. No product flow uses ElevenLabs. |
 
 ## Swap procedure (do this once, per family)
 

@@ -1,111 +1,66 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+/**
+ * geolocate-ip — the caller's own approximate location (city/region/country),
+ * used for pricing currency (usePricing) and document-signing context
+ * (auditTrail, documentHash). Public: signing and pricing run signed-out too.
+ *
+ * Only ever looks up the IP the request came from. It used to take an `ip`
+ * from the request body as well, which made it a free, unlimited lookup
+ * service for any address on the internet (and let a caller put any location
+ * they liked into their own signing context). It is also rate limited now,
+ * since every call spends the upstream ip-api.com quota (45 per minute).
+ */
+import { callerId, guardPublicAiCall } from "../_shared/rateLimit.ts";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
+const UNKNOWN = { city: "Unknown", region: "Unknown", country: "Unknown", countryCode: "XX" };
+
+// IPv4 dotted quad or an IPv6 address (hex groups, colons, optional zone-free
+// embedded IPv4). Anything else is never put into the upstream URL.
+const IPV4 = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/;
+const IPV6 = /^[0-9a-f:.]{2,45}$/i;
+
+function json(body: unknown) {
+  // Always 200 so a lookup problem never breaks pricing or signing.
+  return new Response(JSON.stringify(body), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const limited = await guardPublicAiCall(req, "geolocate-ip", corsHeaders, 120, 3600);
+  if (limited) return limited;
+
+  const ip = callerId(req);
+  if (!IPV4.test(ip) && !(ip.includes(":") && IPV6.test(ip))) {
+    return json({ success: true, ip: "unknown", ...UNKNOWN });
+  }
+
   try {
-    // Safely parse JSON body - handle empty body gracefully
-    let requestedIp: string | null = null;
-    try {
-      const body = await req.text();
-      if (body && body.trim()) {
-        const parsed = JSON.parse(body);
-        requestedIp = parsed?.ip || null;
-      }
-    } catch {
-      // Body was empty or invalid JSON - proceed with header detection
-      requestedIp = null;
-    }
-
-    // Get client IP from various headers (Cloudflare, proxies, etc.)
-    const cfConnectingIp = req.headers.get('cf-connecting-ip');
-    const xRealIp = req.headers.get('x-real-ip');
-    const forwardedFor = req.headers.get('x-forwarded-for');
-    const trueClientIp = req.headers.get('true-client-ip');
-    
-    // Priority: explicit request > Cloudflare > true-client-ip > x-real-ip > x-forwarded-for
-    const clientIp = requestedIp || 
-                     cfConnectingIp || 
-                     trueClientIp || 
-                     xRealIp || 
-                     forwardedFor?.split(',')[0]?.trim() || 
-                     null;
-
-    console.log('IP detection:', { 
-      requestedIp, 
-      cfConnectingIp, 
-      trueClientIp,
-      xRealIp, 
-      forwardedFor,
-      resolvedIp: clientIp 
-    });
-
-    if (!clientIp) {
-      console.log('No IP detected from any source');
-      return new Response(JSON.stringify({
-        success: true,
-        ip: 'unknown',
-        city: 'Unknown',
-        region: 'Unknown',
-        country: 'Unknown',
-        countryCode: 'XX'
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Use ip-api.com (free, no API key required, 45 requests/minute limit)
-    const response = await fetch(`http://ip-api.com/json/${clientIp}?fields=status,message,city,regionName,country,countryCode`);
+    const response = await fetch(
+      `http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,message,city,regionName,country,countryCode`,
+    );
     const data = await response.json();
-    
-    console.log('ip-api.com response:', data);
-
-    if (data.status === 'success') {
-      return new Response(JSON.stringify({
-        success: true,
-        ip: clientIp,
-        city: data.city || 'Unknown',
-        region: data.regionName || 'Unknown',
-        country: data.country || 'Unknown',
-        countryCode: data.countryCode || 'XX'
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    } else {
-      console.log('ip-api.com failed:', data.message);
-      return new Response(JSON.stringify({
-        success: true,
-        ip: clientIp,
-        city: 'Unknown',
-        region: 'Unknown',
-        country: 'Unknown',
-        countryCode: 'XX'
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    if (data.status !== "success") {
+      return json({ success: true, ip, ...UNKNOWN });
     }
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-    console.error('Geolocation error:', errorMessage);
-    return new Response(JSON.stringify({
-      success: false,
-      error: errorMessage,
-      ip: 'unknown',
-      city: 'Unknown',
-      region: 'Unknown',
-      country: 'Unknown',
-      countryCode: 'XX'
-    }), {
-      status: 200, // Still return 200 so the signing flow doesn't break
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    return json({
+      success: true,
+      ip,
+      city: data.city || "Unknown",
+      region: data.regionName || "Unknown",
+      country: data.country || "Unknown",
+      countryCode: data.countryCode || "XX",
     });
+  } catch (err) {
+    console.error("geolocate-ip lookup failed:", err instanceof Error ? err.message : err);
+    return json({ success: false, ip: "unknown", ...UNKNOWN });
   }
 });

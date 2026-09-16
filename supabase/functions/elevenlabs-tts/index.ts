@@ -1,82 +1,29 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { guardPublicAiCall } from "../_shared/rateLimit.ts";
-
+/**
+ * RETIRED — this endpoint is intentionally disabled (2026-09-16).
+ *
+ * It was a public, sign-in-free text-to-speech proxy for the old
+ * /marketing-demo page, which now just redirects to "/". Nothing in the app
+ * calls it. It had a per-IP call limit but no cap on text length, so the day
+ * ELEVENLABS_API_KEY got set (it is unset today), anyone could have spent
+ * roughly ten thousand characters of paid voice per call, sixty times an hour,
+ * per IP address.
+ *
+ * Kept as a tombstone, same convention as check-email-exists and
+ * stripe-checkout, so the deployed copy is replaced with a refusal rather than
+ * left live. If a voice demo comes back, build it behind sign-in with a text
+ * length cap.
+ */
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+Deno.serve((req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
-
-  // Public endpoint that spends money per call — cap how fast one caller can spend it.
-  const limited = await guardPublicAiCall(req, "elevenlabs-tts", corsHeaders, 60, 3600);
-  if (limited) return limited;
-
-  try {
-    const { text, voiceId } = await req.json();
-    const ELEVENLABS_API_KEY = Deno.env.get("ELEVENLABS_API_KEY");
-
-    if (!ELEVENLABS_API_KEY) {
-      throw new Error("ELEVENLABS_API_KEY is not configured");
-    }
-
-    if (!text) {
-      throw new Error("Text is required");
-    }
-
-    // Default to Sarah - warm, professional female voice
-    const selectedVoice = voiceId || "EXAVITQu4vr4xnSDxMaL";
-    console.log(`Generating TTS for text: "${text.substring(0, 50)}..." with voice: ${selectedVoice}`);
-
-    const response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${selectedVoice}`,
-      {
-        method: "POST",
-        headers: {
-          "xi-api-key": ELEVENLABS_API_KEY,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          text,
-          model_id: "eleven_multilingual_v2",
-          output_format: "mp3_44100_128",
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75,
-            style: 0.3,
-            use_speaker_boost: true,
-            speed: 1.0,
-          },
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("ElevenLabs API error:", response.status, errorText);
-      throw new Error(`ElevenLabs API error: ${response.status}`);
-    }
-
-    const audioBuffer = await response.arrayBuffer();
-    console.log(`Generated audio: ${audioBuffer.byteLength} bytes`);
-
-    return new Response(audioBuffer, {
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "audio/mpeg",
-      },
-    });
-  } catch (error) {
-    console.error("TTS error:", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
-  }
+  return new Response(
+    JSON.stringify({ error: "gone", message: "elevenlabs-tts has been retired." }),
+    { status: 410, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
 });
