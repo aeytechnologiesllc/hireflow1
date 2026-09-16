@@ -1,8 +1,265 @@
 # Document signing — design
 
-Status: design only, not yet built. Written 2026-09-15 against production schema
-(project `yqklrkpptnhubsnijqze`) with 0 rows in `public.documents`, so nothing here
-migrates live data — every change is additive or a fresh lockdown.
+Status: built 2026-09-16 (branch `fix/doc-signing`). Written 2026-09-15 against
+production schema (project `yqklrkpptnhubsnijqze`) with 0 rows in
+`public.documents`, so nothing here migrates live data — every change is
+additive or a fresh lockdown. See **Revision log (2026-09-16)** immediately
+below for what changed from the original design during implementation, and
+why — read it before the rest of this document, since several sections below
+now describe the pre-revision design and are superseded by the log.
+
+## Revision log (2026-09-16)
+
+A pre-implementation review raised six must-change findings and nine
+should-consider items against the original §1–§9 design below. Every
+must-change item was fixed before shipping; this log records what changed and
+why, and is the "revision log" every implementation file's comments refer
+back to.
+
+### Must-change 1 — race condition / no atomic state transition (sign, countersign)
+
+**Original design (§1):** "a single Postgres function called via `rpc`, so
+the hash/lock/certificate write is atomic."
+
+**What shipped instead:** no new SECURITY DEFINER SQL function for
+sign/countersign/decline at all. Every terminal write is a **compare-and-swap
+UPDATE performed directly by the edge function's service-role client** — the
+`WHERE` clause re-checks every precondition (`status = 'pending'`,
+`candidate_signed_at IS NULL`, etc.) at the moment of the write, not just at
+an earlier `SELECT`. Postgres always serializes concurrent `UPDATE`s to the
+same row (the second waits for the first's row lock, then re-evaluates its
+own `WHERE` against the now-committed row) — this gives the exact same
+atomicity guarantee as a `SELECT ... FOR UPDATE` inside a wrapping function
+(the pattern `submit_voice_interview_manual_end` already uses,
+`20260915110000_*.sql`), without adding a second SECURITY DEFINER surface
+whose own privileges need independent review. `sign` and `decline` are a
+single CAS UPDATE each — the audit-log insert and notification only run if
+the UPDATE actually affected a row, so a losing race never produces a
+duplicate audit row.
+
+`countersign` is genuinely two-phase, because it renders and uploads to a
+**fixed** Storage path (`documents/<id>/final.pdf`) — a DB-only CAS isn't
+enough on its own, because two concurrent calls could both pass a DB
+precondition check and then both race to upload to that same object,
+independently of which one's DB write ultimately wins:
+
+1. **Reserve** — `UPDATE documents SET employer_signed_at = now() WHERE id =
+   $1 AND status = 'pending' AND candidate_signed_at IS NOT NULL AND
+   employer_signed_at IS NULL AND is_locked = false AND is_voided = false`.
+   This is the CAS: only one of two racing calls can ever match this `WHERE`
+   clause and affect a row. The loser gets 0 rows back and returns
+   `already_signed` immediately — **before touching Storage at all**. This is
+   the piece that actually closes the storage-race half of the finding: by
+   construction, only the single reservation winner ever reaches the
+   render/upload step for a given document, so the object at
+   `documents/<id>/final.pdf` can never be written by two callers.
+2. **Finalize** — only the winner renders the PDF, uploads it, computes
+   `final_pdf_hash` from the exact bytes it just rendered, builds the
+   certificate, and writes everything (`status = 'signed'`, `is_locked =
+   true`, `final_pdf_hash`, `completion_certificate`, `signed_at`, …) in one
+   `UPDATE ... WHERE id = $1 AND employer_signed_at = <the reservation
+   timestamp>` — a second CAS, defense-in-depth (by construction no other
+   caller could reach this point for this document, but the clause costs
+   nothing and catches a bug elsewhere).
+3. **Rollback** — if rendering, the Storage upload, or the finalize write
+   throws, the edge function resets `employer_signed_at` back to `NULL` with
+   its own CAS (`WHERE employer_signed_at = <reservation timestamp> AND
+   status = 'pending' AND is_locked = false`), so a transient failure (a
+   render error, a Storage hiccup, a network blip) doesn't strand the
+   document permanently "claimed" with no way for a retry to proceed. This
+   is a real, accepted gap in the *original* two-phase idea that this
+   revision closes rather than leaving open.
+
+Proven directly in `scripts/document_signing_guard_pglite_check.mjs` (the
+trigger/RLS side) and by static source checks in
+`scripts/guards/document-signing.mjs` (`countersign-terminal-write-is-a-compare-and-swap`,
+which specifically checks the Storage upload happens *after* the reservation
+CAS, not before).
+
+### Must-change 2 — legally-significant IP is sourced from a spoofable header
+
+**Original design (§1, §4):** capture signing IP via `x-forwarded-for`'s
+first hop, reusing `callerId()` from `_shared/rateLimit.ts`.
+
+**Finding's own words, confirmed correct:** trusting the first XFF hop on a
+public HTTPS endpoint is exactly as spoofable as a client-supplied body field
+would be — X-Forwarded-For is not a browser-forbidden header, and anything
+downstream of the browser (devtools fetch, curl, a modified client) can set
+it to anything.
+
+**What shipped:** this implementation could not, within this session,
+independently verify what — if anything — Supabase's Edge Runtime guarantees
+about appending (vs. simply passing through) a caller's `X-Forwarded-For`
+header, so it does **not** assert a platform guarantee it can't prove (the
+finding's first suggested fix). Instead it takes the **fix explicitly offered
+as the alternative**: `_shared/bestEffortIp.ts` takes the **last** hop of
+X-Forwarded-For (the position a reverse-proxy chain conventionally appends
+to, rather than the position the client itself controls first) as a
+marginally-better-than-nothing signal, and — the more important half of the
+fix — **every surface that displays this value is now explicitly labeled
+"self-reported"**, not presented as independently verified:
+`completionCertificate.ts`'s two `IP Address (self-reported):` lines,
+`certificatePDF.ts`'s two matching labels, `pdfSignatureBurner.ts`'s two
+matching labels, and `AuditCertificate.tsx`'s table header. The code comment
+in `bestEffortIp.ts` spells out this reasoning and explicitly does not claim
+more than it can prove.
+
+### Must-change 3 — `is_voided`/`voided_at`/`voided_reason` are unguarded
+
+**Original design (§5):** these three columns were left off both the
+closed-document and still-pending disallow lists in
+`protect_document_columns()`.
+
+**What shipped:** this revision took the **more conservative** of the
+finding's two suggested fixes — not "route voiding through the edge function
+with its own audit action" (which would invent a whole new product surface —
+a void UI, a void audit-log action, a void notification — that nothing in
+this pass's SCOPE calls for, and that the should-consider list explicitly
+frames as a separate product decision: *"An employer has no path in this
+design to withdraw/cancel a document before the candidate signs... worth a
+product call on whether at least a minimal void action belongs in this
+pass"*) — but **block writes to all three columns outright, on every
+document, pending or closed**, not just on signed/locked/declined ones as the
+finding's minimum bar asked for. A repo-wide grep (repeated at
+implementation time, same result as the original design's own grep) confirms
+nothing today writes these columns, so blocking them everywhere has zero
+functional cost and fully closes the concrete regression (an employer-side
+party silently invalidating a locked, completed document with no audit
+trail) without inventing scope. Voiding stays a real, separate, not-yet-built
+flow — a future migration's job, once product actually wants it. Proven in
+`scripts/document_signing_guard_pglite_check.mjs` (both the pending-document
+and the locked-document cases) and `scripts/guards/document-signing.mjs`.
+
+### Must-change 4 — `signed_at` is never set, but every mounted UI surface reads it
+
+**Original design (§1, §3):** neither `sign` nor `countersign` ever set
+`documents.signed_at`.
+
+**What shipped:** the `countersign` finalize write sets `signed_at = <the
+reservation timestamp>` alongside `status = 'signed'` and `is_locked = true`
+— the cheapest fix the finding itself named as preferred, and the one
+`verify-document`'s own existing fallback (`document.signed_at ||
+document.employer_signed_at`) already anticipated. `sign` deliberately does
+**not** set it — the document is still `pending` after only the candidate has
+signed, and `signed_at` means "the document is done," which matches every
+read site the finding enumerated (`SignedDocumentViewer.tsx`'s header,
+identity bar, completion strip, audit-trail identity bar, both audit
+export paths, the certificate/PDF footer; `useActivityFeed.ts`'s
+`status === "signed" && doc.signed_at` gate). No read site needed to change.
+Proven in `scripts/guards/document-signing.mjs`
+(`sign-and-countersign-set-signed-at`).
+
+### Must-change 5 — `assigned_job_ids IS NULL` vs. `array_length(..., 1) IS NULL`
+
+**Original design (§5):** `tm.assigned_job_ids is null` as the "every job"
+check.
+
+**What shipped:** replaced with this codebase's own live convention,
+confirmed via `pg_get_functiondef` against `is_active_team_member_for_job()`
+and the live `"Team members can update documents if permitted"` policy
+before writing the fix — `array_length(tm.assigned_job_ids, 1) IS NULL`. A
+team member scoped to `'{}'::uuid[]` (empty, not genuinely `NULL`) is now
+correctly treated as "every job" by the trigger, matching what RLS already
+grants them, instead of being misclassified into the trigger's unrestricted
+pass-through branch. Proven in
+`scripts/document_signing_guard_pglite_check.mjs` with the exact
+should-consider-flagged case: a team member with `assigned_job_ids = '{}'`
+is both (a) still correctly fenced from signing columns, and (b) still able
+to write the ordinary columns an employer-side caller may touch — proving
+they're recognized as employer-side, not accidentally locked out of
+everything either. Also covered as its own case in
+`scripts/document_signing_state_machine.test.mjs`'s `resolveDocumentRole`
+tests (the pure TS mirror of the same convention, used by the edge
+function's own role resolution).
+
+### Must-change 6 — legacy `signature_data`/`signed_at` are unguarded
+
+**Original design (§5, §9):** neither disallow list mentioned these two
+columns, directly contradicting §9's claim that they're "covered by §5's
+trigger like every other column."
+
+**What shipped:** `new.signature_data IS DISTINCT FROM old.signature_data`
+and `new.signed_at IS DISTINCT FROM old.signed_at` were added to **both**
+disallow lists (closed and still-pending). This closes a real integrity gap
+that got *more* consequential once must-change 4 shipped: `signed_at` is now
+the live, UI-displayed completion date on a locked, certificate-bearing
+document, so leaving it writable would let any employer/team-member client
+forge the displayed completion timestamp after the fact. Proven in
+`scripts/document_signing_guard_pglite_check.mjs` and
+`scripts/guards/document-signing.mjs`.
+
+### Should-consider items — resolutions
+
+1. **`can_send_documents` as the sole gate for countersigning.** Not
+   changed — this implementation pass doesn't have standing to make that
+   product/security call unilaterally. Flagged here again for an explicit
+   sign-off: granting `can_send_documents` today also grants binding
+   countersignature authority on the employer's behalf, which is materially
+   more than "may send a document."
+2. **Typed-signature identity correlation.** Not implemented — the typed
+   value is still only length-validated (2–120 chars), with no check against
+   `profiles.full_name`. Flagged, not fixed: a correlation check changes what
+   counts as a *valid* signature (a real product/legal decision, e.g. "warn"
+   vs. "block" on mismatch), not a pure security fence like the six
+   must-change items.
+3. **Decline captures IP/UA.** Fixed — the `decline` CAS UPDATE sets
+   `ip_address`/`user_agent` the same way `sign`/`countersign` do, and its
+   audit-log row goes through the same `insertAuditLog` helper, which always
+   attaches IP/UA.
+4. **Storage bucket policy scoping for `final.pdf`.** Resolved by design
+   change, not by touching the bucket policy: rather than trust the private
+   `documents` bucket's existing (uploader-folder-scoped) RLS to authorize a
+   client-side `createSignedUrl` call against a `documents/<documentId>/...`
+   path it was never written to match, the edge function gained a fourth
+   action, `download`, which verifies the caller is a real party
+   server-side (same role resolution as every other action) and mints a
+   short-lived (300s) signed URL itself. The bucket's existing per-uploader
+   policy is untouched and never needs to authorize per-document access at
+   all.
+5. **`employer_signature_data`'s exact JSON shape.** Pinned down:
+   `{"signatures":{"employer": <value>},"method":...,"signerName":...}` —
+   confirmed against `SignedDocumentViewer.tsx`'s own
+   `parsed.signatures?.employer` read before writing the edge function.
+6. **Canonical PDF must draw the signatures, not just body text.** Done —
+   both `renderSignedUploadedPdf` and `renderTextDocumentPdf` in
+   `_shared/renderFinalPdf.ts` embed both signature images (when present)
+   before the certificate page, not just the document body.
+7. **No employer withdraw/cancel path before the candidate signs.** Not
+   built — still out of scope for this pass, same reasoning as must-change 3.
+   Recorded here as a known, accepted product gap, not silently dropped.
+8. **`signing_order` is hardcoded, not a real enum.** Unchanged — still
+   hardcoded to `'candidate_first'` everywhere (the edge function's
+   preconditions, the certificate builder). Acknowledged, not fixed — out of
+   scope for a signing-flow pass to redesign an unrelated column's typing.
+9. **PGlite guard needs the empty-array team-member case.** Fixed — see
+   must-change 5's proof description above; it's in the same PGlite file,
+   not a separate one.
+
+### Other implementation deviations from the original §1–§9 text
+
+- **No new SECURITY DEFINER SQL functions ship in the migration at all** —
+  only `protect_document_columns()` and the DELETE policy swap. See
+  must-change 1. Everywhere below that says "a single Postgres function...
+  called via rpc" describes the superseded original design.
+- **State-machine/authorization tests are Node tests, not Deno tests** —
+  `scripts/document_signing_state_machine.test.mjs` and
+  `scripts/document_signing_hash_and_certificate.test.mjs`, not
+  `stateMachine.test.ts`. This repo's actual required-check list
+  (`CLAUDE.md`) runs `node scripts/*.test.mjs`, not `deno test`; Node 24+
+  strips the pure TS modules' type annotations natively (same convention
+  already used by `scripts/score_aggregation.test.mjs` and
+  `scripts/step_gate.test.mjs`, which import straight from
+  `supabase/functions/_shared/*.ts` and `src/lib/*.ts`). The
+  `renderFinalPdf.ts` determinism test *is* a `Deno.test`
+  (`renderFinalPdf.test.ts`) since it needs `pdf-lib` via the same
+  `esm.sh` import style the function itself uses, which Node can't resolve.
+- **Geolocation is not looked up server-side.** §3's certificate shape keeps
+  `location: {city, region, country}`, but the server-side certificate
+  builder (`_shared/completionCertificateServer.ts`) defaults it to
+  `"Unknown"` rather than calling `geolocate-ip` — added scope (an extra
+  network round-trip and a third-party dependency inside the countersign
+  critical path) for a field this design otherwise treats as best-effort.
+  Flagged here rather than silently shipped as if it matched §3 exactly.
 
 ## 0. What's broken today
 

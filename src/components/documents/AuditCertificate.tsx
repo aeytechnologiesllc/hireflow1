@@ -111,7 +111,7 @@ export function AuditCertificate({
                   <TableHead>Event</TableHead>
                   <TableHead>Signer</TableHead>
                   <TableHead>Timestamp (UTC)</TableHead>
-                  <TableHead>IP Address</TableHead>
+                  <TableHead>IP Address (self-reported)</TableHead>
                   <TableHead>Location</TableHead>
                   <TableHead>Hash Reference</TableHead>
                 </TableRow>

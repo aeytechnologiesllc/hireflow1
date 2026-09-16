@@ -3,7 +3,9 @@ import { useSearchParams } from "react-router-dom";
 import { FileSignature, FileText, Paperclip, ShieldCheck, UserCheck } from "lucide-react";
 import { useCockpitDocuments } from "../hooks/useCockpitData";
 import { useApplicationsForDocuments } from "@/hooks/useApplicationsForDocuments";
+import { useDocuments } from "@/hooks/useDocuments";
 import { DocumentWizard } from "@/components/documents/DocumentWizard";
+import { SignedDocumentViewer } from "@/components/documents/SignedDocumentViewer";
 import { CockpitErrorCard } from "../components/ErrorCard";
 import type { DocRow, DocStatus } from "../data";
 
@@ -123,7 +125,17 @@ function openDocument(fileUrl: string) {
   else URL.revokeObjectURL(url);
 }
 
-function DocRowItem({ row, index, primary }: { row: DocRow; index: number; primary?: boolean }) {
+function DocRowItem({
+  row,
+  index,
+  primary,
+  onOpenViewer,
+}: {
+  row: DocRow;
+  index: number;
+  primary?: boolean;
+  onOpenViewer: (row: DocRow) => void;
+}) {
   const Icon = typeIcon(row.type);
   const chip = CHIPS[row.status];
   const person = named(row.candidate, "Candidate");
@@ -184,7 +196,19 @@ function DocRowItem({ row, index, primary }: { row: DocRow; index: number; prima
       </span>
 
       <div className="flex shrink-0 gap-[7px] max-[620px]:w-full max-[620px]:justify-end">
-        {row.fileUrl ? (
+        {row.status === "Pending" || row.status === "Signed" ? (
+          // A real signing lifecycle exists for this row — open the same
+          // countersign-capable viewer the candidate side uses, instead of
+          // just the raw file with no way to act on it.
+          <button
+            type="button"
+            className={`ck-btn !py-2 !text-[12.5px] ${primary ? "ck-btn-primary" : "ck-btn-outline"}`}
+            onClick={() => onOpenViewer(row)}
+            aria-label={`Open ${row.title}${person ? ` for ${person}` : ""}`}
+          >
+            Open
+          </button>
+        ) : row.fileUrl ? (
           <button
             type="button"
             className={`ck-btn !py-2 !text-[12.5px] ${primary ? "ck-btn-primary" : "ck-btn-outline"}`}
@@ -219,6 +243,24 @@ export default function CockpitDocuments() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: appsForDocs = [] } = useApplicationsForDocuments();
   const [wizard, setWizard] = useState<{ type?: string; appId?: string; mode?: "generate" | "upload" } | null>(null);
+  // Same underlying useDocuments() query useCockpitDocuments() already
+  // calls (shared react-query cache, no extra fetch) — kept here too
+  // because useCockpitDocuments only exposes the flattened DocRow shape,
+  // and SignedDocumentViewer needs the full DocumentWithApplication.
+  const { data: fullDocuments = [] } = useDocuments();
+  const [viewerDocId, setViewerDocId] = useState<string | null>(null);
+  const viewerDocument = fullDocuments.find((d) => d.id === viewerDocId) ?? null;
+
+  const openRow = (row: DocRow) => {
+    // Showcase/demo rows have no matching real `documents` row to open in
+    // the viewer — fall back to the raw-file behavior rather than opening
+    // an empty dialog.
+    if (fullDocuments.some((d) => d.id === row.id)) {
+      setViewerDocId(row.id);
+    } else if (row.fileUrl) {
+      openDocument(row.fileUrl);
+    }
+  };
 
   // One shape for both schema modes — the showcase rows carry the same fields.
   const rows: DocRow[] = documents.rows;
@@ -404,7 +446,7 @@ export default function CockpitDocuments() {
           <SectionTitle flush>Hiring packet</SectionTitle>
           <div className="flex flex-col gap-2">
             {packet.map((row, i) => (
-              <DocRowItem key={row.id} row={row} index={i} primary={row.id === urgentId} />
+              <DocRowItem key={row.id} row={row} index={i} primary={row.id === urgentId} onOpenViewer={openRow} />
             ))}
           </div>
         </>
@@ -415,13 +457,21 @@ export default function CockpitDocuments() {
           <SectionTitle flush={g === 0 && packet.length === 0}>{group.title}</SectionTitle>
           <div className="flex flex-col gap-2">
             {group.rows.map((row, i) => (
-              <DocRowItem key={row.id} row={row} index={i} primary={row.id === urgentId} />
+              <DocRowItem key={row.id} row={row} index={i} primary={row.id === urgentId} onOpenViewer={openRow} />
             ))}
           </div>
         </div>
       ))}
 
       {wizardEl}
+
+      <SignedDocumentViewer
+        document={viewerDocument}
+        open={!!viewerDocId}
+        onOpenChange={(open) => {
+          if (!open) setViewerDocId(null);
+        }}
+      />
     </div>
   );
 }

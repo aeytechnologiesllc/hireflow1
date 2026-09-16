@@ -8,7 +8,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { jsPDF } from "jspdf";
 import { QRCodeCanvas } from "qrcode.react";
 import { useToast } from "@/hooks/use-toast";
-import { 
+import { useAuth } from "@/hooks/useAuth";
+import { useQueryClient } from "@tanstack/react-query";
+import { DocumentSigningPanel } from "./DocumentSigningPanel";
+import {
   FileText, 
   Download, 
   CheckCircle, 
@@ -169,6 +172,21 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
   const [isDownloading, setIsDownloading] = useState(false);
   const qrRef = useRef<HTMLCanvasElement>(null);
   const { toast } = useToast();
+  const { role } = useAuth();
+  const queryClient = useQueryClient();
+
+  // A candidate may sign their own pending, not-yet-signed document; an
+  // employer/team member may countersign once the candidate has. Mirrors
+  // the same preconditions the document-signing edge function enforces
+  // server-side — this is just what shows the panel, not what authorizes
+  // the write.
+  const canSignAsCandidate =
+    role === "candidate" && document?.status === "pending" && !document?.candidate_signed_at;
+  const canCountersignAsEmployer =
+    (role === "employer" || role === "team_member") &&
+    document?.status === "pending" &&
+    !!document?.candidate_signed_at &&
+    !document?.employer_signed_at;
 
   useEffect(() => {
     if (document && open) {
@@ -177,6 +195,14 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
       parseSignatures();
       loadCompletionCertificate();
       setShowAuditTrail(false);
+      // Replaces DocumentViewerDialog.tsx's old recordDocumentView — the
+      // edge function is idempotent (only the first call per document sets
+      // viewed_at / writes an audit row), so firing this on every open is
+      // safe and doesn't need to block rendering.
+      supabase.functions.invoke("document-signing", { body: { documentId: document.id, action: "view" } })
+        .catch(() => {
+          // Best-effort — a failed "viewed" ping never blocks reading the document.
+        });
     }
   }, [document, open]);
 
@@ -347,10 +373,26 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
 
   const handleDownload = async () => {
     if (!document) return;
-    
+
     setIsDownloading(true);
-    
+
     try {
+      // A fully signed document has ONE canonical final PDF, rendered once
+      // server-side at countersign time and stored — serve that instead of
+      // re-burning a fresh (and no longer authoritative) copy client-side.
+      // See docs/DOCUMENT-SIGNING.md §2.
+      if (document.status === "signed" && document.final_pdf_hash) {
+        const { data, error } = await supabase.functions.invoke("document-signing", {
+          body: { documentId: document.id, action: "download" },
+        });
+        if (!error && data?.url) {
+          window.open(data.url, "_blank", "noopener,noreferrer");
+          return;
+        }
+        // Falls through to the legacy client-side render below if the
+        // signed URL couldn't be minted, so a download is never a dead end.
+      }
+
       // Check if this is an uploaded PDF with positioned signatures
       const isUploadedPdf = documentData?.uploadedFileUrl && documentData?.metadata?.hasPositionedSignatures;
       
@@ -956,6 +998,17 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                         </p>
                       </div>
                     </div>
+                  )}
+
+                  {(canSignAsCandidate || canCountersignAsEmployer) && (
+                    <DocumentSigningPanel
+                      documentId={document.id}
+                      mode={canSignAsCandidate ? "sign" : "countersign"}
+                      onComplete={() => {
+                        queryClient.invalidateQueries({ queryKey: ["documents"] });
+                        onOpenChange(false);
+                      }}
+                    />
                   )}
                 </div>
               </ScrollArea>

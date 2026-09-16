@@ -121,7 +121,7 @@ export async function generateCertificatePDF(
     pdf.text(`Email: ${cert.candidate_signature.email}`, rightCol, y);
     y += 5;
     pdf.text(`Signed: ${format(new Date(cert.candidate_signature.timestamp_utc), "PPpp 'UTC'")}`, leftCol, y);
-    pdf.text(`IP Address: ${cert.candidate_signature.ip_address}`, rightCol, y);
+    pdf.text(`IP Address (self-reported): ${cert.candidate_signature.ip_address}`, rightCol, y);
     y += 5;
     const loc = cert.candidate_signature.location;
     pdf.text(`Location: ${loc.city}, ${loc.region}, ${loc.country}`, leftCol, y);
@@ -150,7 +150,7 @@ export async function generateCertificatePDF(
     pdf.text(`Email: ${cert.employer_signature.email}`, rightCol, y);
     y += 5;
     pdf.text(`Signed: ${format(new Date(cert.employer_signature.timestamp_utc), "PPpp 'UTC'")}`, leftCol, y);
-    pdf.text(`IP Address: ${cert.employer_signature.ip_address}`, rightCol, y);
+    pdf.text(`IP Address (self-reported): ${cert.employer_signature.ip_address}`, rightCol, y);
     y += 5;
     const loc = cert.employer_signature.location;
     pdf.text(`Location: ${loc.city}, ${loc.region}, ${loc.country}`, leftCol, y);

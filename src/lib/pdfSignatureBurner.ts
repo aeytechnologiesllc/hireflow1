@@ -265,7 +265,7 @@ export async function burnSignaturesIntoPdf(
     drawLabelValue('Signed At:', format(new Date(certificateData.candidateSignedAt), "MMMM d, yyyy 'at' h:mm:ss a 'UTC'"));
   }
   if (certificateData.candidateIp) {
-    drawLabelValue('IP Address:', certificateData.candidateIp);
+    drawLabelValue('IP Address (self-reported):', certificateData.candidateIp);
   }
   drawLabelValue('Signature Method:', 'Electronic (Drawn)');
   y -= 10;
@@ -287,7 +287,7 @@ export async function burnSignaturesIntoPdf(
     drawLabelValue('Signed At:', format(new Date(certificateData.employerSignedAt), "MMMM d, yyyy 'at' h:mm:ss a 'UTC'"));
   }
   if (certificateData.employerIp) {
-    drawLabelValue('IP Address:', certificateData.employerIp);
+    drawLabelValue('IP Address (self-reported):', certificateData.employerIp);
   }
   drawLabelValue('Signature Method:', 'Electronic (Drawn)');
   y -= 20;
