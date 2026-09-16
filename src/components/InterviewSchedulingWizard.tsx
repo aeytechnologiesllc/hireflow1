@@ -44,6 +44,7 @@ import { useSwipeGesture } from "@/hooks/useSwipeGesture";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { hapticLight } from "@/lib/haptics";
 import type { Json } from "@/integrations/supabase/types";
+import type { EmailStatus } from "@/utils/emailNotifications";
 
 interface InterviewSchedulingWizardProps {
   applicationId: string | null;
@@ -221,6 +222,10 @@ export default function InterviewSchedulingWizard({
   const [isCreating, setIsCreating] = useState(false);
   const [createdMeetLink, setCreatedMeetLink] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  // Whether the candidate email actually went out (Resend can be unconfigured,
+  // or they can have this notification type turned off) — the success screen
+  // only claims "sent" once this says so.
+  const [candidateEmailStatus, setCandidateEmailStatus] = useState<EmailStatus | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [meetingLinkError, setMeetingLinkError] = useState<string | null>(null);
 
@@ -576,24 +581,26 @@ export default function InterviewSchedulingWizard({
         const resolvedJobTitle = (appData.jobs as { title?: string } | null)?.title || jobTitle || "Position";
         if (exactTimeMode) {
           const { notifyInterviewScheduled } = await import("@/utils/emailNotifications");
-          await notifyInterviewScheduled(
+          const status = await notifyInterviewScheduled(
             appData.candidate_id,
             resolvedJobTitle,
             interviewDateLabel,
             interviewTimeLabel,
             undefined
           );
+          setCandidateEmailStatus(status);
         } else {
           const { notifyInterviewPickTime } = await import("@/utils/emailNotifications");
           const proposedTimes = sortedSelectedWindows.map(
             (w) => `${format(w.day, "EEEE, MMMM d")} · ${formatTimeToAMPM(w.time)}`
           );
-          await notifyInterviewPickTime(
+          const status = await notifyInterviewPickTime(
             appData.candidate_id,
             resolvedJobTitle,
             proposedTimes,
             undefined
           );
+          setCandidateEmailStatus(status);
         }
       }
 
@@ -649,6 +656,7 @@ export default function InterviewSchedulingWizard({
     setCreatedMeetLink(null);
     setShowSuccess(false);
     setLinkCopied(false);
+    setCandidateEmailStatus(null);
   };
 
   // Restore wizard state from localStorage on mount (after OAuth return)
@@ -834,16 +842,16 @@ export default function InterviewSchedulingWizard({
               </div>
             )}
 
-            {candidateEmail && (
-              <div className="flex items-center justify-center gap-2 p-3 rounded-lg bg-muted/50 mb-6">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  {exactTimeMode
+            <div className="flex items-center justify-center gap-2 p-3 rounded-lg bg-muted/50 mb-6">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">
+                {candidateEmail && candidateEmailStatus === "sent"
+                  ? exactTimeMode
                     ? `Calendar invite sent to ${candidateEmail}`
-                    : `Email sent to ${candidateEmail} to pick a time`}
-                </span>
-              </div>
-            )}
+                    : `Email sent to ${candidateEmail} to pick a time`
+                  : "Interview scheduled — they'll see it in HireFlow"}
+              </span>
+            </div>
 
             <Button onClick={handleSuccessClose} className="w-full">
               Done
@@ -1503,8 +1511,8 @@ export default function InterviewSchedulingWizard({
                         <Mail className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm text-muted-foreground">
                           {exactTimeMode
-                            ? `Calendar invite will be sent to ${candidateEmail}`
-                            : `An email will be sent to ${candidateEmail} to pick a time`}
+                            ? `${candidateName} will see this interview in HireFlow`
+                            : `${candidateName} will see this in HireFlow to pick a time`}
                         </span>
                       </div>
                     )}

@@ -1,4 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
+import { mapEmailStatus, type EmailStatus } from "@/utils/emailStatus";
+
+export type { EmailStatus };
 
 type NotificationType = 
   | "new_application"
@@ -52,7 +55,7 @@ async function sendNotificationEmail(
   type: NotificationType,
   recipientUserId: string,
   data: NotificationData
-): Promise<void> {
+): Promise<EmailStatus> {
   try {
     const { data: responseData, error } = await supabase.functions.invoke("send-notification-email", {
       body: {
@@ -66,8 +69,11 @@ async function sendNotificationEmail(
       console.error(`[emailNotifications] Failed to send ${type} email to user ${recipientUserId}:`, error);
       console.error(`[emailNotifications] Error details:`, JSON.stringify(error));
     }
+
+    return mapEmailStatus(responseData, error);
   } catch (err) {
     console.error(`[emailNotifications] Exception invoking send-notification-email for ${type}:`, err);
+    return "failed";
   }
 }
 
@@ -80,8 +86,8 @@ export async function notifyNewApplication(
   employerId: string,
   candidateName: string,
   jobTitle: string
-): Promise<void> {
-  await sendNotificationEmail("new_application", employerId, {
+): Promise<EmailStatus> {
+  return sendNotificationEmail("new_application", employerId, {
     candidate_name: candidateName,
     job_title: jobTitle,
   });
@@ -95,8 +101,8 @@ export async function notifyPhaseCompleted(
   candidateName: string,
   phaseName: string,
   jobTitle: string
-): Promise<void> {
-  await sendNotificationEmail("phase_completed", employerId, {
+): Promise<EmailStatus> {
+  return sendNotificationEmail("phase_completed", employerId, {
     candidate_name: candidateName,
     phase_name: phaseName,
     job_title: jobTitle,
@@ -110,8 +116,8 @@ export async function notifyDocumentSigned(
   employerId: string,
   candidateName: string,
   documentName: string
-): Promise<void> {
-  await sendNotificationEmail("document_signed", employerId, {
+): Promise<EmailStatus> {
+  return sendNotificationEmail("document_signed", employerId, {
     candidate_name: candidateName,
     document_name: documentName,
   });
@@ -126,8 +132,8 @@ export async function notifyRescheduleRequested(
   jobTitle: string,
   candidateNote?: string,
   proposedTimes?: string
-): Promise<void> {
-  await sendNotificationEmail("reschedule_requested", employerId, {
+): Promise<EmailStatus> {
+  return sendNotificationEmail("reschedule_requested", employerId, {
     candidate_name: candidateName,
     job_title: jobTitle,
     candidate_note: candidateNote,
@@ -144,8 +150,8 @@ export async function notifyApplicationReceived(
   candidateId: string,
   jobTitle: string,
   companyName?: string
-): Promise<void> {
-  await sendNotificationEmail("application_received", candidateId, {
+): Promise<EmailStatus> {
+  return sendNotificationEmail("application_received", candidateId, {
     job_title: jobTitle,
     company_name: companyName,
   });
@@ -159,8 +165,8 @@ export async function notifyPhaseAdvanced(
   phaseName: string,
   jobTitle: string,
   companyName?: string
-): Promise<void> {
-  await sendNotificationEmail("phase_advanced", candidateId, {
+): Promise<EmailStatus> {
+  return sendNotificationEmail("phase_advanced", candidateId, {
     phase_name: phaseName,
     job_title: jobTitle,
     company_name: companyName,
@@ -176,8 +182,8 @@ export async function notifyInterviewScheduled(
   interviewDate: string,
   interviewTime: string,
   companyName?: string
-): Promise<void> {
-  await sendNotificationEmail("interview_scheduled", candidateId, {
+): Promise<EmailStatus> {
+  return sendNotificationEmail("interview_scheduled", candidateId, {
     job_title: jobTitle,
     interview_date: interviewDate,
     interview_time: interviewTime,
@@ -194,8 +200,8 @@ export async function notifyInterviewPickTime(
   jobTitle: string,
   proposedTimes: string[],
   companyName?: string
-): Promise<void> {
-  await sendNotificationEmail("interview_pick_time", candidateId, {
+): Promise<EmailStatus> {
+  return sendNotificationEmail("interview_pick_time", candidateId, {
     job_title: jobTitle,
     proposed_times_list: proposedTimes,
     window_count: proposedTimes.length.toString(),
@@ -211,8 +217,8 @@ export async function notifyInterviewCancelled(
   jobTitle: string,
   originalDate?: string,
   companyName?: string
-): Promise<void> {
-  await sendNotificationEmail("interview_cancelled", candidateId, {
+): Promise<EmailStatus> {
+  return sendNotificationEmail("interview_cancelled", candidateId, {
     job_title: jobTitle,
     original_date: originalDate,
     company_name: companyName,
@@ -228,8 +234,8 @@ export async function notifyInterviewRescheduled(
   newDate: string,
   newTime: string,
   companyName?: string
-): Promise<void> {
-  await sendNotificationEmail("interview_rescheduled", candidateId, {
+): Promise<EmailStatus> {
+  return sendNotificationEmail("interview_rescheduled", candidateId, {
     job_title: jobTitle,
     new_date: newDate,
     new_time: newTime,
@@ -244,8 +250,8 @@ export async function notifyDocumentSent(
   candidateId: string,
   documentName: string,
   companyName?: string
-): Promise<void> {
-  await sendNotificationEmail("document_sent", candidateId, {
+): Promise<EmailStatus> {
+  return sendNotificationEmail("document_sent", candidateId, {
     document_name: documentName,
     company_name: companyName,
   });
@@ -258,8 +264,8 @@ export async function notifyDocumentRequested(
   candidateId: string,
   documentName: string,
   companyName?: string
-): Promise<void> {
-  await sendNotificationEmail("document_requested", candidateId, {
+): Promise<EmailStatus> {
+  return sendNotificationEmail("document_requested", candidateId, {
     document_name: documentName,
     company_name: companyName,
   });
@@ -272,8 +278,8 @@ export async function notifyStatusRejected(
   candidateId: string,
   jobTitle: string,
   companyName?: string
-): Promise<void> {
-  await sendNotificationEmail("status_rejected", candidateId, {
+): Promise<EmailStatus> {
+  return sendNotificationEmail("status_rejected", candidateId, {
     job_title: jobTitle,
     company_name: companyName,
   });
@@ -286,8 +292,8 @@ export async function notifyStatusHired(
   candidateId: string,
   jobTitle: string,
   companyName?: string
-): Promise<void> {
-  await sendNotificationEmail("status_hired", candidateId, {
+): Promise<EmailStatus> {
+  return sendNotificationEmail("status_hired", candidateId, {
     job_title: jobTitle,
     company_name: companyName,
   });
@@ -378,8 +384,8 @@ export async function sendInterviewReminder(
   interviewDate: string,
   interviewTime: string,
   companyName?: string
-): Promise<void> {
-  await sendNotificationEmail("interview_reminder", userId, {
+): Promise<EmailStatus> {
+  return sendNotificationEmail("interview_reminder", userId, {
     job_title: jobTitle,
     interview_date: interviewDate,
     interview_time: interviewTime,
@@ -396,8 +402,8 @@ export async function notifyVoiceMinutesLow(
   employerId: string,
   minutesRemaining: number,
   activeJobsCount: number
-): Promise<void> {
-  await sendNotificationEmail("voice_minutes_low", employerId, {
+): Promise<EmailStatus> {
+  return sendNotificationEmail("voice_minutes_low", employerId, {
     minutes_remaining: minutesRemaining.toString(),
     active_jobs_count: activeJobsCount.toString(),
   });
@@ -409,8 +415,8 @@ export async function notifyVoiceMinutesLow(
 export async function notifyVoiceMinutesExhausted(
   employerId: string,
   activeJobsCount: number
-): Promise<void> {
-  await sendNotificationEmail("voice_minutes_exhausted", employerId, {
+): Promise<EmailStatus> {
+  return sendNotificationEmail("voice_minutes_exhausted", employerId, {
     active_jobs_count: activeJobsCount.toString(),
   });
 }
@@ -426,8 +432,8 @@ export async function notifyInterviewReady(
   candidateName: string,
   jobTitle: string,
   score: number
-): Promise<void> {
-  await sendNotificationEmail("interview_ready", employerId, {
+): Promise<EmailStatus> {
+  return sendNotificationEmail("interview_ready", employerId, {
     candidate_name: candidateName,
     job_title: jobTitle,
     score: score.toString(),
