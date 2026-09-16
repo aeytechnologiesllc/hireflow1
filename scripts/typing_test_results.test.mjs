@@ -22,7 +22,7 @@
  *
  * Run with: node scripts/typing_test_results.test.mjs
  */
-import { calculateTypingResults } from "../supabase/functions/submit-typing-test/calculateResults.ts";
+import { calculateTypingResults, resolveElapsedMs } from "../supabase/functions/submit-typing-test/calculateResults.ts";
 
 let passed = 0;
 let failed = 0;
@@ -164,6 +164,70 @@ checkParity(
   50_000,
   40,
 );
+
+// ============================================================================
+// resolveElapsedMs — the "think time" fix. "submit" must grade off the
+// server-frozen end-of-typing instant ("complete"'s ended_at), never off
+// whenever the "submit" HTTP request happens to arrive, or an honest
+// candidate who pauses on the results screen before clicking "Submit
+// results" gets a silently lower score for identical typing.
+// ============================================================================
+console.log("\nresolveElapsedMs — grading is pinned to when typing stopped, not to when Submit is clicked:\n");
+
+{
+  const startedAtMs = 1_000_000;
+  const endedAtMs = startedAtMs + 45_000; // typing took 45s
+
+  // No matter how much later "submit" actually arrives — 0s, 5s, 30s, or
+  // 5 minutes of reading the results screen — elapsed time must stay
+  // pinned to the 45s ended_at - started_at recorded when typing stopped.
+  for (const thinkTimeMs of [0, 5_000, 10_000, 30_000, 300_000]) {
+    const nowMs = endedAtMs + thinkTimeMs;
+    check(
+      `ended_at set: ${thinkTimeMs / 1000}s of think time before Submit doesn't change elapsed`,
+      resolveElapsedMs(startedAtMs, endedAtMs, nowMs) === 45_000,
+      `got ${resolveElapsedMs(startedAtMs, endedAtMs, nowMs)}, expected 45000`,
+    );
+  }
+
+  // Fallback path — "complete" never landed (e.g. a dropped request): grade
+  // off the submit request's own arrival time, exactly like the pre-fix
+  // behavior for this one edge case (no worse than before, not the common
+  // path any more).
+  const nowMsNoComplete = startedAtMs + 20_000;
+  check(
+    "ended_at null: falls back to nowMs - startedAtMs",
+    resolveElapsedMs(startedAtMs, null, nowMsNoComplete) === 20_000,
+    `got ${resolveElapsedMs(startedAtMs, null, nowMsNoComplete)}`,
+  );
+
+  // Regression check for the actual reported bug: with the OLD (buggy)
+  // behavior of always using nowMs, a 5s/10s/20s/30s/60s pause would have
+  // dropped a perfect-typist score from 100 to 95/90/78/70/53 (per the
+  // finding). With the fix, using ended_at instead of nowMs must produce
+  // the SAME score regardless of pause length.
+  const TARGET_FOR_PACE =
+    "The quick brown fox jumps over the lazy dog. This classic pangram contains every letter of the English alphabet at least once. It has been used for decades to test typewriters, keyboards, and typing software.";
+  const perfectTypedText = TARGET_FOR_PACE;
+  const requiredWpm = 40;
+  const typingElapsedMs = 60_000; // typed the whole 60s window
+  const perfectStartedAtMs = 5_000_000;
+  const perfectEndedAtMs = perfectStartedAtMs + typingElapsedMs;
+
+  const baselineElapsed = resolveElapsedMs(perfectStartedAtMs, perfectEndedAtMs, perfectEndedAtMs);
+  const baselineResult = calculateTypingResults(perfectTypedText, TARGET_FOR_PACE, baselineElapsed, requiredWpm);
+
+  for (const pauseMs of [5_000, 10_000, 20_000, 30_000, 60_000]) {
+    const submitArrivesAtMs = perfectEndedAtMs + pauseMs;
+    const elapsedWithFix = resolveElapsedMs(perfectStartedAtMs, perfectEndedAtMs, submitArrivesAtMs);
+    const resultWithFix = calculateTypingResults(perfectTypedText, TARGET_FOR_PACE, elapsedWithFix, requiredWpm);
+    check(
+      `regression check: a ${pauseMs / 1000}s pause before Submit no longer changes wpm/score (was the reported bug)`,
+      resultWithFix.wpm === baselineResult.wpm && resultWithFix.score === baselineResult.score,
+      `got wpm=${resultWithFix.wpm} score=${resultWithFix.score}, expected wpm=${baselineResult.wpm} score=${baselineResult.score}`,
+    );
+  }
+}
 
 console.log(`\n${passed} passed, ${failed} failed.`);
 if (failed > 0) process.exit(1);

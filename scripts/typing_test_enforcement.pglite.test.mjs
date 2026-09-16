@@ -43,9 +43,13 @@
  *      GRANT ... TO anon, authenticated, service_role mirrored so a denial
  *      is provably RLS (zero policies), not a missing table GRANT — anon
  *      and authenticated (including the row's own application's
- *      candidate) get zero rows on SELECT and a denied INSERT/UPDATE;
- *      service_role (BYPASSRLS, matching the real Supabase service key)
- *      can insert, upsert by (application_id, step_id), and select freely.
+ *      candidate) get zero rows on SELECT and a denied INSERT/UPDATE
+ *      (covering both started_at and ended_at — a candidate can't rewind
+ *      the start OR fake an early end-of-typing instant); service_role
+ *      (BYPASSRLS, matching the real Supabase service key) can insert,
+ *      stamp ended_at ("complete"), upsert by (application_id, step_id)
+ *      resetting ended_at back to null on a "Try again" retry, and select
+ *      freely.
  *   9. Re-running the migration file a second time does not error
  *      (CREATE TABLE/INDEX IF NOT EXISTS, and the flip is a plain UPDATE).
  *
@@ -436,6 +440,18 @@ async function main() {
     );
     ownerUpdateBlocked = ownerUpdate.rows.length === 0;
     ok(ownerUpdateBlocked, "the candidate cannot rewind their own started_at (RLS blocks the UPDATE, matches zero rows)");
+    // Same RLS coverage for ended_at ("complete"'s own column, the fix for
+    // the think-time bug) — a candidate can't fake an earlier end-of-typing
+    // instant (to shrink elapsed time / inflate wpm) any more than they can
+    // rewind started_at.
+    const ownerEndedAtUpdate = await db.query(
+      `UPDATE public.typing_test_starts SET ended_at = now() WHERE id = $1 RETURNING id`,
+      [startId],
+    );
+    ok(
+      ownerEndedAtUpdate.rows.length === 0,
+      "the candidate cannot stamp their own ended_at either (RLS blocks the UPDATE, matches zero rows) — 'complete' is service-role only",
+    );
     let ownerInsertDenied = false;
     try {
       await db.query(
@@ -452,20 +468,40 @@ async function main() {
     const strangerSelect = await db.query(`SELECT * FROM public.typing_test_starts WHERE id = $1`, [startId]);
     ok(strangerSelect.rows.length === 0, "an unrelated authenticated user also sees zero rows");
 
-    // service_role can upsert on (application_id, step_id) — a "Try again"
-    // retry legitimately resets started_at + target_text for the same step.
+    // service_role can stamp ended_at — the "complete" action, called the
+    // instant typing actually stops. Only ever set once: the fix's whole
+    // point is that this timestamp, not whenever "submit" later arrives,
+    // is what elapsed time gets measured against.
     await actAs(null, "service_role", "service_role");
+    const completeUpdate = await db.query(
+      `UPDATE public.typing_test_starts SET ended_at = now() WHERE id = $1 AND ended_at IS NULL RETURNING id, ended_at`,
+      [startId],
+    );
+    ok(completeUpdate.rows.length === 1 && completeUpdate.rows[0].ended_at !== null, "service_role can stamp ended_at ('complete') for a genuine start row");
+    const afterComplete = await db.query(`SELECT ended_at FROM public.typing_test_starts WHERE id = $1`, [startId]);
+    ok(afterComplete.rows[0].ended_at !== null, "ended_at is now set on the row submit-typing-test's 'submit' leg will read");
+
+    // service_role can upsert on (application_id, step_id) — a "Try again"
+    // retry legitimately resets started_at + target_text for the same step,
+    // AND must reset ended_at back to null too (the fix for a bug where a
+    // stale ended_at from a completed-but-abandoned attempt would otherwise
+    // survive into the next attempt's own started_at, corrupting its
+    // elapsed-time measurement).
     const restart = await db.query(
-      `INSERT INTO public.typing_test_starts (application_id, step_id, target_text, started_at)
-       VALUES ($1, $2, $3, now())
-       ON CONFLICT (application_id, step_id) DO UPDATE SET target_text = EXCLUDED.target_text, started_at = EXCLUDED.started_at
-       RETURNING id, target_text`,
+      `INSERT INTO public.typing_test_starts (application_id, step_id, target_text, started_at, ended_at)
+       VALUES ($1, $2, $3, now(), NULL)
+       ON CONFLICT (application_id, step_id) DO UPDATE SET target_text = EXCLUDED.target_text, started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at
+       RETURNING id, target_text, ended_at`,
       [appId, "step-typing-1", "Customer service is about creating positive experiences."],
     );
     ok(restart.rows.length === 1 && restart.rows[0].id === startId, "restarting the same step upserts the SAME row (unique on application_id, step_id)");
     ok(
       restart.rows[0].target_text === "Customer service is about creating positive experiences.",
       "the upsert really did replace the passage text",
+    );
+    ok(
+      restart.rows[0].ended_at === null,
+      "restarting ('Try again') really does clear the previous attempt's ended_at — a stale completion timestamp cannot leak into the new attempt's elapsed-time measurement",
     );
 
     const countAfter = await db.query(`SELECT count(*)::int AS n FROM public.typing_test_starts WHERE application_id = $1`, [appId]);

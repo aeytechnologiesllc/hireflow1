@@ -11,15 +11,20 @@
 -- direct `applications` write is gone. This migration:
 --
 --   1. creates typing_test_starts — the server clock start-time-per-attempt
---      table submit-typing-test's "start" action writes and "submit"
---      reads, so elapsed time is always measured server-side;
+--      table submit-typing-test's "start" action writes, "complete" stamps
+--      an end time into, and "submit" reads, so elapsed time is always
+--      measured server-side, pinned to when typing actually stopped rather
+--      than to whenever the "submit" request happens to arrive (see
+--      resolveElapsedMs in supabase/functions/submit-typing-test/
+--      calculateResults.ts);
 --   2. flips ONLY this phase's own trusted_result_enforcement row
 --      (result_key = 'typingTestResult') to enforced = true, now that the
 --      client write it protects is actually gone.
 --
--- Idempotent: CREATE TABLE IF NOT EXISTS, CREATE INDEX IF NOT EXISTS, and a
--- plain UPDATE keyed by result_key (safe to re-run — always converges on
--- enforced = true, never errors if already true).
+-- Idempotent: CREATE TABLE IF NOT EXISTS, ADD COLUMN IF NOT EXISTS,
+-- CREATE INDEX IF NOT EXISTS, and a plain UPDATE keyed by result_key (safe
+-- to re-run — always converges on enforced = true, never errors if
+-- already true).
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -43,9 +48,23 @@ CREATE TABLE IF NOT EXISTS public.typing_test_starts (
   step_id        text NOT NULL,
   target_text    text NOT NULL,
   started_at     timestamptz NOT NULL DEFAULT now(),
+  -- Stamped by "complete" the instant typing actually stops (time running
+  -- out, or "Finish early") — NULL until then. "submit" grades off
+  -- ended_at - started_at when it's set, instead of Date.now() at whatever
+  -- moment the "submit" request happens to arrive, so time spent reading
+  -- the results screen before pressing "Submit results" never inflates the
+  -- graded elapsed time. See resolveElapsedMs in submit-typing-test's
+  -- calculateResults.ts.
+  ended_at       timestamptz,
   created_at     timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT typing_test_starts_application_step_unique UNIQUE (application_id, step_id)
 );
+
+-- Idempotency belt-and-braces: covers the (currently hypothetical, since
+-- this migration has never shipped without this column) case of the table
+-- having been created by an earlier partial application of this same
+-- migration file before ended_at existed.
+ALTER TABLE public.typing_test_starts ADD COLUMN IF NOT EXISTS ended_at timestamptz;
 
 CREATE INDEX IF NOT EXISTS typing_test_starts_application_id_idx
   ON public.typing_test_starts (application_id);

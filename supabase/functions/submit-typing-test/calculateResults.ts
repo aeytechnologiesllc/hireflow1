@@ -126,3 +126,34 @@ export function isImplausiblyFast(typedTextLength: number, elapsedMs: number): b
   const requiredMinElapsedMs = Math.max(ABSOLUTE_MIN_ELAPSED_MS, typedTextLength * MIN_MS_PER_CHAR);
   return elapsedMs < requiredMinElapsedMs;
 }
+
+/**
+ * resolveElapsedMs — the elapsed time "submit" actually grades against.
+ *
+ * Fix for: the old client froze wpm/accuracy/score the instant typing ended
+ * (handleTestComplete -> calculateResults(), using startTimeRef -> Date.now()
+ * at THAT exact moment), before the "Nice work" results screen even
+ * rendered — any time later spent reading that screen before clicking
+ * "Submit results" never affected the score. A first version of this
+ * server-side conversion regressed that: it computed
+ * `elapsedMs = Date.now() - startedAtMs` inside the "submit" handler itself,
+ * i.e. at the moment the candidate clicks "Submit results" — which folds
+ * the UI's own "think time" ("Take a look below, then submit when you're
+ * ready") silently into the graded elapsed time, deflating wpm/score for
+ * honest candidates who paused a few seconds on the results screen.
+ *
+ * The real fix is a THIRD server action, "complete", called the instant
+ * typing actually stops (handleTestComplete — time running out or "Finish
+ * early"), which stamps `typing_test_starts.ended_at` with the server
+ * clock right then. "submit" (called later, whenever the candidate presses
+ * the button) prefers that frozen `endedAtMs` over `nowMs` whenever it is
+ * present, so elapsed time is pinned to when typing stopped, not to when
+ * the HTTP request for "submit" happens to arrive. `nowMs` is kept as a
+ * fallback ONLY for the case where the "complete" call itself never landed
+ * (e.g. a transient network failure) — pre-existing, no-worse-than-before
+ * behavior for that edge case, never the common path.
+ */
+export function resolveElapsedMs(startedAtMs: number, endedAtMs: number | null, nowMs: number): number {
+  const effectiveEndMs = endedAtMs !== null && Number.isFinite(endedAtMs) ? endedAtMs : nowMs;
+  return Math.max(0, effectiveEndMs - startedAtMs);
+}

@@ -11,10 +11,17 @@
  *
  *   1. typing-test-server-side — fails if the direct-write regression this
  *      fix removed reappears, if the page stops calling submit-typing-test
- *      for either leg, if the edge function stops measuring elapsed time
- *      off its own recorded start (typing_test_starts) or stops rejecting
- *      an implausibly-fast/start-less submission, or if this phase's own
- *      migration stops flipping 'typingTestResult' to enforced = true.
+ *      for any of its three legs, if the edge function stops measuring
+ *      elapsed time off its own recorded start/end (typing_test_starts) via
+ *      resolveElapsedMs or stops rejecting an implausibly-fast/start-less
+ *      submission, or if this phase's own migration stops flipping
+ *      'typingTestResult' to enforced = true. Also fails if the "submit"
+ *      leg's elapsed-time computation regresses back to grading off
+ *      whenever the submit request arrives (Date.now() at request time)
+ *      instead of off the server-frozen end-of-typing instant "complete"
+ *      records — the bug where a candidate who paused on the results
+ *      screen before clicking "Submit results" got a silently lower score
+ *      than one who typed identically and submitted instantly.
  *
  *   2. typing-test-formula-shared-copy-matches-client — Deno edge functions
  *      cannot import from `src/` (different module graph/bundler/path
@@ -72,9 +79,21 @@ export default [
           if (!/action:\s*["']start["']/.test(page)) {
             bad.push(`${PAGE_PATH}: no longer calls submit-typing-test's "start" action when the test begins`);
           }
+          if (!/action:\s*["']complete["']/.test(page)) {
+            bad.push(`${PAGE_PATH}: no longer calls submit-typing-test's "complete" action the instant typing stops — elapsed time would silently include time spent on the results screen before "Submit results" is clicked`);
+          }
           if (!/action:\s*["']submit["']/.test(page)) {
             bad.push(`${PAGE_PATH}: no longer calls submit-typing-test's "submit" action to record the result`);
           }
+        }
+        // The "complete" call must happen where typing actually stops
+        // (handleTestComplete), not be left only inside handleSubmit —
+        // otherwise it's just a relabeled version of the same bug.
+        const handleTestCompleteMatch = /const handleTestComplete = useCallback\(\(\) => \{([\s\S]{0,800}?)\}, \[/.exec(page);
+        if (!handleTestCompleteMatch) {
+          bad.push(`${PAGE_PATH}: couldn't locate the handleTestComplete useCallback body at all`);
+        } else if (!handleTestCompleteMatch[1].includes("completeTest()")) {
+          bad.push(`${PAGE_PATH}: handleTestComplete no longer calls completeTest() — the server-side end-of-typing stamp must fire when typing stops, not later when "Submit results" is clicked`);
         }
       }
 
@@ -82,11 +101,17 @@ export default [
       if (fn == null) {
         bad.push(`${FUNCTION_PATH} is missing`);
       } else {
-        if (!/Date\.now\(\)\s*-\s*startedAtMs/.test(fn)) {
-          bad.push(`${FUNCTION_PATH}: no longer computes elapsed time as Date.now() - startedAtMs (the server-recorded start) — a client-supplied elapsed value could sneak back in`);
+        if (!/action\s*===\s*["']complete["']/.test(fn)) {
+          bad.push(`${FUNCTION_PATH}: no longer handles a "complete" action to stamp typing_test_starts.ended_at when typing actually stops`);
+        }
+        if (!/resolveElapsedMs\(/.test(fn)) {
+          bad.push(`${FUNCTION_PATH}: "submit" no longer computes elapsed time via resolveElapsedMs (preferring the server-frozen ended_at over the submit request's own arrival time) — a candidate who pauses before clicking Submit would again be graded on that pause`);
         }
         if (!/from\(\s*["']typing_test_starts["']\s*\)/.test(fn)) {
           bad.push(`${FUNCTION_PATH}: no longer reads typing_test_starts — the server-side start-time record this conversion depends on`);
+        }
+        if (!/ended_at/.test(fn)) {
+          bad.push(`${FUNCTION_PATH}: no longer references typing_test_starts.ended_at`);
         }
         if (!/resultKey:\s*["']typingTestResult["']/.test(fn) || !/stepType:\s*["']typing_test["']/.test(fn)) {
           bad.push(`${FUNCTION_PATH}: no longer calls recordStepResult with resultKey "typingTestResult" / stepType "typing_test"`);
@@ -97,6 +122,13 @@ export default [
         if (!/no_start_recorded/.test(fn)) {
           bad.push(`${FUNCTION_PATH}: no longer refuses a submit with no matching start row`);
         }
+      }
+
+      const calc = await read(CALC_PATH);
+      if (calc == null) {
+        bad.push(`${CALC_PATH} is missing`);
+      } else if (!/export function resolveElapsedMs/.test(calc)) {
+        bad.push(`${CALC_PATH}: no longer exports resolveElapsedMs`);
       }
 
       const migration = await read(MIGRATION_PATH);

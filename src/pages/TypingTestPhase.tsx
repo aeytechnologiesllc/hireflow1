@@ -32,8 +32,10 @@ import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 // The candidate passage is now chosen server-side by submit-typing-test's
 // "start" action (supabase/functions/submit-typing-test/calculateResults.ts)
 // and echoed back here — not picked client-side any more, so the server
-// always grades against the exact same text the candidate was shown. See
-// docs/TRUSTED-RESULTS.md.
+// always grades against the exact same text the candidate was shown. The
+// moment typing actually stops, "complete" stamps a server-side end time so
+// elapsed time is pinned to that instant, not to whenever "submit" is later
+// called. See docs/TRUSTED-RESULTS.md.
 
 interface WorkflowStep {
   id: string;
@@ -326,12 +328,37 @@ export default function TypingTestPhase() {
     return { wpm: grossWpm, accuracy, score, passed };
   }, [targetText, application]);
 
+  // Stamps the SERVER-recorded end-of-typing instant — supabase/functions/
+  // submit-typing-test's "complete" action. This must fire the moment
+  // typing actually stops, not later when "Submit results" is clicked:
+  // submit-typing-test's own "submit" step grades off ended_at - started_at
+  // when this ran, so any time the candidate spends reading the "Nice
+  // work" screen before pressing Submit never inflates the graded elapsed
+  // time. Fire-and-forget (best effort) — "submit" falls back to grading
+  // off its own request time if this never lands, matching the old
+  // (imperfect but pre-existing) behavior rather than blocking the UI.
+  const completeTest = useCallback(async () => {
+    if (!id || !stepId) return;
+    try {
+      const { error } = await supabase.functions.invoke("submit-typing-test", {
+        body: { action: "complete", applicationId: id, stepId },
+      });
+      if (error) throw error;
+    } catch (err) {
+      console.error("[TypingTestPhase] Failed to record server-side test completion:", err);
+    }
+  }, [id, stepId]);
+
   const handleTestComplete = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     const calculatedResults = calculateResults();
     setResults(calculatedResults);
     setTestState("completed");
-  }, [calculateResults]);
+    // Fired alongside the UI transition, not awaited — the results screen
+    // should render instantly, but the server-side "end of typing" stamp
+    // should also happen as close to this instant as possible.
+    void completeTest();
+  }, [calculateResults, completeTest]);
 
   const handleSubmit = async () => {
     if (!results || !application) return;
