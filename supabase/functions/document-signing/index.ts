@@ -10,6 +10,8 @@ import {
   canCountersign,
   canDecline,
   canSign,
+  canVoid,
+  canWithdraw,
   resolveDocumentRole,
   validateDeclineReason,
   validateReviewConfirmed,
@@ -56,6 +58,8 @@ const ERROR_STATUS: Record<string, number> = {
   invalid_signature: 400,
   invalid_reason: 400,
   chain_broken: 409,
+  candidate_already_signed: 409,
+  countersign_in_progress: 409,
 };
 
 const ERROR_MESSAGE: Record<string, string> = {
@@ -72,6 +76,8 @@ const ERROR_MESSAGE: Record<string, string> = {
   invalid_signature: "That signature isn't valid — try again.",
   invalid_reason: "Please give a reason between 3 and 500 characters.",
   chain_broken: "This document's signature chain no longer reconciles — it may have been altered. Contact support.",
+  candidate_already_signed: "The candidate already signed this — void it instead of withdrawing.",
+  countersign_in_progress: "This document is being countersigned right now — try again in a moment.",
 };
 
 /** Thrown by the countersign handler when reconcileCandidateSignatureChain()
@@ -174,6 +180,8 @@ Deno.serve(async (req) => {
       signature?: { method?: string; value?: string; consentAccepted?: boolean };
       reviewConfirmed?: boolean;
       declineReason?: string;
+      /** withdraw/void only — same 3-500 char rule as declineReason. */
+      reason?: string;
     };
     try {
       payload = await req.json();
@@ -185,7 +193,7 @@ Deno.serve(async (req) => {
     if (!documentId || !action) {
       return errorResponse("bad_request", "documentId and action are required.", 400);
     }
-    if (!["view", "sign", "countersign", "decline", "download"].includes(action)) {
+    if (!["view", "sign", "countersign", "decline", "download", "withdraw", "void"].includes(action)) {
       return errorResponse("bad_request", `Unknown action: ${action}`, 400);
     }
 
@@ -802,6 +810,126 @@ Deno.serve(async (req) => {
           "A document was declined",
           `${callerName} declined ${document.name}: ${reasonCheck.value}`,
           role === "candidate" ? "/documents" : "/my-documents",
+        );
+      }
+
+      return json({ ok: true });
+    }
+
+    // ------------------------------------------------------------------
+    // withdraw (employer/team-member) — cancel a sent document before the
+    // candidate has signed it. Status stays "pending" (the document was
+    // never actually acted on by either party in a way that needs
+    // reverting); is_voided/voided_at/voided_reason record that it's dead.
+    // A single CAS UPDATE, same shape as decline: the WHERE clause
+    // re-checks every precondition canWithdraw() names, so a race against a
+    // concurrent candidate "sign" can only ever let one of the two win.
+    // ------------------------------------------------------------------
+    if (action === "withdraw") {
+      const precondition = canWithdraw(toSigningState(document), role);
+      if (!precondition.ok) {
+        return errorResponse(precondition.error, ERROR_MESSAGE[precondition.error], ERROR_STATUS[precondition.error]);
+      }
+      const reasonCheck = validateDeclineReason(payload.reason);
+      if (!reasonCheck.ok) {
+        return errorResponse(reasonCheck.error, ERROR_MESSAGE[reasonCheck.error], ERROR_STATUS[reasonCheck.error]);
+      }
+
+      const { data: updatedRows, error: updateError } = await admin
+        .from("documents")
+        .update({
+          is_voided: true,
+          voided_at: nowIso,
+          voided_reason: reasonCheck.value,
+        })
+        .eq("id", documentId)
+        .eq("status", "pending")
+        .is("candidate_signed_at", null)
+        .eq("is_locked", false)
+        .eq("is_voided", false)
+        .select("id");
+
+      if (updateError || !updatedRows || updatedRows.length === 0) {
+        const { data: fresh } = await admin.from("documents").select("*").eq("id", documentId).maybeSingle<DocumentRow>();
+        const reCheck = fresh ? canWithdraw(toSigningState(fresh), role) : { ok: false as const, error: "not_pending" as const };
+        // If the fresh read still says this withdraw *should* be allowed,
+        // the CAS above lost a genuine race (a concurrent withdraw already
+        // landed) — "voided" is the honest code for that, not a made-up one.
+        const code = reCheck.ok ? "voided" : reCheck.error;
+        return errorResponse(code, ERROR_MESSAGE[code] ?? "Could not withdraw this document.", ERROR_STATUS[code] ?? 409);
+      }
+
+      await insertAuditLog({
+        action: "document_withdrawn",
+        signerRole: "employer",
+        details: { reason: reasonCheck.value, event: "Document withdrawn before candidate signature" },
+      });
+
+      const candidateId = application.candidate_id;
+      if (candidateId) {
+        await notify(
+          candidateId,
+          "A document was withdrawn",
+          `${callerName} withdrew ${document.name}: ${reasonCheck.value}`,
+          "/my-documents",
+        );
+      }
+
+      return json({ ok: true });
+    }
+
+    // ------------------------------------------------------------------
+    // void (employer/team-member) — the candidate already signed, but the
+    // employer voids it before countersigning (a bad hire, a mistaken
+    // document, etc). Completed (locked) documents cannot be voided in
+    // this pass — canVoid() refuses with "locked" — that's a deliberate,
+    // documented scope cut (docs/DOCUMENT-SIGNING.md), not an oversight.
+    // ------------------------------------------------------------------
+    if (action === "void") {
+      const precondition = canVoid(toSigningState(document), role);
+      if (!precondition.ok) {
+        return errorResponse(precondition.error, ERROR_MESSAGE[precondition.error], ERROR_STATUS[precondition.error]);
+      }
+      const reasonCheck = validateDeclineReason(payload.reason);
+      if (!reasonCheck.ok) {
+        return errorResponse(reasonCheck.error, ERROR_MESSAGE[reasonCheck.error], ERROR_STATUS[reasonCheck.error]);
+      }
+
+      const { data: updatedRows, error: updateError } = await admin
+        .from("documents")
+        .update({
+          is_voided: true,
+          voided_at: nowIso,
+          voided_reason: reasonCheck.value,
+        })
+        .eq("id", documentId)
+        .eq("status", "pending")
+        .not("candidate_signed_at", "is", null)
+        .is("employer_signed_at", null)
+        .eq("is_locked", false)
+        .eq("is_voided", false)
+        .select("id");
+
+      if (updateError || !updatedRows || updatedRows.length === 0) {
+        const { data: fresh } = await admin.from("documents").select("*").eq("id", documentId).maybeSingle<DocumentRow>();
+        const reCheck = fresh ? canVoid(toSigningState(fresh), role) : { ok: false as const, error: "not_pending" as const };
+        const code = reCheck.ok ? "voided" : reCheck.error;
+        return errorResponse(code, ERROR_MESSAGE[code] ?? "Could not void this document.", ERROR_STATUS[code] ?? 409);
+      }
+
+      await insertAuditLog({
+        action: "document_voided",
+        signerRole: "employer",
+        details: { reason: reasonCheck.value, event: "Document voided after candidate signature, before countersigning" },
+      });
+
+      const candidateId = application.candidate_id;
+      if (candidateId) {
+        await notify(
+          candidateId,
+          "A document was voided",
+          `${callerName} voided ${document.name}: ${reasonCheck.value}`,
+          "/my-documents",
         );
       }
 

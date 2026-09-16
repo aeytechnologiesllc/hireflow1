@@ -18,6 +18,12 @@ interface VerificationResponse {
   finalHash: string | null;
   verified: boolean;
   errorMessage?: string;
+  /** True once an employer has withdrawn (pre-signature) or voided
+   *  (post-signature, pre-countersignature) this document — status alone
+   *  stays 'pending' either way, so the UI must check this separately to
+   *  report the real reason verification failed instead of implying the
+   *  document may have been tampered with. */
+  isVoided?: boolean;
   signers?: {
     name: string;
     role: string;
@@ -106,13 +112,24 @@ Deno.serve(async (req) => {
     const hasRequiredHashes = isComplete ? !!finalHash : true;
     const verified = hasRequiredHashes && !document.is_voided;
 
+    // Report a voided document truthfully — it was cancelled by the
+    // employer, not tampered with. Withdrawn (candidate never signed) and
+    // voided (candidate signed, employer didn't countersign) get distinct,
+    // honest copy rather than one generic "could not be verified".
+    const voidedMessage = document.is_voided
+      ? document.candidate_signed_at
+        ? 'This document was voided by the employer after it was signed, before it was countersigned.'
+        : 'This document was withdrawn by the employer before it was signed.'
+      : undefined;
+
     const response: VerificationResponse = {
       documentName: document.name,
       status: document.status,
       completionTimestamp: document.signed_at || document.employer_signed_at,
       finalHash,
       verified,
-      errorMessage: verified ? undefined : 'Document integrity could not be verified',
+      isVoided: !!document.is_voided,
+      errorMessage: verified ? undefined : voidedMessage ?? 'Document integrity could not be verified',
     };
 
     // Signer names are only ever handed out to a caller who is actually a

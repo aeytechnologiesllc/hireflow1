@@ -128,7 +128,7 @@ export interface ChatMessage {
   time: string;
 }
 
-export type DocStatus = "Pending" | "Submitted" | "Signed" | "Declined";
+export type DocStatus = "Pending" | "Submitted" | "Signed" | "Declined" | "Withdrawn" | "Voided";
 export interface DocRow {
   id: string;
   title: string;
@@ -146,6 +146,12 @@ export interface DocRow {
   fileUrl?: string | null;
   /** Raw status for tab filtering. */
   rawStatus?: string | null;
+  /** Whether the candidate has signed yet — decides Withdraw vs Void for a
+   *  still-pending, not-yet-voided row (withdraw pre-signature, void
+   *  post-signature/pre-countersign). */
+  candidateSignedAt?: string | null;
+  /** True once this document has been withdrawn or voided. */
+  isVoided?: boolean;
 }
 
 export interface TeamMember {
