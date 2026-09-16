@@ -382,9 +382,9 @@ export default function InterviewQuestionsDialog({
         
         onQuestionsGenerated?.(questionsToSave);
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("[InterviewQuestions] Generation error:", error);
-      toast.error(error.message || "Failed to generate questions");
+      toast.error((error instanceof Error && error.message) || "Failed to generate questions");
     } finally {
       setIsGenerating(false);
       // Keep isRegeneratingRef true briefly to prevent immediate sync overwrite

@@ -469,11 +469,11 @@ export function DocumentWizard({
           ? "Document uploaded. You'll place signature fields in the next step."
           : "Your document has been uploaded successfully.",
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error uploading file:", error);
       toast({
         title: "Upload Failed",
-        description: error.message || "Failed to upload file.",
+        description: (error instanceof Error && error.message) || "Failed to upload file.",
         variant: "destructive",
       });
       setUploadedFile(null);
@@ -536,11 +536,11 @@ export function DocumentWizard({
 
       setGeneratedContent(data.content);
       setCurrentStep(prev => prev + 1);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error generating document:", error);
       toast({
         title: "Generation Failed",
-        description: error.message || "Failed to generate document. Please try again.",
+        description: (error instanceof Error && error.message) || "Failed to generate document. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -776,11 +776,11 @@ export function DocumentWizard({
 
       queryClient.invalidateQueries({ queryKey: ["documents"] });
       handleClose();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error creating document:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to create document.",
+        description: (error instanceof Error && error.message) || "Failed to create document.",
         variant: "destructive",
       });
     } finally {

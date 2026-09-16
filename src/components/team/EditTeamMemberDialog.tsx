@@ -149,10 +149,10 @@ export function EditTeamMemberDialog({ open, onOpenChange, member }: EditTeamMem
         description: "Team member permissions have been updated successfully.",
       });
       onOpenChange(false);
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Error",
-        description: error.message || "Failed to update permissions",
+        description: (error instanceof Error && error.message) || "Failed to update permissions",
         variant: "destructive",
       });
     }

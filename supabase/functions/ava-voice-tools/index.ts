@@ -1892,14 +1892,15 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
-  } catch (error: any) {
+  } catch (error) {
     // Handle different error types
     let errorMessage = "Unknown error";
     if (error instanceof Error) {
       errorMessage = error.message;
     } else if (typeof error === 'object' && error !== null) {
       // Handle Postgres error objects
-      errorMessage = error.message || error.details || error.hint || JSON.stringify(error);
+      const pgError = error as { message?: string; details?: string; hint?: string };
+      errorMessage = pgError.message || pgError.details || pgError.hint || JSON.stringify(error);
     } else if (typeof error === 'string') {
       errorMessage = error;
     }

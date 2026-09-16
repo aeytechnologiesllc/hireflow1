@@ -69,10 +69,10 @@ export default function OAuthGoogleCallback() {
         // Navigate back with query param to reopen wizard
         const separator = returnUrl.includes("?") ? "&" : "?";
         setTimeout(() => navigate(`${returnUrl}${separator}openWizard=true`), 1000);
-      } catch (err: any) {
+      } catch (err) {
         console.error("Google OAuth error:", err);
         setStatus("error");
-        setMessage(err.message || "Failed to connect Google Calendar");
+        setMessage((err instanceof Error && err.message) || "Failed to connect Google Calendar");
         localStorage.removeItem("interview_wizard_state");
         toast.error("Failed to connect Google Calendar");
         setTimeout(() => navigate(returnUrl), 2000);

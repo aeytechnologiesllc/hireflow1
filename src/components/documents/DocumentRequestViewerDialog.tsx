@@ -116,9 +116,9 @@ export function DocumentRequestViewerDialog({
 
       if (signError) throw signError;
       setSignedUrl(data.signedUrl);
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error fetching signed URL:", err);
-      setError(err.message || "Failed to load document");
+      setError((err instanceof Error && err.message) || "Failed to load document");
     } finally {
       setIsLoading(false);
     }

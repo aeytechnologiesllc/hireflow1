@@ -518,11 +518,13 @@ const handler = async (req: Request): Promise<Response> => {
       JSON.stringify({ success: true, emailResponse, recipient: profile.email }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
     console.error("[send-notification-email] Error sending notification email:", error);
-    console.error("[send-notification-email] Error stack:", error.stack);
+    console.error("[send-notification-email] Error stack:", stack);
     return new Response(
-      JSON.stringify({ error: error.message, stack: error.stack }),
+      JSON.stringify({ error: message, stack }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }

@@ -161,10 +161,10 @@ export function TeamInviteWizard({ open, onOpenChange, onSuccess }: TeamInviteWi
         title: "Invitation Created",
         description: "Share the invite link with your team member.",
       });
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Error",
-        description: error.message || "Failed to create invitation",
+        description: (error instanceof Error && error.message) || "Failed to create invitation",
         variant: "destructive",
       });
     } finally {

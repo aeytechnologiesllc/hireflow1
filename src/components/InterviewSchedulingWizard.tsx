@@ -547,7 +547,7 @@ export default function InterviewSchedulingWizard({
       if (error) throw error;
 
       return data;
-    } catch (error: any) {
+    } catch (error) {
       console.error("Calendar event creation failed:", error);
       throw error;
     }
@@ -669,7 +669,7 @@ export default function InterviewSchedulingWizard({
 
       // Call onComplete to notify parent that scheduling was successful
       onComplete?.();
-    } catch (error: any) {
+    } catch (error) {
       // Raw Supabase/Postgres messages mean nothing to the owner — keep them in
       // the console for us and give them the one thing they can act on.
       console.error("Interview scheduling failed:", error);

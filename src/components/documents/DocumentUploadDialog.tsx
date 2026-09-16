@@ -179,9 +179,9 @@ export function DocumentUploadDialog({
         });
         handleClose();
       }, 1500);
-    } catch (err: any) {
+    } catch (err) {
       console.error("Upload error:", err);
-      setError(err.message || "Failed to upload document. Please try again.");
+      setError((err instanceof Error && err.message) || "Failed to upload document. Please try again.");
       setPhase("idle");
     }
   };

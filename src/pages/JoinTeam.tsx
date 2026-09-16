@@ -93,8 +93,8 @@ export default function JoinTeam() {
         if (inviteData.invitee_name) {
           setFullName(inviteData.invitee_name);
         }
-      } catch (err: any) {
-        setError(err.message || "Failed to load invitation");
+      } catch (err) {
+        setError((err instanceof Error && err.message) || "Failed to load invitation");
       } finally {
         setLoading(false);
       }
@@ -175,10 +175,10 @@ export default function JoinTeam() {
       // Force a fresh app bootstrap so auth + team membership state picks up
       // the newly inserted team_members row before rendering the shell.
       window.location.replace("/team-portal");
-    } catch (err: any) {
+    } catch (err) {
       toast({
         title: "Error",
-        description: err.message || "Failed to accept invitation",
+        description: (err instanceof Error && err.message) || "Failed to accept invitation",
         variant: "destructive",
       });
     } finally {

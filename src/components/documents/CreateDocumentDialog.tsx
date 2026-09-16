@@ -230,11 +230,11 @@ export function CreateDocumentDialog({ open, onOpenChange, applications }: Creat
       queryClient.invalidateQueries({ queryKey: ["documents"] });
       onOpenChange(false);
       resetForm();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error creating document:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to create document.",
+        description: (error instanceof Error && error.message) || "Failed to create document.",
         variant: "destructive",
       });
     } finally {

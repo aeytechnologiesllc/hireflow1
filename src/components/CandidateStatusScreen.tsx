@@ -362,10 +362,10 @@ export function CandidateStatusScreen({
       queryClient.invalidateQueries({ queryKey: ["candidate-interview", applicationId] });
 
       onInterviewConfirmed?.();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error confirming interview:", error);
       toast.error("Failed to confirm interview", {
-        description: error.message || "Please try again.",
+        description: (error instanceof Error && error.message) || "Please try again.",
       });
     } finally {
       setIsConfirming(false);

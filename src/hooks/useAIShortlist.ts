@@ -127,9 +127,9 @@ export function useAIShortlist() {
       setShortlist(result);
       toast.success("Shortlist generated successfully!");
       return result;
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error generating shortlist:', error);
-      toast.error(error.message || "Failed to generate shortlist");
+      toast.error((error instanceof Error && error.message) || "Failed to generate shortlist");
       return null;
     } finally {
       setIsLoading(false);

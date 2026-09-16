@@ -330,10 +330,10 @@ Return ONLY the JSON object described in the system prompt.`;
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error generating improvement blueprint:', error);
     return new Response(
-      JSON.stringify({ error: error?.message || 'Failed to generate report' }),
+      JSON.stringify({ error: (error instanceof Error && error.message) || 'Failed to generate report' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
