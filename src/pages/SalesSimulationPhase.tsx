@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/integrations/supabase/client";
@@ -246,7 +246,7 @@ export default function SalesSimulationPhase() {
       const randomScenario = scenarios[Math.floor(Math.random() * scenarios.length)];
       setCurrentScenario(randomScenario);
     }
-  }, [salesConfig.scenarios]);
+  }, [salesConfig.scenarios, currentScenario]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -254,7 +254,7 @@ export default function SalesSimulationPhase() {
   }, [messages]);
 
   // Log anti-cheat violation
-  const logViolation = (type: AntiCheatViolation['type'], details: string) => {
+  const logViolation = useCallback((type: AntiCheatViolation['type'], details: string) => {
     if (state === "selling") {
       setViolations(prev => [...prev, {
         type,
@@ -262,7 +262,7 @@ export default function SalesSimulationPhase() {
         details,
       }]);
     }
-  };
+  }, [state]);
 
   // Anti-cheat: Blur content when page loses focus
   useEffect(() => {
@@ -290,7 +290,7 @@ export default function SalesSimulationPhase() {
       window.removeEventListener("blur", handleBlur);
       window.removeEventListener("focus", handleFocus);
     };
-  }, [state]);
+  }, [state, logViolation]);
 
   // Anti-cheat handlers
   const preventCopy = (e: React.ClipboardEvent) => {

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/integrations/supabase/client";
@@ -257,10 +257,17 @@ export default function ChatSimulationPhase() {
       setCompletionCountdown(prev => prev !== null ? prev - 1 : null);
     }, 1000);
     return () => clearTimeout(timer);
+    // `endChat` is a plain (unmemoized) function that calls setState, so its
+    // reference changes on every render, including the one endChat() itself
+    // causes. Adding it here would re-run this effect after that render;
+    // completionCountdown is still <= 0 (nothing resets it), so it would
+    // call endChat() -> handleSubmit() again on a loop, and handleSubmit
+    // has no re-entrancy guard against a duplicate submission.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [completionCountdown]);
 
   // Log anti-cheat violation
-  const logViolation = (type: AntiCheatViolation['type'], details: string) => {
+  const logViolation = useCallback((type: AntiCheatViolation['type'], details: string) => {
     if (state === "chatting") {
       setViolations(prev => [...prev, {
         type,
@@ -268,7 +275,7 @@ export default function ChatSimulationPhase() {
         details,
       }]);
     }
-  };
+  }, [state]);
 
   // Anti-cheat: Blur content when page loses focus
   useEffect(() => {
@@ -296,7 +303,7 @@ export default function ChatSimulationPhase() {
       window.removeEventListener("blur", handleBlur);
       window.removeEventListener("focus", handleFocus);
     };
-  }, [state]);
+  }, [state, logViolation]);
 
   // Anti-cheat handlers
   const preventCopy = (e: React.ClipboardEvent) => {
