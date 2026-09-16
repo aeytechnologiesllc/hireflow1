@@ -108,7 +108,11 @@
   .nav-links a{font-size:13px;font-weight:600;color:var(--ink-2);text-decoration:none;padding:8px 12px;border-radius:var(--r-ctl);
     transition:color var(--dur-base) var(--ease),background-color var(--dur-base) var(--ease)}
   .nav-links a:hover{color:var(--ink);background:var(--surface)}
-  @media(max-width:680px){.nav-links{display:none}}
+  @media(max-width:680px){.nav-links{display:none}
+    /* nav-links carried the margin-left:auto that pushes "Try free" to the
+       far edge — with it gone, the button has to claim that job itself,
+       or it settles right next to the logo instead of at the rail. */
+    .nav-in .btn.go{margin-left:auto}}
   a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--jade);outline-offset:2px;border-radius:4px}
 
   /* ── The clock chip: rides the scroll from 11:47 pm to 7:02 am (JS below) ── */
@@ -424,20 +428,19 @@
     .rail-firefly{display:none}
   }
 
-  /* Tablets (701–1023) are left exactly as they are today: no vignette at
-     all, the narration line carrying the story. A 700px-wide caption card
-     would read as a banner, and the stemmed desktop bubble at this width is
-     an unrelated design question — out of scope here. */
-  @media(min-width:701px) and (max-width:1023px){
-    .rail-bubble{display:none!important}
-  }
+  /* Tablets (701–1023): the caption card (below) now covers this whole
+     band too, so the hero always carries its floating vignette — a hero
+     must never hand a visitor an empty lower half. Only the stemmed
+     desktop bubble (>=1024, positioned off each gem's own x/y) is out of
+     reach here; the edge-to-edge card needs no per-gem geometry, so it
+     scales cleanly from a phone up through a tablet's width. */
 
-  @media(max-width:700px){
+  @media(max-width:1023px){
     .rail-seal{width:26px;height:26px} /* the Decision payoff carries the whole
       seal beat down here (the "92 · SEALED" receipt is hidden at this width),
       so the wax mark can't be the smallest thing on the rail */
 
-    /* ── THE CAPTION CARD (phones) ──────────────────────────────────────
+    /* ── THE CAPTION CARD (phones AND tablets, ≤1023) ────────────────────
        On a phone a 278px letterhead tethered by a stem to a 32px gem is
        fussy: the body has ~30px of travel for 292px of journey, so the
        stem ends up doing all the pointing and the card jitters sideways
@@ -703,7 +706,14 @@
   .rest b{color:var(--ink-2)}
   @media(max-width:640px){
     .wrow{flex-wrap:wrap;row-gap:10px}
-    .rwho{min-width:0;flex:1 1 auto}
+    /* flex-basis:0 (not auto) so the wrap decision is made on the
+       GROWN width, not on rwho's own unwrapped content width — a row
+       whose .rmeta carries a chip (e.g. "Needs training") otherwise
+       measures wide enough, unwrapped, to force .rscore onto its own
+       line beneath the name, while the plainer rows above it don't.
+       With a zero basis every row's top line always reads avatar / name
+       / score together, and only rwho's own text wraps internally. */
+    .rwho{min-width:0;flex:1 1 0%}
     .rwhy{order:3;flex:1 1 100%;border-left:0;padding-left:0}
     .racts{order:4;flex:1 1 100%;justify-content:flex-end}
   }
@@ -784,17 +794,18 @@
   .sealed-line{display:flex;align-items:center;gap:7px;margin:12px 0 0;font-size:12px;font-weight:600;color:var(--ink-3)}
   .sealed-line svg{width:16px;height:16px;flex-shrink:0;filter:drop-shadow(0 1px 2px var(--seal-shadow))}
 
-  /* ── Answered / no-ghosting: a slab band ── */
-  .slabband{background:var(--slab);border-block:1px solid var(--line);color:var(--slab-ink)}
-  .slabband .kick{color:var(--seal-ring)}
-  .slabband .sub{color:var(--slab-ink-2)}
-  .slabband .sub b{color:var(--slab-ink)}
+  /* ── Answered / no-ghosting: letterhead, not a green wash. Was a
+     full-bleed --slab (dark jade) fill — reads as a big green block, which
+     the paper system never allows. Bold now comes from a slim jade top
+     rule (an accent, not a fill) on the same ivory/ink ground as every
+     other section, plus the oversized stat numbers themselves. ── */
+  .slabband{background:var(--ground-2);border-top:3px solid var(--jade);border-bottom:1px solid var(--line)}
   .bigstats{display:flex;gap:clamp(20px,6vw,84px);margin-top:38px;flex-wrap:wrap}
   .bigstat .v{font-family:Fraunces,Georgia,serif;font-size:clamp(44px,7vw,72px);font-weight:600;line-height:.9;
-    letter-spacing:-.03em;color:var(--jade-bright);font-variant-numeric:tabular-nums}
-  .bigstat .l{color:var(--slab-ink-2);margin-top:10px}
-  .bigstat:last-child .v{color:var(--seal-ring)}
-  .slabband .dim{color:var(--slab-ink-2);opacity:.75;display:block;margin-top:26px}
+    letter-spacing:-.03em;color:var(--jade);font-variant-numeric:tabular-nums}
+  .bigstat .l{color:var(--ink-3);margin-top:10px}
+  .bigstat:last-child .v{color:var(--brass)}
+  .slabband .dim{opacity:.75;display:block;margin-top:26px}
 
   /* ── Your call ── */
   .twocol{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:36px}
@@ -846,8 +857,12 @@
 
   /* ── Entrances: on-load (hero) and on-scroll (everything else) ── */
   .anim .hi{animation:rise .6s var(--ease) var(--d,0s) backwards}
-  .anim .ink{animation:inkin .64s var(--ease) var(--d,0s) backwards}
-  @keyframes inkin{0%{opacity:0;filter:blur(7px);letter-spacing:.01em}100%{opacity:1;filter:blur(0);letter-spacing:-.025em}}
+  .anim .ink{animation:inkin .5s var(--ease) var(--d,0s) backwards}
+  /* No blur: a 7px blur on the headline bled down into the subtitle sitting
+     right underneath it, reading as a low-contrast, half-empty hero for the
+     first ~600ms on load. Opacity + letter-spacing alone still reads as
+     "ink developing" without smearing into the line below it. */
+  @keyframes inkin{0%{opacity:0;letter-spacing:.01em}100%{opacity:1;letter-spacing:-.025em}}
   .anim .io{opacity:0;transform:translateY(14px);
     transition:opacity .6s ease var(--d,0s),transform .6s var(--ease) var(--d,0s)}
   .anim .io.in{opacity:1;transform:none}
@@ -948,7 +963,7 @@
   /* reduced motion below 1024: no card ever mounts, so the slot the narration
      reserves for it would be a permanent hole — give the reservation back and
      leave the calm sealed rail exactly as it was. Desktop RM is untouched. */
-  @media (prefers-reduced-motion: reduce) and (max-width:700px){
+  @media (prefers-reduced-motion: reduce) and (max-width:1023px){
     .rail-narration{margin-bottom:14px!important}
   }
 </style>
@@ -1213,7 +1228,14 @@
   <section class="dawn" id="dawn" aria-label="Morning arrives">
     <div class="dawn-sun" id="sun" aria-hidden="true"></div>
     <div class="wrap dawn-in">
-      <p class="kick lbl io">7:02 am</p>
+      <!-- No fixed clock time here on purpose: this heading is the first
+           thing a visitor sees on entering the strip (unlike the .beat
+           lines below, its opacity isn't scroll-gated), while the actual
+           local time at that scroll position is still the small hours —
+           the clock chip and the three beats below are the only things
+           allowed to claim a specific time, and they already agree with
+           each other and with "Tue · 7:02 am" in the Morning section. -->
+      <p class="kick lbl io">The shift continues</p>
       <h2 class="io" style="--d:.08s">Then the sun comes up.</h2>
       <p class="sub io" style="--d:.16s">Ava doesn&#8217;t page you at midnight. She lets you sleep — and leaves the
         shortlist on your desk, sealed, for the morning. Keep scrolling: this is what daylight looks like.</p>
@@ -1517,48 +1539,58 @@
   }
   function applyStory(p){
     var i;
-    /* 11:47 — live from the first pixel: the hero's floating card hands off
-       here, so the stage is never empty on entry. Lines land in the first 10%. */
-    var o1=1-sm(seg(p,0.24,0.32));
-    scene(SC.s1,o1,(1-sm(seg(p,0,0.10)))*18-sm(seg(p,0.24,0.32))*10);
+    /* Timeline (p 0→1) — each beat is fully OUT (opacity exactly 0) before
+       the next one starts rising from 0, so headline/waveform/quote can
+       never occupy the same pixels at once, at any scroll position:
+         S1 hold  [0.00,0.18]  out [0.18,0.24]
+         S2 in    [0.24,0.30]  hold+anim [0.30,0.56]  out [0.56,0.62]
+         S3 in    [0.62,0.68]  hold+anim [0.68,0.90]  out [0.90,0.94]
+         S4 in    [0.94,1.00]  (phones only — .story-sign) */
+    var o1=1-sm(seg(p,0.18,0.24));
+    scene(SC.s1,o1,(1-sm(seg(p,0,0.10)))*18-sm(seg(p,0.18,0.24))*10);
     for(i=0;i<SC.rows.length;i++){ /* born full — the hook card hands off here;
       the lines just settle into place over the first few percent */
       var ro=sm(seg(p,i*0.012,0.05+i*0.012));
       SC.rows[i].style.opacity=(0.55+0.45*ro).toFixed(3);
       SC.rows[i].style.transform="translate3d(0,"+((1-ro)*10).toFixed(1)+"px,0)";
     }
-    /* 11:51 — the interview: overlapping the outgoing scene, never a blank stage */
-    var o2=sm(seg(p,0.26,0.34))*(1-sm(seg(p,0.56,0.64)));
-    scene(SC.s2,o2,(1-sm(seg(p,0.26,0.34)))*26-sm(seg(p,0.56,0.64))*10);
-    var w=seg(p,0.30,0.575);
+    /* 11:51 — the interview: rises only once 11:47 has fully faded, never a
+       moment where both are on screen */
+    var o2=sm(seg(p,0.24,0.30))*(1-sm(seg(p,0.56,0.62)));
+    scene(SC.s2,o2,(1-sm(seg(p,0.24,0.30)))*26-sm(seg(p,0.56,0.62))*10);
+    var w=seg(p,0.30,0.53);
     for(i=0;i<SC.bars.length;i++){
       var gi=sm(seg(w,i*0.018,0.22+i*0.018));           /* staggered wake */
       var rw=0.5+0.5*Math.sin(w*14+i*0.9);              /* deterministic ripple */
       SC.bars[i].style.transform="scaleY("+(0.12+gi*(0.28+0.72*rw)).toFixed(3)+")";
     }
-    var wr=seg(p,0.33,0.525)*SC.words.length;
+    var wr=seg(p,0.33,0.50)*SC.words.length;
     for(i=0;i<SC.words.length;i++)SC.words[i].style.opacity=cl(wr-i).toFixed(2);
-    /* 11:59 — sealed: the score counts with the scroll, the seal presses past and settles */
-    var o3=sm(seg(p,0.58,0.65))*(1-sm(seg(p,0.90,0.985)));
-    scene(SC.s3,o3,(1-sm(seg(p,0.58,0.66)))*28-sm(seg(p,0.88,1))*0.32*vh);
-    var n=Math.round(92*(1-Math.pow(1-seg(p,0.60,0.76),3)));
+    /* 11:59 — sealed: rises only once 11:51 has fully faded */
+    var o3=sm(seg(p,0.62,0.68))*(1-sm(seg(p,0.90,0.94)));
+    scene(SC.s3,o3,(1-sm(seg(p,0.62,0.68)))*28-sm(seg(p,0.90,1))*0.32*vh);
+    var n=Math.round(92*(1-Math.pow(1-seg(p,0.69,0.80),3)));
     if(n!==SC.lastN){SC.lastN=n;SC.score.textContent=n;}
-    var sl=seg(p,0.74,0.85),sb=back(sl);
+    var sl=seg(p,0.79,0.86),sb=back(sl);
     SC.seal.style.opacity=cl(sl*2.5).toFixed(3);
     SC.seal.style.transform="scale("+(1.9-0.9*sb).toFixed(3)+") rotate("+(-14+9*sb).toFixed(1)+"deg)";
     /* the landing rings once — pure f(p), so scrolling up rewinds it cleanly */
-    var rp=seg(p,0.845,0.945);
+    var rp=seg(p,0.855,0.895);
     SC.rip.style.opacity=(sm(seg(rp,0,0.10))*(1-sm(seg(rp,0.10,1)))*0.85).toFixed(3);
     SC.rip.style.transform="scale("+(0.55+rp*1.5).toFixed(3)+")";
-    /* hand-off: Ava signs off (phone), the header lets go, and the dawn is already rising */
-    var o4=sm(seg(p,0.90,0.97));
+    /* hand-off: Ava signs off (phones), rising only once 11:59 has fully
+       faded — the dawn's own token crossfade (a different, background
+       layer) is already under way by here, which is fine: it's light, not
+       a competing scene */
+    var o4=sm(seg(p,0.94,1.0));
     scene(SC.s4,o4,(1-o4)*14);
-    SC.kick.style.opacity=(1-sm(seg(p,0.86,0.94))).toFixed(2);
-    /* the rail: current timestamp lit, the others waiting their turn */
-    var idx=p<0.28?0:p<0.605?1:2;
+    SC.kick.style.opacity=(1-sm(seg(p,0.90,0.96))).toFixed(2);
+    /* the rail: current timestamp lit, the others waiting their turn —
+       aligned to the same cut points the scenes themselves use */
+    var idx=p<0.24?0:p<0.62?1:2;
     if(idx!==SC.lastIdx){SC.lastIdx=idx;
       for(i=0;i<SC.rail.length;i++)SC.rail[i].className="sr"+(i===2?" j":"")+(i===idx?" on":"");}
-    SC.railEl.style.opacity=(1-sm(seg(p,0.88,0.96))).toFixed(2);
+    SC.railEl.style.opacity=(1-sm(seg(p,0.90,0.97))).toFixed(2);
   }
 
   /* ── The theater: floats over the ambient ground, a few px of pointer
@@ -1872,13 +1904,15 @@
         }
       }
     }
-    /* the vignettes now run on phones too — the 701–1023 tablet band is left
-       exactly as it was (no vignette), and reduced motion still turns them off
-       everywhere (that gate stays, alongside the independent CSS kill). */
-    function bubblesEnabled(){return !RM&&(innerWidth>=1024||innerWidth<=700);}
-    /* ...and on a phone they render as the caption card, which needs no
-       positioning at all: CSS pins it left:0/right:0 in its reserved slot. */
-    function cardMode(){return innerWidth<=700;}
+    /* the vignettes run at every width now — phones, tablets, and desktop —
+       so the hero never hands a visitor an empty lower half. Reduced motion
+       still turns them off everywhere (that gate stays, alongside the
+       independent CSS kill). */
+    function bubblesEnabled(){return !RM;}
+    /* ...and below 1024 (phones AND tablets) they render as the caption
+       card, which needs no positioning at all: CSS pins it left:0/right:0
+       in its reserved slot, centred and capped at 430px wide. */
+    function cardMode(){return innerWidth<=1023;}
     function placeBubble(index){
       if(!bubbleEl||!points[index])return;
       if(cardMode()){
