@@ -17,6 +17,24 @@ import { pulsingGlow } from "@/lib/animations";
 
 const FIRST_USE_KEY = 'ava_has_used_assistant';
 
+/** Shape of the tool-call result payloads Ava's voice tools return — see
+ *  handleToolCall below for exactly which tool sets which fields. */
+interface ToolCallResult {
+  success?: boolean;
+  action?: string;
+  route?: string;
+  completed?: boolean;
+  pageName?: string;
+  step?: number;
+  totalSteps?: number;
+  field?: string;
+  value?: unknown;
+  target?: 'workflow' | 'full_job' | 'description';
+  section?: string;
+  meet_link?: string;
+  formatted_date?: string;
+}
+
 export default function AvaVoiceButton() {
   const { subscription, getVoiceAccessState, getVoiceMinutesRemaining, createCheckoutSession, purchaseVoiceCredits } = useSubscription();
   const pricing = usePricing();
@@ -45,7 +63,7 @@ export default function AvaVoiceButton() {
   const handleTranscript = useCallback((_text: string, _role: "user" | "assistant") => {
   }, []);
 
-  const handleToolCall = useCallback((toolName: string, result: any) => {
+  const handleToolCall = useCallback((toolName: string, result: ToolCallResult) => {
     if (result?.success || result?.action) {
       if (toolName === 'open_applicant_page' && result.action === 'navigate' && result.route) {
         navigate(result.route);

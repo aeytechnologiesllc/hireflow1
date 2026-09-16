@@ -48,8 +48,10 @@ export default [
       };
 
       // clearResumeError must exist and actually drop the `resume` key from
-      // validationErrors state, not just no-op.
-      const clearFnBody = block("const clearResumeError = ()");
+      // validationErrors state, not just no-op. Declared via useCallback
+      // (react-hooks/exhaustive-deps: its callers need a stable reference),
+      // so the marker matches either a plain arrow or a useCallback-wrapped one.
+      const clearFnBody = block("const clearResumeError = ()") || block("const clearResumeError = useCallback(()");
       if (!clearFnBody) {
         bad.push("clearResumeError() helper is missing (or was renamed — update this guard)");
       } else if (!/delete\s+next\.resume/.test(clearFnBody)) {
@@ -57,8 +59,10 @@ export default [
       }
 
       // markResumeMissingIfNoOtherSource must exist and actually set the
-      // resume key back to the required message.
-      const markFnBody = block("const markResumeMissingIfNoOtherSource = (");
+      // resume key back to the required message. Declared via useCallback
+      // (react-hooks/exhaustive-deps: its callers need a stable reference),
+      // so the marker matches either a plain arrow or a useCallback-wrapped one.
+      const markFnBody = block("const markResumeMissingIfNoOtherSource = (") || block("const markResumeMissingIfNoOtherSource = useCallback(");
       if (!markFnBody) {
         bad.push("markResumeMissingIfNoOtherSource() helper is missing (or was renamed — update this guard)");
       } else if (!/resume:\s*RESUME_REQUIRED_MESSAGE/.test(markFnBody)) {
@@ -67,8 +71,12 @@ export default [
 
       // The dedicated Resume dropzone's upload handler must clear the
       // warning on the success path — the moment a valid file is attached,
-      // not on the next submit attempt.
-      const handleFileSelectBody = block("const handleFileSelect = async (file: File)");
+      // not on the next submit attempt. Declared via useCallback
+      // (react-hooks/exhaustive-deps: handleDrop needs a stable reference),
+      // so the marker matches either a plain arrow or a useCallback-wrapped one.
+      const handleFileSelectBody =
+        block("const handleFileSelect = async (file: File)") ||
+        block("const handleFileSelect = useCallback(async (file: File)");
       if (!handleFileSelectBody) {
         bad.push("handleFileSelect is missing or restructured — update this guard's regex");
       } else if (!/clearResumeError\(\)/.test(handleFileSelectBody)) {

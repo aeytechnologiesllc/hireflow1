@@ -73,7 +73,7 @@ export function CandidateRescheduleRequestDialog({
     });
   }).flat();
 
-  const updateProposedTime = (index: number, field: "date" | "time", value: any) => {
+  const updateProposedTime = (index: number, field: "date" | "time", value: Date | string | undefined) => {
     setProposedTimes((prev) => {
       const updated = [...prev];
       updated[index] = { ...updated[index], [field]: value };

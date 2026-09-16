@@ -158,7 +158,7 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
   );
 
   const onToolCall = useCallback(
-    (toolName: string, args: any) => {
+    (toolName: string, args: Record<string, unknown>) => {
       if (toolName === "set_brief_fields" && args && typeof args === "object") {
         setJobBrief((prev) => {
           const next = mergeBriefFromTool(prev, args);

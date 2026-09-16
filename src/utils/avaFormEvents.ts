@@ -4,7 +4,7 @@ export const AVA_FORM_EVENT = 'ava-form-command';
 export interface AvaFormCommand {
   action: 'fill_field' | 'navigate_step' | 'submit' | 'trigger_generate';
   field?: string;
-  value?: any;
+  value?: unknown;
   step?: number;
   target?: 'workflow' | 'full_job' | 'description';
 }

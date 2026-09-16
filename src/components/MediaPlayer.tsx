@@ -201,7 +201,10 @@ export function MediaPlayer({ src, type = "audio", className }: MediaPlayerProps
     <div className={className}>
       {/* Hidden or visible media element */}
       <MediaElement
-        ref={mediaRef as any}
+        // MediaElement is a dynamic tag name ("video" | "audio"), so JSX can't
+        // resolve which intrinsic element's ref type applies — mediaRef really
+        // does hold whichever one renders, this just names that for TS.
+        ref={mediaRef as React.Ref<HTMLVideoElement & HTMLAudioElement>}
         src={src}
         preload="auto"
         onLoadedMetadata={handleLoadedMetadata}

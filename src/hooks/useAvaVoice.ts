@@ -24,8 +24,8 @@ interface UseAvaVoiceOptions {
   // This is critical for video recording to capture candidate audio
   externalMicStream?: MediaStream | null;
   onTranscript?: (text: string, role: 'user' | 'assistant') => void;
-  onToolCall?: (toolName: string, result: any) => void;
-  onInterviewEnd?: (evaluation: any) => void;
+  onToolCall?: (toolName: string, result: unknown) => void;
+  onInterviewEnd?: (evaluation: unknown) => void;
 }
 
 interface AvaVoiceState {

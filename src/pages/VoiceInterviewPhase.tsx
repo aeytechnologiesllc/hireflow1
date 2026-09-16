@@ -52,7 +52,10 @@ export default function VoiceInterviewPhase() {
   // Video is always enabled - audio-only option removed
   const videoEnabled = true;
   const [messages, setMessages] = useState<Message[]>([]);
-  const [interviewResult, setInterviewResult] = useState<any>(null);
+  // Written by handleInterviewEnd's evaluation payload but never read back —
+  // kept as state (not just a local) in case a future screen needs to show
+  // it; typed unknown rather than guessed since nothing here consumes its shape.
+  const [interviewResult, setInterviewResult] = useState<unknown>(null);
   const [showCompletionScreen, setShowCompletionScreen] = useState(false);
   const [isProcessingEnd, setIsProcessingEnd] = useState(false);
   /** True when the results write failed. The completion screen used to render
@@ -236,7 +239,7 @@ export default function VoiceInterviewPhase() {
     return data;
   }, [applicationId, buildManualEndEvaluationFallback, elapsedSeconds, messages]);
 
-  const handleInterviewEnd = useCallback(async (evaluation: any) => {
+  const handleInterviewEnd = useCallback(async (evaluation: unknown) => {
     if (completionTriggeredRef.current) {
       return;
     }

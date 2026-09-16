@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Clock, CheckCircle, Circle } from "lucide-react";
+import { Clock, CheckCircle, Circle, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { calculateRemainingTime } from "@/lib/phaseDurations";
 
@@ -9,7 +9,7 @@ interface Phase {
   id: string;
   title: string;
   type: string;
-  icon?: any;
+  icon?: LucideIcon;
 }
 
 interface CandidateJourneyProgressProps {

@@ -83,7 +83,7 @@ function parsePay(raw: string): JobBriefPay {
 }
 
 /** Merge raw `set_brief_fields` tool args into the running JobBrief. */
-export function mergeBriefFromTool(prev: JobBrief, args: Record<string, any>): JobBrief {
+export function mergeBriefFromTool(prev: JobBrief, args: Record<string, unknown>): JobBrief {
   const next: JobBrief = { ...prev };
   const role = typeof args.roleTitle === "string" ? args.roleTitle : args.role;
   if (typeof role === "string" && role.trim()) next.roleTitle = role.trim();
