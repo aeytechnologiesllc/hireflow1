@@ -322,36 +322,18 @@ export function useUpdateApplication() {
 
             if (job) {
               // Status changed to rejected (prevStatus unknown if snapshot timed out → still notify).
+              // In-app notification is handled server-side by
+              // notify_application_status_change() (AFTER UPDATE ON
+              // applications) — a manual insert here duplicated it with a
+              // second, differently-worded bell and a non-redirect link.
               if (updates.status === "rejected" && currentApp?.status !== "rejected") {
                 notifyStatusRejected(snap.candidate_id, job.title, job.companyName);
-                // In-app notification for the candidate (email alone is easy to miss).
-                supabase
-                  .from("notifications")
-                  .insert({
-                    user_id: snap.candidate_id,
-                    type: "status_update",
-                    title: "Application update",
-                    message: `${job.companyName} has decided not to move forward with your application for ${job.title}.`,
-                    link: "/applications",
-                    is_read: false,
-                  })
-                  .then(({ error: nErr }) => { if (nErr) console.warn("[useUpdateApplication] reject notification insert failed:", nErr.message); });
               }
 
-              // Status changed to hired
+              // Status changed to hired — same DB trigger already covers
+              // the in-app notification.
               if (updates.status === "hired" && currentApp?.status !== "hired") {
                 notifyStatusHired(snap.candidate_id, job.title, job.companyName);
-                supabase
-                  .from("notifications")
-                  .insert({
-                    user_id: snap.candidate_id,
-                    type: "status_update",
-                    title: "You're hired! 🎉",
-                    message: `${job.companyName} hired you for ${job.title}. Congratulations!`,
-                    link: "/applications",
-                    is_read: false,
-                  })
-                  .then(({ error: nErr }) => { if (nErr) console.warn("[useUpdateApplication] hire notification insert failed:", nErr.message); });
               }
 
               // Phase notifications need the previous phase, so they only run when
