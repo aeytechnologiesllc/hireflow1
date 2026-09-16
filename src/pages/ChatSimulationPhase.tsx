@@ -23,7 +23,7 @@ import { toast } from "sonner";
 import { invokeTriggerAvaAnalysis, triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
-import { parseApplicationNotes, stringifyApplicationNotes } from "@/utils/applicationNotes";
+import { parseApplicationNotes } from "@/utils/applicationNotes";
 import { AvaSeal } from "@/components/ava/AvaSeal";
 
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
@@ -112,6 +112,17 @@ const defaultScenarios: ChatScenario[] = [
 ];
 
 const CHAT_URL = `${SUPABASE_URL}/functions/v1/ai-chat-simulation`;
+
+/** The candidate's own current access token — the "evaluate" call needs the
+ *  real session JWT (not the anon key) so ai-chat-simulation can verify the
+ *  caller is this application's candidate before it records anything. Falls
+ *  back to a refresh once if the cached session looks stale. */
+async function getFreshAccessToken(): Promise<string | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.access_token) return session.access_token;
+  const { data } = await supabase.auth.refreshSession();
+  return data.session?.access_token ?? null;
+}
 
 export default function ChatSimulationPhase() {
   const { id, stepId } = useParams<{ id: string; stepId: string }>();
@@ -593,15 +604,27 @@ export default function ChatSimulationPhase() {
 
       const isAutoMode = freshJob?.processing_mode === "auto";
 
-      // Get AI evaluation (for notes/display only - NOT for pass/fail decision)
+      // The server grades the transcript AND records the result in one call
+      // (ai-chat-simulation's "evaluate" mode, service-role) — this page no
+      // longer writes `applications` itself. Needs the candidate's own
+      // session token (not the anon key) so the function can verify the
+      // caller is this application's candidate.
+      const accessToken = await getFreshAccessToken();
+      if (!accessToken) {
+        throw new Error("Your session expired — sign in again and retry.");
+      }
+
       const evalResponse = await fetch(CHAT_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+          apikey: SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           mode: "evaluate",
+          applicationId: id,
+          stepId,
           scenario: currentScenario.scenario,
           customerName: currentScenario.customerName,
           jobTitle: application.jobs?.title || "",
@@ -609,89 +632,27 @@ export default function ChatSimulationPhase() {
             role: m.role === "agent" ? "user" : "assistant",
             content: m.content
           })),
+          violations,
         }),
       });
 
-      let evaluation = {
-        score: 70,
-        empathy: 70,
-        problemSolving: 70,
-        communication: 70,
-        professionalism: 70,
-        strengths: ["Completed simulation"],
-        improvements: [],
-        overallFeedback: "Simulation completed successfully.",
-      };
-
-      if (evalResponse.ok) {
-        evaluation = await evalResponse.json();
+      if (!evalResponse.ok) {
+        const errorData = await evalResponse.json().catch(() => null);
+        throw new Error(errorData?.error || "Failed to record chat simulation result");
       }
 
-      const existingNotes = parseApplicationNotes(application.notes);
-      const agentMessages = messages.filter((m) => m.role === "agent");
-
-      const antiCheatLog = {
-        violations,
-        totalViolations: violations.length,
-        tabSwitches: violations.filter(v => v.type === 'tab_switch').length,
-        copyAttempts: violations.filter(v => v.type === 'copy_attempt').length,
-        pasteAttempts: violations.filter(v => v.type === 'paste_attempt').length,
-        screenshotAttempts: violations.filter(v => v.type === 'screenshot_attempt').length,
-        rightClickAttempts: violations.filter(v => v.type === 'right_click').length,
+      const { chatSimulationResult, phaseAiAnalysis: updatedPhaseAnalysis } = await evalResponse.json() as {
+        chatSimulationResult: Record<string, unknown>;
+        phaseAiAnalysis: string;
+        next: unknown;
       };
 
-      // Save phase data to notes (NO local pass/fail decision)
+      const existingNotes = parseApplicationNotes(application.notes);
       const updatedNotes = {
         ...existingNotes,
-        [stepId!]: {
-          type: "chat_simulation",
-          scenario: currentScenario.scenario,
-          customerName: currentScenario.customerName,
-          messages: messages.map((m) => ({
-            role: m.role,
-            content: m.content,
-            timestamp: m.timestamp.toISOString(),
-          })),
-          evaluation,
-          metrics: {
-            totalMessages: messages.length,
-            agentResponses: agentMessages.length,
-          },
-          phaseScore: evaluation.score, // Store phase score for backend to use
-          antiCheatLog,
-          completedAt: new Date().toISOString(),
-        },
-        chatSimulationResult: {
-          scenario: currentScenario.scenario,
-          messageCount: messages.length,
-          score: evaluation.score,
-          empathy: evaluation.empathy,
-          problemSolving: evaluation.problemSolving,
-          strengths: evaluation.strengths,
-          improvements: evaluation.improvements,
-          completed: true,
-          antiCheatSummary: {
-            hasViolations: violations.length > 0,
-            violationCount: violations.length,
-            tabSwitches: antiCheatLog.tabSwitches,
-            copyPasteAttempts: antiCheatLog.copyAttempts + antiCheatLog.pasteAttempts,
-          },
-        },
+        chatSimulationResult,
       };
-
-      // Save notes first (DO NOT set status or make pass/fail decision)
-      const { error } = await supabase
-        .from("applications")
-        .update({
-          notes: JSON.stringify(updatedNotes),
-          phase_ai_analysis: `Chat simulation: ${evaluation.score}%. Empathy: ${evaluation.empathy}%, Problem-solving: ${evaluation.problemSolving}%.`,
-        })
-        .eq("id", id!);
-
-      if (error) throw error;
-
       const serializedNotes = JSON.stringify(updatedNotes);
-      const updatedPhaseAnalysis = `Chat simulation: ${evaluation.score}%. Empathy: ${evaluation.empathy}%, Problem-solving: ${evaluation.problemSolving}%.`;
 
       // Update relevant caches immediately so the candidate detail page does not flash
       // a stale "Start Chat Simulation" state after the submission returns.
