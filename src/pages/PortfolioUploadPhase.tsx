@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,7 +26,6 @@ import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { compressImage, needsCompression } from "@/utils/imageCompression";
 import { PhaseContextCard } from "@/components/PhaseContextCard";
-import { buildCandidateJourney, DECISION_STAGE_ID } from "@/lib/candidateJourney";
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 import { parseApplicationNotes } from "@/lib/applicationNotes";
 interface ApplicationDetails {
@@ -349,107 +347,45 @@ export default function PortfolioUploadPhase() {
         }
       }
 
-      // Analyze portfolio with AI
+      // Analyze the portfolio and record the step's result server-side. The
+      // browser no longer writes applications.notes/phase for this step at
+      // all — ai-analyze-portfolio verifies these are really this
+      // candidate's own freshly-uploaded files for this application/step,
+      // runs the (unchanged) AI review, and calls recordStepResult itself,
+      // which decides the phase advance using the exact same rules this
+      // page used to compute locally. See docs/TRUSTED-RESULTS.md.
       setIsAnalyzing(true);
-      
-      let aiAnalysis = null;
-      try {
-        const { data: analysisData, error: analysisError } = await supabase.functions.invoke("ai-analyze-portfolio", {
-          body: {
-            portfolioUrls: uploadedUrls,
-            jobTitle: application.jobs?.title,
-            jobDescription: application.jobs?.description,
-          },
-        });
-        
-        if (!analysisError && analysisData) {
-          aiAnalysis = analysisData;
-        }
-      } catch (err) {
-        // Continue without AI analysis
-      }
-      
+
+      const { data: submitData, error: submitError } = await supabase.functions.invoke("ai-analyze-portfolio", {
+        body: {
+          applicationId: id,
+          stepId,
+          // Already paired at upload time — never re-indexed against `files`,
+          // which is what mislabelled every surviving file after a failure.
+          files: uploadedUrls,
+        },
+      });
+
       setIsAnalyzing(false);
 
-      const existingNotes = parseApplicationNotes(application.notes);
-
-      // Save phase data (NO local pass/fail decision - backend decides)
-      const portfolioResult = {
-        type: "portfolio_upload",
-        // Already paired at upload time — never re-indexed against `files`,
-        // which is what mislabelled every surviving file after a failure.
-        files: uploadedUrls,
-        uploadedAt: new Date().toISOString(),
-        completed: true,
-        aiAnalysis,
-        phaseScore: aiAnalysis?.score || null, // Store for backend to use
-      };
-      
-      const updatedNotes = {
-        ...existingNotes,
-        [stepId!]: portfolioResult,
-        portfolioResult,
-      };
-      
-      const workflowSteps = application.jobs?.workflow_steps as Array<{ id: string; type: string; title?: string }> || [];
-      const quizQuestions = application.jobs?.quiz_questions as Json[] | undefined;
-      const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
-
-      const allPhases = buildCandidateJourney(workflowSteps, { hasQuiz });
-
-      let currentIndex = allPhases.findIndex((p) => p.id === stepId);
-      if (currentIndex === -1 && application.phase) {
-        currentIndex = allPhases.findIndex(
-          (p) => p.id === application.phase || p.type === application.phase
-        );
-      }
-      
-      let newPhase = application.phase;
-
-      // Determine next phase
-      let nextPhase: { id: string; type: string; title?: string } | null = null;
-      if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
-        nextPhase = allPhases[currentIndex + 1];
+      if (submitError || !submitData?.ok) {
+        console.error("[PortfolioUploadPhase] server-side submit failed:", submitError || submitData?.error);
+        toast.error("Failed to submit portfolio", {
+          description: "Your files were uploaded, but we couldn't save your submission. Please try again.",
+        });
+        setIsSubmitting(false);
+        return;
       }
 
-      // Advance to next phase ONLY in auto mode
-      if (isAutoMode) {
-        if (nextPhase) {
-          // STOP before voice_interview - requires employer to configure
-          if (nextPhase.type === "voice_interview") {
-            // Don't advance to voice interview - stay at current phase completion
-            // Employer must manually configure and approve for Ava interview
-            // Don't set nextPhaseInfo - no "Start Next Phase" button
-          } else {
-            newPhase = nextPhase.id;
-
-            // DON'T show "Start Next Phase" button if next stage is the
-            // closing decision stage (only in auto mode) — nothing to click into.
-            if (nextPhase.id !== DECISION_STAGE_ID) {
-              setNextPhaseInfo({
-                id: nextPhase.id,
-                title: nextPhase.title || nextPhase.type,
-              });
-            }
-          }
-        }
+      // "waiting" covers manual mode, needing employer approval before
+      // voice_interview, and the closing decision stage — none of those show
+      // a "Start Next Phase" button, matching this page's own prior checks.
+      if (submitData.next && submitData.next !== "waiting") {
+        setNextPhaseInfo({
+          id: submitData.next.id,
+          title: submitData.next.title || submitData.next.type,
+        });
       }
-
-      const analysisText = aiAnalysis 
-        ? `Portfolio: ${uploadedUrls.length} files. Score: ${aiAnalysis.score || 100}%. ${aiAnalysis.summary || ""}`
-        : `Portfolio: ${uploadedUrls.length} files uploaded successfully.`;
-
-      const { error } = await supabase
-        .from("applications")
-        .update({
-          notes: JSON.stringify(updatedNotes),
-          // Manual mode must NEVER auto-advance phases
-          phase: isAutoMode ? newPhase : application.phase,
-          phase_ai_analysis: analysisText,
-        })
-        .eq("id", id!);
-
-      if (error) throw error;
 
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
       queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
