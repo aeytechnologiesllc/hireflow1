@@ -114,10 +114,14 @@ function extractQuizScore(app: ApplicationWithCandidate): number | null {
 }
 
 function extractVoiceScore(app: ApplicationWithCandidate): number | null {
-  const result = app.voice_interview_result as { score?: number; overallScore?: number } | null;
-  if (typeof result?.overallScore === "number") return Math.round(result.overallScore);
-  if (typeof result?.score === "number") return Math.round(result.score);
-  return null;
+  // The voice interview's end_interview tool (ava-voice-session) and the
+  // manual-end RPC both store the evaluation in snake_case, so overall_score is
+  // the real field. Reading only overallScore/score meant the Voice score tile
+  // never showed a value for any real interview. The other spellings stay as
+  // fallbacks for older rows.
+  const result = app.voice_interview_result as { overall_score?: number; overallScore?: number; score?: number } | null;
+  const score = result?.overall_score ?? result?.overallScore ?? result?.score;
+  return typeof score === "number" && Number.isFinite(score) ? Math.round(score) : null;
 }
 
 export function mapCandidateStage(app: ApplicationWithCandidate): CandidateStage {
