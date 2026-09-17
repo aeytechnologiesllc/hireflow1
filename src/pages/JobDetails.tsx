@@ -133,7 +133,7 @@ export default function JobDetails() {
   // published_jobs_public now selects jobs.benefits (see
   // supabase/migrations/20260916200000_published_jobs_public_benefits.sql),
   // so this reads straight off the real, regenerated column type.
-  const jobBenefits = job?.benefits ?? null;
+  const jobBenefits = job ? job.benefits : null;
 
   // Check applicant limit when job loads
   useEffect(() => {
