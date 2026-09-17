@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSchemaMode } from "@/hooks/useSchemaMode";
-import type { Tables, TablesInsert } from "@/integrations/supabase/types";
+import type { Tables, TablesInsert, Json } from "@/integrations/supabase/types";
 import {
   notifyApplicationReceived,
   notifyNewApplication,
@@ -25,7 +25,7 @@ export interface InterviewForApplication {
   meeting_link: string | null;
   duration_minutes: number | null;
   interview_type: string | null;
-  proposed_times: any;
+  proposed_times: Json | null;
   candidate_note: string | null;
 }
 

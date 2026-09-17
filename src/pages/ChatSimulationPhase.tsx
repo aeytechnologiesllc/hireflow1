@@ -85,7 +85,7 @@ interface ApplicationDetails {
     title: string;
     processing_mode: string | null;
     passing_score: number | null;
-    workflow_steps: any[] | null;
+    workflow_steps: Array<{ id: string; type: string; config?: { minMessages?: number; scenarios?: unknown } }> | null;
     /** Lives on its own column, not in workflow_steps — the journey builder
      *  needs it to count the quiz as the stage the candidate actually does. */
     quiz_questions: unknown[] | null;
@@ -157,7 +157,9 @@ export default function ChatSimulationPhase() {
   const [completionNote, setCompletionNote] = useState(
     "The hiring team will get back to you — everyone hears back."
   );
-  const [rejectedAppData, setRejectedAppData] = useState<any>(null);
+  // Only ever checked for truthiness below (the rejection screen reads
+  // application/jobs directly), so a partial shape is enough.
+  const [rejectedAppData, setRejectedAppData] = useState<Partial<ApplicationDetails> | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -174,7 +176,7 @@ export default function ChatSimulationPhase() {
         .single();
 
       if (error) throw error;
-      return data as ApplicationDetails;
+      return data as unknown as ApplicationDetails;
     },
     enabled: !!id && !!user && !authLoading,
     refetchOnMount: "always",
@@ -204,7 +206,7 @@ export default function ChatSimulationPhase() {
 
   // Get chat config
   const chatConfig = useMemo(() => {
-    const workflowSteps = application?.jobs?.workflow_steps as Array<{ id: string; type: string; config?: { minMessages?: number; scenarios?: unknown } }> | null;
+    const workflowSteps = application?.jobs?.workflow_steps;
     const chatStep = workflowSteps?.find(s => s.id === stepId || s.type === "chat_simulation");
     return {
       minMessages: chatStep?.config?.minMessages || 5,

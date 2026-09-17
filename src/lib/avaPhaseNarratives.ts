@@ -194,7 +194,9 @@ export interface AvaPhaseNarrativeInput {
   phaseLabel: string;
   baseFacts: string;
   applicationAnswers?: QA[];
-  voiceInterviewResult?: any;
+  // Legacy alias for voiceData (same shape) — some callers still pass the raw
+  // analysis result under this name instead of the newer voiceData field.
+  voiceInterviewResult?: VoiceInterviewPhaseData;
   rawSections: ParsedSectionLike[];
   analysisAvailable: boolean;
   wasRejected: boolean;

@@ -23,7 +23,8 @@ import { GOOGLE_AUTH_ENABLED } from "@/lib/googleAuth";
 const isWebView = () => {
   if (typeof window === "undefined") return false;
   const ua = navigator.userAgent || "";
-  return !!(window as any).natively || /wv|WebView/i.test(ua) || (/Android/.test(ua) && /Version\/[\d.]+/.test(ua) && !/Chrome\/[\d.]+ Mobile Safari/i.test(ua));
+  const nativelyGlobal = (window as unknown as { natively?: unknown }).natively;
+  return !!nativelyGlobal || /wv|WebView/i.test(ua) || (/Android/.test(ua) && /Version\/[\d.]+/.test(ua) && !/Chrome\/[\d.]+ Mobile Safari/i.test(ua));
 };
 
 

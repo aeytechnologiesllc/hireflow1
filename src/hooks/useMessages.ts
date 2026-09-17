@@ -61,7 +61,7 @@ export function useMessageableEmployers(options: { enabled?: boolean } = {}) {
       // Get unique employer IDs
       const employerIds = [...new Set(
         applications
-          .map((app: any) => app.jobs?.employer_id)
+          .map((app) => app.jobs?.employer_id)
           .filter(Boolean)
       )];
 
@@ -79,8 +79,8 @@ export function useMessageableEmployers(options: { enabled?: boolean } = {}) {
 
       // Create messageable employers list
       const employers: MessageableEmployer[] = applications
-        .filter((app: any) => app.jobs?.employer_id)
-        .map((app: any) => ({
+        .filter((app) => app.jobs?.employer_id)
+        .map((app) => ({
           employer_id: app.jobs.employer_id,
           employer_profile: profileMap.get(app.jobs.employer_id) || null,
           job_title: app.jobs.title,

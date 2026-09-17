@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { CandidateRescheduleRequestDialog } from "./CandidateRescheduleRequestDialog";
 import { getTimezoneAbbreviation } from "@/lib/timezone";
 import { buildCandidateInterviewIcs, downloadIcsFile, icsFileStem } from "@/lib/calendarInvite";
+import type { Json } from "@/integrations/supabase/types";
 
 // Candidate can join in-app starting this many minutes before the scheduled start.
 const JOIN_WINDOW_MINUTES = 15;
@@ -39,7 +40,7 @@ interface Interview {
   meeting_link: string | null;
   status: string;
   candidate_response: string | null;
-  proposed_times: any;
+  proposed_times: Json | null;
   candidate_note: string | null;
   employer_windows?: unknown;
   meeting_provider?: string | null;
@@ -59,7 +60,7 @@ interface CandidateInterviewConfirmationCardProps {
 function parseEmployerWindows(raw: unknown): EmployerWindow[] {
   if (!Array.isArray(raw)) return [];
   return raw
-    .filter((w): w is Record<string, unknown> => !!w && typeof w === "object" && typeof (w as any).start === "string")
+    .filter((w): w is Record<string, unknown> => !!w && typeof w === "object" && typeof (w as Record<string, unknown>).start === "string")
     .map((w) => ({
       start: w.start as string,
       durationMinutes: typeof w.durationMinutes === "number" ? (w.durationMinutes as number) : 30,

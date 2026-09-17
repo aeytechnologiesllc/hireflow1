@@ -82,7 +82,9 @@ async function fetchRoomCredentials(interviewId: string): Promise<RoomCredential
     return { ok: true, url: roomUrl as string, token: data.token as string };
   }
 
-  let payload: any = data ?? null;
+  // data's shape depends on the edge function's response body, which varies
+  // by error case below — only a possible `error` string field is read off it.
+  let payload: { error?: string } | null = data ?? null;
   let status: number | null = null;
 
   if (error) {

@@ -43,7 +43,7 @@ interface WorkflowStep {
   type: string;
   description?: string;
   required?: boolean;
-  config?: Record<string, any>;
+  config?: Record<string, unknown>;
 }
 
 interface ApplicationDetails {

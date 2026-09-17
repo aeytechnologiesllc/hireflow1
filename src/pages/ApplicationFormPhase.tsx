@@ -94,9 +94,9 @@ interface ApplicationDetails {
     processing_mode: string | null;
     passing_score: number | null;
     application_questions: ApplicationQuestion[] | null;
-    workflow_steps: any[] | null;
+    workflow_steps: Array<{ id: string; type: string; title?: string }> | null;
     require_resume: boolean | null;
-    quiz_questions: any[] | null;
+    quiz_questions: unknown[] | null;
   } | null;
 }
 
@@ -499,7 +499,7 @@ export default function ApplicationFormPhase() {
     try {
       return typeof result.data.notes === "string"
         ? JSON.parse(result.data.notes)
-        : (result.data.notes as Record<string, any>);
+        : (result.data.notes as Record<string, unknown>);
     } catch {
       return fallbackNotes;
     }
@@ -1015,8 +1015,7 @@ export default function ApplicationFormPhase() {
       const quizQuestions = application.jobs?.quiz_questions;
       const hasQuizQuestions = Array.isArray(quizQuestions) && quizQuestions.length > 0;
 
-      const typedSteps = workflowSteps as Array<{ id: string; type: string; title?: string }>;
-      const allPhases = buildCandidateJourney(typedSteps, { hasQuiz: hasQuizQuestions });
+      const allPhases = buildCandidateJourney(workflowSteps, { hasQuiz: hasQuizQuestions });
 
       // Find current step index (application phase)
       const currentIndex = allPhases.findIndex((p) => p.type === "application" || p.id === stepId);

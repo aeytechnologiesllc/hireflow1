@@ -110,8 +110,13 @@ export function getApplicationDisplayState(application: ApplicationWithJob): App
   // Parse notes to check if phase has been submitted. Was a hand-rolled
   // try/catch doing exactly this; one implementation now, and it also rejects
   // JSON scalars that parse fine but are not a notes object.
-  const notes = parseApplicationNotes(application.notes as string | null) as Record<string, any>;
-  
+  // src/lib/applicationNotes.ts's parseApplicationNotes (imported above) returns
+  // Record<string, unknown> — different phase types stash different fields under
+  // notes[phaseId]/notes.quiz, so the dynamic lookups below cast to this narrow
+  // shape rather than the whole notes object to `any`.
+  const notes = parseApplicationNotes(application.notes as string | null);
+  type PhaseStepData = { completedAt?: string; videoIntroUrl?: string; completed?: boolean; portfolioUrls?: unknown[] };
+
   // Check if the current phase has been completed/submitted
   const hasPhaseData = (() => {
     // Application phase: check for submitted application answers
@@ -120,19 +125,22 @@ export function getApplicationDisplayState(application: ApplicationWithJob): App
       return Array.isArray(answers) && answers.length > 0;
     }
     if (phaseType === "quiz") {
-      const stepData = notes[phase];
-      return !!(stepData?.completedAt || notes.quizResult || notes.quiz?.completedAt);
+      const stepData = notes[phase] as PhaseStepData | undefined;
+      return !!(stepData?.completedAt || notes.quizResult || (notes.quiz as PhaseStepData | undefined)?.completedAt);
     }
     if (phaseType === "typing_test") return !!notes.typingTestResult;
-    if (phaseType === "video_intro") return !!notes.videoIntroUrl || !!notes[phase]?.videoIntroUrl;
-    if (phaseType === "video_message") return !!notes.videoIntroUrl || !!notes[phase]?.videoIntroUrl;
+    if (phaseType === "video_intro") return !!notes.videoIntroUrl || !!(notes[phase] as PhaseStepData | undefined)?.videoIntroUrl;
+    if (phaseType === "video_message") return !!notes.videoIntroUrl || !!(notes[phase] as PhaseStepData | undefined)?.videoIntroUrl;
     if (phaseType === "chat_simulation") return !!notes.chatSimulationResult;
     if (phaseType === "chat_interview") return !!notes.chatInterviewResult;
     if (phaseType === "sales_simulation") return !!notes.salesSimulationResult;
     // Voice interview result is stored in a dedicated column, not notes JSON
     if (phaseType === "voice_interview") return !!application.voice_interview_result;
     // Portfolio upload: check for completed flag or portfolio URLs
-    if (phaseType === "portfolio_upload") return !!notes[phase]?.completed || !!notes[phase]?.portfolioUrls?.length || !!notes.portfolioResult;
+    if (phaseType === "portfolio_upload") {
+      const stepData = notes[phase] as PhaseStepData | undefined;
+      return !!stepData?.completed || !!stepData?.portfolioUrls?.length || !!notes.portfolioResult;
+    }
     return false;
   })();
   

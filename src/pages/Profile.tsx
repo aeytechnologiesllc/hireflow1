@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useProfile, useUpdateProfile } from "@/hooks/useProfile";
+import { useProfile, useUpdateProfile, type ProfileUpdate } from "@/hooks/useProfile";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -222,7 +222,7 @@ export default function Profile() {
 
   const handleSave = async () => {
     try {
-      const updates: any = {
+      const updates: ProfileUpdate = {
         full_name: formData.full_name || null,
         phone: formData.phone || null,
         location: formData.location || null,

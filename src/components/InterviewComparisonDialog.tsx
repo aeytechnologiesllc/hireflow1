@@ -9,12 +9,31 @@ import {
 } from "recharts";
 import { ShieldCheck, Shield, ShieldAlert, CheckCircle, AlertCircle, TrendingUp, Users } from "lucide-react";
 
+// Shape of the AI interview analysis result, as produced by trigger-ava-analysis/
+// ava-voice-tools. Only the fields this dialog actually reads are declared; the
+// per-category score lookups below (`${key}_score`) stay implicit-any (noImplicitAny
+// is off project-wide) since the key is computed from a label, not a literal.
+interface InterviewResultData {
+  overall_score?: number;
+  communication_score?: number;
+  technical_score?: number;
+  culture_fit_score?: number;
+  problem_solving_score?: number;
+  adaptability_score?: number;
+  leadership_potential_score?: number;
+  recommendation?: string;
+  credibility_rating?: string;
+  strengths?: string[];
+  concerns?: string[];
+  inconsistencies?: unknown[];
+}
+
 interface CandidateComparison {
   id: string;
   name: string;
   avatar?: string;
   jobTitle?: string;
-  result: any;
+  result: InterviewResultData;
 }
 
 interface InterviewComparisonDialogProps {
@@ -38,7 +57,7 @@ export function InterviewComparisonDialog({
   const comparisonCategories = ['Communication', 'Technical', 'Culture Fit', 'Problem Solving', 'Adaptability', 'Leadership'];
   
   const radarData = comparisonCategories.map(cat => {
-    const dataPoint: any = { category: cat };
+    const dataPoint: Record<string, string | number> = { category: cat };
     candidates.forEach((c, i) => {
       const key = cat.toLowerCase().replace(' ', '_');
       dataPoint[`candidate${i}`] = c.result?.[`${key}_score`] || 0;

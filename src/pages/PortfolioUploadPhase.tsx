@@ -40,7 +40,7 @@ interface ApplicationDetails {
     description: string;
     processing_mode: string | null;
     passing_score: number | null;
-    workflow_steps: any[] | null;
+    workflow_steps: Array<{ id: string; type: string; title?: string; config?: { prompt?: string; maxFiles?: number } }> | null;
     /** Its own column, not part of workflow_steps. Without it the journey
      *  builder drops the quiz and this screen quotes a smaller "of N" than
      *  the rest of the app. */
@@ -135,7 +135,7 @@ export default function PortfolioUploadPhase() {
 
   // Get portfolio config
   const portfolioConfig = (() => {
-    const workflowSteps = application?.jobs?.workflow_steps as Array<{ id: string; type: string; config?: { prompt?: string; maxFiles?: number } }> | null;
+    const workflowSteps = application?.jobs?.workflow_steps;
     const portfolioStep = workflowSteps?.find(s => s.id === stepId || s.type === "portfolio_upload");
     return {
       prompt: portfolioStep?.config?.prompt || "Upload samples of your best work that demonstrate your skills relevant to this position.",
@@ -478,8 +478,8 @@ export default function PortfolioUploadPhase() {
   // Handlers for evaluation screen
   const handleStartNextPhase = () => {
     if (!nextPhaseInfo || !application) return;
-    const workflowSteps = application.jobs?.workflow_steps as Array<{ id: string; type: string; title?: string }> || [];
-    const nextStep = workflowSteps.find((s: any) => s.id === nextPhaseInfo.id);
+    const workflowSteps = application.jobs?.workflow_steps || [];
+    const nextStep = workflowSteps.find((s) => s.id === nextPhaseInfo.id);
     if (nextStep) {
       const phaseRoutes: Record<string, string> = {
         typing_test: "typing-test", video_intro: "video-intro", portfolio_upload: "portfolio",

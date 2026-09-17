@@ -256,7 +256,7 @@ export function useCreateDocumentPackage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["document-packages"] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
         description: error.message || "Failed to create package.",
@@ -289,7 +289,7 @@ export function useUpdateDocumentPackage() {
       queryClient.invalidateQueries({ queryKey: ["document-packages"] });
       queryClient.invalidateQueries({ queryKey: ["document-package", variables.id] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
         description: error.message || "Failed to update package.",
@@ -379,7 +379,7 @@ export function useSendDocumentPackage() {
         description: "The hiring document package has been sent to the candidate.",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
         description: error.message || "Failed to send package.",
@@ -409,7 +409,7 @@ export function useDeleteDocumentPackage() {
         description: "Document package has been deleted.",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
         description: error.message || "Failed to delete package.",

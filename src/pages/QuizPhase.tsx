@@ -64,7 +64,7 @@ interface ApplicationDetails {
     processing_mode: string | null;
     passing_score: number | null;
     quiz_questions: QuizQuestion[] | null;
-    workflow_steps: any[] | null;
+    workflow_steps: Array<{ id: string; type: string; title?: string }> | null;
   } | null;
 }
 
@@ -600,8 +600,7 @@ export default function QuizPhase() {
       const quizQuestions = application.jobs?.quiz_questions;
       const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
 
-      const typedSteps = workflowSteps as Array<{ id: string; type: string; title?: string }>;
-      const allPhases = buildCandidateJourney(typedSteps, { hasQuiz });
+      const allPhases = buildCandidateJourney(workflowSteps, { hasQuiz });
 
       // Find current step index
       let currentIndex = allPhases.findIndex((p) => p.id === stepId);
@@ -725,7 +724,7 @@ export default function QuizPhase() {
     if (!nextPhaseInfo || !application) return;
     
     const workflowSteps = application.jobs?.workflow_steps || [];
-    const nextStep = workflowSteps.find((s: any) => s.id === nextPhaseInfo.id);
+    const nextStep = workflowSteps.find((s) => s.id === nextPhaseInfo.id);
     
     if (nextStep) {
       // Navigate to the specific phase page based on type

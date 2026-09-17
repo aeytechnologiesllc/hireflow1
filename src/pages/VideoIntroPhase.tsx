@@ -36,7 +36,7 @@ interface ApplicationDetails {
     title: string;
     processing_mode: string | null;
     passing_score: number | null;
-    workflow_steps: any[] | null;
+    workflow_steps: Array<{ id: string; type: string; title?: string; config?: { maxDuration?: number; prompt?: string } }> | null;
     /** Its own column, not part of workflow_steps. Without it the journey
      *  builder drops the quiz and this screen quotes a smaller "of N" than
      *  the rest of the app. */
@@ -112,7 +112,7 @@ export default function VideoIntroPhase() {
   }, [id, queryClient]);
 
   const videoConfig = (() => {
-    const workflowSteps = application?.jobs?.workflow_steps as Array<{ id: string; type: string; config?: { maxDuration?: number; prompt?: string } }> | null;
+    const workflowSteps = application?.jobs?.workflow_steps;
     const videoStep = workflowSteps?.find(s => s.id === stepId || s.type === "video_intro" || s.type === "video_message");
     return {
       maxDuration: videoStep?.config?.maxDuration || 60,
@@ -547,8 +547,8 @@ export default function VideoIntroPhase() {
   const handleStartNextPhase = () => {
     if (!nextPhaseInfo || !application) return;
     
-    const workflowSteps = application.jobs?.workflow_steps as Array<{ id: string; type: string; title?: string }> || [];
-    const nextStep = workflowSteps.find((s: any) => s.id === nextPhaseInfo.id);
+    const workflowSteps = application.jobs?.workflow_steps || [];
+    const nextStep = workflowSteps.find((s) => s.id === nextPhaseInfo.id);
     
     if (nextStep) {
       const phaseRoutes: Record<string, string> = {

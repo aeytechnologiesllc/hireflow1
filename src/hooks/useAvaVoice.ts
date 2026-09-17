@@ -443,7 +443,7 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     if (response.error && !errorMessage) {
       try {
         // FunctionsHttpError may contain the response body
-        const errorContext = (response.error as any).context;
+        const errorContext = (response.error as { context?: { body?: string } }).context;
         if (errorContext?.body) {
           const parsed = JSON.parse(errorContext.body);
           errorMessage = parsed.error || '';
@@ -458,8 +458,8 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
     }
 
     const EPHEMERAL_KEY = response.data.client_secret.value;
-    const voiceNameUsed = (response.data as any)?.selectedVoice ?? null;
-    voiceSessionIdRef.current = (response.data as any)?.voiceSessionId ?? null;
+    const voiceNameUsed = response.data?.selectedVoice ?? null;
+    voiceSessionIdRef.current = response.data?.voiceSessionId ?? null;
 
     setState(s => ({ ...s, voiceNameUsed }));
 

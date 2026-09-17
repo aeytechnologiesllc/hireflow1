@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/hooks/useProfile";
 import { useSubscription } from "@/hooks/useSubscription";
 import { supabase, SUPABASE_URL } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import { cn, formatFileSize } from "@/lib/utils";
@@ -719,7 +720,10 @@ export function DocumentWizard({
           expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
           v1_hash: v1Hash,
           version_number: 1,
-        } as any)
+          // document_code is populated by the set_document_code DB trigger
+          // (generate_document_code()), not supplied by the client — the
+          // generated Insert type can't see that, so it's asserted here.
+        } as unknown as TablesInsert<"documents">)
         .select()
         .single();
 

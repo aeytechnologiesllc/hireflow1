@@ -179,7 +179,9 @@ export default [
       if (!/voiceSessionIdRef/.test(ts)) {
         bad.push("missing voiceSessionIdRef to hold the id returned by ava-voice-session");
       }
-      if (!/voiceSessionIdRef\.current\s*=\s*\(response\.data as any\)\?\.voiceSessionId/.test(ts)) {
+      // Accepts either the plain optional-chained read or the older `(response.data as any)`
+      // cast — response.data is untyped either way, so both forms read the same field.
+      if (!/voiceSessionIdRef\.current\s*=\s*(?:\(response\.data as any\)|response\.data)\?\.voiceSessionId/.test(ts)) {
         bad.push("voiceSessionIdRef is never set from the ava-voice-session response");
       }
       const sendSites = ts.match(/voiceSessionId:\s*voiceSessionIdRef\.current,/g) || [];

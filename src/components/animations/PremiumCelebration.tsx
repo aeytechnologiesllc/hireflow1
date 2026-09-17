@@ -183,7 +183,8 @@ const TypewriterText = ({ text, delay = 0 }: { text: string; delay?: number }) =
 // Play subtle achievement sound
 const playAchievementSound = () => {
   try {
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const webkitAudioContext = (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    const audioContext = new (window.AudioContext || webkitAudioContext)();
     
     // Create a pleasant chord
     const notes = [523.25, 659.25, 783.99]; // C5, E5, G5

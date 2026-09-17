@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { FileText, Send, Loader2 } from "lucide-react";
 
 interface Application {
@@ -195,7 +196,10 @@ export function CreateDocumentDialog({ open, onOpenChange, applications }: Creat
           sender_id: user.id,
           recipient_id: app?.candidate_id,
           expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
-        } as any)
+          // document_code is populated by the set_document_code DB trigger
+          // (generate_document_code()), not supplied by the client — the
+          // generated Insert type can't see that, so it's asserted here.
+        } as unknown as TablesInsert<"documents">)
         .select()
         .single();
 

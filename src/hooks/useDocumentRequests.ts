@@ -275,7 +275,7 @@ export function useCreateDocumentRequest() {
         description: "Document request has been sent to the candidate.",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
         description: error.message || "Failed to send document request.",
@@ -308,7 +308,7 @@ export function useUpdateDocumentRequest() {
       queryClient.invalidateQueries({ queryKey: ["document-requests"] });
       queryClient.invalidateQueries({ queryKey: ["pending-document-requests-count"] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
         description: error.message || "Failed to update document request.",
@@ -339,7 +339,7 @@ export function useDeleteDocumentRequest() {
         description: "Document request has been deleted.",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
         description: error.message || "Failed to delete document request.",

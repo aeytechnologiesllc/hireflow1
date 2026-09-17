@@ -101,7 +101,7 @@ interface ApplicationDetails {
     description: string;
     processing_mode: string | null;
     passing_score: number | null;
-    workflow_steps: any[] | null;
+    workflow_steps: Array<{ id: string; type: string; config?: { minMessages?: number; scenarios?: unknown } }> | null;
     /** Its own column, not part of workflow_steps. Without it the journey
      *  builder drops the quiz and this screen quotes a smaller "of N" than
      *  the rest of the app. */
@@ -165,7 +165,9 @@ export default function SalesSimulationPhase() {
   );
   const [isBlurred, setIsBlurred] = useState(false);
   const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
-  const [rejectedAppData, setRejectedAppData] = useState<any>(null);
+  // Only ever checked for truthiness below (the rejection screen reads
+  // application/jobs directly), so a partial shape is enough.
+  const [rejectedAppData, setRejectedAppData] = useState<Partial<ApplicationDetails> | null>(null);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -194,7 +196,7 @@ export default function SalesSimulationPhase() {
         candidateName = profile?.full_name || null;
       }
       
-      return { ...data, candidateName } as ApplicationDetails & { candidateName: string | null };
+      return { ...data, candidateName } as unknown as ApplicationDetails & { candidateName: string | null };
     },
     enabled: !!id && !!user && !authLoading,
     refetchOnMount: "always",
@@ -231,7 +233,7 @@ export default function SalesSimulationPhase() {
 
   // Get config from workflow
   const salesConfig = (() => {
-    const workflowSteps = application?.jobs?.workflow_steps as Array<{ id: string; type: string; config?: { minMessages?: number; scenarios?: unknown } }> | null;
+    const workflowSteps = application?.jobs?.workflow_steps;
     const salesStep = workflowSteps?.find(s => s.id === stepId || s.type === "sales_simulation");
     return {
       minMessages: salesStep?.config?.minMessages || 6,
