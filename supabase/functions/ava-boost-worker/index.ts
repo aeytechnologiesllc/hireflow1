@@ -16,9 +16,13 @@
 // money holds).
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@14.21.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { nextBoostWorkerAction, type BoostOrderSnapshot, type BoostWorkerAction } from "../_shared/jobBillingPricing.ts";
 import { createMetaGraphAdsClient, type MetaAdsClient } from "../_shared/metaAdsClient.ts";
+
+// Explicit generics instead of ReturnType<typeof createClient> — that picks
+// createClient's last overload, which defaults its generics differently.
+type AdminClient = SupabaseClient<any, any, any>;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -126,8 +130,7 @@ serve(async (req) => {
 });
 
 async function fetchJobAndCompanyName(
-  // deno-lint-ignore no-explicit-any
-  supabaseAdmin: any,
+  supabaseAdmin: AdminClient,
   jobId: string,
   employerId: string,
 ): Promise<{ job: JobLocation | null; companyName: string }> {
@@ -140,8 +143,7 @@ async function fetchJobAndCompanyName(
 
 async function processOne(
   order: BoostOrderRow,
-  // deno-lint-ignore no-explicit-any
-  supabaseAdmin: any,
+  supabaseAdmin: AdminClient,
   metaClient: MetaAdsClient,
   stripe: Stripe,
 ): Promise<BoostWorkerAction> {

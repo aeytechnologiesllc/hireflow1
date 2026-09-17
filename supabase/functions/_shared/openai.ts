@@ -143,7 +143,7 @@ export async function callOpenAIChat(options: OpenAIChatOptions): Promise<OpenAI
       }
 
       const raw = (await response.json()) as Record<string, unknown>;
-      const content = (raw as any)?.choices?.[0]?.message?.content;
+      const content = (raw as { choices?: { message?: { content?: string } }[] })?.choices?.[0]?.message?.content;
       if (!content || typeof content !== "string") {
         throw new Error("OpenAI response did not include message content");
       }
@@ -242,12 +242,12 @@ export function requireNestedJsonPaths(value: unknown, paths: string[]) {
 
   for (const path of paths) {
     const parts = path.split(".");
-    let current: any = value;
+    let current: unknown = value;
     for (const part of parts) {
       if (current == null || !Object.prototype.hasOwnProperty.call(current, part)) {
         return `Missing required path: ${path}`;
       }
-      current = current[part];
+      current = (current as Record<string, unknown>)[part];
     }
   }
 

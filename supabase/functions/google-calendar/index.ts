@@ -115,7 +115,15 @@ serve(async (req) => {
     if (body.action === "create_event") {
       const { accessToken, summary, description, startTime, endTime, attendees, createMeetLink } = body;
 
-      const eventBody: any = {
+      const eventBody: {
+        summary: string;
+        description?: string;
+        start: { dateTime: string; timeZone: string };
+        end: { dateTime: string; timeZone: string };
+        attendees?: { email: string }[];
+        reminders: { useDefault: boolean; overrides: { method: string; minutes: number }[] };
+        conferenceData?: { createRequest: { requestId: string; conferenceSolutionKey: { type: string } } };
+      } = {
         summary,
         description,
         start: {
@@ -174,7 +182,7 @@ serve(async (req) => {
         JSON.stringify({
           eventId: event.id,
           htmlLink: event.htmlLink,
-          meetLink: event.conferenceData?.entryPoints?.find((e: any) => e.entryPointType === "video")?.uri || null,
+          meetLink: event.conferenceData?.entryPoints?.find((e: { entryPointType?: string; uri?: string }) => e.entryPointType === "video")?.uri || null,
           hangoutLink: event.hangoutLink,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }

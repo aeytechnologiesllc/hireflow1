@@ -1,7 +1,12 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { hasSubscriptionBypassForUser } from "../_shared/subscriptionBypass.ts";
 import { computeChargeMinutes } from "../_shared/voiceSessionCharge.ts";
+
+// Explicit generics instead of ReturnType<typeof createClient> — the floating
+// @2 import can pick createClient's last overload, defaulting its generics
+// differently than the actual call site below.
+type AdminClient = SupabaseClient<any, any, any>;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -405,7 +410,7 @@ Deno.serve(async (req) => {
  * Check if we need to send low balance or exhausted notifications
  */
 async function checkAndSendNotifications(
-  supabaseAdmin: any,
+  supabaseAdmin: AdminClient,
   userId: string,
   balanceBefore: number,
   balanceAfter: number
@@ -470,7 +475,7 @@ async function checkAndSendNotifications(
  * Send voice minutes notification email via send-notification-email function
  */
 async function sendVoiceNotification(
-  supabaseAdmin: any,
+  supabaseAdmin: AdminClient,
   userId: string,
   type: 'voice_minutes_low' | 'voice_minutes_exhausted',
   minutesRemaining: number,

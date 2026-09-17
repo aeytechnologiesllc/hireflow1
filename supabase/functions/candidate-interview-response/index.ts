@@ -104,8 +104,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Verify the user is the candidate for this interview
-    const application = interview.applications as any;
+    // Verify the user is the candidate for this interview. Without a Database
+    // generic on createClient(), postgrest-js's select-string parser can't
+    // see that applications->interviews is one-to-one, so it infers
+    // `applications` as an array — it's actually always a single row (each
+    // interview has exactly one application_id). Cast to the real shape
+    // instead of `any` so the rest of this function stays checked.
+    const application = interview.applications as unknown as {
+      id: string;
+      candidate_id: string;
+      jobs: { id: string; employer_id: string; title: string } | null;
+    } | null;
     if (application?.candidate_id !== user.id) {
       console.error("Permission denied: user is not the candidate");
       return new Response(JSON.stringify({ error: "You are not authorized to modify this interview" }), {
@@ -134,7 +143,13 @@ Deno.serve(async (req) => {
 
     const candidateName = candidateProfile?.full_name || candidateProfile?.email || "Candidate";
 
-    let updateData: Record<string, any> = {};
+    let updateData: {
+      candidate_response?: string;
+      proposed_times?: { datetime: string }[] | null;
+      candidate_note?: string | null;
+      scheduled_at?: string;
+      duration_minutes?: number;
+    } = {};
     let notificationTitle = "";
     let notificationMessage = "";
 

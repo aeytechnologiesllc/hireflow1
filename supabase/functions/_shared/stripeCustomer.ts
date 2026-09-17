@@ -4,6 +4,12 @@
 // job-billing checkout functions (unlock-job, purchase-applicant-pack,
 // ava-boost-checkout), and persists the id onto subscriptions.stripe_customer_id
 // so every checkout for the same employer reuses one customer.
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
+// Every caller passes its own service-role client straight through; explicit
+// generics instead of ReturnType<typeof createClient>, which can pick
+// createClient's last overload and default its generics differently.
+type AdminClient = SupabaseClient<any, any, any>;
 
 export interface StripeLike {
   customers: {
@@ -14,7 +20,7 @@ export interface StripeLike {
 
 export async function getOrCreateStripeCustomerId(
   stripe: StripeLike,
-  supabaseAdmin: { from: (table: string) => any },
+  supabaseAdmin: AdminClient,
   user: { id: string; email?: string | null },
 ): Promise<string> {
   const { data: existing } = await supabaseAdmin
@@ -41,7 +47,7 @@ export async function getOrCreateStripeCustomerId(
   return created.id;
 }
 
-async function persistCustomerId(supabaseAdmin: { from: (table: string) => any }, userId: string, customerId: string) {
+async function persistCustomerId(supabaseAdmin: AdminClient, userId: string, customerId: string) {
   // upsert without clobbering an existing subscriptions row's other columns:
   // update if present, insert a bare row if this user has never had one
   // (job-billing checkouts can be the very first Stripe touchpoint now that
