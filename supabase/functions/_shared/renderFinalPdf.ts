@@ -17,7 +17,7 @@
  * PDF library instead of two, and jsPDF doesn't need to exist inside the
  * edge function.
  */
-import { PDFDocument, rgb, StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
+import { PDFDocument, PDFFont, rgb, StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
 import { format } from "https://esm.sh/date-fns@3.6.0";
 
 export interface SignatureOverlay {
@@ -60,8 +60,7 @@ export interface FinalCertificateData {
  * final PDF. Pin both to the document's own completion timestamp so the
  * output is a pure function of stored data. See renderFinalPdf.test.ts.
  */
-// deno-lint-ignore no-explicit-any
-function setDeterministicMetadata(pdfDoc: any, cert: FinalCertificateData): void {
+function setDeterministicMetadata(pdfDoc: PDFDocument, cert: FinalCertificateData): void {
   const at = new Date(cert.completionTimestampUtc);
   pdfDoc.setCreationDate(at);
   pdfDoc.setModificationDate(at);
@@ -278,8 +277,7 @@ export async function renderTextDocumentPdf(
   return pdfDoc.save();
 }
 
-// deno-lint-ignore no-explicit-any
-function appendCertificatePage(pdfDoc: any, helvetica: any, helveticaBold: any, cert: FinalCertificateData) {
+function appendCertificatePage(pdfDoc: PDFDocument, helvetica: PDFFont, helveticaBold: PDFFont, cert: FinalCertificateData) {
   const certPage = pdfDoc.addPage([612, 792]);
   const { width: certWidth, height: certHeight } = certPage.getSize();
   const margin = 50;

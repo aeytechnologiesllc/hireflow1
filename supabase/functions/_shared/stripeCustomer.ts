@@ -6,10 +6,12 @@
 // so every checkout for the same employer reuses one customer.
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
-// Every caller passes its own service-role client straight through; explicit
-// generics instead of ReturnType<typeof createClient>, which can pick
-// createClient's last overload and default its generics differently.
-type AdminClient = SupabaseClient<any, any, any>;
+// Every caller passes its own service-role client straight through. Bare
+// (no generics) rather than ReturnType<typeof createClient>, which can pick
+// createClient's last overload and default its generics differently —
+// SupabaseClient's own declared defaults already match what a plain
+// 2-argument createClient(...) call actually returns.
+type AdminClient = SupabaseClient;
 
 export interface StripeLike {
   customers: {

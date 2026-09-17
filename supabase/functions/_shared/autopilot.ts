@@ -187,7 +187,7 @@ export function buildAvaScorecard(params: {
   passingScore: number;
   quizScore: number | null;
   quizConfigured: boolean;
-  typingTest?: Record<string, any> | null;
+  typingTest?: { wpm?: number; score?: number; accuracy?: number } | null;
   voiceScore: number | null;
   portfolioScore: number | null;
   chatSimulationScore: number | null;
@@ -201,7 +201,7 @@ export function buildAvaScorecard(params: {
   resumeImageCount: number;
   applicationAnswerCount: number;
   coverLetterProvided: boolean;
-  workflowSteps: any[];
+  workflowSteps: Array<{ type?: string }>;
   jobTitle?: string | null;
   jobDescription?: string | null;
   jobSkillsRequired?: string[] | null;
@@ -375,7 +375,7 @@ export function buildAvaScorecard(params: {
         : 48,
   );
   const workflowTypes = Array.isArray(workflowSteps)
-    ? workflowSteps.map((step: any) => String(step?.type || "").toLowerCase()).filter(Boolean)
+    ? workflowSteps.map((step) => String(step?.type || "").toLowerCase()).filter(Boolean)
     : [];
   const pendingHighSignalPhases: string[] = [];
   const completedHighSignalPhases: string[] = [];

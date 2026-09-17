@@ -21,9 +21,24 @@ const CLOSED: BillingFlags = { billingEnabled: false, boostEnabled: false };
  * returns billing_enabled=false rather than throwing — a read failure must
  * never accidentally turn billing on.
  */
-export async function getBillingFlags(supabaseAdmin: {
-  from: (table: string) => any;
-}): Promise<BillingFlags> {
+// Structural, not the real SupabaseClient type: matches only the one chain
+// this function calls, as a PromiseLike (a real supabase-js call returns a
+// thenable PostgrestFilterBuilder, not a native Promise — see
+// _shared/googleIndexing.ts's SupabaseAdminClient for the same shape).
+export interface AppSettingsAdminLike {
+  from: (table: string) => {
+    select: (columns: string) => {
+      // `data` is `unknown`, not `unknown[]`: getBillingFlags's own
+      // Array.isArray(data) guard narrows it, and this keeps the type
+      // structurally satisfied by every other admin-client-shaped caller
+      // (e.g. voiceInterviewBilling.ts's SupabaseAdminLike), whose `.select`
+      // is reused for row lookups that resolve to an object, not an array.
+      in: (column: string, values: string[]) => PromiseLike<{ data: unknown; error: unknown }>;
+    };
+  };
+}
+
+export async function getBillingFlags(supabaseAdmin: AppSettingsAdminLike): Promise<BillingFlags> {
   try {
     const { data, error } = await supabaseAdmin
       .from("app_settings")

@@ -24,8 +24,28 @@ export interface StripeLike {
   };
 }
 
+// Structural, not the real SupabaseClient type — matches only the
+// update().eq().eq()[.select().maybeSingle()] chains this file calls, as a
+// PromiseLike (a real supabase-js call returns a thenable
+// PostgrestFilterBuilder, not a native Promise — see
+// _shared/googleIndexing.ts's SupabaseAdminClient for the same shape). One
+// row shape covers all three tables this file updates (job_unlocks,
+// applicant_packs, boost_orders): each selects a subset of these columns.
+interface UpdateFilterBuilder extends PromiseLike<{ data: unknown; error: unknown }> {
+  eq: (column: string, value: unknown) => UpdateFilterBuilder;
+  select: (columns: string) => {
+    maybeSingle: () => PromiseLike<{ data: { id: string; employer_id?: string } | null; error: unknown }>;
+  };
+}
+
 interface SupabaseAdminLike {
-  from: (table: string) => any;
+  from: (table: string) => {
+    // Deliberately not itself thenable: every real call here chains at
+    // least one `.eq()` before it's ever awaited, and a real client
+    // resolves `.update(...)` (pre-filter) and `.update(...).eq(...)`
+    // (post-filter) to different shapes.
+    update: (payload: Record<string, unknown>) => { eq: (column: string, value: unknown) => UpdateFilterBuilder };
+  };
 }
 
 export interface JobBillingCheckoutResult {

@@ -10,6 +10,28 @@ export interface ResumeVisualInput {
   url?: string;
 }
 
+// The subset of a parsed application-notes blob this file reads off —
+// callers pass their own `parseApplicationNotes(...)` result, whose full
+// shape varies (see e.g. _shared/ or per-function copies of that parser).
+export interface ParsedNotesForResume {
+  applicationAnswers?: Array<{ question?: string; answer?: string; questionId?: string; id?: string }>;
+  resumeImageUrls?: string[];
+  fileUploads?: Record<string, { imageUrls?: string[] } | null | undefined>;
+}
+
+// Structural, not the real SupabaseClient type: matches only the
+// storage.from(bucket).createSignedUrl(...) chain this file calls.
+export interface AdminStorageClient {
+  storage: {
+    from: (bucket: string) => {
+      createSignedUrl: (
+        path: string,
+        expiresInSeconds: number,
+      ) => Promise<{ data: { signedUrl: string } | null; error: unknown }>;
+    };
+  };
+}
+
 export function isFileLikeUrl(url: string) {
   if (!url || typeof url !== "string") return false;
   const lowerUrl = url.toLowerCase();
@@ -36,7 +58,7 @@ export function isPdfLikeUrl(url: string | null | undefined) {
 
 export function detectResumeUrl(
   resumeUrlField: string | null | undefined,
-  parsedNotes: Record<string, any> | null | undefined,
+  parsedNotes: ParsedNotesForResume | null | undefined,
 ): string | null {
   if (resumeUrlField && typeof resumeUrlField === "string" && resumeUrlField.trim()) {
     return resumeUrlField.trim();
@@ -48,7 +70,7 @@ export function detectResumeUrl(
   }
 
   for (const answer of answers) {
-    if (isFileLikeUrl(answer.answer) && isResumeQuestion(answer.question)) {
+    if (answer.answer && isFileLikeUrl(answer.answer) && isResumeQuestion(answer.question ?? "")) {
       return answer.answer;
     }
   }
@@ -70,7 +92,7 @@ export function parseStorageUrl(url: string): { bucket: string; path: string } |
   return { bucket: match[1], path: decodeURIComponent(match[2]) };
 }
 
-async function fetchWithSignedFallback(url: string, adminClient?: any): Promise<Response | null> {
+async function fetchWithSignedFallback(url: string, adminClient?: AdminStorageClient): Promise<Response | null> {
   const storageInfo = parseStorageUrl(url);
 
   if (/^https?:\/\//i.test(url)) {
@@ -110,7 +132,7 @@ function cleanExtractedText(text: string) {
   return text.replace(/\u0000/g, "").replace(/\s+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-export async function fetchResumeText(resumeUrl: string, adminClient?: any): Promise<string | null> {
+export async function fetchResumeText(resumeUrl: string, adminClient?: AdminStorageClient): Promise<string | null> {
   try {
     const response = await fetchWithSignedFallback(resumeUrl, adminClient);
     if (!response) {
@@ -157,7 +179,7 @@ export async function fetchResumeText(resumeUrl: string, adminClient?: any): Pro
 async function fetchVisualInputFromUrl(
   url: string,
   source: string,
-  adminClient?: any,
+  adminClient?: AdminStorageClient,
   page?: number,
 ): Promise<ResumeVisualInput | null> {
   try {
@@ -193,8 +215,8 @@ async function fetchVisualInputFromUrl(
 
 export async function fetchResumeVisualInputs(params: {
   resumeUrl?: string | null;
-  parsedNotes?: Record<string, any> | null;
-  adminClient?: any;
+  parsedNotes?: ParsedNotesForResume | null;
+  adminClient?: AdminStorageClient;
   maxImages?: number;
 }): Promise<ResumeVisualInput[]> {
   const { resumeUrl, parsedNotes, adminClient, maxImages = 3 } = params;
@@ -216,11 +238,11 @@ export async function fetchResumeVisualInputs(params: {
   if (parsedNotes?.fileUploads && typeof parsedNotes.fileUploads === "object") {
     const answers = Array.isArray(parsedNotes.applicationAnswers) ? parsedNotes.applicationAnswers : [];
     for (const [questionId, upload] of Object.entries(parsedNotes.fileUploads)) {
-      const matchingAnswer = answers.find((answer: any) => answer.questionId === questionId || answer.id === questionId);
+      const matchingAnswer = answers.find((answer) => answer.questionId === questionId || answer.id === questionId);
       const questionText = matchingAnswer?.question || "";
       if (!isResumeQuestion(questionText)) continue;
 
-      const imageList = Array.isArray((upload as any)?.imageUrls) ? (upload as any).imageUrls : [];
+      const imageList = Array.isArray(upload?.imageUrls) ? upload.imageUrls : [];
       imageList.slice(0, maxImages).forEach((url: string, index: number) => {
         pushUrl(url, "resume_question_upload", index + 1);
       });

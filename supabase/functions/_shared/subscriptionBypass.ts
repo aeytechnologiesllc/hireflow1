@@ -8,8 +8,18 @@ export function userHasSubscriptionBypass(
   return user?.app_metadata?.subscription_bypass === true;
 }
 
+interface SupabaseAuthAdminLike {
+  auth: {
+    admin: {
+      getUserById: (
+        userId: string,
+      ) => Promise<{ data: { user: AuthUserWithAppMetadata | null } | null; error: { message: string } | null }>;
+    };
+  };
+}
+
 export async function hasSubscriptionBypassForUser(
-  supabaseAdmin: any,
+  supabaseAdmin: SupabaseAuthAdminLike,
   userId: string,
 ): Promise<boolean> {
   const { data, error } = await supabaseAdmin.auth.admin.getUserById(userId);

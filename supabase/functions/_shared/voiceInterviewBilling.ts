@@ -24,8 +24,39 @@ export interface VoiceInterviewChargeResult {
   status: VoiceInterviewChargeStatus;
 }
 
+// Structural, not the real SupabaseClient type — matches only the
+// select()/insert() chains this file calls, as a PromiseLike (a real
+// supabase-js call returns a thenable PostgrestFilterBuilder, not a native
+// Promise — see _shared/googleIndexing.ts's SupabaseAdminClient for the
+// same shape). `data` stays `unknown` rather than a specific row type: the
+// real client's resolved row type differs per table/column-list, and a
+// concrete shape here only needs to match one call site to break every
+// other caller (see git history — voiceInterviewBilling once hard-coded
+// SubscriptionPaymentRow here, which broke ava-voice-session's real,
+// concretely-typed client on the unrelated job_unlocks/voice_interview_charges
+// head-count calls). Callers cast the one field they read after `await`.
+// Also: `.select()`'s own return type is deliberately NOT itself
+// PromiseLike — every real call here chains at least one `.eq()`/`.in()`
+// before it's ever awaited, and making the pre-filter step thenable too
+// would force it to resolve to the same shape as the post-filter step,
+// which the real builder does not.
+interface VoiceBillingFilterBuilder extends PromiseLike<{ data: unknown; count: number | null; error: unknown }> {
+  eq: (column: string, value: unknown) => VoiceBillingFilterBuilder;
+  in: (column: string, values: unknown[]) => VoiceBillingFilterBuilder;
+  maybeSingle: () => PromiseLike<{ data: unknown; error: unknown }>;
+}
+
 interface SupabaseAdminLike {
-  from: (table: string) => any;
+  from: (table: string) => {
+    select: (
+      columns: string,
+      options?: { count?: "exact"; head?: boolean },
+    ) => {
+      eq: (column: string, value: unknown) => VoiceBillingFilterBuilder;
+      in: (column: string, values: unknown[]) => VoiceBillingFilterBuilder;
+    };
+    insert: (row: Record<string, unknown>) => PromiseLike<{ error: unknown }>;
+  };
 }
 
 export async function recordVoiceInterviewCharge(input: {
@@ -71,11 +102,12 @@ export async function recordVoiceInterviewCharge(input: {
       return { billingEnabled: true, billable: false, status: "included" };
     }
 
-    const { data: sub } = await input.supabaseAdmin
+    const { data: subData } = await input.supabaseAdmin
       .from("subscriptions")
       .select("stripe_customer_id, stripe_default_payment_method_id")
       .eq("user_id", input.employerId)
       .maybeSingle();
+    const sub = subData as { stripe_customer_id: string | null; stripe_default_payment_method_id: string | null } | null;
 
     if (!sub?.stripe_customer_id || !sub?.stripe_default_payment_method_id) {
       console.warn("[voiceInterviewBilling] No saved payment method for overage charge; recording as failed, interview proceeds", {

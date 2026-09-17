@@ -120,7 +120,7 @@ class MetaGraphAdsClient implements MetaAdsClient {
     });
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const message = (json as any)?.error?.message || `Meta Graph API error (${res.status})`;
+      const message = (json as { error?: { message?: string } })?.error?.message || `Meta Graph API error (${res.status})`;
       throw new Error(message);
     }
     return json as T;

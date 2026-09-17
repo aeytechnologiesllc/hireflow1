@@ -902,8 +902,10 @@ Be thorough but concise in your analysis.`,
 // ReturnType of an overloaded function type resolves against its LAST
 // signature — which, on the current @2 (floating) resolution, has stricter
 // generic defaults than the plain 2-argument call below actually returns.
-// SupabaseClient<any, any, any> matches what that call really produces.
-type AdminClient = SupabaseClient<any, any, any>;
+// SupabaseClient's own declared defaults (Database = any, ...) already
+// match what that call really produces — this is that, spelled out with no
+// generics instead of writing its defaults out explicitly as literal `any`.
+type AdminClient = SupabaseClient;
 
 /**
  * Ownership facts for one job, scoped to the single permission flag that

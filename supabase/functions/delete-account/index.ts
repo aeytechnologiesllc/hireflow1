@@ -6,8 +6,10 @@ import { notifyGoogleIndexing } from "../_shared/googleIndexing.ts";
 // ReturnType of an overloaded function type resolves against its LAST
 // signature — which, on the current @2 (floating) resolution, has stricter
 // generic defaults than the plain 2-argument call below actually returns.
-// SupabaseClient<any, any, any> matches what that call really produces.
-type AdminClient = SupabaseClient<any, any, any>;
+// SupabaseClient's own declared defaults (Database = any, ...) already
+// match what that call really produces — this is that, spelled out with no
+// generics instead of writing its defaults out explicitly as literal `any`.
+type AdminClient = SupabaseClient;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -138,13 +140,31 @@ async function deleteRowsByIds(
   return failures;
 }
 
+// listV2 is a real, working Storage API method (checked for at runtime
+// below via `typeof storageApi.listV2 !== 'function'`) that this pinned
+// supabase-js version's own StorageFileApi type doesn't declare yet.
+interface StorageListV2Result {
+  objects?: Array<{ key?: string }>;
+  hasNext?: boolean;
+  nextCursor?: string;
+}
+
+interface StorageApiWithListV2 {
+  listV2?: (opts: {
+    prefix: string;
+    limit: number;
+    cursor?: string;
+  }) => Promise<{ data: StorageListV2Result | null; error: { message: string } | null }>;
+  remove: (paths: string[]) => Promise<{ data: unknown; error: { message: string } | null }>;
+}
+
 async function cleanupUserStorage(
   supabaseAdmin: AdminClient,
   userId: string,
 ) {
   for (const bucket of storageBuckets) {
     try {
-      const storageApi = supabaseAdmin.storage.from(bucket) as any;
+      const storageApi = supabaseAdmin.storage.from(bucket) as unknown as StorageApiWithListV2;
 
       if (typeof storageApi.listV2 !== 'function') {
         console.log(`Skipping storage cleanup for ${bucket}: listV2 is unavailable`);
