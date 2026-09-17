@@ -18,9 +18,10 @@
  * is logged for diagnosis rather than surfaced as a page-level error.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 
 export async function fetchEmployerSealedApplicationIds(
-  supabaseClient: SupabaseClient,
+  supabaseClient: SupabaseClient<Database>,
 ): Promise<Set<string>> {
   try {
     const { data, error } = await supabaseClient.rpc("get_employer_sealed_application_ids");
@@ -28,8 +29,7 @@ export async function fetchEmployerSealedApplicationIds(
       console.error("[sealedApplicationIds] get_employer_sealed_application_ids failed; treating as nothing sealed:", error);
       return new Set();
     }
-    const rows = (data ?? []) as Array<{ application_id: string }>;
-    return new Set(rows.map((r) => r.application_id));
+    return new Set((data ?? []).map((r) => r.application_id));
   } catch (err) {
     console.error("[sealedApplicationIds] Unexpected error; treating as nothing sealed:", err);
     return new Set();

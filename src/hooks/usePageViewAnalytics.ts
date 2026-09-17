@@ -22,18 +22,6 @@ export interface PageViewSummary {
   totalViews: number;
 }
 
-// See the matching comment in useClientErrorEvents.ts: page_view_daily is
-// not in the generated Database type yet because it's generated from the
-// live DB and this migration hasn't been applied there. RLS gates real
-// access, not this cast.
-const db = supabase as unknown as {
-  from(table: "page_view_daily"): {
-    select: (cols: string) => {
-      gte: (col: string, value: string) => Promise<{ data: PageViewRow[] | null; error: unknown }>;
-    };
-  };
-};
-
 const DAYS_BACK = 30;
 
 export function usePageViewAnalytics() {
@@ -44,7 +32,7 @@ export function usePageViewAnalytics() {
     queryKey: ["developer-page-view-analytics"],
     queryFn: async (): Promise<PageViewSummary> => {
       const since = format(subDays(new Date(), DAYS_BACK - 1), "yyyy-MM-dd");
-      const { data, error } = await db
+      const { data, error } = await supabase
         .from("page_view_daily")
         .select("day, path, referrer_host, utm_source, utm_medium, utm_campaign, device_class, view_count")
         .gte("day", since);

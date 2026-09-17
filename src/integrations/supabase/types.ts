@@ -32,6 +32,70 @@ export type Database = {
         }
         Relationships: []
       }
+      applicant_packs: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          employer_id: string
+          id: string
+          included_applicants: number
+          job_id: string
+          job_unlock_id: string | null
+          status: string
+          stripe_checkout_session_id: string | null
+          stripe_payment_intent_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount_cents?: number
+          created_at?: string
+          employer_id: string
+          id?: string
+          included_applicants?: number
+          job_id: string
+          job_unlock_id?: string | null
+          status?: string
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          employer_id?: string
+          id?: string
+          included_applicants?: number
+          job_id?: string
+          job_unlock_id?: string | null
+          status?: string
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "applicant_packs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applicant_packs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "published_jobs_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applicant_packs_job_unlock_id_fkey"
+            columns: ["job_unlock_id"]
+            isOneToOne: false
+            referencedRelation: "job_unlocks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       applications: {
         Row: {
           ai_analysis: string | null
@@ -174,6 +238,150 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      boost_orders: {
+        Row: {
+          authorized_at: string | null
+          captured_at: string | null
+          created_at: string
+          employer_id: string
+          hold_expires_at: string | null
+          id: string
+          job_id: string
+          meta_ad_id: string | null
+          meta_ad_set_id: string | null
+          meta_campaign_id: string | null
+          meta_creative_id: string | null
+          meta_rejection_reason: string | null
+          meta_review_status: string | null
+          radius_miles: number
+          reach_estimate_high: number | null
+          reach_estimate_low: number | null
+          released_at: string | null
+          retry_count: number
+          status: string
+          stripe_checkout_session_id: string | null
+          stripe_payment_intent_id: string | null
+          tier_cents: number
+          updated_at: string
+        }
+        Insert: {
+          authorized_at?: string | null
+          captured_at?: string | null
+          created_at?: string
+          employer_id: string
+          hold_expires_at?: string | null
+          id?: string
+          job_id: string
+          meta_ad_id?: string | null
+          meta_ad_set_id?: string | null
+          meta_campaign_id?: string | null
+          meta_creative_id?: string | null
+          meta_rejection_reason?: string | null
+          meta_review_status?: string | null
+          radius_miles?: number
+          reach_estimate_high?: number | null
+          reach_estimate_low?: number | null
+          released_at?: string | null
+          retry_count?: number
+          status?: string
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          tier_cents: number
+          updated_at?: string
+        }
+        Update: {
+          authorized_at?: string | null
+          captured_at?: string | null
+          created_at?: string
+          employer_id?: string
+          hold_expires_at?: string | null
+          id?: string
+          job_id?: string
+          meta_ad_id?: string | null
+          meta_ad_set_id?: string | null
+          meta_campaign_id?: string | null
+          meta_creative_id?: string | null
+          meta_rejection_reason?: string | null
+          meta_review_status?: string | null
+          radius_miles?: number
+          reach_estimate_high?: number | null
+          reach_estimate_low?: number | null
+          released_at?: string | null
+          retry_count?: number
+          status?: string
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          tier_cents?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "boost_orders_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boost_orders_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "published_jobs_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_error_events: {
+        Row: {
+          browser_family: string | null
+          fingerprint: string
+          first_seen_at: string
+          id: string
+          last_notified_at: string | null
+          last_notified_count: number
+          last_seen_at: string
+          last_user_id: string | null
+          message: string
+          occurrence_count: number
+          release: string | null
+          route: string
+          stack: string | null
+          user_role: string | null
+        }
+        Insert: {
+          browser_family?: string | null
+          fingerprint: string
+          first_seen_at?: string
+          id?: string
+          last_notified_at?: string | null
+          last_notified_count?: number
+          last_seen_at?: string
+          last_user_id?: string | null
+          message: string
+          occurrence_count?: number
+          release?: string | null
+          route?: string
+          stack?: string | null
+          user_role?: string | null
+        }
+        Update: {
+          browser_family?: string | null
+          fingerprint?: string
+          first_seen_at?: string
+          id?: string
+          last_notified_at?: string | null
+          last_notified_count?: number
+          last_seen_at?: string
+          last_user_id?: string | null
+          message?: string
+          occurrence_count?: number
+          release?: string | null
+          route?: string
+          stack?: string | null
+          user_role?: string | null
+        }
+        Relationships: []
       }
       document_audit_logs: {
         Row: {
@@ -721,6 +929,76 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "job_quiz_keys_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "published_jobs_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_unlocks: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          employer_id: string
+          expires_at: string | null
+          id: string
+          included_applicants: number
+          included_voice_interviews: number
+          job_id: string
+          status: string
+          stripe_checkout_session_id: string | null
+          stripe_payment_intent_id: string | null
+          unlocked_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount_cents?: number
+          created_at?: string
+          employer_id: string
+          expires_at?: string | null
+          id?: string
+          included_applicants?: number
+          included_voice_interviews?: number
+          job_id: string
+          status?: string
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          unlocked_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          employer_id?: string
+          expires_at?: string | null
+          id?: string
+          included_applicants?: number
+          included_voice_interviews?: number
+          job_id?: string
+          status?: string
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          unlocked_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_unlocks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_unlocks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "published_jobs_public"
+            referencedColumns: ["id"]
+          },
         ]
       }
       jobs: {
@@ -909,6 +1187,7 @@ export type Database = {
           is_read: boolean
           link: string | null
           message: string
+          push_sent_at: string | null
           title: string
           type: Database["public"]["Enums"]["notification_type"]
           user_id: string
@@ -919,6 +1198,7 @@ export type Database = {
           is_read?: boolean
           link?: string | null
           message: string
+          push_sent_at?: string | null
           title: string
           type: Database["public"]["Enums"]["notification_type"]
           user_id: string
@@ -929,9 +1209,52 @@ export type Database = {
           is_read?: boolean
           link?: string | null
           message?: string
+          push_sent_at?: string | null
           title?: string
           type?: Database["public"]["Enums"]["notification_type"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      page_view_daily: {
+        Row: {
+          created_at: string
+          day: string
+          device_class: string
+          id: string
+          path: string
+          referrer_host: string
+          updated_at: string
+          utm_campaign: string
+          utm_medium: string
+          utm_source: string
+          view_count: number
+        }
+        Insert: {
+          created_at?: string
+          day: string
+          device_class?: string
+          id?: string
+          path: string
+          referrer_host?: string
+          updated_at?: string
+          utm_campaign?: string
+          utm_medium?: string
+          utm_source?: string
+          view_count?: number
+        }
+        Update: {
+          created_at?: string
+          day?: string
+          device_class?: string
+          id?: string
+          path?: string
+          referrer_host?: string
+          updated_at?: string
+          utm_campaign?: string
+          utm_medium?: string
+          utm_source?: string
+          view_count?: number
         }
         Relationships: []
       }
@@ -1076,6 +1399,48 @@ export type Database = {
         }
         Relationships: []
       }
+      quiz_attempt_ledger: {
+        Row: {
+          attempts: number
+          candidate_id: string
+          job_id: string
+          last_attempt_at: string | null
+          retakes_granted: number
+          step_id: string
+        }
+        Insert: {
+          attempts?: number
+          candidate_id: string
+          job_id: string
+          last_attempt_at?: string | null
+          retakes_granted?: number
+          step_id: string
+        }
+        Update: {
+          attempts?: number
+          candidate_id?: string
+          job_id?: string
+          last_attempt_at?: string | null
+          retakes_granted?: number
+          step_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_attempt_ledger_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_attempt_ledger_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "published_jobs_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscription_usage: {
         Row: {
           ai_analyses_used: number | null
@@ -1134,6 +1499,7 @@ export type Database = {
           plan_type: string
           status: string
           stripe_customer_id: string | null
+          stripe_default_payment_method_id: string | null
           stripe_subscription_id: string | null
           trial_end: string | null
           trial_start: string | null
@@ -1153,6 +1519,7 @@ export type Database = {
           plan_type?: string
           status?: string
           stripe_customer_id?: string | null
+          stripe_default_payment_method_id?: string | null
           stripe_subscription_id?: string | null
           trial_end?: string | null
           trial_start?: string | null
@@ -1172,6 +1539,7 @@ export type Database = {
           plan_type?: string
           status?: string
           stripe_customer_id?: string | null
+          stripe_default_payment_method_id?: string | null
           stripe_subscription_id?: string | null
           trial_end?: string | null
           trial_start?: string | null
@@ -1321,6 +1689,62 @@ export type Database = {
           },
         ]
       }
+      trusted_result_enforcement: {
+        Row: {
+          enforced: boolean
+          result_key: string
+          updated_at: string
+        }
+        Insert: {
+          enforced?: boolean
+          result_key: string
+          updated_at?: string
+        }
+        Update: {
+          enforced?: boolean
+          result_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      typing_test_starts: {
+        Row: {
+          application_id: string
+          created_at: string
+          ended_at: string | null
+          id: string
+          started_at: string
+          step_id: string
+          target_text: string
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          started_at?: string
+          step_id: string
+          target_text: string
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          started_at?: string
+          step_id?: string
+          target_text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "typing_test_starts_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -1384,6 +1808,130 @@ export type Database = {
         }
         Relationships: []
       }
+      voice_interview_charges: {
+        Row: {
+          amount_cents: number
+          application_id: string | null
+          billable: boolean
+          created_at: string
+          employer_id: string
+          id: string
+          job_id: string
+          ordinal: number
+          status: string
+          stripe_payment_intent_id: string | null
+          updated_at: string
+          voice_session_log_id: string | null
+        }
+        Insert: {
+          amount_cents?: number
+          application_id?: string | null
+          billable?: boolean
+          created_at?: string
+          employer_id: string
+          id?: string
+          job_id: string
+          ordinal: number
+          status?: string
+          stripe_payment_intent_id?: string | null
+          updated_at?: string
+          voice_session_log_id?: string | null
+        }
+        Update: {
+          amount_cents?: number
+          application_id?: string | null
+          billable?: boolean
+          created_at?: string
+          employer_id?: string
+          id?: string
+          job_id?: string
+          ordinal?: number
+          status?: string
+          stripe_payment_intent_id?: string | null
+          updated_at?: string
+          voice_session_log_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_interview_charges_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_interview_charges_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_interview_charges_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "published_jobs_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_interview_charges_voice_session_log_id_fkey"
+            columns: ["voice_session_log_id"]
+            isOneToOne: false
+            referencedRelation: "voice_session_log"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      voice_session_log: {
+        Row: {
+          application_id: string | null
+          caller_user_id: string
+          created_at: string
+          employer_id: string
+          ended_at: string | null
+          hard_cap_minutes: number
+          id: string
+          minutes_charged: number | null
+          mode: string
+          started_at: string
+          time_limit_minutes: number
+        }
+        Insert: {
+          application_id?: string | null
+          caller_user_id: string
+          created_at?: string
+          employer_id: string
+          ended_at?: string | null
+          hard_cap_minutes?: number
+          id?: string
+          minutes_charged?: number | null
+          mode: string
+          started_at?: string
+          time_limit_minutes: number
+        }
+        Update: {
+          application_id?: string | null
+          caller_user_id?: string
+          created_at?: string
+          employer_id?: string
+          ended_at?: string | null
+          hard_cap_minutes?: number
+          id?: string
+          minutes_charged?: number | null
+          mode?: string
+          started_at?: string
+          time_limit_minutes?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_session_log_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       employer_public_branding: {
@@ -1408,6 +1956,7 @@ export type Database = {
         Row: {
           application_deadline: string | null
           application_questions: Json | null
+          benefits: string[] | null
           created_at: string | null
           department: string | null
           description: string | null
@@ -1441,6 +1990,7 @@ export type Database = {
         Insert: {
           application_deadline?: string | null
           application_questions?: never
+          benefits?: string[] | null
           created_at?: string | null
           department?: string | null
           description?: string | null
@@ -1474,6 +2024,7 @@ export type Database = {
         Update: {
           application_deadline?: string | null
           application_questions?: never
+          benefits?: string[] | null
           created_at?: string | null
           department?: string | null
           description?: string | null
@@ -1550,13 +2101,22 @@ export type Database = {
       email_exists: { Args: { p_email: string }; Returns: boolean }
       ensure_profile_exists: { Args: { p_user_id: string }; Returns: undefined }
       get_billing_flags: {
-        Args: Record<PropertyKey, never>
-        Returns: { billing_enabled: boolean; boost_enabled: boolean }[]
+        Args: never
+        Returns: {
+          billing_enabled: boolean
+          boost_enabled: boolean
+        }[]
+      }
+      get_employer_sealed_application_ids: {
+        Args: never
+        Returns: {
+          application_id: string
+        }[]
       }
       get_job_billing_status: {
         Args: { p_job_id: string }
         Returns: {
-          active_unlock_expires_at: string | null
+          active_unlock_expires_at: string
           applicant_count: number
           billing_enabled: boolean
           has_active_unlock: boolean
@@ -1572,7 +2132,11 @@ export type Database = {
       }
       get_job_quiz_keys: {
         Args: { p_job_id: string }
-        Returns: { key: Json; question_id: string; step_id: string }[]
+        Returns: {
+          key: Json
+          question_id: string
+          step_id: string
+        }[]
       }
       get_team_invitation_by_code: {
         Args: { p_code: string }
@@ -1611,6 +2175,10 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      grant_quiz_retake: {
+        Args: { p_candidate_id: string; p_job_id: string; p_step_id: string }
+        Returns: undefined
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1636,8 +2204,66 @@ export type Database = {
         Args: { _employer_id: string; _user_id: string }
         Returns: boolean
       }
+      job_active_pack_count: { Args: { p_job_id: string }; Returns: number }
+      job_applicant_count: { Args: { p_job_id: string }; Returns: number }
+      job_has_active_unlock: { Args: { p_job_id: string }; Returns: boolean }
+      job_is_locked: { Args: { p_job_id: string }; Returns: boolean }
       job_limit_for_user: { Args: { target_user_id: string }; Returns: number }
+      job_processed_allowance: { Args: { p_job_id: string }; Returns: number }
+      job_sealed_count: { Args: { p_job_id: string }; Returns: number }
+      job_unlock_count: { Args: { p_job_id: string }; Returns: number }
+      job_voice_included_total: { Args: { p_job_id: string }; Returns: number }
+      job_voice_interview_is_billable: {
+        Args: { p_job_id: string }
+        Returns: boolean
+      }
+      job_voice_interviews_used: { Args: { p_job_id: string }; Returns: number }
+      protected_application_notes_subset: {
+        Args: { p_notes: Json }
+        Returns: Json
+      }
+      protected_trusted_result_notes_subset: {
+        Args: { p_notes: Json }
+        Returns: Json
+      }
       prune_rate_limits: { Args: never; Returns: undefined }
+      reconcile_orphaned_profiles: {
+        Args: never
+        Returns: {
+          company_names_filled: number
+          profiles_created: number
+          roles_assigned: number
+        }[]
+      }
+      record_client_error_event: {
+        Args: {
+          p_browser_family: string
+          p_fingerprint: string
+          p_message: string
+          p_release: string
+          p_route: string
+          p_stack: string
+          p_user_id: string
+          p_user_role: string
+        }
+        Returns: {
+          out_id: string
+          out_is_new: boolean
+          out_occurrence_count: number
+        }[]
+      }
+      record_page_view: {
+        Args: {
+          p_day: string
+          p_device_class: string
+          p_path: string
+          p_referrer_host: string
+          p_utm_campaign: string
+          p_utm_medium: string
+          p_utm_source: string
+        }
+        Returns: undefined
+      }
       submit_quiz_attempt: {
         Args: {
           p_answers: Json
@@ -1662,6 +2288,10 @@ export type Database = {
       team_member_limit_for_user: {
         Args: { target_user_id: string }
         Returns: number
+      }
+      trusted_result_key_for: {
+        Args: { p_key: string; p_type: string }
+        Returns: string
       }
     }
     Enums: {
@@ -1700,12 +2330,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1729,11 +2359,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1754,11 +2384,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1779,11 +2409,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1796,11 +2426,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
