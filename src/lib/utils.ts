@@ -32,3 +32,18 @@ export function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }
+
+/**
+ * Reads a string `message` off any thrown/caught value, falling back when
+ * there isn't one. `instanceof Error` misses plain-object errors — notably
+ * postgrest-js, whose `{ error }` from `.from()`/`.rpc()` is a plain object
+ * built with `JSON.parse(body)`, not an `Error` instance — so this checks
+ * for a `message` property directly instead of narrowing by class.
+ */
+export function getErrorMessage(error: unknown, fallback: string): string {
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message) return message;
+  }
+  return fallback;
+}

@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { CheckCircle, XCircle } from "lucide-react";
 import BrandLoader from "@/components/BrandLoader";
+import { getErrorMessage } from "@/lib/utils";
 
 const FIXED_REDIRECT_URI = `${window.location.origin}/oauth/google/callback`;
 
@@ -72,7 +73,7 @@ export default function OAuthGoogleCallback() {
       } catch (err) {
         console.error("Google OAuth error:", err);
         setStatus("error");
-        setMessage((err instanceof Error && err.message) || "Failed to connect Google Calendar");
+        setMessage(getErrorMessage(err, "Failed to connect Google Calendar"));
         localStorage.removeItem("interview_wizard_state");
         toast.error("Failed to connect Google Calendar");
         setTimeout(() => navigate(returnUrl), 2000);

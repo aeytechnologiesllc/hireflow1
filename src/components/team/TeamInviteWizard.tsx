@@ -15,6 +15,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { useEmployerJobs } from "@/hooks/useJobs";
 import { motion, AnimatePresence } from "framer-motion";
 import { TeamMemberLimitDialog } from "@/components/subscription/TeamMemberLimitDialog";
+import { getErrorMessage } from "@/lib/utils";
 
 interface TeamInviteWizardProps {
   open: boolean;
@@ -164,7 +165,7 @@ export function TeamInviteWizard({ open, onOpenChange, onSuccess }: TeamInviteWi
     } catch (error) {
       toast({
         title: "Error",
-        description: (error instanceof Error && error.message) || "Failed to create invitation",
+        description: getErrorMessage(error, "Failed to create invitation"),
         variant: "destructive",
       });
     } finally {

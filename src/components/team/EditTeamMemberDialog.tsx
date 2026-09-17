@@ -12,6 +12,7 @@ import { Check, Shield, Briefcase, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useEmployerJobs } from "@/hooks/useJobs";
 import { useUpdateTeamMember, TeamMember } from "@/hooks/useTeamMembers";
+import { getErrorMessage } from "@/lib/utils";
 
 interface EditTeamMemberDialogProps {
   open: boolean;
@@ -152,7 +153,7 @@ export function EditTeamMemberDialog({ open, onOpenChange, member }: EditTeamMem
     } catch (error) {
       toast({
         title: "Error",
-        description: (error instanceof Error && error.message) || "Failed to update permissions",
+        description: getErrorMessage(error, "Failed to update permissions"),
         variant: "destructive",
       });
     }

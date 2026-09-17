@@ -13,6 +13,7 @@ import { Users, Shield, Briefcase, Check, X, Loader2 } from "lucide-react";
 import BrandLoader from "@/components/BrandLoader";
 import { motion } from "framer-motion";
 import { GOOGLE_AUTH_ENABLED } from "@/lib/googleAuth";
+import { getErrorMessage } from "@/lib/utils";
 
 interface InvitationData {
   invitee_email: string | null;
@@ -94,7 +95,7 @@ export default function JoinTeam() {
           setFullName(inviteData.invitee_name);
         }
       } catch (err) {
-        setError((err instanceof Error && err.message) || "Failed to load invitation");
+        setError(getErrorMessage(err, "Failed to load invitation"));
       } finally {
         setLoading(false);
       }
@@ -178,7 +179,7 @@ export default function JoinTeam() {
     } catch (err) {
       toast({
         title: "Error",
-        description: (err instanceof Error && err.message) || "Failed to accept invitation",
+        description: getErrorMessage(err, "Failed to accept invitation"),
         variant: "destructive",
       });
     } finally {

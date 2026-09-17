@@ -16,7 +16,7 @@ import { supabase, SUPABASE_URL } from "@/integrations/supabase/client";
 import type { TablesInsert } from "@/integrations/supabase/types";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
-import { cn, formatFileSize } from "@/lib/utils";
+import { cn, formatFileSize, getErrorMessage } from "@/lib/utils";
 import {
   FileText,
   ChevronRight,
@@ -474,7 +474,7 @@ export function DocumentWizard({
       console.error("Error uploading file:", error);
       toast({
         title: "Upload Failed",
-        description: (error instanceof Error && error.message) || "Failed to upload file.",
+        description: getErrorMessage(error, "Failed to upload file."),
         variant: "destructive",
       });
       setUploadedFile(null);
@@ -541,7 +541,7 @@ export function DocumentWizard({
       console.error("Error generating document:", error);
       toast({
         title: "Generation Failed",
-        description: (error instanceof Error && error.message) || "Failed to generate document. Please try again.",
+        description: getErrorMessage(error, "Failed to generate document. Please try again."),
         variant: "destructive",
       });
     } finally {
@@ -784,7 +784,7 @@ export function DocumentWizard({
       console.error("Error creating document:", error);
       toast({
         title: "Error",
-        description: (error instanceof Error && error.message) || "Failed to create document.",
+        description: getErrorMessage(error, "Failed to create document."),
         variant: "destructive",
       });
     } finally {

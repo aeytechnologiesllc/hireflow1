@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import type { TablesInsert } from "@/integrations/supabase/types";
 import { FileText, Send, Loader2 } from "lucide-react";
+import { getErrorMessage } from "@/lib/utils";
 
 interface Application {
   id: string;
@@ -238,7 +239,7 @@ export function CreateDocumentDialog({ open, onOpenChange, applications }: Creat
       console.error("Error creating document:", error);
       toast({
         title: "Error",
-        description: (error instanceof Error && error.message) || "Failed to create document.",
+        description: getErrorMessage(error, "Failed to create document."),
         variant: "destructive",
       });
     } finally {

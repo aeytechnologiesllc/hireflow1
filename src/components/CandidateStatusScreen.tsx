@@ -27,6 +27,7 @@ import { CandidateRescheduleRequestDialog } from "@/components/CandidateReschedu
 import { AvaSeal } from "@/components/ava/AvaSeal";
 import { useImprovementBlueprint, BLUEPRINT_PRICE_FORMATTED } from "@/hooks/useImprovementBlueprint";
 import { ImprovementBlueprintView } from "@/components/ImprovementBlueprintView";
+import { getErrorMessage } from "@/lib/utils";
 
 /* ── Shared pieces ──────────────────────────────────────────────────────
    Every state is the same shell: a quiet icon mark, one Fraunces headline
@@ -365,7 +366,7 @@ export function CandidateStatusScreen({
     } catch (error) {
       console.error("Error confirming interview:", error);
       toast.error("Failed to confirm interview", {
-        description: (error instanceof Error && error.message) || "Please try again.",
+        description: getErrorMessage(error, "Please try again."),
       });
     } finally {
       setIsConfirming(false);

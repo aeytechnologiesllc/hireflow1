@@ -2,6 +2,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { ApplicationWithCandidate } from "./useApplications";
+import { getErrorMessage } from "@/lib/utils";
 
 export interface RankedCandidate {
   rank: number;
@@ -129,7 +130,7 @@ export function useAIShortlist() {
       return result;
     } catch (error) {
       console.error('Error generating shortlist:', error);
-      toast.error((error instanceof Error && error.message) || "Failed to generate shortlist");
+      toast.error(getErrorMessage(error, "Failed to generate shortlist"));
       return null;
     } finally {
       setIsLoading(false);

@@ -19,7 +19,7 @@ import { Loader2, Copy, Check, ChevronDown, HelpCircle } from "lucide-react";
 import { AvaSeal } from "@/components/ava/AvaSeal";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, getErrorMessage } from "@/lib/utils";
 import type { InterviewWithDetails } from "@/hooks/useInterviews";
 
 interface InterviewQuestionsDialogProps {
@@ -384,7 +384,7 @@ export default function InterviewQuestionsDialog({
       }
     } catch (error) {
       console.error("[InterviewQuestions] Generation error:", error);
-      toast.error((error instanceof Error && error.message) || "Failed to generate questions");
+      toast.error(getErrorMessage(error, "Failed to generate questions"));
     } finally {
       setIsGenerating(false);
       // Keep isRegeneratingRef true briefly to prevent immediate sync overwrite

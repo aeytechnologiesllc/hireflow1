@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SecurityBadge } from "./SecurityBadge";
 import { DocumentRequestWithDetails, getDocumentTypeLabel } from "@/hooks/useDocumentRequests";
 import { supabase } from "@/integrations/supabase/client";
-import { cn } from "@/lib/utils";
+import { cn, getErrorMessage } from "@/lib/utils";
 import { format } from "date-fns";
 import {
   FileText,
@@ -118,7 +118,7 @@ export function DocumentRequestViewerDialog({
       setSignedUrl(data.signedUrl);
     } catch (err) {
       console.error("Error fetching signed URL:", err);
-      setError((err instanceof Error && err.message) || "Failed to load document");
+      setError(getErrorMessage(err, "Failed to load document"));
     } finally {
       setIsLoading(false);
     }

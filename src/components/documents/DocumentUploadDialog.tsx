@@ -14,7 +14,7 @@ import { DocumentRequestWithDetails, getDocumentTypeLabel, useUpdateDocumentRequ
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { cn, formatFileSize } from "@/lib/utils";
+import { cn, formatFileSize, getErrorMessage } from "@/lib/utils";
 import { format } from "date-fns";
 import {
   Upload,
@@ -181,7 +181,7 @@ export function DocumentUploadDialog({
       }, 1500);
     } catch (err) {
       console.error("Upload error:", err);
-      setError((err instanceof Error && err.message) || "Failed to upload document. Please try again.");
+      setError(getErrorMessage(err, "Failed to upload document. Please try again."));
       setPhase("idle");
     }
   };

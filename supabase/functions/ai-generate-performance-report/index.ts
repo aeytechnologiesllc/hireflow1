@@ -333,7 +333,12 @@ Return ONLY the JSON object described in the system prompt.`;
   } catch (error) {
     console.error('Error generating improvement blueprint:', error);
     return new Response(
-      JSON.stringify({ error: (error instanceof Error && error.message) || 'Failed to generate report' }),
+      JSON.stringify({
+        error:
+          (typeof error === 'object' && error !== null && 'message' in error && typeof (error as { message?: unknown }).message === 'string'
+            ? (error as { message: string }).message
+            : undefined) || 'Failed to generate report',
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
