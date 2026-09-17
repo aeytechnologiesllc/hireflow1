@@ -12,6 +12,7 @@
  */
 import {
   isBotUserAgent,
+  isLocalDevOrigin,
   honorsOptOut,
   classifyBrowserFamily,
   classifyDeviceClass,
@@ -268,6 +269,24 @@ console.log("\nPage-view payload sanitizing:\n");
   check("missing utm fields normalize to null, not undefined/empty-string", noUtm.utmSource === null && noUtm.utmMedium === null && noUtm.utmCampaign === null);
   check("missing referrerHost normalizes to null", noUtm.referrerHost === null);
   check("fallback device class is used when the client sends none", noUtm.deviceClass === "mobile");
+}
+
+// isLocalDevOrigin — dev-server pages must not land in production telemetry.
+{
+  check("localhost origin is local", isLocalDevOrigin("http://localhost:5471"));
+  check("127.0.0.1 origin is local", isLocalDevOrigin("http://127.0.0.1:8080"));
+  check("[::1] origin is local", isLocalDevOrigin("http://[::1]:8080"));
+  check("LAN dev server (phone testing) is local", isLocalDevOrigin("http://192.168.1.20:8080"));
+  check("*.local mDNS host is local", isLocalDevOrigin("http://my-mac.local:8080"));
+  check("referer is used when origin is missing", isLocalDevOrigin(null, "http://localhost:8080/applicants"));
+  check("the live site is not local", !isLocalDevOrigin("https://hireflownow.com"));
+  check("www live site is not local", !isLocalDevOrigin("https://www.hireflownow.com", "https://www.hireflownow.com/jobs"));
+  check("a Vercel preview is not local", !isLocalDevOrigin("https://hireflow1-git-x.vercel.app"));
+  check("a lookalike host is not local", !isLocalDevOrigin("https://localhost.evil.com"));
+  check("no origin and no referer is not local", !isLocalDevOrigin(null, null));
+  check("an opaque 'null' origin falls through to referer", isLocalDevOrigin("null", "http://localhost:3000/"));
+  check("garbage origin is not local", !isLocalDevOrigin("not a url"));
+  check("a live origin wins over a local-looking referer", !isLocalDevOrigin("https://hireflownow.com", "http://localhost/"));
 }
 
 console.log(`\n${passed} passed, ${failed} failed.`);

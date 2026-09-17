@@ -17,16 +17,12 @@ import SubscriptionSuccessModal from "./SubscriptionSuccessModal";
 /**
  * NEVER fall back to a hardcoded key. A missing VITE_STRIPE_PUBLISHABLE_KEY used to
  * silently drop production into Stripe TEST mode: checkout opened, looked correct,
- * and could not take a real payment. Now the failure is loud and visible.
+ * and could not take a real payment. Now the failure is loud and visible: the
+ * dialog says checkout is unavailable, and the console error below fires the
+ * moment someone actually tries to pay. It used to fire at import time, which put
+ * an error in the console of every page for every visitor while billing is off.
  */
 const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined;
-
-if (!STRIPE_PUBLISHABLE_KEY) {
-  console.error(
-    "[HireFlow] VITE_STRIPE_PUBLISHABLE_KEY is not set — checkout is disabled. " +
-      "Set the LIVE key in the hosting environment."
-  );
-}
 
 const stripePromise = STRIPE_PUBLISHABLE_KEY ? loadStripe(STRIPE_PUBLISHABLE_KEY) : null;
 
@@ -133,6 +129,15 @@ export default function EmbeddedCheckoutDialog({
       resetDialog();
     }
   };
+
+  useEffect(() => {
+    if (clientSecret && !stripePromise) {
+      console.error(
+        "[HireFlow] VITE_STRIPE_PUBLISHABLE_KEY is not set — checkout is disabled. " +
+          "Set the LIVE key in the hosting environment."
+      );
+    }
+  }, [clientSecret]);
 
   if (!clientSecret && !paymentComplete) return null;
 

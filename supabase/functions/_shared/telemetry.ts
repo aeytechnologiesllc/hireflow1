@@ -102,6 +102,40 @@ export function isBotUserAgent(userAgent: string | null | undefined): boolean {
   return BOT_UA_SUBSTRINGS.some((needle) => ua.includes(needle));
 }
 
+/**
+ * True when the report comes from a page running on a developer's own machine
+ * (vite dev, vite preview, the /__preview harness, a local Playwright run).
+ * Those pages post to the same production endpoints, and before this check
+ * every recorded "crash" was dev-server noise (duplicate-React errors from
+ * /node_modules/.vite/deps/ on localhost), which buries real crashes.
+ * Checks the browser-set Origin header first, then Referer; a request with
+ * neither is not treated as local.
+ */
+export function isLocalDevOrigin(origin: string | null | undefined, referer?: string | null): boolean {
+  for (const raw of [origin, referer]) {
+    if (!raw || raw === "null") continue;
+    let host: string;
+    try {
+      host = new URL(raw).hostname.toLowerCase();
+    } catch {
+      continue;
+    }
+    return (
+      host === "localhost" ||
+      host.endsWith(".localhost") ||
+      host === "0.0.0.0" ||
+      host === "[::1]" ||
+      host === "::1" ||
+      host.endsWith(".local") ||
+      /^127\./.test(host) ||
+      /^10\./.test(host) ||
+      /^192\.168\./.test(host) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+    );
+  }
+  return false;
+}
+
 /** True when the caller told us (DNT / GPC) not to be tracked. Server-side belt-and-suspenders; beacon.js already checks this before sending. */
 export function honorsOptOut(dnt: string | null | undefined, gpc: string | null | undefined): boolean {
   return dnt === "1" || gpc === "1";

@@ -41,6 +41,8 @@ export interface JobPostingJob {
   is_remote?: boolean | null;
   /** Extra structured locations for multi-city / multi-country postings. */
   locations?: JobLocationStruct[] | null;
+  /** Employer-authored perks (e.g. "Health insurance", "Flexible schedule") — mirrors api/job-prerender.mjs's jobBenefits. */
+  benefits?: string[] | null;
 }
 
 /** schema.org Place from a structured location (real country code + coords → precise geo-targeting). */
@@ -201,6 +203,10 @@ export function JobPostingJsonLd({ job, company, logo }: { job: JobPostingJob; c
         ...(isAbsoluteUrl(logo) ? { logo } : {}),
       },
     };
+
+    // schema.org jobBenefits is a plain Text field — mirrors api/job-prerender.mjs.
+    const benefitsText = (job.benefits ?? []).filter((b) => typeof b === "string" && b.trim()).join(", ");
+    if (benefitsText) data.jobBenefits = benefitsText;
 
     if (job.application_deadline) {
       data.validThrough = new Date(job.application_deadline).toISOString();

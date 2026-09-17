@@ -130,11 +130,10 @@ export default function JobDetails() {
   // Check if application deadline has passed
   const isDeadlinePassed = job?.application_deadline && isPast(new Date(job.application_deadline));
 
-  // published_jobs_public never selects jobs.benefits (see its definition in
-  // supabase/migrations — every column it does select is audited there, and
-  // benefits has never been one of them), so this has always been null for
-  // every candidate; typed explicitly here rather than assumed on `job`.
-  const jobBenefits = (job as { benefits?: string[] } | null | undefined)?.benefits ?? null;
+  // published_jobs_public now selects jobs.benefits (see
+  // supabase/migrations/20260916200000_published_jobs_public_benefits.sql),
+  // so this reads straight off the real, regenerated column type.
+  const jobBenefits = job?.benefits ?? null;
 
   // Check applicant limit when job loads
   useEffect(() => {

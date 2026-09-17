@@ -20,6 +20,8 @@ export interface JobBrief {
   whatTheyDo: string;
   followUps: BriefAnswer[];
   openings: number;
+  /** Employer-authored perks mentioned during intake (voice or typed) — see src/lib/jobFromFlow.ts. */
+  benefits: string[];
 }
 
 export interface RigorRecommendation {

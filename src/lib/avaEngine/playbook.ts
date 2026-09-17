@@ -214,6 +214,7 @@ export function briefFromForm(fields: {
   workMode?: string;
   openings?: number;
   followUps?: BriefAnswer[];
+  benefits?: string[];
 }): JobBrief {
   const typeLower = fields.type.toLowerCase();
   let employmentType: JobBrief["employmentType"] = "full_time";
@@ -240,5 +241,6 @@ export function briefFromForm(fields: {
     whatTheyDo: fields.work.trim(),
     followUps: fields.followUps ?? [],
     openings: fields.openings ?? 1,
+    benefits: fields.benefits ?? [],
   };
 }

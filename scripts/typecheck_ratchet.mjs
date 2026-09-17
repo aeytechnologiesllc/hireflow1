@@ -51,6 +51,16 @@ import process from "node:process";
  * never selects `jobs.benefits` (JobDetails.tsx — see the code comment
  * there and task_4e14a421) and `documents` has no `updated_at` column
  * (cockpit/lib/mappers.ts).
+ *
+ * Merged with origin/main 2026-09-16: main independently added `benefits` to
+ * published_jobs_public's Row type (same migration name,
+ * 20260916200000_published_jobs_public_benefits.sql) and wired
+ * src/lib/avaEngine/types.ts's JobBrief.benefits through jobFromFlow.ts —
+ * landing at its own BASELINE = 188 (down from 191) because main hadn't also
+ * done this branch's showcase-schema/zero-any work. After merging both, the
+ * `published_jobs_public` benefits gap this file used to document is gone
+ * (JobDetails.tsx now reads `job.benefits` directly, no cast), and the
+ * showcase-schema fix still holds, so the true count stays 0, not 188 or 3.
  */
 const BASELINE = 0;
 

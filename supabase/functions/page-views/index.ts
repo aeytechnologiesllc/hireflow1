@@ -19,7 +19,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { guardPublicAiCall } from "../_shared/rateLimit.ts";
-import { classifyDeviceClass, honorsOptOut, isBotUserAgent, sanitizePageViewPayload } from "../_shared/telemetry.ts";
+import { classifyDeviceClass, honorsOptOut, isBotUserAgent, isLocalDevOrigin, sanitizePageViewPayload } from "../_shared/telemetry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,8 +43,10 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
-  const limited = await guardPublicAiCall(req, "page-views", corsHeaders, 120, 3600);
-  if (limited) return limited;
+  // A page view on a developer's local dev server is not a visitor.
+  if (isLocalDevOrigin(req.headers.get("origin"), req.headers.get("referer"))) {
+    return jsonResponse({ ok: true, skipped: "local-dev" }, 200);
+  }
 
   // Belt-and-suspenders: beacon.js already checks DNT/GPC client-side and
   // never sends when set, but a hand-rolled POST (or a future caller that
@@ -58,6 +60,13 @@ Deno.serve(async (req) => {
     // 200, not 4xx — never tell an automated caller it was detected.
     return jsonResponse({ ok: true, skipped: "bot" }, 200);
   }
+
+  // Rate limit AFTER the header-only skips, so bots never spend a real
+  // visitor's budget. 600/hour per caller: phones on a carrier network can
+  // share one IP, and 120 undercounted them. Answer 200, not 429 — a counter
+  // hitting its cap must not put an error in a visitor's console.
+  const limited = await guardPublicAiCall(req, "page-views", corsHeaders, 600, 3600);
+  if (limited) return jsonResponse({ ok: true, skipped: "rate-limited" }, 200);
 
   const contentLength = Number(req.headers.get("content-length") ?? "0");
   if (contentLength > MAX_BODY_BYTES) {
