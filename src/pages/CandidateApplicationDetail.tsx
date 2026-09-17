@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { parseApplicationNotes, isPhaseSkipped as checkPhaseSkipped } from "@/utils/applicationNotes";
+import { parseApplicationNotes, isPhaseSkipped as checkPhaseSkipped, type StepRecordLike } from "@/utils/applicationNotes";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -46,7 +46,7 @@ interface WorkflowStep {
   type: string;
   description?: string;
   required?: boolean;
-  config?: Record<string, any>;
+  config?: Record<string, unknown>;
 }
 
 interface ApplicationDetails extends Tables<"applications"> {
@@ -216,7 +216,7 @@ export default function CandidateApplicationDetail() {
                 .single();
               
               const workflowSteps = (app?.jobs as unknown as { workflow_steps?: WorkflowStep[] } | null)?.workflow_steps;
-              const voiceInterviewStep = workflowSteps?.find((s: any) => s.type === 'voice_interview');
+              const voiceInterviewStep = workflowSteps?.find((s) => s.type === 'voice_interview');
               
               if (voiceInterviewStep && newPhase === voiceInterviewStep.id) {
                 setStatusScreen("ava_interview_unlocked");
@@ -227,7 +227,7 @@ export default function CandidateApplicationDetail() {
                 // journey header two hundred lines below has always been
                 // sanitised, so the same screen told the truth in one place and
                 // named the machine in another.
-                const rawStep = workflowSteps?.find((s: any) => s.id === newPhase);
+                const rawStep = workflowSteps?.find((s) => s.id === newPhase);
                 const stepTitle = rawStep
                   ? titleFor(rawStep.type, rawStep.title)
                   : candidatePhaseDisplayNames[newPhase as string] || "the next step";
@@ -337,7 +337,7 @@ export default function CandidateApplicationDetail() {
     // Check for Ava Interview unlock on initial load
     if (previousPhaseRef.current === null && isRecent && application.phase) {
       const workflowSteps = application.jobs?.workflow_steps as WorkflowStep[] | undefined;
-      const voiceInterviewStep = workflowSteps?.find((s: any) => s.type === 'voice_interview');
+      const voiceInterviewStep = workflowSteps?.find((s) => s.type === 'voice_interview');
       
       if (voiceInterviewStep && application.phase === voiceInterviewStep.id) {
         // Check if we haven't completed the voice interview yet
@@ -410,10 +410,10 @@ export default function CandidateApplicationDetail() {
     } else if (phaseType === "sales_simulation") {
       return !!notes.salesSimulationResult;
     } else if (phaseType === "quiz") {
-      const stepData = notes[phaseId];
+      const stepData = notes[phaseId] as StepRecordLike | undefined;
       return !!(stepData?.completedAt || notes.quizResult);
     } else if (phaseType === "video_intro" || phaseType === "video_message") {
-      const stepData = notes[phaseId];
+      const stepData = notes[phaseId] as StepRecordLike | undefined;
       return !!notes.videoIntroUrl || !!(stepData?.videoUrl || stepData?.completed);
     } else if (phaseType === "portfolio_upload") {
       return !!notes.portfolioResult;
@@ -472,11 +472,11 @@ export default function CandidateApplicationDetail() {
         hasPhaseData = !!notes.salesSimulationResult;
       } else if (phase.type === "quiz") {
         // Check step-specific storage (notes[phase.id].completedAt) OR quizResult
-        const stepData = notes[phase.id];
+        const stepData = notes[phase.id] as StepRecordLike | undefined;
         hasPhaseData = !!(stepData?.completedAt || notes.quizResult);
       } else if (phase.type === "video_intro" || phase.type === "video_message") {
         // Check both legacy videoIntroUrl and stepId-based storage
-        const stepData = notes[phase.id];
+        const stepData = notes[phase.id] as StepRecordLike | undefined;
         hasPhaseData = !!notes.videoIntroUrl || !!(stepData?.videoUrl || stepData?.completed);
       } else if (phase.type === "portfolio_upload") {
         hasPhaseData = !!notes.portfolioResult;

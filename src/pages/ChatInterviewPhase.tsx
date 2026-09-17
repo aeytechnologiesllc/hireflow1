@@ -61,8 +61,8 @@ interface ApplicationDetails {
     job_type: string | null;
     processing_mode: string | null;
     passing_score: number | null;
-    workflow_steps: any[] | null;
-    quiz_questions: any[] | null;
+    workflow_steps: unknown[] | null;
+    quiz_questions: unknown[] | null;
   } | null;
   profiles?: {
     full_name: string | null;
@@ -96,7 +96,7 @@ export default function ChatInterviewPhase() {
   const [isBlurred, setIsBlurred] = useState(false);
   const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
   const [autoEndTriggered, setAutoEndTriggered] = useState(false);
-  const [rejectedAppData, setRejectedAppData] = useState<any>(null);
+  const [rejectedAppData, setRejectedAppData] = useState<ApplicationDetails | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -215,8 +215,18 @@ export default function ChatInterviewPhase() {
     if (!application) return undefined;
 
     const notes = parseApplicationNotes(application.notes);
-    const context: any = {
-      completedPhases: [] as string[],
+    const context: {
+      completedPhases: string[];
+      applicationAnswers?: Array<{ question: string; answer: string }>;
+      resumeAnalysis?: unknown;
+      quizScore?: number;
+      quizSummary?: string;
+      typingTestResult?: { wpm?: number; accuracy?: number };
+      chatSimulationResult?: { score?: number; summary?: string };
+      salesSimulationResult?: { score?: number; summary?: string };
+      videoIntroUrl?: string;
+    } = {
+      completedPhases: [],
     };
 
     // Extract application answers

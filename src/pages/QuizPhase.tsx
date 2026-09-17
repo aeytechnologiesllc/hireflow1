@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { invokeTriggerAvaAnalysis, triggerAvaAnalysis, evaluatePhaseSubmission } from "@/utils/triggerAvaAnalysis";
-import { parseApplicationNotes, stringifyApplicationNotes } from "@/utils/applicationNotes";
+import { parseApplicationNotes, stringifyApplicationNotes, type StepRecordLike } from "@/utils/applicationNotes";
 import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
@@ -762,7 +762,7 @@ export default function QuizPhase() {
     try {
       const notes = parseApplicationNotes(application.notes);
       // Check for step-specific quiz answers or general quiz result
-      const stepData = notes.quizAnswers?.[stepId!] || notes[stepId!];
+      const stepData = (notes.quizAnswers?.[stepId!] || notes[stepId!]) as StepRecordLike | undefined;
       if (stepData?.completedAt) return stepData;
       return notes.quizResult || null;
     } catch {

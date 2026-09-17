@@ -33,8 +33,8 @@ interface JobDetails {
   description: string;
   requirements: string;
   company_name?: string;
-  workflow_steps?: any[] | null;
-  quiz_questions?: any[] | null;
+  workflow_steps?: unknown[] | null;
+  quiz_questions?: unknown[] | null;
 }
 
 export default function VoiceInterviewPhase() {
@@ -474,8 +474,8 @@ export default function VoiceInterviewPhase() {
         description: app.jobs.description,
         requirements: app.jobs.requirements,
         company_name: profile?.company_name,
-        workflow_steps: (app.jobs.workflow_steps as any[] | null) || [],
-        quiz_questions: (app.jobs.quiz_questions as any[] | null) || [],
+        workflow_steps: (app.jobs.workflow_steps as unknown[] | null) || [],
+        quiz_questions: (app.jobs.quiz_questions as unknown[] | null) || [],
       });
       setAppPhase(app.phase);
       setAppStatus(app.status);

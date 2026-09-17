@@ -18,11 +18,87 @@ import {
 } from "lucide-react";
 import { GlyphCheckSeal } from "@/components/candidate/glyphs";
 
+// This dialog's own result/transcript shape — not currently wired to any
+// caller (no import sites in src/ as of this pass), so kept local rather
+// than reused from avaPhaseNarratives.ts's VoiceInterviewPhaseData: several
+// field names here (question_breakdown, highlights) don't match that type.
+interface VoiceInterviewSoftSkills {
+  empathy?: number;
+  confidence?: number;
+  articulation?: number;
+  active_listening?: number;
+  enthusiasm?: number;
+  professionalism?: number;
+}
+
+interface VoiceInterviewCommunicationMetrics {
+  avg_response_time_seconds?: number;
+  clarity_score?: number;
+  filler_word_frequency?: string;
+}
+
+interface VoiceInterviewInconsistency {
+  claim?: string;
+  evidence?: string;
+  severity?: string;
+  follow_up_needed?: boolean;
+}
+
+interface VoiceInterviewFollowup {
+  question: string;
+  reason?: string;
+  priority?: string;
+}
+
+interface VoiceInterviewQuestionBreakdown {
+  question: string;
+  question_type?: string;
+  timestamp_seconds?: number;
+  response_quality?: number;
+  notable_quote?: string;
+  key_points_covered?: string[];
+  missed_opportunities?: string[];
+}
+
+interface VoiceInterviewHighlight {
+  type?: "strong_answer" | "red_flag" | "impressive_moment" | string;
+  timestamp_seconds?: number;
+  description?: string;
+  quote?: string;
+}
+
+export interface VoiceInterviewResultData {
+  overall_score?: number;
+  recommendation?: string;
+  credibility_rating?: string;
+  executive_summary?: string;
+  communication_score?: number;
+  technical_score?: number;
+  culture_fit_score?: number;
+  problem_solving_score?: number;
+  adaptability_score?: number;
+  leadership_potential_score?: number;
+  soft_skills?: VoiceInterviewSoftSkills;
+  communication_metrics?: VoiceInterviewCommunicationMetrics;
+  strengths?: string[];
+  concerns?: string[];
+  inconsistencies?: VoiceInterviewInconsistency[];
+  suggested_followups?: VoiceInterviewFollowup[];
+  question_breakdown?: VoiceInterviewQuestionBreakdown[];
+  highlights?: VoiceInterviewHighlight[];
+}
+
+interface TranscriptMessage {
+  role: string;
+  content: string;
+  timestamp: string | number;
+}
+
 interface VoiceInterviewResultsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  result: any;
-  transcript?: any[];
+  result: VoiceInterviewResultData | null | undefined;
+  transcript?: TranscriptMessage[];
   recordingUrl?: string;
   videoEnabled?: boolean;
   candidateName?: string;
@@ -59,7 +135,7 @@ export function VoiceInterviewResultsDialog({
   const downloadTranscript = () => {
     if (!transcript || transcript.length === 0) return;
     
-    const lines = transcript.map((m: any) => {
+    const lines = transcript.map((m) => {
       const time = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       return `[${time}] ${m.role === 'user' ? candidateName : 'Ava'}: ${m.content}`;
     }).join('\n\n');
@@ -178,7 +254,7 @@ Date: ${new Date().toLocaleDateString()}
       doc.text('Suggested Follow-up Questions', 20, yPos);
       yPos += 8;
       doc.setFontSize(10);
-      result.suggested_followups.forEach((f: any) => {
+      result.suggested_followups.forEach((f) => {
         const lines = doc.splitTextToSize(`[${f.priority?.toUpperCase()}] ${f.question}`, 165);
         doc.text(lines, 25, yPos);
         yPos += lines.length * 5;
@@ -351,7 +427,7 @@ Date: ${new Date().toLocaleDateString()}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
-                    {result.inconsistencies.map((item: any, i: number) => (
+                    {result.inconsistencies.map((item, i: number) => (
                       <div key={i} className="p-3 bg-destructive/5 rounded-lg border border-destructive/10">
                         <div className="flex items-center gap-2 mb-2">
                           <Badge variant={item.severity === "major" ? "destructive" : item.severity === "moderate" ? "outline" : "secondary"}>
@@ -411,7 +487,7 @@ Date: ${new Date().toLocaleDateString()}
             {/* QUESTIONS TAB */}
             <TabsContent value="questions" className="space-y-3 mt-0">
               {result.question_breakdown?.length > 0 ? (
-                result.question_breakdown.map((q: any, i: number) => (
+                result.question_breakdown.map((q, i: number) => (
                   <Card key={i}>
                     <CardContent className="pt-4">
                       <div className="flex items-center justify-between mb-2">
@@ -523,7 +599,7 @@ Date: ${new Date().toLocaleDateString()}
             {/* HIGHLIGHTS TAB */}
             <TabsContent value="highlights" className="space-y-3 mt-0">
               {result.highlights?.length > 0 ? (
-                result.highlights.map((h: any, i: number) => (
+                result.highlights.map((h, i: number) => (
                   <Card key={i} className={
                     h.type === "strong_answer" ? "border-success/30" :
                     h.type === "red_flag" ? "border-destructive/30" :
@@ -574,7 +650,7 @@ Date: ${new Date().toLocaleDateString()}
                       These questions are suggested for your next interview round based on gaps identified by Ava.
                     </p>
                   </div>
-                  {result.suggested_followups.map((f: any, i: number) => (
+                  {result.suggested_followups.map((f, i: number) => (
                     <Card key={i}>
                       <CardContent className="pt-4">
                         <div className="flex items-start gap-3">

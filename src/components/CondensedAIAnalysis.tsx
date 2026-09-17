@@ -14,7 +14,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import { buildAvaPhaseNarrative, type PhaseType, type QuizPhaseData, type TypingPhaseData, type ChatSimulationPhaseData, type ChatInterviewPhaseData, type SalesSimulationPhaseData, type PortfolioPhaseData, type VoiceInterviewPhaseData } from "@/lib/avaPhaseNarratives";
+import { buildAvaPhaseNarrative, type PhaseType, type QuizPhaseData, type QuizAnswerData, type TypingPhaseData, type ChatSimulationPhaseData, type ChatInterviewPhaseData, type SalesSimulationPhaseData, type PortfolioPhaseData, type VoiceInterviewPhaseData } from "@/lib/avaPhaseNarratives";
 
 // ============= Types =============
 interface ParsedAnalysis {
@@ -157,7 +157,47 @@ interface ApplicationNotes {
   };
   videoIntroUrl?: string;
   applicationAnswers?: Array<{ question: string; answer: string }>;
-  [key: string]: any;
+  // Legacy/step-based storage also stashes raw per-step blobs under dynamic
+  // keys (e.g. "step1", "quiz") alongside the named fields above — unknown
+  // shape until read, narrowed via StepRecordLike at each access site below.
+  [key: string]: unknown;
+}
+
+// A portfolio step's aiAnalysis sub-object, narrowed to the fields this file
+// reads off it (mirrors PortfolioPhaseData's "Extended AI analysis
+// properties" in avaPhaseNarratives.ts, plus the raw `summary`/
+// `penaltiesApplied` fields the stored blob itself uses).
+interface PortfolioAiAnalysisLike {
+  score?: number;
+  summary?: string;
+  strengths?: string[];
+  improvements?: string[];
+  penaltiesApplied?: string[];
+  authenticity?: number;
+  relevance?: number;
+  quality?: number;
+  creativity?: number;
+}
+
+// A candidate step's raw stored blob, narrowed to just the fields this file
+// actually reads off it (see the `as StepRecordLike` casts below). The real
+// shape varies per step type; this is not the full schema.
+interface StepRecordLike {
+  type?: string;
+  videoUrl?: string;
+  completed?: boolean;
+  portfolioUrls?: string[];
+  aiAnalysis?: PortfolioAiAnalysisLike;
+  files?: Array<{ url: string }>;
+  answers?: QuizAnswerData[];
+  score?: number;
+  correct?: number;
+  total?: number;
+  passed?: boolean;
+  completedAt?: string;
+  antiCheatViolations?: Array<{ type: string; timestamp: string }>;
+  totalViolations?: number;
+  violationSummary?: string;
 }
 
 // ============= Human-Readable Helpers =============
@@ -274,7 +314,8 @@ function buildCompletedEvidenceLead(notes?: ApplicationNotes, pendingPhases?: st
   }
 
   if (inputs.voiceInterview) {
-    const voiceScore = notes?.voiceInterviewResult?.score ?? notes?.voiceInterviewResult?.overallScore;
+    const voiceInterviewResult = notes?.voiceInterviewResult as (VoiceInterviewPhaseData & { score?: number }) | undefined;
+    const voiceScore = voiceInterviewResult?.score ?? voiceInterviewResult?.overallScore;
     if (typeof voiceScore === "number") {
       completed.push(`the Ava interview (${voiceScore}%)`);
     } else {
@@ -541,7 +582,7 @@ function getPhaseResultsFromNotes(notes: ApplicationNotes | undefined): PhaseRes
   
   // Check for step-based video submissions (newer format)
   Object.keys(notes).forEach(key => {
-    const stepData = notes[key];
+    const stepData = notes[key] as StepRecordLike | undefined;
     if (stepData && typeof stepData === 'object') {
       if ((stepData.type === 'video_intro' || stepData.type === 'video_message') && stepData.videoUrl) {
         // Avoid duplicates
@@ -574,7 +615,7 @@ function generateFullSummary(
   sections: ParsedSection[], 
   recommendation: string | null,
   applicationNotes?: ApplicationNotes,
-  voiceInterviewResult?: any,
+  voiceInterviewResult?: VoiceInterviewPhaseData,
   authoritativeScore?: number | null,
   jobContext?: JobContext
 ): string {
@@ -805,7 +846,7 @@ function generateFullSummary(
 function parseAIAnalysis(
   content: string, 
   applicationNotes?: ApplicationNotes,
-  voiceInterviewResult?: any,
+  voiceInterviewResult?: VoiceInterviewPhaseData,
   authoritativeScore?: number | null
 ): ParsedAnalysis {
   const result: ParsedAnalysis = {
@@ -994,7 +1035,7 @@ interface CompletedPhase {
 
 interface PhaseBasedAnalysisProps {
   applicationNotes?: ApplicationNotes;
-  voiceInterviewResult?: any;
+  voiceInterviewResult?: VoiceInterviewPhaseData;
   rawSections: ParsedSection[];
   isDetailOpen: boolean;
   setIsDetailOpen: (open: boolean) => void;
@@ -1059,7 +1100,7 @@ function PhaseBasedAnalysis({
 
       // Extract actual quiz data from notes (stored under stepId like "quiz")
       let quizData: QuizPhaseData | undefined;
-      const quizStepData = applicationNotes.quiz || applicationNotes['quiz'];
+      const quizStepData = (applicationNotes.quiz || applicationNotes['quiz']) as StepRecordLike | undefined;
       if (quizStepData && quizStepData.answers) {
         quizData = {
           answers: quizStepData.answers,
@@ -1138,17 +1179,23 @@ function PhaseBasedAnalysis({
 
     // Portfolio - detailed Ava narrative
     // Find portfolio data from step-based storage (e.g., step1, step2) or legacy portfolioResult
-    let portfolioData: any = applicationNotes.portfolioResult;
+    let portfolioData: {
+      score?: number;
+      feedback?: string;
+      analysis?: string;
+      portfolioUrls?: string[];
+      aiAnalysis?: PortfolioAiAnalysisLike;
+    } | undefined = applicationNotes.portfolioResult;
     if (!portfolioData) {
       // Search through notes for portfolio_upload type steps
       for (const key of Object.keys(applicationNotes)) {
-        const stepData = applicationNotes[key];
+        const stepData = applicationNotes[key] as StepRecordLike | undefined;
         if (stepData && typeof stepData === 'object' && stepData.type === 'portfolio_upload' && stepData.completed) {
           portfolioData = {
             score: stepData.aiAnalysis?.score,
             feedback: stepData.aiAnalysis?.summary,
             analysis: stepData.aiAnalysis?.summary,
-            portfolioUrls: stepData.files?.map((f: any) => f.url),
+            portfolioUrls: stepData.files?.map((f) => f.url),
             aiAnalysis: stepData.aiAnalysis, // Include full analysis for detail view
           };
           break;
@@ -1424,7 +1471,7 @@ function PhaseBasedAnalysis({
 
     // Check for step-based submissions (video/portfolio) - detailed Ava narrative
     Object.keys(applicationNotes).forEach((key) => {
-      const stepData = applicationNotes[key];
+      const stepData = applicationNotes[key] as StepRecordLike | undefined;
       if (stepData && typeof stepData === "object" && !Array.isArray(stepData)) {
         if ((stepData.type === "video_intro" || stepData.type === "video_message") && stepData.videoUrl) {
           if (!phases.some((p) => p.id === "video_intro")) {
@@ -1529,7 +1576,7 @@ interface CondensedAIAnalysisProps {
   content: string;
   className?: string;
   applicationNotes?: ApplicationNotes;
-  voiceInterviewResult?: any;
+  voiceInterviewResult?: VoiceInterviewPhaseData;
   aiScore?: number | null; // Authoritative score from database
   applicationStatus?: string; // Current application status (for rejection override)
   rejectionReason?: string | null; // Phase AI analysis explaining rejection
@@ -1642,7 +1689,7 @@ function formatSignalLabel(signal: string) {
 function deriveEvidenceInputs(notes?: ApplicationNotes) {
   const meta = notes?.avaAnalysisMeta;
   const inputs = meta?.inputsUsed;
-  const quizStepData = notes?.quiz || notes?.["quiz"];
+  const quizStepData = (notes?.quiz || notes?.["quiz"]) as StepRecordLike | undefined;
 
   return {
     resume: !!meta?.resume?.provided,
@@ -1652,7 +1699,7 @@ function deriveEvidenceInputs(notes?: ApplicationNotes) {
       inputs?.quiz ||
       notes?.quizResult ||
       (quizStepData && quizStepData.answers) ||
-      (notes?.quizAnswers && Object.keys(notes.quizAnswers).length > 0)
+      (notes?.quizAnswers && Object.keys(notes.quizAnswers as Record<string, unknown>).length > 0)
     ),
     typingTest: !!(inputs?.typingTest || notes?.typingTestResult),
     chatSimulation: !!(inputs?.chatSimulation || notes?.chatSimulationResult),
@@ -1660,7 +1707,11 @@ function deriveEvidenceInputs(notes?: ApplicationNotes) {
     chatInterview: !!(inputs?.chatInterview || notes?.chatInterviewResult),
     portfolio: !!(inputs?.portfolio || notes?.portfolioResult),
     videoIntro: !!(inputs?.videoIntro || notes?.videoIntroResult),
-    voiceInterview: !!(inputs?.voiceInterview || notes?.voiceInterviewNotes?.length || notes?.voiceInterviewInconsistencies?.length),
+    voiceInterview: !!(
+      inputs?.voiceInterview ||
+      (notes?.voiceInterviewNotes as unknown[] | undefined)?.length ||
+      (notes?.voiceInterviewInconsistencies as unknown[] | undefined)?.length
+    ),
   };
 }
 

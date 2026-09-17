@@ -30,10 +30,43 @@ export interface FullJobGenerationResponse {
   screening_plan_summary?: string;
 }
 
+// Mirrors the local (unexported) interfaces of the same name in
+// CreateJob.tsx, which already consumes this exact response shape — kept
+// here too since GuestJobCreator.tsx (the other caller) has no such type of
+// its own.
+export interface GeneratedApplicationQuestion {
+  id: string;
+  type: string;
+  question: string;
+  required: boolean;
+  placeholder?: string;
+}
+
+export interface GeneratedQuizQuestion {
+  id: string;
+  type: string;
+  question: string;
+  options?: string[];
+  correct_answer: string | null;
+  correct_answers?: string[];
+  fit_context?: string;
+  time_limit_seconds: number;
+  category: string;
+}
+
+export interface GeneratedWorkflowStep {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  required: boolean;
+  config: Record<string, unknown>;
+}
+
 export interface ScreeningPlanGenerationResponse {
-  application_questions?: any[];
-  quiz_questions?: any[];
-  workflow_steps?: any[];
+  application_questions?: GeneratedApplicationQuestion[];
+  quiz_questions?: GeneratedQuizQuestion[];
+  workflow_steps?: GeneratedWorkflowStep[];
   screening_plan_summary?: string;
 }
 

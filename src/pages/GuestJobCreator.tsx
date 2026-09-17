@@ -89,14 +89,14 @@ import { StaggeredBarsLoader } from "@/components/animations/StaggeredBarsLoader
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
 import { AvaGuidedSetupFields } from "@/components/AvaGuidedSetupFields";
-import { generateFullJobPosting, generateJobField, generateScreeningPlan, type AvaJobFormData } from "@/lib/avaJobGeneration";
+import { generateFullJobPosting, generateJobField, generateScreeningPlan, type AvaJobFormData, type GeneratedApplicationQuestion, type GeneratedQuizQuestion, type GeneratedWorkflowStep } from "@/lib/avaJobGeneration";
 import { DEFAULT_GUIDED_JOB_SETUP, assessScreeningPlanRisk, summarizeScreeningPlan, type GuidedJobSetup } from "@/lib/hiringPlan";
 
 interface GuestJobData {
   formData: AvaJobFormData;
-  applicationQuestions: any[];
-  quizQuestions: any[];
-  workflowSteps: any[];
+  applicationQuestions: GeneratedApplicationQuestion[];
+  quizQuestions: GeneratedQuizQuestion[];
+  workflowSteps: GeneratedWorkflowStep[];
   workflowDifficulty: string;
   processingMode: string;
   passingScore: number;
@@ -117,9 +117,9 @@ const countGeneratedDraftSections = (formData: AvaJobFormData) => {
 
 const buildOverlaySummary = (
   workflowData: {
-    application_questions: any[];
-    quiz_questions: any[];
-    workflow_steps: any[];
+    application_questions: GeneratedApplicationQuestion[];
+    quiz_questions: GeneratedQuizQuestion[];
+    workflow_steps: GeneratedWorkflowStep[];
   },
   sectionsGenerated?: number,
 ): OverlayGenerationSummary => ({
@@ -215,17 +215,17 @@ export default function GuestJobCreator() {
   const [workflowDifficulty, setWorkflowDifficulty] = useState<string>("medium");
   const [processingMode, setProcessingMode] = useState<"auto" | "manual">("auto");
   const [passingScore, setPassingScore] = useState<number>(60);
-  const [applicationQuestions, setApplicationQuestions] = useState<any[]>([]);
-  const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
-  const [workflowSteps, setWorkflowSteps] = useState<any[]>([]);
+  const [applicationQuestions, setApplicationQuestions] = useState<GeneratedApplicationQuestion[]>([]);
+  const [quizQuestions, setQuizQuestions] = useState<GeneratedQuizQuestion[]>([]);
+  const [workflowSteps, setWorkflowSteps] = useState<GeneratedWorkflowStep[]>([]);
   const [isGeneratingWorkflow, setIsGeneratingWorkflow] = useState(false);
   const [workflowApiComplete, setWorkflowApiComplete] = useState(false);
   const [generationOverlayStage, setGenerationOverlayStage] = useState<OverlayGenerationStage>("screening");
   const [generationOverlaySummary, setGenerationOverlaySummary] = useState<OverlayGenerationSummary | null>(null);
   const [pendingWorkflowData, setPendingWorkflowData] = useState<{
-    application_questions: any[];
-    quiz_questions: any[];
-    workflow_steps: any[];
+    application_questions: GeneratedApplicationQuestion[];
+    quiz_questions: GeneratedQuizQuestion[];
+    workflow_steps: GeneratedWorkflowStep[];
   } | null>(null);
   const [workflowGenerated, setWorkflowGenerated] = useState(false);
   const [jobContentGenerated, setJobContentGenerated] = useState(false);
@@ -358,7 +358,7 @@ export default function GuestJobCreator() {
         newRegularSteps.push(newStep);
       }
       
-      const result: any[] = [...newRegularSteps];
+      const result: GeneratedWorkflowStep[] = [...newRegularSteps];
       if (chatInterview) result.push(chatInterview);
       if (voiceInterview) result.push(voiceInterview);
       

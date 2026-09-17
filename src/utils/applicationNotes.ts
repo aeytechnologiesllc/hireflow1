@@ -8,47 +8,98 @@
  * 3. Always produce valid JSON strings for database writes
  */
 
+// Lightweight summaries — this is the `applications.notes` JSONB column, an
+// AI/step-writer-populated blob whose real shape is asserted server-side
+// (see the trusted_result_enforcement / protect_application_columns
+// migrations), not by this type. Each interface below covers only the
+// fields actually read off it anywhere in src/ (grepped across every
+// `.field.subfield` access on notes of this type); a step's full raw
+// blob — read only through the `[stepId: string]` index signature — stays
+// `unknown` and is narrowed locally by whichever caller reads it.
+export interface QuizResultSummary {
+  score?: number;
+  passed?: boolean;
+  total?: number;
+  correct?: number;
+}
+
+export interface TypingTestResultSummary {
+  wpm?: number;
+  accuracy?: number;
+}
+
+export interface ChatSimulationResultSummary {
+  score?: number;
+  passed?: boolean;
+  recommendation?: string;
+}
+
+export interface ChatInterviewResultSummary {
+  score?: number;
+}
+
+export interface SalesSimulationResultSummary {
+  score?: number;
+  recommendation?: string;
+}
+
+export interface PortfolioResultSummary {
+  score?: number;
+  feedback?: string;
+}
+
+// A step's raw stored blob, narrowed to the handful of fields callers read
+// off notes[stepId] before knowing the step's real type (see e.g.
+// CandidateApplicationDetail.tsx and QuizPhase.tsx). Cast to this — never
+// widen the index signature above back to `any` — at each read site.
+export interface StepRecordLike {
+  completedAt?: string;
+  videoUrl?: string;
+  completed?: boolean;
+}
+
 export interface ApplicationNotesData {
   // Standard application fields
   applicationAnswers?: Array<{ question: string; answer: string }>;
-  
+
   // Quiz data
-  quizAnswers?: Record<string, any>;
-  quizResult?: any;
-  
+  quizAnswers?: Record<string, unknown>;
+  quizResult?: QuizResultSummary;
+
   // Typing test
-  typingTestResult?: any;
-  
+  typingTestResult?: TypingTestResultSummary;
+
   // Video intro
   videoIntroUrl?: string;
-  videoIntroResult?: any;
-  
+  videoIntroResult?: unknown;
+
   // Simulations
-  chatSimulationResult?: any;
-  chatInterviewResult?: any;
-  salesSimulationResult?: any;
-  
+  chatSimulationResult?: ChatSimulationResultSummary;
+  chatInterviewResult?: ChatInterviewResultSummary;
+  salesSimulationResult?: SalesSimulationResultSummary;
+
   // Portfolio
-  portfolioResult?: any;
-  
+  portfolioResult?: PortfolioResultSummary;
+
   // Employer-managed metadata
   employerSkippedPhases?: string[];
-  
+
   // Blueprint cache
-  blueprintData?: any;
-  
+  blueprintData?: unknown;
+
   // Legacy fallback for unparseable text
   __legacyTextNote?: string;
-  
+
   // Voice interview events
-  voiceInterviewInconsistencies?: any[];
-  voiceInterviewNotes?: any[];
-  
+  voiceInterviewInconsistencies?: unknown[];
+  voiceInterviewNotes?: unknown[];
+
   // Resume analysis
-  resumeAnalysis?: any;
-  
-  // Dynamic step data (step IDs as keys)
-  [stepId: string]: any;
+  resumeAnalysis?: unknown;
+
+  // Dynamic step data (step IDs as keys) — real shape varies by step type;
+  // narrow with a local cast at the read site instead of widening this.
+  [stepId: string]: unknown;
 }
 
 /**
