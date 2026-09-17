@@ -20,9 +20,11 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { nextBoostWorkerAction, type BoostOrderSnapshot, type BoostWorkerAction } from "../_shared/jobBillingPricing.ts";
 import { createMetaGraphAdsClient, type MetaAdsClient } from "../_shared/metaAdsClient.ts";
 
-// Explicit generics instead of ReturnType<typeof createClient> — that picks
+// Bare (no generics) instead of ReturnType<typeof createClient> — that picks
 // createClient's last overload, which defaults its generics differently.
-type AdminClient = SupabaseClient<any, any, any>;
+// SupabaseClient's own declared defaults (Database = any, ...) already
+// match what a plain createClient(...) call actually returns.
+type AdminClient = SupabaseClient;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

@@ -132,7 +132,7 @@ serve(async (req) => {
       .select("id")
       .eq("employer_id", employerId);
 
-    const jobIds = (employerJobs || []).map((j: any) => j.id);
+    const jobIds = (employerJobs || []).map((j) => j.id);
 
     if (jobIds.length === 0) {
       console.log("[check-applicant-limit] No jobs found, allowing application");

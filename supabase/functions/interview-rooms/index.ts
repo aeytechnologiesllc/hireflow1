@@ -95,7 +95,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    const application = interview.applications as any;
+    // Supabase's embedded-relation typing infers an array for `applications`/
+    // `jobs` here (it can't tell a to-one join from a to-many one on this
+    // loosely-typed client) — both are really to-one from an interview's
+    // perspective (one application, which belongs to one job).
+    interface InterviewApplicationJoin {
+      id: string;
+      candidate_id: string;
+      jobs: { id: string; employer_id: string; title: string } | null;
+    }
+    const application = interview.applications as unknown as InterviewApplicationJoin | null;
     const job = application?.jobs;
     const employerId = job?.employer_id;
     const isCandidate = application?.candidate_id === user.id;

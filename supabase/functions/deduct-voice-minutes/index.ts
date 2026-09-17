@@ -3,10 +3,11 @@ import { Resend } from "https://esm.sh/resend@2.0.0";
 import { hasSubscriptionBypassForUser } from "../_shared/subscriptionBypass.ts";
 import { computeChargeMinutes } from "../_shared/voiceSessionCharge.ts";
 
-// Explicit generics instead of ReturnType<typeof createClient> — the floating
-// @2 import can pick createClient's last overload, defaulting its generics
-// differently than the actual call site below.
-type AdminClient = SupabaseClient<any, any, any>;
+// Bare (no generics) instead of ReturnType<typeof createClient> — the
+// floating @2 import can pick createClient's last overload, defaulting its
+// generics differently than the actual call site below. SupabaseClient's
+// own declared defaults (Database = any, ...) already match that call.
+type AdminClient = SupabaseClient;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

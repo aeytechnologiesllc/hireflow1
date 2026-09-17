@@ -17,6 +17,23 @@ interface AnalyzeRequest {
   totalPages: number;
 }
 
+interface SuggestedField {
+  label?: string;
+  type?: "candidate" | "employer";
+  x?: number;
+  y?: number;
+  page?: number;
+  width?: number;
+  height?: number;
+}
+
+interface SuggestedFieldsResponse {
+  suggestedFields?: SuggestedField[];
+  documentType?: string;
+  confidence?: string;
+  reasoning?: string;
+}
+
 interface SignatureField {
   id: string;
   label: string;
@@ -133,9 +150,9 @@ This document needs 4 fields on page ${totalPages}:
 
 Position each field on the actual blank line/space provided, not overlapping the labels.`;
 
-    let analysis: any;
+    let analysis: SuggestedFieldsResponse;
     try {
-      const { data } = await callOpenAIJson<any>({
+      const { data } = await callOpenAIJson<SuggestedFieldsResponse>({
         apiKey: OPENAI_API_KEY,
         model: OPENAI_DOC_FIELDS_MODEL,
         messages: [
@@ -162,7 +179,7 @@ Position each field on the actual blank line/space provided, not overlapping the
     }
 
     // Convert AI suggestions to our field format
-    const fields: SignatureField[] = (analysis.suggestedFields || []).map((field: any, index: number) => ({
+    const fields: SignatureField[] = (analysis.suggestedFields || []).map((field, index: number) => ({
       id: `field_${Date.now()}_${index}`,
       label: field.label || `Signature ${index + 1}`,
       required: true,

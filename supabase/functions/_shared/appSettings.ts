@@ -8,10 +8,14 @@
 // SupabaseClient, whose `.from(...).select(...).eq(...).maybeSingle()`
 // return type is a deeply generic PostgrestBuilder that doesn't structurally
 // match a plain `Promise<{ data, error }>` (and blows past TypeScript's
-// instantiation depth limit if you try to force it to). Typing this as `any`
-// here is what lets both the real client and a plain fake object (used in
-// node tests) satisfy the parameter without fighting either type system.
+// instantiation depth limit if you try to force it to — re-verified: a real
+// structural interface here reproduces TS2589 "Type instantiation is
+// excessively deep" on ai-generate-performance-report/index.ts's call site).
+// Typing this as `any` here is what lets both the real client and a plain
+// fake object (used in node tests) satisfy the parameter without fighting
+// either type system.
 // deno-lint-ignore no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- see above
 export type AppSettingsClient = any;
 
 export async function readAppSettingBoolean(

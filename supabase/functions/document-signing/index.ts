@@ -234,7 +234,7 @@ Deno.serve(async (req) => {
       .select("user_id, employer_id, status, can_send_documents, assigned_job_ids")
       .eq("user_id", callerId)
       .eq("employer_id", job.employer_id);
-    const teamMemberships: TeamMembership[] = (teamRows ?? []).map((tm: any) => ({
+    const teamMemberships: TeamMembership[] = (teamRows ?? []).map((tm) => ({
       userId: tm.user_id,
       employerId: tm.employer_id,
       status: tm.status,
