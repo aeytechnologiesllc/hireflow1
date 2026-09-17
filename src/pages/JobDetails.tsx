@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -134,6 +134,19 @@ export default function JobDetails() {
   // supabase/migrations/20260916200000_published_jobs_public_benefits.sql),
   // so this reads straight off the real, regenerated column type.
   const jobBenefits = job ? job.benefits : null;
+
+  // job.locations is the raw jsonb column (Json — no writer populates it yet,
+  // so it's null in practice); JobPostingJob wants the specific
+  // JobLocationStruct[] shape this column is reserved for. Narrowing here at
+  // the boundary, same as this file's other jsonb reads, rather than
+  // widening JobPostingJob's own field to Json. Memoized on `job` (react-query
+  // keeps that reference stable across renders when the data hasn't changed)
+  // so this doesn't hand JobPostingJsonLd a new object identity — and retrigger
+  // its inject/cleanup effect — on every unrelated JobDetails render.
+  const jobForJsonLd = useMemo(
+    () => (job ? { ...job, locations: job.locations as JobLocationStruct[] | null } : null),
+    [job],
+  );
 
   // Check applicant limit when job loads
   useEffect(() => {
@@ -382,14 +395,9 @@ export default function JobDetails() {
 
   return (
     <>
-      {job && (
+      {jobForJsonLd && (
         <JobPostingJsonLd
-          // job.locations is the raw jsonb column (Json — no writer populates
-          // it yet, so it's null in practice); JobPostingJob wants the
-          // specific JobLocationStruct[] shape this column is reserved for.
-          // Narrowing here at the boundary, same as this file's other jsonb
-          // reads, rather than widening JobPostingJob's own field to Json.
-          job={{ ...job, locations: job.locations as JobLocationStruct[] | null }}
+          job={jobForJsonLd}
           company={employerProfile?.company_name}
           logo={employerProfile?.company_logo}
         />

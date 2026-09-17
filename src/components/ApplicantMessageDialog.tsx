@@ -58,7 +58,14 @@ export default function ApplicantMessageDialog({
         markAsRead.mutate(unreadIds);
       }
     }
-  }, [open, messages, user?.id, markAsRead]);
+    // `markAsRead` (the useMutation() result from useMarkAsRead()) is a new
+    // object every render, so depending on it re-runs this effect on every
+    // render: each run re-marks the same messages read, whose onSuccess
+    // invalidates the messages query and triggers another render, which
+    // makes a new `markAsRead` object again — an unbounded update loop.
+    // Deliberately excluded; `open`/`messages`/`user?.id` already gate this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, messages, user?.id]);
 
   const handleSend = async () => {
     if (!message.trim()) return;
