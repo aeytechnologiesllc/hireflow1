@@ -1,10 +1,14 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
-// Pinned (not @2.57.2, and not the floating @2): 2.57.2's own bundled types
-// import storage-js@2.99.1 by an extensionless esm.sh path that `deno check`
-// can't resolve, failing every check on this file. 2.45.0 is the version
-// most other functions already pin to and deno-checks clean.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+// Runtime import stays on @2.57.2 (do not re-pin this to change actual
+// behavior in a live Stripe checkout path). @2.57.2's own bundled .d.ts
+// imports storage-js@2.99.1 via an extensionless esm.sh path that 404s/408s
+// and `deno check` can't resolve on its own. The @deno-types pragma below
+// points type-checking only at @2.45.0's declarations (same public shape,
+// already proven elsewhere in this codebase) without changing which code
+// actually runs.
+// @deno-types="https://esm.sh/@supabase/supabase-js@2.45.0"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
