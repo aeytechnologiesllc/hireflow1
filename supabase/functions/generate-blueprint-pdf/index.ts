@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { jsPDF } from "https://esm.sh/jspdf@2.5.1";
+import type { ImprovementBlueprintData } from "../_shared/blueprintReport.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -127,7 +128,7 @@ function drawLetterheadStrip(doc: jsPDF, name: string, job: string, pageW: numbe
 // rule, HireFlow's mark in jade, and the candidate/job/date set like a
 // letter's opening. No banner colors outside the palette, no large green
 // fill (the accent is a hairline and a seal disc, never a filled block).
-function drawCoverLetterhead(doc: jsPDF, name: string, job: string, generatedAt: string, pageW: number, pageH: number, margin: number, contentW: number): number {
+function drawCoverLetterhead(doc: jsPDF, name: string, job: string, generatedAt: string | undefined, pageW: number, pageH: number, margin: number, contentW: number): number {
   setFill(doc, COLORS.ground);
   doc.rect(0, 0, pageW, pageH, 'F');
 
@@ -179,23 +180,27 @@ serve(async (req) => {
 
   try {
     const rawData = await req.json();
-    const bp = rawData.blueprintData || rawData;
+    // Untrusted HTTP body: Partial, not the full ImprovementBlueprintData —
+    // every field below is read defensively (`|| {}` / `|| []`), matching
+    // that this isn't guaranteed to match the shape blueprintReport.ts's
+    // own validator enforces server-side before this function is ever called.
+    const bp = (rawData.blueprintData || rawData) as Partial<ImprovementBlueprintData>;
 
     console.log('[PDF] Generating Improvement Blueprint (Paper/Ink letterhead)...');
 
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const pageW = 210, pageH = 297, margin = 18, contentW = pageW - margin * 2;
 
-    const meta = bp.metadata || {};
+    const meta: Partial<ImprovementBlueprintData["metadata"]> = bp.metadata || {};
     const name = meta.candidateName || 'Candidate';
     const job = meta.jobTitle || 'this role';
-    const summary = bp.summary || {};
+    const summary: Partial<ImprovementBlueprintData["summary"]> = bp.summary || {};
     const whatWentWell = bp.whatWentWell || [];
     const gaps = bp.gapsForThisRole || [];
-    const presenting = bp.presentingYourExperience || {};
-    const plan = bp.practicePlan || {};
+    const presenting: Partial<ImprovementBlueprintData["presentingYourExperience"]> = bp.presentingYourExperience || {};
+    const plan: Partial<ImprovementBlueprintData["practicePlan"]> = bp.practicePlan || {};
     const roles = bp.rolesToConsiderNext || [];
-    const closing = bp.closing || {};
+    const closing: Partial<ImprovementBlueprintData["closing"]> = bp.closing || {};
 
     const drawStrip = () => drawLetterheadStrip(doc, name, job, pageW, margin);
 
@@ -249,7 +254,7 @@ serve(async (req) => {
     // What went well
     if (whatWentWell.length > 0) {
       y = drawSectionTitle(doc, 'What went well', y);
-      whatWentWell.forEach((s: any) => {
+      whatWentWell.forEach((s) => {
         y = checkPageBreak(doc, y, 20, pageH, margin, drawStrip);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9.5);
@@ -272,7 +277,7 @@ serve(async (req) => {
     if (gaps.length > 0) {
       y = checkPageBreak(doc, y, 16, pageH, margin, drawStrip);
       y = drawSectionTitle(doc, 'Where this role needed more', y);
-      gaps.forEach((g: any) => {
+      gaps.forEach((g) => {
         y = checkPageBreak(doc, y, 26, pageH, margin, drawStrip);
 
         doc.setFont('helvetica', 'bold');
@@ -303,7 +308,7 @@ serve(async (req) => {
           y = paragraph(doc, `Why it matters: ${g.whyItMatters}`, margin, y, contentW, 8.5, COLORS.ink3);
         }
 
-        (g.practiceSteps || []).forEach((step: any) => {
+        (g.practiceSteps || []).forEach((step) => {
           y = checkPageBreak(doc, y, 14, pageH, margin, drawStrip);
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(8.5);
@@ -386,7 +391,7 @@ serve(async (req) => {
     if (roles.length > 0) {
       y = checkPageBreak(doc, y, 16, pageH, margin, drawStrip);
       y = drawSectionTitle(doc, 'Roles to consider next', y);
-      roles.forEach((r: any) => {
+      roles.forEach((r) => {
         y = checkPageBreak(doc, y, 12, pageH, margin, drawStrip);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
