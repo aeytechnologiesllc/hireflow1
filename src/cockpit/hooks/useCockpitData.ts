@@ -52,8 +52,7 @@ export { useSchemaMode };
 export function useCockpitAccount() {
   const { data: mode } = useSchemaMode();
   const { data: profile, isLoading: profileLoading, isError: profileFailed, refetch: refetchProfile } = useProfile();
-  const { getTrialTimeRemaining, isTrialing, subscriptionBypass } = useSubscription();
-  const trial = getTrialTimeRemaining();
+  const { subscriptionBypass } = useSubscription();
 
   const showcaseQ = useQuery({
     queryKey: ["showcase-account"],
@@ -63,8 +62,8 @@ export function useCockpitAccount() {
 
   const account = useMemo(() => {
     if (mode === "showcase" && showcaseQ.data) return showcaseQ.data;
-    return buildAccountFromProfile(profile, trial?.expired ? 0 : trial?.days ?? null);
-  }, [mode, showcaseQ.data, profile, trial]);
+    return buildAccountFromProfile(profile);
+  }, [mode, showcaseQ.data, profile]);
 
   // Retry for the failure card. Plain closure — it only ever runs from a click.
   const refetch = () => {
@@ -82,7 +81,6 @@ export function useCockpitAccount() {
     // nothing". Pages must branch on this before rendering an empty state.
     isError: mode === "showcase" ? showcaseQ.isError : profileFailed,
     refetch,
-    showTrialAccess: mode === "showcase" || isTrialing,
     subscriptionBypass: mode === "showcase" ? false : subscriptionBypass,
   };
 }

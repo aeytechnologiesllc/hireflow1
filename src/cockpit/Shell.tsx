@@ -10,7 +10,6 @@ import {
   FileText,
   UsersRound,
   BarChart3,
-  Clock,
   ChevronDown,
   Bell,
   MoreHorizontal,
@@ -94,33 +93,6 @@ function AccountChip({ compact }: { compact?: boolean }) {
   );
 }
 
-function TrialBadge() {
-  const { account, showTrialAccess } = useCockpitAccount();
-
-  if (!showTrialAccess) return null;
-
-  return (
-    // Brass costs money, and brass is outlined — the system has no filled brass
-    // surface. The old gold wash put brass ink on a brass slab (~2.3:1); on the
-    // sidebar an outline reads 5.1:1 in Paper and 9.0:1 in Ink.
-    // Hidden in the collapsed rail, where there is no room for the words.
-    <div
-      className="hidden rounded-xl px-3.5 py-3 min-[1121px]:block"
-      style={{ background: "transparent", border: "1px solid var(--brass-line)" }}
-    >
-      <div className="flex items-center gap-2">
-        <Clock className="h-3.5 w-3.5" style={{ color: "var(--hf-gold)" }} />
-        <span className="text-[13px] font-semibold" style={{ color: "var(--hf-gold)" }}>
-          {account.trialDaysLeft} days left
-        </span>
-      </div>
-      <div className="mt-1 text-[12px]" style={{ color: "var(--hf-text-soft)" }}>
-        Your trial ends {account.trialEnds}
-      </div>
-    </div>
-  );
-}
-
 function Sidebar() {
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
   const { pathname } = useLocation();
@@ -194,7 +166,6 @@ function Sidebar() {
       </nav>
 
       <div className="mt-4 flex flex-col gap-3">
-        <TrialBadge />
         {/* The design's app frame is rail + page, with no top bar, so the bell
             sits at the foot of the rail beside the account block — the one
             place the account is printed. */}

@@ -656,13 +656,11 @@ export function candidateSignalFromApp(app: ApplicationWithCandidate) {
   return { score: overall, active: isRecentlyActive(app.updated_at) };
 }
 
-export function buildAccountFromProfile(profile: Profile | null | undefined, trialDaysLeft?: number | null) {
+export function buildAccountFromProfile(profile: Profile | null | undefined) {
   const name = profile?.company_name?.trim() || profile?.full_name?.trim() || "Your business";
   const initials = getInitials(name, profile?.email);
   return {
     name,
     initials,
-    trialDaysLeft: trialDaysLeft ?? 14,
-    trialEnds: trialDaysLeft != null ? `${trialDaysLeft} days` : "Trial",
   };
 }

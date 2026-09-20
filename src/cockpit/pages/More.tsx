@@ -9,7 +9,6 @@ import {
   CreditCard,
   HelpCircle,
   ChevronRight,
-  Clock,
   LogOut,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -29,7 +28,7 @@ const ITEMS = [
 
 export default function CockpitMore() {
   const navigate = useNavigate();
-  const { account, showTrialAccess } = useCockpitAccount();
+  const { account } = useCockpitAccount();
   const { signOut } = useAuth();
 
   const handleLogout = async () => {
@@ -52,11 +51,6 @@ export default function CockpitMore() {
           <div className="text-[16px] font-semibold" style={{ color: "var(--hf-text)" }}>{account.name}</div>
           <div className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>Owner workspace</div>
         </div>
-        {showTrialAccess && (
-          <span className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium" style={{ background: "color-mix(in srgb, var(--hf-gold-hover) 50%, transparent)", border: "1px solid color-mix(in srgb, var(--hf-gold-hover) 30%, transparent)", color: "var(--hf-gold)" }}>
-            <Clock className="h-3.5 w-3.5" />{account.trialDaysLeft} days left
-          </span>
-        )}
       </div>
 
       {/* list */}
@@ -82,15 +76,6 @@ export default function CockpitMore() {
           <button className="mt-1.5 flex items-center gap-1 text-[13px]" style={{ color: "var(--hf-gold)" }}>View recommendations<ChevronRight className="h-3.5 w-3.5" /></button>
         </div>
       </div>
-
-      {/* trial */}
-      {showTrialAccess && (
-        <div className="ck-card flex items-center gap-3 p-4">
-          <Clock className="h-5 w-5" style={{ color: "var(--hf-gold)" }} />
-          <span className="flex-1 text-[14px]" style={{ color: "var(--hf-text)" }}>Trial ends {account.trialEnds}</span>
-          <button className="ck-btn ck-btn-primary !px-4 !py-2 !text-[13px]" onClick={() => navigate("/settings?tab=subscription")}>Manage plan</button>
-        </div>
-      )}
 
       {/* log out */}
       <button
