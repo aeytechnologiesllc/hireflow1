@@ -59,8 +59,6 @@ export async function fetchShowcaseAccount() {
   return {
     name,
     initials: getInitials(name),
-    trialDaysLeft: 14,
-    trialEnds: "Trial",
   };
 }
 
