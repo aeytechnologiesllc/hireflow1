@@ -874,10 +874,10 @@ export default function CandidateAuth() {
                       One home for every application — and everyone hears back.
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Are you an employer?{" "}
-                      <Link to="/auth" className="text-primary hover:underline">
+                      Zulu staff?{" "}
+                      <a href={staffSignInHref()} className="text-primary hover:underline">
                         Sign in here
-                      </Link>
+                      </a>
                     </p>
                   </div>
                 </>
