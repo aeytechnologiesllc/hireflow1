@@ -19,6 +19,14 @@ import process from "node:process";
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const PORT = 5390;
 const BASE = `http://localhost:${PORT}`;
+const VITE_BIN = path.join(ROOT, "node_modules", "vite", "bin", "vite.js");
+
+// The whole run takes seconds (about 2 s in CI). A hard deadline turns any
+// future hang into a failure with a reason. Until 2026-10-04 this test passed
+// every check in CI and then never exited, so every run sat until GitHub's
+// 6-hour limit: it started Vite through `npx` and stopped only `npx`, Vite
+// survived on Linux, and its open output pipe kept this process alive.
+const DEADLINE_MS = 180_000;
 
 let passed = 0;
 let failed = 0;
@@ -152,13 +160,62 @@ async function crawl() {
   return visited.size;
 }
 
+/** Signal Vite's whole process group: Vite itself and the esbuild service it starts. */
+function signalServer(child, signal) {
+  try {
+    process.kill(-child.pid, signal);
+  } catch {
+    // already gone
+  }
+}
+
+/** Stop the server and wait for it to exit: SIGTERM first, SIGKILL after 5 s. */
+function stopServer(child) {
+  return new Promise((resolve) => {
+    if (child.exitCode !== null || child.signalCode !== null) {
+      resolve();
+      return;
+    }
+    let force;
+    child.once("exit", () => {
+      clearTimeout(force);
+      resolve();
+    });
+    signalServer(child, "SIGTERM");
+    force = setTimeout(() => {
+      signalServer(child, "SIGKILL");
+      setTimeout(resolve, 1_000);
+    }, 5_000);
+  });
+}
+
 async function main() {
   console.log(`Starting vite dev on port ${PORT}...\n`);
-  const child = spawn("npx", ["vite", "--port", String(PORT), "--strictPort"], {
+  // Vite runs directly (no npx in between) in its own process group, so
+  // stopping it reaches every process it started.
+  const child = spawn(process.execPath, [VITE_BIN, "--port", String(PORT), "--strictPort"], {
     cwd: ROOT,
     stdio: ["ignore", "pipe", "pipe"],
     env: { ...process.env },
+    detached: true,
   });
+
+  // A separate process group no longer hears Ctrl-C or the CI runner's
+  // timeout, so pass those on, and never leave the server behind on exit.
+  process.on("exit", () => signalServer(child, "SIGKILL"));
+  for (const signal of ["SIGINT", "SIGTERM"]) {
+    process.on(signal, () => {
+      signalServer(child, "SIGKILL");
+      process.exit(1);
+    });
+  }
+
+  const deadline = setTimeout(() => {
+    console.log(`FAIL  - finished within ${DEADLINE_MS / 1000} s (still running, stopping the server)`);
+    signalServer(child, "SIGKILL");
+    process.exit(1);
+  }, DEADLINE_MS);
+  deadline.unref(); // fires only if something else is keeping the process alive
 
   let serverOutput = "";
   child.stdout.on("data", (d) => { serverOutput += d.toString(); });
@@ -167,12 +224,16 @@ async function main() {
   try {
     const up = await waitForServer(30_000);
     check("vite dev server came up on port 5390", up, serverOutput.slice(-500));
-    if (!up) return;
-
-    const visitedCount = await crawl();
-    check("crawled a non-trivial first-party module graph", visitedCount > 15, `visited ${visitedCount} modules`);
+    // No early return: a server that never came up must reach the summary
+    // below and fail the run (it used to return here and exit 0).
+    if (up) {
+      const visitedCount = await crawl();
+      check("crawled a non-trivial first-party module graph", visitedCount > 15, `visited ${visitedCount} modules`);
+    }
   } finally {
-    child.kill("SIGTERM");
+    await stopServer(child);
+    child.stdout.destroy();
+    child.stderr.destroy();
   }
 
   console.log(`\n${passed} passed, ${failed} failed.`);
@@ -181,6 +242,9 @@ async function main() {
     for (const f of failures) console.log(`  - ${f}`);
     process.exit(1);
   }
+  // Exit explicitly: a leftover handle (a keep-alive socket, a timer) must
+  // never hold the test open after it has finished.
+  process.exit(0);
 }
 
 main().catch((err) => {

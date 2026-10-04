@@ -14,6 +14,9 @@ jobs:
   checks:
     name: Build, typecheck, guardrails, tests
     runs-on: ubuntu-latest
+    # Backstop: until 2026-10-04 one stuck test held every run for GitHub's
+    # 6-hour default. A full run takes minutes.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -38,7 +41,9 @@ jobs:
         run: |
           set -e
           shopt -s nullglob
-          files=(scripts/*.test.mjs scripts/*pglite*.mjs)
+          # *.pglite.test.mjs matches both patterns: run every file once.
+          files=()
+          while IFS= read -r f; do files+=("$f"); done < <(printf '%s\n' scripts/*.test.mjs scripts/*pglite*.mjs | sed '/^$/d' | sort -u)
           if [ ${#files[@]} -eq 0 ]; then
             echo "No scripts/*.test.mjs or scripts/*pglite*.mjs files found." >&2
             exit 1
@@ -46,8 +51,15 @@ jobs:
           fail=0
           for f in "${files[@]}"; do
             echo "::group::node $f"
-            if ! node "$f"; then
-              echo "FAILED: $f" >&2
+            # A file that does not finish fails after 5 minutes instead of
+            # holding the job (SIGTERM, then SIGKILL 15 s later).
+            rc=0
+            timeout --kill-after=15s 300s node "$f" || rc=$?
+            if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+              echo "::error file=$f::did not finish within 5 minutes"
+              fail=1
+            elif [ "$rc" -ne 0 ]; then
+              echo "FAILED: $f (exit $rc)" >&2
               fail=1
             fi
             echo "::endgroup::"
