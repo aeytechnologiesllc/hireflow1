@@ -23,6 +23,9 @@ import { HiringDocumentPromptDialog } from "@/components/HiringDocumentPromptDia
 import { useCockpitCandidate, useCockpitActions, useCockpitAccount, nextAdvanceStatus, advanceTargetLabel, avaAdvanceRec } from "../hooks/useCockpitData";
 import { getInitials } from "../lib/mappers";
 import { ResumeViewerDialog } from "../components/ResumeViewerDialog";
+import { buildCandidateJourney, nextJourneyStep, positionFor, type WorkflowStepLike } from "@/lib/candidateJourney";
+import { stepHasResult } from "@/lib/journeyProgress";
+import { parseApplicationNotes } from "@/lib/applicationNotes";
 
 const STRENGTH_ICONS = [UserRound, MessageCircle, Target, BookOpen];
 
@@ -71,9 +74,9 @@ export default function CockpitCandidateDetail() {
   const navigate = useNavigate();
   const { id } = useParams();
   const { candidate: c, application, isLoading, isError, refetch } = useCockpitCandidate(id);
-  const { advance, hire, reject, isUpdating } = useCockpitActions();
+  const { advance, hire, reject, letContinue, isUpdating } = useCockpitActions();
   const { account } = useCockpitAccount();
-  const [dialog, setDialog] = useState<null | "hire" | "reject" | "advance">(null);
+  const [dialog, setDialog] = useState<null | "hire" | "reject" | "advance" | "continue">(null);
   const [hirePrompt, setHirePrompt] = useState(false);
   const [resumeOpen, setResumeOpen] = useState(false);
 
@@ -135,6 +138,24 @@ export default function CockpitCandidateDetail() {
   const isOffered = status === "offered";
   const isTerminal = isHired || isRejected;
   const canAdvance = !!nextAdvanceStatus(status);
+  // The step "Let them take the next test" would open — same journey the
+  // applicants panel and the candidate's own screens build (candidateJourney.ts).
+  // Only while the application is in the team's hands (submitted or held).
+  // Only while the candidate is parked: the step they stand on is done (its
+  // result is on file) and a real step comes next. Never while a step is still
+  // theirs to take, never once the application is decided.
+  const appRow = application as
+    | { phase?: string | null; notes?: string | null; voice_interview_result?: unknown; jobs?: { workflow_steps?: unknown; quiz_questions?: unknown } | null }
+    | null;
+  const quizQuestions = appRow?.jobs?.quiz_questions as unknown[] | undefined;
+  const journey = buildCandidateJourney(appRow?.jobs?.workflow_steps as WorkflowStepLike[] | undefined, {
+    hasQuiz: (Array.isArray(quizQuestions) && quizQuestions.length > 0) || c.quiz != null,
+  });
+  const where = { phase: appRow?.phase, status };
+  const parked =
+    (status === "pending" || status === "reviewing") &&
+    stepHasResult(parseApplicationNotes(appRow?.notes), appRow?.voice_interview_result, positionFor(journey, where).current);
+  const nextStep = parked ? nextJourneyStep(journey, where) : null;
   // `c.analyzed` is the single source of truth (computed once in `mapCandidate`) —
   // never re-derive this from `overall > 0`: a genuine finished score of 0 is a
   // real result and has to read as one, not fall back to looking unscored.
@@ -153,6 +174,10 @@ export default function CockpitCandidateDetail() {
 
   const doAdvance = async () => {
     if (application) await advance(c.id, application.status);
+    setDialog(null);
+  };
+  const doContinue = async () => {
+    if (nextStep) await letContinue(c.id, nextStep.id, nextStep.title);
     setDialog(null);
   };
   const doHire = async () => {
@@ -343,6 +368,14 @@ export default function CockpitCandidateDetail() {
           </>
         ) : (
           <>
+            {nextStep && (
+              // Opens their next STEP (quiz, typing test, chat practice…), which
+              // Ava holds back when she recommends declining. Advance below only
+              // moves the pipeline stage.
+              <button className="ck-btn ck-btn-outline flex-1" onClick={() => setDialog("continue")} disabled={isUpdating}>
+                Let them take the next test
+              </button>
+            )}
             {canAdvance && (
               // The human still decides — Advance stays fully live, never disabled
               // or hidden. But when Ava is recommending against advancing, it drops
@@ -362,6 +395,20 @@ export default function CockpitCandidateDetail() {
         )}
       </div>
 
+      <ActionDialog
+        open={dialog === "continue"}
+        title={nextStep ? `Let ${c.name} take the ${nextStep.title}?` : `Let ${c.name} continue?`}
+        description={
+          nextStep
+            ? `I'll open the ${nextStep.title} for ${c.name} and let them know. Nothing else changes — their score so far and your other options stay as they are.`
+            : ""
+        }
+        confirmLabel={nextStep ? `Open the ${nextStep.title}` : "Close"}
+        tone="brass"
+        busy={isUpdating}
+        onConfirm={() => void doContinue()}
+        onClose={() => setDialog(null)}
+      />
       <ActionDialog
         open={dialog === "advance"}
         title={`Advance ${c.name}?`}

@@ -189,6 +189,31 @@ export function positionFor(
   return { index, total, current: steps[index] ?? steps[0] ?? fallbackStep };
 }
 
+/**
+ * The stage the hiring team opens when they let a candidate take the next
+ * test themselves — the step right after wherever `positionFor` says the
+ * candidate is. Null when there is nothing left for the candidate to DO:
+ * the next stage is the closing "Decision" (that is the team's turn, not a
+ * step to unlock), or the position can't be resolved past it.
+ *
+ * Built for the "let them take the next test" control (2026-10-04): Ava
+ * parks a candidate at their current step when she recommends declining,
+ * and the employer's Advance button only ever moved pipeline STATUS. This
+ * is the one place that decides which step comes next on the employer side,
+ * read off the same journey the candidate's own screens are built from.
+ */
+export function nextJourneyStep(
+  steps: readonly CandidateJourneyStep[],
+  query: Pick<PositionQuery, "phase" | "status">,
+): CandidateJourneyStep | null {
+  if (steps.length === 0) return null;
+  const position = positionFor(steps, query);
+  if (position.current.id === DECISION_STAGE_ID) return null;
+  const next = steps[position.index + 1];
+  if (!next || next.id === DECISION_STAGE_ID) return null;
+  return next;
+}
+
 /** `video_intro` is the type every screen and this file's own titles use;
  *  `video_message` is a legacy alias that shows up in some jobs' stored
  *  `workflow_steps`. Any route/screen expecting one must accept the other. */

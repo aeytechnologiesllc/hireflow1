@@ -437,7 +437,35 @@ export function useCockpitActions() {
   // Back-compat alias — quick "Pass" with no reason.
   const pass = useCallback((applicationId: string) => reject(applicationId), [reject]);
 
-  return { advance, hire, reject, pass, isUpdating: updateApplication.isPending };
+  /**
+   * "Let them take the next test" — opens the candidate's next STEP (phase),
+   * which `advance` above never touches: that one moves pipeline status
+   * (reviewing → interview → offered). Ava parks a candidate at their current
+   * step when she recommends declining, and until this existed the only ways
+   * out were Pass or jumping them to an interview. The step id comes from
+   * `nextJourneyStep` (src/lib/candidateJourney.ts), the same journey the
+   * candidate's own screens are built from. The in-app "You moved to the
+   * next step" bell is the DB trigger notify_application_phase_advanced's.
+   */
+  const letContinue = useCallback(
+    async (applicationId: string, nextPhaseId: string, nextTitle: string) => {
+      if (mode === "showcase") {
+        toast.message("Not available on the showcase data");
+        return;
+      }
+      try {
+        await updateApplication.mutateAsync({ id: applicationId, phase: nextPhaseId, status: "reviewing" as never } as never);
+        toast.success(`${nextTitle} is open for them`);
+        refresh();
+      } catch (err) {
+        console.error(err);
+        toast.error("Could not open the next step");
+      }
+    },
+    [updateApplication, refresh, mode],
+  );
+
+  return { advance, hire, reject, pass, letContinue, isUpdating: updateApplication.isPending };
 }
 
 export function useCockpitInterviews() {

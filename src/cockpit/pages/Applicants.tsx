@@ -40,9 +40,11 @@ import {
 import { getInitials, parseApplicationNotes } from "../lib/mappers";
 import { GemRail } from "@/components/rail/GemRail";
 import { candidateApplyUrl } from "@/lib/showcaseApply";
+import { stepHasResult } from "@/lib/journeyProgress";
 import { clearDraft } from "@/lib/avaEngine/draft";
 import {
   buildCandidateJourney,
+  nextJourneyStep,
   positionFor,
   DECISION_STAGE_ID,
   type WorkflowStepLike,
@@ -90,6 +92,7 @@ interface AppRecord {
   resume_url?: string | null;
   voice_interview_recording_url?: string | null;
   voice_interview_transcript?: unknown;
+  voice_interview_result?: unknown;
   /** The job this application belongs to — already joined by `useEmployerApplications`
    *  (`jobs!inner(*)`), so `workflow_steps`/`quiz_questions` ride along for free.
    *  Absent in showcase mode, where the journey strip degrades to Application → Decision. */
@@ -665,6 +668,31 @@ function reducedMotion(): boolean {
  * one row of nodes, one line summarizing them. The score still does the
  * talking below it.
  */
+/** The job's journey for this applicant, built exactly as JourneyStrip and
+ *  the candidate's own screens build it. */
+function journeyFor(candidate: Candidate, app?: AppRecord): CandidateJourneyStep[] {
+  const workflowSteps = app?.jobs?.workflow_steps as WorkflowStepLike[] | undefined;
+  const quizQuestions = app?.jobs?.quiz_questions as unknown[] | undefined;
+  const hasQuiz = (Array.isArray(quizQuestions) && quizQuestions.length > 0) || candidate.quiz != null;
+  return buildCandidateJourney(workflowSteps, { hasQuiz });
+}
+
+/** The step "Let them take the next test" would open — only while the
+ *  candidate is parked: the application is in the hiring team's hands
+ *  (submitted or held), the step they stand on is done (its result is on
+ *  file, so there is nothing left for them to do there), and a real step
+ *  comes next. Never while a step is still theirs to take — that would be a
+ *  way to skip a test nobody took — and never once the application is decided. */
+function nextStepFor(candidate: Candidate, app?: AppRecord): CandidateJourneyStep | null {
+  if (!app) return null;
+  if (app.status !== "pending" && app.status !== "reviewing") return null;
+  const steps = journeyFor(candidate, app);
+  const where = { phase: app.phase, status: app.status };
+  const current = positionFor(steps, where).current;
+  if (!stepHasResult(parseApplicationNotes(app.notes), app.voice_interview_result, current)) return null;
+  return nextJourneyStep(steps, where);
+}
+
 function JourneyStrip({ candidate, app }: { candidate: Candidate; app?: AppRecord }) {
   const workflowSteps = app?.jobs?.workflow_steps as WorkflowStepLike[] | undefined;
   const quizQuestions = app?.jobs?.quiz_questions as unknown[] | undefined;
@@ -775,7 +803,7 @@ export default function CockpitApplicants() {
   const roleIdFilter = searchParams.get("roleId");
   const { candidates, applications, isLoading, isError, refetch } = useCockpitCandidates();
   const { jobs } = useCockpitJobsData();
-  const { advance, hire, reject, isUpdating } = useCockpitActions();
+  const { advance, hire, reject, letContinue, isUpdating } = useCockpitActions();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [bucket, setBucket] = useState<Bucket>("sealed");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -783,7 +811,7 @@ export default function CockpitApplicants() {
   const [stageFilter, setStageFilter] = useState("");
   const [scoreFilter, setScoreFilter] = useState("");
   const [page, setPage] = useState(1);
-  const [actionDialog, setActionDialog] = useState<{ type: "hire" | "reject" | "advance"; cand: Candidate } | null>(null);
+  const [actionDialog, setActionDialog] = useState<{ type: "hire" | "reject" | "advance" | "continue"; cand: Candidate } | null>(null);
   const [hirePrompt, setHirePrompt] = useState<Candidate | null>(null);
   const [scheduleCand, setScheduleCand] = useState<Candidate | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
@@ -907,6 +935,9 @@ export default function CockpitApplicants() {
   // nudging toward the one thing Ava just warned against. Same rule as the
   // Advance button on the full profile page.
   const selectedNeedsReview = selected?.recommendedAction === "reject";
+  // The step the candidate would take next if the team lets them — null once
+  // every real step is done (then the row's own Move/Hire/Pass buttons apply).
+  const selectedNextStep = selected ? nextStepFor(selected, appById[selected.id]) : null;
 
   /** Move through the whole filtered list, pulling the page along with it. */
   const goTo = (index: number) => {
@@ -920,6 +951,14 @@ export default function CockpitApplicants() {
   const openAdvance = (c: Candidate) => setActionDialog({ type: "advance", cand: c });
   const openHire = (c: Candidate) => setActionDialog({ type: "hire", cand: c });
   const openReject = (c: Candidate) => setActionDialog({ type: "reject", cand: c });
+  const openContinue = (c: Candidate) => setActionDialog({ type: "continue", cand: c });
+  const confirmContinue = async () => {
+    if (!actionDialog) return;
+    const cand = actionDialog.cand;
+    const step = nextStepFor(cand, appById[cand.id]);
+    if (step) await letContinue(cand.id, step.id, step.title);
+    setActionDialog(null);
+  };
   const confirmAdvance = async () => {
     if (!actionDialog) return;
     const cand = actionDialog.cand;
@@ -1320,6 +1359,19 @@ export default function CockpitApplicants() {
                       >
                         Pass
                       </button>
+                      {/* Opens the candidate's next STEP (quiz, typing test, chat
+                          practice…) — the thing Ava holds back when she recommends
+                          declining. Distinct from "Move to …", which only changes
+                          the pipeline stage. */}
+                      {selectedNextStep && (
+                        <button
+                          className="ck-btn ck-btn-outline !py-2 !text-[12.5px]"
+                          disabled={isUpdating}
+                          onClick={() => openContinue(selected)}
+                        >
+                          Let them take the next test
+                        </button>
+                      )}
                       {nextAdvanceStatus(statusById[selected.id]) && (
                         <button
                           className="ck-btn ck-btn-outline !py-2 !text-[12.5px]"
@@ -1467,6 +1519,27 @@ export default function CockpitApplicants() {
             note={rec.text}
             noteTone={rec.tone}
             onConfirm={() => void confirmAdvance()}
+            onClose={() => setActionDialog(null)}
+          />
+        );
+      })()}
+      {actionDialog?.type === "continue" && (() => {
+        const cand = actionDialog.cand;
+        const step = nextStepFor(cand, appById[cand.id]);
+        const who = firstName(cand.name);
+        return (
+          <ActionDialog
+            open
+            title={step ? `Let ${who} take the ${step.title}?` : `Let ${who} continue?`}
+            description={
+              step
+                ? `I'll open the ${step.title} for ${who} and let them know. Nothing else changes — their score so far and your other options stay as they are.`
+                : `${who} has finished every step already.`
+            }
+            confirmLabel={step ? `Open the ${step.title}` : "Close"}
+            tone="brass"
+            busy={isUpdating}
+            onConfirm={() => void confirmContinue()}
             onClose={() => setActionDialog(null)}
           />
         );
