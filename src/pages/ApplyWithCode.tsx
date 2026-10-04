@@ -192,18 +192,6 @@ export default function ApplyWithCode() {
         return;
       }
 
-      const { data: limitData, error: limitError } = await supabase.functions.invoke("check-applicant-limit", {
-        body: { jobId: data.id },
-      });
-
-      if (limitError) {
-        console.error("Failed to check applicant limit from code preview:", limitError);
-      } else if (limitData?.limitReached) {
-        setError("This employer has paused new applications for this role right now.");
-        setPreviewJob(null);
-        return;
-      }
-
       setPreviewJob(data as JobPreview);
     } catch (err) {
       setError("Something went wrong on our end — try again in a moment.");

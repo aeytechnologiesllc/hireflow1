@@ -45,7 +45,6 @@ import {
 } from "@/components/ui/dialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImprovementBlueprintCard } from "@/components/ImprovementBlueprintCard";
-import { BLUEPRINT_PRICE_FORMATTED, useBlueprintBilling } from "@/hooks/useImprovementBlueprint";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 import {
   getApplicationDisplayState,
@@ -183,7 +182,6 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
   const navigate = useNavigate();
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmWithdrawOpen, setConfirmWithdrawOpen] = useState(false);
-  const { billingEnabled } = useBlueprintBilling();
   const job = application.jobs;
   const phase = application.phase || "application";
 
@@ -354,7 +352,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
                 is off (app_settings 'blueprint_paid' = false) the report is
                 free, so the button says so honestly instead of quoting a
                 price nobody will be charged. */}
-            {billingEnabled ? <>Get Feedback Report — {BLUEPRINT_PRICE_FORMATTED}</> : <>Get Improvement Report</>}
+            <>Get Improvement Report</>
           </button>
         )}
 
@@ -640,7 +638,7 @@ export default function Applications() {
           <EmptyStateCard
             icon={JourneyIdentityGlyph}
             title="Ready to Start Your Job Search?"
-            description="To apply for a position on HireFlow, you'll need a job application code from an employer. Once you have one, click below to get started."
+            description="To apply for a role with the Zulu Support Team, open the careers page, or use the job code our team gave you."
             action={{
               label: "Enter Job Code",
               onClick: () => navigate("/apply"),

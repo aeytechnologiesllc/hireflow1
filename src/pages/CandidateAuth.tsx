@@ -348,7 +348,7 @@ export default function CandidateAuth() {
     } else {
       toast({
         title: "Account created!",
-        description: "Welcome to HireFlow. You can now apply for jobs.",
+        description: "Welcome to the Zulu Support Team. You can now apply.",
         duration: 1500,
       });
       await routeAuthenticatedUser();

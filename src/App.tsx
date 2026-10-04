@@ -84,7 +84,6 @@ const InterviewRoom = lazyWithReload(() => import("./pages/InterviewRoom"));
 const PortfolioUploadPhase = lazyWithReload(() => import("./pages/PortfolioUploadPhase"));
 const CreateJob = lazyWithReload(() => import("./pages/AvaCreateJob"));
 const CreateJobLegacy = lazyWithReload(() => import("./pages/CreateJob"));
-const GuestJobCreator = lazyWithReload(() => import("./pages/GuestJobCreator"));
 const NotFound = lazyWithReload(() => import("./pages/NotFound"));
 const ShowcaseApplyForm = lazyWithReload(() => import("./pages/ShowcaseApplyForm"));
 const CandidatePortalLanding = lazyWithReload(() => import("./pages/CandidatePortalLanding"));
@@ -96,7 +95,6 @@ const Privacy = lazyWithReload(() => import("./pages/Privacy"));
 const Terms = lazyWithReload(() => import("./pages/Terms"));
 const DeveloperDashboard = lazyWithReload(() => import("./pages/DeveloperDashboard"));
 const DeveloperUsers = lazyWithReload(() => import("./pages/DeveloperUsers"));
-const DeveloperSubscriptions = lazyWithReload(() => import("./pages/DeveloperSubscriptions"));
 const DeveloperJobs = lazyWithReload(() => import("./pages/DeveloperJobs"));
 const DeveloperActivity = lazyWithReload(() => import("./pages/DeveloperActivity"));
 const DeveloperErrors = lazyWithReload(() => import("./pages/DeveloperErrors"));
@@ -174,7 +172,6 @@ const App = () => (
                   <Route path="/" element={<Index />} />
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/auth/callback" element={<AuthCallback />} />
-                  <Route path="/try-job-creator" element={<GuestJobCreator />} />
                   
                   {/* Candidate Portal (separate entry point) */}
                   <Route path="/candidate" element={<CandidatePortalLanding />} />
@@ -190,7 +187,6 @@ const App = () => (
                   <Route element={<DeveloperLayout />}>
                     <Route path="/developer" element={<DeveloperDashboard />} />
                     <Route path="/developer/users" element={<DeveloperUsers />} />
-                    <Route path="/developer/subscriptions" element={<DeveloperSubscriptions />} />
                     <Route path="/developer/jobs" element={<DeveloperJobs />} />
                     <Route path="/developer/activity" element={<DeveloperActivity />} />
                     <Route path="/developer/errors" element={<DeveloperErrors />} />

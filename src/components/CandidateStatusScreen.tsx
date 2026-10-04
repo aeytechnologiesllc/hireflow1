@@ -25,7 +25,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { CandidateRescheduleRequestDialog } from "@/components/CandidateRescheduleRequestDialog";
 import { AvaSeal } from "@/components/ava/AvaSeal";
-import { useImprovementBlueprint, BLUEPRINT_PRICE_FORMATTED } from "@/hooks/useImprovementBlueprint";
+import { useImprovementBlueprint } from "@/hooks/useImprovementBlueprint";
 import { ImprovementBlueprintView } from "@/components/ImprovementBlueprintView";
 import { getErrorMessage } from "@/lib/utils";
 
@@ -112,65 +112,11 @@ function InterviewDetailsCard({
   );
 }
 
-/* ── Rejected — with the Improvement Blueprint (free while billing is off,
-   otherwise a paid upsell) ──────────────────────────────────────────────── */
+/* ── Rejected — with the Improvement Blueprint (always included) ───────── */
 
 function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; applicationId?: string }) {
-  const {
-    viewBlueprint,
-    downloadBlueprint,
-    blueprintData,
-    isGenerating,
-    purchaseBlueprint,
-    isPurchasing,
-    checkPurchaseStatus,
-    isCheckingPurchase,
-    hasPurchased,
-    hasAccess,
-    billingEnabled,
-    isLoadingBilling,
-    verifyPurchase,
-  } = useImprovementBlueprint();
-
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [hasVerified, setHasVerified] = useState(false);
+  const { viewBlueprint, downloadBlueprint, blueprintData, isGenerating } = useImprovementBlueprint();
   const [isBlueprintOpen, setIsBlueprintOpen] = useState(false);
-
-  // Check purchase status on mount
-  useEffect(() => {
-    if (applicationId) {
-      checkPurchaseStatus(applicationId);
-    }
-  }, [applicationId, checkPurchaseStatus]);
-
-  // Handle Stripe redirect verification
-  useEffect(() => {
-    const blueprintSuccess = searchParams.get("blueprint_success");
-    const sessionId = searchParams.get("session_id");
-
-    if (blueprintSuccess === "true" && sessionId && applicationId && !hasVerified) {
-      setHasVerified(true);
-
-      verifyPurchase(sessionId, applicationId).then((success) => {
-        if (success) {
-          toast.success("Payment successful! Your report is ready below.");
-          const newParams = new URLSearchParams(searchParams);
-          newParams.delete("blueprint_success");
-          newParams.delete("session_id");
-          setSearchParams(newParams, { replace: true });
-        } else {
-          toast.error("There was an issue verifying your payment. Please contact support.");
-        }
-      });
-    }
-
-    if (searchParams.get("blueprint_cancelled") === "true") {
-      toast.info("Checkout was cancelled.");
-      const newParams = new URLSearchParams(searchParams);
-      newParams.delete("blueprint_cancelled");
-      setSearchParams(newParams, { replace: true });
-    }
-  }, [searchParams, applicationId, verifyPurchase, hasVerified, setSearchParams]);
 
   const handleView = async () => {
     if (!applicationId) return;
@@ -180,10 +126,6 @@ function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; app
 
   const handleDownload = () => {
     if (applicationId) downloadBlueprint(applicationId);
-  };
-
-  const handlePurchase = () => {
-    if (applicationId) purchaseBlueprint(applicationId);
   };
 
   if (isBlueprintOpen && blueprintData) {
@@ -209,8 +151,7 @@ function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; app
           </p>
         </div>
 
-        {/* Improvement Blueprint — free/included while billing is off; a paid
-            upsell (brass, never the primary jade action) once it's on. */}
+        {/* Improvement Blueprint — always included. */}
         {applicationId && (
           <div className="space-y-3 border-t border-border pt-6 text-left">
             <div className="flex items-start gap-3">
@@ -223,12 +164,7 @@ function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; app
               </div>
             </div>
 
-            {isCheckingPurchase || isLoadingBilling ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Checking…
-              </div>
-            ) : hasAccess ? (
+            {(
               <div className="flex flex-wrap gap-2">
                 <Button onClick={handleView} disabled={isGenerating} className="gap-2">
                   {isGenerating ? (
@@ -254,30 +190,8 @@ function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; app
                   PDF
                 </Button>
               </div>
-            ) : (
-              <Button
-                onClick={handlePurchase}
-                disabled={isPurchasing}
-                variant="outline"
-                className="w-full gap-2"
-                style={{ borderColor: "var(--brass-line)", color: "var(--brass)" }}
-              >
-                {isPurchasing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Starting checkout…
-                  </>
-                ) : (
-                  <>
-                    <Lock className="h-4 w-4" />
-                    Unlock for {BLUEPRINT_PRICE_FORMATTED}
-                  </>
-                )}
-              </Button>
             )}
-            {hasAccess && !billingEnabled && (
-              <p className="text-xs text-muted-foreground">Included at no charge right now — read it anytime.</p>
-            )}
+            <p className="text-xs text-muted-foreground">Included at no charge — read it anytime.</p>
           </div>
         )}
       </CardContent>

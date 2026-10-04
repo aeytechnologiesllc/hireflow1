@@ -5,7 +5,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { extractText } from "https://esm.sh/unpdf@0.12.1";
 import { hasSubscriptionBypassForUser } from "../_shared/subscriptionBypass.ts";
 import { computeSessionTimeLimitMinutes, HARD_CAP_MINUTES } from "../_shared/voiceSessionCharge.ts";
-import { recordVoiceInterviewCharge } from "../_shared/voiceInterviewBilling.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -360,9 +359,7 @@ serve(async (req) => {
     );
 
     let voiceOwnerUserId = user.id;
-    // Set for interview mode only — the job this interview belongs to, used
-    // after minting to record/charge it against that job's voice-interview
-    // allowance (see _shared/voiceInterviewBilling.ts).
+    // Set for interview mode only — the job this interview belongs to.
     let interviewJobId: string | null = null;
     // Server-computed cap for this session's minutes (see
     // supabase/functions/_shared/voiceSessionCharge.ts and the
@@ -2634,26 +2631,6 @@ Style:
         console.error("[ava-voice-session] Failed to record voice_session_log row:", sessionLogError);
       } else {
         voiceSessionId = sessionLogRow?.id ?? null;
-      }
-    }
-
-    // Owner-decided pricing (2026-08-27): 10 voice interviews included per
-    // unlocked job, then $2 each. A no-op while billing is off, and for
-    // assistant/intake mode (this is candidate-interview economics only) —
-    // see _shared/voiceInterviewBilling.ts. Never allowed to affect the
-    // response below: a failed $2 charge still lets the interview start.
-    if (mode === "interview" && interviewJobId && voiceSessionId) {
-      try {
-        await recordVoiceInterviewCharge({
-          supabaseAdmin: adminClient,
-          jobId: interviewJobId,
-          employerId: voiceOwnerUserId,
-          applicationId: applicationId ?? null,
-          voiceSessionLogId: voiceSessionId,
-          stripeSecretKey: Deno.env.get("STRIPE_SECRET_KEY") || "",
-        });
-      } catch (voiceBillingError) {
-        console.error("[ava-voice-session] recordVoiceInterviewCharge threw unexpectedly:", voiceBillingError);
       }
     }
 

@@ -6,7 +6,6 @@ import {
   BarChart3,
   Settings,
   User as UserIcon,
-  CreditCard,
   HelpCircle,
   ChevronRight,
   LogOut,
@@ -22,7 +21,6 @@ const ITEMS = [
   { label: "Analytics", to: "/analytics", icon: BarChart3 },
   { label: "Profile", to: "/profile", icon: UserIcon },
   { label: "Settings", to: "/settings", icon: Settings },
-  { label: "Billing", to: "/settings?tab=subscription", icon: CreditCard },
   { label: "Help", to: "/settings", icon: HelpCircle },
 ];
 

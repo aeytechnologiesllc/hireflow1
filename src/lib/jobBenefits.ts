@@ -2,7 +2,7 @@
  * Normalize a job's benefits list before it hits jobs.benefits (text[]).
  *
  * Shared by every write path so the same rules apply regardless of where the
- * list came from: CreateJob.tsx / GuestJobCreator.tsx split a comma-separated
+ * list came from: CreateJob.tsx split a comma-separated
  * field with their own normalizeCommaSeparatedText/parseCommaSeparatedList
  * (free text a human typed and can already see rendered back to them), while
  * src/lib/jobFromFlow.ts maps the Ava JobBrief's `benefits: string[]`

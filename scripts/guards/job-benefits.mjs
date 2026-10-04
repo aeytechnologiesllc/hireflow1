@@ -17,7 +17,7 @@
  *      again with no visible error.
  *   2. src/lib/jobFromFlow.ts stops writing `benefits` into the `jobs` insert
  *      row — Ava-created jobs quietly stop persisting benefits even though
- *      the classic CreateJob.tsx / GuestJobCreator.tsx paths still do.
+ *      the classic CreateJob.tsx path still does.
  */
 export default [
   {
@@ -71,7 +71,7 @@ export default [
       "src/lib/jobFromFlow.ts's createJobFromFlow must keep writing a normalized `benefits` field " +
       "into the `jobs` insert row (sourced from brief.benefits via normalizeBenefits()) — otherwise " +
       "the primary Ava create-job flow silently stops persisting benefits even though the classic " +
-      "CreateJob.tsx / GuestJobCreator.tsx paths still do, and a benefit captured by voice or typed " +
+      "CreateJob.tsx path still does, and a benefit captured by voice or typed " +
       "chat (mergeBriefFromTool -> mapJobBriefToFormPayload -> briefFromForm) is collected for nothing.",
     async run({ read }) {
       const bad = [];

@@ -11,7 +11,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown, LogOut, Settings, User, Menu } from "lucide-react";
-import TrialCountdownBanner from "@/components/subscription/TrialCountdownBanner";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 const pageTitles: Record<string, string> = {
@@ -83,9 +82,6 @@ export default function AppHeader({ onMenuClick, isMobile }: AppHeaderProps) {
 
       {/* Right side */}
       <div className="flex min-w-0 items-center gap-1.5 md:gap-3 flex-shrink-0">
-        {/* Trial Countdown */}
-        {role === 'employer' && <TrialCountdownBanner />}
-        
         {/* Theme Toggle */}
         <ThemeToggle />
         

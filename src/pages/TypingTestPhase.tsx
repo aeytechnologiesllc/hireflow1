@@ -706,7 +706,7 @@ export default function TypingTestPhase() {
                   <li className="flex items-start gap-2.5">
                     <Target className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     <span>
-                      The shop is looking for around <strong className="text-foreground">{application.jobs?.required_wpm || 40} words a minute</strong>.
+                      We're looking for around <strong className="text-foreground">{application.jobs?.required_wpm || 40} words a minute</strong>.
                     </span>
                   </li>
                   <li className="flex items-start gap-2.5">

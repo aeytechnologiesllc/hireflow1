@@ -20,7 +20,6 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SecurityBadge } from "./SecurityBadge";
 import { useAuth } from "@/hooks/useAuth";
-import { useSubscription } from "@/hooks/useSubscription";
 import { useCreateDocumentRequest } from "@/hooks/useDocumentRequests";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -130,9 +129,7 @@ export function DocumentRequestWizard({
   applications,
 }: DocumentRequestWizardProps) {
   const { user } = useAuth();
-  const { usage, limits, isWithinLimit } = useSubscription();
   const createRequest = useCreateDocumentRequest();
-  const canCreateMoreDocuments = isWithinLimit('documents');
   
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
@@ -168,20 +165,6 @@ export function DocumentRequestWizard({
 
   const handleSend = async () => {
     if (!selectedApplication || !user) return;
-
-    // Check document limit before creating
-    if (!canCreateMoreDocuments) {
-      createRequest.reset?.();
-      return;
-    }
-
-    // Check if adding these documents would exceed limit
-    const documentsToCreate = selectedDocTypes.length;
-    const currentCount = usage?.documents_sent ?? 0;
-    const limit = limits?.documents ?? 0;
-    if (limit !== -1 && currentCount + documentsToCreate > limit) {
-      return;
-    }
 
     setIsSending(true);
     try {
@@ -652,16 +635,13 @@ export function DocumentRequestWizard({
           ) : (
             <Button 
               onClick={handleSend} 
-              disabled={isSending || !canProceed || !canCreateMoreDocuments}
-              title={!canCreateMoreDocuments ? `Document limit reached (${usage?.documents_sent ?? 0}/${limits?.documents ?? 0})` : undefined}
+              disabled={isSending || !canProceed}
             >
               {isSending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Sending...
                 </>
-              ) : !canCreateMoreDocuments ? (
-                <>Document Limit Reached</>
               ) : (
                 <>
                   <Send className="h-4 w-4 mr-2" />

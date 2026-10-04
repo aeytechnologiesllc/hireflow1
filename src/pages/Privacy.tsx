@@ -207,17 +207,7 @@ const Privacy = () => {
 
             <h3 className="text-xl font-semibold text-foreground mt-8 mb-4">2.9 Payment and Billing Information</h3>
             <p className="text-muted-foreground leading-relaxed">
-              For paid services and subscriptions, we collect:
-            </p>
-            <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4">
-              <li>Subscription plan type and billing cycle</li>
-              <li>Payment transaction history</li>
-              <li>Invoice and receipt information</li>
-              <li>Voice credit purchase history and balance</li>
-              <li>Stripe customer identifiers (payment processing is handled by Stripe)</li>
-            </ul>
-            <p className="text-muted-foreground leading-relaxed">
-              <strong>Note:</strong> We do not directly collect, store, or have access to your full credit card numbers, CVV codes, or bank account details. All payment processing is handled by our third-party payment processor, Stripe, Inc., which maintains its own privacy policy and security standards. Please review Stripe's privacy policy for information on how they handle your payment data.
+              Nothing is sold on this site and no payment information is ever collected here.
             </p>
 
             <h3 className="text-xl font-semibold text-foreground mt-8 mb-4">2.10 Technical and Usage Data</h3>
@@ -262,7 +252,6 @@ const Privacy = () => {
               <li>Facilitating job posting and application processes</li>
               <li>Enabling communication between employers and candidates</li>
               <li>Processing and storing documents and electronic signatures</li>
-              <li>Managing subscription services and voice credit systems</li>
               <li>Scheduling interviews and managing hiring workflows</li>
               <li>Providing team collaboration features for employers</li>
             </ul>
@@ -366,7 +355,6 @@ const Privacy = () => {
               We engage third-party service providers to perform services on our behalf, including:
             </p>
             <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4">
-              <li><strong>Stripe, Inc.:</strong> Payment processing and subscription management</li>
               <li><strong>Google:</strong> Calendar integration, authentication services, and AI/ML services</li>
               <li><strong>ElevenLabs:</strong> Text-to-speech and voice synthesis services</li>
               <li><strong>AI/LLM Providers:</strong> Natural language processing and AI analysis services</li>
@@ -545,7 +533,7 @@ const Privacy = () => {
               <li><strong>Essential Cookies:</strong> Required for the Platform to function, including authentication, session management, and security features</li>
               <li><strong>Functional Cookies:</strong> Remember your preferences and settings</li>
               <li><strong>Analytics Cookies:</strong> Help us understand how users interact with our Platform</li>
-              <li><strong>Third-Party Cookies:</strong> Set by our service providers (Stripe, Google) for payment processing and integrations</li>
+              <li><strong>Third-Party Cookies:</strong> Set by our service providers (Google) for integrations</li>
             </ul>
 
             <h3 className="text-xl font-semibold text-foreground mt-8 mb-4">10.2 Managing Cookies</h3>

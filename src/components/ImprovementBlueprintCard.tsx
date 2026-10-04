@@ -1,77 +1,21 @@
-import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Download, Loader2, TrendingUp, Calendar, Target, Lightbulb, Lock, FileText } from "lucide-react";
+import { Download, Loader2, TrendingUp, Calendar, Target, Lightbulb, FileText } from "lucide-react";
 import { AvaSeal } from "@/components/ava/AvaSeal";
-import { useImprovementBlueprint, BLUEPRINT_PRICE_FORMATTED } from "@/hooks/useImprovementBlueprint";
+import { useImprovementBlueprint } from "@/hooks/useImprovementBlueprint";
 import { ImprovementBlueprintView } from "@/components/ImprovementBlueprintView";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 interface ImprovementBlueprintCardProps {
   applicationId: string;
 }
 
+/** The candidate's coaching report after a "no" — always included, never
+ *  sold (billing was removed 2026-10-04). */
 export function ImprovementBlueprintCard({ applicationId }: ImprovementBlueprintCardProps) {
-  const {
-    viewBlueprint,
-    downloadBlueprint,
-    blueprintData,
-    isGenerating,
-    purchaseBlueprint,
-    isPurchasing,
-    checkPurchaseStatus,
-    isCheckingPurchase,
-    hasPurchased,
-    hasAccess,
-    billingEnabled,
-    isLoadingBilling,
-    verifyPurchase
-  } = useImprovementBlueprint();
-
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [hasVerified, setHasVerified] = useState(false);
+  const { viewBlueprint, downloadBlueprint, blueprintData, isGenerating } = useImprovementBlueprint();
   const [isOpen, setIsOpen] = useState(false);
-
-  // Check purchase status on mount
-  useEffect(() => {
-    if (applicationId) {
-      checkPurchaseStatus(applicationId);
-    }
-  }, [applicationId, checkPurchaseStatus]);
-
-  // Handle Stripe redirect verification
-  useEffect(() => {
-    const blueprintSuccess = searchParams.get("blueprint_success");
-    const sessionId = searchParams.get("session_id");
-
-    if (blueprintSuccess === "true" && sessionId && applicationId && !hasVerified) {
-      setHasVerified(true);
-
-      // Verify and record the purchase
-      verifyPurchase(sessionId, applicationId).then((success) => {
-        if (success) {
-          toast.success("Payment successful! Your report is ready below.");
-          // Clean up URL params
-          const newParams = new URLSearchParams(searchParams);
-          newParams.delete("blueprint_success");
-          newParams.delete("session_id");
-          setSearchParams(newParams, { replace: true });
-        } else {
-          toast.error("There was an issue verifying your payment. Please contact support.");
-        }
-      });
-    }
-
-    // Handle cancelled checkout
-    if (searchParams.get("blueprint_cancelled") === "true") {
-      toast.info("Checkout was cancelled.");
-      const newParams = new URLSearchParams(searchParams);
-      newParams.delete("blueprint_cancelled");
-      setSearchParams(newParams, { replace: true });
-    }
-  }, [searchParams, applicationId, verifyPurchase, hasVerified, setSearchParams]);
 
   const handleView = async () => {
     const data = await viewBlueprint(applicationId);
@@ -82,35 +26,14 @@ export function ImprovementBlueprintCard({ applicationId }: ImprovementBlueprint
     downloadBlueprint(applicationId);
   };
 
-  const handlePurchase = () => {
-    purchaseBlueprint(applicationId);
-  };
-
   // Once opened, show the full report inline instead of the promo card.
   if (isOpen && blueprintData) {
     return <ImprovementBlueprintView data={blueprintData} onDownloadPdf={handleDownload} isDownloading={isGenerating} />;
   }
 
-  // Loading state while checking purchase/billing
-  if (isCheckingPurchase || isLoadingBilling) {
-    return (
-      <Card className="relative overflow-hidden border-brass/30 bg-gradient-to-br from-brass/5 via-background to-brass/10">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-center gap-2">
-            <Loader2 className="h-5 w-5 animate-spin text-brass" />
-            <span className="text-muted-foreground">Loading...</span>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <Card className="group relative overflow-hidden border-brass/40 bg-gradient-to-br from-brass/5 via-background to-brass/10 hover:border-brass/60 transition-all duration-500 hover:shadow-lg hover:shadow-brass/10">
-      {/* Animated gradient border effect */}
       <div className="absolute inset-0 bg-gradient-to-r from-brass/0 via-brass/10 to-brass/0 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-
-      {/* Decorative seal mark */}
       <div className="absolute top-3 right-3 opacity-30">
         <AvaSeal size={20} />
       </div>
@@ -119,35 +42,23 @@ export function ImprovementBlueprintCard({ applicationId }: ImprovementBlueprint
 
       <CardContent className="p-6 relative">
         <div className="flex items-start gap-4">
-          {/* Premium Icon with glow */}
           <div className="flex-shrink-0 p-3 bg-gradient-to-br from-brass/20 to-brass/20 rounded-xl border border-brass/20 shadow-lg shadow-brass/10">
             <AvaSeal size={24} />
           </div>
 
-          {/* Content */}
           <div className="flex-1 space-y-4">
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-lg font-semibold text-foreground">
-                  Your Improvement Blueprint
-                </h3>
-                {!hasAccess && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-brass/10 text-brass text-xs font-semibold border border-brass/30">
-                    {BLUEPRINT_PRICE_FORMATTED}
-                  </span>
-                )}
-                {hasAccess && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-success/10 text-success text-xs font-semibold border border-success/30">
-                    {hasPurchased ? "Unlocked" : "Included"}
-                  </span>
-                )}
+                <h3 className="text-lg font-semibold text-foreground">Your Improvement Blueprint</h3>
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-success/10 text-success text-xs font-semibold border border-success/30">
+                  Included
+                </span>
               </div>
               <p className="text-sm text-muted-foreground mt-1.5">
                 A coaching-focused guide with actionable steps to strengthen your next application.
               </p>
             </div>
 
-            {/* Feature highlights with hover effects */}
             <div className="grid grid-cols-2 gap-3">
               <div className="flex items-center gap-2 text-sm text-muted-foreground group/item hover:text-foreground transition-colors">
                 <div className="p-1 rounded-md bg-primary/10 group-hover/item:bg-primary/20 transition-colors">
@@ -175,77 +86,45 @@ export function ImprovementBlueprintCard({ applicationId }: ImprovementBlueprint
               </div>
             </div>
 
-            {/* Premium Action Buttons */}
-            {hasAccess ? (
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  onClick={handleView}
-                  disabled={isGenerating}
-                  size="lg"
-                  className={cn(
-                    "relative gap-2",
-                    "bg-primary text-primary-foreground font-semibold border-0",
-                    "hover:brightness-110 transition-all duration-300",
-                    "hover:scale-[1.02] active:scale-[0.98]"
-                  )}
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                      Preparing...
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="h-5 w-5" />
-                      View your report
-                    </>
-                  )}
-                </Button>
-                <Button
-                  onClick={handleDownload}
-                  disabled={isGenerating}
-                  size="lg"
-                  variant="outline"
-                  className="gap-2"
-                  style={{ borderColor: "var(--brass-line)", color: "var(--brass)" }}
-                >
-                  <Download className="h-5 w-5" />
-                  PDF
-                </Button>
-              </div>
-            ) : (
+            <div className="flex flex-wrap gap-2">
               <Button
-                onClick={handlePurchase}
-                disabled={isPurchasing}
+                onClick={handleView}
+                disabled={isGenerating}
                 size="lg"
-                variant="outline"
                 className={cn(
-                  "relative w-full sm:w-auto gap-2",
-                  "bg-transparent text-brass border border-brass/50 font-semibold",
-                  "hover:bg-brass/10 transition-all duration-300"
+                  "relative gap-2",
+                  "bg-primary text-primary-foreground font-semibold border-0",
+                  "hover:brightness-110 transition-all duration-300",
+                  "hover:scale-[1.02] active:scale-[0.98]"
                 )}
               >
-                {isPurchasing ? (
+                {isGenerating ? (
                   <>
                     <Loader2 className="h-5 w-5 animate-spin" />
-                    Starting Checkout...
+                    Preparing...
                   </>
                 ) : (
                   <>
-                    <Lock className="h-4 w-4" />
-                    Unlock Your Blueprint for {BLUEPRINT_PRICE_FORMATTED}
+                    <FileText className="h-5 w-5" />
+                    View your report
                   </>
                 )}
               </Button>
-            )}
+              <Button
+                onClick={handleDownload}
+                disabled={isGenerating}
+                size="lg"
+                variant="outline"
+                className="gap-2"
+                style={{ borderColor: "var(--brass-line)", color: "var(--brass)" }}
+              >
+                <Download className="h-5 w-5" />
+                PDF
+              </Button>
+            </div>
 
-            {/* Footer text */}
             <p className="text-xs text-muted-foreground">
-              {hasAccess
-                ? billingEnabled && hasPurchased
-                  ? "This blueprint is designed to help you grow. Every application is a learning opportunity."
-                  : "Included at no charge right now — read it anytime."
-                : "One-time purchase. Read or download anytime. Your personal roadmap to a stronger application."}
+              Included at no charge — read it anytime.
             </p>
           </div>
         </div>

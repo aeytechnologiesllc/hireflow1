@@ -50,7 +50,6 @@ async function sources(exts = [".ts", ".tsx", ".mjs", ".js", ".html"]) {
     ...(await walk("api", exts)),
     ...(await walk("supabase/functions", exts)),
     "index.html",
-    "public/landing.html",
   ];
   const files = [];
   for (const rel of rels) {
@@ -319,17 +318,6 @@ const guards = [
   },
 
   {
-    id: "stripe-key-fails-loudly",
-    why:
-      "A hardcoded pk_test_ fallback silently dropped PRODUCTION into Stripe test mode: " +
-      "checkout opened, looked right, and could never take real money.",
-    async run() {
-      const bad = hits(await sources([".ts", ".tsx"]), /pk_test_[A-Za-z0-9]/);
-      return bad.length ? { ok: false, detail: bad } : { ok: true };
-    },
-  },
-
-  {
     id: "no-email-enumeration-endpoint",
     why:
       "check-email-exists answered, with no login, whether any address had an account. " +
@@ -366,7 +354,7 @@ const guards = [
       "certifications on any public page. The live site claimed SOC 2 it does not hold.",
     async run() {
       const marketing = [];
-      for (const rel of ["public/landing.html", "index.html", ...(await walk("src/pages", [".tsx"]))]) {
+      for (const rel of ["index.html", ...(await walk("src/pages", [".tsx"]))]) {
         const text = await read(rel);
         if (text) marketing.push({ rel, text });
       }
@@ -1118,38 +1106,6 @@ const guards = [
   },
 
   {
-    id: "a-paid-thing-says-so-before-the-click",
-    why:
-      "\"Get Feedback Report\" sat on a rejected candidate's application and opened a $1.99 " +
-      "payment wall. Nothing on the button said it cost anything. Concealing a charge until " +
-      "after the click is a dark pattern anywhere; here it lands on someone who has just been " +
-      "turned down for a job, at the moment they are least able to shrug it off. Whether to " +
-      "charge for this at all is a pricing decision and not this guard's business — saying so " +
-      "up front is not optional. If the blueprint is behind a payment, the control that opens " +
-      "it must carry the price.",
-    async run() {
-      const bad = [];
-      const card = await read("src/components/ImprovementBlueprintCard.tsx");
-      const hook = await read("src/hooks/useImprovementBlueprint.ts");
-      // Only applies while the blueprint actually costs money.
-      const isPaid = !!hook && /BLUEPRINT_PRICE_CENTS\s*=\s*([1-9]\d*)/.test(hook) &&
-                     !!card && /purchaseBlueprint|hasPurchased/.test(card);
-      if (!isPaid) return { ok: true };
-
-      const list = await read("src/pages/Applications.tsx");
-      if (list == null) return { ok: false, detail: ["src/pages/Applications.tsx is missing"] };
-
-      const m = list.match(/Get Feedback Report[^\n<]*/);
-      if (!m) {
-        bad.push("the blueprint button's label changed — re-check that it still names the price");
-      } else if (!/BLUEPRINT_PRICE_FORMATTED|\$\d/.test(m[0])) {
-        bad.push(`the blueprint button hides its price: "${m[0].trim()}" opens a paid wall with no price on it`);
-      }
-      return bad.length ? { ok: false, detail: bad } : { ok: true };
-    },
-  },
-
-  {
     id: "voice-connect-never-leaks-an-audio-context",
     why:
       "useAvaVoice assigned `audioContextRef.current = new AudioContext(...)` unconditionally, " +
@@ -1235,7 +1191,6 @@ const guards = [
       const bad = [];
       for (const rel of [
         "src/pages/CandidateAuth.tsx", "src/pages/Auth.tsx",
-        "src/components/PublishSignupModal.tsx",
       ]) {
         const text = await read(rel);
         if (text == null) continue;

@@ -1,15 +1,12 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
-import EmbeddedCheckoutDialog from "./subscription/EmbeddedCheckoutDialog";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, Lock, Clock, ShoppingCart } from "lucide-react";
+import { Loader2, Clock } from "lucide-react";
 import { AvaSeal } from "@/components/ava/AvaSeal";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useAvaVoice } from "@/hooks/useAvaVoice";
 import { useSubscription } from "@/hooks/useSubscription";
-import { usePricing } from "@/hooks/usePricing";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { dispatchAvaFormCommand } from "@/utils/avaFormEvents";
@@ -36,15 +33,10 @@ interface ToolCallResult {
 }
 
 export default function AvaVoiceButton() {
-  const { subscription, getVoiceAccessState, getVoiceMinutesRemaining, createCheckoutSession, purchaseVoiceCredits } = useSubscription();
-  const pricing = usePricing();
+  const { getVoiceAccessState, getVoiceMinutesRemaining } = useSubscription();
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
-  const [isUpgrading, setIsUpgrading] = useState(false);
-  const [purchasingPack, setPurchasingPack] = useState<string | null>(null);
-  const [checkoutClientSecret, setCheckoutClientSecret] = useState<string | null>(null);
   
   // First-use detection
   const [isFirstUse, setIsFirstUse] = useState(() => {
@@ -187,9 +179,6 @@ export default function AvaVoiceButton() {
     applicationId: currentApplicationId,
     googleCalendarConnected,
     googleRefreshToken: googleRefreshToken || undefined,
-    subscriptionPlan: subscription?.plan_type,
-    subscriptionStatus: subscription?.status,
-    countryCode: pricing.countryCode,
     voiceMinutesRemaining: voiceMinutesRemaining,
     isFirstUse: isFirstUse,
     onTranscript: handleTranscript,
@@ -204,8 +193,8 @@ export default function AvaVoiceButton() {
   }, [isConnected, isFirstUse]);
 
   const handleButtonClick = () => {
-    if (voiceAccessState === 'locked' || voiceAccessState === 'exhausted' || voiceAccessState === 'expired' || voiceAccessState === 'trial_exhausted') {
-      setShowUpgradeDialog(true);
+    if (voiceAccessState === 'exhausted') {
+      toast.message("Ava's voice minutes are used up for this account.");
       return;
     }
 
@@ -213,41 +202,6 @@ export default function AvaVoiceButton() {
       disconnect();
     } else {
       connect();
-    }
-  };
-
-  const handleUpgrade = async () => {
-    setIsUpgrading(true);
-    try {
-      const result = await createCheckoutSession.mutateAsync({
-        planType: 'business',
-        countryCode: pricing.countryCode,
-        interval: 'monthly',
-      });
-      if (result?.clientSecret) {
-        setCheckoutClientSecret(result.clientSecret);
-        setShowUpgradeDialog(false);
-      }
-    } catch (err) {
-      toast.error('Failed to start checkout');
-    } finally {
-      setIsUpgrading(false);
-    }
-  };
-
-  const handlePurchasePack = async (packSize: string = 'standard') => {
-    setPurchasingPack(packSize);
-    try {
-      const result = await purchaseVoiceCredits.mutateAsync({ packSize });
-      if (result?.url) {
-        window.location.href = result.url;
-      }
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to start checkout';
-      toast.error(errorMessage);
-    } finally {
-      setPurchasingPack(null);
-      setShowUpgradeDialog(false);
     }
   };
 
@@ -264,23 +218,12 @@ export default function AvaVoiceButton() {
     switch (voiceAccessState) {
       case 'exhausted':
         return cn(baseStyles, "border-[var(--brass)]/50");
-      case 'locked':
-      case 'expired':
-        return cn(baseStyles, "opacity-60");
       default:
         return baseStyles;
     }
   };
 
   const getButtonContent = () => {
-    if (voiceAccessState === 'locked' || voiceAccessState === 'expired') {
-      return (
-        <div className="flex items-center justify-center">
-          <Lock className="h-4 w-4 text-muted-foreground" />
-        </div>
-      );
-    }
-    
     if (voiceAccessState === 'exhausted') {
       return (
         <div className="flex items-center justify-center">
@@ -338,16 +281,10 @@ export default function AvaVoiceButton() {
     return null;
   };
 
-  const businessPrice = pricing.business.monthlyFormatted;
-  const isBusinessUser = subscription?.plan_type === 'business' || subscription?.plan_type === 'enterprise';
-
   // Determine glow animation based on state
   const getGlowAnimation = () => {
-    if (voiceAccessState === 'locked' || voiceAccessState === 'expired') {
-      return { animate: undefined, transition: undefined }; // No glow for locked state
-    }
     if (voiceAccessState === 'exhausted') {
-      // Brass glow for exhausted (this state is about buying more minutes)
+      // Brass glow for exhausted
       return {
         animate: {
           boxShadow: [
@@ -365,11 +302,6 @@ export default function AvaVoiceButton() {
 
   return (
     <>
-      <EmbeddedCheckoutDialog
-        clientSecret={checkoutClientSecret}
-        planType="business"
-        onClose={() => setCheckoutClientSecret(null)}
-      />
       {/* Header-integrated button */}
       <div className="relative">
         {/* Listening ring animation */}
@@ -440,115 +372,6 @@ export default function AvaVoiceButton() {
         )}
       </div>
 
-      {/* Upgrade Dialog */}
-      <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {voiceAccessState === 'exhausted' ? (
-                <>
-                  <Clock className="h-5 w-5 text-[var(--brass)]" />
-                  Voice Minutes Exhausted
-                </>
-              ) : voiceAccessState === 'trial_exhausted' ? (
-                <>
-                  <AvaSeal size={20} />
-                  Upgrade for More Voice Minutes
-                </>
-              ) : (
-                <>
-                  <Lock className="h-5 w-5 text-muted-foreground" />
-                  Unlock AVA Voice Assistant
-                </>
-              )}
-            </DialogTitle>
-            <DialogDescription>
-              {voiceAccessState === 'exhausted' && isBusinessUser
-                ? "Your voice minutes have run out. Purchase additional voice credit packs to continue."
-                : voiceAccessState === 'exhausted'
-                ? "Your voice minutes have run out. Upgrade to Business to purchase more credits."
-                : voiceAccessState === 'trial_exhausted'
-                ? "You've used your 5-minute trial. Upgrade to Business to continue using AVA Voice Assistant."
-                : "Get access to AVA Voice Assistant with the Business plan."}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            {/* Show purchase option for Business users who are exhausted */}
-            {isBusinessUser && voiceAccessState === 'exhausted' ? (
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Purchase additional voice minutes to continue using AVA Voice.
-                </p>
-                <Button
-                  variant="outline"
-                  onClick={() => handlePurchasePack('standard')}
-                  disabled={!!purchasingPack}
-                  className="w-full flex items-center justify-between h-auto py-4"
-                >
-                  {purchasingPack ? (
-                    <Loader2 className="h-4 w-4 animate-spin mx-auto" />
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold">{pricing.voiceCredits.minutes} min</span>
-                      </div>
-                      <span className="text-muted-foreground">{pricing.voiceCredits.priceFormatted}</span>
-                    </>
-                  )}
-                </Button>
-                <p className="text-xs text-center text-muted-foreground">
-                  Voice credits expire after 1 month
-                </p>
-              </div>
-            ) : (
-              <>
-                <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
-                  <h4 className="font-semibold text-lg mb-2">Business Plan</h4>
-                  <p className="text-2xl font-bold text-primary mb-3">
-                    {businessPrice}
-                    <span className="text-sm font-normal text-muted-foreground">/month</span>
-                  </p>
-                  <ul className="space-y-2 text-sm">
-                    <li className="flex items-center gap-2">
-                      <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                      30 Voice Minutes/month
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                      AVA Voice Assistant for hiring queries
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                      Voice Interviews with candidates
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                      Buy additional voice credit packs
-                    </li>
-                  </ul>
-                </div>
-
-                <Button
-                  onClick={handleUpgrade}
-                  disabled={isUpgrading}
-                  variant="outline"
-                  className="w-full border-[var(--brass-line)] text-[var(--brass)] hover:bg-[var(--amber-bg)]"
-                >
-                  {isUpgrading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Processing...
-                    </>
-                  ) : (
-                    "Upgrade to Business"
-                  )}
-                </Button>
-              </>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

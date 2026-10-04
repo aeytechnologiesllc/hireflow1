@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useAuth } from "@/hooks/useAuth";
 import { parseApplicationNotes } from "@/lib/applicationNotes";
 
 export interface ImprovementBlueprintData {
@@ -51,160 +50,9 @@ export interface ImprovementBlueprintData {
 // Permanent cache key - blueprints are locked forever after first generation
 const BLUEPRINT_CACHE_KEY = "improvement_blueprint";
 
-// Blueprint price in cents — only charged once app_settings 'blueprint_paid'
-// is true (see useBlueprintBilling below). While it's false the report is
-// free/included, matching the free tier being open on purpose.
-export const BLUEPRINT_PRICE_CENTS = 199;
-export const BLUEPRINT_PRICE_FORMATTED = "$1.99";
-
-/**
- * Reads the single server-side switch that decides whether the Improvement
- * Blueprint is a paid purchase or included free — app_settings key
- * 'blueprint_paid' (supabase/migrations/20260916160000_blueprint_entitlement_and_purchase_integrity.sql).
- * Public, read-only table; no auth required. Actual access is still
- * enforced server-side in ai-generate-performance-report regardless of what
- * this returns — this only drives what the UI offers/says.
- */
-export function useBlueprintBilling() {
-  const [billingEnabled, setBillingEnabled] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const { data, error } = await supabase
-          .from("app_settings")
-          .select("value")
-          .eq("key", "blueprint_paid")
-          .maybeSingle();
-        if (!cancelled) {
-          setBillingEnabled(!error && data?.value === true);
-        }
-      } catch {
-        if (!cancelled) setBillingEnabled(false);
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { billingEnabled, isLoadingBilling: isLoading };
-}
-
 export function useImprovementBlueprint() {
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isPurchasing, setIsPurchasing] = useState(false);
-  const [isCheckingPurchase, setIsCheckingPurchase] = useState(false);
-  const [hasPurchased, setHasPurchased] = useState(false);
   const [blueprintData, setBlueprintData] = useState<ImprovementBlueprintData | null>(null);
-  const { user } = useAuth();
-  const { billingEnabled, isLoadingBilling } = useBlueprintBilling();
-
-  // A candidate has access when they've actually purchased, OR billing is
-  // off entirely (free tier) — mirrors canAccessPerformanceReport's
-  // candidate path server-side. The server re-checks this independently on
-  // every call; this is only for what the UI shows.
-  const hasAccess = hasPurchased || !billingEnabled;
-
-  // Check if user has purchased the blueprint for a given application
-  const checkPurchaseStatus = useCallback(async (applicationId: string) => {
-    if (!applicationId || !user) {
-      setHasPurchased(false);
-      return false;
-    }
-
-    setIsCheckingPurchase(true);
-    try {
-      const { data, error } = await supabase
-        .from("blueprint_purchases")
-        .select("id")
-        .eq("application_id", applicationId)
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (error) {
-        console.error("Error checking purchase status:", error);
-        setHasPurchased(false);
-        return false;
-      }
-
-      const purchased = !!data;
-      setHasPurchased(purchased);
-      return purchased;
-    } catch (error) {
-      console.error("Error checking purchase:", error);
-      setHasPurchased(false);
-      return false;
-    } finally {
-      setIsCheckingPurchase(false);
-    }
-  }, [user]);
-
-  // Verify purchase after Stripe redirect and record it
-  const verifyPurchase = useCallback(async (sessionId: string, applicationId: string) => {
-    if (!sessionId || !applicationId) return false;
-
-    try {
-      const { data, error } = await supabase.functions.invoke('verify-blueprint-purchase', {
-        body: { sessionId, applicationId }
-      });
-
-      if (error) {
-        console.error("Error verifying purchase:", error);
-        return false;
-      }
-
-      if (data?.success) {
-        setHasPurchased(true);
-        return true;
-      }
-
-      return false;
-    } catch (error) {
-      console.error("Error verifying purchase:", error);
-      return false;
-    }
-  }, []);
-
-  // Initiate purchase flow (only reachable when billing is on — the UI
-  // hides this behind hasAccess, and purchase-blueprint itself refuses to
-  // open checkout while app_settings 'blueprint_paid' is false)
-  const purchaseBlueprint = async (applicationId: string) => {
-    if (!applicationId) {
-      toast.error("Application ID not available");
-      return;
-    }
-
-    setIsPurchasing(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('purchase-blueprint', {
-        body: { applicationId }
-      });
-
-      if (error) {
-        console.error("Error creating checkout:", error);
-        toast.error("Failed to start checkout. Please try again.");
-        return;
-      }
-
-      if (data?.url) {
-        // Redirect to Stripe checkout
-        window.location.href = data.url;
-      } else {
-        toast.error(data?.error || "Failed to create checkout session");
-      }
-    } catch (error: unknown) {
-      console.error("Error purchasing blueprint:", error);
-      const message = error instanceof Error ? error.message : "Failed to start checkout";
-      toast.error(message);
-    } finally {
-      setIsPurchasing(false);
-    }
-  };
 
   // Fetch the cached blueprint from application notes, or generate it once
   // (permanently locked after that — see BLUEPRINT_CACHE_KEY). Shared by
@@ -341,14 +189,5 @@ export function useImprovementBlueprint() {
     viewBlueprint,
     blueprintData,
     isGenerating,
-    purchaseBlueprint,
-    isPurchasing,
-    checkPurchaseStatus,
-    isCheckingPurchase,
-    hasPurchased,
-    hasAccess,
-    billingEnabled,
-    isLoadingBilling,
-    verifyPurchase,
   };
 }

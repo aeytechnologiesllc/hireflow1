@@ -11,8 +11,6 @@ import {
   notifyPhaseAdvanced,
   notifyPhaseCompleted,
 } from "@/utils/emailNotifications";
-import { fetchEmployerSealedApplicationIds } from "@/lib/sealedApplicationIds";
-import { redactSealedApplications } from "@/lib/billingVisibility";
 
 export type Application = Tables<"applications">;
 export type ApplicationInsert = TablesInsert<"applications">;
@@ -172,17 +170,7 @@ export function useEmployerApplications() {
         profiles: profileMap.get(app.candidate_id) || null,
       })) as ApplicationWithCandidate[];
 
-      // Billing paywall — redact, don't just filter. get_employer_sealed_application_ids()
-      // is the one server-side source of truth for which of these ids are
-      // currently sealed (billing off or nothing locked => empty set, so this
-      // is a no-op on the free tier). Every consumer of useEmployerApplications
-      // (Applicants.tsx, CandidateDetail, Messages, Interviews, Dashboard,
-      // AIShortlistDialog — anything downstream of useCockpitCandidates) gets
-      // this for free instead of needing its own billing check. See
-      // src/lib/billingVisibility.ts's redactSealedApplication for exactly
-      // what gets blanked.
-      const sealedIds = await fetchEmployerSealedApplicationIds(supabase);
-      return redactSealedApplications(withProfiles, sealedIds);
+      return withProfiles;
     },
     enabled: !!user && mode === "hireflow1",
   });
@@ -233,7 +221,7 @@ export function useCreateApplication() {
 
   return useMutation({
     mutationFn: async (application: Omit<ApplicationInsert, "candidate_id">) => {
-      // Check if employer has reached applicant limit before creating application
+      // The job must still be published (the public view only lists those).
       const { data: job, error: jobError } = await supabase
         .from("published_jobs_public")
         .select("employer_id")
@@ -242,18 +230,6 @@ export function useCreateApplication() {
 
       if (jobError || !job) {
         throw new Error("Job not found");
-      }
-
-      // Check employer's subscription limit
-      const { data: limitCheck, error: limitError } = await supabase.functions.invoke("check-applicant-limit", {
-        body: { jobId: application.job_id },
-      });
-
-      if (limitError) {
-        console.error("Error checking applicant limit:", limitError);
-        // Continue anyway - don't block applications on limit check failures
-      } else if (limitCheck?.limitReached) {
-        throw new Error(limitCheck.message || "This employer has reached their applicant limit. Please try again later.");
       }
 
       const { data, error } = await supabase

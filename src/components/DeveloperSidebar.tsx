@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
   Users,
-  CreditCard,
   Briefcase,
   Activity,
   Bug,
@@ -39,12 +38,6 @@ const navItems = [
     path: "/developer/users", 
     icon: Users,
     description: "User management"
-  },
-  { 
-    title: "Subscriptions", 
-    path: "/developer/subscriptions", 
-    icon: CreditCard,
-    description: "Subscription analytics"
   },
   { 
     title: "Jobs", 

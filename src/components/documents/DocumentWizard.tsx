@@ -11,7 +11,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/hooks/useProfile";
-import { useSubscription } from "@/hooks/useSubscription";
 import { supabase, SUPABASE_URL } from "@/integrations/supabase/client";
 import type { TablesInsert } from "@/integrations/supabase/types";
 import { motion, AnimatePresence } from "framer-motion";
@@ -194,8 +193,6 @@ export function DocumentWizard({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: profile } = useProfile();
-  const { usage, limits, isWithinLimit } = useSubscription();
-  const canCreateMoreDocuments = isWithinLimit('documents');
 
   // Get current steps based on document source
   const WIZARD_STEPS = documentSource === "upload" ? UPLOAD_STEPS : GENERATE_STEPS;
@@ -616,16 +613,6 @@ export function DocumentWizard({
   };
 
   const handleSubmit = async () => {
-    // Check document limit before creating
-    if (!canCreateMoreDocuments) {
-      toast({
-        title: "Document Limit Reached",
-        description: `You've reached your document limit (${usage?.documents_sent ?? 0}/${limits?.documents ?? 0}). Upgrade your plan to send more documents.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");

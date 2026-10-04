@@ -12,7 +12,7 @@
  * mark on a journey header, an empty state, a milestone card.
  *
  * Scope note: this file is named for the candidate side but is not limited to
- * it — CreateJob, GuestJobCreator and the create-job StepRail all import from
+ * it — CreateJob and the create-job StepRail both import from
  * here, because GlyphLetter and GlyphSteps already draw objects the employer
  * flow needed. The employer-specific marks live alongside it in
  * ../ava/employerGlyphs.tsx and follow the identical family law; treat the two

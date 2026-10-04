@@ -1,16 +1,16 @@
 import { useAuth } from "@/hooks/useAuth";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { User, CreditCard, Loader2, Bell, AlertTriangle } from "lucide-react";
+import { User, Loader2, Bell, AlertTriangle } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,16 +23,12 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
-import SubscriptionSettings from "@/components/subscription/SubscriptionSettings";
-import SubscriptionSuccessModal from "@/components/subscription/SubscriptionSuccessModal";
 import { useEmailPreferences, useUpdateEmailPreferences, type EmailPreferences } from "@/hooks/useEmailPreferences";
-import { useSubscription } from "@/hooks/useSubscription";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getSignedOutRoute } from "@/lib/authRouting";
 
 export default function Settings() {
   const { user, role, loading } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const isEmployer = role === "employer";
   const isDeveloper = role === "developer";
@@ -40,14 +36,9 @@ export default function Settings() {
   const [isSendingTestPush, setIsSendingTestPush] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const { sendTestNotification } = usePushNotifications();
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [showSubscriptionSuccess, setShowSubscriptionSuccess] = useState(false);
-  const [successPlanType, setSuccessPlanType] = useState("growth");
-  const syncAttempted = useRef(false);
   
   const { data: emailPrefs, isLoading: prefsLoading } = useEmailPreferences();
   const updatePrefs = useUpdateEmailPreferences();
-  const { syncSubscription, refetch } = useSubscription();
   
   const [localPrefs, setLocalPrefs] = useState<EmailPreferences>({
     email_notifications_enabled: true,
@@ -57,48 +48,6 @@ export default function Settings() {
     email_document_updates: true,
     email_phase_updates: true,
   });
-
-  // Handle subscription success callback from Stripe
-  useEffect(() => {
-    if (!user) return;
-    const subscriptionParam = searchParams.get("subscription");
-    
-    if (subscriptionParam === "success" && !syncAttempted.current) {
-      syncAttempted.current = true;
-      setIsSyncing(true);
-      
-      // Sync subscription with Stripe
-      syncSubscription.mutateAsync()
-        .then((result) => {
-          const storageKey = `subscription_success_shown_${user?.id}`;
-          if (!localStorage.getItem(storageKey)) {
-            localStorage.setItem(storageKey, "true");
-            setSuccessPlanType(result?.subscription?.plan_type || "growth");
-            setShowSubscriptionSuccess(true);
-          }
-          setSearchParams((prev) => {
-            prev.delete("subscription");
-            return prev;
-          });
-          refetch();
-        })
-        .catch((error) => {
-          console.error("[Settings] Sync error:", error);
-          toast.error("Failed to verify subscription", {
-            description: "Please refresh the page or contact support.",
-          });
-        })
-        .finally(() => {
-          setIsSyncing(false);
-        });
-    } else if (subscriptionParam === "canceled") {
-      toast.info("Checkout canceled");
-      setSearchParams((prev) => {
-        prev.delete("subscription");
-        return prev;
-      });
-    }
-  }, [searchParams, setSearchParams, syncSubscription, refetch, user]);
 
   useEffect(() => {
     if (emailPrefs) {
@@ -124,13 +73,6 @@ export default function Settings() {
       setLocalPrefs(prev => ({ ...prev, [key]: !value }));
       toast.error("Failed to update preference");
     }
-  };
-
-  const requestedTab = searchParams.get("tab") || "account";
-  const activeTab = requestedTab === "subscription" ? "subscription" : "account";
-
-  const handleTabChange = (value: string) => {
-    setSearchParams({ tab: value });
   };
 
   const handleSignOut = async () => {
@@ -283,32 +225,16 @@ export default function Settings() {
     );
   }
 
-  // Employer Settings - Tabbed view with Account and Subscription
+  // Employer Settings
   return (
     <div className="space-y-6 max-w-4xl">
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-foreground">Settings</h2>
-        <p className="text-muted-foreground mt-1">Manage your account and subscription</p>
+        <p className="text-muted-foreground mt-1">Manage your account</p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="flex h-auto flex-wrap justify-start gap-1 bg-muted/50 border border-border p-1">
-          <TabsTrigger 
-            value="account" 
-            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-          >
-            <User className="h-4 w-4 mr-2" />
-            Account
-          </TabsTrigger>
-          <TabsTrigger 
-            value="subscription"
-            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-          >
-            <CreditCard className="h-4 w-4 mr-2" />
-            Subscription
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value="account" className="w-full">
 
         {/* Account Tab */}
         <TabsContent value="account" className="space-y-6 mt-6">
@@ -516,18 +442,7 @@ export default function Settings() {
           </Card>
         </TabsContent>
 
-        {/* Subscription Tab */}
-        <TabsContent value="subscription" className="mt-6">
-          <SubscriptionSettings />
-        </TabsContent>
       </Tabs>
-
-      {showSubscriptionSuccess && (
-        <SubscriptionSuccessModal
-          planType={successPlanType}
-          onClose={() => setShowSubscriptionSuccess(false)}
-        />
-      )}
     </div>
   );
 }

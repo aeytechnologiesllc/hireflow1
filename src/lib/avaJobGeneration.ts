@@ -32,7 +32,7 @@ export interface FullJobGenerationResponse {
 
 // Mirrors the local (unexported) interfaces of the same name in
 // CreateJob.tsx, which already consumes this exact response shape — kept
-// here too since GuestJobCreator.tsx (the other caller) has no such type of
+// here too since the former GuestJobCreator.tsx (the other caller) had no such type of
 // its own.
 export interface GeneratedApplicationQuestion {
   id: string;

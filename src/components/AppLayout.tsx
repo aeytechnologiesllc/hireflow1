@@ -3,7 +3,6 @@ import { useNavigate, Outlet, useLocation, useSearchParams } from "react-router-
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 import AppSidebar from "./AppSidebar";
@@ -12,8 +11,7 @@ import CockpitShell from "@/cockpit/Shell";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 
 import EmployerWelcome from "./EmployerWelcome";
-import CandidateOnboardingWizard from "./subscription/CandidateOnboardingWizard";
-import TrialExpiredOverlay from "./subscription/TrialExpiredOverlay";
+import CandidateOnboardingWizard from "./candidate/CandidateOnboardingWizard";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { GlobalNotificationToasts } from "@/components/GlobalNotificationToasts";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
@@ -72,26 +70,11 @@ function isAllowedCandidatePath(pathname: string) {
 export default function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const { user, loading, role, signOut, isTeamMember } = useAuth();
-  const { subscription, teamAccess, isLoading: subLoading, error: subError, completeOnboarding, needsOnboarding: hookNeedsOnboarding, syncSubscription, refetch } = useSubscription();
-  const isExpiredCheck = subscription?.status === 'expired' ||
-                    (subscription?.status === 'trialing' &&
-                     subscription?.trial_end &&
-                     new Date(subscription.trial_end) < new Date());
+  const { teamAccess, isLoading: subLoading, error: subError, completeOnboarding, needsOnboarding: hookNeedsOnboarding } = useSubscription();
   const isMobile = useIsMobile();
   usePushNotifications(); // Auto-registers device for push notifications in Natively
-  const syncAttemptedRef = useRef(false);
-  const globalSyncAttemptedRef = useRef(false);
-  
-  // Check if we need to sync subscription on mount (after checkout return)
-  const [isSyncingSubscription, setIsSyncingSubscription] = useState(() => {
-    const pendingSync = localStorage.getItem("pending_subscription_sync");
-    if (!pendingSync) return false;
-    const syncTimestamp = parseInt(pendingSync, 10);
-    const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
-    return syncTimestamp > thirtyMinutesAgo;
-  });
   
   // Mobile sidebar is hidden by default, desktop is expanded
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -151,51 +134,9 @@ export default function AppLayout() {
     touchStartY.current = null;
   }, []);
 
-  // Global subscription=success handler (works from any route, not just Settings)
-  useEffect(() => {
-    if (!user || globalSyncAttemptedRef.current) return;
-    const subscriptionParam = searchParams.get("subscription");
-    if (subscriptionParam !== "success") return;
-    
-    globalSyncAttemptedRef.current = true;
-
-    syncSubscription.mutateAsync()
-      .then(async (result) => {
-        // Clear query params
-        setSearchParams((prev) => {
-          prev.delete("subscription");
-          prev.delete("session_id");
-          return prev;
-        });
-        // Refetch immediately, then again after a short delay for consistency
-        await refetch();
-        setTimeout(() => refetch(), 500);
-        if (result?.synced) {
-          toast.success("Subscription activated! Welcome to HireFlow 🎉", { duration: 3000 });
-          // Navigate to dashboard if currently on settings or blocked
-          if (location.pathname === "/settings" || isExpiredCheck) {
-            navigate("/dashboard", { replace: true });
-          }
-        }
-      })
-      .catch((error) => {
-        console.error("[AppLayout] Global sync error:", error);
-        setSearchParams((prev) => {
-          prev.delete("subscription");
-          prev.delete("session_id");
-          return prev;
-        });
-      });
-    // globalSyncAttemptedRef makes the guarded work above run at most once
-    // per mount regardless of how often this effect itself re-fires, so the
-    // extra deps below (needed for the closures over them) can't re-trigger it.
-  }, [user, searchParams, isExpiredCheck, location.pathname, navigate, refetch, setSearchParams, syncSubscription]);
-
   const hasRevokedTeamAccess = role === "team_member" && teamAccess.status === "revoked";
-  const hasExpiredTeamAccess = isTeamMember && isExpiredCheck;
   const shouldRedirectTeamMember =
     isTeamMember &&
-    !hasExpiredTeamAccess &&
     !hasRevokedTeamAccess &&
     !isAllowedTeamPath(location.pathname);
 
@@ -208,45 +149,6 @@ export default function AppLayout() {
       }
     }
   }, [subError, signOut]);
-
-  // Auto-sync subscription when pending flag exists (after checkout in new tab)
-  useEffect(() => {
-    if (!user || subLoading || syncAttemptedRef.current) return;
-    
-    const pendingSync = localStorage.getItem("pending_subscription_sync");
-    if (!pendingSync) {
-      setIsSyncingSubscription(false);
-      return;
-    }
-    
-    const syncTimestamp = parseInt(pendingSync, 10);
-    const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
-    
-    // Only sync if flag is recent (within 30 minutes)
-    if (syncTimestamp > thirtyMinutesAgo) {
-      syncAttemptedRef.current = true;
-      setIsSyncingSubscription(true);
-      syncSubscription.mutateAsync()
-        .then((result) => {
-          localStorage.removeItem("pending_subscription_sync");
-          if (result?.synced) {
-            toast.success("Subscription activated!");
-            refetch();
-          }
-        })
-        .catch((error) => {
-          console.error("[AppLayout] Sync error:", error);
-          localStorage.removeItem("pending_subscription_sync");
-        })
-        .finally(() => {
-          setIsSyncingSubscription(false);
-        });
-    } else {
-      // Flag is too old, clear it
-      localStorage.removeItem("pending_subscription_sync");
-      setIsSyncingSubscription(false);
-    }
-  }, [user, subLoading, syncSubscription, refetch]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -392,10 +294,10 @@ export default function AppLayout() {
   }
 
   // ═══════════════════════════════════════════════════════
-  // EMPLOYERS & TEAM: Subscription-gated access below
+  // EMPLOYERS & TEAM: account-gated access below
   // ═══════════════════════════════════════════════════════
 
-  // Show loading while subscription is loading (non-developers only)
+  // Show loading while the account state is loading (non-developers only)
   if (subLoading) {
     return <AuthLoadingScreen variant={loadingVariant} />;
   }
@@ -412,11 +314,6 @@ export default function AppLayout() {
     return <AuthLoadingScreen variant={loadingVariant} />;
   }
 
-  // Show loading while syncing subscription after checkout
-  if (isSyncingSubscription) {
-    return <AuthLoadingScreen variant={loadingVariant} message="Activating your subscription..." />;
-  }
-
   // Show onboarding wizard for employers only
   if (hookNeedsOnboarding && !isGuestDraftHandoff && role === "employer") {
     return <EmployerWelcome />;
@@ -429,20 +326,6 @@ export default function AppLayout() {
         description="Your team access was removed by the account owner. Please contact your account administrator if you need access restored."
       />
     );
-  }
-
-  if (hasExpiredTeamAccess) {
-    return (
-      <TeamAccessRestricted
-        title="Access Restricted"
-        description="Your employer's subscription has expired. Please contact your account administrator to restore access."
-      />
-    );
-  }
-
-  // Show expired overlay for expired trials (employers only)
-  if (isExpiredCheck && role === "employer") {
-    return <TrialExpiredOverlay />;
   }
 
   if (user && isTeamMember) {

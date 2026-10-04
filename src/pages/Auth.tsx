@@ -42,7 +42,6 @@ const isWebView = () => {
 const emailSchema = z.string().email("Please enter a valid email address");
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
 const nameSchema = z.string().min(2, "Name must be at least 2 characters");
-const companyNameSchema = z.string().min(2, "Business name must be at least 2 characters");
 
 // Real-time password requirements component
 const PasswordRequirements = ({ password }: { password: string }) => {
@@ -75,7 +74,7 @@ const PasswordRequirements = ({ password }: { password: string }) => {
 export default function Auth() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { signIn, signUp, signInWithGoogle, user, loading: authLoading } = useAuth();
+  const { signIn, signInWithGoogle, user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const inWebView = isWebView();
@@ -86,12 +85,10 @@ export default function Auth() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
-  const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
   const [resetEmailSent, setResetEmailSent] = useState(false);
   const [showSignInPassword, setShowSignInPassword] = useState(false);
-  const [showSignUpPassword, setShowSignUpPassword] = useState(false);
 
   // Password reset state
   const [isResettingPassword, setIsResettingPassword] = useState(false);
@@ -106,10 +103,6 @@ export default function Auth() {
   const [signInPassword, setSignInPassword] = useState("");
 
   // Sign Up state
-  const [signUpEmail, setSignUpEmail] = useState("");
-  const [signUpPassword, setSignUpPassword] = useState("");
-  const [signUpName, setSignUpName] = useState("");
-  const [signUpCompanyName, setSignUpCompanyName] = useState("");
 
   // Check for redirect parameter (e.g., from guest job creation)
   const redirectTo = searchParams.get("redirect");
@@ -278,57 +271,6 @@ export default function Auth() {
       toast({
         title: "Welcome back!",
         description: "You have successfully signed in.",
-        duration: 1500,
-      });
-      await routeAuthenticatedUser();
-    }
-
-    setIsLoading(false);
-  };
-
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      emailSchema.parse(signUpEmail);
-      passwordSchema.parse(signUpPassword);
-      nameSchema.parse(signUpName);
-      companyNameSchema.parse(signUpCompanyName);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        toast({
-          variant: "warning",
-          description: err.errors[0].message,
-        });
-        setIsLoading(false);
-        return;
-      }
-    }
-
-    // Always register as employer - candidates use /candidate/auth
-    const { error, needsConfirmation } = await signUp(signUpEmail, signUpPassword, signUpName, "employer", signUpCompanyName);
-
-    if (error) {
-      const errorMessage = error.message.includes("already registered")
-        ? "This email is already registered. Please sign in instead."
-        : error.message;
-
-      toast({
-        variant: "warning",
-        title: "Sign Up Failed",
-        description: errorMessage,
-      });
-    } else if (needsConfirmation) {
-      toast({
-        title: "Check your email!",
-        description: "We've sent you a confirmation link. Please verify your email to continue.",
-        duration: 5000,
-      });
-    } else {
-      toast({
-        title: "Account created!",
-        description: "Welcome to HireFlow. You can now start using the platform.",
         duration: 1500,
       });
       await routeAuthenticatedUser();
@@ -637,31 +579,6 @@ export default function Auth() {
             )}
 
             {/* Tabs - only show when not in password reset flows */}
-            {!showForgotPassword && !isResettingPassword && (
-              <div className="flex mb-5 sm:mb-8 bg-muted/50 rounded-xl p-1">
-                <button
-                  onClick={() => setActiveTab("signin")}
-                  className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all ${
-                    activeTab === "signin"
-                      ? "bg-card text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Sign In
-                </button>
-                <button
-                  onClick={() => setActiveTab("signup")}
-                  className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all ${
-                    activeTab === "signup"
-                      ? "bg-card text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Sign Up
-                </button>
-              </div>
-            )}
-
             {isResettingPassword ? (
               <motion.div
                 key="reset-password"
@@ -823,7 +740,7 @@ export default function Auth() {
                   </form>
                 )}
               </motion.div>
-            ) : activeTab === "signin" ? (
+            ) : (
               <motion.div
                 key="signin"
                 initial={reduceMotion ? false : { opacity: 0, x: -8 }}
@@ -897,100 +814,6 @@ export default function Auth() {
                       </>
                     ) : (
                       "Sign In"
-                    )}
-                  </Button>
-                </form>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="signup"
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.2 }}
-              >
-                <div className="mb-3 sm:mb-6">
-                  <h2 className="text-2xl font-bold text-foreground">Create an employer account</h2>
-                  <p className="text-muted-foreground text-sm mt-1 hidden sm:block">
-                    Start hiring with Ava-powered tools
-                  </p>
-                </div>
-
-                <form onSubmit={handleSignUp} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-name" className="text-foreground">Full Name</Label>
-                    <Input
-                      id="signup-name"
-                      type="text"
-                      placeholder="John Doe"
-                      value={signUpName}
-                      onChange={(e) => setSignUpName(e.target.value)}
-                      onFocus={scrollFormIntoView}
-                      required
-                      className="bg-muted/50 border-border focus:border-primary h-12"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-company" className="text-foreground">Business Name</Label>
-                    <Input
-                      id="signup-company"
-                      type="text"
-                      placeholder="Ridgeway Garage"
-                      value={signUpCompanyName}
-                      onChange={(e) => setSignUpCompanyName(e.target.value)}
-                      onFocus={scrollFormIntoView}
-                      required
-                      className="bg-muted/50 border-border focus:border-primary h-12"
-                    />
-                    <p className="text-xs text-muted-foreground">This is what candidates and job boards will see.</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email" className="text-foreground">Email</Label>
-                    <Input
-                      id="signup-email"
-                      type="email"
-                      placeholder="you@example.com"
-                      value={signUpEmail}
-                      onChange={(e) => setSignUpEmail(e.target.value)}
-                      onFocus={scrollFormIntoView}
-                      required
-                      className="bg-muted/50 border-border focus:border-primary h-12"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password" className="text-foreground">Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="signup-password"
-                        type={showSignUpPassword ? "text" : "password"}
-                        placeholder="••••••••"
-                        value={signUpPassword}
-                        onChange={(e) => setSignUpPassword(e.target.value)}
-                        onFocus={scrollFormIntoView}
-                        required
-                        className="bg-muted/50 border-border focus:border-primary h-12 pr-10"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowSignUpPassword(!showSignUpPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        {showSignUpPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                    <PasswordRequirements password={signUpPassword} />
-                  </div>
-                  <Button 
-                    type="submit" 
-                    className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold" 
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Creating account...
-                      </>
-                    ) : (
-                      "Create Employer Account"
                     )}
                   </Button>
                 </form>

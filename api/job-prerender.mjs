@@ -203,7 +203,7 @@ function buildJobPostingSchema(job, { company, logo, origin }) {
 
 function jobPageTitle(job, company) {
   const base = (job.title || "").trim() || "Job opening";
-  return company ? `${base} — ${company}` : `${base} — HireFlow`;
+  return company ? `${base} — ${company}` : `${base} — Zulu Support Team`;
 }
 
 function jobMetaDescription(job) {
@@ -239,7 +239,7 @@ export default async function handler(req, res) {
     if (!shell || !/<div id="root"/i.test(shell)) {
       res.statusCode = 200;
       res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.end(shell || '<!doctype html><meta charset="utf-8"><title>HireFlow</title><p>Loading…</p>');
+      res.end(shell || '<!doctype html><meta charset="utf-8"><title>Zulu Support Team</title><p>Loading…</p>');
       return;
     }
 
@@ -362,6 +362,6 @@ export default async function handler(req, res) {
   } catch {
     res.statusCode = 200;
     res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.end(shell || '<!doctype html><meta charset="utf-8"><title>HireFlow</title><p>Loading…</p>');
+    res.end(shell || '<!doctype html><meta charset="utf-8"><title>Zulu Support Team</title><p>Loading…</p>');
   }
 }

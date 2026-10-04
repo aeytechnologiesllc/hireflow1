@@ -11,10 +11,8 @@ import { ArrowLeft, ArrowRight, Copy, Check, Users, Shield, Briefcase, Link, Ale
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useSubscription } from "@/hooks/useSubscription";
 import { useEmployerJobs } from "@/hooks/useJobs";
 import { motion, AnimatePresence } from "framer-motion";
-import { TeamMemberLimitDialog } from "@/components/subscription/TeamMemberLimitDialog";
 import { getErrorMessage } from "@/lib/utils";
 
 interface TeamInviteWizardProps {
@@ -71,12 +69,9 @@ export function TeamInviteWizard({ open, onOpenChange, onSuccess }: TeamInviteWi
   const [isLoading, setIsLoading] = useState(false);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [showLimitDialog, setShowLimitDialog] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
-  const { usage, limits, isWithinLimit } = useSubscription();
   const { data: jobs } = useEmployerJobs();
-  const canAddMoreTeamMembers = isWithinLimit('teamMembers');
 
   const [inviteData, setInviteData] = useState<InviteData>({
     name: "",
@@ -111,12 +106,6 @@ export function TeamInviteWizard({ open, onOpenChange, onSuccess }: TeamInviteWi
 
   const handleCreateInvite = async () => {
     if (!user) return;
-
-    // Check team member limit
-    if (!canAddMoreTeamMembers) {
-      setShowLimitDialog(true);
-      return;
-    }
 
     // Validate required email
     if (!inviteData.email.trim()) {
@@ -603,12 +592,6 @@ export function TeamInviteWizard({ open, onOpenChange, onSuccess }: TeamInviteWi
         )}
       </DialogContent>
 
-      <TeamMemberLimitDialog
-        open={showLimitDialog}
-        onOpenChange={setShowLimitDialog}
-        currentCount={usage?.team_members_added ?? 0}
-        limit={limits?.teamMembers ?? 0}
-      />
     </Dialog>
   );
 }

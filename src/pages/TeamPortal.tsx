@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { useSubscription } from "@/hooks/useSubscription";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,7 +51,6 @@ interface Stats {
 export default function TeamPortal() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
-  const { subscription, isLoading: subscriptionLoading } = useSubscription();
   const [membership, setMembership] = useState<TeamMembership | null>(null);
   const [stats, setStats] = useState<Stats>({ totalJobs: 0, totalApplicants: 0, pendingInterviews: 0, pendingDocuments: 0 });
   const [loading, setLoading] = useState(true);
@@ -162,13 +160,7 @@ export default function TeamPortal() {
     }
   };
 
-  const employerExpired =
-    subscription?.status === "expired" ||
-    (subscription?.status === "trialing" &&
-      !!subscription.trial_end &&
-      new Date(subscription.trial_end) < new Date());
-
-  if (authLoading || loading || subscriptionLoading) {
+  if (authLoading || loading) {
     return (
       <div className="p-6 space-y-6">
         <Skeleton className="h-10 w-64" />
@@ -183,33 +175,6 @@ export default function TeamPortal() {
 
   if (!membership) {
     return null;
-  }
-
-  // Show employer subscription expired screen
-  if (employerExpired) {
-    return (
-      <div className="p-6 flex items-center justify-center min-h-[60vh]">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <Card className="max-w-md mx-auto text-center">
-            <CardContent className="p-8 space-y-4">
-              <div className="p-4 rounded-full bg-destructive/10 w-fit mx-auto">
-                <Shield className="h-10 w-10 text-destructive" />
-              </div>
-              <h2 className="text-xl font-semibold">Access Restricted</h2>
-              <p className="text-muted-foreground">
-                Your employer's subscription has expired. Please contact your account administrator to restore access.
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Organization: {membership.employer_profile?.company_name || "Your organization"}
-              </p>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
-    );
   }
 
   const permissionLabel =

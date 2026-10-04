@@ -258,7 +258,7 @@ export function JobPostingJsonLd({ job, company, logo }: { job: JobPostingJob; c
     script.text = JSON.stringify(data);
     document.head.appendChild(script);
 
-    const title = `${job.title}${company ? ` at ${company}` : ""} | HireFlow`;
+    const title = `${job.title}${company ? ` at ${company}` : ""} | Zulu Support Team`;
     const description = textSummary(job, company);
     const previousTitle = document.title;
     document.title = title;

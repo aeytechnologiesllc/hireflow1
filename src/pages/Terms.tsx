@@ -34,7 +34,7 @@ const Terms = () => {
               <li><a href="#acceptance" className="text-primary hover:underline">Acceptance of Terms</a></li>
               <li><a href="#description" className="text-primary hover:underline">Description of Services</a></li>
               <li><a href="#eligibility" className="text-primary hover:underline">Eligibility and Account Registration</a></li>
-              <li><a href="#subscriptions" className="text-primary hover:underline">Subscription Plans and Billing</a></li>
+              <li><a href="#subscriptions" className="text-primary hover:underline">Fees</a></li>
               <li><a href="#employer-responsibilities" className="text-primary hover:underline">Employer Responsibilities</a></li>
               <li><a href="#candidate-responsibilities" className="text-primary hover:underline">Candidate Responsibilities</a></li>
               <li><a href="#prohibited-uses" className="text-primary hover:underline">Prohibited Uses</a></li>
@@ -157,53 +157,10 @@ const Terms = () => {
 
           {/* Section 4 */}
           <section id="subscriptions" className="mb-12">
-            <h2 className="text-2xl font-bold text-foreground border-b border-border pb-2">4. Subscription Plans and Billing</h2>
-
-            <h3 className="text-xl font-semibold text-foreground mt-8 mb-4">4.1 Subscription Tiers</h3>
+            <h2 className="text-2xl font-bold text-foreground border-b border-border pb-2">4. Fees</h2>
             <p className="text-muted-foreground leading-relaxed">
-              HireFlow offers various subscription plans for employers, including but not limited to Trial, Growth, Business, and Enterprise tiers. Each tier provides different features, usage limits, and capabilities as described on our pricing page. We reserve the right to modify our subscription offerings at any time.
-            </p>
-
-            <h3 className="text-xl font-semibold text-foreground mt-8 mb-4">4.2 Free Trial</h3>
-            <p className="text-muted-foreground leading-relaxed">
-              We may offer a free trial period for new users. Upon expiration of the trial period, you will be required to select a paid subscription plan to continue using premium features. We reserve the right to modify or discontinue free trials at any time.
-            </p>
-
-            <h3 className="text-xl font-semibold text-foreground mt-8 mb-4">4.3 Billing and Payment</h3>
-            <p className="text-muted-foreground leading-relaxed">
-              By subscribing to a paid plan, you agree to pay all applicable fees. Payment is processed through our third-party payment processor, Stripe, Inc. By providing payment information, you represent that you are authorized to use the payment method and authorize us to charge the applicable fees.
-            </p>
-            <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4">
-              <li>Subscription fees are billed in advance on a recurring basis (monthly or annually)</li>
-              <li>All fees are non-refundable except as expressly stated in these Terms</li>
-              <li>You are responsible for all applicable taxes</li>
-              <li>Failure to pay may result in suspension or termination of your account</li>
-            </ul>
-
-            <h3 className="text-xl font-semibold text-foreground mt-8 mb-4">4.4 Automatic Renewal</h3>
-            <p className="text-muted-foreground leading-relaxed">
-              <strong>YOUR SUBSCRIPTION WILL AUTOMATICALLY RENEW AT THE END OF EACH BILLING PERIOD UNLESS YOU CANCEL IT BEFORE THE RENEWAL DATE.</strong> You may cancel your subscription at any time through your account settings. Cancellation will take effect at the end of the current billing period, and you will continue to have access to paid features until then.
-            </p>
-
-            <h3 className="text-xl font-semibold text-foreground mt-8 mb-4">4.5 Voice Credits</h3>
-            <p className="text-muted-foreground leading-relaxed">
-              Certain features, such as AI-powered voice interviews, may require voice credits. Voice credits may be included in your subscription plan or purchased separately. Voice credits:
-            </p>
-            <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4">
-              <li>Have an expiration date as specified at the time of purchase or grant</li>
-              <li>Are non-transferable and non-refundable</li>
-              <li>May not be exchanged for cash or other value</li>
-              <li>Will be deducted based on actual usage of voice features</li>
-            </ul>
-
-            <h3 className="text-xl font-semibold text-foreground mt-8 mb-4">4.6 Price Changes</h3>
-            <p className="text-muted-foreground leading-relaxed">
-              We reserve the right to change our subscription prices at any time. Price changes will take effect at the beginning of the next billing cycle following notice to you. If you do not agree to the price change, you may cancel your subscription before it takes effect.
-            </p>
-
-            <h3 className="text-xl font-semibold text-foreground mt-8 mb-4">4.7 Refund Policy</h3>
-            <p className="text-muted-foreground leading-relaxed">
-              <strong>ALL FEES ARE NON-REFUNDABLE EXCEPT WHERE REQUIRED BY LAW.</strong> We do not provide refunds or credits for any partial subscription periods, unused voice credits, or unused features. In exceptional circumstances, we may consider refund requests on a case-by-case basis at our sole discretion.
+              This site is operated by Zulu for its own hiring. There are no fees of any kind: applying is free,
+              nothing is sold here, and no payment information is ever collected on this site.
             </p>
           </section>
 

@@ -26,7 +26,7 @@ export default function CandidatePortalLanding() {
       <div className="mx-auto max-w-4xl px-4 py-8 md:py-12">
         <header className="mb-12 flex items-center justify-between">
           <Link to="/" className="font-display text-lg tracking-wide" style={{ color: "var(--hf-text)" }}>
-            HIREFLOW
+            ZULU SUPPORT TEAM
           </Link>
           <Link to="/candidate/auth" className="cand-btn-ghost text-sm">
             Sign in

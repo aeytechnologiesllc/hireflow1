@@ -4,7 +4,6 @@ import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile, useUpdateProfile } from "@/hooks/useProfile";
 import { useCreateJob, useUpdateJob, useJob } from "@/hooks/useJobs";
-import { useSubscription } from "@/hooks/useSubscription";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -509,12 +508,9 @@ export default function CreateJob() {
   const createJob = useCreateJob();
   const updateJob = useUpdateJob();
   const { data: existingJob, isLoading: isLoadingJob } = useJob(id);
-  const { limits, usage, isWithinLimit } = useSubscription();
-  const hasVoiceInterviewAccess = limits?.hasVoiceInterviews ?? false;
-  const canCreateMoreJobs = isEditMode || isWithinLimit('jobs');
-  const jobsLimit = limits?.jobs ?? -1;
-  const jobsUsed = usage?.jobs_created ?? 0;
-  const showPublishLimitWarning = !isEditMode && !canCreateMoreJobs;
+  // Text-only screening (owner decision, 2026-10-04): the generated plan keeps
+  // its written interview and never swaps in a voice interview.
+  const hasVoiceInterviewAccess = false;
   const canManageJobs = role === "employer" || (isTeamMember && teamPermissions?.canCreateJobs);
   const guestDraftHydratedRef = useRef(false);
   
@@ -1128,12 +1124,6 @@ export default function CreateJob() {
 
     if (!isEditMode && (!jobContentGenerated || !workflowGenerated)) {
       toast.error("Generate the Ava draft and screening plan before publishing.");
-      return;
-    }
-
-    // Check job limit (only when creating a new job, not editing)
-    if (!isEditMode && !isWithinLimit('jobs')) {
-      toast.error(`You've reached your job limit (${usage?.jobs_created ?? 0}/${limits?.jobs ?? 0}). Upgrade your plan to create more jobs.`);
       return;
     }
 
@@ -3499,18 +3489,6 @@ export default function CreateJob() {
             </Button>
           ) : (
             <div className="flex flex-col items-end gap-3">
-              {showPublishLimitWarning && (
-                <Alert className="max-w-xl border-brass/40 bg-brass/10 text-left">
-                  <AlertTriangle className="h-4 w-4 text-brass" />
-                  <AlertTitle className="text-brass">Publishing is paused until you free up a job slot</AlertTitle>
-                  <AlertDescription className="text-brass/80">
-                    You are using {jobsUsed}
-                    {jobsLimit > -1 ? ` of ${jobsLimit}` : ""} active job slot{jobsUsed === 1 ? "" : "s"} on this plan.
-                    Save this as a draft for now, or upgrade/close an existing job before publishing.
-                  </AlertDescription>
-                </Alert>
-              )}
-
               <div className="flex gap-3">
                 <Button
                   variant="outline"
@@ -3522,7 +3500,7 @@ export default function CreateJob() {
                 </Button>
                 <Button
                   onClick={() => handleSubmit("published")}
-                  disabled={isSubmitting || !formData.title || !formData.description || !canCreateMoreJobs}
+                  disabled={isSubmitting || !formData.title || !formData.description}
                 >
                   {isSubmitting ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />

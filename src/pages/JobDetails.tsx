@@ -35,8 +35,6 @@ export default function JobDetails() {
   const navigate = useNavigate();
   const { role, user, signOut } = useAuth();
   const [isStartingApplication, setIsStartingApplication] = useState(false);
-  const [applicantLimitReached, setApplicantLimitReached] = useState(false);
-  const [isCheckingLimit, setIsCheckingLimit] = useState(false);
 
   const isEmployer = role === "employer";
   const applyEntryRoute = role === "candidate" ? "/apply" : "/candidate/apply";
@@ -44,7 +42,7 @@ export default function JobDetails() {
   // job code; a stranger who followed a shared link has never had one, so that
   // was a dead end dressed up as a way out. Signed-out visitors get the
   // candidate portal instead, which is an actual starting point.
-  const strandedRoute = user ? applyEntryRoute : "/candidate";
+  const strandedRoute = user ? applyEntryRoute : "/";
   // This page IS the candidate's view, so it always reads the candidate's
   // source: published_jobs_public. It used to be
   //   !user || role === "candidate"
@@ -147,33 +145,6 @@ export default function JobDetails() {
     () => (job ? { ...job, locations: job.locations as JobLocationStruct[] | null } : null),
     [job],
   );
-
-  // Check applicant limit when job loads
-  useEffect(() => {
-    const checkApplicantLimit = async () => {
-      if (!job || isEmployer) return;
-      
-      setIsCheckingLimit(true);
-      try {
-        const { data, error } = await supabase.functions.invoke("check-applicant-limit", {
-          body: { jobId: job.id },
-        });
-        
-        if (error) {
-          console.error("Error checking applicant limit:", error);
-          return;
-        }
-        
-        setApplicantLimitReached(data?.limitReached || false);
-      } catch (err) {
-        console.error("Failed to check applicant limit:", err);
-      } finally {
-        setIsCheckingLimit(false);
-      }
-    };
-
-    checkApplicantLimit();
-  }, [job, isEmployer]);
 
   const formatSalary = (min?: number | null, max?: number | null, currency?: string | null) => {
     if (!min && !max) return "Competitive Salary";
@@ -358,7 +329,7 @@ export default function JobDetails() {
                 {isFetchingJob ? "Trying again" : "Try again"}
               </Button>
               <Button variant="ghost" onClick={() => navigate(strandedRoute)}>
-                {user ? "Back to Apply" : "Browse HireFlow"}
+                {user ? "Back to Apply" : "See open roles"}
               </Button>
             </div>
           </CardContent>
@@ -381,11 +352,11 @@ export default function JobDetails() {
                 ? `This posting is ${ownedButUnpublished.status ?? "not published"}, so it has no candidate view yet. Publish it and this link goes live.`
                 : user
                 ? "This job may no longer be available or the link is invalid."
-                : "It may have closed, or the link may be incomplete. You can still see what HireFlow is about."}
+                : "It may have closed, or the link may be incomplete. You can still see the roles that are open."}
             </p>
             <Button onClick={() => navigate(ownedButUnpublished ? "/jobs" : strandedRoute)}>
               <ArrowLeft className="h-4 w-4 mr-2" />
-              {ownedButUnpublished ? "Back to Jobs" : user ? "Back to Apply" : "Browse HireFlow"}
+              {ownedButUnpublished ? "Back to Jobs" : user ? "Back to Apply" : "See open roles"}
             </Button>
           </CardContent>
         </Card>
@@ -567,13 +538,9 @@ export default function JobDetails() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
             >
-              <Card className={`bg-card overflow-hidden ${isDeadlinePassed || applicantLimitReached ? 'border-destructive/50' : 'border-primary/50'}`}>
+              <Card className={`bg-card overflow-hidden ${isDeadlinePassed ? 'border-destructive/50' : 'border-primary/50'}`}>
                 <CardContent className="p-6 space-y-4">
-                  {isCheckingLimit ? (
-                    <div className="flex items-center justify-center py-4">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : isDeadlinePassed ? (
+                  {isDeadlinePassed ? (
                     <>
                       <div className="text-center">
                         <XCircle className="h-8 w-8 text-destructive mx-auto mb-2" />
@@ -595,30 +562,6 @@ export default function JobDetails() {
 
                       <p className="text-xs text-center text-muted-foreground">
                         This job is no longer accepting applications
-                      </p>
-                    </>
-                  ) : applicantLimitReached ? (
-                    <>
-                      <div className="text-center">
-                        <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-[var(--brass)]" />
-                        <h3 className="text-lg font-semibold text-foreground">Not Accepting Applications</h3>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          This employer is not currently accepting new applications
-                        </p>
-                      </div>
-                      
-                      <Button
-                        disabled
-                        size="lg"
-                        variant="outline"
-                        className="w-full h-14 text-lg font-semibold"
-                      >
-                        <AlertTriangle className="h-5 w-5 mr-2" />
-                        Applications Paused
-                      </Button>
-
-                      <p className="text-xs text-center text-muted-foreground">
-                        Please check back later or contact the employer directly
                       </p>
                     </>
                   ) : (

@@ -36,7 +36,6 @@ import { CountUp } from "@/cockpit/components/CountUp";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile, useUpdateProfile } from "@/hooks/useProfile";
-import { useSubscription } from "@/hooks/useSubscription";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import {
   BuildStep,
@@ -128,9 +127,9 @@ export default function AvaCreateJob() {
   const { user, loading: authLoading } = useAuth();
   const { data: profile } = useProfile();
   const updateProfile = useUpdateProfile();
-  const { limits, isLoading: subscriptionLoading, isExpired, isWithinLimit } = useSubscription();
   const { data: teamPermissions, isLoading: teamPermissionsLoading } = useTeamMemberPermissions();
-  const hasVoiceInterviews = limits?.hasVoiceInterviews ?? false;
+  // Text-only screening (owner decision, 2026-10-04): no voice interview step.
+  const hasVoiceInterviews = false;
   const wide = useWide();
   const reduceMotion = useReducedMotion();
 
@@ -402,14 +401,9 @@ export default function AvaCreateJob() {
 
   const canContinueBrief = briefFields.role.trim().length > 1 && briefFields.location.trim() && briefFields.pay.trim() && briefFields.work.trim();
   const teamCreateBlocked = teamPermissions?.isTeamMember && !teamPermissions.canCreateJobs;
-  const jobLimitBlocked = !isWithinLimit("jobs");
   const createBlockedReason = teamCreateBlocked
     ? "Your team role does not include permission to create jobs."
-    : isExpired
-      ? "Your HireFlow access is expired. Renew your plan before publishing another job."
-      : jobLimitBlocked
-        ? "Your current plan has reached its active job limit."
-        : null;
+    : null;
 
   const handleNext = () => {
     if (step === 0 && !canContinueBrief) {
@@ -450,7 +444,7 @@ export default function AvaCreateJob() {
     return "Continue";
   }, [step, fuIndex, followUps.length, publishing]);
 
-  if (authLoading || !user || subscriptionLoading || teamPermissionsLoading) return <AuthLoadingScreen variant="employer" />;
+  if (authLoading || !user || teamPermissionsLoading) return <AuthLoadingScreen variant="employer" />;
 
   if (createBlockedReason) {
     return (
