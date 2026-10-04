@@ -45,8 +45,9 @@ const recentlySent = new Map<string, number>();
 const DEDUPE_MS = 5_000;
 
 function releaseId(): string {
-  const env = import.meta.env as Record<string, string | undefined>;
-  return env.VITE_RELEASE || env.VITE_VERCEL_GIT_COMMIT_SHA || env.MODE || "unknown";
+  // Name each setting. Reading import.meta.env as one object makes Vite paste
+  // every build setting into the public bundle (see vite.config.ts).
+  return import.meta.env.VITE_RELEASE || import.meta.env.VITE_VERCEL_GIT_COMMIT_SHA || import.meta.env.MODE || "unknown";
 }
 
 function shouldSend(key: string): boolean {

@@ -2,6 +2,25 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
+/*
+ * Build settings stay private (2026-10-04).
+ *
+ * Vercel hands every build its own deployment details as VITE_VERCEL_*
+ * variables: the commit message, its author, the repository, the deployment
+ * id and more. Vite pastes all of its VITE_* settings into the public
+ * JavaScript wherever code reads import.meta.env as one object, so anyone
+ * could read the latest commit message on hireflownow.com. Drop the Vercel
+ * details before Vite loads its settings (it loads them after this file
+ * runs). Only the commit SHA is kept: crash reports tag their release with
+ * it (src/lib/crashReporter.ts). Code reads each setting by name.
+ *
+ * Guarded by scripts/guards/build-settings-stay-private.mjs.
+ */
+const KEEP_VERCEL_SETTINGS = new Set(["VITE_VERCEL_GIT_COMMIT_SHA"]);
+for (const key of Object.keys(process.env)) {
+  if (key.startsWith("VITE_VERCEL_") && !KEEP_VERCEL_SETTINGS.has(key)) delete process.env[key];
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {

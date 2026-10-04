@@ -15,7 +15,19 @@
 
 export type HostRole = "employer" | "candidate" | "team_member" | "developer" | null;
 
-export const STAFF_SPLIT_ON = (import.meta as { env?: Record<string, string | undefined> }).env?.VITE_STAFF_SPLIT === "on";
+/** Read by name, so the build swaps in this one value rather than every
+ *  build setting (vite.config.ts). The try keeps this file importable from
+ *  plain Node (scripts/hosts_routing.test.mjs), where import.meta.env does
+ *  not exist. */
+function readStaffSplit(): boolean {
+  try {
+    return import.meta.env.VITE_STAFF_SPLIT === "on";
+  } catch {
+    return false;
+  }
+}
+
+export const STAFF_SPLIT_ON = readStaffSplit();
 
 export function isStaffHost(hostname: string = window.location.hostname): boolean {
   return hostname.startsWith("staff.");
