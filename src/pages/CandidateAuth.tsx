@@ -16,6 +16,7 @@ import { HeroBackground } from "@/components/ava/HeroBackground";
 import { Wordmark } from "@/cockpit/components/Wordmark";
 import { GlyphLetter } from "@/components/candidate/glyphs";
 import { GOOGLE_AUTH_ENABLED } from "@/lib/googleAuth";
+import { staffSignInHref } from "@/lib/hosts";
 
 // Google OAuth isn't enabled on the Supabase backend yet (authorize endpoint
 // returns 400) — keep the UI hidden until credentials exist. Flip
@@ -479,10 +480,10 @@ export default function CandidateAuth() {
               Every application, one home.
             </h1>
             <p className="mt-3 text-sm text-muted-foreground hidden sm:block text-center lg:text-left">
-              Hiring?{" "}
-              <Link to="/auth" className="text-primary hover:underline">
-                Go to Employer Portal →
-              </Link>
+              Zulu staff?{" "}
+              <a href={staffSignInHref()} className="text-primary hover:underline">
+                Sign in here →
+              </a>
             </p>
           </motion.div>
 

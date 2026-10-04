@@ -16,6 +16,7 @@ import AvaSeal from "@/components/ava/AvaSeal";
 import { HeroBackground } from "@/components/ava/HeroBackground";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { GOOGLE_AUTH_ENABLED } from "@/lib/googleAuth";
+import { isStaffHost } from "@/lib/hosts";
 
 // Google OAuth isn't enabled on the Supabase backend yet (authorize endpoint
 // returns 400) — keep the UI hidden until credentials exist. Flip
@@ -456,13 +457,17 @@ export default function Auth() {
       <div aria-hidden className="hero-lift" />
 
       <div className="relative z-10 min-h-[100dvh] flex flex-col px-6 py-6 sm:py-8">
-        <Link
-          to={inWebView ? "/?showLanding=true" : "/"}
-          className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors self-start"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Home
-        </Link>
+        {/* On staff.hireflownow.com there is no home behind sign-in: "/" comes
+            straight back here, so the link would loop. */}
+        {!isStaffHost() && (
+          <Link
+            to={inWebView ? "/?showLanding=true" : "/"}
+            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors self-start"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Home
+          </Link>
+        )}
 
         <div className="flex-1 grid items-center gap-10 lg:grid-cols-2 lg:gap-16 max-w-6xl w-full mx-auto py-8 lg:py-0">
           {/* LEFT — Ava is the centerpiece */}
@@ -487,7 +492,7 @@ export default function Auth() {
                 className="h-1.5 w-1.5 rounded-full"
                 style={{ background: "var(--hf-green)" }}
               />
-              Employer Portal
+              Staff sign in
             </span>
             <h1 className="mt-4 text-3xl lg:text-[2.6rem] leading-[1.08] text-center lg:text-left">
               Hiring, handled by Ava.
@@ -820,21 +825,15 @@ export default function Auth() {
               </motion.div>
             )}
 
-            {/* Quiet reassurance footer — closes the letterhead moment */}
+            {/* Footer: a pointer for job seekers who landed here by mistake.
+                The old "first three applicants are on us" line was a paid-plan
+                promise; there is no plan any more (2026-10-04). Hidden on
+                phones, where this page is staff-only. */}
             <div
-              className="mt-6 pt-4 border-t text-center"
+              className="mt-6 pt-4 border-t text-center hidden sm:block"
               style={{ borderColor: "var(--hf-border)" }}
             >
-              <p className="text-sm" style={{ color: "var(--hf-text-soft)" }}>
-                <span
-                  aria-hidden
-                  className="inline-block h-1.5 w-1.5 rounded-full align-middle mr-1.5 -mt-0.5"
-                  style={{ background: "var(--hf-green)" }}
-                />
-                Your first three applicants are on us.
-              </p>
-              {/* Footer link - hidden on mobile (employer-only mobile experience) */}
-              <p className="text-xs text-muted-foreground mt-1.5 hidden sm:block">
+              <p className="text-xs text-muted-foreground">
                 Are you a job seeker?{" "}
                 <Link to="/candidate" className="text-primary hover:underline">
                   Visit the candidate portal
