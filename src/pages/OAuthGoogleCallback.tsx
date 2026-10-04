@@ -5,8 +5,14 @@ import { toast } from "sonner";
 import { CheckCircle, XCircle } from "lucide-react";
 import BrandLoader from "@/components/BrandLoader";
 import { getErrorMessage } from "@/lib/utils";
+import { candidateOrigin } from "@/lib/hosts";
 
-const FIXED_REDIRECT_URI = `${window.location.origin}/oauth/google/callback`;
+// Google only returns to addresses registered on its sign-in client, and the
+// registered one is the candidates' host. So the calendar sign-in always comes
+// back through hireflownow.com, whose HostGate forwards the code to the staff
+// host when the split is on (src/lib/hosts.ts). Both the request and the code
+// exchange must name this same address.
+const FIXED_REDIRECT_URI = `${candidateOrigin()}/oauth/google/callback`;
 
 export default function OAuthGoogleCallback() {
   const navigate = useNavigate();

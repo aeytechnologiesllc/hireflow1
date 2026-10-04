@@ -45,6 +45,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { hapticLight } from "@/lib/haptics";
 import type { Json } from "@/integrations/supabase/types";
 import type { EmailStatus } from "@/utils/emailNotifications";
+import { candidateOrigin } from "@/lib/hosts";
 
 interface InterviewSchedulingWizardProps {
   applicationId: string | null;
@@ -99,7 +100,12 @@ const WIZARD_STATE_EXPIRY = 30 * 60 * 1000; // 30 minutes
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 const GOOGLE_SCOPES = "https://www.googleapis.com/auth/calendar.events";
-const FIXED_REDIRECT_URI = `${window.location.origin}/oauth/google/callback`;
+// Google only returns to addresses registered on its sign-in client, and the
+// registered one is the candidates' host. So the calendar sign-in always comes
+// back through hireflownow.com, whose HostGate forwards the code to the staff
+// host when the split is on (src/lib/hosts.ts). Both the request and the code
+// exchange must name this same address.
+const FIXED_REDIRECT_URI = `${candidateOrigin()}/oauth/google/callback`;
 
 const timeSlots = [
   { value: "09:00", label: "9:00 AM" },
