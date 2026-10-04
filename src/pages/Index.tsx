@@ -1,72 +1,162 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Globe2, Keyboard, MessageSquare, Clock, MapPin, Briefcase } from "lucide-react";
+import { motion, useInView, useReducedMotion, type Variants } from "framer-motion";
+import { ArrowDown, ArrowRight, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { CandidateShell } from "@/components/candidate/CandidateShell";
+import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
+import { GemRail, type GemRailNode } from "@/components/rail/GemRail";
+import { glyphForKind } from "@/components/glyphForKind";
+import { ChatDemo } from "@/components/careers/ChatDemo";
+import { isStaffHost, isStaffRole, staffSignInHref } from "@/lib/hosts";
+import "@/styles/careers.css";
 
 /**
- * The careers page for the Zulu Support Team (2026-10-04).
+ * The Zulu Support Team careers page — hireflownow.com (2026-10-04).
  *
- * hireflownow.com is Zulu's own hiring tool now, not a product for sale, so
- * the marketing landing that used to sit here (public/landing.html) is gone.
- * A visitor sees who we are, the open roles straight from
- * published_jobs_public (the same anon-readable view the job page reads),
- * and an Apply button that goes to the public job page. No job code needed;
- * /candidate/apply still takes one as a backup.
+ * HireFlow's own green theme (src/styles/careers.css): Fraunces, ivory ink,
+ * jade and brass on warm near-black. Owner: "professional … absolutely
+ * premium and stunning animation but simple." The animation is the job
+ * itself — a chat that answers itself while a typing meter climbs past the
+ * 45 wpm the role needs — plus the headline rising in, numbers counting up,
+ * and HireFlow's Gemline rail walking the five hiring steps.
+ *
+ * Open roles come straight from published_jobs_public (the same anon-readable
+ * view the job page reads); Apply goes to the public job page, so no job code
+ * is needed (/candidate/apply still takes one).
+ *
+ * On staff.hireflownow.com this route is only a doorway: HostGate sends the
+ * hiring team to sign-in or their dashboard (src/lib/hosts.ts).
  */
+
+const EASE_OUT: [number, number, number, number] = [0.2, 0.7, 0.3, 1];
 
 interface OpenRole {
   id: string;
   title: string;
   location: string | null;
   job_type: string | null;
+  experience_level: string | null;
   is_remote: boolean | null;
   description: string | null;
   created_at: string | null;
 }
 
-const FACTS = [
-  { icon: Globe2, title: "Remote, any country", desc: "You need a reliable internet connection and a quiet place to work. That is it." },
-  { icon: MessageSquare, title: "Chat only, no calls", desc: "Every conversation with a player is written. You will never be on the phone." },
-  { icon: Keyboard, title: "Clear English, fast typing", desc: "Players are waiting on the other side of the chat, so speed and accuracy matter." },
-  { icon: Clock, title: "Shifts around the clock", desc: "Players are online day and night. Tell us the hours you can cover." },
-];
-
 const STEPS = [
-  { title: "Apply online", desc: "A few questions about you and the hours you can work. A resume is welcome but not required." },
-  { title: "Typing test", desc: "One minute. We measure speed and accuracy, because that is the job." },
-  { title: "Chat practice", desc: "You handle a player the way you would on a real shift. We look at tone, clarity and judgment." },
-  { title: "Written interview", desc: "A short back-and-forth about how you work. No video, no phone call." },
-  { title: "We reply either way", desc: "Sign in any time to see where you stand. Everyone hears back." },
+  { kind: "application", title: "Apply", copy: "A few questions about you and the hours you can work. A resume is welcome, not required.", time: "5–10 min" },
+  { kind: "quiz", title: "Skills check", copy: "Quick questions on real player situations: payments, cash-outs, upset players.", time: "5–15 min" },
+  { kind: "typing", title: "Typing test", copy: "One timed minute. We look at speed and accuracy, because that is the job.", time: "2–5 min" },
+  { kind: "chat", title: "Chat practice", copy: "A practice player writes in. Answer the way you would on a real shift.", time: "10–20 min" },
+  { kind: "interview", title: "Written interview", copy: "A short back-and-forth about how you work. No video, no phone call.", time: "15–25 min" },
 ];
 
-function excerpt(text: string | null, max = 180): string {
+const RAIL_NODES: GemRailNode[] = [
+  ...STEPS.map((s) => ({ id: s.kind, label: s.title, icon: glyphForKind(s.kind), receipt: s.time })),
+  { id: "decision", label: "Decision", icon: glyphForKind("decision"), receipt: "We reply to all", sealed: true },
+];
+
+const LEVELS: Record<string, string> = { entry: "Entry level", junior: "Junior", mid: "Mid level", senior: "Senior", lead: "Lead" };
+
+function excerpt(text: string | null, max = 220): string {
   if (!text) return "";
-  const plain = text
-    .replace(/<[^>]+>/g, " ")
-    .replace(/[#*_>`]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
+  const plain = text.replace(/<[^>]+>/g, " ").replace(/[#*_>`]/g, "").replace(/\s+/g, " ").trim();
   if (plain.length <= max) return plain;
   const cut = plain.slice(0, max);
-  return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), 120))}…`;
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), 150)).replace(/[\s,;:.\-–—]+$/, "")}…`;
 }
 
 function postedAgo(iso: string | null): string {
-  if (!iso) return "";
+  if (!iso) return "Open now";
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
   if (days <= 0) return "Posted today";
   if (days === 1) return "Posted yesterday";
   if (days < 30) return `Posted ${days} days ago`;
-  return "Open";
+  return "Open now";
 }
+
+/** "Customer Support Chat Agent (Zulu Royal & Zulu Rush)" → main + the line it serves. */
+function splitTitle(title: string): { main: string; sub: string | null } {
+  const m = title.match(/^(.*?)\s*\((.+)\)\s*$/);
+  return m ? { main: m[1], sub: m[2] } : { main: title, sub: null };
+}
+
+/** Fades and lifts a block in once it scrolls into view. */
+function Reveal({ children, delay = 0, className }: { children: ReactNode; delay?: number; className?: string }) {
+  const reduce = useReducedMotion();
+  return (
+    <motion.div
+      className={className}
+      initial={reduce ? false : { opacity: 0, y: 26 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "0px 0px -8% 0px" }}
+      transition={{ duration: 0.7, delay, ease: EASE_OUT }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+/** Counts a number up once it is on screen. */
+function CountUp({ to, suffix = "" }: { to: number; suffix?: string }) {
+  const ref = useRef<HTMLSpanElement | null>(null);
+  const inView = useInView(ref, { once: true, amount: 0.6 });
+  const reduce = useReducedMotion();
+  const [value, setValue] = useState(reduce ? to : 0);
+  useEffect(() => {
+    if (!inView || reduce) return;
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const p = Math.min(1, (now - start) / 1400);
+      setValue(Math.round(to * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [inView, reduce, to]);
+  return (
+    <span ref={ref}>
+      {value}
+      {suffix}
+    </span>
+  );
+}
+
+/** Mounts the Gemline rail only once it is on screen, so its walk is seen. */
+function HiringRail() {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const inView = useInView(ref, { once: true, amount: 0.5 });
+  return (
+    <div ref={ref} className="cr-railbox__rail">
+      {inView && (
+        <GemRail
+          nodes={RAIL_NODES}
+          current={RAIL_NODES.length - 1}
+          traveler="You"
+          ariaLabel="The five hiring steps, then a decision"
+        />
+      )}
+    </div>
+  );
+}
+
+const heroWord: Variants = {
+  hidden: { opacity: 0, y: "0.45em" },
+  show: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { delay: 0.12 + i * 0.075, duration: 0.7, ease: EASE_OUT },
+  }),
+};
 
 export default function Index() {
   const navigate = useNavigate();
   const { session, role, loading } = useAuth();
+  const reduce = useReducedMotion();
   const sentToCallback = useRef(false);
+  const staffHost = isStaffHost();
+  const [scrolled, setScrolled] = useState(false);
 
   // Signed in, auth finished, and still no role: this account never had its
   // user_roles row written (an OAuth sign-in that didn't pass through
@@ -81,182 +171,315 @@ export default function Index() {
     navigate("/auth/callback", { replace: true });
   }, [loading, session, role, navigate]);
 
+  // The page scrolls inside #root (html/body/#root are 100% tall), not the window.
+  useEffect(() => {
+    if (staffHost) return;
+    const scroller = document.getElementById("root");
+    if (!scroller) return;
+    const onScroll = () => setScrolled(scroller.scrollTop > 8);
+    onScroll();
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    return () => scroller.removeEventListener("scroll", onScroll);
+  }, [staffHost]);
+
   const { data: roles, isLoading, isError } = useQuery({
     queryKey: ["careers-open-roles"],
     queryFn: async (): Promise<OpenRole[]> => {
       const { data, error } = await supabase
         .from("published_jobs_public")
-        .select("id, title, location, job_type, is_remote, description, created_at")
+        .select("id, title, location, job_type, experience_level, is_remote, description, created_at")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as OpenRole[];
     },
+    enabled: !staffHost,
     staleTime: 60_000,
   });
 
-  const accountLink = useMemo(() => {
+  const account = useMemo(() => {
     if (role === "candidate") return { to: "/applications", label: "My applications" };
-    if (role === "employer" || role === "team_member") return { to: "/dashboard", label: "Dashboard" };
+    if (isStaffRole(role)) return { to: "/dashboard", label: "Dashboard" };
     return { to: "/candidate/auth", label: "Sign in" };
   }, [role]);
 
-  return (
-    <CandidateShell>
-      <div className="mx-auto max-w-4xl px-4 py-8 md:py-12">
-        <header className="mb-12 flex items-center justify-between">
-          <span className="font-display text-lg tracking-wide" style={{ color: "var(--hf-text)" }}>
-            ZULU SUPPORT TEAM
-          </span>
-          <Link to={accountLink.to} className="cand-btn-ghost text-sm">
-            {accountLink.label}
-          </Link>
-        </header>
+  // On the staff host this route is only a doorway (HostGate moves them on).
+  if (staffHost) return <AuthLoadingScreen variant="employer" />;
 
-        <section className="cand-rise mx-auto mb-12 max-w-2xl text-center" style={{ ["--cand-i" as string]: 0 }}>
-          <p className="cand-kicker mb-4">Careers</p>
-          <h1 className="font-display text-4xl font-medium leading-tight md:text-5xl" style={{ color: "var(--hf-text)" }}>
-            Help players, from anywhere.
-            <span className="mt-1 block" style={{ color: "var(--hf-gold)" }}>
-              Remote customer-chat roles.
-            </span>
-          </h1>
-          <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed" style={{ color: "var(--hf-text-soft)" }}>
-            We run player support for Zulu Royal and Zulu Rush. The whole job happens in chat: players write in,
-            you sort it out, clearly and kindly. Every step of applying is online and takes minutes.
-          </p>
-          <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-            <a href="#open-roles" className="cand-btn-primary w-full sm:w-auto">
-              See open roles
-              <ArrowRight className="h-4 w-4" />
-            </a>
-            <Link to="/candidate/auth" className="cand-btn-ghost w-full sm:w-auto">
-              Already applied? Sign in
-            </Link>
+  const jump = (id: string) => (e: MouseEvent<HTMLAnchorElement>) => {
+    const target = document.getElementById(id);
+    if (!target) return;
+    e.preventDefault();
+    target.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+  };
+
+  const words: Array<{ text: string; line: 0 | 1; em?: boolean }> = [
+    { text: "Help", line: 0 },
+    { text: "players,", line: 0 },
+    { text: "from", line: 1 },
+    { text: "anywhere.", line: 1, em: true },
+  ];
+
+  return (
+    <div className="cr-page">
+      <div className="cr-grain" aria-hidden="true" />
+
+      <header className="cr-head" data-scrolled={scrolled ? "true" : "false"}>
+        <div className="cr-wrap cr-head__in">
+          <Link to="/" className="cr-brand" aria-label="Zulu Support Team careers">
+            <span className="cr-brand__mark" aria-hidden="true">Z</span>
+            <span className="cr-brand__name">Zulu Support Team</span>
+            <span className="cr-brand__tag">Careers</span>
+          </Link>
+          <nav className="cr-nav" aria-label="Careers">
+            <a href="#roles" onClick={jump("roles")} className="cr-nav__link">Open roles</a>
+            <a href="#how" onClick={jump("how")} className="cr-nav__link">How hiring works</a>
+            <Link to={account.to} className="cr-btn cr-btn--ghost cr-btn--sm">{account.label}</Link>
+          </nav>
+        </div>
+      </header>
+
+      <main>
+        <section className="cr-hero" aria-labelledby="cr-hero-title">
+          <div className="cr-hero__glow" aria-hidden="true" />
+          <div className="cr-wrap cr-hero__in">
+            <div>
+              <motion.span
+                className="cr-kicker"
+                initial={reduce ? false : { opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, ease: EASE_OUT }}
+              >
+                <span className="cr-dot" aria-hidden="true" />
+                Now hiring · Remote
+              </motion.span>
+
+              <h1 id="cr-hero-title" className="cr-h1">
+                {[0, 1].map((line) => (
+                  <span key={line} className="cr-h1__line">
+                    {words
+                      .map((w, i) => ({ ...w, i }))
+                      .filter((w) => w.line === line)
+                      .map((w) => (
+                        <motion.span
+                          key={w.text}
+                          className="cr-h1__word"
+                          custom={w.i}
+                          variants={heroWord}
+                          initial={reduce ? false : "hidden"}
+                          animate="show"
+                        >
+                          {w.em ? (
+                            <em>
+                              {w.text}
+                              <svg className="cr-swoosh" viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true">
+                                <motion.path
+                                  d="M3 14 C 50 5, 120 4, 197 10"
+                                  initial={reduce ? false : { pathLength: 0 }}
+                                  animate={{ pathLength: 1 }}
+                                  transition={{ delay: 0.95, duration: 0.9, ease: [0.65, 0, 0.35, 1] as [number, number, number, number] }}
+                                />
+                              </svg>
+                            </em>
+                          ) : (
+                            w.text
+                          )}
+                          {w.i < words.length - 1 && w.line === words[w.i + 1]?.line ? " " : ""}
+                        </motion.span>
+                      ))}
+                  </span>
+                ))}
+              </h1>
+
+              <Reveal delay={reduce ? 0 : 0.45}>
+                <p className="cr-lede">
+                  Join the <strong>Zulu Support Team</strong>: remote customer-chat roles for Zulu Royal and Zulu Rush.
+                  Players write in, you sort it out, clearly and kindly. Everything happens in chat.
+                </p>
+                <div className="cr-ctas">
+                  <a href="#roles" onClick={jump("roles")} className="cr-btn cr-btn--primary">
+                    See open roles
+                    <ArrowDown className="cr-nudge-y" aria-hidden="true" />
+                  </a>
+                  <a href="#how" onClick={jump("how")} className="cr-btn cr-btn--ghost">
+                    How hiring works
+                  </a>
+                </div>
+                <ul className="cr-trust">
+                  <li><Check aria-hidden="true" />Apply in your browser</li>
+                  <li><Check aria-hidden="true" />No phone calls, ever</li>
+                  <li><Check aria-hidden="true" />Everyone hears back</li>
+                </ul>
+              </Reveal>
+            </div>
+
+            <motion.div
+              initial={reduce ? false : { opacity: 0, y: 30, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ delay: 0.35, duration: 0.9, ease: EASE_OUT }}
+              style={{ display: "grid" }}
+            >
+              <ChatDemo />
+            </motion.div>
           </div>
         </section>
 
-        <section className="cand-rise mb-12 grid gap-4 sm:grid-cols-2" style={{ ["--cand-i" as string]: 1 }}>
-          {FACTS.map((fact) => (
-            <div key={fact.title} className="cand-panel p-5 text-left">
-              <div
-                className="mb-4 flex h-11 w-11 items-center justify-center rounded-full"
-                style={{ background: "var(--hf-green-soft)", color: "var(--hf-green)" }}
-              >
-                <fact.icon className="h-5 w-5" />
-              </div>
-              <h3 className="font-display text-lg" style={{ color: "var(--hf-text)" }}>{fact.title}</h3>
-              <p className="mt-1.5 text-sm leading-snug" style={{ color: "var(--hf-text-muted)" }}>{fact.desc}</p>
-            </div>
-          ))}
+        <section className="cr-wrap cr-section" aria-labelledby="cr-job-title">
+          <Reveal>
+            <span className="cr-label">The job</span>
+            <h2 id="cr-job-title" className="cr-h2">
+              The job, in <em>four numbers.</em>
+            </h2>
+          </Reveal>
+          <div className="cr-stats">
+            <Reveal className="cr-stat">
+              <span className="cr-stat__num cr-stat__num--jade">0</span>
+              <span className="cr-stat__label">Phone calls</span>
+              <p className="cr-stat__copy">Every conversation with a player is written. You will never be on the phone.</p>
+            </Reveal>
+            <Reveal className="cr-stat" delay={0.08}>
+              <span className="cr-stat__num">
+                <CountUp to={45} suffix="+" />
+              </span>
+              <span className="cr-stat__label">Words per minute</span>
+              <p className="cr-stat__copy">Players are waiting on the other side of the chat. Fast, accurate typing is the job.</p>
+            </Reveal>
+            <Reveal className="cr-stat" delay={0.16}>
+              <span className="cr-stat__num cr-stat__num--brass">
+                <CountUp to={24} suffix="/7" />
+              </span>
+              <span className="cr-stat__label">Shifts around the clock</span>
+              <p className="cr-stat__copy">Day, evening, overnight and weekends. You tell us the hours you can cover.</p>
+            </Reveal>
+            <Reveal className="cr-stat" delay={0.24}>
+              <span className="cr-stat__num">Any</span>
+              <span className="cr-stat__label">Country</span>
+              <p className="cr-stat__copy">Fully remote. Fluent written English, a reliable connection and a quiet place to work.</p>
+            </Reveal>
+          </div>
         </section>
 
-        <section id="open-roles" className="cand-rise mb-12 scroll-mt-6" style={{ ["--cand-i" as string]: 2 }}>
-          <div className="mb-5 flex items-end justify-between gap-4">
-            <h2 className="font-display text-2xl" style={{ color: "var(--hf-text)" }}>Open roles</h2>
-            {roles && roles.length > 0 && (
-              <span className="text-sm" style={{ color: "var(--hf-text-muted)" }}>
-                {roles.length} open
-              </span>
+        <section id="roles" className="cr-wrap cr-section" aria-labelledby="cr-roles-title">
+          <Reveal>
+            <span className="cr-label">Open roles</span>
+            <h2 id="cr-roles-title" className="cr-h2">
+              We're hiring <em>now.</em>
+            </h2>
+            <p className="cr-sub">Tap a role to read the full description and apply. No job code needed.</p>
+          </Reveal>
+
+          <div className="cr-roles">
+            {isLoading ? (
+              <div className="cr-roles__skeleton" aria-busy="true" aria-label="Loading open roles" />
+            ) : isError ? (
+              <div className="cr-empty" role="status">
+                <h3>We couldn't load the roles</h3>
+                <p>
+                  Refresh the page in a moment. If our team gave you a job code,{" "}
+                  <Link to="/candidate/apply" className="cr-link">apply with it here</Link>.
+                </p>
+              </div>
+            ) : !roles || roles.length === 0 ? (
+              <div className="cr-empty" role="status">
+                <h3>No open roles right now</h3>
+                <p>
+                  Check back soon. If our team gave you a job code,{" "}
+                  <Link to="/candidate/apply" className="cr-link">apply with it here</Link>.
+                </p>
+              </div>
+            ) : (
+              roles.map((job, i) => {
+                const { main, sub } = splitTitle(job.title);
+                const level = job.experience_level ? LEVELS[job.experience_level] ?? job.experience_level : null;
+                const type = job.job_type ? job.job_type.replace(/[-_]/g, " ") : null;
+                return (
+                  <Reveal key={job.id} delay={i * 0.08}>
+                    <Link to={`/candidate/job/${job.id}`} className="cr-role" aria-label={`Apply for ${job.title}`}>
+                      <div>
+                        <div className="cr-chips">
+                          {job.is_remote !== false && <span className="cr-chip cr-chip--jade">Remote</span>}
+                          {type && <span className="cr-chip" style={{ textTransform: "capitalize" }}>{type}</span>}
+                          {level && <span className="cr-chip">{level}</span>}
+                        </div>
+                        <h3 className="cr-role__title">
+                          {main}
+                          {sub && <span className="cr-role__for">for {sub}</span>}
+                        </h3>
+                        <p className="cr-role__copy">{excerpt(job.description)}</p>
+                        <p className="cr-role__meta">
+                          {postedAgo(job.created_at)}
+                          {job.location ? ` · ${job.location}` : ""}
+                        </p>
+                      </div>
+                      <div className="cr-role__go">
+                        <span className="cr-btn cr-btn--primary">
+                          Apply now
+                          <ArrowRight className="cr-nudge-x" aria-hidden="true" />
+                        </span>
+                        <span className="cr-role__hint">No job code needed</span>
+                      </div>
+                    </Link>
+                  </Reveal>
+                );
+              })
             )}
           </div>
+        </section>
 
-          {isLoading ? (
-            <div className="space-y-3" aria-busy="true" aria-label="Loading open roles">
-              {[0, 1].map((i) => (
-                <div key={i} className="cand-panel h-32 animate-pulse p-5" />
+        <section id="how" className="cr-wrap cr-section" aria-labelledby="cr-how-title">
+          <Reveal>
+            <span className="cr-label">How hiring works</span>
+            <h2 id="cr-how-title" className="cr-h2">
+              Five steps. <em>All online.</em>
+            </h2>
+            <p className="cr-sub">
+              Your progress saves after every step, so you can stop and come back. We reply to everyone, yes or no.
+            </p>
+          </Reveal>
+          <Reveal className="cr-railbox" delay={0.1}>
+            <HiringRail />
+            <ol className="cr-steps">
+              {STEPS.map((step, i) => (
+                <li key={step.kind}>
+                  <span className="cr-step__num">Step {i + 1}</span>
+                  <h3 className="cr-step__title">{step.title}</h3>
+                  <p className="cr-step__copy">{step.copy}</p>
+                </li>
               ))}
-            </div>
-          ) : isError ? (
-            <div className="cand-panel p-6 text-center">
-              <p className="font-medium" style={{ color: "var(--hf-text)" }}>We could not load the open roles.</p>
-              <p className="mt-1 text-sm" style={{ color: "var(--hf-text-muted)" }}>
-                Refresh the page, or if you have a job code, use it below.
-              </p>
-            </div>
-          ) : !roles || roles.length === 0 ? (
-            <div className="cand-panel p-6 text-center">
-              <p className="font-medium" style={{ color: "var(--hf-text)" }}>No open roles right now.</p>
-              <p className="mt-1 text-sm" style={{ color: "var(--hf-text-muted)" }}>
-                Check back soon. If our team gave you a job code, you can still apply with it below.
-              </p>
-            </div>
-          ) : (
-            <ul className="space-y-3">
-              {roles.map((job) => {
-                const where = job.is_remote ? `Remote${job.location ? ` · ${job.location}` : ""}` : job.location || "Remote";
-                const summary = excerpt(job.description);
-                return (
-                  <li key={job.id} className="cand-panel p-5 md:p-6">
-                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                      <div className="min-w-0">
-                        <h3 className="font-display text-xl" style={{ color: "var(--hf-text)" }}>{job.title}</h3>
-                        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm" style={{ color: "var(--hf-text-muted)" }}>
-                          <span className="inline-flex items-center gap-1.5">
-                            <MapPin className="h-3.5 w-3.5" style={{ color: "var(--hf-gold)" }} />
-                            {where}
-                          </span>
-                          {job.job_type && (
-                            <span className="inline-flex items-center gap-1.5">
-                              <Briefcase className="h-3.5 w-3.5" style={{ color: "var(--hf-gold)" }} />
-                              {job.job_type.replace(/_/g, " ")}
-                            </span>
-                          )}
-                          <span>{postedAgo(job.created_at)}</span>
-                        </div>
-                        {summary && (
-                          <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--hf-text-soft)" }}>{summary}</p>
-                        )}
-                      </div>
-                      <Link
-                        to={`/candidate/job/${job.id}`}
-                        className="cand-btn-primary w-full shrink-0 md:w-auto"
-                        aria-label={`Apply for ${job.title}`}
-                      >
-                        Apply
-                        <ArrowRight className="h-4 w-4" />
-                      </Link>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+            </ol>
+            <p className="cr-railbox__note">Every applicant rides the same track, and every applicant hears back.</p>
+          </Reveal>
         </section>
 
-        <section className="cand-rise cand-panel mx-auto max-w-2xl p-6 md:p-8" style={{ ["--cand-i" as string]: 3 }}>
-          <h2 className="font-display text-center text-2xl" style={{ color: "var(--hf-text)" }}>How applying works</h2>
-          <div className="mt-6 space-y-4">
-            {STEPS.map((step, i) => (
-              <div key={step.title} className="flex items-start gap-4 border-t pt-4 first:border-t-0 first:pt-0" style={{ borderColor: "var(--hf-border-strong)" }}>
-                <span
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
-                  style={{ background: "var(--hf-green-soft)", color: "var(--hf-green)" }}
-                >
-                  {i + 1}
-                </span>
-                <div>
-                  <span className="font-medium" style={{ color: "var(--hf-text)" }}>{step.title}</span>
-                  <p className="mt-0.5 text-sm" style={{ color: "var(--hf-text-muted)" }}>{step.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+        <section className="cr-close" aria-labelledby="cr-close-title">
+          <div className="cr-close__glow" aria-hidden="true" />
+          <Reveal className="cr-wrap cr-close__in">
+            <span className="cr-label">Ready?</span>
+            <h2 id="cr-close-title" className="cr-h2">
+              Your next shift starts <em>with one chat.</em>
+            </h2>
+            <p className="cr-sub">Applying starts in your browser and takes a few minutes. Everyone hears back, yes or no.</p>
+            <div className="cr-close__actions">
+              <a href="#roles" onClick={jump("roles")} className="cr-btn cr-btn--cream">
+                See open roles
+                <ArrowRight className="cr-nudge-x" aria-hidden="true" />
+              </a>
+              <Link to="/candidate/apply" className="cr-link">Have a job code? Use it here</Link>
+            </div>
+          </Reveal>
         </section>
+      </main>
 
-        <footer className="mt-12 space-y-2 text-center text-sm" style={{ color: "var(--hf-text-muted)" }}>
-          <p>
-            Have a job code from our team?{" "}
-            <Link to="/candidate/apply" style={{ color: "var(--hf-gold)" }}>
-              Apply with a code
-            </Link>
-          </p>
-          <p>
-            <Link to="/auth" style={{ color: "var(--hf-text-muted)" }}>
-              Team sign in
-            </Link>
-          </p>
-        </footer>
-      </div>
-    </CandidateShell>
+      <footer className="cr-foot">
+        <div className="cr-wrap cr-foot__in">
+          <span>© {new Date().getFullYear()} Zulu Support Team · Remote chat support for Zulu Royal and Zulu Rush</span>
+          <nav className="cr-foot__links" aria-label="Footer">
+            <Link to="/candidate/apply" className="cr-link">Apply with a job code</Link>
+            <Link to="/privacy" className="cr-link">Privacy</Link>
+            <Link to="/terms" className="cr-link">Terms</Link>
+            <a href={staffSignInHref()} className="cr-link">Team sign in</a>
+          </nav>
+        </div>
+      </footer>
+    </div>
   );
 }

@@ -14,6 +14,7 @@ import { ShareKitDialog } from "../components/ShareKitDialog";
 import { CockpitErrorCard } from "../components/ErrorCard";
 import { useCockpitJobsData, useSchemaMode } from "../hooks/useCockpitData";
 import type { JobRow, JobStatus } from "../data";
+import { candidateOrigin } from "@/lib/hosts";
 
 /**
  * Your jobs.
@@ -338,7 +339,7 @@ function CopyListingsLink() {
 
   const copy = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}/jobs.xml`);
+      await navigator.clipboard.writeText(`${candidateOrigin()}/jobs.xml`);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
       toast.success("Listings link copied");
@@ -807,7 +808,7 @@ export default function CockpitJobs() {
           kitJob
             ? kitJob.roleCode
               ? candidateApplyUrl(kitJob.roleCode)
-              : `${window.location.origin}/candidate/job/${kitJob.id}`
+              : `${candidateOrigin()}/candidate/job/${kitJob.id}`
             : ""
         }
         onClose={() => setKitJob(null)}

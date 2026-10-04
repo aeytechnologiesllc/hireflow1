@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import { candidateOrigin } from "@/lib/hosts";
 
 interface JobPublishedDialogProps {
   open: boolean;
@@ -42,9 +43,9 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  const publicJobLink = job ? `${window.location.origin}/candidate/job/${job.id}` : "";
+  const publicJobLink = job ? `${candidateOrigin()}/candidate/job/${job.id}` : "";
   const directApplyLink = job?.job_code
-    ? `${window.location.origin}/candidate/apply?code=${job.job_code}` 
+    ? `${candidateOrigin()}/candidate/apply?code=${job.job_code}` 
     : publicJobLink;
   const shareLink = publicJobLink || directApplyLink;
 

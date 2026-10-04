@@ -35,6 +35,7 @@ import {
 import { buildJourneyPipeline, type JourneyPipelineStage } from "../lib/mappers";
 import { gemPosition } from "../lib/gemRail";
 import type { Candidate } from "../data";
+import { candidateOrigin } from "@/lib/hosts";
 
 /**
  * The morning read.
@@ -298,7 +299,7 @@ function LiveJobGuide({
   onView: () => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const applyUrl = job.roleCode ? candidateApplyUrl(job.roleCode) : `${window.location.origin}/candidate/job/${job.id}`;
+  const applyUrl = job.roleCode ? candidateApplyUrl(job.roleCode) : `${candidateOrigin()}/candidate/job/${job.id}`;
 
   const copy = useCallback(async () => {
     try {

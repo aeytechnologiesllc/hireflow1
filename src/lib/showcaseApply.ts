@@ -5,6 +5,7 @@
 import { showcaseDb } from "@/lib/showcaseSchema";
 import { rigorToDb } from "@/lib/avaEngine/rigor";
 import type { Rigor } from "@/lib/avaEngine/types";
+import { candidateOrigin } from "@/lib/hosts";
 
 export const SHOWCASE_EMPLOYER_ID = "emp_marias_cafe";
 
@@ -58,7 +59,7 @@ export function isRoleAcceptingApplications(status: string): boolean {
 }
 
 export function candidateApplyUrl(roleCode: string): string {
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const origin = typeof window !== "undefined" ? candidateOrigin() : "";
   return `${origin}/candidate/apply?code=${encodeURIComponent(roleCode)}`;
 }
 

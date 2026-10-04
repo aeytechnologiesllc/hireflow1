@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useEmployerJobs } from "@/hooks/useJobs";
 import { motion, AnimatePresence } from "framer-motion";
 import { getErrorMessage } from "@/lib/utils";
+import { staffLinkOrigin } from "@/lib/hosts";
 
 interface TeamInviteWizardProps {
   open: boolean;
@@ -163,7 +164,7 @@ export function TeamInviteWizard({ open, onOpenChange, onSuccess }: TeamInviteWi
   };
 
   const handleCopyLink = () => {
-    const link = `${window.location.origin}/join-team/${inviteCode}`;
+    const link = `${staffLinkOrigin()}/join-team/${inviteCode}`;
     navigator.clipboard.writeText(link);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -484,7 +485,7 @@ export function TeamInviteWizard({ open, onOpenChange, onSuccess }: TeamInviteWi
               <div className="flex items-center gap-2">
                 <Input
                   readOnly
-                  value={`${window.location.origin}/join-team/${inviteCode}`}
+                  value={`${staffLinkOrigin()}/join-team/${inviteCode}`}
                   className="text-sm"
                 />
                 <Button onClick={handleCopyLink} variant="outline" size="icon">

@@ -51,6 +51,7 @@ import {
   type CandidateJourneyStep,
 } from "@/lib/candidateJourney";
 import type { Candidate, CandidateStage } from "../data";
+import { candidateOrigin } from "@/lib/hosts";
 
 /**
  * The people, and Ava's read on them.
@@ -1006,7 +1007,7 @@ export default function CockpitApplicants() {
   const applyUrl = shareJob
     ? shareJob.roleCode
       ? candidateApplyUrl(shareJob.roleCode)
-      : `${window.location.origin}/candidate/job/${shareJob.id}`
+      : `${candidateOrigin()}/candidate/job/${shareJob.id}`
     : "";
 
   const activeFilters = [search.trim(), stageFilter, scoreFilter].filter(Boolean).length;

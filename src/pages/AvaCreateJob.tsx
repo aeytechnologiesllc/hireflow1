@@ -64,6 +64,7 @@ import { createJobFromFlow, fetchEmployerCompanyName } from "@/lib/jobFromFlow";
 import { geocodePlace, formatPlace } from "@/lib/geocode";
 import TalkToAva from "@/components/ava/createFlow/TalkToAva";
 import type { LucideIcon } from "lucide-react";
+import { candidateOrigin } from "@/lib/hosts";
 
 const KIND_ICON: Record<string, { icon: LucideIcon; accent: ReviewPhaseCard["accent"] }> = {
   application: { icon: FileText, accent: "jade" },
@@ -475,7 +476,7 @@ export default function AvaCreateJob() {
 
   const applyLink = publishedCode
     ? publishedRoleId && typeof window !== "undefined"
-      ? `${window.location.origin}/candidate/job/${publishedRoleId}`
+      ? `${candidateOrigin()}/candidate/job/${publishedRoleId}`
       : candidateApplyUrl(publishedCode)
     : "";
 
@@ -749,7 +750,7 @@ export default function AvaCreateJob() {
                   <div className="mt-4 flex w-full flex-col gap-2.5">
                     {publishedRoleId && (
                       <a
-                        href={`${typeof window !== "undefined" ? window.location.origin : ""}/candidate/job/${publishedRoleId}`}
+                        href={`${typeof window !== "undefined" ? candidateOrigin() : ""}/candidate/job/${publishedRoleId}`}
                         target="_blank"
                         rel="noreferrer"
                         className="ck-btn ck-btn-primary w-full !text-[13px]"

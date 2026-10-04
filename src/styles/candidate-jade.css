@@ -26,9 +26,14 @@
   background: var(--cand-bg);
   color: var(--cand-text);
   font-family: Inter, system-ui, sans-serif;
-  overflow-x: hidden;
-  overscroll-behavior-y: contain;
-  -webkit-overflow-scrolling: touch;
+  /* clip, not hidden: overflow-x:hidden made this a scroll box that never
+     scrolls, and with overscroll-behavior:contain it swallowed every wheel
+     and touch scroll before it reached the page (2026-10-04: "I cannot
+     scroll the page" on hireflownow.com, /candidate and /candidate/apply). */
+  overflow-x: clip;
+}
+@supports not (overflow: clip) {
+  .cand-root { overflow-x: hidden; }
 }
 
 .cand-root .font-display {

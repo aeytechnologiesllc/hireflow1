@@ -48,6 +48,28 @@ type NotificationType =
   | "voice_minutes_exhausted"
   | "interview_ready";
 
+/** Emails that go to the hiring team; everything else goes to a candidate
+ *  (new_message goes either way and is decided by the recipient's role). */
+const EMPLOYER_FACING: ReadonlySet<NotificationType> = new Set<NotificationType>([
+  "new_application",
+  "document_signed",
+  "phase_completed",
+  "reschedule_requested",
+  "voice_minutes_low",
+  "voice_minutes_exhausted",
+  "interview_ready",
+]);
+
+/** Who an email reads as coming from. Candidates applied to the Zulu Support
+ *  Team on its careers site, so that is who writes to them; the hiring team's
+ *  own alerts come from HireFlow. Both addresses are on hireflownow.com, the
+ *  domain verified in Resend. */
+const CANDIDATE_SENDER = "Zulu Support Team <hiring@hireflownow.com>";
+const TEAM_SENDER = "HireFlow <notifications@hireflownow.com>";
+
+const isCandidateEmail = (type: NotificationType, recipientRole: RecipientRole) =>
+  type === "new_message" ? recipientRole === "candidate" : !EMPLOYER_FACING.has(type);
+
 interface NotificationRequest {
   type: NotificationType;
   recipient_user_id: string;
@@ -101,6 +123,10 @@ const getEmailContent = (
   recipientRole: RecipientRole = "candidate",
 ) => {
   const baseUrl = getAppBaseUrl();
+  const signer = data.company_name?.trim()
+    ? /\bteam$/i.test(data.company_name.trim()) ? `The ${esc(data.company_name.trim())}` : `The ${esc(data.company_name.trim())} team`
+    : "The hiring team";
+  const defaultSignature = isCandidateEmail(type, recipientRole) ? `— ${signer}` : "— The HireFlow Team";
 
   // Every candidate-facing link goes through candidate sign-in with the real
   // destination as a redirect. A bare /applications link sent a signed-out
@@ -111,7 +137,7 @@ const getEmailContent = (
 
   // Simple, clean template wrapper. `signature` lets a message that comes from
   // the employer (a decision on an application) sign as the employer.
-  const wrapEmail = (title: string, content: string, buttonText?: string, buttonUrl?: string, signature = "— The HireFlow Team") => `
+  const wrapEmail = (title: string, content: string, buttonText?: string, buttonUrl?: string, signature = defaultSignature) => `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
       <h2 style="color: #111; margin-bottom: 20px;">${title}</h2>
       ${content}
@@ -127,7 +153,10 @@ const getEmailContent = (
   `;
 
   const companyName = esc(data.company_name?.trim() || "");
-  const teamLabel = companyName ? `The ${companyName} team` : "The hiring team";
+  // "The Zulu Support Team", never "The Zulu Support Team team".
+  const teamLabel = companyName
+    ? /\bteam$/i.test(companyName) ? `The ${companyName}` : `The ${companyName} team`
+    : "The hiring team";
 
   const templates: Record<NotificationType, { subject: string; html: string }> = {
     // EMPLOYER-FACING
@@ -335,7 +364,7 @@ const getEmailContent = (
       html: wrapEmail(
         `You've got the job${companyName ? ` at ${companyName}` : ''}`,
         `<p>We'd like to offer you the <strong>${esc(data.job_title)}</strong> role. Congratulations.</p>
-         <p style="color: #666;">We'll follow up with your start date and next steps. Your messages and any documents to sign are in your HireFlow account.</p>`,
+         <p style="color: #666;">We'll follow up with your start date and next steps. Your messages and any documents to sign are in your account.</p>`,
         "Open your application",
         candidateLink("/applications"),
         `— ${teamLabel}`
@@ -506,7 +535,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`[send-notification-email] Sending email to ${profile.email} with subject: ${emailContent.subject}`);
 
     const emailResponse = await resend.emails.send({
-      from: "HireFlow <notifications@hireflownow.com>",
+      from: isCandidateEmail(type, recipientRole) ? CANDIDATE_SENDER : TEAM_SENDER,
       to: [profile.email],
       subject: emailContent.subject,
       html: emailContent.html,

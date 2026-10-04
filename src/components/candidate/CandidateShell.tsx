@@ -8,7 +8,7 @@ interface CandidateShellProps {
 /** Mobile-first Deep Jade shell for candidate-facing routes. */
 export function CandidateShell({ children, className = "" }: CandidateShellProps) {
   return (
-    <div className={`cand-root overflow-x-hidden ${className}`}>
+    <div className={`cand-root ${className}`}>
       <div
         className="pointer-events-none fixed inset-0 -z-10"
         aria-hidden

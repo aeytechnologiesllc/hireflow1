@@ -50,6 +50,7 @@ import {
   formatAuditEventDescription,
   formatSignerRole
 } from "@/lib/auditFormatting";
+import { candidateOrigin } from "@/lib/hosts";
 
 interface AuditLog {
   id: string;
@@ -342,7 +343,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
   };
 
   const getVerificationUrl = () => {
-    const baseUrl = window.location.origin;
+    const baseUrl = candidateOrigin();
     return `${baseUrl}/verify/${getDocumentCode()}`;
   };
 

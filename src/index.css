@@ -402,11 +402,13 @@
       font-size: 0.875rem !important;
     }
     
-    h1, h2 {
+    /* The careers page (src/styles/careers.css) draws its own headlines;
+       a layered !important beats any unlayered rule, so exclude it here. */
+    h1:not(.cr-page h1), h2:not(.cr-page h2) {
       font-size: 1.25rem !important;
     }
     
-    h3 {
+    h3:not(.cr-page h3) {
       font-size: 1rem !important;
     }
   }
