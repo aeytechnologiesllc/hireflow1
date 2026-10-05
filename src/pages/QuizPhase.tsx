@@ -104,6 +104,20 @@ function readStoredQuizProgress(key: string): string | null {
   }
 }
 
+/** Does this device's saved copy belong to the quiz on screen? False when it
+ *  answers questions that are no longer in the quiz (and none that are). */
+export function storedProgressMatches(saved: string, questions: readonly { id?: string }[]): boolean {
+  try {
+    const progress = JSON.parse(saved) as Partial<QuizProgress> | null;
+    const answered = Object.keys(progress?.answers ?? {});
+    if (answered.length === 0) return true;
+    const ids = new Set(questions.map((q) => q.id).filter((id): id is string => typeof id === "string"));
+    return answered.some((qid) => ids.has(qid));
+  } catch {
+    return false;
+  }
+}
+
 /** Each answer as text, to tell a new pick from one the record already has. */
 const snapshotAnswers = (answers: Record<string, unknown>): Record<string, string> =>
   Object.fromEntries(Object.entries(answers).map(([questionId, value]) => [questionId, JSON.stringify(value)]));
@@ -307,8 +321,19 @@ export default function QuizPhase() {
     if (resultAtFirstLoad === false && !session.settled && !readStoredQuizProgress(QUIZ_STORAGE_KEY)) return;
 
     if (fetchedQuestions.length > 0) {
-      // Check for saved progress
-      const savedProgress = readStoredQuizProgress(QUIZ_STORAGE_KEY);
+      // Check for saved progress. A copy whose answers name questions this
+      // quiz no longer has was saved for a different test (the questions were
+      // replaced while it was open): it is dropped, not resumed, so nobody
+      // lands on "question 4" of a quiz whose first three they never saw.
+      let savedProgress = readStoredQuizProgress(QUIZ_STORAGE_KEY);
+      if (savedProgress && !storedProgressMatches(savedProgress, fetchedQuestions)) {
+        try {
+          window.localStorage.removeItem(QUIZ_STORAGE_KEY);
+        } catch {
+          /* storage refused: the copy is ignored either way */
+        }
+        savedProgress = null;
+      }
       const fromServer = recordsQuizTiming
         ? quizResumeFromReply(session.reply, fetchedQuestions, { offsetMs: session.offsetMs, nowMs: Date.now() })
         : null;

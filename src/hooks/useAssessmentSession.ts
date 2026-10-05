@@ -314,6 +314,14 @@ export function quizResumeFromReply(
   const byRecordId = new Map<string, { index: number; question: QuizQuestionLike }>();
   questions.forEach((question, index) => byRecordId.set(quizQuestionRecordId(question, index), { index, question }));
 
+  // A record that names questions this quiz no longer has is a record of a
+  // different test: the hiring team replaced the questions while an attempt
+  // was open (2026-10-05, the whole set was rewritten under a live applicant).
+  // Resuming it would put them on "question 4" of a quiz whose first three
+  // they never saw, so it resumes nothing and the quiz starts from the top.
+  const recorded = [...Object.keys(reply.quiz.answers), ...Object.keys(reply.quiz.shown_at)];
+  if (recorded.length > 0 && !recorded.some((qid) => byRecordId.has(qid))) return empty;
+
   const answers: Record<string, unknown> = {};
   for (const [qid, answer] of Object.entries(reply.quiz.answers)) {
     const match = byRecordId.get(qid);

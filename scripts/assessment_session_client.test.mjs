@@ -252,6 +252,12 @@ console.log("\nResuming a quiz from the server's record:\n");
   check("a current_index moved back by a late pick resumes at the furthest question shown", behind.currentIndex === 2, behind.currentIndex);
   const noIndex = quizResumeFromReply({ ...reply, progress: {} }, questions, { offsetMs, nowMs });
   check("no current_index at all: the furthest question shown", noIndex.currentIndex === 2);
+  // The hiring team replaced every question while this attempt was open.
+  const replaced = [{ id: "zr1", time_limit_seconds: 60 }, { id: "zr2", time_limit_seconds: 60 }, { id: "zr3", time_limit_seconds: 60 }];
+  const foreign = quizResumeFromReply(reply, replaced, { offsetMs, nowMs });
+  check("a record of questions the quiz no longer has resumes nothing", foreign.started === false && foreign.currentIndex === null && Object.keys(foreign.answers).length === 0, foreign);
+  const partly = quizResumeFromReply(reply, [replaced[0], questions[2]], { offsetMs, nowMs });
+  check("…but one it still has keeps the attempt going", partly.started === true && partly.currentIndex === 1, partly);
 }
 
 /* ------------------------------------------------------------ the form */
