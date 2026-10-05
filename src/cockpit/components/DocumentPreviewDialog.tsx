@@ -171,7 +171,14 @@ export function DocumentPreviewDialog({
       {/* scrim */}
       <div
         className="absolute inset-0"
-        style={{ background: "color-mix(in srgb, var(--ink) 45%, transparent)", backdropFilter: "blur(3px)" }}
+        style={{
+          // A blur, not a wash. --ink flips to near-white in Night, so a 40% ink
+          // layer turned the page behind white (owner, 2026-10-05: "it should
+          // become blur, not white"). --slab stays dark in both themes.
+          background: "color-mix(in srgb, var(--slab) 22%, transparent)",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+        }}
         onClick={onClose}
       />
       <div
