@@ -167,10 +167,17 @@ function Sidebar() {
 
       <div className="mt-4 flex flex-col gap-3">
         {/* The design's app frame is rail + page, with no top bar, so the bell
-            sits at the foot of the rail beside the account block — the one
+            sits at the foot of the rail with the account block — the one
             place the account is printed. */}
-        <div className="flex flex-col items-center gap-2 min-[1121px]:flex-row">
-          <div className="w-full min-w-0 min-[1121px]:flex-1">
+        {/* The account gets the rail's full width. Beside the theme and bell
+            buttons it had ~9px at every desktop width, so the name always
+            ellipsized to one letter ("Z"). */}
+        <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center gap-2 min-[1121px]:w-full min-[1121px]:flex-row min-[1121px]:justify-end">
+            <ThemeSwitch />
+            <NotificationBell />
+          </div>
+          <div className="w-full min-w-0">
             <AccountMenu align="start" side="top">
               <button
                 aria-label="Account menu"
@@ -183,10 +190,10 @@ function Sidebar() {
                 >
                   {account.initials}
                 </span>
-                {/* A long business name has to ellipsize, not wrap the chip onto
-                    two lines and squeeze the bell beside it. */}
+                {/* The chip has the row to itself, so a business name may take
+                    two lines ("Zulu Support / Team") and only then ellipsize. */}
                 <span
-                  className="hidden min-w-0 flex-1 truncate text-left text-[14px] font-medium min-[1121px]:block"
+                  className="hidden min-w-0 flex-1 text-left text-[13.5px] font-medium leading-tight line-clamp-2 break-words min-[1121px]:[display:-webkit-box]"
                   style={{ color: "var(--hf-text)" }}
                   title={account.name}
                 >
@@ -196,8 +203,6 @@ function Sidebar() {
               </button>
             </AccountMenu>
           </div>
-          <ThemeSwitch />
-          <NotificationBell />
         </div>
       </div>
     </aside>

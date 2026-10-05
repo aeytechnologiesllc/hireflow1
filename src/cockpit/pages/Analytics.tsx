@@ -379,8 +379,9 @@ export default function CockpitAnalytics() {
     <div className="space-y-4 md:space-y-5">
       {/* ── The record, named ──────────────────────────────── */}
       <header className="ck-rise flex flex-wrap items-center gap-x-3.5 gap-y-1">
+        {/* On a phone the top bar already says "Analytics" (same as Jobs). */}
         <h1
-          className="font-display"
+          className="font-display hidden md:block"
           style={{
             fontSize: "clamp(24px, 3vw, 30px)",
             fontWeight: 600,
