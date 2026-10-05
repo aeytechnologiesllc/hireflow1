@@ -1,11 +1,13 @@
 import { useMemo, type CSSProperties, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { differenceInCalendarDays, format, isValid, parse, subDays } from "date-fns";
+import { differenceInCalendarDays, format, isValid, parse, parseISO, subDays } from "date-fns";
 import { ChevronRight } from "lucide-react";
 import { clearDraft } from "@/lib/avaEngine/draft";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { CockpitErrorCard } from "../components/ErrorCard";
 import { useCockpitAnalytics, useCockpitCandidates, useCockpitJobsData } from "../hooks/useCockpitData";
+import { ShareJobCompact } from "../components/ShareJobCard";
+import { useCareersTraffic, type CareersTrafficDay } from "@/hooks/useCareersTraffic";
 
 /**
  * The record.
@@ -129,11 +131,89 @@ function Footnote({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * "Is anyone looking?" — candidate-side visits per day (public.get_careers_traffic),
+ * so this page says something real before the first application lands
+ * (2026-10-05: with a live role and no applicants it said "Nothing to measure yet").
+ */
+function TrafficSection({ days, applications, roles }: { days: CareersTrafficDay[]; applications: number; roles: number }) {
+  const totals = days.reduce(
+    (t, d) => ({ careers: t.careers + d.careers_views, job: t.job + d.job_views, apply: t.apply + d.apply_views }),
+    { careers: 0, job: 0, apply: 0 },
+  );
+  const perDay = days.map((d) => ({ key: d.day, date: parseISO(d.day), total: d.careers_views + d.job_views + d.apply_views }));
+  const peak = Math.max(1, ...perDay.map((d) => d.total));
+  const since = perDay[0]?.date;
+  const metrics: Array<{ label: string; value: number }> = [
+    { label: "Careers page", value: totals.careers },
+    { label: "Job page", value: totals.job },
+    { label: "Apply and sign-up", value: totals.apply },
+    { label: "Applications", value: applications },
+  ];
+
+  return (
+    <section className="ck-card ck-reveal p-5 md:p-6">
+      <h2 className="font-display text-[18px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
+        People looking at your {roles === 1 ? "role" : "roles"}
+      </h2>
+      <p className="mt-1 max-w-[62ch] text-[13px]" style={{ color: "var(--hf-text-muted)" }}>
+        {since
+          ? `Visits since ${format(since, "MMM d")}. Your own previews from the staff site are not counted.`
+          : "Counting starts tomorrow, the first full day your role is live."}
+      </p>
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {metrics.map((m) => (
+          <div key={m.label} className="rounded-[10px] px-3.5 py-3" style={{ background: "var(--hf-surface-strong)", border: "1px solid var(--line)" }}>
+            <div className="text-[12px] font-medium" style={{ color: "var(--hf-text-muted)" }}>
+              {m.label}
+            </div>
+            <div className="font-display ck-num mt-0.5" style={{ fontSize: 26, lineHeight: 1.1, color: "var(--hf-text)", fontWeight: 600 }}>
+              {m.value}
+            </div>
+          </div>
+        ))}
+      </div>
+      {perDay.length >= 2 && (
+        <div className="mt-5" aria-label="Visits per day">
+          {/* Columns are capped in width so two days of data read as two days,
+              not two slabs across the card. Each carries its own number. */}
+          <div className="flex items-end gap-2">
+            {perDay.map((d) => (
+              <div
+                key={d.key}
+                className="flex min-w-0 max-w-[52px] flex-1 flex-col items-center justify-end gap-1"
+                title={`${format(d.date, "EEE MMM d")}: ${d.total}`}
+              >
+                <span className="ck-num text-[11px] font-semibold" style={{ color: "var(--hf-text-soft)" }}>
+                  {d.total}
+                </span>
+                <div
+                  className="w-full rounded-t-[4px]"
+                  style={{
+                    height: d.total === 0 ? 3 : Math.max(6, Math.round((d.total / peak) * 72)),
+                    background: d.total === 0 ? "var(--line)" : "var(--jade)",
+                    opacity: d.total === 0 ? 1 : 0.85,
+                  }}
+                />
+                <span className="w-full truncate text-center text-[10.5px]" style={{ color: "var(--hf-text-muted)" }}>
+                  {format(d.date, perDay.length > 7 ? "EEEEE" : "EEE")}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function CockpitAnalytics() {
   const navigate = useNavigate();
   const { analytics, isLoading: analyticsLoading, isError: analyticsFailed, refetch: refetchAnalytics } = useCockpitAnalytics();
   const { candidates, isLoading: candidatesLoading } = useCockpitCandidates();
   const { jobs } = useCockpitJobsData();
+  const { data: traffic } = useCareersTraffic(14);
+  const liveJob = jobs.find((j) => j.status === "live") ?? null;
 
   const view = useMemo(() => {
     const today = new Date();
@@ -319,31 +399,41 @@ export default function CockpitAnalytics() {
       </header>
 
       {view.total === 0 ? (
-        /* ── Nothing has been measured yet. Say so plainly. ── */
-        <section className="ck-card ck-reveal p-6 md:p-8" style={{ ["--ck-i" as string]: 1 }}>
-          <h2 className="font-display text-[20px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
-            Nothing to measure yet.
-          </h2>
-          <p className="mt-2 max-w-[54ch] text-[14px]" style={{ color: "var(--hf-text-soft)" }}>
-            The moment people start applying, this page fills in: how many came, which days they came,
-            how far each one got, and how long your role took to fill. All of it counted from your own
-            applicants — nothing borrowed from anywhere else.
-          </p>
-          <div className="mt-5 flex flex-wrap gap-2">
-            {jobs.length === 0 ? (
-              <button className="ck-btn ck-btn-primary" onClick={startRole}>
-                Post your first job
-              </button>
+        <>
+          {traffic && <TrafficSection days={traffic} applications={0} roles={jobs.filter((j) => j.status === "live").length} />}
+          {/* ── No applications yet. Say what fills in, and hand over the link. ── */}
+          <section className="ck-card ck-reveal p-6 md:p-8" style={{ ["--ck-i" as string]: 1 }}>
+            <h2 className="font-display text-[20px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
+              No applications yet.
+            </h2>
+            <p className="mt-2 max-w-[56ch] text-[14px]" style={{ color: "var(--hf-text-soft)" }}>
+              The moment people start applying, the rest of this page fills in: which days they came, how far each
+              one got, and how long your role took to fill. All of it counted from your own applicants.
+            </p>
+            {liveJob ? (
+              <div className="mt-5">
+                <ShareJobCompact job={liveJob} />
+              </div>
             ) : (
-              <button className="ck-btn ck-btn-primary" onClick={() => navigate("/jobs")}>
-                See your jobs
-                <ChevronRight className="h-4 w-4" />
-              </button>
+              <div className="mt-5 flex flex-wrap gap-2">
+                {jobs.length === 0 ? (
+                  <button className="ck-btn ck-btn-primary" onClick={startRole}>
+                    Post your first job
+                  </button>
+                ) : (
+                  <button className="ck-btn ck-btn-primary" onClick={() => navigate("/jobs")}>
+                    See your jobs
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             )}
-          </div>
-        </section>
+          </section>
+        </>
       ) : (
         <>
+          {traffic && <TrafficSection days={traffic} applications={view.total} roles={jobs.filter((j) => j.status === "live").length} />}
+
           {/* ── What Ava carried, in one line ───────────────── */}
           {view.screened > 0 && (
             <section

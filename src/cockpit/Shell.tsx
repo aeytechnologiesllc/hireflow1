@@ -287,7 +287,10 @@ function MobileTopBar() {
         {title}
       </h1>
       <div className="flex shrink-0 items-center gap-2">
-        <AccountChip />
+        {/* Initials only on phones: with the full business name beside it the
+            page title was cut to "Dash…" at 390px (2026-10-05). The name is
+            one tap away in the menu. */}
+        <AccountChip compact />
         <ThemeSwitch compact />
         <NotificationBell compact />
       </div>

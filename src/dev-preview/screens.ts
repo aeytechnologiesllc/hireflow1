@@ -19,6 +19,7 @@ import {
   APP_VIDEO_ID,
   APP_VOICE_ID,
   CANDIDATE_USER_ID,
+  JOB_FRESH_ID,
   STEP_CHAT_INTERVIEW,
   STEP_CHAT_SIM,
   STEP_PORTFOLIO,
@@ -50,6 +51,13 @@ export const PREVIEW_SCREENS: PreviewScreen[] = [
   { id: "team", group: "Employer cockpit", label: "Team", role: "employer", path: "/team" },
   { id: "analytics", group: "Employer cockpit", label: "Analytics", role: "employer", path: "/analytics" },
   { id: "settings", group: "Employer cockpit", label: "Settings", role: "employer", path: "/settings" },
+
+  // ------------------------------- employer cockpit: one live role, nobody yet
+  { id: "fresh-dashboard", group: "New account (1 live role, 0 applicants)", label: "Dashboard", role: "employer", path: "/dashboard?__previewScenario=fresh" },
+  { id: "fresh-jobs", group: "New account (1 live role, 0 applicants)", label: "Jobs", role: "employer", path: "/jobs?__previewScenario=fresh" },
+  { id: "fresh-applicants", group: "New account (1 live role, 0 applicants)", label: "Applicants (via Open)", role: "employer", path: `/applicants?roleId=${JOB_FRESH_ID}&__previewScenario=fresh` },
+  { id: "fresh-interviews", group: "New account (1 live role, 0 applicants)", label: "Interviews", role: "employer", path: "/interviews?__previewScenario=fresh" },
+  { id: "fresh-analytics", group: "New account (1 live role, 0 applicants)", label: "Analytics", role: "employer", path: "/analytics?__previewScenario=fresh" },
 
   // -------------------------------------------------------------- candidate side
   { id: "cand-applications", group: "Candidate", label: "Applications — list", role: "candidate", path: "/applications" },

@@ -52,6 +52,7 @@ import {
 } from "@/lib/candidateJourney";
 import type { Candidate, CandidateStage } from "../data";
 import { candidateOrigin } from "@/lib/hosts";
+import { ShareJobCompact } from "../components/ShareJobCard";
 
 /**
  * The people, and Ava's read on them.
@@ -803,7 +804,7 @@ export default function CockpitApplicants() {
   const [searchParams, setSearchParams] = useSearchParams();
   const roleIdFilter = searchParams.get("roleId");
   const { candidates, applications, isLoading, isError, refetch } = useCockpitCandidates();
-  const { jobs } = useCockpitJobsData();
+  const { jobs, isLoading: jobsLoading } = useCockpitJobsData();
   const { advance, hire, reject, letContinue, isUpdating } = useCockpitActions();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [bucket, setBucket] = useState<Bucket>("sealed");
@@ -1019,7 +1020,7 @@ export default function CockpitApplicants() {
      beside the inspector — so nothing slides sideways at the moment the data
      lands. Ava's seal breathes at the head so the blocks read as pending
      rather than as cards that failed to paint. */
-  if (isLoading) {
+  if (isLoading || jobsLoading) {
     return (
       <div className="space-y-4">
         <header className="ck-rise flex flex-wrap items-center gap-x-3.5 gap-y-2">
@@ -1074,8 +1075,14 @@ export default function CockpitApplicants() {
     return <CockpitErrorCard message="We couldn't load your applicants just now." onRetry={refetch} />;
   }
 
-  /* ── Nothing has come in yet ─────────────────────────────────────────── */
+  /* ── Nothing has come in yet ───────────────────────────────────────────
+     With a live role this page used to say "Publish a role… Post your first
+     job" (2026-10-05, the owner: "the dashboard says there's a job, but then
+     the job says there is no job"). Now: the role it was opened for (or the
+     first live one), and its link. "Post your first job" only when there
+     genuinely is no role. */
   if (candidates.length === 0) {
+    const emptyJob = shareJob ?? jobs.find((j) => j.status === "live") ?? null;
     return (
       <div className="space-y-4">
         <header className="ck-rise">
@@ -1083,23 +1090,43 @@ export default function CockpitApplicants() {
             className="font-display text-[30px] font-semibold leading-[1.15]"
             style={{ color: "var(--ink)", letterSpacing: "-0.025em" }}
           >
-            Nobody has applied yet.
+            {shareJob ? `Nobody has applied to ${shareJob.title} yet.` : "Nobody has applied yet."}
           </h1>
         </header>
         <section className="ck-card ck-reveal p-6 md:p-8">
-          <p className="max-w-[52ch] text-[14px] leading-relaxed" style={{ color: "var(--ink-2)" }}>
-            Publish a role and share its link. The moment someone applies I read them, score them
-            against the job, and they show up here — already sealed, with my working shown.
-          </p>
-          <div className="mt-5 flex flex-wrap gap-2">
-            <button className="ck-btn ck-btn-primary !py-2 !text-[12.5px]" onClick={startRole}>
-              Post your first job
-            </button>
-            <button className="ck-btn ck-btn-outline !py-2 !text-[12.5px]" onClick={() => navigate("/jobs")}>
-              See your jobs
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
+          {emptyJob ? (
+            <>
+              <p className="max-w-[56ch] text-[14px] leading-relaxed" style={{ color: "var(--ink-2)" }}>
+                The moment someone applies I read them, score them against the job, and they show up here,
+                already sealed, with my working shown.
+              </p>
+              <div className="mt-5">
+                <ShareJobCompact job={emptyJob} lead={shareJob ? "It's live. Share its link:" : undefined} />
+              </div>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button className="ck-btn ck-btn-outline !py-2 !text-[12.5px]" onClick={() => navigate("/jobs")}>
+                  See your jobs
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="max-w-[52ch] text-[14px] leading-relaxed" style={{ color: "var(--ink-2)" }}>
+                Publish a role and share its link. The moment someone applies I read them, score them
+                against the job, and they show up here, already sealed, with my working shown.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button className="ck-btn ck-btn-primary !py-2 !text-[12.5px]" onClick={startRole}>
+                  Post your first job
+                </button>
+                <button className="ck-btn ck-btn-outline !py-2 !text-[12.5px]" onClick={() => navigate("/jobs")}>
+                  See your jobs
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </>
+          )}
         </section>
       </div>
     );

@@ -14,6 +14,8 @@ export const JOB_BARISTA_ID = "20000000-0000-4000-8000-000000000001";
 export const JOB_SERVER_ID = "20000000-0000-4000-8000-000000000002";
 export const JOB_CASHIER_DRAFT_ID = "20000000-0000-4000-8000-000000000003";
 export const JOB_SHIFT_LEAD_CLOSED_ID = "20000000-0000-4000-8000-000000000004";
+/** The "fresh" scenario's one live role (see fixtures.ts). */
+export const JOB_FRESH_ID = "20000000-0000-4000-8000-000000000005";
 
 // Workflow step ids on the Barista job — see buildCandidateJourney(): the
 // journey is [application, quiz, ...these in order, decision].

@@ -13,7 +13,8 @@ import CkAvatar from "../components/Avatar";
 import { ActionDialog } from "../components/ActionDialog";
 import { PageHeader } from "../components/PageHeader";
 import { CockpitErrorCard } from "../components/ErrorCard";
-import { useCockpitAccount, useCockpitCandidates, useCockpitInterviews } from "../hooks/useCockpitData";
+import { useCockpitAccount, useCockpitCandidates, useCockpitInterviews, useCockpitJobsData } from "../hooks/useCockpitData";
+import { ShareJobCompact } from "../components/ShareJobCard";
 import type { CandidateStage } from "../data";
 
 /**
@@ -187,6 +188,8 @@ export default function CockpitInterviews() {
   const { interviews, isLoading, isError, refetch } = useCockpitInterviews();
   const { data: rows = [] } = useInterviews();
   const { candidates } = useCockpitCandidates();
+  const { jobs } = useCockpitJobsData();
+  const liveJob = jobs.find((j) => j.status === "live") ?? null;
   const { account } = useCockpitAccount();
   const [reviewing, setReviewing] = useState<Session | null>(null);
   const [cancelling, setCancelling] = useState<Session | null>(null);
@@ -467,9 +470,17 @@ export default function CockpitInterviews() {
           </h2>
           <p className="mt-2 max-w-[52ch] text-[14px]" style={{ color: "var(--ink-2)" }}>
             {candidates.length === 0
-              ? "Publish a role and share its link. I read everyone who applies, and the moment you want to meet one of them the time lands here."
+              ? liveJob
+                ? "I read everyone who applies to your live role, and the moment you want to meet one of them the time lands here."
+                : "Publish a role and share its link. I read everyone who applies, and the moment you want to meet one of them the time lands here."
               : "Open the record of anyone worth an hour and pick a time. I send them the date and the place, and hold your slot until they answer."}
           </p>
+          {/* A live role with nobody in it yet: the link, not "publish a role" (2026-10-05). */}
+          {candidates.length === 0 && liveJob && (
+            <div className="mt-5">
+              <ShareJobCompact job={liveJob} />
+            </div>
+          )}
           <div className="mt-5 flex flex-wrap gap-2">
             {candidates.length === 0 ? (
               <button className="ck-btn ck-btn-primary" onClick={() => navigate("/jobs")}>

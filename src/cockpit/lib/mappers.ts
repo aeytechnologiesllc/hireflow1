@@ -412,10 +412,16 @@ export interface JourneyPipelineStage {
  * stage. Counts are real — never estimated, never padded, no bottleneck
  * guesswork layered on top.
  */
-export function buildJourneyPipeline(apps: readonly JourneyPipelineInput[]): JourneyPipelineStage[] {
+export function buildJourneyPipeline(
+  apps: readonly JourneyPipelineInput[],
+  /** Live roles to seed the track from, so a role nobody has applied to yet
+   *  still shows its whole journey at zero (2026-10-05: the dashboard showed
+   *  no pipeline at all until the first applicant). */
+  seedJobs: readonly NonNullable<JourneyPipelineInput["jobs"]>[] = [],
+): JourneyPipelineStage[] {
   const hired = apps.filter((a) => a.status === "hired");
   const live = apps.filter((a) => a.status !== "rejected" && a.status !== "hired");
-  if (live.length + hired.length === 0) return [];
+  if (live.length + hired.length === 0 && seedJobs.length === 0) return [];
 
   const buckets = new Map<string, { label: string; count: number; order: number }>();
   const seenShapes = new Set<string>();
@@ -427,14 +433,27 @@ export function buildJourneyPipeline(apps: readonly JourneyPipelineInput[]): Jou
     return buildCandidateJourney(workflowSteps, { hasQuiz });
   };
 
+  // "Decision" always trails, whatever the journey length: two jobs with
+  // different step counts used to merge it into the middle of the track.
+  const LAST = Number.MAX_SAFE_INTEGER;
   const seed = (steps: ReturnType<typeof journeyOf>) => {
     steps.forEach((step, i) => {
       const key = step.id === DECISION_STAGE_ID ? DECISION_STAGE_ID : step.title;
+      const order = key === DECISION_STAGE_ID ? LAST : i;
       const existing = buckets.get(key);
-      if (existing) existing.order = Math.min(existing.order, i);
-      else buckets.set(key, { label: step.title, count: 0, order: i });
+      if (existing) existing.order = Math.min(existing.order, order);
+      else buckets.set(key, { label: step.title, count: 0, order });
     });
   };
+
+  seedJobs.forEach((job) => {
+    const steps = journeyOf({ jobs: job } as JourneyPipelineInput);
+    const shape = steps.map((s) => s.title).join("|");
+    if (!seenShapes.has(shape)) {
+      seenShapes.add(shape);
+      seed(steps);
+    }
+  });
 
   live.forEach((app) => {
     const steps = journeyOf(app);
@@ -451,7 +470,7 @@ export function buildJourneyPipeline(apps: readonly JourneyPipelineInput[]): Jou
     const key = position.current.id === DECISION_STAGE_ID ? DECISION_STAGE_ID : position.current.title;
     const bucket = buckets.get(key);
     if (bucket) bucket.count += 1;
-    else buckets.set(key, { label: position.current.title, count: 1, order: position.index });
+    else buckets.set(key, { label: position.current.title, count: 1, order: key === DECISION_STAGE_ID ? LAST : position.index });
   });
 
   const stages: JourneyPipelineStage[] = Array.from(buckets.values())

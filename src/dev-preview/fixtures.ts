@@ -37,6 +37,7 @@ import {
   JOB_CASHIER_DRAFT_ID,
   JOB_SERVER_ID,
   JOB_SHIFT_LEAD_CLOSED_ID,
+  JOB_FRESH_ID,
   REJECTED_CANDIDATE_USER_ID,
   STEP_CHAT_INTERVIEW,
   STEP_CHAT_SIM,
@@ -720,9 +721,112 @@ const publishedJobsPublic: FixtureRow[] = jobs
   .filter((j) => j.status === "published")
   .map((j) => ({ ...j }));
 
+// ---------------------------------------------------- "fresh" scenario
+// One live remote role with nobody in it yet: the state a real account is in
+// the day its first job goes out (Zulu Support Team, 2026-10-05). Same
+// employer user as the café scenario, so the auth and role plumbing is
+// unchanged; only the tables differ. Open it with `__previewScenario=fresh`.
+
+const freshEmployerProfile: FixtureRow = {
+  ...employerProfile,
+  email: "owner@zulu-support.example",
+  full_name: "Zack",
+  company_name: "Zulu Support Team",
+  company_description: "Player support for Zulu Royal and Zulu Rush.",
+  company_address: null,
+};
+
+const freshJob: FixtureRow = {
+  ...jobBarista,
+  id: JOB_FRESH_ID,
+  title: "Customer Support Chat Agent (Zulu Royal & Zulu Rush)",
+  description:
+    "Zulu runs player support for Zulu Royal and Zulu Rush, two online sweepstakes game platforms with players " +
+    "across the United States. Players write to us in chat when they have questions about buying, cashing out, " +
+    "their account or a game. You answer them in writing: clearly, kindly and accurately. Every conversation is " +
+    "written, so you will never be on the phone. You will learn our rules for payments, cash-outs and accounts, " +
+    "and you will know when to pass a case to a manager instead of promising something you cannot do. Shifts " +
+    "cover days, evenings, overnight and weekends.",
+  location: "Remote (worldwide)",
+  location_city: null,
+  location_region: null,
+  location_country: null,
+  location_country_code: null,
+  is_remote: true,
+  job_type: "full-time",
+  department: "Support",
+  salary_min: null,
+  salary_max: null,
+  salary_period: "YEAR",
+  benefits: [],
+  job_code: "JOB-C84E85",
+  workflow_steps: [
+    { id: "step_typing", type: "typing_test", title: "Typing speed and accuracy" },
+    { id: "step_chat", type: "chat_simulation", title: "Player chat practice" },
+    { id: "step_interview", type: "chat_interview", title: "Written interview" },
+  ],
+  quiz_questions: Array.from({ length: 10 }, (_, i) => ({
+    id: `fresh-q${i + 1}`,
+    question: `Player situation ${i + 1}`,
+    options: ["A", "B", "C", "D"],
+    correctIndex: 0,
+  })),
+  required_wpm: 45,
+  passing_score: 60,
+  processing_mode: "auto",
+  created_at: daysAgo(1),
+  updated_at: daysAgo(1),
+};
+
+/** Daily candidate-side visits for the traffic RPC, oldest first. */
+function trafficRows(days: number, perDay: (i: number) => [number, number, number]) {
+  return Array.from({ length: days }, (_, i) => {
+    const [careers, job, apply] = perDay(i);
+    return {
+      day: new Date(now - (days - 1 - i) * DAY).toISOString().slice(0, 10),
+      careers_views: careers,
+      job_views: job,
+      apply_views: apply,
+    };
+  });
+}
+
+function buildFreshTables(): FixtureTables {
+  return {
+    ...buildCafeTables(),
+    profiles: [freshEmployerProfile, teamMemberProfile].map((r) => ({ ...r })),
+    jobs: [{ ...freshJob }],
+    applications: [],
+    interviews: [],
+    documents: [],
+    messages: [],
+    team_members: [],
+    team_invitations: [],
+    notifications: [],
+    employer_public_branding: [{ user_id: EMPLOYER_USER_ID, company_name: "Zulu Support Team", company_logo: null }],
+    published_jobs_public: [{ ...freshJob }],
+  };
+}
+
 // --------------------------------------------------------------- exports
 
-export function buildFixtureTables(): FixtureTables {
+export type FixtureScenario = "cafe" | "fresh";
+
+export function buildFixtureTables(scenario: FixtureScenario = "cafe"): FixtureTables {
+  return scenario === "fresh" ? buildFreshTables() : buildCafeTables();
+}
+
+export function buildFixtureRpcHandlers(scenario: FixtureScenario = "cafe"): Record<string, (args: unknown) => unknown> {
+  return {
+    ...fixtureRpcHandlers,
+    get_careers_traffic: () =>
+      scenario === "fresh"
+        ? trafficRows(2, (i) => [i === 0 ? 9 : 14, i === 0 ? 4 : 6, i === 0 ? 1 : 2])
+        : trafficRows(14, (i) => [20 + ((i * 7) % 11), 9 + ((i * 5) % 7), 3 + (i % 4)]),
+  };
+}
+
+function buildCafeTables(): FixtureTables {
   return {
     profiles: [employerProfile, teamMemberProfile, candidateProfile, rejectedCandidateProfile].map((r) => ({ ...r })),
     jobs: jobs.map((r) => ({ ...r })),

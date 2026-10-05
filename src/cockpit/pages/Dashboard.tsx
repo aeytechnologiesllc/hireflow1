@@ -3,8 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { format, isSameDay, startOfDay } from "date-fns";
 import {
   ChevronRight,
-  Check,
-  Copy,
   Video,
   AlertCircle,
   Clock,
@@ -14,16 +12,18 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { clearDraft } from "@/lib/avaEngine/draft";
-import { candidateApplyUrl } from "@/lib/showcaseApply";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { useInterviews } from "@/hooks/useInterviews";
 import { useUnreadMessagesCount } from "@/hooks/useUnreadMessagesCount";
 import { useUpdateProfile } from "@/hooks/useProfile";
 import { useSchemaMode } from "@/hooks/useSchemaMode";
+import { useActivityFeed } from "@/hooks/useActivityFeed";
+import { useCareersTraffic, visitsInLast } from "@/hooks/useCareersTraffic";
 import CkAvatar from "../components/Avatar";
 import { CountUp } from "../components/CountUp";
 import { ActionDialog } from "../components/ActionDialog";
 import { CockpitErrorCard } from "../components/ErrorCard";
+import { ShareJobCompact, ShareJobHero } from "../components/ShareJobCard";
 import {
   useCockpitAccount,
   useCockpitCandidates,
@@ -32,10 +32,9 @@ import {
   advanceTargetLabel,
   avaAdvanceRec,
 } from "../hooks/useCockpitData";
-import { buildJourneyPipeline, type JourneyPipelineStage } from "../lib/mappers";
+import { buildJourneyPipeline, mapActivityFeed, type JourneyPipelineStage } from "../lib/mappers";
 import { gemPosition } from "../lib/gemRail";
 import type { Candidate } from "../data";
-import { candidateOrigin } from "@/lib/hosts";
 
 /**
  * The morning read.
@@ -286,80 +285,6 @@ function FirstJobGuide({ onStart }: { onStart: () => void }) {
 }
 
 /**
- * A job exists but nobody has applied yet — the in-between moment. The
- * owner's one job here is to get the link in front of people; Ava's is to
- * wait. One primary action (copy the link), one natural next step (see it
- * the way a candidate would).
- */
-function LiveJobGuide({
-  job,
-  onView,
-}: {
-  job: { id: string; title: string; roleCode?: string | null };
-  onView: () => void;
-}) {
-  const [copied, setCopied] = useState(false);
-  const applyUrl = job.roleCode ? candidateApplyUrl(job.roleCode) : `${candidateOrigin()}/candidate/job/${job.id}`;
-
-  const copy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(applyUrl);
-      setCopied(true);
-      toast.success("Link copied");
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error("Could not copy");
-    }
-  }, [applyUrl]);
-
-  return (
-    <section
-      className="ck-card ck-reveal flex flex-col items-start gap-5 p-8 text-left md:p-12"
-      style={{ ["--ck-i" as string]: 1, borderTop: "3px solid var(--hf-gold-border)" }}
-    >
-      <span className="ck-seal-breathe">
-        <AvaSeal size={48} />
-      </span>
-      <div className="max-w-[56ch]">
-        <h2
-          className="font-display"
-          style={{ fontSize: "clamp(22px, 2.6vw, 30px)", lineHeight: 1.2, color: "var(--hf-text)", fontWeight: 500 }}
-        >
-          {job.title} is live.
-        </h2>
-        <p className="mt-3 text-[15px] leading-[1.6]" style={{ color: "var(--hf-text-soft)" }}>
-          Share this link anywhere people will see it. The moment someone applies, I read them and
-          seal them right here — scored, with the evidence behind it.
-        </p>
-      </div>
-      <div
-        className="flex w-full max-w-[56ch] flex-wrap items-center gap-3 rounded-[10px] px-4 py-3"
-        style={{ background: "var(--hf-surface-strong)", border: "1px solid var(--line)" }}
-      >
-        <span
-          className="min-w-0 flex-1 truncate text-[13px]"
-          style={{ color: "var(--hf-text)", fontFamily: "ui-monospace, SFMono-Regular, monospace" }}
-        >
-          {applyUrl}
-        </span>
-        <button className="ck-btn ck-btn-primary shrink-0 !py-2 !text-[13px]" onClick={() => void copy()}>
-          {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-          {copied ? "Copied" : "Copy link"}
-        </button>
-      </div>
-      <button
-        type="button"
-        className="text-[13px] font-semibold transition-opacity hover:opacity-75"
-        style={{ color: "var(--hf-gold)" }}
-        onClick={onView}
-      >
-        See it the way a candidate does →
-      </button>
-    </section>
-  );
-}
-
-/**
  * Real employer accounts exist today with no business name on file — a gap
  * that predates this fix and left every one of their candidates reading
  * their company as "null", "confidential", or "the employer" everywhere.
@@ -582,6 +507,43 @@ function FirstApplicantMoment({
  * misleading thing. Nodes flex evenly so the whole track is always visible
  * at any width, never clipped or scrolled.
  */
+/** One number on the dashboard's "at a glance" strip; opens the page behind it. */
+function StatTile({
+  label,
+  value,
+  note,
+  onClick,
+  index,
+}: {
+  label: string;
+  value: number | string;
+  note: string;
+  onClick: () => void;
+  index: number;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="ck-card ck-reveal flex min-w-0 flex-col items-start gap-0.5 px-4 py-3 text-left transition-transform hover:-translate-y-px"
+      style={{ ["--ck-i" as string]: index }}
+    >
+      <span className="text-[12px] font-medium" style={{ color: "var(--hf-text-muted)" }}>
+        {label}
+      </span>
+      <span
+        className="font-display ck-num"
+        style={{ fontSize: 30, lineHeight: 1.1, color: "var(--hf-text)", fontWeight: 600 }}
+      >
+        {value}
+      </span>
+      <span className="text-[11.5px]" style={{ color: "var(--hf-text-muted)" }}>
+        {note}
+      </span>
+    </button>
+  );
+}
+
 function MiniJourneyRail({ stages }: { stages: JourneyPipelineStage[] }) {
   const total = stages.length;
   // Nodes are evenly-flexed columns, so node i's dot sits at the CENTER of
@@ -621,7 +583,10 @@ export default function CockpitDashboard() {
   const { data: schemaMode } = useSchemaMode();
   const { candidates, applications, isLoading, isError: candidatesFailed, refetch: refetchCandidates } = useCockpitCandidates();
   const { advance, reject, isUpdating } = useCockpitActions();
-  const { jobs, isLoading: jobsLoading, isError: jobsFailed, refetch: refetchJobs } = useCockpitJobsData();
+  const { jobs, rawJobs, isLoading: jobsLoading, isError: jobsFailed, refetch: refetchJobs } = useCockpitJobsData();
+  const { data: traffic } = useCareersTraffic(14);
+  const { activities = [] } = useActivityFeed(8);
+  const activity = useMemo(() => mapActivityFeed(activities), [activities]);
   const { data: interviewRows = [] } = useInterviews();
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
 
@@ -721,7 +686,17 @@ export default function CockpitDashboard() {
   // Pipeline at a glance — the exact same journey vocabulary and position
   // logic the Applicants panel's journey strip uses (src/lib/candidateJourney.ts),
   // never a separate hand-picked set of stage names.
-  const pipelineNodes = useMemo(() => buildJourneyPipeline(applications), [applications]);
+  // Seeded from the live roles too, so the track is there (at zero) before anyone applies.
+  const liveRawJobs = useMemo(() => rawJobs.filter((j) => j.status === "published"), [rawJobs]);
+  const pipelineNodes = useMemo(() => buildJourneyPipeline(applications, liveRawJobs), [applications, liveRawJobs]);
+  const upcomingInterviews = useMemo(
+    () => interviewRows.filter((r) => r.status === "scheduled" && new Date(r.scheduled_at).getTime() >= now.getTime()).length,
+    [interviewRows, now],
+  );
+  const inProgress = useMemo(
+    () => candidates.filter((c) => c.stage !== "Rejected" && c.stage !== "Hired").length,
+    [candidates],
+  );
 
   // The very first applicant this account has ever had, once. Dismissed
   // permanently (per-applicant) in localStorage — the same once-only pattern
@@ -850,11 +825,30 @@ export default function CockpitDashboard() {
       {hasNoJobs ? (
         /* ── The very first moment. One door in, nothing else asking. ── */
         <FirstJobGuide onStart={startRole} />
-      ) : hasJobsNoApplicants && featuredJob ? (
-        /* ── The job is out there. Ava is just waiting on the world. ── */
-        <LiveJobGuide job={featuredJob} onView={() => navigate(`/candidate/job/${featuredJob.id}`)} />
       ) : (
         <>
+          {/* ── The numbers, always. 2026-10-05: with a live role and nobody in
+              it yet, this page used to be one card and nothing else; the owner
+              asked for the dashboard "how it used to be … showing me
+              everything". Each number opens the page that explains it. ── */}
+          <section aria-label="At a glance" className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+            <StatTile index={0} label="Live roles" value={liveJobsCount} note="open now" onClick={() => navigate("/jobs")} />
+            <StatTile
+              index={1}
+              label="Visits"
+              value={traffic ? visitsInLast(traffic, 7) : "—"}
+              note="last 7 days"
+              onClick={() => navigate("/analytics")}
+            />
+            <StatTile index={2} label="Applicants" value={candidates.length} note="all time" onClick={() => navigate("/applicants")} />
+            <StatTile index={3} label="In progress" value={inProgress} note="moving through steps" onClick={() => navigate("/applicants")} />
+            <StatTile index={4} label="Interviews" value={upcomingInterviews} note="coming up" onClick={() => navigate("/interviews")} />
+            <StatTile index={5} label="Hired" value={hired} note="through HireFlow" onClick={() => navigate("/analytics")} />
+          </section>
+
+          {/* ── Nobody has applied yet: getting the link out is the one thing to do. ── */}
+          {hasJobsNoApplicants && featuredJob && <ShareJobHero job={featuredJob} />}
+
           {/* ── What needs you today — the single most valuable thing this
               page can do. Real items only; a truthful, warm line when there
               genuinely is nothing. ── */}
@@ -1148,6 +1142,47 @@ export default function CockpitDashboard() {
                 See analytics →
               </button>
             </div>
+          )}
+
+          {/* ── Recent activity, always: what happened, newest first. ── */}
+          <section className="ck-card ck-reveal p-4 md:p-5">
+            <h2 className="font-display text-[16px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
+              Recent activity
+            </h2>
+            {activity.length > 0 ? (
+              <ul className="mt-1.5">
+                {activity.map((a, i) => (
+                  <li
+                    key={a.id}
+                    className="flex items-baseline justify-between gap-3 py-2.5 text-[13.5px]"
+                    style={{ borderTop: i === 0 ? "none" : "1px solid var(--line)" }}
+                  >
+                    <span className="min-w-0" style={{ color: "var(--hf-text-soft)" }}>
+                      {a.action}
+                    </span>
+                    <span className="shrink-0 text-[12px]" style={{ color: "var(--hf-text-muted)" }}>
+                      {a.time}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-1.5 text-[13.5px]" style={{ color: "var(--hf-text-soft)" }}>
+                Nothing yet. New applications, decisions and interviews show up here as they happen.
+              </p>
+            )}
+          </section>
+
+          {/* ── Once people are applying, the link stays one click away. ── */}
+          {!hasJobsNoApplicants && liveJob && (
+            <section className="ck-card ck-reveal p-4 md:p-5">
+              <h2 className="font-display text-[16px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
+                Share your role
+              </h2>
+              <div className="mt-2">
+                <ShareJobCompact job={liveJob} />
+              </div>
+            </section>
           )}
         </>
       )}

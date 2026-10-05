@@ -49,7 +49,23 @@
     return h === "localhost" || /\.localhost$/.test(h) || /^127\./.test(h) || h === "0.0.0.0" || h === "[::1]";
   }
 
-  if (isOptedOut() || isLocalHost()) {
+  // Not a visitor either (2026-10-05): a browser driven by test automation
+  // (Playwright, Selenium: navigator.webdriver is true) and the hiring team's
+  // own staff site. Launch-day counts were mostly our own automated checks.
+  function isAutomation() {
+    try {
+      return navigator.webdriver === true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function isStaffSite() {
+    var h = (window.location && window.location.hostname) || "";
+    return h.indexOf("staff.") === 0;
+  }
+
+  if (isOptedOut() || isLocalHost() || isAutomation() || isStaffSite()) {
     window.__hfBeacon = { track: function () {} };
     return;
   }

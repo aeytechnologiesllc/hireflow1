@@ -784,20 +784,51 @@ export default function CockpitJobs() {
             </div>
           )}
 
-          {/* ── Where your live roles actually are ───────────── */}
-          {counts.live > 0 && !filtering && (
-            <div
-              className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 text-[12px] leading-snug"
-              style={{ border: "1px dashed var(--line)", borderRadius: 10, color: "var(--ink-3)" }}
-            >
-              <span className="min-w-0 flex-1">
-                <b style={{ color: "var(--ink-2)" }}>Your live roles sit on your own job page and go to Google
-                automatically.</b> Adzuna, Jooble and Talent.com will list you free too — send them your listings
-                link.
-              </span>
-              <CopyListingsLink />
-            </div>
-          )}
+          {/* ── Where your live roles actually are ─────────────
+              2026-10-05: this used to claim every live role "goes to Google
+              automatically" right under a role whose Google and job-board
+              chips were dimmed (a remote-worldwide role has no country, and
+              both need one). Now it says which roles are only on your job
+              page, why, and where to fix it. */}
+          {counts.live > 0 && !filtering && (() => {
+            const liveRows = jobs.filter((j) => j.status === "live");
+            const pageOnly = liveRows.filter((j) => j.listings && !j.listings.google);
+            const anyOnBoards = liveRows.some((j) => j.listings?.boards);
+            return (
+              <div
+                className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 text-[12px] leading-snug"
+                style={{ border: "1px dashed var(--line)", borderRadius: 10, color: "var(--ink-3)" }}
+              >
+                {pageOnly.length === 0 ? (
+                  <span className="min-w-0 flex-1">
+                    <b style={{ color: "var(--ink-2)" }}>Your live roles sit on your own job page and go to Google
+                    automatically.</b> Adzuna, Jooble and Talent.com will list you free too — send them your listings
+                    link.
+                  </span>
+                ) : (
+                  <span className="min-w-0 flex-1">
+                    <b style={{ color: "var(--ink-2)" }}>
+                      {pageOnly.length === 1 ? `${pageOnly[0].title} is on your job page only.` : `${pageOnly.length} live roles are on your job page only.`}
+                    </b>{" "}
+                    Google for Jobs and the job boards list a role only when it has a country, and{" "}
+                    {pageOnly.length === 1 ? "this one is remote worldwide" : "these have none"}. Your link still works
+                    anywhere you share it.{" "}
+                    {pageOnly.length === 1 && (
+                      <button
+                        type="button"
+                        className="font-semibold transition-opacity hover:opacity-75"
+                        style={{ color: "var(--jade)" }}
+                        onClick={() => navigate(`/jobs/edit/${pageOnly[0].id}`)}
+                      >
+                        Add a country
+                      </button>
+                    )}
+                  </span>
+                )}
+                {anyOnBoards && <CopyListingsLink />}
+              </div>
+            );
+          })()}
         </>
       )}
 

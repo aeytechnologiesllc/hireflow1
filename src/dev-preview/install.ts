@@ -7,7 +7,7 @@
  */
 import { __setPreviewSupabaseClient } from "@/integrations/supabase/client";
 import { createFixtureSupabaseClient, type FixtureAuthUser } from "./fixtureClient";
-import { buildFixtureTables, fixtureRpcHandlers } from "./fixtures";
+import { buildFixtureRpcHandlers, buildFixtureTables, type FixtureScenario } from "./fixtures";
 import {
   CANDIDATE_USER_ID,
   EMPLOYER_USER_ID,
@@ -32,6 +32,8 @@ export function install(params: URLSearchParams): void {
   const roleParam = params.get("__previewRole");
   const role: PreviewRole = isPreviewRole(roleParam) ? roleParam : "employer";
   const theme = params.get("__previewTheme");
+  // `fresh`: one live role, nobody applied yet (see fixtures.ts). Default: the café.
+  const scenario: FixtureScenario = params.get("__previewScenario") === "fresh" ? "fresh" : "cafe";
 
   if (theme === "light" || theme === "dark") {
     try {
@@ -43,8 +45,8 @@ export function install(params: URLSearchParams): void {
 
   const client = createFixtureSupabaseClient({
     user: ROLE_USERS[role],
-    tables: buildFixtureTables(),
-    rpc: fixtureRpcHandlers,
+    tables: buildFixtureTables(scenario),
+    rpc: buildFixtureRpcHandlers(scenario),
   });
 
   __setPreviewSupabaseClient(client as never);

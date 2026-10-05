@@ -2130,6 +2130,15 @@ export type Database = {
           voice_used: number
         }[]
       }
+      get_careers_traffic: {
+        Args: { p_days?: number }
+        Returns: {
+          apply_views: number
+          careers_views: number
+          day: string
+          job_views: number
+        }[]
+      }
       get_job_quiz_keys: {
         Args: { p_job_id: string }
         Returns: {
