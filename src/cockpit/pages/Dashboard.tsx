@@ -674,7 +674,9 @@ export default function CockpitDashboard() {
     const top = [...live].sort((a, b) => b.overall - a.overall).slice(0, 3);
     return {
       sealed: top,
-      awaitingDecision: live.length,
+      // Someone still taking tests is not waiting on you: everyone finishes
+      // every test before the decision is yours (owner, 2026-10-05).
+      awaitingDecision: live.filter((c) => !c.stillTesting).length,
       passedOver: candidates.filter((c) => c.stage === "Rejected").length,
       readCount: analyzed.length,
       hired: candidates.filter((c) => c.stage === "Hired").length,

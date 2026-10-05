@@ -116,23 +116,4 @@ export default [
       return { ok: true };
     },
   },
-  {
-    id: "prerender-plain-text-not-run-through-tag-stripper",
-    why:
-      "api/job-prerender.mjs's sanitizeHtml() is a regex tag-stripper that deletes anything between " +
-      "two unrelated bare '<'/'>' characters (e.g. 'coverage > 80%'). Job descriptions are ordinary " +
-      "typed text, not always TipTap HTML, so buildJobPostingSchema() must gate sanitizeHtml() behind " +
-      "a looksLikeHtml() check (falling back to esc()) the same way api/job-feed.mjs's sectionHtml() " +
-      "does — otherwise plain-text descriptions get silently mangled in the public JobPosting JSON-LD.",
-    run: async ({ read }) => {
-      const src = (await read("api/job-prerender.mjs")) ?? "";
-      const bad = [];
-      if (!/function looksLikeHtml\(/.test(src)) bad.push("api/job-prerender.mjs lost its looksLikeHtml() gate");
-      if (!/function sectionHtml\(/.test(src)) bad.push("api/job-prerender.mjs lost its sectionHtml() gate around sanitizeHtml()");
-      if (/\$\{sanitizeHtml\(job\.(description|responsibilities|requirements)\)\}/.test(src)) {
-        bad.push("api/job-prerender.mjs calls sanitizeHtml() directly on job text instead of going through sectionHtml()");
-      }
-      return bad.length ? { ok: false, detail: bad } : { ok: true };
-    },
-  },
 ];

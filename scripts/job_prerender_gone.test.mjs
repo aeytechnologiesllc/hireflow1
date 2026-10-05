@@ -88,13 +88,16 @@ stubFetch({ jobRows: [], jobStatus: 503 });
   assert.ok(!/noindex/.test(r.body));
 }
 
-// 5. Live, complete job → 200, JobPosting, one `index, follow`, short cache
-//    with no day-long stale window.
+// 5. Live job → 200, its own title and share tags, one `index, follow`, short
+//    cache with no day-long stale window, and NO JobPosting data: Google Jobs
+//    was removed on 2026-10-05 (owner: "remove google jobs").
 stubFetch({ jobRows: [LIVE_JOB] });
 {
   const r = await run(LIVE_JOB.id);
   assert.equal(r.status, 200);
-  assert.match(r.body, /"@type":"JobPosting"/);
+  assert.ok(!/JobPosting|application\/ld\+json/.test(r.body), "a job page carries no Google Jobs data");
+  assert.match(r.body, /<title>Line Cook — Maria&#39;s Café<\/title>|<title>Line Cook — Maria's Café<\/title>/);
+  assert.match(r.body, /<meta property="og:title" content="Line Cook/);
   assert.deepEqual(robotsTags(r.body), ['<meta name="robots" content="index, follow" />']);
   const cc = r.headers["cache-control"];
   const swr = Number(/stale-while-revalidate=(\d+)/.exec(cc)?.[1] ?? 0);
@@ -103,14 +106,25 @@ stubFetch({ jobRows: [LIVE_JOB] });
   assert.ok(swr <= 300, `stale window too long: ${cc}`);
 }
 
-// 6. Live job that can't be indexed (no company name) → 200, one noindex tag,
-//    no second contradictory `index, follow` left over from the shell.
-stubFetch({ jobRows: [LIVE_JOB], branding: [] });
+// 6. A worldwide remote role with no country and no company name was noindexed
+//    because Google Jobs could not list it. It is a live page like any other:
+//    one `index, follow`, nothing left over from the shell.
+const REMOTE_WORLDWIDE = {
+  ...LIVE_JOB,
+  location: "Remote (worldwide)",
+  location_city: null,
+  location_region: null,
+  location_country: null,
+  location_country_code: null,
+  is_remote: true,
+};
+stubFetch({ jobRows: [REMOTE_WORLDWIDE], branding: [] });
 {
-  const r = await run(LIVE_JOB.id);
+  const r = await run(REMOTE_WORLDWIDE.id);
   assert.equal(r.status, 200);
   assert.ok(!/JobPosting/.test(r.body));
-  assert.deepEqual(robotsTags(r.body), ['<meta name="robots" content="noindex,follow" />']);
+  assert.match(r.body, /<title>Line Cook — Zulu Support Team<\/title>/);
+  assert.deepEqual(robotsTags(r.body), ['<meta name="robots" content="index, follow" />']);
 }
 
 console.log("job_prerender_gone: 6 scenarios passed");

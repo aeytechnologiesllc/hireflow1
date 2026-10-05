@@ -113,7 +113,7 @@ import { AvaGuidedSetupFields } from "@/components/AvaGuidedSetupFields";
 import { generateFullJobPosting, generateJobField, generateScreeningPlan, type AvaJobFormData } from "@/lib/avaJobGeneration";
 import { DEFAULT_GUIDED_JOB_SETUP, assessScreeningPlanRisk, buildScreeningPlanRationale, summarizeScreeningPlan, type GuidedJobSetup } from "@/lib/hiringPlan";
 import { geocodePlace } from "@/lib/geocode";
-import { inferCountryCode, isFullyRemoteText } from "@/lib/jobLocation";
+import { isFullyRemoteText } from "@/lib/jobLocation";
 import {
   buildApplicationQuestions,
   buildQuizQuestions,
@@ -546,6 +546,8 @@ export default function CreateJob() {
   const [requiredWpm, setRequiredWpm] = useState<number>(35);
   const [applicationQuestions, setApplicationQuestions] = useState<ApplicationQuestion[]>([]);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
+  // Whole minutes the timed questions add up to; 0 when none carries a time limit.
+  const quizMinutes = Math.ceil(quizQuestions.reduce((total, question) => total + (question.time_limit_seconds || 0), 0) / 60);
   const [workflowSteps, setWorkflowSteps] = useState<WorkflowStep[]>([]);
   const [isGeneratingWorkflow, setIsGeneratingWorkflow] = useState(false);
   const [workflowApiComplete, setWorkflowApiComplete] = useState(false);
@@ -1163,20 +1165,14 @@ export default function CreateJob() {
     try {
       const locationText = formData.location.trim();
       const isRemote = isFullyRemoteText(locationText, formData.job_type, formData.description);
+      // A location is for candidates. It used to also need a country "for Google
+      // Jobs", which blocked publishing (and saving) a worldwide remote role;
+      // Google Jobs was removed on 2026-10-05.
       if (status === "published" && !locationText) {
-        toast.error("For Google Jobs, add a location or remote country before publishing.");
+        toast.error("Add a location before publishing, like \"Remote (worldwide)\" or \"London, United Kingdom\".");
         return;
       }
       const geo = locationText ? await geocodePlace(locationText) : { ok: false as const };
-      const hasCountry = !!(geo.ok ? geo.countryCode || geo.country : inferCountryCode(locationText));
-      if (status === "published" && !hasCountry) {
-        toast.error(
-          isRemote
-            ? "For Google Jobs, add the eligible remote country, like \"Remote - United States\"."
-            : "For Google Jobs, add a clearer location with country, like \"London, United Kingdom\".",
-        );
-        return;
-      }
       // When the geocoder misses, the feed and sitemap still need the stored
       // columns — fill them from the text the gate above already accepted.
       const fallbackLoc = geo.ok ? null : fallbackLocationFields(locationText);
@@ -3408,7 +3404,7 @@ export default function CreateJob() {
                             <div className="min-w-0 flex-1 text-left">
                               <p className="break-words font-medium text-foreground [overflow-wrap:anywhere]">Phase 2: Timed assessment</p>
                               <p className="break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">
-                                {quizQuestions.length} questions, about ~{Math.ceil(quizQuestions.reduce((total, question) => total + (question.time_limit_seconds || 0), 0) / 60) || 0} minutes
+                                {quizQuestions.length} questions{quizMinutes > 0 ? `, about ${quizMinutes} minutes` : ""}
                               </p>
                             </div>
                           </AccordionTrigger>

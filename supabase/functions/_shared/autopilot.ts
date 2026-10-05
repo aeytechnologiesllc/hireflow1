@@ -534,9 +534,14 @@ export function buildAvaScorecard(params: {
     riskFlags.find((flag) => flag.includes("Profile authenticity")) ||
     null;
 
+  // Owner, 2026-10-05: everyone takes every test and he decides at the end ("let
+  // them keep going — I review everyone myself"). Until then one finished test
+  // was enough evidence, so anyone under the passing score after the skills
+  // check was parked for him before the typing test and the chat practice he
+  // wanted to see. Now the evidence is complete only when nothing is left to
+  // take; a real deal-breaker (hardRejectReason) still stops someone early.
   const evidenceFloorMet =
     pendingHighSignalPhases.length === 0 ||
-    completedHighSignalPhases.length > 0 ||
     !!hardRejectReason;
 
   const hardRequirementStatus: AvaScorecard["hardRequirementStatus"] = hardRejectReason

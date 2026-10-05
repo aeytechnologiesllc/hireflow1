@@ -495,7 +495,7 @@ export default function Profile() {
         <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="text-lg">Company Information</CardTitle>
-            <CardDescription>This appears on your job posts, candidate applications, and Google for Jobs.</CardDescription>
+            <CardDescription>This appears on your job posts and candidate applications.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Company logo */}

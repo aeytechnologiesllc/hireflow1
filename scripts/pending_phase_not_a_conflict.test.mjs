@@ -45,18 +45,18 @@ const ZULU_STEPS = [
 ];
 
 /** An applicant who has only sent the application form (nothing else has happened yet). */
-function applicationStage(hardRequirementConflicts) {
+function applicationStage(hardRequirementConflicts, done = {}) {
   return buildAvaScorecard({
-    finalScore: null,
+    finalScore: done.finalScore ?? null,
     passingScore: 60,
-    quizScore: null,
+    quizScore: done.quizScore ?? null,
     quizConfigured: true,
-    typingTest: null,
+    typingTest: done.typingTest ?? null,
     voiceScore: null,
     portfolioScore: null,
-    chatSimulationScore: null,
+    chatSimulationScore: done.chatSimulationScore ?? null,
     salesSimulationScore: null,
-    chatInterviewScore: null,
+    chatInterviewScore: done.chatInterviewScore ?? null,
     videoIntroScore: null,
     videoIntroSubmitted: false,
     analysisText: "",
@@ -70,7 +70,7 @@ function applicationStage(hardRequirementConflicts) {
     jobDescription: "Remote chat support for players",
     jobSkillsRequired: ["Fluent written English", "Fast, accurate typing", "De-escalation"],
     experienceLevel: "entry",
-    directMatchScore: 62,
+    directMatchScore: done.directMatchScore ?? 62,
     transferableFitScore: 66,
     learningSignalScore: 60,
     writingQualityScore: 78,
@@ -133,6 +133,32 @@ assert(blocked.autopilotAction === "reject", `and still holds the applicant for 
 const mixed = applicationStage([OBSERVED_NOTE, "Work visa is pending."]);
 assert(mixed.hardRejectReason === null || mixed.hardRejectReason === "Work visa is pending.", "a pending note never hides a real one");
 assert(mixed.riskFlags.includes("Work visa is pending."), "the real one is still shown to the owner");
+
+console.log("\nEveryone takes every test; the owner decides at the end (2026-10-05):\n");
+
+// A weak applicant who has finished the skills check and nothing else.
+const weak = { directMatchScore: 30, quizScore: 40, finalScore: 40 };
+const afterQuiz = applicationStage([], weak);
+assert(afterQuiz.overallScore < 60, `the fixture really is under the passing score (${afterQuiz.overallScore})`);
+assert(afterQuiz.autopilotAction === "defer", `a low score after the skills check moves on to the typing test (got "${afterQuiz.autopilotAction}")`);
+assert(afterQuiz.decisionState === "needs_more_evidence", "and is not put in front of the owner yet");
+assert(
+  resolveAutopilotAction(afterQuiz.overallScore, 60, afterQuiz) === "defer",
+  "trigger-ava-analysis would open the next test, not hold them",
+);
+
+const allDone = applicationStage([], {
+  ...weak,
+  typingTest: { wpm: 30, score: 60, accuracy: 90 },
+  chatSimulationScore: 35,
+  chatInterviewScore: 40,
+});
+assert(allDone.pendingHighSignalPhases.length === 0, `nothing left to take (pending: ${JSON.stringify(allDone.pendingHighSignalPhases)})`);
+assert(allDone.decisionState === "ready_for_decision", "after the last test the decision is the owner's");
+assert(allDone.autopilotAction === "reject", `and Ava's read on a weak finisher is to decline, for him to confirm (got "${allDone.autopilotAction}")`);
+
+const blockedEarly = applicationStage(["Cannot work the required overnight schedule."], weak);
+assert(blockedEarly.autopilotAction === "reject", "a real deal-breaker still stops someone before the next test");
 
 console.log(failures ? `\n${failures} assertion(s) failed.` : "\nAll assertions passed.");
 process.exit(failures ? 1 : 0);

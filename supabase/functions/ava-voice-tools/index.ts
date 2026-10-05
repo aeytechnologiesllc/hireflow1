@@ -1,9 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import {
-  notifyGoogleIndexing,
-  type GoogleIndexingNotificationType,
-} from "../_shared/googleIndexing.ts";
 import { recordStepResult, type MinimalSupabaseAdmin } from "../_shared/trustedResults.ts";
 
 const corsHeaders = {
@@ -74,24 +70,6 @@ serve(async (req) => {
     console.log("Tool call:", { tool_name, parameters, userId: user.id, currentRoute });
 
     let result: any;
-    const notifyJobIndexing = async (
-      jobId: string,
-      notificationType: GoogleIndexingNotificationType,
-      reason: string,
-    ) => {
-      const indexingResult = await notifyGoogleIndexing({
-        supabaseAdmin,
-        job: { id: jobId, employer_id: user.id },
-        notificationType,
-        requestedBy: user.id,
-        reason,
-      });
-      if (!indexingResult.ok) {
-        console.warn("[ava-voice-tools] Google indexing notification failed", indexingResult.error);
-      }
-      return indexingResult;
-    };
-
     switch (tool_name) {
       case "get_applicant_count": {
         let query = supabaseClient
@@ -1512,7 +1490,6 @@ serve(async (req) => {
           .eq("employer_id", user.id);
 
         if (error) throw error;
-        await notifyJobIndexing(job_id, "URL_DELETED", "ava_voice_pause_job");
 
         result = { success: true, message: "Job paused - no longer accepting applications" };
         break;
@@ -1528,7 +1505,6 @@ serve(async (req) => {
           .eq("employer_id", user.id);
 
         if (error) throw error;
-        await notifyJobIndexing(job_id, "URL_UPDATED", "ava_voice_unpause_job");
 
         result = { success: true, message: "Job is live again" };
         break;
@@ -1544,7 +1520,6 @@ serve(async (req) => {
           .eq("employer_id", user.id);
 
         if (error) throw error;
-        await notifyJobIndexing(job_id, "URL_DELETED", "ava_voice_archive_job");
 
         result = { success: true, message: "Job archived" };
         break;

@@ -1,13 +1,13 @@
 /**
  * Parse free-text pay ("$90k–$110k", "PKR 150,000/month", "$22/hr", "Rs 200,000")
- * into structured salary for the jobs table + Google for Jobs `baseSalary`.
+ * into structured salary for the jobs table.
  * Currency- and period-aware; degrades gracefully (returns what it can, nulls otherwise).
  */
 export interface ParsedSalary {
   min: number | null;
   max: number | null;
   currency: string | null;
-  /** Google unitText: HOUR | DAY | WEEK | MONTH | YEAR */
+  /** HOUR | DAY | WEEK | MONTH | YEAR (the salary_period values the jobs table stores) */
   period: string | null;
 }
 

@@ -13,15 +13,18 @@
  * computed per live job in mapJobRow using the JOB'S employer's company name
  * from employer_public_branding, and rendered as per-chip opacity + a
  * truthful tooltip in Jobs.tsx's JobListRow.
+ *
+ * 2026-10-05: Google for Jobs was removed (owner: "remove google jobs"), so the
+ * "Google for Jobs" chip and its sitemap mirror are gone; the boards chip and
+ * its mirror of api/job-feed.mjs stay, and these checks now pin that one.
  */
 export default [
   {
-    id: "listing-eligibility-module-exists-and-mirrors-both-gates",
+    id: "listing-eligibility-module-exists-and-mirrors-the-board-gate",
     why:
       "src/cockpit/lib/listingEligibility.ts must exist, export listingEligibility(), and keep " +
       "mirroring the real MIN_DESCRIPTION_CHARS / country-vs-city rules — losing any of these " +
-      "silently makes the Jobs list's chips lie again about what api/job-feed.mjs and " +
-      "supabase/functions/sitemap/index.ts actually do.",
+      "silently makes the Jobs list's boards chip lie again about what api/job-feed.mjs actually does.",
     run: async ({ read }) => {
       const src = (await read("src/cockpit/lib/listingEligibility.ts")) ?? "";
       const bad = [];
@@ -35,11 +38,11 @@ export default [
       if (!/MIN_DESCRIPTION_CHARS\s*=\s*100/.test(src)) {
         bad.push("listingEligibility.ts's MIN_DESCRIPTION_CHARS no longer matches api/job-feed.mjs's 100");
       }
-      if (!/const boards = google && countryLiteral && descLen >= MIN_DESCRIPTION_CHARS;/.test(src)) {
-        bad.push("listingEligibility.ts's boards gate no longer requires a literal country and the description-length floor on top of google's gate");
+      if (!/const boards =\s*!excluded && !deadlinePassed && hasCompany && countryInferred && hasLocation &&\s*countryLiteral && descLen >= MIN_DESCRIPTION_CHARS;/.test(src)) {
+        bad.push("listingEligibility.ts's boards gate no longer requires company + a literal country + city-or-remote + the description-length floor (with excluded/deadline checks)");
       }
-      if (!/const google = !excluded && !deadlinePassed && hasCompany && countryInferred && hasLocation;/.test(src)) {
-        bad.push("listingEligibility.ts's google gate no longer requires company + country + city-or-remote (with excluded/deadline checks)");
+      if (/\bgoogle\b/.test(src.replace(/\/\*[\s\S]*?\*\//g, ""))) {
+        bad.push("listingEligibility.ts computes a `google` listing again — Google for Jobs was removed on 2026-10-05");
       }
       return bad.length ? { ok: false, detail: bad } : { ok: true };
     },
@@ -54,8 +57,8 @@ export default [
     run: async ({ read }) => {
       const bad = [];
       const data = (await read("src/cockpit/data.ts")) ?? "";
-      if (!/listings\?:\s*\{\s*google:\s*boolean;\s*boards:\s*boolean;\s*reason:\s*string\s*\|\s*null\s*\}/.test(data)) {
-        bad.push("src/cockpit/data.ts's JobRow no longer declares an optional `listings: { google, boards, reason }` field");
+      if (!/listings\?:\s*\{\s*boards:\s*boolean;\s*reason:\s*string\s*\|\s*null\s*\}/.test(data)) {
+        bad.push("src/cockpit/data.ts's JobRow no longer declares an optional `listings: { boards, reason }` field");
       }
       const mappers = (await read("src/cockpit/lib/mappers.ts")) ?? "";
       if (!/import\s*\{\s*listingEligibility\s*\}\s*from\s*"\.\/listingEligibility";/.test(mappers)) {
@@ -91,8 +94,11 @@ export default [
       if (/Your job page and Google go up automatically — boards list you once you send them your link/.test(src)) {
         bad.push("Jobs.tsx still renders the stale blanket tooltip claiming boards list you once you send them your link");
       }
-      if (!/job\.listings\?\.google/.test(src) || !/job\.listings\?\.boards/.test(src)) {
-        bad.push("JobListRow no longer branches per chip on job.listings.google / job.listings.boards");
+      if (!/job\.listings\?\.boards/.test(src)) {
+        bad.push("JobListRow no longer dims the boards chip on job.listings.boards");
+      }
+      if (/Google for Jobs/.test(src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, ""))) {
+        bad.push("Jobs.tsx shows Google for Jobs again — it was removed on 2026-10-05");
       }
       if (!/Your job page is live\. \$\{job\.listings\.reason\}/.test(src)) {
         bad.push("JobListRow no longer renders a truthful per-job reason in the live tooltip");

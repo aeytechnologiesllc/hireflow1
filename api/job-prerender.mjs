@@ -1,17 +1,22 @@
 /**
  * Server-side prerender for public job pages (/candidate/job/:id).
  *
- * WHY: the app is a client-rendered SPA, so the raw HTML Google first receives has
- * no job title and no JobPosting structured data — unreliable Google for Jobs
- * indexing. This function bakes the job <title>, meta description, canonical/OG
- * tags, and the JobPosting JSON-LD into the FIRST HTML response; the same SPA
- * then boots and hydrates normally for real users.
+ * WHY: the app is a client-rendered SPA, so the raw HTML a link preview (WhatsApp,
+ * Facebook, X, iMessage) or a search engine first receives has no job title. This
+ * function bakes the job <title>, meta description, canonical and the OG/twitter
+ * tags into the FIRST HTML response; the same SPA then boots and hydrates normally
+ * for real users.
+ *
+ * It used to add schema.org JobPosting JSON-LD for Google for Jobs and to mark a
+ * page noindex whenever that markup was incomplete (a worldwide remote role has no
+ * country, so its page was hidden from search entirely). Google Jobs was removed on
+ * 2026-10-05 (owner: "remove google jobs"): no JobPosting data, and a live job page
+ * is simply indexable. Removed, closed and expired jobs still answer 404 + noindex.
  *
  * DELIBERATELY self-contained plain-JS ESM (.mjs, ZERO imports): the previous .ts
  * version importing from ../src crashed Vercel's runtime at module load
  * (FUNCTION_INVOCATION_FAILED — "type":"module" ESM resolution), which 500'd the
- * live job pages. Keep this file dependency-free. The schema logic mirrors
- * src/lib/jobPostingSchema.ts (client-side counterpart) — update both together.
+ * live job pages. Keep this file dependency-free.
  *
  * SAFETY: fetches the current build's shell from "/" (never itself → no loop);
  * on ANY error serves the plain shell so a visitor's page never breaks.
@@ -23,182 +28,12 @@ const ORIGIN = "https://hireflownow.com";
 const JOB_FIELDS =
   "id,title,description,responsibilities,requirements,location,job_type,salary_min,salary_max,salary_currency,salary_period,created_at,application_deadline,job_code,location_city,location_region,location_country,location_country_code,latitude,longitude,is_remote,locations,employer_id,benefits";
 
-const EMP_TYPE = {
-  "full-time": "FULL_TIME",
-  full_time: "FULL_TIME",
-  "part-time": "PART_TIME",
-  part_time: "PART_TIME",
-  contract: "CONTRACTOR",
-  contractor: "CONTRACTOR",
-  temporary: "TEMPORARY",
-  temp: "TEMPORARY",
-  internship: "INTERN",
-};
-
 function esc(s) {
   return String(s ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
-}
-
-/**
- * Allow-list HTML sanitizer for TipTap-authored job content embedded in the
- * JobPosting JSON-LD `description` field. This file is deliberately
- * dependency-free (see file header), so this is a small regex-based
- * tag/attribute stripper rather than a DOM-based one: everything not
- * explicitly allowed is dropped instead of escaped, so a malicious tag can't
- * smuggle itself through as unexpected markup.
- */
-const ALLOWED_TAGS = new Set([
-  "p", "br", "strong", "b", "em", "i", "u", "s", "strike",
-  "ul", "ol", "li", "h1", "h2", "h3", "h4", "blockquote", "a", "code", "pre", "hr",
-]);
-const SAFE_HREF = /^(?:https?:|mailto:|tel:|\/|#)/i;
-
-/** Descriptions written in the rich editor are stored as HTML already. */
-function looksLikeHtml(s) {
-  return /<[a-z][\s\S]*>/i.test(String(s ?? ""));
-}
-
-function sanitizeHtml(html) {
-  return String(html ?? "")
-    .replace(/<(script|style|iframe|object|embed|form|svg|math)[\s\S]*?<\/\1\s*>/gi, "")
-    .replace(/<(script|style|iframe|object|embed|form|svg|math)[^>]*>/gi, "")
-    .replace(/<[^>]+>/g, (tag) => {
-      const m = /^<\/?([a-zA-Z0-9]+)/.exec(tag);
-      const name = m ? m[1].toLowerCase() : "";
-      if (!ALLOWED_TAGS.has(name)) return "";
-      if (/^<\//.test(tag)) return `</${name}>`;
-      if (name === "a") {
-        const hrefMatch = /href\s*=\s*"([^"]*)"|href\s*=\s*'([^']*)'/i.exec(tag);
-        const href = hrefMatch ? (hrefMatch[1] ?? hrefMatch[2] ?? "") : "";
-        return SAFE_HREF.test(href.trim())
-          ? `<a href="${esc(href)}" rel="noopener noreferrer">`
-          : "<a>";
-      }
-      return `<${name}>`;
-    });
-}
-
-/**
- * Ordinary job text (not TipTap HTML) must never go through the tag-stripping
- * sanitizer above — its `<[^>]+>` regex treats any bare "<...>" in prose (e.g.
- * "cycle time < 3 days and coverage > 80%") as an unrecognized tag and deletes
- * it. Plain text gets escaped instead, matching api/job-feed.mjs's sectionHtml.
- */
-function sectionHtml(text) {
-  return looksLikeHtml(text) ? sanitizeHtml(text) : esc(text);
-}
-
-function isoDate(d) {
-  return d.toISOString().slice(0, 10);
-}
-
-function placeOf(p) {
-  const address = { "@type": "PostalAddress" };
-  if (p.city) address.addressLocality = p.city;
-  if (p.region) address.addressRegion = p.region;
-  if (p.countryCode) address.addressCountry = p.countryCode;
-  else if (p.country) address.addressCountry = p.country;
-  const place = { "@type": "Place", address };
-  if (p.lat != null && p.lon != null) {
-    place.geo = { "@type": "GeoCoordinates", latitude: p.lat, longitude: p.lon };
-  }
-  return place;
-}
-
-function buildJobPostingSchema(job, { company, logo, origin }) {
-  const url = `${origin}/candidate/job/${job.id}`;
-  const loc = (job.location ?? "").trim();
-  const isRemote = job.is_remote ?? (/remote/i.test(loc) || /remote/i.test(job.job_type ?? ""));
-
-  const primary = {
-    city: job.location_city,
-    region: job.location_region,
-    country: job.location_country,
-    countryCode: job.location_country_code,
-    lat: job.latitude,
-    lon: job.longitude,
-  };
-  const hasStructured = !!(primary.city || primary.countryCode || primary.country);
-  const allPlaces = [primary, ...(Array.isArray(job.locations) ? job.locations : [])].filter(
-    (p) => p && (p.city || p.countryCode || p.country),
-  );
-
-  const descHtml =
-    [
-      job.description ? `<p>${sectionHtml(job.description)}</p>` : "",
-      job.responsibilities ? `<h3>What you'll do</h3><p>${sectionHtml(job.responsibilities)}</p>` : "",
-      job.requirements ? `<h3>What we're looking for</h3><p>${sectionHtml(job.requirements)}</p>` : "",
-    ]
-      .filter(Boolean)
-      .join("") || `<p>${esc(job.title)}</p>`;
-
-  const empType = EMP_TYPE[(job.job_type ?? "").toLowerCase()] ?? "FULL_TIME";
-  // Only state an expiry the employer actually set. We used to invent
-  // created_at + 60 days, then the indexable gate below compared that invented
-  // date against now() and stamped the page noindex — so every job silently
-  // de-indexed itself on day 60 while still published and still in the sitemap.
-  const validThrough = job.application_deadline ? new Date(job.application_deadline) : null;
-
-  // schema.org jobBenefits is a plain Text field (not a list type), so a
-  // multi-item benefits array is joined into one comma-separated string.
-  const benefitsText = Array.isArray(job.benefits) && job.benefits.length > 0
-    ? job.benefits.filter((b) => typeof b === "string" && b.trim()).join(", ")
-    : "";
-
-  const data = {
-    "@context": "https://schema.org/",
-    "@type": "JobPosting",
-    title: job.title,
-    description: descHtml,
-    datePosted: isoDate(new Date(job.created_at)),
-    ...(validThrough ? { validThrough: validThrough.toISOString() } : {}),
-    employmentType: empType,
-    directApply: true,
-    ...(benefitsText ? { jobBenefits: benefitsText } : {}),
-    url,
-    identifier: { "@type": "PropertyValue", name: company, value: job.job_code || job.id },
-    hiringOrganization: {
-      "@type": "Organization",
-      name: company,
-      ...(logo ? { logo } : {}),
-    },
-  };
-
-  if (isRemote) {
-    data.jobLocationType = "TELECOMMUTE";
-    const reqName = primary.country || primary.countryCode;
-    if (reqName) data.applicantLocationRequirements = { "@type": "Country", name: reqName };
-    if (hasStructured) data.jobLocation = placeOf(primary);
-  } else if (allPlaces.length > 0) {
-    data.jobLocation = allPlaces.length === 1 ? placeOf(allPlaces[0]) : allPlaces.map(placeOf);
-  } else if (loc) {
-    data.jobLocation = { "@type": "Place", address: { "@type": "PostalAddress", addressLocality: loc } };
-  }
-
-  if (job.salary_min != null || job.salary_max != null) {
-    const period = (job.salary_period || "").toUpperCase();
-    const unitText = ["HOUR", "DAY", "WEEK", "MONTH", "YEAR"].includes(period)
-      ? period
-      : (job.salary_max ?? job.salary_min ?? 0) > 2000
-        ? "YEAR"
-        : "HOUR";
-    data.baseSalary = {
-      "@type": "MonetaryAmount",
-      currency: job.salary_currency || "USD",
-      value: {
-        "@type": "QuantitativeValue",
-        ...(job.salary_min != null ? { minValue: job.salary_min } : {}),
-        ...(job.salary_max != null ? { maxValue: job.salary_max } : {}),
-        unitText,
-      },
-    };
-  }
-
-  return data;
 }
 
 function jobPageTitle(job, company) {
@@ -280,42 +115,22 @@ export default async function handler(req, res) {
     }
 
     let company = null;
-    let logo = null;
     if (job.employer_id) {
       try {
-        // employer_public_branding = safe public view (name+logo only); raw profiles are RLS-locked,
-        // so querying profiles directly always came back empty → "Confidential" on Google.
-        const pr = await sb(`employer_public_branding?user_id=eq.${encodeURIComponent(job.employer_id)}&select=company_name,company_logo&limit=1`);
+        // employer_public_branding = safe public view (name+logo only); raw profiles are RLS-locked.
+        const pr = await sb(`employer_public_branding?user_id=eq.${encodeURIComponent(job.employer_id)}&select=company_name&limit=1`);
         if (pr.ok) {
           const p = (await pr.json())[0];
-          if (p) {
-            company = p.company_name || null;
-            logo = p.company_logo || null;
-          }
+          if (p) company = p.company_name || null;
         }
       } catch {
         /* profile lookup is optional */
       }
     }
 
-    const schema = buildJobPostingSchema(job, { company, logo, origin });
     const title = jobPageTitle(job, company);
     const desc = jobMetaDescription(job);
     const url = `${origin}/candidate/job/${job.id}`;
-    /**
-     * Only publish JobPosting structured data when the listing satisfies Google's
-     * requirements. An anonymous ("Confidential") or expired posting is not merely
-     * ignored — it is a spam signal against the whole domain, so we emit the page
-     * with normal meta tags and NO JobPosting block instead.
-     */
-    const indexable =
-      Boolean(schema.hiringOrganization && schema.hiringOrganization.name) &&
-      Boolean(schema.title) &&
-      Boolean(schema.datePosted) &&
-      Boolean(schema.jobLocation || schema.applicantLocationRequirements) &&
-      (!schema.validThrough || new Date(schema.validThrough).getTime() >= Date.now());
-
-    const jsonLd = JSON.stringify(schema).replace(/</g, "\\u003c");
 
     const injected =
       // The shell's plain description is stripped below, so replace it with the
@@ -332,8 +147,7 @@ export default async function handler(req, res) {
       `<meta name="twitter:card" content="summary" />` +
       `<meta name="twitter:title" content="${esc(title)}" />` +
       `<meta name="twitter:description" content="${esc(desc)}" />` +
-      `<link rel="canonical" href="${esc(url)}" />` +
-      (indexable ? `<script type="application/ld+json" data-jobposting="server">${jsonLd}</script>` : "");
+      `<link rel="canonical" href="${esc(url)}" />`;
 
     let out = shell
       .replace(/<title>[\s\S]*?<\/title>/i, `<title>${esc(title)}</title>`)
@@ -349,14 +163,15 @@ export default async function handler(req, res) {
       .replace(/<meta\s+name="(twitter:(card|title|description|image)|description)"[^>]*>\s*/gi, "");
     out = out.includes("</head>") ? out.replace("</head>", injected + "</head>") : out + injected;
     // Exactly one robots tag: the shell ships `index, follow`, and appending a
-    // second, contradictory noindex tag left the outcome up to the crawler.
-    out = withRobots(out, indexable ? "index, follow" : "noindex,follow");
+    // second, contradictory noindex tag left the outcome up to the crawler. A job
+    // that reaches this line is published and not past its deadline.
+    out = withRobots(out, "index, follow");
 
     res.statusCode = 200;
     res.setHeader("Content-Type", "text/html; charset=utf-8");
-    // Short on purpose. Closing a job fires URL_DELETED at Google, which recrawls
-    // within minutes; a 10-minute cache plus a 24-hour stale window kept handing
-    // it the old JobPosting (seen live 2026-09-16 on a just-deleted test job).
+    // Short on purpose: a closed job must stop looking live within minutes. A
+    // 10-minute cache plus a 24-hour stale window kept handing crawlers the old
+    // page (seen live 2026-09-16 on a just-deleted test job).
     res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=60");
     res.end(out);
   } catch {

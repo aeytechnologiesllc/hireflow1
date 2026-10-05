@@ -568,7 +568,7 @@ export default function AvaCreateJob() {
                         )}
                         {!geoLoading && geoPreview?.ok && (
                           <div className="mt-1.5 flex items-center gap-1.5 text-[12px]" style={{ color: "hsl(var(--ck-mint))" }}>
-                            <Check className="h-3.5 w-3.5" /> Ava found <span style={{ color: "hsl(var(--foreground))" }}>{formatPlace(geoPreview)}</span> — she’ll target this on Google for Jobs.
+                            <Check className="h-3.5 w-3.5" /> Ava found <span style={{ color: "hsl(var(--foreground))" }}>{formatPlace(geoPreview)}</span>.
                           </div>
                         )}
                         {!geoLoading && geoPreview && !geoPreview.ok && briefFields.location.trim() && !/^remote$/i.test(briefFields.location.trim()) && (
@@ -734,19 +734,6 @@ export default function AvaCreateJob() {
                       </div>
                     </div>
                   </div>
-                  <div className="mt-4 w-full rounded-2xl p-4 text-left" style={{ background: "hsl(var(--ck-jade) / 0.08)", border: "1px solid hsl(var(--ck-jade) / 0.28)" }}>
-                    <div className="flex items-start gap-3">
-                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ background: "hsl(var(--ck-jade) / 0.16)", color: "hsl(var(--ck-mint))" }}>
-                        <MapPin className="h-4 w-4" />
-                      </span>
-                      <div>
-                        <div className="text-[13.5px] font-semibold" style={{ color: "hsl(var(--foreground))" }}>Eligible for Google Jobs</div>
-                        <p className="mt-1 text-[12.5px] leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
-                          Your HireFlow page includes the structured job data Google uses for job results. It can show when people search for “{briefFields.role || "this role"}”{briefFields.location ? ` near ${briefFields.location}` : ""}, but visibility depends on Google, the market, and the role.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
                   <div className="mt-4 flex w-full flex-col gap-2.5">
                     {publishedRoleId && (
                       <a
@@ -758,15 +745,6 @@ export default function AvaCreateJob() {
                         See your job in action <ExternalLink className="h-3.5 w-3.5" />
                       </a>
                     )}
-                    <a
-                      href={`https://www.google.com/search?q=${encodeURIComponent(`${briefFields.role || "job"} ${briefFields.location || ""}`.trim())}&ibp=htl;jobs`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-center text-[12.5px] font-medium"
-                      style={{ color: "hsl(var(--ck-brass))" }}
-                    >
-                      Check Google Jobs search →
-                    </a>
                   </div>
                   <p className="mt-5 text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>
                     <CountUp value={reviewCards.length} /> screening steps · applicants can apply at <code className="text-[11px]">/candidate/apply?code={publishedCode}</code>

@@ -25,16 +25,16 @@ import { candidateOrigin } from "@/lib/hosts";
  *
  * Every listing claim on this screen is something the app actually does: a
  * published role gets its own public page, and — when it actually clears the
- * real gates in api/job-feed.mjs / supabase/functions/sitemap — carries
- * JobPosting markup for Google for Jobs and sits in the employer's /jobs.xml
- * feed. Nothing here implies a board we do not actually post to. A live role
- * that is missing a city, a real company name, or a long-enough description
- * shows the chip it hasn't earned yet dimmed rather than claiming it — see
- * src/cockpit/lib/listingEligibility.ts, which mirrors both gates exactly.
+ * real gate in api/job-feed.mjs — sits in the employer's /jobs.xml feed for the
+ * job boards. Nothing here implies a board we do not actually post to. A live
+ * role that is missing a country, a real company name, or a long-enough
+ * description shows the boards chip dimmed rather than claiming it — see
+ * src/cockpit/lib/listingEligibility.ts, which mirrors that gate exactly.
+ * Google for Jobs was removed on 2026-10-05 (owner: "remove google jobs").
  */
 
-/** The three places a published role CAN be listed. Drafts show all three dimmed; a live role dims whichever it hasn't earned yet. */
-const LISTINGS = ["Your job page", "Google for Jobs", "Job boards"] as const;
+/** The places a published role CAN be listed. Drafts show both dimmed; a live role dims the boards until it has earned them. */
+const LISTINGS = ["Your job page", "Job boards"] as const;
 
 const CHIP: Record<JobStatus, { label: string; bg: string; fg: string }> = {
   live: { label: "Live", bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)" },
@@ -215,19 +215,14 @@ function JobListRow({
             live
               ? job.listings?.reason
                 ? `Your job page is live. ${job.listings.reason}`
-                : "Your job page, Google for Jobs and the job board feed are all live for this role"
+                : "Your job page and the job board feed are both live for this role"
               : "Where it will be listed once you publish"
           }
         >
           {LISTINGS.map((net) => {
             // Only a LIVE role has a real per-chip eligibility to check —
             // drafts show every chip dimmed the same way they always have.
-            const eligible =
-              !live || net === "Your job page"
-                ? true
-                : net === "Google for Jobs"
-                  ? (job.listings?.google ?? true)
-                  : (job.listings?.boards ?? true);
+            const eligible = !live || net === "Your job page" ? true : (job.listings?.boards ?? true);
             return (
               <span
                 key={net}
@@ -252,7 +247,7 @@ function JobListRow({
         {live && (
           <button
             type="button"
-            title="Take it off your job page, Google and the feed — you can post it again later"
+            title="Take it off your job page and the job board feed — you can post it again later"
             className="ck-btn ck-btn-ghost !px-3 !py-2 !text-[12.5px]"
             onClick={(e) => {
               e.stopPropagation();
@@ -399,11 +394,11 @@ export default function CockpitJobs() {
   const canDelete = mode !== "showcase" && !(teamPermissions?.isTeamMember && !teamPermissions.canDeleteJobs);
 
   // Closing is the reversible way out — "Post it again" brings it back — so it needs no
-  // dialog. useUpdateJob already tells Google the URL is gone when a job leaves "published".
+  // dialog. Closing takes it off the job page and out of the job board feed at once.
   const closeRole = async (job: JobRow) => {
     try {
       await updateJob.mutateAsync({ id: job.id, status: "closed" });
-      toast.success(`${job.title} is closed — off your job page, Google and the feed.`);
+      toast.success(`${job.title} is closed — off your job page and the job board feed.`);
     } catch (error) {
       console.error("Failed to close job:", error);
       toast.error("Couldn't close this role. Please try again.");
@@ -784,51 +779,22 @@ export default function CockpitJobs() {
             </div>
           )}
 
-          {/* ── Where your live roles actually are ─────────────
-              2026-10-05: this used to claim every live role "goes to Google
-              automatically" right under a role whose Google and job-board
-              chips were dimmed (a remote-worldwide role has no country, and
-              both need one). Now it says which roles are only on your job
-              page, why, and where to fix it. */}
-          {counts.live > 0 && !filtering && (() => {
-            const liveRows = jobs.filter((j) => j.status === "live");
-            const pageOnly = liveRows.filter((j) => j.listings && !j.listings.google);
-            const anyOnBoards = liveRows.some((j) => j.listings?.boards);
-            return (
-              <div
-                className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 text-[12px] leading-snug"
-                style={{ border: "1px dashed var(--line)", borderRadius: 10, color: "var(--ink-3)" }}
-              >
-                {pageOnly.length === 0 ? (
-                  <span className="min-w-0 flex-1">
-                    <b style={{ color: "var(--ink-2)" }}>Your live roles sit on your own job page and go to Google
-                    automatically.</b> Adzuna, Jooble and Talent.com will list you free too — send them your listings
-                    link.
-                  </span>
-                ) : (
-                  <span className="min-w-0 flex-1">
-                    <b style={{ color: "var(--ink-2)" }}>
-                      {pageOnly.length === 1 ? `${pageOnly[0].title} is on your job page only.` : `${pageOnly.length} live roles are on your job page only.`}
-                    </b>{" "}
-                    Google for Jobs and the job boards list a role only when it has a country, and{" "}
-                    {pageOnly.length === 1 ? "this one is remote worldwide" : "these have none"}. Your link still works
-                    anywhere you share it.{" "}
-                    {pageOnly.length === 1 && (
-                      <button
-                        type="button"
-                        className="font-semibold transition-opacity hover:opacity-75"
-                        style={{ color: "var(--jade)" }}
-                        onClick={() => navigate(`/jobs/edit/${pageOnly[0].id}`)}
-                      >
-                        Add a country
-                      </button>
-                    )}
-                  </span>
-                )}
-                {anyOnBoards && <CopyListingsLink />}
-              </div>
-            );
-          })()}
+          {/* ── The free job boards, only when a live role is on them ──
+              The country nag that stood here went with Google Jobs on
+              2026-10-05 (owner: "remove google jobs"). A role that is not on
+              the boards just shows its boards chip dimmed. */}
+          {counts.live > 0 && !filtering && jobs.some((j) => j.status === "live" && j.listings?.boards) && (
+            <div
+              className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 text-[12px] leading-snug"
+              style={{ border: "1px dashed var(--line)", borderRadius: 10, color: "var(--ink-3)" }}
+            >
+              <span className="min-w-0 flex-1">
+                <b style={{ color: "var(--ink-2)" }}>Adzuna, Jooble and Talent.com will list your live roles free.</b> Send
+                them your listings link.
+              </span>
+              <CopyListingsLink />
+            </div>
+          )}
         </>
       )}
 

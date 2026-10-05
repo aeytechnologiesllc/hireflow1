@@ -99,7 +99,7 @@ export function useCockpitJobsData() {
   // Distinct employer_ids across the fetched jobs (a team member's jobs all
   // carry the OWNER's employer_id, but this stays generic rather than
   // assuming exactly one). One query for all of them, read from the public
-  // branding view — the same thing the real "boards"/Google gates check.
+  // branding view — the same thing the real job-board gate checks.
   const employerIds = useMemo(
     () => [...new Set(jobs.map((j) => j.employer_id).filter((id): id is string => !!id))],
     [jobs],
@@ -762,7 +762,7 @@ export function useCockpitAnalytics() {
     const bottleneck = pipeline.find((p) => p.tone === "bottleneck");
 
     // Honest source breakdown: every application today arrives through the HireFlow
-    // apply link / code (incl. Google for Jobs → direct apply). No invented split.
+    // apply link / code. No invented split.
     const sources = totalApps > 0 ? [{ label: "Direct apply", value: totalApps, pct: "100%" }] : [];
 
     return {

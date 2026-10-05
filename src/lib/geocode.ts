@@ -15,8 +15,8 @@ export interface GeoPlace {
 
 /**
  * Resolve a free-text location ("Islamabad", "Karachi, Pakistan", "Remote — Lahore")
- * into city / region / country / coordinates so a job posts to the right place and
- * Google for Jobs geo-targets it correctly. Returns { ok:false } on any failure — the
+ * into city / region / country / coordinates so the job page and the job board feed
+ * place it correctly. Returns { ok:false } on any failure — the
  * caller should fall back to the raw text.
  */
 export async function geocodePlace(query: string): Promise<GeoPlace> {

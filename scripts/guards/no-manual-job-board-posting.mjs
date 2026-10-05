@@ -17,8 +17,8 @@
  * Monster hrefs and "outside board posts are manual" copy) and was missed
  * by the first pass of this fix.
  *
- * Fixed by keeping only true, automatic reach (the job's own public page,
- * already-sent Google notification) plus sharing-your-own-link actions
+ * Fixed by keeping only true, automatic reach (the job's own public page)
+ * plus sharing-your-own-link actions
  * (copy link, view page, QR, print flyer) — no board menu, no per-board
  * hrefs, no "Boost" label on a free action.
  */
@@ -117,7 +117,7 @@ export default [
       "AvaCreateJob.tsx's step-5 \"Share your role\" screen — the publish-success screen the live " +
       "/jobs/create route actually renders — must not send an employer off to post their job by hand " +
       "on Indeed/LinkedIn/ZipRecruiter/Monster (the owner ruled this out permanently); it should only " +
-      "ever offer its own live link (copy / view) plus the honest, non-guaranteed Google Jobs note.",
+      "ever offer its own live link (copy / view).",
     run: async ({ read }) => {
       const src = (await read("src/pages/AvaCreateJob.tsx")) ?? "";
       const bad = [];

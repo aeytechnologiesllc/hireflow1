@@ -18,7 +18,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { rigorToDb } from "@/lib/avaEngine/rigor";
 import { geocodePlace } from "@/lib/geocode";
-import { notifyGoogleJobIndexingInBackground } from "@/lib/googleIndexing";
 import { normalizeBenefits } from "@/lib/jobBenefits";
 import { inferCountryCode, isFullyRemoteText } from "@/lib/jobLocation";
 import { parseSalary } from "@/lib/salaryParse";
@@ -131,11 +130,11 @@ export interface FallbackLocationFields {
 /**
  * What we can still say about a location when the geocoder fails.
  *
- * The publish gate accepts a job on inferCountryCode() alone, but the feed and the
- * sitemap read the stored location_* columns — so a job that geocoding missed used
- * to publish and then never be distributed anywhere. This fills those columns from
- * the text itself: the country the gate already recognised, and the token before
- * the first comma as the city when that token is not a country or a US state.
+ * The job board feed and the sitemap read the stored location_* columns, so a job
+ * that geocoding missed used to publish and then never be distributed anywhere. This
+ * fills those columns from the text itself: a country inferCountryCode() recognises,
+ * and the token before the first comma as the city when that token is not a country
+ * or a US state.
  */
 export function fallbackLocationFields(locationText: string | null | undefined): FallbackLocationFields {
   const text = (locationText ?? "").trim();
@@ -363,21 +362,14 @@ export async function createJobFromFlow(
   const workflowSteps = buildWorkflowSteps(flow.phases, opts.voiceInterview ?? false);
 
   // Resolve the free-text location into a real city/region/country (+coords) so the job
-  // posts to the right place and Google for Jobs geo-targets it correctly.
+  // page shows it properly. No country is required: that was for Google Jobs, which was
+  // removed on 2026-10-05, and it blocked publishing a worldwide remote role.
   const locationText = (brief.location ?? "").trim();
   const isRemote = brief.workMode === "remote" || isFullyRemoteText(brief.location, brief.employmentType, description);
   if ((opts.status ?? "published") === "published" && !locationText) {
-    throw new Error("Add a location or remote country before publishing so Google can place the job correctly.");
+    throw new Error("Add a location before publishing, like \"Remote (worldwide)\" or \"London, United Kingdom\".");
   }
   const geo = locationText ? await geocodePlace(locationText) : { ok: false as const };
-  const hasCountry = !!(geo.ok ? geo.countryCode || geo.country : inferCountryCode(locationText));
-  if ((opts.status ?? "published") === "published" && !hasCountry) {
-    throw new Error(
-      isRemote
-        ? "Add the eligible remote country, like \"Remote - United States\", so Google can place the job correctly."
-        : "Add a clearer location with country, like \"London, United Kingdom\", so Google can place the job correctly.",
-    );
-  }
 
   // When the geocoder misses, still persist what the text itself says — the feed and
   // sitemap read these columns, and a job with nothing in them is never distributed.
@@ -438,14 +430,6 @@ export async function createJobFromFlow(
       .update({ job_code: jobCode })
       .eq("id", jobId);
     if (updErr) throw new Error(updErr.message);
-  }
-
-  if ((opts.status ?? "published") === "published") {
-    notifyGoogleJobIndexingInBackground({
-      jobId,
-      notificationType: "URL_UPDATED",
-      reason: "ava_job_created_published",
-    });
   }
 
   return { id: jobId, job_code: jobCode, title };

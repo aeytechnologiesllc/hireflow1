@@ -1,19 +1,15 @@
 /**
- * Pure, employer-facing mirror of the two REAL distribution gates so the
- * Jobs list can show truthful "Google for Jobs" / "Job boards" chips instead
- * of always-on ones.
+ * Pure, employer-facing mirror of the REAL job-board gate so the Jobs list can
+ * show a truthful "Job boards" chip instead of an always-on one. (It also
+ * mirrored the sitemap's gate for a "Google for Jobs" chip; Google Jobs was
+ * removed on 2026-10-05, owner: "remove google jobs".)
  *
  * This intentionally duplicates logic rather than importing it:
- *   - api/job-feed.mjs (loadFeedJobs' QUALITY GATE) must stay a dependency-
- *     free, self-contained .mjs (see its own file header) — it cannot be
- *     imported from the Vite/browser bundle.
- *   - supabase/functions/sitemap/index.ts (indexableJobs) runs in Deno and
- *     is likewise not importable here.
- *
- * Keep both gates below byte-for-byte in sync with their sources whenever
- * either changes. scripts/listing_eligibility.test.mjs proves this file
- * agrees with the REAL loadFeedJobs() (imported live) and a ported copy of
- * the sitemap filter, over a shared set of fixtures.
+ * api/job-feed.mjs (loadFeedJobs' QUALITY GATE) must stay a dependency-free,
+ * self-contained .mjs (see its own file header) — it cannot be imported from
+ * the Vite/browser bundle. Keep the gate below in sync with it whenever it
+ * changes. scripts/listing_eligibility.test.mjs proves this file agrees with
+ * the REAL loadFeedJobs() (imported live) over a shared set of fixtures.
  */
 
 /** Aggregators reject a listing whose description is thinner than this (plain-text characters). Mirrors api/job-feed.mjs. */
@@ -97,11 +93,9 @@ export interface ListingEligibilityJob {
 }
 
 export interface ListingEligibility {
-  /** Mirrors supabase/functions/sitemap/index.ts's indexableJobs filter. */
-  google: boolean;
   /** Mirrors api/job-feed.mjs's loadFeedJobs() quality gate (jobs.xml / jooble.xml / adzuna.xml). */
   boards: boolean;
-  /** The first thing the employer can fix, or null when both chips are already true. */
+  /** The first thing the employer can fix, or null when the role is already on the boards. */
   reason: string | null;
 }
 
@@ -216,15 +210,9 @@ function plainTextLength(html: string): number {
 }
 
 /**
- * Whether a published job would actually reach Google for Jobs ("google") and
- * outside aggregators via /jobs.xml ("boards"), mirroring the two real gates
- * exactly — plus a plain-English `reason` naming the first thing the
- * employer can fix.
- *
- * `boards` is always at least as strict as `google` (it additionally
- * requires a literal country field, not just an inferred one, and a
- * description of real length), so the only failure combinations are:
- * both false, or boards false with google true.
+ * Whether a published job would actually reach the outside aggregators via
+ * /jobs.xml ("boards"), mirroring the real gate exactly — plus a plain-English
+ * `reason` naming the first thing the employer can fix.
  */
 export function listingEligibility(
   job: ListingEligibilityJob,
@@ -242,21 +230,22 @@ export function listingEligibility(
   const countryInferred = countryLiteral || Boolean(inferCountryCode(job.location));
   const descLen = plainTextLength(descriptionHtml(job));
 
-  const google = !excluded && !deadlinePassed && hasCompany && countryInferred && hasLocation;
-  const boards = google && countryLiteral && descLen >= MIN_DESCRIPTION_CHARS;
+  const boards =
+    !excluded && !deadlinePassed && hasCompany && countryInferred && hasLocation &&
+    countryLiteral && descLen >= MIN_DESCRIPTION_CHARS;
 
   let reason: string | null = null;
-  if (!google || !boards) {
+  if (!boards) {
     if (excluded) {
       reason = "This role is marked excluded from outside listings.";
     } else if (deadlinePassed) {
       reason = "This role's application deadline has passed.";
     } else if (!hasCompany) {
-      reason = "Add your company name in Settings so Google and job boards can list this role.";
+      reason = "Add your company name in Settings so job boards can list this role.";
     } else if (!countryInferred) {
-      reason = "Add a country to this role's location so it can be listed automatically.";
+      reason = "Add a country to this role's location so job boards can list this role.";
     } else if (!hasLocation) {
-      reason = "Add a city to this role's location (or mark it remote) so it can be listed automatically.";
+      reason = "Add a city to this role's location (or mark it remote) so job boards can list this role.";
     } else if (!countryLiteral) {
       reason = "Add a country to this role's location so job boards can list this role.";
     } else if (descLen < MIN_DESCRIPTION_CHARS) {
@@ -264,5 +253,5 @@ export function listingEligibility(
     }
   }
 
-  return { google, boards, reason };
+  return { boards, reason };
 }

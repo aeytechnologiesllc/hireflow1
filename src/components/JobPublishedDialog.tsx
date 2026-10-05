@@ -17,7 +17,6 @@ import {
   MapPin,
   ExternalLink,
   CheckCircle2,
-  Globe,
   Download,
   Users
 } from "lucide-react";
@@ -179,7 +178,7 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
               Share your job
             </label>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              Your job page is live and Google has already been told. Share the link anywhere you like.
+              Your job page is live. Share the link anywhere you like.
             </p>
             <div className="grid grid-cols-2 gap-2">
               <Button variant="outline" className="gap-2" onClick={() => copyToClipboard(shareLink, "link")}>
@@ -244,12 +243,6 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
           >
             <label className="text-sm font-medium text-foreground">What's Next?</label>
             <div className="grid gap-2 text-sm">
-              <div className="flex items-start gap-2.5 text-muted-foreground">
-                <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                  <Globe className="h-3 w-3 text-primary" />
-                </div>
-                <span>Google Jobs can pick up your public job page when it is indexed, but traffic is never guaranteed</span>
-              </div>
               <div className="flex items-start gap-2.5 text-muted-foreground">
                 <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
                   <Users className="h-3 w-3 text-primary" />

@@ -76,8 +76,7 @@ export default [
     why:
       "supabase/functions/sitemap/index.ts must SELECT is_remote from the jobs table " +
       "and let it stand in for a missing city in its indexableJobs gate — otherwise a " +
-      "fully-remote job's page carries correct JobPosting markup (job-prerender.mjs) " +
-      "but is never listed in sitemap.xml for Google to actually find it.",
+      "fully-remote job's page is never listed in sitemap.xml for search engines to find.",
     run: async ({ read }) => {
       const src = (await read("supabase/functions/sitemap/index.ts")) ?? "";
       const bad = [];

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -28,7 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { detectSchemaMode } from "@/cockpit/data/showcaseSource";
 import { fetchRoleById } from "@/lib/showcaseApply";
-import { JobPostingJsonLd, type JobLocationStruct } from "@/components/seo/JobPostingJsonLd";
+import { JobPageHead } from "@/components/seo/JobPageHead";
 
 export default function JobDetails() {
   const { id } = useParams<{ id: string }>();
@@ -133,18 +133,6 @@ export default function JobDetails() {
   // so this reads straight off the real, regenerated column type.
   const jobBenefits = job ? job.benefits : null;
 
-  // job.locations is the raw jsonb column (Json — no writer populates it yet,
-  // so it's null in practice); JobPostingJob wants the specific
-  // JobLocationStruct[] shape this column is reserved for. Narrowing here at
-  // the boundary, same as this file's other jsonb reads, rather than
-  // widening JobPostingJob's own field to Json. Memoized on `job` (react-query
-  // keeps that reference stable across renders when the data hasn't changed)
-  // so this doesn't hand JobPostingJsonLd a new object identity — and retrigger
-  // its inject/cleanup effect — on every unrelated JobDetails render.
-  const jobForJsonLd = useMemo(
-    () => (job ? { ...job, locations: job.locations as JobLocationStruct[] | null } : null),
-    [job],
-  );
 
   const formatSalary = (min?: number | null, max?: number | null, currency?: string | null) => {
     if (!min && !max) return "Competitive Salary";
@@ -366,13 +354,7 @@ export default function JobDetails() {
 
   return (
     <>
-      {jobForJsonLd && (
-        <JobPostingJsonLd
-          job={jobForJsonLd}
-          company={employerProfile?.company_name}
-          logo={employerProfile?.company_logo}
-        />
-      )}
+      {job && <JobPageHead job={job} company={employerProfile?.company_name} />}
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Back Button — "Back to Apply" is meaningless to an employer, who
             came from their own postings list. */}

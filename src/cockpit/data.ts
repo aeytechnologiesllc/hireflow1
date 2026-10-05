@@ -53,12 +53,11 @@ export interface JobRow {
   roleCode?: string | null;
   stats: { voice: number; shortlist: number; interview: number; hired: number };
   /**
-   * Whether this LIVE job actually clears the real distribution gates
-   * (api/job-feed.mjs's loadFeedJobs() / supabase/functions/sitemap's
-   * indexableJobs — see src/cockpit/lib/listingEligibility.ts). Absent for
-   * drafts/closed roles and for showcase rows, where it does not apply.
+   * Whether this LIVE job actually clears the real job-board gate
+   * (api/job-feed.mjs's loadFeedJobs() — see src/cockpit/lib/listingEligibility.ts).
+   * Absent for drafts/closed roles and for showcase rows, where it does not apply.
    */
-  listings?: { google: boolean; boards: boolean; reason: string | null };
+  listings?: { boards: boolean; reason: string | null };
 }
 
 export type CandidateStage = "Application" | "Quiz" | "Voice" | "Shortlist" | "Hired" | "Rejected";
@@ -100,6 +99,11 @@ export interface Candidate {
   /** Every other risk flag the engine raised (name mismatch, authenticity
    *  concerns, missing requirements…), for surfaces that want the full list. */
   riskFlags: string[];
+  /** On an auto-mode job, Ava is still waiting on tests this person has yet to
+   *  take, so the next move is theirs, not the employer's. Everyone takes every
+   *  test now (owner, 2026-10-05), so this is most applicants mid-way. Optional:
+   *  showcase data and manual-mode jobs never set it. */
+  stillTesting?: boolean;
   source: string;
 }
 

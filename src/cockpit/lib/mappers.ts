@@ -145,6 +145,8 @@ export function mapCandidateStage(app: ApplicationWithCandidate): CandidateStage
  */
 interface AiScorecard {
   recommendedAction?: "advance" | "review" | "reject" | null;
+  /** "needs_more_evidence" while tests are still to come (see evidenceFloorMet). */
+  decisionState?: "ready_for_decision" | "needs_more_evidence" | null;
   hardRejectReason?: string | null;
   riskFlags?: string[] | null;
   /** Real, structured positive-signal bullets the judge produced (e.g.
@@ -333,6 +335,9 @@ export function mapCandidate(app: ApplicationWithCandidate): Candidate {
     recommendedAction,
     hardRejectReason,
     riskFlags,
+    // Manual-mode jobs wait on the employer at every step, so only an auto job's
+    // "more evidence to come" means the candidate is the one with a move to make.
+    stillTesting: scorecard?.decisionState === "needs_more_evidence" && job?.processing_mode === "auto",
     source: "Application",
   };
 }

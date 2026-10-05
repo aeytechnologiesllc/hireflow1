@@ -6,7 +6,6 @@ import { detectSchemaMode, updateShowcaseRole } from "@/cockpit/data/showcaseSou
 import { createShowcaseRole, SHOWCASE_EMPLOYER_ID } from "@/lib/showcaseApply";
 import { showcaseDb } from "@/lib/showcaseSchema";
 import { useSchemaMode } from "@/hooks/useSchemaMode";
-import { notifyGoogleJobIndexingInBackground } from "@/lib/googleIndexing";
 import { mergeQuizAnswerKeys, type JobQuizKeyRow } from "@/lib/quizAnswerKeys";
 
 export type Job = Tables<"jobs">;
@@ -227,13 +226,6 @@ export function useCreateJob() {
         .single();
 
       if (error) throw error;
-      if (data.status === "published") {
-        notifyGoogleJobIndexingInBackground({
-          jobId: data.id,
-          notificationType: "URL_UPDATED",
-          reason: "job_created_published",
-        });
-      }
       return data;
     },
     onSuccess: (_data, _vars, _ctx) => {
@@ -283,19 +275,6 @@ export function useUpdateJob() {
         .single();
 
       if (error) throw error;
-      if (data.status === "published") {
-        notifyGoogleJobIndexingInBackground({
-          jobId: data.id,
-          notificationType: "URL_UPDATED",
-          reason: "job_updated_published",
-        });
-      } else if (updates.status && updates.status !== "published") {
-        notifyGoogleJobIndexingInBackground({
-          jobId: data.id,
-          notificationType: "URL_DELETED",
-          reason: `job_status_${updates.status}`,
-        });
-      }
       return data;
     },
     onSuccess: () => {
@@ -327,23 +306,8 @@ export function useDeleteJob() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { data: existingJob } = await supabase
-        .from("jobs")
-        .select("id, employer_id, status")
-        .eq("id", id)
-        .maybeSingle();
-
       const { error } = await supabase.from("jobs").delete().eq("id", id);
       if (error) throw error;
-
-      if (existingJob?.status === "published") {
-        notifyGoogleJobIndexingInBackground({
-          jobId: id,
-          employerId: existingJob.employer_id,
-          notificationType: "URL_DELETED",
-          reason: "job_deleted",
-        });
-      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
