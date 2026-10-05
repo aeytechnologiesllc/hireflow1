@@ -74,7 +74,7 @@ next visit opens attempt 2 on the new set.
     "type": "multiple_choice",
     "category": "cash_outs",
     "time_limit_seconds": 75,
-    "question": "A player's cash-out has been pending for 3 hours and they threaten to post about us on Facebook. Cash-outs are reviewed in order, usually within 24 hours, and you cannot speed one up. What is the best reply?",
+    "question": "A player's cash-out has been pending for 3 hours and they threaten to post about us online. Cash-outs are reviewed in order, usually within 24 hours, and you cannot speed one up. What is the best reply?",
     "options": [
       "I'm sorry for the wait, I completely understand. I've marked your cash-out as urgent, so it should be paid within the next hour.",
       "I understand the wait is frustrating. Yours is in the queue and reviewed in order, usually within 24 hours. I'll update you here as soon as it moves.",
