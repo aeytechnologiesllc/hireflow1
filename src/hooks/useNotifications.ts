@@ -31,6 +31,10 @@ export function useNotifications() {
   // Keyed on the id string, not the user object: every auth event (an hourly
   // token refresh included) hands out a new object, and re-running this
   // effect on the same topic picks up the channel that is still leaving.
+  // Every change, not only new rows: an applicant's integrity card is ONE row
+  // per test that the server UPDATEs on each new flag (new tally, unread
+  // again, moved to the top), and a read or a delete elsewhere changes the
+  // list too.
   const instanceId = useId();
   const userId = user?.id;
   useEffect(() => {
@@ -41,7 +45,7 @@ export function useNotifications() {
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*",
           schema: "public",
           table: "notifications",
           filter: `user_id=eq.${userId}`,

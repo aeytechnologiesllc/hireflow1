@@ -2,6 +2,17 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  functionErrorReply,
+  gradingReplyOutcome,
+  keepalivePost,
+  serverConversationState,
+  storedResultKey,
+  useAssessmentSession,
+  useResultKeyAtFirstLoad,
+  useServerCheck,
+} from "@/hooks/useAssessmentSession";
+import { useTestIntegrity } from "@/hooks/useTestIntegrity";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,14 +29,14 @@ import {
   Loader2,
   Play,
   RotateCcw,
-  ShieldAlert
 } from "lucide-react";
 import { GlyphClock } from "@/components/candidate/glyphs";
 import { toast } from "sonner";
 import { parseApplicationNotes } from "@/utils/applicationNotes";
 import { invokeTriggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
-import { StepAdvanceScreen, TestRulesNotice } from "@/components/candidate/NextStepCard";
+import { NextStepCard, StepAdvanceScreen } from "@/components/candidate/NextStepCard";
+import { TestPausedOverlay, TestRulesCard, TestRulesReminder } from "@/components/candidate/TestRulesCard";
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 import { useResultAtFirstLoad, useStepAdvance } from "@/hooks/useStepAdvance";
 
@@ -66,12 +77,6 @@ interface ApplicationDetails {
   } | null;
 }
 
-interface AntiCheatViolation {
-  type: 'tab_switch' | 'copy_attempt' | 'paste_attempt' | 'cut_attempt' | 'right_click' | 'keyboard_shortcut';
-  timestamp: string;
-  details?: string;
-}
-
 export default function TypingTestPhase() {
   const { id, stepId } = useParams<{ id: string; stepId: string }>();
   const navigate = useNavigate();
@@ -91,67 +96,38 @@ export default function TypingTestPhase() {
     score: number;
     passed: boolean;
   } | null>(null);
-  const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
-  
+  // The rules card's "I understand" — Start stays disabled until it is ticked.
+  // A "Try again" keeps it: the rules have not changed.
+  const [rulesAccepted, setRulesAccepted] = useState(false);
+  // How typing stopped, for the server's record of this run: the clock ran
+  // out, or the applicant pressed "Finish early".
+  const endReasonRef = useRef<"time_up" | "finished_early">("time_up");
+  // The server is already checking this test (409 already_checking: another
+  // tab, or a retry whose first answer was lost): the page waits for the
+  // result instead of offering a second send.
+  const [serverCheckWaiting, setServerCheckWaiting] = useState(false);
+  // The server says this step is finished (its result is on file and the
+  // hiring team has not handed it back) in a manual-mode job: "saved", and
+  // no Start (see the resume decision below).
+  const [finishedOnServer, setFinishedOnServer] = useState(false);
+  // What a "start" refused with 409 leads to; set further down, once the
+  // waiting screen and the advance exist.
+  const startRefusedRef = useRef<{ finished: () => void; checking: () => void }>({
+    finished: () => {},
+    checking: () => {},
+  });
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typedTextRef = useRef<string>("");
   const startTimeRef = useRef<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Anti-cheating: Record violation
-  const recordViolation = useCallback((type: AntiCheatViolation['type'], details?: string) => {
-    const violation: AntiCheatViolation = {
-      type,
-      timestamp: new Date().toISOString(),
-      details,
-    };
-    setViolations(prev => [...prev, violation]);
-  }, []);
-
-  // Anti-cheating: Prevent copy
-  const handleCopy = useCallback((e: React.ClipboardEvent) => {
-    e.preventDefault();
-    recordViolation('copy_attempt', 'Copy attempted');
-    toast.warning("Copy's turned off here — keep typing your own words.", {
-      icon: <ShieldAlert className="h-4 w-4" />,
-    });
-  }, [recordViolation]);
-
-  // Anti-cheating: Prevent paste
-  const handlePaste = useCallback((e: React.ClipboardEvent) => {
-    e.preventDefault();
-    recordViolation('paste_attempt', 'Paste attempted');
-    toast.warning("Paste is turned off here — type it yourself.", {
-      icon: <ShieldAlert className="h-4 w-4" />,
-    });
-  }, [recordViolation]);
-
-  // Anti-cheating: Prevent cut
-  const handleCut = useCallback((e: React.ClipboardEvent) => {
-    e.preventDefault();
-    recordViolation('cut_attempt', 'Cut attempted');
-  }, [recordViolation]);
-
-  // Anti-cheating: Prevent right-click
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    recordViolation('right_click', 'Right-click attempted');
-    toast.warning("Right-click is off during the test.", {
-      icon: <ShieldAlert className="h-4 w-4" />,
-    });
-  }, [recordViolation]);
-
-  // Anti-cheating: Block keyboard shortcuts
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x'].includes(e.key.toLowerCase())) {
-      e.preventDefault();
-      recordViolation('keyboard_shortcut', `Blocked ${e.key.toUpperCase()} shortcut`);
-      toast.warning("That shortcut's off here — just type normally.", {
-        icon: <ShieldAlert className="h-4 w-4" />,
-      });
-    }
-  }, [recordViolation]);
+  // Copy, paste, switching away and screenshots: the one shared hook
+  // (useTestIntegrity), live to the server while the clock runs. This page's
+  // own copy counted one paste twice (the textarea and its container both
+  // handled it), saw tab switches only, and "Try again" wiped the record.
+  const integrity = useTestIntegrity({ applicationId: id, stepId, active: testState === "testing" });
 
   // Fetch application details - force refetch on mount to handle reconsider workflow
   const { data: application, isLoading, isFetchedAfterMount } = useQuery({
@@ -264,11 +240,22 @@ export default function TypingTestPhase() {
   // time. Fire-and-forget (best effort) — "submit" falls back to grading
   // off its own request time if this never lands, matching the old
   // (imperfect but pre-existing) behavior rather than blocking the UI.
+  //
+  // It also carries what was typed and how typing stopped (wave 2): the
+  // server stores that text as this run's snapshot and grades it, so if the
+  // tab closes between the clock stopping and "Submit results" the hiring
+  // team still has it. A server on the previous build ignores both fields.
   const completeTest = useCallback(async () => {
     if (!id || !stepId) return;
     try {
       const { error } = await supabase.functions.invoke("submit-typing-test", {
-        body: { action: "complete", applicationId: id, stepId },
+        body: {
+          action: "complete",
+          applicationId: id,
+          stepId,
+          typedText: typedTextRef.current,
+          reason: endReasonRef.current,
+        },
       });
       if (error) throw error;
     } catch (err) {
@@ -294,6 +281,7 @@ export default function TypingTestPhase() {
         setTimeLeft((prev) => {
           if (prev <= 1) {
             clearInterval(timerRef.current!);
+            endReasonRef.current = "time_up";
             handleTestComplete();
             return 0;
           }
@@ -315,24 +303,68 @@ export default function TypingTestPhase() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [testState, handleTestComplete]);
 
-  // Detect tab switching during test - record as violation
+  // While typing, what is typed so far goes to the server as it goes
+  // ("snapshot": the server keeps one per 5 s of the run), at once when the
+  // page is hidden (a phone can discard a tab in the background without any
+  // pagehide), and with a keepalive request when the page closes. So the
+  // hiring team sees how far the applicant got whether or not the tab ever
+  // comes back.
+  //
+  // A real close also ends the run ("complete", which freezes the clock and
+  // keeps that text as the run's). A pagehide into the back/forward cache
+  // does not: the page may come back and carry on, and "complete" would have
+  // frozen the run at that moment.
   useEffect(() => {
-    if (testState !== "testing") return;
-    
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        recordViolation('tab_switch', 'User switched to another tab or window');
-      } else {
-        toast.warning("Looks like you switched away — that's been noted.", {
-          duration: 3000,
-          icon: <ShieldAlert className="h-4 w-4" />,
-        });
+    if (testState !== "testing" || !id || !stepId) return;
+    const path = "/functions/v1/submit-typing-test";
+    let lastSent: string | null = null;
+    let snapshotsOff = false;
+    const snapshotBody = () => ({ action: "snapshot", applicationId: id, stepId, typedText: typedTextRef.current });
+    const sendSnapshot = (viaKeepalive: boolean) => {
+      const text = typedTextRef.current;
+      if (snapshotsOff || text === lastSent || text.length === 0) return;
+      lastSent = text;
+      if (viaKeepalive) {
+        keepalivePost(path, snapshotBody());
+        return;
       }
+      void supabase.functions
+        .invoke("submit-typing-test", { body: snapshotBody() })
+        .then(({ error }) => {
+          // A server on the previous build answers "Unknown action" (400):
+          // stop asking for this run. Anything else is tried again next time.
+          const status = (error as { context?: { status?: number } } | null)?.context?.status;
+          if (status === 400 || status === 404) snapshotsOff = true;
+          else if (error) lastSent = null;
+        })
+        .catch(() => {
+          lastSent = null;
+        });
     };
-    
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [testState, recordViolation]);
+    const interval = window.setInterval(() => sendSnapshot(false), 5_000);
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") sendSnapshot(true);
+    };
+    const onPageHide = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        sendSnapshot(true);
+        return;
+      }
+      keepalivePost(path, {
+        action: "complete",
+        applicationId: id,
+        stepId,
+        typedText: typedTextRef.current,
+      });
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onPageHide);
+    };
+  }, [testState, id, stepId]);
 
   // Records a SERVER-clock start time for this (application, step) and
   // fetches the passage to type — supabase/functions/submit-typing-test's
@@ -348,6 +380,22 @@ export default function TypingTestPhase() {
       const { data, error } = await supabase.functions.invoke("submit-typing-test", {
         body: { action: "start", applicationId: id, stepId },
       });
+      if (error) {
+        // 409: the server already has this test, so a new run would only be
+        // thrown away. Its result is on file and nobody handed it back
+        // (step_finished), or a send is being checked right now
+        // (already_checking).
+        const refused = await functionErrorReply(error);
+        const code = refused?.status === 409 ? (refused.body as { code?: unknown } | null)?.code : null;
+        if (code === "step_finished") {
+          startRefusedRef.current.finished();
+          return;
+        }
+        if (code === "already_checking") {
+          startRefusedRef.current.checking();
+          return;
+        }
+      }
       if (error || !data?.targetText) {
         throw error || new Error("No passage returned");
       }
@@ -368,10 +416,51 @@ export default function TypingTestPhase() {
     }
   }, [id, stepId]);
 
+  /** The result is on file (this send, or one the server already had): the
+   *  next step in auto mode, "sent" in manual mode. */
+  const afterTypingSaved = async (isAutoMode: boolean) => {
+    setServerCheckWaiting(false);
+    integrity.finish();
+
+    // Invalidate candidate applications to update the tile status
+    queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
+    queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
+
+    if (isAutoMode) {
+      // The result is stored. Which step opens next is the server's call
+      // (it moves `phase`); the screen follows the row, and the trigger's
+      // reply only speeds that up. invokeTriggerAvaAnalysis never throws.
+      advance.markSaved();
+      const reply = await invokeTriggerAvaAnalysis({
+        applicationId: id!,
+        autopilotDecision: true,
+        currentPhaseId: stepId,
+      });
+      advance.settle(reply);
+    } else {
+      // Manual mode - NEVER auto-advance or reject. Employer controls.
+      invokeTriggerAvaAnalysis({
+        applicationId: id!,
+        autopilotDecision: false,
+        currentPhaseId: stepId,
+      }).catch(err => console.error("[TypingTestPhase] AVA analysis trigger failed:", err));
+
+      toast.success("Typing test sent", {
+        description: "Your result is saved. The hiring team will review it and get back to you.",
+      });
+      navigate(`/applications/${id}`);
+    }
+  };
+  const afterTypingSavedRef = useRef(afterTypingSaved);
+  afterTypingSavedRef.current = afterTypingSaved;
+
   const handleSubmit = async () => {
     if (!results || !application) return;
 
     setIsSubmitting(true);
+    // The stored result before this send: a 409 "already being checked"
+    // waits for a result different from this one.
+    const resultBeforeSend = storedTypingResult;
 
     try {
       // CRITICAL: Re-fetch fresh job data to get current processing_mode
@@ -401,42 +490,34 @@ export default function TypingTestPhase() {
           applicationId: id,
           stepId,
           typedText: typedTextRef.current,
-          violations,
+          // The old-shape list, for a server that does not read the live
+          // record yet; the record itself was sent as it happened.
+          violations: integrity.violations,
         },
       });
 
+      if (submitError) {
+        // 409: the server already has this test, being checked or on file.
+        // "We have your answers": wait for the result and the next step,
+        // never an error and never a second send.
+        const reply = await functionErrorReply(submitError);
+        const outcome = reply ? gradingReplyOutcome(reply.status, reply.body) : "error";
+        if (outcome === "on_file") {
+          await afterTypingSaved(isAutoMode);
+          return;
+        }
+        if (outcome === "checking") {
+          if (isAutoMode) advance.markSaved();
+          setServerCheckWaiting(true);
+          serverCheck.begin(resultBeforeSend);
+          return;
+        }
+      }
       if (submitError || submitData?.error) {
         throw submitError || new Error(submitData?.error || "Failed to submit typing test");
       }
 
-      // Invalidate candidate applications to update the tile status
-      queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
-      queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
-
-      if (isAutoMode) {
-        // The result is stored. Which step opens next is the server's call
-        // (it moves `phase`); the screen follows the row, and the trigger's
-        // reply only speeds that up. invokeTriggerAvaAnalysis never throws.
-        advance.markSaved();
-        const reply = await invokeTriggerAvaAnalysis({
-          applicationId: id!,
-          autopilotDecision: true,
-          currentPhaseId: stepId,
-        });
-        advance.settle(reply);
-      } else {
-        // Manual mode - NEVER auto-advance or reject. Employer controls.
-        invokeTriggerAvaAnalysis({
-          applicationId: id!,
-          autopilotDecision: false,
-          currentPhaseId: stepId,
-        }).catch(err => console.error("[TypingTestPhase] AVA analysis trigger failed:", err));
-
-        toast.success("Typing test sent", {
-          description: "Your result is saved. The hiring team will review it and get back to you.",
-        });
-        navigate(`/applications/${id}`);
-      }
+      await afterTypingSaved(isAutoMode);
     } catch (error) {
       console.error("Error submitting typing test:", error);
       toast.error("That didn't send — please try again.");
@@ -452,7 +533,8 @@ export default function TypingTestPhase() {
     setTimeLeft(60);
     setResults(null);
     setStartTime(null);
-    setViolations([]);
+    // The integrity record of the first run is kept (it used to be wiped
+    // here); the server numbers the next run itself, from its new start.
     // The next passage is chosen server-side, the moment "Start typing
     // test" calls startTest() again.
     setTargetText("");
@@ -478,6 +560,111 @@ export default function TypingTestPhase() {
   // realtime subscription does exactly that, seconds after "Submit results")
   // must never swap the waiting screen for a dead end.
   const resultAtFirstLoad = useResultAtFirstLoad(isFetchedAfterMount && !!application, !!existingResult);
+
+  // The record the hiring team reads (docs/ASSESSMENT-RECORD.md): opened when
+  // this page loads on a step that is not done, with a heartbeat while the
+  // page is open, so staff see "Typing · active now" or that they left.
+  // While the server checks a send this page did not see through, the
+  // heartbeat goes on: it is how the page learns that the check failed.
+  const session = useAssessmentSession({
+    applicationId: id,
+    stepId,
+    enabled: resultAtFirstLoad === false,
+    live: !advance.view || serverCheckWaiting,
+    clientProgress: { screen: testState === "intro" ? "intro" : testState === "testing" ? "typing" : "results" },
+  });
+
+  // Waiting on a check another request holds (a 409): the result landing
+  // finishes the send; a check that crashed ("failed") is sent again, once.
+  const storedTypingResult = useMemo(
+    () => storedResultKey(parseApplicationNotes(application?.notes).typingTestResult),
+    [application?.notes],
+  );
+  // The baseline of a wait this page did not start with its own send (a
+  // reload while the server checks it): the result as first read, never the
+  // one cached since (useResultKeyAtFirstLoad).
+  const loadResultKey = useResultKeyAtFirstLoad(isFetchedAfterMount && !!application, storedTypingResult);
+  const resentRef = useRef(false);
+  const handleSubmitRef = useRef(handleSubmit);
+  handleSubmitRef.current = handleSubmit;
+  const serverCheck = useServerCheck({
+    storedResultKey: storedTypingResult,
+    serverStatus: session.serverStatus,
+    loadResultKey,
+    onLanded: () => void afterTypingSavedRef.current(application?.jobs?.processing_mode === "auto"),
+    onOwed: () => {
+      setServerCheckWaiting(false);
+      if (!results) {
+        // A send from before a reload whose check crashed: this page has no
+        // run of its own to send again. The test opens again; the server
+        // still owes the result and grades the next run.
+        advance.cancel();
+        setTestState("intro");
+        return;
+      }
+      if (resentRef.current) {
+        advance.cancel();
+        return;
+      }
+      resentRef.current = true;
+      void handleSubmitRef.current();
+    },
+    onStale: () => queryClient.invalidateQueries({ queryKey: ["typing-test-application", id] }),
+  });
+
+  /** The server says the step is finished: never a Start that would be thrown away. */
+  const showFinishedOnServer = () => {
+    if (application?.jobs?.processing_mode === "auto") {
+      // Auto mode: phase has not moved past this finished step yet (the tab
+      // that sent it closed before asking). Ask now, exactly as after a send;
+      // the move is idempotent.
+      advance.begin();
+      void afterTypingSavedRef.current(true);
+      return;
+    }
+    setFinishedOnServer(true);
+  };
+
+  /** A send is being checked (a reload during it, or another tab): the waiting screen, never a second run. */
+  const waitForCheckFromBefore = () => {
+    setTestState("completed");
+    setServerCheckWaiting(true);
+    if (application?.jobs?.processing_mode === "auto") {
+      advance.begin();
+      advance.markSaved();
+    }
+    // No baseline: the result as this page first read it (loadResultKey).
+    serverCheck.begin();
+  };
+  startRefusedRef.current = { finished: showFinishedOnServer, checking: waitForCheckFromBefore };
+
+  // What the server already says about this step, decided once, when the
+  // record answers (start_assessment_session). The page's own rule (status
+  // pending + phase on this step = a retake) cannot tell a step the hiring
+  // team handed back from a manual-mode job, which never moves phase: it
+  // offered Start on a finished test, the applicant typed a whole new run,
+  // the server answered "already recorded" and the run was thrown away while
+  // the page said it was saved. The server's word decides:
+  //   - finished → no Start: the next step (auto mode) or "saved" (manual);
+  //   - being checked (a reload while a send is checked) → the waiting screen;
+  //   - owed (the check crashed) or open → the test as usual: the next run is
+  //     the one graded.
+  // Start waits for this decision (at most the record's 5 s settle time), as
+  // on the conversation pages, so a quick tap never starts a run the server
+  // already holds a result for.
+  const resumeDecidedRef = useRef(false);
+  const [resumeDecided, setResumeDecided] = useState(false);
+  useEffect(() => {
+    if (resumeDecidedRef.current || resultAtFirstLoad !== false || !session.settled || testState !== "intro") return;
+    resumeDecidedRef.current = true;
+    setResumeDecided(true);
+    const where = serverConversationState(session.reply, session.serverStatus);
+    if (where === "done") showFinishedOnServer();
+    else if (where === "checking") waitForCheckFromBefore();
+    // showFinishedOnServer and waitForCheckFromBefore are plain functions
+    // that read the latest render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resultAtFirstLoad, session.settled, session.reply, session.serverStatus, testState]);
 
   if (authLoading || isLoading) {
     return (
@@ -540,6 +727,13 @@ export default function TypingTestPhase() {
     );
   }
 
+  // The server says it is finished although the row reads like a retake (a
+  // manual-mode job never moves phase): "saved", and the card never offers
+  // this step again.
+  if (finishedOnServer) {
+    return <NextStepCard applicationId={id!} completedTitle={journeyStep.title} doneStepId={stepId} />;
+  }
+
   const isAutoMode = application.jobs?.processing_mode !== "manual";
 
   // Quiet, real-time WPM readout while the clock is running — not a dashboard,
@@ -554,19 +748,18 @@ export default function TypingTestPhase() {
     testState === "testing"
       ? "Keep going — time's the only thing moving right now."
       : testState === "completed"
-        ? "Take a look below, then submit when you're ready."
+        ? serverCheckWaiting
+          ? "We have your results — they're being checked now."
+          : "Take a look below, then submit when you're ready."
         : "Takes about a minute. Read the passage once, then start when you're set.";
 
   return (
-    <div
-      ref={containerRef}
-      className="ck-page mx-auto max-w-3xl space-y-6 select-none"
-      onCopy={handleCopy}
-      onPaste={handlePaste}
-      onCut={handleCut}
-      onContextMenu={handleContextMenu}
-      onKeyDown={handleKeyDown}
-    >
+    <div ref={containerRef} className="ck-page mx-auto max-w-3xl space-y-6 select-none">
+      <TestPausedOverlay
+        show={integrity.away && testState === "testing"}
+        body="You're in another window — click back to carry on. The clock keeps running, and leaving the test is recorded."
+      />
+
       {/* Journey header — where am I, what's happening now, what's next */}
       <header className="ck-reveal space-y-4">
         <div className="flex items-center gap-3">
@@ -599,14 +792,7 @@ export default function TypingTestPhase() {
           <p className="text-sm text-muted-foreground">{headerGuidance}</p>
         </div>
 
-        {violations.length > 0 && (
-          <div className="flex items-center gap-2 rounded-lg border border-warning/20 bg-warning/10 px-3 py-2 text-sm text-warning">
-            <ShieldAlert className="h-4 w-4 shrink-0" />
-            <span>
-              {violations.length} thing{violations.length === 1 ? "" : "s"} flagged during this session
-            </span>
-          </div>
-        )}
+        {testState === "testing" && <TestRulesReminder recorded={integrity.flagged} />}
       </header>
 
       {/* Main Test Card */}
@@ -635,18 +821,29 @@ export default function TypingTestPhase() {
                     <span>Accuracy counts as much as speed — steady beats frantic.</span>
                   </li>
                 </ul>
-                <TestRulesNotice />
               </div>
+
+              <TestRulesCard accepted={rulesAccepted} onAcceptedChange={setRulesAccepted} />
 
               <div className="flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-muted-foreground">
-                  The clock starts the moment you press start.
+                  {rulesAccepted ? "The clock starts the moment you press start." : "Tick the box above to start."}
                 </p>
-                <Button onClick={startTest} disabled={isStarting} size="lg" className="w-full gap-2 sm:w-auto">
+                <Button
+                  onClick={startTest}
+                  disabled={isStarting || !rulesAccepted || !resumeDecided}
+                  size="lg"
+                  className="w-full gap-2 sm:w-auto"
+                >
                   {isStarting ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
                       Starting...
+                    </>
+                  ) : !resumeDecided ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      Getting things ready…
                     </>
                   ) : (
                     <>
@@ -706,17 +903,34 @@ export default function TypingTestPhase() {
                 autoComplete="off"
                 autoCorrect="off"
                 autoCapitalize="off"
-                onContextMenu={handleContextMenu}
-                onPaste={handlePaste}
-                onCopy={handleCopy}
-                onCut={handleCut}
-                onKeyDown={handleKeyDown}
               />
 
               <div className="flex justify-end">
-                <Button onClick={handleTestComplete} variant="ghost" size="sm" className="text-muted-foreground">
+                <Button
+                  onClick={() => {
+                    endReasonRef.current = "finished_early";
+                    handleTestComplete();
+                  }}
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                >
                   Finish early
                 </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Being checked: a send from before a reload (or another tab) is
+              with the server. This page has no run of its own on screen. */}
+          {testState === "completed" && !results && serverCheckWaiting && (
+            <div className="space-y-4 py-6 text-center" aria-live="polite">
+              <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" aria-hidden="true" />
+              <div>
+                <h3 className="font-display ck-ink text-2xl text-foreground">We have your results</h3>
+                <p className="text-muted-foreground">
+                  They're being checked now. This page moves on by itself when it's done.
+                </p>
               </div>
             </div>
           )}
@@ -729,15 +943,24 @@ export default function TypingTestPhase() {
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/15">
                   <CheckCircle className="h-8 w-8 text-primary" />
                 </div>
-                <div>
-                  <h3 className="font-display ck-ink text-2xl text-foreground">Nice work</h3>
-                  <p className="text-muted-foreground">
-                    Submit when you're ready —{" "}
-                    {isAutoMode
-                      ? "your next step opens right after."
-                      : "the hiring team will review it and follow up."}
-                  </p>
-                </div>
+                {serverCheckWaiting ? (
+                  <div>
+                    <h3 className="font-display ck-ink text-2xl text-foreground">We have your results</h3>
+                    <p className="text-muted-foreground">
+                      They're being checked now. This page moves on by itself when it's done.
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <h3 className="font-display ck-ink text-2xl text-foreground">Nice work</h3>
+                    <p className="text-muted-foreground">
+                      Submit when you're ready —{" "}
+                      {isAutoMode
+                        ? "your next step opens right after."
+                        : "the hiring team will review it and follow up."}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Performance Stats — one calm row, Fraunces for the numbers */}
@@ -756,12 +979,26 @@ export default function TypingTestPhase() {
 
               {/* Actions — one primary, jade-filled; the redo is a quiet text-link */}
               <div className="flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
-                <Button variant="ghost" onClick={resetTest} className="gap-2 text-muted-foreground">
-                  <RotateCcw className="h-4 w-4" />
-                  Try again
-                </Button>
-                <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full gap-2 sm:w-auto" size="lg">
-                  {isSubmitting ? (
+                {serverCheckWaiting ? (
+                  <span />
+                ) : (
+                  <Button variant="ghost" onClick={resetTest} className="gap-2 text-muted-foreground">
+                    <RotateCcw className="h-4 w-4" />
+                    Try again
+                  </Button>
+                )}
+                <Button
+                  onClick={handleSubmit}
+                  disabled={isSubmitting || serverCheckWaiting}
+                  className="w-full gap-2 sm:w-auto"
+                  size="lg"
+                >
+                  {serverCheckWaiting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Being checked…
+                    </>
+                  ) : isSubmitting ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Submitting...

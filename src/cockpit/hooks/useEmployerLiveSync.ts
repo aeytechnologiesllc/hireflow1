@@ -39,9 +39,18 @@ import type { ApplicationWithCandidate } from "@/hooks/useApplications";
  *    a sleeping laptop, a phone in the background) runs one catch-up round,
  *    because events sent while the socket was down are never replayed.
  *
- * W3 adds `assessment_sessions`: bind it here, before subscribe(), once that
- * table exists AND is in the supabase_realtime publication. Binding a table
- * that does not exist fails the whole channel.
+ * Wave 2 (2026-10-06) adds `assessment_sessions` — one row per test attempt,
+ * updated on every answer, chat turn, typing snapshot, heartbeat and switch
+ * away (docs/ASSESSMENT-RECORD.md). It gets its OWN channel, beside the
+ * applications one and with the same per-instance topic rule: binding a table
+ * that does not exist (yet) fails the channel it is on, and the applicant list
+ * must never go stale because the newer record is missing or misbehaving.
+ *  - An UPDATE is merged into every cached session list at once (the live
+ *    line moves before the refetch lands).
+ *  - The changed attempt's events are refetched, so an open record sheet
+ *    follows a chat or a quiz as it happens (events are not in the realtime
+ *    publication; every event insert also updates its session row).
+ *  - Same coalescing and SUBSCRIBED catch-up as the applications channel.
  */
 
 /** Coalescing window for a burst of row changes. */
@@ -67,6 +76,14 @@ export const LIVE_SYNC_QUERY_KEYS: readonly QueryKey[] = [
   ["messageable-candidates"],
   ["pipeline-health"],
 ];
+
+/**
+ * The cached staff queries a change to public.assessment_sessions can make
+ * stale (see src/cockpit/hooks/useAssessmentSessions.ts for the keys).
+ */
+export const LIVE_SYNC_SESSION_KEYS: readonly QueryKey[] = [["assessment-sessions"]];
+/** Prefix of every events query; refetched per changed attempt. */
+export const LIVE_SYNC_EVENTS_KEY: QueryKey = ["assessment-events"];
 
 type LiveSyncClient = Pick<typeof supabase, "channel" | "removeChannel">;
 type ApplicationChange = RealtimePostgresChangesPayload<Record<string, unknown>>;
@@ -178,6 +195,45 @@ export function applyApplicationChange(
   return out;
 }
 
+/** The slice of an assessment_sessions row the merge reads. */
+type SessionRowLike = { id: string; updated_at?: string | null } & Record<string, unknown>;
+
+/**
+ * Applies one realtime change to a cached list of attempts, returning the
+ * same array when there is nothing to apply (same rules as
+ * applyApplicationChange: UPDATE merges over the cached row unless it is
+ * older; DELETE drops it; INSERT waits for the refetch, which knows whether
+ * the new attempt belongs in this list).
+ */
+export function applySessionChange<T extends SessionRowLike>(rows: T[] | undefined, payload: ApplicationChange): T[] | undefined {
+  if (!Array.isArray(rows) || rows.length === 0) return rows;
+  if (Array.isArray(payload.errors) && payload.errors.length > 0) return rows;
+  if (payload.eventType === "DELETE") {
+    const id = (payload.old as { id?: unknown })?.id;
+    if (typeof id !== "string") return rows;
+    const kept = rows.filter((row) => row.id !== id);
+    return kept.length === rows.length ? rows : kept;
+  }
+  if (payload.eventType !== "UPDATE") return rows;
+  const next = payload.new as Partial<T> & { id?: unknown };
+  if (!next || typeof next.id !== "string") return rows;
+  const index = rows.findIndex((row) => row.id === next.id);
+  if (index === -1) return rows;
+  const cached = rows[index];
+  const cachedAt = cached.updated_at ? Date.parse(cached.updated_at) : NaN;
+  const nextAt = typeof next.updated_at === "string" ? Date.parse(next.updated_at) : NaN;
+  if (!Number.isNaN(cachedAt) && !Number.isNaN(nextAt) && nextAt < cachedAt) return rows;
+  const merged = { ...cached } as Record<string, unknown>;
+  // Only the columns this list selected: a full payload must not widen a
+  // narrow list with grading or a draft it never asked for.
+  for (const [key, value] of Object.entries(next)) {
+    if (value !== undefined && key in cached) merged[key] = value;
+  }
+  const out = rows.slice();
+  out[index] = merged as T;
+  return out;
+}
+
 /**
  * Opens the live-sync channel for one staff user and returns its cleanup.
  * Plain function (no React) so scripts/employer_live_sync.test.mjs can drive
@@ -229,9 +285,67 @@ export function startEmployerLiveSync({
       if (status === "SUBSCRIBED") coalescer.schedule(false);
     });
 
+  // ── The test record (assessment_sessions), on a channel of its own. ──
+  // Attempts and applications touched since the last round, so only their
+  // events refetch; a catch-up round refetches every events query on screen.
+  const touchedSessions = new Set<string>();
+  const touchedApplications = new Set<string>();
+  let catchUp = false;
+  const sessionCoalescer = createLiveSyncCoalescer(
+    (force) => {
+      const sessionIds = [...touchedSessions];
+      const applicationIds = [...touchedApplications];
+      const everything = catchUp;
+      touchedSessions.clear();
+      touchedApplications.clear();
+      catchUp = false;
+      return Promise.all([
+        ...LIVE_SYNC_SESSION_KEYS.map((queryKey) => queryClient.invalidateQueries({ queryKey }, { cancelRefetch: force })),
+        ...(everything
+          ? [queryClient.invalidateQueries({ queryKey: LIVE_SYNC_EVENTS_KEY }, { cancelRefetch: false })]
+          : [
+              ...sessionIds.map((id) =>
+                queryClient.invalidateQueries({ queryKey: [...LIVE_SYNC_EVENTS_KEY, id] }, { cancelRefetch: force }),
+              ),
+              ...applicationIds.map((id) =>
+                queryClient.invalidateQueries({ queryKey: [...LIVE_SYNC_EVENTS_KEY, "integrity", id] }, { cancelRefetch: force }),
+              ),
+            ]),
+      ]);
+    },
+    delayMs,
+    timers,
+  );
+
+  const sessionChannel = client
+    .channel(`employer-sessions-${userId}-${instanceId}`)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "assessment_sessions" },
+      (payload: ApplicationChange) => {
+        const row = (payload.eventType === "DELETE" ? payload.old : payload.new) as { id?: unknown; application_id?: unknown };
+        if (typeof row?.id === "string") touchedSessions.add(row.id);
+        if (typeof row?.application_id === "string") touchedApplications.add(row.application_id);
+        // Merge into every cached list now; write only the ones that changed.
+        for (const [queryKey, rows] of queryClient.getQueriesData<SessionRowLike[]>({ queryKey: LIVE_SYNC_SESSION_KEYS[0] })) {
+          const next = applySessionChange(rows, payload);
+          if (next !== rows) queryClient.setQueryData(queryKey, next);
+        }
+        sessionCoalescer.schedule(true);
+      },
+    )
+    .subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        catchUp = true;
+        sessionCoalescer.schedule(false);
+      }
+    });
+
   return () => {
     coalescer.dispose();
+    sessionCoalescer.dispose();
     void client.removeChannel(channel);
+    void client.removeChannel(sessionChannel);
   };
 }
 

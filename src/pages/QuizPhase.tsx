@@ -24,7 +24,10 @@ import { toast } from "sonner";
 import { invokeTriggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { parseApplicationNotes, type StepRecordLike } from "@/utils/applicationNotes";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
-import { StepAdvanceScreen, TestRulesNotice } from "@/components/candidate/NextStepCard";
+import { StepAdvanceScreen } from "@/components/candidate/NextStepCard";
+import { TestPausedOverlay, TestRulesCard, TestRulesReminder } from "@/components/candidate/TestRulesCard";
+import { useTestIntegrity } from "@/hooks/useTestIntegrity";
+import { quizQuestionRecordId, quizResumeFromReply, useAssessmentSession } from "@/hooks/useAssessmentSession";
 import { GlyphJourney, GlyphCheckSeal } from "@/components/candidate/glyphs";
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 import { useResultAtFirstLoad, useStepAdvance } from "@/hooks/useStepAdvance";
@@ -67,19 +70,16 @@ interface ApplicationDetails {
   } | null;
 }
 
-interface AntiCheatViolation {
-  type: 'tab_switch' | 'copy_attempt' | 'paste_attempt' | 'cut_attempt' | 'right_click' | 'keyboard_shortcut';
-  timestamp: string;
-  details?: string;
-}
-
 interface QuizProgress {
   currentQuestionIndex: number;
   answers: Record<string, number | string | number[]>;
   startedAt: string;
-  violations: AntiCheatViolation[];
+  /** Written by builds before wave 2; the record now lives in useTestIntegrity. */
+  violations?: unknown[];
   questionDeadlines?: Record<string, string>;
 }
+
+type QuizAnswer = number | string | number[];
 
 const areDeadlineMapsEqual = (
   left: Record<string, string>,
@@ -94,6 +94,19 @@ const areDeadlineMapsEqual = (
 
   return leftKeys.every((key) => left[key] === right[key]);
 };
+
+/** This device's saved quiz progress (null when there is none, or storage is refused). */
+function readStoredQuizProgress(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+/** Each answer as text, to tell a new pick from one the record already has. */
+const snapshotAnswers = (answers: Record<string, unknown>): Record<string, string> =>
+  Object.fromEntries(Object.entries(answers).map(([questionId, value]) => [questionId, JSON.stringify(value)]));
 
 // Helper to detect question type
 const getQuestionType = (question: QuizQuestion): 'multiple_choice' | 'multi_select' | 'text' | 'fit' => {
@@ -152,9 +165,18 @@ export default function QuizPhase() {
   const [stableQuestions, setStableQuestions] = useState<QuizQuestion[]>([]);
   const [quizInitialized, setQuizInitialized] = useState(false);
   
-  // Anti-cheating violation tracking
-  const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
-  
+  // The quiz's own intro (rules + Start): the clock starts at Start, not on
+  // page load. A quiz already under way (this device or the server's record)
+  // skips it.
+  const [quizStarted, setQuizStarted] = useState(false);
+  const [rulesAccepted, setRulesAccepted] = useState(false);
+  // When each question was first on screen on this device (sent as p_shown_at),
+  // and the answers the record already holds (so a restore is not re-sent).
+  const shownAtRef = useRef<Record<string, string>>({});
+  const recordedAnswersRef = useRef<Record<string, string>>({});
+  // The server's picks are known (or the record is unavailable), so the send
+  // below can tell a new pick from one the server already holds.
+  const serverBaselineRef = useRef(false);
 
   // Refs for timer cleanup and stable callbacks
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -185,6 +207,42 @@ export default function QuizPhase() {
   // After "Send my answers": the waiting screen, then "Start <next step>" the
   // moment the row says the next step is open (see useStepAdvance).
   const advance = useStepAdvance({ applicationId: id, stepId, job: application?.jobs });
+
+  // Check if already submitted
+  const existingResult = (() => {
+    // If application was reconsidered (status reset to pending), allow re-submission
+    if (application?.status === "pending" && application?.phase === stepId) {
+      return null;
+    }
+    if (!application?.notes) return null;
+    try {
+      const notes = parseApplicationNotes(application.notes);
+      // Check for step-specific quiz answers or general quiz result
+      const stepData = (notes.quizAnswers?.[stepId!] || notes[stepId!]) as StepRecordLike | undefined;
+      if (stepData?.completedAt) return stepData;
+      return notes.quizResult || null;
+    } catch {
+      return null;
+    }
+  })();
+
+  // "Already done" is decided once, from the first read after this page
+  // mounted — never from a refresh that lands while the candidate is here.
+  const resultAtFirstLoad = useResultAtFirstLoad(isFetchedAfterMount && !!application, !!existingResult);
+
+  // The record the hiring team reads (docs/ASSESSMENT-RECORD.md): opened when
+  // this page loads on a quiz that is not done. Its reply also says what the
+  // server already holds (picks and when each question was first shown), so a
+  // quiz restarted on another device keeps its answers and its real clock.
+  const session = useAssessmentSession({
+    applicationId: id,
+    stepId,
+    enabled: resultAtFirstLoad === false,
+    live: !advance.view,
+    clientProgress: { screen: showResults ? "review" : quizStarted ? "questions" : "intro" },
+    settleAfterMs: 3_000,
+  });
+  const { quizShown, quizAnswer, flushQuiz } = session;
 
   // Real-time subscription for phase resets - ensures immediate refresh when employer resets
   useEffect(() => {
@@ -226,19 +284,49 @@ export default function QuizPhase() {
     return (application.jobs.quiz_questions as QuizQuestion[]) || [];
   }, [application?.jobs, stepId]);
 
-  // Initialize stable questions and restore progress from localStorage
+  // record_quiz_answer serves the standard quiz (step "quiz", questions from
+  // jobs.quiz_questions), the only quiz the journey has. A workflow-configured
+  // question list keeps working, it just records no per-question timing.
+  const recordsQuizTiming = useMemo(() => {
+    if (stepId !== "quiz" || !application?.jobs) return false;
+    const workflowSteps = application.jobs.workflow_steps as Array<{ id: string; type: string; config?: Record<string, unknown> }> | null;
+    const quizStep = workflowSteps?.find(s => s.id === stepId || s.type === "quiz");
+    return !quizStep?.config?.questions;
+  }, [application?.jobs, stepId]);
+
+  // Initialize stable questions and restore progress: this device's own copy
+  // first (localStorage, read at once — it needs no server), else the
+  // server's record (another device, a cleared browser). Only without a copy
+  // here does it wait for the record's reply — at most a few seconds, and
+  // never when the record is unreachable — so a resumed quiz never shows its
+  // intro and never restarts a clock the server already started. Until then
+  // the page shows a skeleton, not the intro.
   useEffect(() => {
-    if (fetchedQuestions.length > 0 && !quizInitialized) {
+    if (quizInitialized) return;
+    if (resultAtFirstLoad === null) return;
+    if (resultAtFirstLoad === false && !session.settled && !readStoredQuizProgress(QUIZ_STORAGE_KEY)) return;
+
+    if (fetchedQuestions.length > 0) {
       // Check for saved progress
-      const savedProgress = localStorage.getItem(QUIZ_STORAGE_KEY);
-      
+      const savedProgress = readStoredQuizProgress(QUIZ_STORAGE_KEY);
+      const fromServer = recordsQuizTiming
+        ? quizResumeFromReply(session.reply, fetchedQuestions, { offsetMs: session.offsetMs, nowMs: Date.now() })
+        : null;
+      const serverAnswers = (fromServer?.answers ?? {}) as Record<string, QuizAnswer>;
+
       if (savedProgress) {
         try {
           const progress: QuizProgress = JSON.parse(savedProgress);
+          const restoredAnswers = { ...serverAnswers, ...progress.answers };
 
           setCurrentQuestionIndex(progress.currentQuestionIndex);
-          setAnswers(progress.answers);
-          setViolations(progress.violations || []);
+          setAnswers(restoredAnswers);
+          // Only what the server already holds counts as recorded: a pick made
+          // here in the last moment before the tab closed is sent now. When
+          // the record has not replied yet, nothing is sent until it has
+          // (serverBaselineRef), so picks it already holds are not sent twice.
+          recordedAnswersRef.current = snapshotAnswers(serverAnswers);
+          serverBaselineRef.current = session.settled;
           setQuizStartedAt(progress.startedAt || new Date().toISOString());
           // Drop deadlines that have already passed. Restoring them unfiltered
           // meant a quiz reopened after any real gap came back with every
@@ -251,7 +339,10 @@ export default function QuizPhase() {
               )
             ) as Record<string, string>
           );
-          
+          // Saved progress only exists once a quiz has been started.
+          setQuizStarted(true);
+          setRulesAccepted(true);
+
           toast.info("Quiz progress restored", {
             description: `Continuing from question ${progress.currentQuestionIndex + 1}`,
           });
@@ -259,10 +350,29 @@ export default function QuizPhase() {
           console.error('[QuizPhase] Failed to restore progress:', e);
           setQuizStartedAt(new Date().toISOString());
         }
+      } else if (fromServer?.started) {
+        // Started elsewhere: the server's picks, its question, and deadlines
+        // from when each question was first shown — already-expired ones
+        // dropped exactly as above.
+        const firstUnanswered = fetchedQuestions.findIndex((q) => serverAnswers[q.id] === undefined);
+        const index = fromServer.currentIndex ?? (firstUnanswered >= 0 ? firstUnanswered : 0);
+        setCurrentQuestionIndex(index);
+        setAnswers(serverAnswers);
+        recordedAnswersRef.current = snapshotAnswers(serverAnswers);
+        setQuizStartedAt(fromServer.startedAt || new Date().toISOString());
+        setQuestionDeadlines(fromServer.deadlines);
+        setQuizStarted(true);
+        setRulesAccepted(true);
+        serverBaselineRef.current = true;
+
+        toast.info("Quiz progress restored", {
+          description: `Continuing from question ${index + 1}`,
+        });
       } else {
+        serverBaselineRef.current = true;
         setQuizStartedAt(new Date().toISOString());
       }
-      
+
       setStableQuestions(fetchedQuestions);
     }
 
@@ -277,95 +387,46 @@ export default function QuizPhase() {
     if (application && !quizInitialized) {
       setQuizInitialized(true);
     }
-  }, [fetchedQuestions, quizInitialized, QUIZ_STORAGE_KEY, application]);
+  }, [
+    fetchedQuestions,
+    quizInitialized,
+    QUIZ_STORAGE_KEY,
+    application,
+    resultAtFirstLoad,
+    session.settled,
+    session.reply,
+    session.offsetMs,
+    recordsQuizTiming,
+  ]);
 
-  // Save progress to localStorage whenever it changes
+  // Save progress to localStorage whenever it changes — only once the quiz
+  // has started, so a visit to the intro never reads as a quiz under way.
   useEffect(() => {
-    if (quizInitialized && !showResults && stableQuestions.length > 0) {
+    if (quizInitialized && quizStarted && !showResults && stableQuestions.length > 0) {
       const progress: QuizProgress = {
         currentQuestionIndex,
         answers,
         startedAt: quizStartedAt || new Date().toISOString(),
-        violations,
         questionDeadlines,
       };
       localStorage.setItem(QUIZ_STORAGE_KEY, JSON.stringify(progress));
     }
-  }, [currentQuestionIndex, answers, quizStartedAt, violations, questionDeadlines, quizInitialized, showResults, QUIZ_STORAGE_KEY, stableQuestions.length]);
+  }, [currentQuestionIndex, answers, quizStartedAt, questionDeadlines, quizInitialized, quizStarted, showResults, QUIZ_STORAGE_KEY, stableQuestions.length]);
 
   // Clear localStorage when quiz is submitted
   const clearSavedProgress = useCallback(() => {
     localStorage.removeItem(QUIZ_STORAGE_KEY);
   }, [QUIZ_STORAGE_KEY]);
 
-  // Anti-cheating: Record violation
-  const recordViolation = useCallback((type: AntiCheatViolation['type'], details?: string) => {
-    const violation: AntiCheatViolation = {
-      type,
-      timestamp: new Date().toISOString(),
-      details,
-    };
-    setViolations(prev => [...prev, violation]);
-  }, []);
-
-  // Anti-cheating: Tab/Window visibility detection
-  useEffect(() => {
-    if (!quizInitialized || showResults) return;
-    
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        recordViolation('tab_switch', 'User switched to another tab or window');
-        toast.warning("Tab switch detected!", {
-          description: "This activity has been recorded and will be reported.",
-          icon: <ShieldAlert className="h-4 w-4" />,
-        });
-      }
-    };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [quizInitialized, showResults, recordViolation]);
-
-  // Anti-cheating: Prevent copy/paste/cut and right-click
-  const handleCopy = useCallback((e: React.ClipboardEvent) => {
-    e.preventDefault();
-    recordViolation('copy_attempt');
-    toast.warning("Copy is turned off here — just answer in your own words.", {
-      icon: <ShieldAlert className="h-4 w-4" />,
-    });
-  }, [recordViolation]);
-
-  const handlePaste = useCallback((e: React.ClipboardEvent) => {
-    e.preventDefault();
-    recordViolation('paste_attempt');
-    toast.warning("Paste is turned off here — answer directly.", {
-      icon: <ShieldAlert className="h-4 w-4" />,
-    });
-  }, [recordViolation]);
-
-  const handleCut = useCallback((e: React.ClipboardEvent) => {
-    e.preventDefault();
-    recordViolation('cut_attempt');
-  }, [recordViolation]);
-
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    recordViolation('right_click');
-    toast.warning("Right-click is turned off here.", {
-      icon: <ShieldAlert className="h-4 w-4" />,
-    });
-  }, [recordViolation]);
-
-  // Anti-cheating: Block keyboard shortcuts
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x', 'p', 's'].includes(e.key.toLowerCase())) {
-      e.preventDefault();
-      recordViolation('keyboard_shortcut', `Blocked ${e.key.toUpperCase()} shortcut`);
-      toast.warning("That shortcut is turned off here.", {
-        icon: <ShieldAlert className="h-4 w-4" />,
-      });
-    }
-  }, [recordViolation]);
+  // Copy, paste, switching away and screenshots: the one shared hook
+  // (useTestIntegrity), live to the server while the questions are on
+  // screen. This page's own copy saw tab switches only (never a second
+  // window) and kept its record in this browser until the final send.
+  const integrity = useTestIntegrity({
+    applicationId: id,
+    stepId,
+    active: quizInitialized && quizStarted && !showResults,
+  });
 
   // Use stable questions for rendering
   const questions = quizInitialized ? stableQuestions : fetchedQuestions;
@@ -395,6 +456,55 @@ export default function QuizPhase() {
   const getQuestionTimeLimit = useCallback((question: QuizQuestion | null | undefined) => {
     return question?.time_limit_seconds || 30;
   }, []);
+
+  // The moment each question is on screen goes to the server
+  // (record_quiz_answer with no answer), so time per question is measured on
+  // the server's clock from when the applicant first saw it.
+  const currentRecordId = currentQuestion ? quizQuestionRecordId(currentQuestion, currentQuestionIndex) : null;
+  useEffect(() => {
+    if (!quizStarted || showResults || !currentRecordId) return;
+    if (!shownAtRef.current[currentRecordId]) shownAtRef.current[currentRecordId] = new Date().toISOString();
+    if (recordsQuizTiming) quizShown(currentRecordId, shownAtRef.current[currentRecordId]);
+  }, [quizStarted, showResults, currentRecordId, recordsQuizTiming, quizShown]);
+
+  // Restored from this device before the record replied: once it has, what
+  // it already holds is the baseline (sent picks are not sent again).
+  useEffect(() => {
+    if (serverBaselineRef.current || !quizInitialized || !session.settled) return;
+    serverBaselineRef.current = true;
+    if (!recordsQuizTiming) return;
+    const fromServer = quizResumeFromReply(session.reply, stableQuestions, { offsetMs: session.offsetMs, nowMs: Date.now() });
+    recordedAnswersRef.current = snapshotAnswers(fromServer.answers);
+  }, [quizInitialized, session.settled, session.reply, session.offsetMs, recordsQuizTiming, stableQuestions]);
+
+  // Every pick (and every change of mind) goes to the server as it is made —
+  // a choice after a short pause, typing after the applicant stops for a
+  // moment. A restored answer is already on record and is not sent again.
+  useEffect(() => {
+    if (!quizStarted || !recordsQuizTiming || !serverBaselineRef.current) return;
+    questions.forEach((question, index) => {
+      if (!question.id || !(question.id in answers)) return;
+      const value = answers[question.id];
+      const text = JSON.stringify(value);
+      if (recordedAnswersRef.current[question.id] === text) return;
+      recordedAnswersRef.current[question.id] = text;
+      const recordId = quizQuestionRecordId(question, index);
+      quizAnswer(recordId, value, shownAtRef.current[recordId] ?? null, getQuestionType(question) === "text" ? 1_500 : 400);
+    });
+  }, [answers, quizStarted, recordsQuizTiming, questions, quizAnswer, session.settled, quizInitialized]);
+
+  const startQuiz = () => {
+    if (!rulesAccepted) return;
+    // The clock starts here: the first question's deadline is minted by the
+    // timer below the moment `quizStarted` is set.
+    setQuizStartedAt(new Date().toISOString());
+    setQuizStarted(true);
+  };
+
+  // Shortest and longest clock, for the intro's one line about timing.
+  const timeLimits = questions.map((question) => getQuestionTimeLimit(question));
+  const shortestLimit = timeLimits.length > 0 ? Math.min(...timeLimits) : 30;
+  const longestLimit = timeLimits.length > 0 ? Math.max(...timeLimits) : 30;
 
   const handleAnswerSelect = (answerIndex: number) => {
     if (!currentQuestion) return;
@@ -462,7 +572,8 @@ export default function QuizPhase() {
   }, []);
 
   const syncTimerState = useCallback(() => {
-    if (!quizInitialized || showResults || questions.length === 0) return;
+    // Not before Start: the intro holds the clock (see startQuiz).
+    if (!quizInitialized || !quizStarted || showResults || questions.length === 0) return;
 
     const now = Date.now();
     const startIndex = Math.min(currentQuestionIndexRef.current, questions.length - 1);
@@ -520,11 +631,11 @@ export default function QuizPhase() {
     const activeDeadline = workingDeadlines[activeQuestion.id];
     const activeDeadlineMs = activeDeadline ? Date.parse(activeDeadline) : now;
     setTimeRemaining(Math.max(0, Math.ceil((activeDeadlineMs - now) / 1000)));
-  }, [getQuestionTimeLimit, handleFinishQuiz, questions, quizInitialized, showResults]);
+  }, [getQuestionTimeLimit, handleFinishQuiz, questions, quizInitialized, quizStarted, showResults]);
 
   // Timer effect - uses persisted absolute deadlines so refreshes/backgrounding do not reset the quiz.
   useEffect(() => {
-    if (!quizInitialized || showResults || questions.length === 0) return;
+    if (!quizInitialized || !quizStarted || showResults || questions.length === 0) return;
 
     isFinishingRef.current = false;
     syncTimerState();
@@ -554,7 +665,7 @@ export default function QuizPhase() {
       window.removeEventListener("focus", syncTimerState);
       document.removeEventListener("visibilitychange", handleVisibleSync);
     };
-  }, [currentQuestionIndex, questions.length, quizInitialized, showResults, syncTimerState]);
+  }, [currentQuestionIndex, questions.length, quizInitialized, quizStarted, showResults, syncTimerState]);
 
   const handleSubmit = async () => {
     if (!application) return;
@@ -582,11 +693,18 @@ export default function QuizPhase() {
       // with the exact rules this page used to run in the browser, writes
       // the application's own result fields itself, and hands back only
       // the tally. This page never sees which answer was correct.
+      //
+      // Picks still waiting on their debounce reach the record first (a
+      // second and a half at most), so the time on the last question is not
+      // lost when the quiz is graded and its record closes.
+      await flushQuiz();
       const { data: submission, error: submitError } = await supabase.rpc("submit_quiz_attempt", {
         p_application_id: id!,
         p_step_id: stepId!,
         p_answers: answers as unknown as Json,
-        p_violations: violations as unknown as Json,
+        // The old-shape list, for a server that does not read the live
+        // record yet; the record itself was sent as it happened.
+        p_violations: integrity.violations as unknown as Json,
       });
 
       if (submitError) throw submitError;
@@ -596,6 +714,7 @@ export default function QuizPhase() {
 
       // Clear saved progress after successful submission
       clearSavedProgress();
+      integrity.finish();
 
       // Invalidate candidate applications to update the tile status
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
@@ -634,28 +753,6 @@ export default function QuizPhase() {
       setIsSubmitting(false);
     }
   };
-
-  // Check if already submitted
-  const existingResult = (() => {
-    // If application was reconsidered (status reset to pending), allow re-submission
-    if (application?.status === "pending" && application?.phase === stepId) {
-      return null;
-    }
-    if (!application?.notes) return null;
-    try {
-      const notes = parseApplicationNotes(application.notes);
-      // Check for step-specific quiz answers or general quiz result
-      const stepData = (notes.quizAnswers?.[stepId!] || notes[stepId!]) as StepRecordLike | undefined;
-      if (stepData?.completedAt) return stepData;
-      return notes.quizResult || null;
-    } catch {
-      return null;
-    }
-  })();
-
-  // "Already done" is decided once, from the first read after this page
-  // mounted — never from a refresh that lands while the candidate is here.
-  const resultAtFirstLoad = useResultAtFirstLoad(isFetchedAfterMount && !!application, !!existingResult);
 
   if (authLoading || isLoading) {
     return (
@@ -719,7 +816,9 @@ export default function QuizPhase() {
     );
   }
 
-  if (questions.length === 0 && !quizInitialized) {
+  // Not before the resume decision: a quiz under way must never flash its
+  // intro and Start (its clock is already running).
+  if (!quizInitialized) {
     return (
       <div className="space-y-6 max-w-3xl mx-auto p-6">
         <Skeleton className="h-12 w-48" />
@@ -755,15 +854,12 @@ export default function QuizPhase() {
   }
 
   return (
-    <div
-      ref={quizContainerRef}
-      className="max-w-3xl mx-auto space-y-6 select-none"
-      onCopy={handleCopy}
-      onPaste={handlePaste}
-      onCut={handleCut}
-      onContextMenu={handleContextMenu}
-      onKeyDown={handleKeyDown}
-    >
+    <div ref={quizContainerRef} className="max-w-3xl mx-auto space-y-6 select-none">
+      <TestPausedOverlay
+        show={integrity.away && quizStarted && !showResults}
+        body="You're in another window — click back to carry on. The clock keeps running, and leaving the test is recorded."
+      />
+
       {/* Journey header — where am I, what's happening now, what's next */}
       <header className="ck-reveal space-y-4">
         <div className="flex items-center gap-3">
@@ -795,29 +891,64 @@ export default function QuizPhase() {
           <p className="text-sm text-muted-foreground">
             {showResults
               ? "Have a last look, then send your answers in."
-              : "Each question is timed — when the clock runs out, the next one comes up."}
+              : quizStarted
+                ? "Each question is timed — when the clock runs out, the next one comes up."
+                : "Read the rules, then start when you're ready. The clock starts when you press start."}
           </p>
         </div>
 
-        {/* The quiz has no intro screen of its own (its clock starts on load),
-            so the rules sit here, above question 1, for the whole quiz. */}
-        {!showResults && <TestRulesNotice />}
-
-        {violations.length > 0 && (
-          <div className="flex items-center gap-2 rounded-lg border border-warning/20 bg-warning/10 px-3 py-2 text-sm text-warning">
-            <ShieldAlert className="h-4 w-4 shrink-0" />
-            <span>
-              {violations.length} thing{violations.length === 1 ? "" : "s"} flagged during this session
-            </span>
-          </div>
-        )}
+        {quizStarted && !showResults && <TestRulesReminder recorded={integrity.flagged} />}
       </header>
 
       {/* Main quiz card — the letterhead moment: brass rule, then the question itself as the heading */}
       <Card className="relative overflow-hidden bg-card border-border">
         {BRASS_RULE}
         <CardContent className="space-y-6 p-4 pt-6 sm:p-8">
-          {!showResults && currentQuestion ? (
+          {!showResults && !quizStarted ? (
+            /* The quiz's own intro: its clock used to start on page load, with
+               the rules squeezed above question 1. Now the rules come first,
+               with "I understand", and the clock starts at Start. */
+            <div className="ck-reveal space-y-6">
+              <div className="space-y-4 rounded-lg bg-muted/30 p-4 sm:p-6">
+                <h2 className="font-display text-lg text-foreground">How this works</h2>
+                <ul className="space-y-3 text-sm text-muted-foreground">
+                  <li className="flex items-start gap-2.5">
+                    <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <span>
+                      <strong className="text-foreground ck-num">{questions.length}</strong> question
+                      {questions.length === 1 ? "" : "s"}. Pick an answer, or type one where there are no choices.
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2.5">
+                    <Clock className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <span>
+                      Each question has its own clock —{" "}
+                      <strong className="text-foreground ck-num">
+                        {shortestLimit === longestLimit ? `${shortestLimit}` : `${shortestLimit}–${longestLimit}`} seconds
+                      </strong>
+                      . When it runs out, the next question comes up.
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2.5">
+                    <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <span>Every answer is saved as you pick it, so a dropped connection loses nothing.</span>
+                  </li>
+                </ul>
+              </div>
+
+              <TestRulesCard accepted={rulesAccepted} onAcceptedChange={setRulesAccepted} />
+
+              <div className="flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-muted-foreground">
+                  {rulesAccepted ? "The first clock starts the moment you press start." : "Tick the box above to start."}
+                </p>
+                <Button onClick={startQuiz} disabled={!rulesAccepted} size="lg" className="w-full gap-2 sm:w-auto">
+                  Start the skills check
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ) : !showResults && currentQuestion ? (
             <>
               {/* Progress within the quiz */}
               <div className="space-y-2">
@@ -973,10 +1104,13 @@ export default function QuizPhase() {
                 </div>
               </div>
 
-              {violations.length > 0 && (
+              {integrity.flagged > 0 && (
                 <div className="inline-flex items-center gap-2 rounded-lg bg-warning/10 px-4 py-2 text-sm text-warning">
                   <ShieldAlert className="h-4 w-4" />
-                  {violations.length} thing{violations.length === 1 ? "" : "s"} flagged — included with your answers
+                  <span>
+                    <span className="ck-num">{integrity.flagged}</span> thing{integrity.flagged === 1 ? "" : "s"} recorded — the
+                    hiring team sees them with your answers
+                  </span>
                 </div>
               )}
 

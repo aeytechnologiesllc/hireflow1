@@ -1,16 +1,17 @@
 import { useEffect, useId, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Loader2, ShieldAlert } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { GlyphCheckSeal, GlyphClock } from "@/components/candidate/glyphs";
 import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
-import { buildCandidateJourney, type WorkflowStepLike } from "@/lib/candidateJourney";
-import { stepRoute, whereCandidateStands } from "@/lib/journeyProgress";
+import { buildCandidateJourney, DECISION_STAGE_ID, type WorkflowStepLike } from "@/lib/candidateJourney";
+import { stepRoute, whereCandidateStands, type CandidateStanding } from "@/lib/journeyProgress";
 import { parseApplicationNotes } from "@/utils/applicationNotes";
+import { standingWithServerDone } from "@/hooks/useAssessmentSession";
 import { cn } from "@/lib/utils";
 import type { StepAdvance } from "@/hooks/useStepAdvance";
 
@@ -39,19 +40,28 @@ function journeyOf(row: NextStepRow | undefined) {
   });
 }
 
-function standingOf(row: NextStepRow) {
-  return whereCandidateStands(journeyOf(row), {
+/**
+ * whereCandidateStands, corrected by what the server already said about one
+ * step: `doneStepId` is a step the server reports FINISHED, which this card
+ * never offers as the one to take (standingWithServerDone).
+ */
+function standingOf(row: NextStepRow, doneStepId?: string | null): CandidateStanding {
+  const steps = journeyOf(row);
+  const standing = whereCandidateStands(steps, {
     phase: row.phase,
     status: row.status,
     notes: parseApplicationNotes(row.notes),
     voiceInterviewResult: row.voice_interview_result,
   });
+  return standingWithServerDone(steps, standing, doneStepId, DECISION_STAGE_ID);
 }
 
 interface NextStepCardProps {
   applicationId: string;
   /** The step this card follows (its journey title), if any. */
   completedTitle?: string;
+  /** A step the server has reported finished: never offered as the one to take (see standingOf). */
+  doneStepId?: string | null;
 }
 
 /**
@@ -76,7 +86,7 @@ interface NextStepCardProps {
  * it last read; this card may have seen the move through its own poll or
  * refetch, which the gate never does.
  */
-export function NextStepCard({ applicationId, completedTitle }: NextStepCardProps) {
+export function NextStepCard({ applicationId, completedTitle, doneStepId }: NextStepCardProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const queryKey = useMemo(() => ["candidate-next-step", applicationId], [applicationId]);
@@ -100,7 +110,7 @@ export function NextStepCard({ applicationId, completedTitle }: NextStepCardProp
     // every 10 s — a backstop for a tab realtime is not reaching.
     refetchInterval: (query) => {
       const current = query.state.data as NextStepRow | undefined;
-      return current && standingOf(current).kind === "waiting" ? 10_000 : false;
+      return current && standingOf(current, doneStepId).kind === "waiting" ? 10_000 : false;
     },
   });
 
@@ -124,7 +134,7 @@ export function NextStepCard({ applicationId, completedTitle }: NextStepCardProp
   }, [applicationId, instanceId, queryClient, queryKey]);
 
   const steps = useMemo(() => journeyOf(row), [row]);
-  const standing = useMemo(() => (row ? standingOf(row) : null), [row]);
+  const standing = useMemo(() => (row ? standingOf(row, doneStepId) : null), [row, doneStepId]);
 
   const goToApplication = () => navigate(`/applications/${applicationId}`);
 
@@ -270,29 +280,5 @@ export function StepAdvanceScreen({ advance, applicationId, jobTitle, completedT
       onStartNextPhase={nextRoute ? startNext : undefined}
       onDoLater={back}
     />
-  );
-}
-
-/**
- * The rules line shown before every timed test (skills check, typing test,
- * chat practice, written interview), in the owner's words: copy and paste
- * are off, stay on the page, and every switch away is recorded and reported.
- * One component so the four tests can never word it four ways.
- */
-export function TestRulesNotice({ className }: { className?: string }) {
-  return (
-    <div
-      role="note"
-      className={cn(
-        "flex items-start gap-2.5 rounded-md border border-warning/20 bg-warning/10 px-3 py-2.5 text-left",
-        className,
-      )}
-    >
-      <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
-      <p className="text-sm leading-relaxed text-warning">
-        <strong className="font-semibold">Copy and paste are turned off.</strong> Stay on this page — don't
-        switch tabs, windows or apps. Every switch is recorded and the hiring team is told.
-      </p>
-    </div>
   );
 }

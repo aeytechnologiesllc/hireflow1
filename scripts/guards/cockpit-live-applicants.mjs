@@ -19,7 +19,12 @@
  *  - any hook the cockpit shell mounts (Shell.tsx's own @/hooks imports, plus
  *    the listed shell-level listeners) opens a channel with a static topic;
  *  - the employer applicant queries fall back to the 5-minute default, or the
- *    "New application" toast stops refreshing the applicant list.
+ *    "New application" toast stops refreshing the applicant list;
+ *  - (wave 2, 2026-10-06) the test record stops being live: the
+ *    assessment_sessions binding moves onto the applications channel (a
+ *    missing or failing table would then stall the applicant list too), loses
+ *    its per-instance topic, or its query keys; or a record hook opens a
+ *    channel of its own (one per mounted panel would duplicate the shell's).
  */
 
 const HOOK = "src/cockpit/hooks/useEmployerLiveSync.ts";
@@ -27,6 +32,7 @@ const LAYOUT = "src/components/AppLayout.tsx";
 const SHELL = "src/cockpit/Shell.tsx";
 const APPLICATIONS = "src/hooks/useApplications.ts";
 const TOASTS = "src/components/GlobalNotificationToasts.tsx";
+const RECORD_HOOKS = "src/cockpit/hooks/useAssessmentSessions.ts";
 
 /** Shell-level realtime listeners that must never share a topic between mounts. */
 const SHELL_REALTIME_FILES = [
@@ -116,23 +122,38 @@ export default [
       if (!/startEmployerLiveSync\(\{[^}]*\binstanceId\b/.test(hookBody)) {
         detail.push(`${HOOK}: useEmployerLiveSync no longer passes its useId() value to startEmployerLiveSync`);
       }
+      // Two channels, never one: applications, and the test record on its own
+      // (binding a table that is missing or failing fails the channel it is on).
       const topics = channelTopics(hook);
-      if (topics.length !== 1) {
-        detail.push(`${HOOK}: expected exactly one .channel( call, found ${topics.length}`);
+      if (topics.length !== 2) {
+        detail.push(`${HOOK}: expected exactly two .channel( calls (applications + the test record), found ${topics.length}`);
       }
-      const live = topics.find((t) => t.quote === "`" && t.topic.startsWith("employer-live-"));
-      if (!live) {
-        detail.push(`${HOOK}: the channel topic no longer starts \`employer-live-\``);
-      } else if (!live.topic.includes("${instanceId}")) {
-        detail.push(`${HOOK}:${live.line} topic \`${live.topic}\` no longer carries \${instanceId} — two mounts would share one channel`);
-      }
-      const chain = (() => {
-        const at = hook.indexOf(".channel(");
-        const sub = hook.indexOf(".subscribe(", at);
+      /** The text from a channel's .channel( to its own .subscribe(. */
+      const chainFor = (prefix) => {
+        const at = hook.indexOf(".channel(`" + prefix);
+        const sub = at === -1 ? -1 : hook.indexOf(".subscribe(", at);
         return at === -1 || sub === -1 ? "" : hook.slice(at, sub);
-      })();
-      if (!/\.on\(\s*["']postgres_changes["'][\s\S]*?table:\s*["']applications["']/.test(chain)) {
-        detail.push(`${HOOK}: no postgres_changes binding on public.applications before .subscribe(`);
+      };
+      for (const [prefix, table] of [["employer-live-", "applications"], ["employer-sessions-", "assessment_sessions"]]) {
+        const t = topics.find((x) => x.quote === "`" && x.topic.startsWith(prefix));
+        if (!t) {
+          detail.push(`${HOOK}: no channel topic starts \`${prefix}\``);
+          continue;
+        }
+        if (!t.topic.includes("${instanceId}")) {
+          detail.push(`${HOOK}:${t.line} topic \`${t.topic}\` no longer carries \${instanceId} — two mounts would share one channel`);
+        }
+        const chain = chainFor(prefix);
+        if (!new RegExp(`\\.on\\(\\s*["']postgres_changes["'][\\s\\S]*?table:\\s*["']${table}["']`).test(chain)) {
+          detail.push(`${HOOK}: no postgres_changes binding on public.${table} before the \`${prefix}\` channel's .subscribe(`);
+        }
+        const others = table === "applications" ? /table:\s*["']assessment_sessions["']/ : /table:\s*["']applications["']/;
+        if (others.test(chain)) {
+          detail.push(`${HOOK}: the \`${prefix}\` channel binds the other table too — each table needs its own channel`);
+        }
+      }
+      if (!/LIVE_SYNC_SESSION_KEYS[^=]*=\s*\[\s*\[\s*["']assessment-sessions["']\s*\]/.test(hook)) {
+        detail.push(`${HOOK}: LIVE_SYNC_SESSION_KEYS no longer invalidates ["assessment-sessions"] — live progress would freeze`);
       }
       if (!/\.subscribe\(\s*\(\s*status\s*\)\s*=>[\s\S]{0,200}["']SUBSCRIBED["']/.test(hook)) {
         detail.push(`${HOOK}: .subscribe( no longer re-syncs on SUBSCRIBED — events missed while the socket was down would be lost`);
@@ -184,6 +205,15 @@ export default [
           continue;
         }
         detail.push(...staticTopicProblems(rel, text));
+      }
+
+      // 3b. The record's hooks ride on the shell's channel; one per panel would
+      // duplicate it (and a static topic would break both mounts).
+      const recordHooks = await read(RECORD_HOOKS);
+      if (recordHooks == null) {
+        detail.push(`${RECORD_HOOKS} is missing — the staff record cannot read the server's attempts`);
+      } else if (/\.channel\(/.test(recordHooks)) {
+        detail.push(`${RECORD_HOOKS} opens a realtime channel — the shell's useEmployerLiveSync already listens to assessment_sessions`);
       }
 
       // 4. The applicant queries heal on their own too.

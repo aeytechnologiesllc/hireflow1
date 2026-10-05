@@ -6,11 +6,12 @@ import {
   ListChecks,
   Mail,
   MessageCircle,
+  RotateCcw,
   ShieldAlert,
   Video,
   type LucideIcon,
 } from "lucide-react";
-import { toneColor, type AssessmentEntry } from "../lib/assessmentRecord";
+import { liveTone, toneColor, type AssessmentEntry, type LiveState } from "../lib/assessmentRecord";
 
 /**
  * "What they submitted" — one row per test the job gives this applicant, in
@@ -23,7 +24,28 @@ import { toneColor, type AssessmentEntry } from "../lib/assessmentRecord";
  * label, the ck-num figure, the soft-shadowed surface, the ck-lift press), so
  * nothing about the panel's look changes except that every test is now there
  * and every finished one opens.
+ *
+ * A test being taken right now reads live, from the server's record of the
+ * attempt ("Answering question 3 of 10 · active 1 min ago", "Left at question
+ * 3 · last active 25 min ago", "Filling in the form · 6 of 11 answered") and
+ * opens on what is there so far: the conversation, the picks, the typing.
  */
+
+/** The dot in front of a live line: green while they are at it, amber when
+ *  they have gone, brass while the answers are checked. */
+export function LiveDot({ state, className = "" }: { state: LiveState | null | undefined; className?: string }) {
+  if (!state || state === "doing") return <span className={`ck-dot ck-dot-live shrink-0 ${className}`} aria-hidden />;
+  const color =
+    state === "left" || state === "away" ? "var(--amber-fg)" : state === "failed" ? "var(--crit)" : state === "finished" ? "var(--jade)" : "var(--brass)";
+  return (
+    <span
+      aria-hidden
+      className={`ck-dot shrink-0 ${state === "checking" ? "ck-reading-pulse" : ""} ${className}`}
+      style={state === "left" ? { background: "transparent", boxShadow: `inset 0 0 0 1.5px ${color}` } : { background: color }}
+    />
+  );
+}
+
 
 const ICONS: Record<string, LucideIcon> = {
   application: Mail,
@@ -60,6 +82,7 @@ function Label({ children, color = "var(--ink-3)" }: { children: React.ReactNode
 function RecordRow({ entry, onOpen }: { entry: AssessmentEntry; onOpen: (entry: AssessmentEntry) => void }) {
   const done = entry.status === "done";
   const live = entry.status === "in_progress";
+  const liveState = live ? entry.session?.live?.state ?? null : null;
   const flags = entry.kind === "integrity" ? 0 : entry.integrity.total;
   // The line under the label: the judgment, then the facts — or, for a test
   // not finished, simply where it stands.
@@ -86,17 +109,27 @@ function RecordRow({ entry, onOpen }: { entry: AssessmentEntry; onOpen: (entry: 
       <span className="min-w-0 flex-1">
         <Label>{entry.title}</Label>
         <span
-          className="mt-[3px] flex min-w-0 items-center gap-1.5 text-[11.5px] leading-[1.3]"
-          style={{ color: done && entry.tone === "amber" && entry.verdict ? "var(--amber-fg)" : "var(--ink-3)" }}
+          className="mt-[3px] flex min-w-0 items-start gap-1.5 text-[11.5px] leading-[1.3]"
+          style={{
+            color: done && entry.tone === "amber" && entry.verdict ? "var(--amber-fg)" : live ? liveTone(liveState) : "var(--ink-3)",
+          }}
         >
-          {live && <span className="ck-dot ck-dot-live shrink-0" aria-hidden />}
-          <span className="truncate">{line}</span>
+          {live &&
+            (entry.retake === "open" ? (
+              // Handed back for a retake, not started: nobody is in it yet.
+              <RotateCcw aria-hidden className="mt-[1.5px] h-3 w-3 shrink-0" />
+            ) : (
+              <LiveDot state={liveState} className="mt-[3.5px]" />
+            ))}
+          {/* A live line carries its time ("· active 1 min ago"): it wraps to
+              a second line on a phone rather than losing the end. */}
+          <span className={live ? "line-clamp-2" : "truncate"}>{line}</span>
         </span>
       </span>
 
-      {done && (
+      {(done || (live && flags > 0)) && (
         <span className="flex shrink-0 flex-col items-end">
-          {entry.headline && (
+          {done && entry.headline && (
             <span className="ck-num text-[17px] font-semibold leading-[1.1]" style={{ color: toneColor(entry.tone) }}>
               {entry.headline}
             </span>
@@ -141,7 +174,7 @@ function RecordRow({ entry, onOpen }: { entry: AssessmentEntry; onOpen: (entry: 
     <button
       type="button"
       onClick={() => onOpen(entry)}
-      aria-label={`${entry.title}: ${[entry.headline, line].filter(Boolean).join(", ")}. Open what they submitted.`}
+      aria-label={`${entry.title}: ${[done ? entry.headline : null, line].filter(Boolean).join(", ")}. ${done ? "Open what they submitted." : "Open what they have done so far."}`}
       className={`${shape} ck-lift group transition-transform duration-150 hover:border-[var(--hair)] active:scale-[0.98]`}
       style={{ borderColor: "var(--line-soft)", background: "var(--surface)", boxShadow: "var(--hf-shadow-soft)", cursor: "pointer" }}
     >

@@ -4,7 +4,7 @@ import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/integrations/supabase/client";
+import { supabase, SUPABASE_URL } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useConversationDraft } from "@/hooks/useConversationDraft";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,11 +21,36 @@ import {
   CheckCircle,
   User,
   Clock,
+  Loader2,
   MessageSquare
 } from "lucide-react";
 import { toast } from "sonner";
 import { invokeTriggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
-import { StepAdvanceScreen, TestRulesNotice } from "@/components/candidate/NextStepCard";
+import { StepAdvanceScreen } from "@/components/candidate/NextStepCard";
+import {
+  EndEarlyDialog,
+  TestPausedOverlay,
+  TestRulesCard,
+  TestRulesReminder,
+} from "@/components/candidate/TestRulesCard";
+import { useTestIntegrity } from "@/hooks/useTestIntegrity";
+import {
+  TURN_RESEND_DELAY_MS,
+  TurnNotSavedError,
+  assessmentRequestHeaders,
+  gradingReplyOutcome,
+  isTurnNotSaved,
+  newClientId,
+  restoreUnsentText,
+  serverConversationState,
+  storedResultKey,
+  turnsFromJson,
+  turnsToMessages,
+  unansweredCandidateTurn,
+  useAssessmentSession,
+  useServerCheck,
+  useResultKeyAtFirstLoad,
+} from "@/hooks/useAssessmentSession";
 import { useResultAtFirstLoad, useStepAdvance } from "@/hooks/useStepAdvance";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import { parseApplicationNotes } from "@/utils/applicationNotes";
@@ -36,12 +61,6 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
-}
-
-interface AntiCheatViolation {
-  type: 'tab_switch' | 'copy_attempt' | 'paste_attempt' | 'screenshot_attempt' | 'right_click';
-  timestamp: string;
-  details: string;
 }
 
 interface ApplicationDetails {
@@ -94,9 +113,10 @@ export default function ChatInterviewPhase() {
   );
   const [elapsedTime, setElapsedTime] = useState(0);
   const [questionCount, setQuestionCount] = useState(0);
-  const [isBlurred, setIsBlurred] = useState(false);
-  const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
   const [autoEndTriggered, setAutoEndTriggered] = useState(false);
+  // The rules card's "I understand" — Start stays disabled until it is ticked.
+  const [rulesAccepted, setRulesAccepted] = useState(false);
+  const [confirmEndOpen, setConfirmEndOpen] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -164,44 +184,12 @@ export default function ChatInterviewPhase() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  // Log anti-cheat violation
-  const logViolation = useCallback((type: AntiCheatViolation['type'], details: string) => {
-    if (state === "interviewing") {
-      setViolations(prev => [...prev, {
-        type,
-        timestamp: new Date().toISOString(),
-        details,
-      }]);
-    }
-  }, [state]);
-
-  // Anti-cheat: Blur content when page loses focus
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden && state === "interviewing") {
-        logViolation('tab_switch', 'User switched to another tab or window');
-      }
-      setIsBlurred(document.hidden);
-    };
-    
-    const handleBlur = () => {
-      if (state === "interviewing") {
-        logViolation('tab_switch', 'Window lost focus');
-      }
-      setIsBlurred(true);
-    };
-    const handleFocus = () => setIsBlurred(false);
-    
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("blur", handleBlur);
-    window.addEventListener("focus", handleFocus);
-    
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("blur", handleBlur);
-      window.removeEventListener("focus", handleFocus);
-    };
-  }, [state, logViolation]);
+  // Copy, paste, switching away and screenshots: the one shared hook
+  // (useTestIntegrity), live to the server while the interview runs. This
+  // page's own copy logged one switch twice (window blur AND
+  // visibilitychange) and could not say how long anyone was away — the
+  // owner's three "Window lost focus" flags on 2026-10-05 could not be judged.
+  const integrity = useTestIntegrity({ applicationId: id, stepId, active: state === "interviewing" });
 
   // Format elapsed time for display
   const getDuration = useCallback(() => {
@@ -293,8 +281,82 @@ export default function ChatInterviewPhase() {
   // every step" (or the next step's button) the moment the row says so.
   const advance = useStepAdvance({ applicationId: id, stepId, job: application?.jobs });
 
-  const streamChat = async (mode: "start" | "respond", userMessage?: string) => {
+  // Check if already submitted
+  const existingResult = (() => {
+    // If application was reconsidered (status reset to pending), allow re-submission
+    if (application?.status === "pending" && application?.phase === stepId) {
+      return null;
+    }
+    if (!application?.notes) return null;
+    try {
+      const notes = parseApplicationNotes(application.notes);
+      return notes.chatInterviewResult || null;
+    } catch {
+      return null;
+    }
+  })();
+
+  // "Already done" is decided once, from the first read after this page
+  // mounted — never from a refresh that lands after the candidate sends.
+  const resultAtFirstLoad = useResultAtFirstLoad(isFetchedAfterMount && !!application, !!existingResult);
+  // A step the server already holds has no use for a local draft (the send
+  // that stored it may have been cut off before it could clear one), and a
+  // later retake must never resume inside the old conversation.
+  useEffect(() => {
+    if (resultAtFirstLoad) clearConversationDraft();
+  }, [resultAtFirstLoad, clearConversationDraft]);
+
+  // The record the hiring team reads (docs/ASSESSMENT-RECORD.md): opened when
+  // this page loads on a step that is not done, so a reload resumes from what
+  // the server holds, with a heartbeat while the page is open.
+  // An interview the server is already checking (End was pressed here before
+  // a reload, or on another device) is waited on, never put back as a live
+  // chat the server no longer records (useServerCheck).
+  const storedInterviewResult = useMemo(
+    () => storedResultKey(parseApplicationNotes(application?.notes).chatInterviewResult),
+    [application?.notes],
+  );
+  // The baseline of a wait this page did not start with its own send (the
+  // heartbeat says End was pressed elsewhere, or a reload while it is being
+  // checked): the result as first read, never the one cached since, which
+  // the page's realtime refresh has usually already replaced by the time the
+  // heartbeat says "completed" (useResultKeyAtFirstLoad).
+  const loadResultKey = useResultKeyAtFirstLoad(isFetchedAfterMount && !!application, storedInterviewResult);
+  const [serverCheckWaiting, setServerCheckWaiting] = useState(false);
+
+  const session = useAssessmentSession({
+    applicationId: id,
+    stepId,
+    enabled: resultAtFirstLoad === false,
+    // While the server checks a send this page did not see through, the
+    // heartbeat goes on: it is how the page learns that the check failed.
+    live: state === "intro" || state === "interviewing" || serverCheckWaiting,
+    clientProgress: { screen: state === "intro" ? "intro" : "conversation" },
+  });
+
+  /**
+   * One request for the interviewer's next message, streamed in as it arrives.
+   *
+   * It carries the applicant's own JWT, the application and step, and an id
+   * per message (clientMsgId), so the server keeps every turn as it happens
+   * (docs/ASSESSMENT-RECORD.md §5.1): a closed tab no longer loses the
+   * interview, and a retried message is stored once. The full `messages`
+   * history still rides along for a server on the previous build.
+   *
+   * When the server could not store the answer (503 `turn_not_saved`) it sent
+   * no reply: the answer goes once more under the same id, and if that fails
+   * too, `giveBack` takes the bubble off and puts the text back in the reply
+   * box. An answer on screen is never one nobody will reply to.
+   */
+  const streamChat = async (
+    mode: "start" | "respond",
+    userMessage?: string,
+    clientMsgId?: string,
+    history: Message[] = messages,
+    giveBack = false,
+  ) => {
     if (!application?.jobs) return;
+    const job = application.jobs;
     
     // Show typing indicator first with a delay to feel more natural
     setIsTyping(true);
@@ -311,27 +373,45 @@ export default function ChatInterviewPhase() {
     };
     
     try {
-      const response = await fetch(CHAT_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({
-          mode,
-          jobTitle: application.jobs.title,
-          jobDescription: application.jobs.description || "",
-          jobDetails,
-          candidateName: application.profiles?.full_name || "Candidate",
-          candidateContext,
-          messages: messages.map(m => ({ role: m.role, content: m.content })),
-          userMessage,
-        }),
-      });
+      const request = async () =>
+        fetch(CHAT_URL, {
+          method: "POST",
+          headers: await assessmentRequestHeaders(),
+          body: JSON.stringify({
+            mode,
+            jobTitle: job.title,
+            jobDescription: job.description || "",
+            jobDetails,
+            candidateName: application.profiles?.full_name || "Candidate",
+            candidateContext,
+            messages: history.map(m => ({ role: m.role, content: m.content })),
+            userMessage,
+            applicationId: id,
+            stepId,
+            clientMsgId,
+            clientAt: new Date().toISOString(),
+          }),
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to get interview response");
+      let response = await request();
+      for (let resent = false; !response.ok; resent = true) {
+        const errorData = await response.json().catch(() => null);
+        if (!isTurnNotSaved(response.status, errorData)) {
+          throw new Error(errorData?.error || "Failed to get interview response");
+        }
+        if (resent) throw new TurnNotSavedError();
+        // Not stored, no reply: once more under the same id (stored once).
+        await new Promise((resolve) => setTimeout(resolve, TURN_RESEND_DELAY_MS));
+        response = await request();
+      }
+
+      // An interview the server already holds comes back as its stored turns
+      // rather than a second greeting (another tab or device started it).
+      if ((response.headers.get("content-type") || "").includes("application/json")) {
+        const turns = turnsFromJson(await response.json().catch(() => null));
+        if (!turns || turns.length === 0) throw new Error("No reply in the response");
+        restoreFromMessages(turnsToMessages(turns, { candidate: "user", other: "assistant" }, session.offsetMs) as Message[]);
+        return;
       }
 
       const reader = response.body?.getReader();
@@ -419,7 +499,14 @@ export default function ChatInterviewPhase() {
       }
 
     } catch (error) {
-      console.error("Chat interview error:", error);
+      if (error instanceof TurnNotSavedError && mode === "respond" && giveBack && clientMsgId && userMessage) {
+        // The server has not got this answer and will not reply to it: take
+        // the bubble back off and give the text back to send again.
+        setMessages((prev) => prev.filter((m) => m.id !== clientMsgId));
+        setInputValue((current) => restoreUnsentText(current, userMessage));
+        toast.error("Your answer didn't save — it's back in the box. Send it again.");
+        return;
+      }
       // Candidates get our sentence, not the edge function's raw error string.
       console.error("Chat interview message failed:", error);
       toast.error("That message didn't send — please try again.");
@@ -439,9 +526,11 @@ export default function ChatInterviewPhase() {
 
   const sendMessage = async () => {
     if (!inputValue.trim() || isTyping) return;
-    
+
+    // The message's id is also the server's key for it, so a retry is stored once.
+    const clientMsgId = newClientId();
     const userMessage: Message = {
-      id: `user-${Date.now()}`,
+      id: clientMsgId,
       role: "user",
       content: inputValue.trim(),
       timestamp: new Date(),
@@ -451,8 +540,65 @@ export default function ChatInterviewPhase() {
     const messageToSend = inputValue.trim();
     setInputValue("");
     
-    await streamChat("respond", messageToSend);
+    await streamChat("respond", messageToSend, clientMsgId, messages, true);
   };
+
+  /** Puts a saved interview back on screen with its clock and question count. */
+  const restoreFromMessages = (restored: Message[]) => {
+    setMessages(restored);
+    // The clock counts from the interviewer's first message, as it did live.
+    setStartTime(restored[0]?.timestamp ?? new Date());
+    setQuestionCount(restored.filter((m) => m.role === "assistant" && m.content.includes("?")).length);
+  };
+
+  // A reload (or another device) resumes the interview instead of showing the
+  // intro and asking for a new greeting on top of it. The server's stored
+  // turns win; without them (a server on the previous build, or the record
+  // unreachable) this device's own draft is used. A last answer nobody replied
+  // to yet (the tab closed while the reply was coming) is asked for again
+  // under its own id. An interview the server is already checking gets the
+  // waiting screen instead, and one whose check failed is sent again.
+  const resumeDecidedRef = useRef(false);
+  const [resumeDecided, setResumeDecided] = useState(false);
+  useEffect(() => {
+    if (resumeDecidedRef.current || resultAtFirstLoad !== false || !session.settled || state !== "intro") return;
+    if (!application?.jobs) return;
+    resumeDecidedRef.current = true;
+    setResumeDecided(true);
+    const turns = session.reply?.turns ?? [];
+    const restored: Message[] =
+      turns.length > 0
+        ? (turnsToMessages(turns, { candidate: "user", other: "assistant" }, session.offsetMs) as Message[])
+        : messages;
+    const where = serverConversationState(session.reply, session.serverStatus);
+    if (where === "checking" || where === "done") {
+      if (restored.length > 0) restoreFromMessages(restored);
+      waitForServerCheck(where === "done");
+      return;
+    }
+    if (restored.length === 0) return;
+    restoreFromMessages(restored);
+    setRulesAccepted(true);
+    setState("interviewing");
+    if (where === "owed") {
+      // Sent before, and its check crashed: the result is still owed.
+      setResendTriggered(true);
+      return;
+    }
+    toast.info("Picked up where you left off", { description: "Your answers are saved as you send them." });
+
+    const pending = turns.length > 0 ? unansweredCandidateTurn(turns) : null;
+    const last = restored[restored.length - 1];
+    if (pending) {
+      void streamChat("respond", pending.content, pending.client_msg_id ?? undefined, restored.slice(0, -1));
+    } else if (turns.length === 0 && last?.role === "user") {
+      // Only on this device: if the server cannot store it, it goes back in the box.
+      void streamChat("respond", last.content, last.id, restored.slice(0, -1), true);
+    }
+    // streamChat, restoreFromMessages and waitForServerCheck are plain
+    // functions reading the latest render; this runs once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resultAtFirstLoad, session.settled, session.reply, session.offsetMs, state, application?.jobs]);
 
   const endInterview = () => {
     setState("evaluating");
@@ -479,6 +625,9 @@ export default function ChatInterviewPhase() {
     if (!application) return;
 
     setIsSubmitting(true);
+    // The stored result before this send: a 409 "already being checked"
+    // waits for a result different from this one.
+    const resultBeforeSend = storedInterviewResult;
     try {
       // CRITICAL: Re-fetch fresh job data to get current processing_mode
       const { data: freshJob } = await supabase
@@ -526,17 +675,29 @@ export default function ChatInterviewPhase() {
           messages: messages.map(m => ({ role: m.role, content: m.content, timestamp: m.timestamp })),
           duration,
           questionCount,
-          violations,
+          // The old-shape list, for a server that does not read the live
+          // record yet; the record itself was sent as it happened.
+          violations: integrity.violations,
         }),
       });
 
       if (!submitResponse.ok) {
         const errBody = await submitResponse.json().catch(() => ({}));
+        const outcome = gradingReplyOutcome(submitResponse.status, errBody);
+        if (outcome === "checking" || outcome === "on_file") {
+          // We have the interview: it is being checked (another tab, a retry
+          // whose first answer was lost, the auto-end and End at once) or
+          // already on file. Wait for the result and the next step; never an
+          // error, never a second send.
+          waitForServerCheck(outcome === "on_file", resultBeforeSend);
+          return;
+        }
         throw new Error(errBody.error || "Failed to submit interview");
       }
 
       // The server holds the interview now.
       clearConversationDraft();
+      integrity.finish();
       queryClient.invalidateQueries({ queryKey: ["applications"] });
       queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
 
@@ -586,77 +747,87 @@ export default function ChatInterviewPhase() {
     }
   }, [autoEndTriggered, state]);
 
-  // Anti-cheat handlers
-  const preventCopy = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    logViolation('copy_attempt', 'User attempted to copy content');
-    toast.error("Copy is turned off here — just type your own words.");
-  };
-
-  const preventPaste = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    logViolation('paste_attempt', 'User attempted to paste content');
-    toast.error("Paste is turned off here — type your answer directly.");
-  };
-
-  const preventContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-    logViolation('right_click', 'User attempted right-click context menu');
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Block common shortcuts for copying/pasting/printing/screenshots
-    if (e.ctrlKey || e.metaKey) {
-      if (e.key.toLowerCase() === 'c') {
-        e.preventDefault();
-        logViolation('copy_attempt', 'User pressed Ctrl/Cmd+C');
-        toast.error("Copy is turned off here — just type your own words.");
-      } else if (e.key.toLowerCase() === 'v') {
-        e.preventDefault();
-        logViolation('paste_attempt', 'User pressed Ctrl/Cmd+V');
-        toast.error("Paste is turned off here — type your answer directly.");
-      } else if (['p', 's'].includes(e.key.toLowerCase())) {
-        // 'a' deliberately NOT here. Ctrl/Cmd+A is select-all: blocking it
-        // stops someone clearing their own draft to start over, which is
-        // exactly what a person writing a pitch does. It prevents no cheating
-        // — copy and paste are each already blocked on their own handlers
-        // above. Print and Save stay blocked; those copy the assessment out.
-        e.preventDefault();
-        toast.error("That shortcut is turned off here.");
-      }
-    }
-    // Block PrintScreen
-    if (e.key === 'PrintScreen') {
-      e.preventDefault();
-      logViolation('screenshot_attempt', 'User pressed PrintScreen');
-    }
-    // Note: Enter to send is handled by the Textarea's onKeyDown to avoid double-firing
-  };
-
-  // Check if already submitted
-  const existingResult = (() => {
-    // If application was reconsidered (status reset to pending), allow re-submission
-    if (application?.status === "pending" && application?.phase === stepId) {
-      return null;
-    }
-    if (!application?.notes) return null;
-    try {
-      const notes = parseApplicationNotes(application.notes);
-      return notes.chatInterviewResult || null;
-    } catch {
-      return null;
-    }
-  })();
-
-  // "Already done" is decided once, from the first read after this page
-  // mounted — never from a refresh that lands after the candidate sends.
-  const resultAtFirstLoad = useResultAtFirstLoad(isFetchedAfterMount && !!application, !!existingResult);
-  // A step the server already holds has no use for a local draft (the send
-  // that stored it may have been cut off before it could clear one), and a
-  // later retake must never resume inside the old conversation.
+  // A send whose check crashed is sent again — once per visit; after that the
+  // End button is there as usual.
+  const [resendTriggered, setResendTriggered] = useState(false);
+  const resentRef = useRef(false);
   useEffect(() => {
-    if (resultAtFirstLoad) clearConversationDraft();
-  }, [resultAtFirstLoad, clearConversationDraft]);
+    if (!resendTriggered) return;
+    setResendTriggered(false);
+    if (resentRef.current) {
+      setState("interviewing");
+      return;
+    }
+    resentRef.current = true;
+    setState("evaluating");
+    void submitInterviewRef.current("manual");
+  }, [resendTriggered]);
+
+  /** The server has the result of a send this page did not see through. */
+  const finishCheckedSend = async () => {
+    setServerCheckWaiting(false);
+    clearConversationDraft();
+    integrity.finish();
+    queryClient.invalidateQueries({ queryKey: ["applications"] });
+    queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
+    if (application?.jobs?.processing_mode === "auto") {
+      advance.markSaved();
+      const reply = await invokeTriggerAvaAnalysis({
+        applicationId: id!,
+        autopilotDecision: true,
+        currentPhaseId: stepId,
+      });
+      advance.settle(reply);
+    } else {
+      invokeTriggerAvaAnalysis({ applicationId: id! }).catch((err) =>
+        console.error("[ChatInterviewPhase] AVA analysis trigger failed:", err),
+      );
+      setState("completed");
+    }
+  };
+  const finishCheckedSendRef = useRef(finishCheckedSend);
+  finishCheckedSendRef.current = finishCheckedSend;
+
+  const serverCheck = useServerCheck({
+    storedResultKey: storedInterviewResult,
+    serverStatus: session.serverStatus,
+    loadResultKey,
+    onLanded: () => void finishCheckedSendRef.current(),
+    onOwed: () => {
+      setServerCheckWaiting(false);
+      setResendTriggered(true);
+    },
+    onStale: () => queryClient.invalidateQueries({ queryKey: ["chat-interview-application", id] }),
+  });
+
+  /** The waiting screen for a send the server is checking (or has on file).
+   *  `baselineKey`: the stored result before this page's own send (a 409). */
+  const waitForServerCheck = (alreadyOnFile = false, baselineKey?: string | null) => {
+    setState("evaluating");
+    if (application?.jobs?.processing_mode === "auto") {
+      advance.begin();
+      // The server holds the interview: the usual one-minute hand-over to the
+      // live card applies if the check runs long.
+      advance.markSaved();
+    }
+    if (alreadyOnFile) {
+      void finishCheckedSendRef.current();
+      return;
+    }
+    setServerCheckWaiting(true);
+    serverCheck.begin(baselineKey);
+  };
+
+  // The heartbeat says the server is checking this interview while it is still
+  // on screen here: End was pressed on another device.
+  useEffect(() => {
+    if (state !== "interviewing" && state !== "intro") return;
+    if (!resumeDecidedRef.current || isSubmitting || serverCheck.waiting) return;
+    if (serverConversationState(null, session.serverStatus) !== "checking") return;
+    waitForServerCheck();
+    // waitForServerCheck reads the latest render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.serverStatus, state, isSubmitting, serverCheck.waiting]);
 
   if (authLoading || isLoading) {
     return (
@@ -725,24 +896,23 @@ export default function ChatInterviewPhase() {
   const canEndInterview = questionCount >= minQuestions || candidateResponseCount >= minQuestions;
 
   return (
-    <div
-      className="ck-page relative mx-auto max-w-3xl space-y-6"
-      onCopy={preventCopy}
-      onPaste={preventPaste}
-      onCut={preventCopy}
-      onContextMenu={preventContextMenu}
-      onKeyDown={handleKeyDown}
-    >
-      {/* Blur overlay when page loses focus — a quiet pause, not an alarm */}
-      {isBlurred && state === "interviewing" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xl">
-          <div className="p-8 text-center">
-            <MessageSquare className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-            <h2 className="font-display mb-2 text-xl text-foreground">Interview paused</h2>
-            <p className="text-muted-foreground">Click anywhere to pick back up</p>
-          </div>
-        </div>
-      )}
+    <div className="ck-page relative mx-auto max-w-3xl space-y-6">
+      {/* A quiet pause while focus is in another window, not an alarm */}
+      <TestPausedOverlay
+        show={integrity.away && state === "interviewing"}
+        title="Interview paused"
+        body="Click anywhere to pick back up. Leaving the interview is recorded."
+      />
+
+      <EndEarlyDialog
+        open={confirmEndOpen}
+        onOpenChange={setConfirmEndOpen}
+        what="interview"
+        answered={candidateResponseCount}
+        usual={minQuestions}
+        unit="answers"
+        onConfirm={endInterview}
+      />
 
       {/* Journey header — where am I, what's happening now, what's next */}
       <header className="ck-reveal space-y-4">
@@ -779,9 +949,13 @@ export default function ChatInterviewPhase() {
           <p className="text-sm text-muted-foreground">
             {state === "intro"
               ? "Take your time — you can't break anything. About 10–15 minutes."
-              : "Answer naturally, the way you would in person — there's no rush."}
+              : state === "interviewing"
+                ? "Answer naturally, the way you would in person — there's no rush."
+                : "Your answers are saved."}
           </p>
         </div>
+
+        {state === "interviewing" && <TestRulesReminder recorded={integrity.flagged} />}
       </header>
 
       {/* Main Card */}
@@ -790,7 +964,7 @@ export default function ChatInterviewPhase() {
           {state === "intro" && (
             <div className="ck-reveal space-y-8">
               <div className="space-y-4 rounded-xl bg-muted/30 p-6">
-                <h3 className="font-display text-lg text-foreground">Before you start</h3>
+                <h3 className="font-display text-lg text-foreground">How this works</h3>
                 <ul className="space-y-3 text-sm text-muted-foreground">
                   <li className="flex items-start gap-3">
                     <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
@@ -804,24 +978,42 @@ export default function ChatInterviewPhase() {
                     <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     <span>You'll get a chance to wrap up and ask anything before it ends</span>
                   </li>
+                  <li className="flex items-start gap-3">
+                    <Send className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <span>Every answer is saved as you send it, and you can end the interview whenever you need to</span>
+                  </li>
                 </ul>
-                <TestRulesNotice />
               </div>
 
-              <Button onClick={startInterview} size="lg" className="w-full gap-2 sm:w-auto">
-                <MessageSquare className="h-5 w-5" />
-                Start the interview
-              </Button>
+              <TestRulesCard accepted={rulesAccepted} onAcceptedChange={setRulesAccepted} />
+
+              <div className="space-y-2">
+                <Button
+                  onClick={startInterview}
+                  disabled={!rulesAccepted || !resumeDecided}
+                  size="lg"
+                  className="w-full gap-2 sm:w-auto"
+                >
+                  {resumeDecided ? <MessageSquare className="h-5 w-5" /> : <Loader2 className="h-5 w-5 animate-spin" />}
+                  {resumeDecided ? "Start the interview" : "Getting your interview ready…"}
+                </Button>
+                {!rulesAccepted && (
+                  <p className="text-xs text-muted-foreground">Tick the box above to start.</p>
+                )}
+              </div>
             </div>
           )}
 
           {(state === "interviewing" || state === "evaluating" || state === "completed") && (
             <>
-              {/* Interview Info - Duration Only */}
-              <div className="flex items-center justify-center gap-2 rounded-lg bg-muted/30 p-3">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <span className="ck-num text-sm font-medium text-foreground">{getDuration()}</span>
-              </div>
+              {/* Interview Info - Duration Only (not for an interview this
+                  visit only watched being checked: it never ran here) */}
+              {!serverCheckWaiting && (
+                <div className="flex items-center justify-center gap-2 rounded-lg bg-muted/30 p-3">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <span className="ck-num text-sm font-medium text-foreground">{getDuration()}</span>
+                </div>
+              )}
 
               {/* Chat Area */}
               <ScrollArea
@@ -890,7 +1082,6 @@ export default function ChatInterviewPhase() {
                     ref={inputRef}
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
-                    onPaste={preventPaste}
                     placeholder="Type your answer..."
                     disabled={isTyping}
                     rows={3}
@@ -914,12 +1105,14 @@ export default function ChatInterviewPhase() {
                 </div>
               )}
 
-              {/* End Interview — quiet, never competing with the send action */}
-              {state === "interviewing" && canEndInterview && (
+              {/* End Interview — quiet, never competing with the send action.
+                  From the first answer on; before the usual five it asks first
+                  ("End now — we'll send what you have"). */}
+              {state === "interviewing" && candidateResponseCount > 0 && (
                 <div className="text-center pt-2">
                   <Button
                     variant="ghost"
-                    onClick={endInterview}
+                    onClick={() => (canEndInterview ? endInterview() : setConfirmEndOpen(true))}
                     disabled={isTyping}
                     className="text-muted-foreground"
                   >
@@ -935,8 +1128,14 @@ export default function ChatInterviewPhase() {
                   <span className="ck-seal-breathe">
                     <AvaSeal size={32} />
                   </span>
-                  <p className="font-display text-lg text-foreground">Sending your interview</p>
-                  <p className="text-sm text-muted-foreground">Keep this page open for a moment.</p>
+                  <p className="font-display text-lg text-foreground">
+                    {serverCheckWaiting ? "We have your interview" : "Sending your interview"}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {serverCheckWaiting
+                      ? "It's being checked now. This page moves on by itself when it's done."
+                      : "Keep this page open for a moment."}
+                  </p>
                 </div>
               )}
 

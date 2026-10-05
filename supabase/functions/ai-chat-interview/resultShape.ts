@@ -114,3 +114,12 @@ export function buildPhaseAiAnalysis(path: ChatInterviewSubmitPath, evaluation: 
   }
   return `Interview: ${evaluation?.recommendation} (${evaluation?.score}%). ${evaluation?.summary}`;
 }
+
+/**
+ * How many times the candidate answered: their own non-empty messages. The
+ * interview can be ended at any time once this is at least 1 (there is
+ * nothing to grade before that).
+ */
+export function candidateAnswerCount(messages: ReadonlyArray<{ role: string; content: string }>): number {
+  return messages.filter((m) => m.role === "user" && typeof m.content === "string" && m.content.trim().length > 0).length;
+}

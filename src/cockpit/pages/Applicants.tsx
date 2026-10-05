@@ -53,17 +53,20 @@ import {
 import type { Candidate, CandidateStage } from "../data";
 import { candidateOrigin } from "@/lib/hosts";
 import { ShareJobCompact } from "../components/ShareJobCard";
-import { AssessmentRecordList } from "../components/AssessmentRecordList";
+import { AssessmentRecordList, LiveDot } from "../components/AssessmentRecordList";
 import { AssessmentRecordSheet } from "../components/AssessmentRecordSheet";
+import { useApplicationSessions, useNow, useOpenSessions } from "../hooks/useAssessmentSessions";
 import {
   applicantBucket,
   applicantTab,
   applicantTabParam,
   buildAssessmentRecord,
+  liveTone,
   weighedPhrase,
   type ApplicantBucket,
   type AssessmentEntry,
   type AssessmentRecord,
+  type LiveStatus,
 } from "../lib/assessmentRecord";
 
 /**
@@ -238,6 +241,11 @@ function bucketOf(c: Candidate): Bucket {
   return applicantBucket(c);
 }
 
+/** The phone's "in a test now" strip: this many people, then a count. */
+const LIVE_STRIP_ROWS = 3;
+/** Someone who left a test stays on that strip for a day. */
+const LIVE_STRIP_LEFT_WITHIN_MS = 24 * 60 * 60 * 1000;
+
 function lowerFirst(s: string): string {
   return s.charAt(0).toLowerCase() + s.slice(1);
 }
@@ -262,11 +270,14 @@ function PersonRow({
   index,
   selected,
   onSelect,
+  live,
 }: {
   candidate: Candidate;
   index: number;
   selected: boolean;
   onSelect: () => void;
+  /** Where they are in a test right now (the server's record), if anywhere. */
+  live?: LiveStatus | null;
 }) {
   const analyzed = isAnalyzed(candidate);
   // Ava's own decline recommendation, not the score, decides whether this row
@@ -276,7 +287,11 @@ function PersonRow({
   // Someone on the application form has sent nothing yet: say that, and when
   // they started, rather than "Applied" or a screening line.
   const filling = !!candidate.fillingInForm;
-  const why = filling
+  // Part-way through a test right now: that is the line ("Answering question
+  // 3 of 10 · active 1 min ago", "Left at question 3 · last active 25 min ago").
+  const why = live
+    ? live.summary
+    : filling
     ? `Filling in the form · ${lowerFirst(candidate.appliedAgo)}`
     : needsReview
       ? clip(candidate.hardRejectReason ? `Needs review — ${candidate.hardRejectReason}` : "Needs review", 64)
@@ -326,8 +341,15 @@ function PersonRow({
         )}
         {/* On the form right now — a live dot where the seal will land, the
             one cue that survives on a phone, where the line below is hidden. */}
-        {filling && (
+        {filling && (!live || live.state === "doing") && (
           <span aria-hidden className="ck-dot ck-dot-live absolute -bottom-[1px] -right-[1px] border-2" style={{ borderColor: "var(--surface)", width: 11, height: 11 }} />
+        )}
+        {/* Taking a test now (green), or gone from it (amber) — top-left,
+            clear of the seal and the review cue. */}
+        {live && !(filling && live.state === "doing") && (
+          <span aria-hidden className="absolute -left-[2px] -top-[2px] flex rounded-full p-[2px]" style={{ background: "var(--surface)" }}>
+            <LiveDot state={live.state} />
+          </span>
         )}
       </span>
 
@@ -336,11 +358,16 @@ function PersonRow({
           {candidate.name}
         </span>
         {needsReview && <span className="sr-only">Needs review</span>}
-        {filling && <span className="sr-only">Filling in the form</span>}
+        {filling && !live && <span className="sr-only">Filling in the form</span>}
+        {live && <span className="sr-only">{live.summary}</span>}
         {why && (
           <span
-            className="mt-[2px] hidden truncate text-[11px] min-[1160px]:block"
-            style={{ color: needsReview ? "var(--amber-fg)" : "var(--ink-3)" }}
+            aria-hidden={live ? true : undefined}
+            // A live line ends in its time ("· last active 25 min ago"): it
+            // wraps in full rather than losing that end (a clamp would need
+            // display:-webkit-box, which the block display here overrides).
+            className={`mt-[2px] hidden text-[11px] min-[1160px]:block ${live ? "leading-[1.35]" : "truncate"}`}
+            style={{ color: live ? liveTone(live.state) : needsReview ? "var(--amber-fg)" : "var(--ink-3)" }}
           >
             {why}
           </span>
@@ -369,6 +396,8 @@ function AvasRead({ candidate, app, record }: { candidate: Candidate; app?: AppR
   const recording = app?.voice_interview_recording_url ?? null;
   const prose = avaProse(candidate.readFull) || candidate.read;
   const [allFlags, setAllFlags] = useState(false);
+  // The form saves as they type (wave 2): what they have written is already readable.
+  const draftSaved = record?.entries.some((e) => e.kind === "application" && e.detail?.kind === "application" && !!e.detail.draft) ?? false;
 
   // Say what she actually weighed — everything this person has finished, read
   // off the same record the list below shows. Showcase rows carry no record;
@@ -444,8 +473,9 @@ function AvasRead({ candidate, app, record }: { candidate: Candidate; app?: AppR
 
       {candidate.fillingInForm ? (
         <p className="mt-3.5 text-[13px] leading-[1.6]" style={{ color: "var(--ink-2)" }}>
-          {firstName(candidate.name)} is filling in the application form right now. Nothing is sent until
-          they submit it — the moment they do, I read it, and their answers land here.
+          {draftSaved
+            ? `${firstName(candidate.name)} is filling in the application form right now. Their answers save as they type — open the Application row to read them so far. The moment they send it, I read it.`
+            : `${firstName(candidate.name)} is filling in the application form right now. Nothing is sent until they submit it — the moment they do, I read it, and their answers land here.`}
         </p>
       ) : !analyzed ? (
         <p className="mt-3.5 text-[13px] leading-[1.6]" style={{ color: "var(--ink-2)" }}>
@@ -729,6 +759,8 @@ function JourneyStrip({ candidate, app, record }: { candidate: Candidate; app?: 
     if (state === "upcoming") return null;
     const entry = entryFor(step.id);
     if (entry?.status === "done" && entry.receipt) return entry.receipt;
+    // Being taken now: where they are in it ("Question 3 of 10", "Left").
+    if (entry?.status === "in_progress" && entry.receipt) return entry.receipt;
     if (entry?.status === "in_progress" && candidate.fillingInForm) return "Filling in";
     // Showcase rows carry no record; their quiz figure is on the candidate.
     if (step.type === "quiz" && candidate.quiz != null) return `${candidate.quiz}%`;
@@ -737,11 +769,23 @@ function JourneyStrip({ candidate, app, record }: { candidate: Candidate; app?: 
 
   const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
   const phrase = (step: CandidateJourneyStep) => (step.id === DECISION_STAGE_ID ? "your decision" : `the ${lower(step.title)}`);
+  const live = record?.live && !decided ? record.live : null;
   const summary =
     decided && outcome
       ? `Completed every phase · decision: ${outcome}`
-      : candidate.fillingInForm
+      : live && live.stepType === "application"
+        ? live.text
+        : candidate.fillingInForm
         ? `Filling in the application form · ${lowerFirst(candidate.appliedAgo)}`
+        : live
+          ? (() => {
+              const at = steps.findIndex((s) => s.id === live.stepId);
+              const prev = at > 0 ? steps[at - 1] : null;
+              // Say where they are in it, naming the test for a chat step
+              // ("written interview: in the conversation · 3 replies"), so it
+              // never reads as the step just completed.
+              return prev && prev.type !== "application" ? `Completed the ${lower(prev.title)} · ${lowerFirst(live.summary)}` : live.summary;
+            })()
         : (() => {
           // At index 0 they're sitting on the Application stage itself — the
           // very existence of this application record means they already did
@@ -829,6 +873,8 @@ export default function CockpitApplicants() {
   // The test whose full record is open, by its key in the selected person's
   // record — looked up fresh each render, so a live update reaches the sheet.
   const [recordOpen, setRecordOpen] = useState<{ candidateId: string; key: string } | null>(null);
+  // The live lines ("active 1 min ago") age on their own: re-read the clock.
+  const now = useNow(30_000);
 
   // Map application id → the live record (candidate.id === application.id in
   // both schema modes), so the read can quote the transcript it came from.
@@ -855,6 +901,25 @@ export default function CockpitApplicants() {
       ((a as { role_id?: string | null }).role_id ?? (a as { job_id?: string | null }).job_id) ?? null,
     [],
   );
+
+  // Everyone part-way through a test, from the server's record of each
+  // attempt (kept live by useEmployerLiveSync): "Answering question 3 of 10 ·
+  // active 1 min ago", "Left at question 3 · last active 25 min ago".
+  const listJobIds = useMemo(
+    () => [...new Set(applications.map((a) => (a as { job_id?: string | null }).job_id).filter((x): x is string => !!x))],
+    [applications],
+  );
+  const openSessions = useOpenSessions(listJobIds);
+  const liveById = useMemo(() => {
+    const map = new Map<string, LiveStatus>();
+    for (const [appId, sessions] of openSessions.byApplication) {
+      const app = appById[appId];
+      if (!app) continue;
+      const live = buildAssessmentRecord(app, { sessions, now }).live;
+      if (live) map.set(appId, live);
+    }
+    return map;
+  }, [openSessions.byApplication, appById, now]);
 
   // Role-scoped set — the job's own totals, never touched by search or filters.
   const roleScoped = useMemo(() => {
@@ -980,7 +1045,31 @@ export default function CockpitApplicants() {
   // What they submitted, test by test — the list, the rail's receipts and
   // Ava's "weighed" line all read this one record.
   const selectedApp = selected ? appById[selected.id] : undefined;
-  const selectedRecord = useMemo(() => (selectedApp ? buildAssessmentRecord(selectedApp) : null), [selectedApp]);
+  // Every attempt on file for the person on screen (finished ones included),
+  // so a finished test opens with what the server kept and a test being taken
+  // opens on what is there so far.
+  const { data: selectedSessions } = useApplicationSessions(selected?.id ?? null);
+  const selectedRecord = useMemo(
+    () => (selectedApp ? buildAssessmentRecord(selectedApp, { sessions: selectedSessions, now }) : null),
+    [selectedApp, selectedSessions, now],
+  );
+  const selectedLive = selectedRecord?.live ?? (selected ? liveById.get(selected.id) ?? null : null);
+
+  // On a phone the person chips have no room for their line, so everyone in
+  // this list who is in a test right now — or left one in the last day — is
+  // named above them, most recent first, one tap from their panel.
+  const liveInList = useMemo(() => {
+    const out: Array<{ candidate: Candidate; live: LiveStatus }> = [];
+    for (const c of listCandidates) {
+      const live = selected?.id === c.id ? selectedLive : liveById.get(c.id) ?? null;
+      if (!live || live.state === "finished") continue;
+      const last = live.lastActivityAt ? Date.parse(live.lastActivityAt) : NaN;
+      if (live.state === "left" && !(now - last < LIVE_STRIP_LEFT_WITHIN_MS)) continue;
+      out.push({ candidate: c, live });
+    }
+    const at = (x: { live: LiveStatus }) => (x.live.lastActivityAt ? Date.parse(x.live.lastActivityAt) || 0 : 0);
+    return out.sort((a, b) => at(b) - at(a));
+  }, [listCandidates, selected?.id, selectedLive, liveById, now]);
   const openEntry =
     recordOpen && selected && recordOpen.candidateId === selected.id
       ? selectedRecord?.entries.find((e) => e.key === recordOpen.key) ?? null
@@ -1336,8 +1425,13 @@ export default function CockpitApplicants() {
                 {applyingNow.length === 1 ? (
                   <>
                     <span style={{ color: "var(--ink)", fontWeight: 600 }}>{applyingNow[0].name}</span>
-                    {" is filling in the form · "}
-                    {applyingNow[0].appliedAgo.charAt(0).toLowerCase() + applyingNow[0].appliedAgo.slice(1)}
+                    {(() => {
+                      // "6 of 11 answered" once the form saves as they type.
+                      const live = liveById.get(applyingNow[0].id);
+                      return live && live.stepType === "application"
+                        ? ` · ${lowerFirst(live.text)}`
+                        : ` is filling in the form · ${applyingNow[0].appliedAgo.charAt(0).toLowerCase() + applyingNow[0].appliedAgo.slice(1)}`;
+                    })()}
                   </>
                 ) : (
                   `${applyingNow.length} people are filling in the form`
@@ -1347,6 +1441,32 @@ export default function CockpitApplicants() {
                 See
               </span>
             </button>
+          )}
+
+          {liveInList.length > 0 && (
+            <div data-ck-live-strip className="-mt-1 mb-2.5 flex flex-col min-[1160px]:hidden" aria-label="In a test now">
+              {liveInList.slice(0, LIVE_STRIP_ROWS).map(({ candidate, live }) => (
+                <button
+                  key={candidate.id}
+                  type="button"
+                  onClick={() => setSelectedId(candidate.id)}
+                  className="flex min-h-[32px] w-full items-start gap-2 py-1 text-left text-[12px] leading-[1.45]"
+                  style={{ color: "var(--ink-2)" }}
+                >
+                  <LiveDot state={live.state} className="mt-[5px]" />
+                  {/* Wraps rather than cutting the time off. */}
+                  <span className="min-w-0 flex-1 line-clamp-2">
+                    <span style={{ color: "var(--ink)", fontWeight: 600 }}>{candidate.name}</span>
+                    <span style={live.state === "doing" ? undefined : { color: liveTone(live.state) }}> · {lowerFirst(live.summary)}</span>
+                  </span>
+                </button>
+              ))}
+              {liveInList.length > LIVE_STRIP_ROWS && (
+                <span className="pl-[18px] text-[11.5px]" style={{ color: "var(--ink-3)" }}>
+                  and {liveInList.length - LIVE_STRIP_ROWS} more in a test
+                </span>
+              )}
+            </div>
           )}
 
           <div id="ck-applicant-list" role="tabpanel">
@@ -1366,6 +1486,7 @@ export default function CockpitApplicants() {
                     index={i}
                     selected={selected?.id === c.id}
                     onSelect={() => setSelectedId(c.id)}
+                    live={selected?.id === c.id ? selectedLive : liveById.get(c.id) ?? null}
                   />
                 ))}
               </div>
@@ -1443,14 +1564,27 @@ export default function CockpitApplicants() {
                       </span>
                     </div>
                   )}
-                  {/* Pressed Apply, still on the form — live, not "applied". */}
-                  {selected.fillingInForm && selected.stage !== "Rejected" && (
-                    <div className="mt-1.5">
-                      <span className="ck-pill ck-pill-stage-neutral">
-                        <span className="ck-dot ck-dot-live" aria-hidden />
-                        Filling in the form
-                      </span>
+                  {/* Part-way through a test right now (or gone from it) — the
+                      server's record of the attempt, in the owner's words. */}
+                  {selectedLive && selected.stage !== "Rejected" && selected.stage !== "Hired" ? (
+                    <div
+                      className="mt-1.5 flex max-w-[460px] items-start gap-1.5 text-[12px] font-semibold leading-[1.4]"
+                      style={{ color: selectedLive.state === "doing" ? "var(--ink-2)" : liveTone(selectedLive.state) }}
+                    >
+                      <LiveDot state={selectedLive.state} className="mt-[4.5px]" />
+                      <span>{selectedLive.summary}</span>
                     </div>
+                  ) : (
+                    /* Pressed Apply, still on the form — live, not "applied". */
+                    selected.fillingInForm &&
+                    selected.stage !== "Rejected" && (
+                      <div className="mt-1.5">
+                        <span className="ck-pill ck-pill-stage-neutral">
+                          <span className="ck-dot ck-dot-live" aria-hidden />
+                          Filling in the form
+                        </span>
+                      </div>
+                    )
                   )}
                 </div>
 
@@ -1750,6 +1884,7 @@ export default function CockpitApplicants() {
         open={!!openEntry}
         entry={openEntry}
         candidateName={selected?.name ?? ""}
+        applicationId={selected?.id ?? null}
         jobId={selectedRecord?.jobId ?? null}
         onClose={() => setRecordOpen(null)}
         onOpenResume={() => {

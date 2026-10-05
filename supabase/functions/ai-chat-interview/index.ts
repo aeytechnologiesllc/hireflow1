@@ -6,8 +6,50 @@ import { streamOpenAIChatCompletion } from "../_shared/openaiStreaming.ts";
 import { guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { recordStepResult, type MinimalSupabaseAdmin } from "../_shared/trustedResults.ts";
 import {
+  askForOpener,
+  awaitInFlightReply,
+  chooseIntegrity,
+  chooseTranscript,
+  cleanClientAt,
+  cleanClientMsgId,
+  failSession,
+  finishGrading,
+  forIdOfReply,
+  gateGrading,
+  gradingRecord,
+  interviewEndReason,
+  interviewQuestionCount,
+  loadIntegrityEvents,
+  loadTurns,
+  markReplyAsked,
+  markReplyFailed,
+  OPENER_ID,
+  readStepOnFile,
+  recordCandidateTurn,
+  recordingTargetFrom,
+  releaseGrading,
+  replayTextFor,
+  replyMsgId,
+  resolveSession,
+  resumePayload,
+  serverMsgId,
+  settleTrailingReply,
+  sseReplayText,
+  storeSubmittedTranscript,
+  teeAndRecordReply,
+  turnsToTranscript,
+  unstoredTail,
+  updateContext,
+  withLeadingSse,
+  type AssessmentAdmin,
+  type SessionRow,
+  type StoredTurn,
+} from "../_shared/assessmentSession.ts";
+import { scheduleStepMoveOn } from "../_shared/stepMoveOn.ts";
+import {
   buildChatInterviewResult,
   buildPhaseAiAnalysis,
+  candidateAnswerCount,
   type AntiCheatViolationForNotes,
   type ChatInterviewSubmitPath,
   type EvaluationResult,
@@ -22,6 +64,8 @@ const corsHeaders = {
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const OPENAI_CHAT_INTERVIEW_MODEL = Deno.env.get("OPENAI_CHAT_INTERVIEW_MODEL") || "gpt-5.6-luna";
 const OPENAI_CHAT_INTERVIEW_EVAL_MODEL = Deno.env.get("OPENAI_CHAT_INTERVIEW_EVAL_MODEL") || "gpt-5.6-luna";
+/** Named in session.grading.prompt_version; bump when the evaluation prompt changes. */
+const EVAL_PROMPT_VERSION = "chat-interview-eval-1";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -45,7 +89,8 @@ interface CandidateContext {
 }
 
 interface ChatInterviewRequest {
-  mode: "start" | "respond" | "evaluate" | "submit";
+  /** There is no "evaluate" mode any more (see the check in the handler). */
+  mode: "start" | "respond" | "submit";
   jobTitle: string;
   jobDescription: string;
   jobDetails?: {
@@ -63,13 +108,49 @@ interface ChatInterviewRequest {
   // mode "submit" only — the trusted, server-side finalize. See
   // docs/TRUSTED-RESULTS.md. The caller must be the candidate on
   // `applicationId`, authenticated via a real user JWT (never the anon/
-  // publishable key start/respond/evaluate use).
+  // publishable key start/respond accept).
   applicationId?: string;
   stepId?: string;
   path?: ChatInterviewSubmitPath;
   duration?: string | number;
   questionCount?: number;
   violations?: AntiCheatViolationForNotes[];
+  // Since 2026-10-06, "start"/"respond" from a page that records the test
+  // (docs/ASSESSMENT-RECORD.md §5.1) also carry applicationId + stepId and
+  // the candidate's own session JWT; every message is then stored as it is
+  // sent and the history is rebuilt from the stored turns. A page on the
+  // previous build sends neither on a turn and is served exactly as before.
+  /** "respond": the page's own id for the candidate's message (idempotency key). */
+  clientMsgId?: string;
+  /** "respond": when the page sent it. */
+  clientAt?: string;
+}
+
+/** The caller's user id from their own session JWT (never a body field). */
+async function resolveCallerId(req: Request): Promise<string | null> {
+  const authHeader = req.headers.get("Authorization");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const url = Deno.env.get("SUPABASE_URL");
+  if (!authHeader || !anonKey || !url) return null;
+  try {
+    const supabaseUser = createClient(url, anonKey, { global: { headers: { Authorization: authHeader } } });
+    const { data: { user } } = await supabaseUser.auth.getUser();
+    return user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** The service-role client the assessment record is written with. */
+function recordClient(): AssessmentAdmin | null {
+  const url = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !serviceKey) return null;
+  return createClient(url, serviceKey) as unknown as AssessmentAdmin;
+}
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
 
 /**
@@ -123,6 +204,10 @@ serve(async (req) => {
   const limited = await guardPublicAiCall(req, "ai-chat-interview", corsHeaders, 60, 3600);
   if (limited) return limited;
 
+  // An attempt this request claimed for grading: if anything below throws,
+  // it is marked failed (the result is still owed), not left "grading".
+  let heldClaim: { admin: AssessmentAdmin; sessionId: string } | null = null;
+
   try {
     const request: ChatInterviewRequest = await req.json();
     const {
@@ -130,8 +215,8 @@ serve(async (req) => {
       jobTitle,
       jobDescription,
       jobDetails,
-      candidateName,
-      candidateContext,
+      candidateName: requestCandidateName,
+      candidateContext: requestCandidateContext,
       messages = [],
       userMessage,
       applicationId,
@@ -142,7 +227,18 @@ serve(async (req) => {
       violations = [],
     } = request;
 
-    console.log("Chat interview request:", { mode, jobTitle, candidateName, messageCount: messages.length, hasContext: !!candidateContext });
+    console.log("Chat interview request:", { mode, jobTitle, candidateName: requestCandidateName, messageCount: messages.length, hasContext: !!requestCandidateContext });
+
+    // The old "evaluate" mode is gone. No page has called it since the
+    // trusted "submit" replaced it, and it ran the employer-facing grader
+    // (score, recommendation, credibility rating, inconsistencies, summary)
+    // on whatever transcript and candidate context anyone posted, with no
+    // sign-in: an applicant could rehearse answers against the real grader.
+    // Grading happens only inside "submit", for the signed-in candidate's
+    // own application, and its full output stays in session.grading.
+    if (mode !== "start" && mode !== "respond" && mode !== "submit") {
+      return json({ error: "Unknown mode", code: "unknown_mode" }, 400);
+    }
 
     if (!OPENAI_API_KEY) {
       console.error("OPENAI_API_KEY is not configured");
@@ -198,6 +294,168 @@ serve(async (req) => {
       }
       submitCallerUserId = user.id;
       supabaseAdmin = createClient(supabaseUrl, serviceKey);
+    }
+
+    // What the prompt is built from. Without a record these are the
+    // request's own values, exactly as before; with one, the conversation
+    // and the candidate context come from the record.
+    let candidateContext = requestCandidateContext;
+    let candidateName = requestCandidateName;
+    let conversation: ChatMessage[] = messages;
+    let liveUserMessage = userMessage;
+
+    // start / respond: the turn record (docs/ASSESSMENT-RECORD.md §5.1).
+    const target = mode === "start" || mode === "respond" ? recordingTargetFrom(request) : null;
+    let recording: { admin: AssessmentAdmin; session: SessionRow } | null = null;
+    let notRecorded: string | null = null;
+    let replyId: string | null = null;
+    if (target) {
+      const userId = await resolveCallerId(req);
+      const admin = userId ? recordClient() : null;
+      if (!userId) notRecorded = "not_signed_in";
+      else if (!admin) notRecorded = "error";
+      else {
+        const resolved = await resolveSession(admin, { ...target, userId, stepType: "chat_interview", purpose: "turns" });
+        if (resolved.ok) recording = { admin, session: resolved.session };
+        else notRecorded = resolved.reason;
+      }
+      if (notRecorded) console.log("[ai-chat-interview] turn not recorded:", notRecorded);
+    }
+    if (recording) {
+      const { admin, session } = recording;
+      // The candidate context the interview started with is pinned on the
+      // attempt, so every later question and the grading read the same one.
+      if (session.context.candidate_context === undefined && requestCandidateContext) {
+        await updateContext(admin, session, {
+          candidate_context: requestCandidateContext,
+          candidate_name: requestCandidateName ?? null,
+        });
+      }
+      if (session.context.candidate_context !== undefined) {
+        candidateContext = (session.context.candidate_context ?? undefined) as CandidateContext | undefined;
+        if (typeof session.context.candidate_name === "string") candidateName = session.context.candidate_name;
+      }
+
+      if (mode === "start") {
+        // A reload: the interview is already on file. Hand it back rather than
+        // asking for a second greeting.
+        const turns = await loadTurns(admin, session.id);
+        if (turns && turns.length > 0) return json(resumePayload(session, turns));
+        // Another start already asked for the greeting (a reload or a second
+        // tab while it streamed): wait for THAT greeting instead of a second one.
+        if (!(await askForOpener(admin, session.id)).first) {
+          const waited = await awaitInFlightReply(admin, session.id, OPENER_ID);
+          if (waited.action === "replay") {
+            const now = await loadTurns(admin, session.id);
+            return json(resumePayload(session, now && now.length > 0 ? now : [waited.reply]));
+          }
+          await markReplyAsked(admin, session.id, OPENER_ID);
+        }
+        conversation = [];
+        replyId = OPENER_ID;
+      } else if (typeof userMessage === "string" && userMessage.trim()) {
+        const clientMsgId = cleanClientMsgId(request.clientMsgId) ?? serverMsgId();
+        const turn = await recordCandidateTurn(admin, session.id, {
+          content: userMessage,
+          clientMsgId,
+          clientAt: cleanClientAt(request.clientAt),
+          role: "candidate",
+        });
+        if (!turn.ok && turn.reason === "turn_not_saved") {
+          // Every answer is kept as it is sent: one that could not be stored
+          // (after three tries) is sent again by the page, never carried on
+          // without the record.
+          return json({ error: "Your answer did not save. Please send it again.", code: "turn_not_saved", retryable: true }, 503);
+        }
+        let stored: StoredTurn | null = turn.ok ? turn.existingReply : null;
+        if (turn.ok && !stored && turn.repeat) {
+          // Sent again while its first reply may still be streaming: wait for
+          // that reply, so the candidate sees the one the record keeps.
+          const waited = await awaitInFlightReply(admin, session.id, clientMsgId);
+          if (waited.action === "replay") stored = waited.reply;
+          else await markReplyAsked(admin, session.id, clientMsgId);
+        }
+        if (!turn.ok) {
+          notRecorded = turn.reason;
+          recording = null;
+        } else if (stored) {
+          // Its reply is stored: play it back (no second model call, no second reply).
+          return new Response(
+            withLeadingSse(sseReplayText(replayTextFor(stored)), {
+              assessment: { recorded: true, session_id: session.id, attempt: session.attempt, replayed: true },
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "text/event-stream" } },
+          );
+        } else {
+          // The model's history is the STORED interview, never the request's
+          // (the request's only if the record cannot be read back).
+          if (turn.history) {
+            conversation = turnsToTranscript(turn.history).map((m) => ({ role: m.role, content: m.content }));
+          }
+          liveUserMessage = turn.content;
+          replyId = replyMsgId(clientMsgId);
+        }
+      } else {
+        notRecorded = "no_message";
+        recording = null;
+      }
+    }
+
+    // submit: the attempt's record, best effort. Graded: the STORED turns
+    // whenever the record has the candidate's own answers, else the
+    // request's transcript (a page on the previous build), which is then
+    // stored so the hiring team has it.
+    let submitSession: SessionRow | null = null;
+    let submitGate: { claim: "claimed" | "none"; fromStatus: string | null } | null = null;
+    let storedTurns: StoredTurn[] | null = null;
+    let transcriptSource: "stored" | "request" = "request";
+    if (mode === "submit" && supabaseAdmin && submitCallerUserId) {
+      const record = supabaseAdmin as unknown as AssessmentAdmin;
+      const resolved = await resolveSession(record, {
+        applicationId: applicationId!,
+        stepId: stepId!,
+        userId: submitCallerUserId,
+        stepType: "chat_interview",
+        purpose: "submit",
+      });
+      if (resolved.ok) submitSession = resolved.session;
+      else console.log("[ai-chat-interview] submit without a record:", resolved.reason, resolved.detail ?? "");
+
+      // ONE request grades an attempt, and a result already on file is never
+      // graded again from a request body (a retried or replayed submit gets
+      // "already recorded" back). Decided before anything is spent.
+      const gate = await gateGrading(record, submitSession, resolved.ok ? null : resolved.reason);
+      if (!gate.go) {
+        if (gate.why === "checking") {
+          return json({ error: "This interview is already being checked.", code: "already_checking" }, 409);
+        }
+        const onFile = await readStepOnFile(record, applicationId!, stepId!, "chatInterviewResult");
+        if (!onFile?.result) return json({ error: "This step is already recorded.", code: "already_recorded" }, 409);
+        return json({ next: onFile.next, alreadyRecorded: true });
+      }
+      submitGate = gate;
+      if (submitSession && gate.claim === "claimed") heldClaim = { admin: record, sessionId: submitSession.id };
+
+      if (submitSession) {
+        storedTurns = await settleTrailingReply(record, submitSession.id, await loadTurns(record, submitSession.id));
+        const chosen = chooseTranscript(storedTurns, messages);
+        transcriptSource = chosen.source;
+        if (chosen.source === "stored") conversation = chosen.messages;
+        const tail = storedTurns ? unstoredTail(storedTurns, messages) : null;
+        if (tail && tail.messages.length > 0) {
+          await storeSubmittedTranscript(record, submitSession.id, tail, { candidate: "candidate", assistant: "interviewer" });
+        }
+        if (submitSession.context.candidate_context !== undefined) {
+          candidateContext = (submitSession.context.candidate_context ?? undefined) as CandidateContext | undefined;
+          if (typeof submitSession.context.candidate_name === "string") candidateName = submitSession.context.candidate_name;
+        }
+      }
+      // Ending is allowed at any time, once the candidate has answered at
+      // least once: there is nothing to grade before that.
+      if (candidateAnswerCount(conversation) === 0) {
+        if (submitSession && gate.claim === "claimed") await releaseGrading(record, submitSession.id, gate.fromStatus ?? "active");
+        return json({ error: "Answer at least one question before ending the interview." }, 400);
+      }
     }
 
     // Build candidate context section
@@ -435,7 +693,7 @@ Before ending the interview naturally (after you've asked your questions), you M
 
 IMPORTANT: NEVER skip the "do you have any questions" step. Always give candidates a chance to ask.
 
-${(mode === 'evaluate' || mode === 'submit') ? `
+${mode === 'submit' ? `
 === EVALUATION MODE (BE BRUTALLY HONEST FOR THE EMPLOYER) ===
 You are evaluating for the EMPLOYER, not the candidate. Be DIRECT and HONEST. Do not sugarcoat.
 
@@ -481,124 +739,220 @@ Return ONLY valid JSON with this structure:
     if (mode === "start") {
       userContent = "Start the interview with a brief, warm greeting and your first question. Keep the greeting to 1-2 sentences, then ask a short, focused opening question.";
     } else if (mode === "respond") {
-      userContent = userMessage || "";
-    } else if (mode === "evaluate" || mode === "submit") {
+      userContent = liveUserMessage || "";
+    } else if (mode === "submit") {
       userContent = `Please evaluate all the candidate's responses from this interview and provide a comprehensive assessment. The interview conversation is in the message history.`;
     }
 
     const apiMessages: OpenAIMessage[] = [
       { role: "system", content: systemPrompt },
-      ...messages.map(m => ({ role: m.role, content: m.content })),
+      ...conversation.map(m => ({ role: m.role, content: m.content })),
       { role: "user", content: userContent }
     ];
 
-    // For evaluation mode, return JSON directly
-    if (mode === "evaluate" || mode === "submit") {
-      const { data } = await callOpenAIJson({
-        apiKey: OPENAI_API_KEY,
-        model: OPENAI_CHAT_INTERVIEW_EVAL_MODEL,
-        messages: apiMessages,
-        temperature: 0.4,
-        maxCompletionTokens: 1400,
-        validator: (value) => requireJsonKeys(value, ["score", "strengths", "concerns", "recommendation", "summary"]),
-        fallback: () => ({
-          score: 70,
-          strengths: ["Completed interview"],
-          concerns: ["Unable to parse detailed evaluation"],
-          recommendation: "Maybe",
-          summary: "Interview completed successfully.",
-        }),
-      });
-
-      if (mode === "evaluate") {
-        return new Response(
-          JSON.stringify(data),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // mode === "submit" — `data` was just computed server-side, above,
-      // from messages the caller sent in THIS request; nothing about it was
-      // relayed from an earlier client-side fetch a candidate could have
-      // edited. Record it as this step's trusted result.
-      const evaluation = data as EvaluationResult;
-      const transcript: TranscriptMessageForNotes[] = messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-        timestamp: m.timestamp,
-      }));
-
-      const chatInterviewResult = buildChatInterviewResult({
-        path: path as ChatInterviewSubmitPath,
-        messages: transcript,
-        duration: duration ?? 0,
-        questionCount,
-        violations,
-        evaluation,
-      });
-
-      const outcome = await recordStepResult(toMinimalAdmin(supabaseAdmin!), {
-        applicationId: applicationId!,
-        callerUserId: submitCallerUserId!,
-        stepId: stepId!,
-        stepType: "chat_interview",
-        // ChatInterviewPhase.tsx's own candidate-driven handleSubmit (the
-        // "End Interview" button — both submit `path`s, "manual" and
-        // "auto_end", now route through this one call) never wrote
-        // `phase`/`status` from that path at all, in either mode; the
-        // separate pre-conversion "AI auto-detected the end" branch did
-        // write `phase` directly in auto mode, but with no decline check
-        // and no voice_interview stop-gate — reproducing that exactly
-        // would reopen the very gap this fix closes, so "never" applies to
-        // both paths here. See StepAdvanceMode's doc comment on
-        // RecordStepResultInput.
-        advance: "never",
-        resultKey: "chatInterviewResult",
-        result: chatInterviewResult,
-      });
-
-      if (!outcome.ok) {
-        const status = outcome.code === "step_not_reached" ? 409 : 400;
-        return new Response(
-          JSON.stringify({ error: outcome.error }),
-          { status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      // phase_ai_analysis is cosmetic display text, not a protected trusted
-      // result (protect_application_columns never guards it) — best-effort,
-      // never lets a failure here undo the result that already recorded.
+    // submit: grade (JSON, not streamed) and record it.
+    if (mode === "submit") {
+      // The attempt reads "Checking the answers" while it is graded
+      // (claimed by gateGrading above; only the claim holder completes it).
+      const record = supabaseAdmin ? (supabaseAdmin as unknown as AssessmentAdmin) : null;
+      const claimed = submitGate?.claim === "claimed";
       try {
-        await supabaseAdmin!
-          .from("applications")
-          .update({ phase_ai_analysis: buildPhaseAiAnalysis(path as ChatInterviewSubmitPath, evaluation) })
-          .eq("id", applicationId!);
-      } catch (e) {
-        console.error("ai-chat-interview submit: phase_ai_analysis update failed:", e);
-      }
+        let usedFallback = false;
+        const { data } = await callOpenAIJson({
+          apiKey: OPENAI_API_KEY,
+          model: OPENAI_CHAT_INTERVIEW_EVAL_MODEL,
+          messages: apiMessages,
+          temperature: 0.4,
+          maxCompletionTokens: 1400,
+          validator: (value) => requireJsonKeys(value, ["score", "strengths", "concerns", "recommendation", "summary"]),
+          fallback: () => {
+            usedFallback = true;
+            return {
+              score: 70,
+              strengths: ["Completed interview"],
+              concerns: ["Unable to parse detailed evaluation"],
+              recommendation: "Maybe",
+              summary: "Interview completed successfully.",
+            };
+          },
+        });
 
-      return new Response(
-        JSON.stringify({ evaluation, next: outcome.next }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+        // `data` was just computed server-side, above,
+        // from the STORED interview when the record has it (each answer was
+        // stored before the interviewer replied to it), else from the messages
+        // the caller sent in THIS request; nothing about it was relayed from an
+        // earlier client-side fetch a candidate could have edited. Record it as
+        // this step's trusted result.
+        const evaluation = data as EvaluationResult;
+        const transcript: TranscriptMessageForNotes[] = conversation.map((m) => ({
+          role: m.role,
+          content: m.content,
+          timestamp: m.timestamp,
+        }));
+
+        // The integrity summary in notes comes from the events the page
+        // recorded whenever there are any, else from the request's own list.
+        const integrity = chooseIntegrity(
+          record && submitSession ? await loadIntegrityEvents(record, submitSession.id) : null,
+          violations,
+        );
+        const notesQuestionCount = transcriptSource === "stored" ? interviewQuestionCount(conversation) : questionCount;
+
+        // notes.chatInterviewResult keeps each ending's own shape (resultShape.ts).
+        // Both endings get the same FULL record in the attempt (transcript in
+        // the events, the whole evaluation in session.grading).
+        const chatInterviewResult = buildChatInterviewResult({
+          path: path as ChatInterviewSubmitPath,
+          messages: transcript,
+          duration: duration ?? 0,
+          questionCount: notesQuestionCount,
+          violations: integrity.violations,
+          evaluation,
+        });
+
+        const outcome = await recordStepResult(toMinimalAdmin(supabaseAdmin!), {
+          applicationId: applicationId!,
+          callerUserId: submitCallerUserId!,
+          stepId: stepId!,
+          stepType: "chat_interview",
+          // ChatInterviewPhase.tsx's own candidate-driven handleSubmit (the
+          // "End Interview" button — both submit `path`s, "manual" and
+          // "auto_end", now route through this one call) never wrote
+          // `phase`/`status` from that path at all, in either mode; the
+          // separate pre-conversion "AI auto-detected the end" branch did
+          // write `phase` directly in auto mode, but with no decline check
+          // and no voice_interview stop-gate — reproducing that exactly
+          // would reopen the very gap this fix closes, so "never" applies to
+          // both paths here. See StepAdvanceMode's doc comment on
+          // RecordStepResultInput.
+          advance: "never",
+          resultKey: "chatInterviewResult",
+          result: chatInterviewResult,
+        });
+
+        if (!outcome.ok) {
+          if (record && submitSession && claimed) {
+            if (outcome.code === "write_failed") await failSession(record, submitSession.id, outcome.error);
+            else await releaseGrading(record, submitSession.id, submitGate?.fromStatus ?? "active");
+          }
+          const status = outcome.code === "step_not_reached" ? 409 : 400;
+          return new Response(
+            JSON.stringify({ error: outcome.error }),
+            { status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // The end must not depend on the tab (both paths: the End button and
+        // the interviewer's own close): in an auto-mode job the server asks
+        // for the next step itself, in the background, with this request's
+        // own JWT (_shared/stepMoveOn.ts). The page's own ask, if it is still
+        // open, gets the same idempotent answer. Never blocks this response.
+        scheduleStepMoveOn(record, { applicationId: applicationId!, stepId: stepId!, authorization: req.headers.get("Authorization") });
+
+        if (record && submitSession && submitGate) {
+          const startedMs = submitSession.started_at ? Date.parse(submitSession.started_at) : NaN;
+          await finishGrading(
+            record,
+            submitSession.id,
+            submitGate,
+            gradingRecord({
+              model: usedFallback ? null : OPENAI_CHAT_INTERVIEW_EVAL_MODEL,
+              promptVersion: EVAL_PROMPT_VERSION,
+              fallback: usedFallback,
+              result: evaluation,
+              extra: {
+                path,
+                transcript_source: transcriptSource,
+                messages_graded: conversation.length,
+                candidate_answers: candidateAnswerCount(conversation),
+                question_count: interviewQuestionCount(conversation),
+                // Server time only when the attempt was open for the interview
+                // itself (its turns were recorded); a page on the previous build
+                // opens it at submit.
+                duration_seconds: transcriptSource === "stored" && Number.isFinite(startedMs)
+                  ? Math.max(0, Math.round((Date.now() - startedMs) / 1000))
+                  : null,
+                client_duration: duration ?? null,
+                integrity_source: integrity.source,
+              },
+            }),
+            interviewEndReason(path as ChatInterviewSubmitPath, conversation),
+          );
+        }
+
+        // phase_ai_analysis is cosmetic display text, not a protected trusted
+        // result (protect_application_columns never guards it) — best-effort,
+        // never lets a failure here undo the result that already recorded.
+        try {
+          await supabaseAdmin!
+            .from("applications")
+            .update({ phase_ai_analysis: buildPhaseAiAnalysis(path as ChatInterviewSubmitPath, evaluation) })
+            .eq("id", applicationId!);
+        } catch (e) {
+          console.error("ai-chat-interview submit: phase_ai_analysis update failed:", e);
+        }
+
+        // The employer-facing evaluation (credibility, inconsistencies, the
+        // blunt summary) stays on the server: no page reads it, and the
+        // candidate's browser must never see it.
+        return new Response(
+          JSON.stringify({
+            next: outcome.next,
+            ...(submitSession ? { assessment: { recorded: true, session_id: submitSession.id } } : {}),
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (error) {
+        if (record && submitSession && claimed) {
+          await failSession(record, submitSession.id, error instanceof Error ? error.message : String(error));
+        }
+        throw error;
+      }
     }
 
     // For start/respond modes, stream the response
     console.log("Streaming interview response via OpenAI");
-    const response = await streamOpenAIChatCompletion({
-      apiKey: OPENAI_API_KEY,
-      model: OPENAI_CHAT_INTERVIEW_MODEL,
-      messages: apiMessages,
-      temperature: 0.8,
-      maxCompletionTokens: 900,
-    });
+    let response: Response;
+    try {
+      response = await streamOpenAIChatCompletion({
+        apiKey: OPENAI_API_KEY,
+        model: OPENAI_CHAT_INTERVIEW_MODEL,
+        messages: apiMessages,
+        temperature: 0.8,
+        maxCompletionTokens: 900,
+      });
+    } catch (error) {
+      // No reply is coming for this ask: a message sent again is answered at once.
+      if (recording && replyId) {
+        await markReplyFailed(recording.admin, recording.session.id, forIdOfReply(replyId), error instanceof Error ? error.message : String(error));
+      }
+      throw error;
+    }
 
-    return new Response(response.body, {
+    let body: ReadableStream<Uint8Array> = response.body!;
+    if (recording && replyId) {
+      // The browser still streams live; the full reply is stored once the
+      // stream ends, in the background, even if the tab has closed.
+      body = withLeadingSse(
+        teeAndRecordReply(recording.admin, body, {
+          sessionId: recording.session.id,
+          clientMsgId: replyId,
+          style: "interviewer",
+          model: OPENAI_CHAT_INTERVIEW_MODEL,
+        }),
+        { assessment: { recorded: true, session_id: recording.session.id, attempt: recording.session.attempt } },
+      );
+    } else if (target) {
+      body = withLeadingSse(body, { assessment: { recorded: false, reason: notRecorded ?? "error" } });
+    }
+
+    return new Response(body, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
 
   } catch (error) {
     console.error("Error in ai-chat-interview:", error);
+    if (heldClaim) await failSession(heldClaim.admin, heldClaim.sessionId, error instanceof Error ? error.message : String(error));
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

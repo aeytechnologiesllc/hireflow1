@@ -25,12 +25,23 @@
  *    notes). They come from `get_job_quiz_keys`, on demand, and
  *    `correctOptionsFor` below is how they are matched to each question.
  *
- * Pure and display-only: no React, no Supabase, no dates formatted here, so
+ * Wave 2 (2026-10-06) adds the server's own record beside the notes: one
+ * `assessment_sessions` row per attempt (status, progress, the last thing
+ * the applicant did, grading, the integrity tally) and its append-only
+ * `assessment_events` (both sides of each chat, every quiz view and pick with
+ * the server's time, typing snapshots, every switch away with how long). The
+ * contract is docs/ASSESSMENT-RECORD.md. Sessions are passed to the builder
+ * when they are loaded (`buildAssessmentRecord(app, { sessions, now })`);
+ * a sheet that has loaded one attempt's events folds them in with
+ * `withSessionEvents`. Without either, everything reads exactly as before.
+ *
+ * Pure and display-only: no React, no Supabase, no dates formatted here
+ * (only durations: "1m 12s", "25 min ago"), so
  * `scripts/assessment_record.test.mjs` runs it under plain Node.
  */
 import { buildCandidateJourney, positionFor, titleFor, DECISION_STAGE_ID } from "@/lib/candidateJourney";
 import type { CandidateJourneyStep, WorkflowStepLike } from "@/lib/candidateJourney";
-import { stepHasResult } from "@/lib/journeyProgress";
+import { isRetakeOpen, stepHasResult } from "@/lib/journeyProgress";
 import { parseApplicationNotes } from "@/lib/applicationNotes";
 
 /* ── Shapes ────────────────────────────────────────────────────────────── */
@@ -56,6 +67,7 @@ export interface AssessmentAppInput {
     quiz_questions?: unknown;
     passing_score?: number | null;
     required_wpm?: number | null;
+    application_questions?: unknown;
   } | null;
 }
 
@@ -98,9 +110,13 @@ export interface IntegrityEvent {
   label: string;
   at: string | null;
   detail: string | null;
+  /** Kept on the list but never a flag (a right-click, a blocked Ctrl+P). */
+  recordedOnly?: boolean;
 }
 
 export interface IntegrityTally {
+  /** What counts as a flag: every alerting event, never a sub-second blip or
+   *  a right-click (those are on the timeline, recorded only). */
   total: number;
   tabSwitches: number;
   copyPaste: number;
@@ -109,6 +125,20 @@ export interface IntegrityTally {
   events: IntegrityEvent[];
   /** True when only counts were kept (chat practice keeps no event list). */
   countsOnly: boolean;
+  /** Time away in all (ms), when the server timed each switch. */
+  awayMs?: number;
+  /** Switches away under a second: on the timeline, never counted. */
+  shortAway?: number;
+  /** Kept but never a flag (a right-click, anything unrecognised). */
+  recordedOnly?: number;
+  /** The owner's bell-card words, in its order: "left the window 3 times
+   *  (1m 12s away)", "paste attempt ×1". */
+  parts?: string[];
+  /** True when the counts are the server's (assessment_sessions.integrity_summary). */
+  fromSession?: boolean;
+  /** The server's flag counts by kind (away = switches of a second or more),
+   *  so tallies from several tests can be added up in the card's words. */
+  counts?: Record<string, number>;
 }
 
 export interface RecordTurn {
@@ -126,6 +156,20 @@ export interface AnswerItem {
   /** Every option picked, for a pick-several question. */
   selected: string[] | null;
   type: string | null;
+  /** An uploaded file (a screenshot, a resume): its stored path, plus the
+   *  page images a PDF was turned into. Opened through applicant-file-url,
+   *  never shown as a raw path. */
+  file: { path: string; pages: string[] } | null;
+}
+
+/** One file the applicant attached to the form (notes.fileUploads). */
+export interface UploadItem {
+  questionId: string;
+  question: string;
+  path: string;
+  /** Page images (a PDF turned into PNGs), when made. */
+  pages: string[];
+  isResume: boolean;
 }
 
 export interface QuizItem {
@@ -144,6 +188,37 @@ export interface QuizItem {
   textAnswer: string | null;
   isCorrect: boolean | null;
   partial: boolean;
+  /** Seconds on the question, from the server's clock; null when not recorded. */
+  seconds: number | null;
+  /** The time is the page's or an estimate, not the server's own. */
+  approximate: boolean;
+  /** How many times they changed their pick. */
+  changes: number;
+  /** The right answer(s) filed with THIS attempt's grading, when kept. */
+  correctTexts: string[] | null;
+  /** On their screen right now (a skills check in progress). */
+  onScreen: boolean;
+}
+
+/** A question as the job holds it, for a skills check still in progress. */
+export interface QuizQuestionRef {
+  id: string;
+  index: number;
+  question: string;
+  category: string | null;
+  options: string[];
+  type: QuizItem["type"];
+}
+
+/** One word of the typing test, against the passage at the same position
+ *  (the grader's own rule: word i typed vs word i of the passage). */
+export interface TypingWord {
+  text: string;
+  /** ok · wrong (typed, but not the passage's word) · extra (past the end
+   *  of the passage) · missed (a passage word they never reached). */
+  state: "ok" | "wrong" | "extra" | "missed";
+  /** The passage's word, beside a wrong one. */
+  expected: string | null;
 }
 
 export interface Inconsistency {
@@ -153,7 +228,17 @@ export interface Inconsistency {
 }
 
 export type AssessmentDetail =
-  | { kind: "application"; answers: AnswerItem[]; coverLetter: string | null; hasResume: boolean; flags: string[] }
+  | {
+      kind: "application";
+      answers: AnswerItem[];
+      coverLetter: string | null;
+      hasResume: boolean;
+      flags: string[];
+      /** Files attached to the form. */
+      uploads: UploadItem[];
+      /** Not sent yet: the answers saved as they typed (save_application_draft). */
+      draft: { savedAt: string | null; answered: number | null; total: number | null } | null;
+    }
   | { kind: "resume" }
   | {
       kind: "quiz";
@@ -164,6 +249,10 @@ export type AssessmentDetail =
       items: QuizItem[];
       /** The step_id its answer keys are filed under in job_quiz_keys. */
       keyStepId: string;
+      /** The job's questions, to place picks made before the quiz is sent. */
+      questions: QuizQuestionRef[];
+      /** Still being answered: picks so far, nothing marked right or wrong. */
+      live: boolean;
     }
   | {
       kind: "typing_test";
@@ -176,6 +265,12 @@ export type AssessmentDetail =
       passage: string | null;
       typed: string | null;
       seconds: number | null;
+      /** Word by word, against the passage (when both are on file). */
+      words: { typed: TypingWord[]; passage: TypingWord[]; wrong: number } | null;
+      /** How many runs ("Try again") before they sent it. */
+      runs: number | null;
+      /** Typed so far: the test is not sent yet. */
+      live: boolean;
     }
   | {
       kind: "chat_simulation";
@@ -187,6 +282,8 @@ export type AssessmentDetail =
       feedback: string | null;
       messageCount: number | null;
       transcript: RecordTurn[] | null;
+      /** The conversation is still going. */
+      live: boolean;
     }
   | {
       kind: "chat_interview";
@@ -201,6 +298,8 @@ export type AssessmentDetail =
       questionCount: number | null;
       messageCount: number | null;
       transcript: RecordTurn[] | null;
+      /** The interview is still going. */
+      live: boolean;
     }
   | {
       kind: "voice_interview";
@@ -217,7 +316,10 @@ export type AssessmentDetail =
       summary: string | null;
       transcript: RecordTurn[] | null;
     }
-  | { kind: "integrity"; groups: Array<{ key: string; title: string; tally: IntegrityTally }> };
+  | {
+      kind: "integrity";
+      groups: Array<{ key: string; title: string; tally: IntegrityTally; sessionId: string | null; timeline: TimelineItem[] | null }>;
+    };
 
 export interface AssessmentEntry {
   /** The journey step id (stable per job), or `resume` / `integrity` / `extra-<type>`. */
@@ -244,6 +346,36 @@ export interface AssessmentEntry {
   /** True when tapping the row has something to show. */
   openable: boolean;
   detail: AssessmentDetail | null;
+  /** The attempt the server keeps for this step, when there is one. */
+  session: EntrySession | null;
+  /** Every switch away, paste and marker with its time — once the attempt's
+   *  events are loaded (withSessionEvents). */
+  timeline: TimelineItem[] | null;
+  /** "open": the hiring team handed this step back for a retake and the new
+   *  attempt has not started; the row opens on the earlier result. */
+  retake?: "open" | null;
+  /** The staff hand-back behind a retake (assessment_step_reopens): when, and
+   *  how many times. Null unless the step really was handed back. */
+  reopen?: { at: string | null; count: number | null } | null;
+  /** Earlier attempts of this step that raised flags (a retake, a replaced
+   *  attempt): their own tallies, never added into this attempt's. */
+  earlierIntegrity?: EarlierAttemptFlags[];
+}
+
+export interface EarlierAttemptFlags {
+  sessionId: string;
+  attempt: number;
+  tally: IntegrityTally;
+}
+
+export interface EntrySession {
+  id: string;
+  attempt: number;
+  status: string;
+  /** Where they are now, by the lazy "left" rule; null once superseded. */
+  live: LiveStatus | null;
+  /** Attempts on file before this one (a step staff reopened). */
+  earlierAttempts: number;
 }
 
 export interface AssessmentRecord {
@@ -254,6 +386,8 @@ export interface AssessmentRecord {
   fillingInForm: boolean;
   integrityTotal: number;
   jobId: string | null;
+  /** What they are doing right now (the most recent unfinished attempt), or null. */
+  live: LiveStatus | null;
 }
 
 /* ── Small readers ─────────────────────────────────────────────────────── */
@@ -335,6 +469,11 @@ export function integrityLabel(type: string): string {
 
 const EMPTY_TALLY: IntegrityTally = { total: 0, tabSwitches: 0, copyPaste: 0, other: 0, events: [], countsOnly: false };
 
+/** Old-list types that are kept but never a flag — the same rule as the
+ *  page's own counter (useTestIntegrity), the server's tally and the bell:
+ *  a right-click, a blocked shortcut, and the server's catch-all `other`. */
+const RECORDED_ONLY_TYPES = new Set(["right_click", "keyboard_shortcut", "other"]);
+
 /**
  * Every integrity count a test result carries, whichever shape it kept:
  * `violations` / `antiCheatViolations` (an event list with times — quiz,
@@ -352,11 +491,23 @@ export function integrityOf(result: unknown): IntegrityTally {
     for (const raw of list) {
       const v = obj(raw);
       const type = str(v?.type) ?? "unknown";
-      events.push({ type, label: integrityLabel(type), at: str(v?.timestamp) ?? str(v?.at), detail: str(v?.details) ?? str(v?.detail) });
+      const event: IntegrityEvent = { type, label: integrityLabel(type), at: str(v?.timestamp) ?? str(v?.at), detail: str(v?.details) ?? str(v?.detail) };
+      if (RECORDED_ONLY_TYPES.has(type)) event.recordedOnly = true;
+      events.push(event);
     }
-    const tabSwitches = events.filter((e) => e.type === "tab_switch").length;
-    const copyPaste = events.filter((e) => /^(copy|paste|cut)_attempt$/.test(e.type)).length;
-    return { total: events.length, tabSwitches, copyPaste, other: events.length - tabSwitches - copyPaste, events, countsOnly: false };
+    const counted = events.filter((e) => !e.recordedOnly);
+    const tabSwitches = counted.filter((e) => e.type === "tab_switch").length;
+    const copyPaste = counted.filter((e) => /^(copy|paste|cut)_attempt$/.test(e.type)).length;
+    const tally: IntegrityTally = {
+      total: counted.length,
+      tabSwitches,
+      copyPaste,
+      other: counted.length - tabSwitches - copyPaste,
+      events,
+      countsOnly: false,
+    };
+    if (counted.length < events.length) tally.recordedOnly = events.length - counted.length;
+    return tally;
   }
   const summary = obj(r.antiCheatSummary);
   if (summary) {
@@ -375,15 +526,625 @@ export function integrityOf(result: unknown): IntegrityTally {
   return EMPTY_TALLY;
 }
 
-/** "Left the window 2× · 1 copy or paste" — the row's flag line. */
+/** "Left the window 2× · 1 copy or paste" — the row's flag line. With the
+ *  server's counts it reads like the owner's bell card: "Left the window
+ *  3 times (1m 12s away) · paste attempt ×1". */
 export function integritySummary(t: IntegrityTally): string | null {
   if (t.total === 0) return null;
-  const parts: string[] = [];
-  if (t.tabSwitches > 0) parts.push(`left the window ${t.tabSwitches}×`);
-  if (t.copyPaste > 0) parts.push(`${t.copyPaste} copy or paste`);
-  if (t.other > 0) parts.push(`${t.other} other`);
+  let parts: string[];
+  if (t.parts && t.parts.length > 0) {
+    parts = t.parts;
+  } else {
+    parts = [];
+    if (t.tabSwitches > 0) {
+      parts.push(`left the window ${t.tabSwitches}×${t.awayMs && t.awayMs >= 1000 ? ` (${durationText(t.awayMs)} away)` : ""}`);
+    }
+    if (t.copyPaste > 0) parts.push(`${t.copyPaste} copy or paste`);
+    if (t.other > 0) parts.push(`${t.other} other`);
+  }
   const line = parts.join(" · ");
   return line.charAt(0).toUpperCase() + line.slice(1);
+}
+
+/* ── The server's record: sessions and events ──────────────────────────── */
+// docs/ASSESSMENT-RECORD.md. Staff read both tables under RLS; nothing here
+// fetches. Every reader below takes rows as the documented selects return
+// them and degrades on anything missing.
+
+/** One attempt (`assessment_sessions`), as the staff selects return it. */
+export interface AssessmentSessionRow {
+  id: string;
+  application_id?: string | null;
+  job_id?: string | null;
+  step_id: string;
+  step_type: string;
+  attempt?: number | null;
+  /** active · grading · completed · failed · abandoned · superseded */
+  status: string;
+  end_reason?: string | null;
+  started_at?: string | null;
+  last_activity_at?: string | null;
+  last_heartbeat_at?: string | null;
+  hidden_at?: string | null;
+  ended_at?: string | null;
+  progress?: unknown;
+  context?: unknown;
+  grading?: unknown;
+  draft?: unknown;
+  integrity_summary?: unknown;
+  updated_at?: string | null;
+}
+
+/** One event (`assessment_events`). */
+export interface AssessmentEventRow {
+  session_id?: string | null;
+  seq: number;
+  /** candidate_turn · assistant_turn · quiz_shown · quiz_answer · typing_snapshot · integrity · system */
+  kind: string;
+  content?: string | null;
+  detail?: unknown;
+  duration_ms?: number | null;
+  client_at?: string | null;
+  created_at: string;
+}
+
+/** An active attempt this quiet reads as "left" (the lazy rule; no sweep needed). */
+export const LEFT_AFTER_MS = 10 * 60 * 1000;
+/** A switch away shorter than this is a blip: on the timeline, never a flag. */
+export const SHORT_AWAY_MS = 1000;
+
+/** "1m 12s", "45s", "under 1s", "1h 5m" — the same words the owner's bell
+ *  card uses (public.assessment_duration_text). */
+export function durationText(ms: number | null | undefined): string {
+  if (ms == null || !Number.isFinite(ms) || ms < 1000) return "under 1s";
+  const total = Math.floor(ms);
+  if (total < 60_000) return `${Math.floor(total / 1000)}s`;
+  if (total < 3_600_000) {
+    const secs = Math.floor((total % 60_000) / 1000);
+    return `${Math.floor(total / 60_000)}m${secs > 0 ? ` ${secs}s` : ""}`;
+  }
+  const mins = Math.floor((total % 3_600_000) / 60_000);
+  return `${Math.floor(total / 3_600_000)}h${mins > 0 ? ` ${mins}m` : ""}`;
+}
+
+/** "just now", "1 min ago", "25 min ago", "2 h ago", "3 days ago". */
+export function agoText(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 60_000) return "just now";
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} ${days === 1 ? "day" : "days"} ago`;
+}
+
+/** "under a minute", "3 min", "2 h", "3 days" — how long something has lasted. */
+function lastedText(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 60_000) return "under a minute";
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 60) return `${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} h`;
+  const days = Math.floor(hours / 24);
+  return `${days} ${days === 1 ? "day" : "days"}`;
+}
+
+export type LiveState = "doing" | "away" | "left" | "checking" | "finished" | "failed";
+
+/** The colour of a live line: amber once they have gone from the test. */
+export function liveTone(state: LiveState | null | undefined): string {
+  return state === "left" || state === "away" ? "var(--amber-fg)" : state === "failed" ? "var(--crit)" : "var(--ink-3)";
+}
+
+/** Where an attempt stands, in the owner's words. */
+export interface LiveStatus {
+  state: LiveState;
+  /** The row's line: "Answering question 3 of 10 · active 1 min ago". */
+  text: string;
+  /** The same for a line about the PERSON, naming the test when the words
+   *  alone do not: "Written interview: in the conversation · 4 replies · active 1 min ago". */
+  summary: string;
+  /** The journey rail's short receipt: "Question 3 of 10", "Left". */
+  receipt: string;
+  stepId: string;
+  stepType: string;
+  /** The applicant's last move (ISO), for ordering. */
+  lastActivityAt: string | null;
+}
+
+function progressOf(session: AssessmentSessionRow): { answered: number | null; total: number | null; index: number | null; turns: number } {
+  const p = obj(session.progress) ?? {};
+  return {
+    answered: num(p.answered),
+    total: num(p.total),
+    index: num(p.current_index),
+    turns: num(p.candidate_turns) ?? 0,
+  };
+}
+
+const CHAT_STEPS = new Set(["chat_simulation", "chat_interview", "sales_simulation"]);
+
+function plural(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/**
+ * The live label for one attempt — the contract's lazy "left" rule
+ * (docs/ASSESSMENT-RECORD.md §5.3), in this order:
+ *
+ *   active & quiet ≥ 10 min  → "Left <where> · last active <quiet ago>"
+ *   abandoned                → the same "Left …" label
+ *   active & hidden_at set   → "Away from the test for <how long>"
+ *   active                   → "<doing> · active <quiet ago>"
+ *   grading                  → "Checking the answers"
+ *   completed                → "Finished <ago>"
+ *   failed                   → "Checking failed. Retrying"
+ *   superseded               → null (a newer attempt exists)
+ */
+export function sessionLiveStatus(session: AssessmentSessionRow, now: number, title?: string | null): LiveStatus | null {
+  const type = session.step_type === "video_message" ? "video_intro" : session.step_type;
+  const { answered, total, index, turns } = progressOf(session);
+  const lastAt = toMillis(session.last_activity_at) ?? toMillis(session.started_at);
+  const quiet = lastAt != null ? Math.max(0, now - lastAt) : 0;
+  const base = { stepId: session.step_id, stepType: type, lastActivityAt: session.last_activity_at ?? session.started_at ?? null };
+  const named = (text: string) =>
+    type === "application" || type === "quiz" || !title ? text : `${title}: ${lowerFirst(text)}`;
+  const make = (state: LiveState, text: string, receipt: string): LiveStatus => ({ ...base, state, text, summary: named(text), receipt });
+
+  const doing = (() => {
+    if (type === "application") {
+      return total != null && total > 0 ? `Filling in the form · ${answered ?? 0} of ${total} answered` : "Filling in the form";
+    }
+    if (type === "quiz") {
+      if (index == null) return "Starting the skills check";
+      return `Answering question ${index + 1}${total != null && total > 0 ? ` of ${total}` : ""}`;
+    }
+    if (CHAT_STEPS.has(type)) return turns > 0 ? `In the conversation · ${plural(turns, "reply", "replies")}` : "In the conversation";
+    if (type === "typing_test") return "Typing";
+    return "Taking the test";
+  })();
+  const doingReceipt = (() => {
+    if (type === "application") return total != null && total > 0 ? `${answered ?? 0} of ${total} answered` : "Filling in";
+    if (type === "quiz") return index == null ? "Started" : `Question ${index + 1}${total != null && total > 0 ? ` of ${total}` : ""}`;
+    if (CHAT_STEPS.has(type)) return turns > 0 ? plural(turns, "reply", "replies") : "Started";
+    if (type === "typing_test") return "Typing";
+    return "In progress";
+  })();
+  const where = (() => {
+    if (type === "application") return total != null && total > 0 ? `the form at ${answered ?? 0} of ${total}` : "the form";
+    if (type === "quiz") return index == null ? "at the start" : `at question ${index + 1}`;
+    if (CHAT_STEPS.has(type)) return turns > 0 ? `after ${plural(turns, "reply", "replies")}` : "before replying";
+    if (type === "typing_test") return "during the typing test";
+    return "part-way";
+  })();
+  const left = () => make("left", `Left ${where} · last active ${agoText(quiet)}`, "Left");
+
+  switch (session.status) {
+    case "superseded":
+      return null;
+    case "grading":
+      return make("checking", "Checking the answers", "Checking");
+    case "failed":
+      return make("failed", "Checking failed. Retrying", "Checking failed");
+    case "completed": {
+      const ended = toMillis(session.ended_at) ?? toMillis(session.updated_at);
+      return make("finished", ended != null ? `Finished ${agoText(Math.max(0, now - ended))}` : "Finished", "Finished");
+    }
+    case "abandoned":
+      return left();
+    case "active": {
+      if (quiet >= LEFT_AFTER_MS) return left();
+      const hiddenAt = toMillis(session.hidden_at);
+      if (hiddenAt != null) return make("away", `Away from the test for ${lastedText(Math.max(0, now - hiddenAt))}`, "Away");
+      return make("doing", `${doing} · active ${agoText(quiet)}`, doingReceipt);
+    }
+    default:
+      return null;
+  }
+}
+
+const LIVE_STATUSES = new Set(["active", "grading"]);
+
+/** The attempt to show for a step: the live one, else the latest that was not
+ *  replaced. Null when there is none (or only replaced ones). */
+export function sessionForStep(sessions: readonly AssessmentSessionRow[] | null | undefined, stepId: string): AssessmentSessionRow | null {
+  const mine = (sessions ?? []).filter((s) => s && s.step_id === stepId && s.status !== "superseded");
+  if (mine.length === 0) return null;
+  const live = mine.find((s) => LIVE_STATUSES.has(s.status));
+  if (live) return live;
+  return mine.reduce((a, b) => ((b.attempt ?? 1) > (a.attempt ?? 1) ? b : a));
+}
+
+function attemptNo(s: AssessmentSessionRow): number {
+  return s.attempt ?? 1;
+}
+
+/** Sent, and the result is on file or owed: the attempt a result belongs to. */
+const SENT_STATUSES = new Set(["completed", "grading", "failed"]);
+
+/**
+ * The attempts of one step, read against what the notes say. Notes decide
+ * what is DONE; this decides WHICH attempt a row shows, so one attempt's
+ * transcript, grading or flags are never laid over another's result:
+ *
+ *  - `rechecking`: a newer attempt was sent and is still being checked while
+ *    an earlier one's result is on file (a retake, after the server moved
+ *    the phase on). Until it lands, the step reads "Checking the answers".
+ *  - `result`: the attempt whose result is on file — the latest that was
+ *    sent, never an attempt opened after it; with none sent, the latest
+ *    (a result recorded by a path that never closed its attempt).
+ *  - `retake`: the attempt of a step handed back for a retake — only one
+ *    opened after the last finished one; null until it starts.
+ */
+export function stepAttempts(
+  sessions: readonly AssessmentSessionRow[] | null | undefined,
+  stepId: string,
+): { all: AssessmentSessionRow[]; result: AssessmentSessionRow | null; retake: AssessmentSessionRow | null; lastCompleted: AssessmentSessionRow | null; rechecking: boolean } {
+  const all = (sessions ?? []).filter((s) => s && s.step_id === stepId).sort((a, b) => attemptNo(a) - attemptNo(b));
+  const current = all.filter((s) => s.status !== "superseded");
+  const latest = current[current.length - 1] ?? null;
+  const lastCompleted = [...current].reverse().find((s) => s.status === "completed") ?? null;
+  const newer = !!latest && !!lastCompleted && attemptNo(latest) > attemptNo(lastCompleted);
+  const rechecking = newer && (latest!.status === "grading" || latest!.status === "failed");
+  const result = rechecking
+    ? lastCompleted
+    : [...current].reverse().find((s) => SENT_STATUSES.has(s.status)) ?? sessionForStep(current, stepId);
+  const retake = latest && latest.status !== "completed" && (!lastCompleted || newer) ? latest : null;
+  return { all, result, retake, lastCompleted, rechecking };
+}
+
+/* ── A step handed back for a retake (assessment_step_reopens) ─────────── */
+
+/** One staff hand-back (`public.assessment_step_reopens`, contract §2.8): one
+ *  row per application + step, the latest hand-back. Written only by the
+ *  server's trigger when a write that is not the applicant's own puts the
+ *  application back on a finished step; staff of the job may read it. */
+export interface StepReopenRow {
+  application_id?: string | null;
+  step_id: string;
+  job_id?: string | null;
+  /** The latest hand-back, database time. */
+  reopened_at?: string | null;
+  /** The staff member, or null for the service role / SQL editor. */
+  reopened_by?: string | null;
+  reopen_count?: number | null;
+}
+
+/** Attempts as the staff hooks hand them over: the rows, with the
+ *  application's reopen markers riding along (see `withReopens`). */
+export type SessionList = readonly AssessmentSessionRow[] & { readonly reopens?: readonly StepReopenRow[] | null };
+
+/**
+ * The attempts with the reopen markers attached, so a caller that passes
+ * `{ sessions }` to the builder hands it both. A fresh array every call: the
+ * markers are never stored inside a cached list (a cache merge copies only
+ * the rows and would drop them).
+ */
+export function withReopens(
+  sessions: readonly AssessmentSessionRow[] | null | undefined,
+  reopens: readonly StepReopenRow[] | null | undefined,
+): SessionList | undefined {
+  if (!sessions && !reopens) return undefined;
+  const list = [...(sessions ?? [])] as AssessmentSessionRow[] & { reopens?: readonly StepReopenRow[] | null };
+  list.reopens = reopens ?? [];
+  return list;
+}
+
+/**
+ * The staff hand-back that makes a finished step theirs to take again, or
+ * null. The same rule as the server's `assessment_step_completion`: status
+ * `pending` with `phase` on the step (what every phase page shows as a
+ * retake, `isRetakeOpen`) AND a reopen marker newer than the result on file
+ * — the later of `notes._trusted[step].completedAt` (only the server writes
+ * it) and the step's last completed attempt; a result with neither time is
+ * older than any marker. Status and phase alone are never proof: the
+ * applicant can set their own status to `pending`. The form and the quiz
+ * are never reopened this way (a quiz retake is staff clearing its result).
+ */
+export function retakeMarker(
+  app: { phase?: string | null; status?: string | null },
+  step: Pick<CandidateJourneyStep, "id" | "type">,
+  notes: Obj | null | undefined,
+  sessions: readonly AssessmentSessionRow[] | null | undefined,
+  reopens: readonly StepReopenRow[] | null | undefined,
+): StepReopenRow | null {
+  if (step.type === "application" || step.type === "quiz") return null;
+  if (!isRetakeOpen({ phase: app.phase, status: app.status }, step)) return null;
+  const marker = (reopens ?? []).find((r) => r && r.step_id === step.id) ?? null;
+  const markedAt = toMillis(marker?.reopened_at);
+  if (!marker || markedAt == null) return null;
+  const trusted = toMillis(obj(obj(notes?._trusted)?.[step.id])?.completedAt);
+  const ended = (sessions ?? [])
+    .filter((s) => s && s.step_id === step.id && s.status === "completed")
+    .map((s) => toMillis(s.ended_at))
+    .filter((ms): ms is number => ms != null);
+  const times = [trusted, ...ended].filter((ms): ms is number => ms != null);
+  const resultAt = times.length > 0 ? Math.max(...times) : null;
+  return resultAt == null || markedAt > resultAt ? marker : null;
+}
+
+/** The bell card's words for a set of flag counts, in its order. */
+export function integrityParts(counts: Record<string, number>, awayMs: number): string[] {
+  const n = (k: string) => Math.max(0, counts[k] ?? 0);
+  const parts: string[] = [];
+  if (n("away") > 0) {
+    parts.push(`left the window ${plural(n("away"), "time", "times")}${awayMs >= 1000 ? ` (${durationText(awayMs)} away)` : ""}`);
+  }
+  if (n("paste") > 0) parts.push(`paste attempt ×${n("paste")}`);
+  if (n("bulk_insert") > 0) parts.push(`pasted-in text ×${n("bulk_insert")}`);
+  if (n("copy") > 0) parts.push(`copy attempt ×${n("copy")}`);
+  if (n("screenshot_key") > 0) parts.push(`screenshot attempt ×${n("screenshot_key")}`);
+  if (n("screenshot_suspected") > 0) parts.push(`possible screenshot ×${n("screenshot_suspected")}`);
+  if (n("devtools") > 0) parts.push(`developer tools opened ×${n("devtools")}`);
+  if (n("page_closed") > 0) parts.push(`closed the test page ×${n("page_closed")}`);
+  return parts;
+}
+
+/** Counts in the order and the words of the owner's bell card
+ *  (public.assessment_integrity_alert), from `integrity_summary`. Null when
+ *  the server has recorded nothing for the attempt. */
+export function integrityFromSummary(summary: unknown): IntegrityTally | null {
+  const s = obj(summary);
+  if (!s) return null;
+  const counts = obj(s.counts) ?? {};
+  const c = (k: string) => Math.max(0, num(counts[k]) ?? 0);
+  const shortAway = Math.max(0, num(s.short_away) ?? 0);
+  const away = Math.max(0, c("tab_hidden") + c("window_blur") - shortAway);
+  const awayMs = Math.max(0, num(s.away_ms) ?? 0);
+  const paste = c("paste");
+  const bulk = c("bulk_insert");
+  const copy = c("copy") + c("cut");
+  const shot = c("screenshot_key");
+  const maybeShot = c("screenshot_suspected");
+  const devtools = c("devtools");
+  const closed = c("page_closed");
+  const recordedOnly = c("right_click") + c("other");
+  if (away + paste + bulk + copy + shot + maybeShot + devtools + closed + recordedOnly + shortAway === 0) return null;
+
+  const parts = integrityParts({ away, paste, bulk_insert: bulk, copy, screenshot_key: shot, screenshot_suspected: maybeShot, devtools, page_closed: closed }, awayMs);
+
+  const copyPaste = paste + bulk + copy;
+  const other = shot + maybeShot + devtools + closed;
+  return {
+    counts: { away, paste, bulk_insert: bulk, copy, screenshot_key: shot, screenshot_suspected: maybeShot, devtools, page_closed: closed },
+    total: away + copyPaste + other,
+    tabSwitches: away,
+    copyPaste,
+    other,
+    events: [],
+    countsOnly: false,
+    awayMs,
+    shortAway,
+    recordedOnly,
+    parts,
+    fromSession: true,
+  };
+}
+
+/* ── Events: transcripts, typing, quiz timing, the integrity timeline ──── */
+
+/** Both sides of a chat, in the order the server stored them. */
+export function transcriptFromEvents(events: readonly AssessmentEventRow[] | null | undefined): RecordTurn[] | null {
+  const turns: RecordTurn[] = [];
+  for (const e of [...(events ?? [])].sort((a, b) => a.seq - b.seq)) {
+    if (e.kind !== "candidate_turn" && e.kind !== "assistant_turn") continue;
+    const text = typeof e.content === "string" ? e.content.trim() : "";
+    if (!text) continue;
+    turns.push({ role: e.kind === "candidate_turn" ? "candidate" : "other", text, at: e.created_at ?? null });
+  }
+  return turns.length > 0 ? turns : null;
+}
+
+const wordsOf = (text: string) => text.trim().split(/\s+/).filter((w) => w.length > 0);
+
+/**
+ * What they typed against the passage, word by word — the grader's own rule
+ * (submit-typing-test calculateResults: typed word i against passage word i),
+ * so every word marked wrong here is one the accuracy figure counted wrong.
+ */
+export function typingWords(typed: string, passage: string): { typed: TypingWord[]; passage: TypingWord[]; wrong: number } {
+  const t = wordsOf(typed);
+  const p = wordsOf(passage);
+  let wrong = 0;
+  const typedOut: TypingWord[] = t.map((w, i) => {
+    if (i >= p.length) {
+      wrong += 1;
+      return { text: w, state: "extra", expected: null };
+    }
+    if (w === p[i]) return { text: w, state: "ok", expected: null };
+    wrong += 1;
+    return { text: w, state: "wrong", expected: p[i] };
+  });
+  const passageOut: TypingWord[] = p.map((w, i) => ({
+    text: w,
+    state: i >= t.length ? "missed" : t[i] === w ? "ok" : "wrong",
+    expected: null,
+  }));
+  return { typed: typedOut, passage: passageOut, wrong };
+}
+
+export interface QuizTiming {
+  seconds: number | null;
+  approximate: boolean;
+  changes: number;
+  /** The latest pick, as the page held it (an index or the option's text). */
+  answer: unknown;
+}
+
+/** Time on each question, from the latest `quiz_answer` per question (the
+ *  server's clock; `timing_source` other than "server" is marked approximate). */
+export function quizTimings(events: readonly AssessmentEventRow[] | null | undefined): Map<string, QuizTiming> {
+  const out = new Map<string, QuizTiming>();
+  for (const e of [...(events ?? [])].sort((a, b) => a.seq - b.seq)) {
+    if (e.kind !== "quiz_answer") continue;
+    const d = obj(e.detail) ?? {};
+    const id = str(d.question_id);
+    if (!id) continue;
+    const prev = out.get(id);
+    const seconds = num(d.seconds_on_question) ?? (num(e.duration_ms) != null ? Math.round(num(e.duration_ms)! / 1000) : null);
+    // Every save is stored (a retried send, a written answer saved after
+    // each pause in typing), and the server's own `changed` only says an
+    // earlier save exists. A change is a DIFFERENT answer from the last one.
+    const changed = !!prev && answerKey(prev.answer) !== answerKey(d.answer);
+    out.set(id, {
+      seconds,
+      approximate: str(d.timing_source) != null && d.timing_source !== "server",
+      changes: (prev?.changes ?? 0) + (changed ? 1 : 0),
+      answer: d.answer,
+    });
+  }
+  return out;
+}
+
+/** One answer as a comparable string: picks in any order are the same picks. */
+function answerKey(answer: unknown): string {
+  const one = (v: unknown) => (typeof v === "string" ? JSON.stringify(v.trim()) : JSON.stringify(v ?? null));
+  return Array.isArray(answer) ? `[${answer.map(one).sort().join(",")}]` : one(answer);
+}
+
+/** One line of the integrity timeline: a flag, a blip, or a neutral marker. */
+export interface TimelineItem {
+  /** When it happened: the page's time when it sent one, else the server's. */
+  at: string | null;
+  /** The same moment on the server's clock, for placing it among the
+   *  conversation's turns (which carry the server's times): the page's time
+   *  moved by how far that page's clock is off, else the server's own. */
+  serverAt: string | null;
+  /** The integrity kind (tab_hidden, paste…) or `system:<what>`. */
+  kind: string;
+  /** In plain words: "Left the window", "Tried to paste", "Started the test". */
+  label: string;
+  /** Time away, for a switch away (or a "came back"). */
+  awayMs: number | null;
+  /** A switch away under a second: shown, never counted. */
+  short: boolean;
+  /** Arrived from a closing tab after the test was sent. */
+  afterEnd: boolean;
+  /** True for something that counts as a flag; false for markers and recorded-only lines. */
+  flag: boolean;
+  /** Extra words: "dropped in", "Ctrl+P". */
+  note: string | null;
+}
+
+const TIMELINE_LABELS: Record<string, string> = {
+  tab_hidden: "Left the window",
+  window_blur: "Clicked out of the window",
+  paste: "Tried to paste",
+  bulk_insert: "Text appeared without typing",
+  copy: "Tried to copy",
+  cut: "Tried to cut",
+  screenshot_key: "Pressed the screenshot key",
+  screenshot_suspected: "Possible screenshot",
+  devtools: "Opened developer tools",
+  page_closed: "Closed or reloaded the test page",
+  right_click: "Right-clicked",
+  other: "Something else was blocked",
+};
+const RECORDED_ONLY = new Set(["right_click", "other"]);
+
+const SYSTEM_LABELS: Record<string, string> = {
+  started: "Started the test",
+  reloaded: "Reloaded the page",
+  came_back: "Came back",
+  submitted: "Sent it",
+  marked_left: "Marked as left",
+};
+
+/** The integrity record of one attempt, in order: every switch away with how
+ *  long, every blocked paste or screenshot, and the start / reload / return
+ *  markers that explain the gaps. */
+/**
+ * How far the page's clock is behind the server's (ms), from one attempt's
+ * integrity events. Each is stored at least as late as it happened: an away
+ * episode is sent on return (its `client_at` is when they left, so its
+ * duration comes off), anything else as it happens or from the retry queue.
+ * The smallest gap is the closest to the clock offset itself (a queued send
+ * only ever adds to it). Null when no event carries both times.
+ */
+export function pageClockOffsetMs(events: readonly AssessmentEventRow[] | null | undefined): number | null {
+  let best: number | null = null;
+  for (const e of events ?? []) {
+    if (e.kind !== "integrity") continue;
+    const client = toMillis(e.client_at);
+    const server = toMillis(e.created_at);
+    if (client == null || server == null) continue;
+    const d = obj(e.detail) ?? {};
+    const kind = str(d.kind);
+    const awayMs = kind === "tab_hidden" || kind === "window_blur" ? num(e.duration_ms) ?? num(d.duration_ms) ?? 0 : 0;
+    const gap = server - (client + awayMs);
+    if (best == null || gap < best) best = gap;
+  }
+  return best;
+}
+
+export function integrityTimeline(events: readonly AssessmentEventRow[] | null | undefined): TimelineItem[] {
+  const out: TimelineItem[] = [];
+  // Per attempt: a timeline across tests mixes pages, each with its own clock.
+  const offsets = new Map<string | null, number | null>();
+  const offsetFor = (sessionId: string | null | undefined) => {
+    const key = sessionId ?? null;
+    if (!offsets.has(key)) offsets.set(key, pageClockOffsetMs((events ?? []).filter((x) => (x.session_id ?? null) === key)));
+    return offsets.get(key) ?? null;
+  };
+  for (const e of [...(events ?? [])].sort((a, b) => a.seq - b.seq)) {
+    const d = obj(e.detail) ?? {};
+    if (e.kind === "integrity") {
+      const kind = str(d.kind) ?? "other";
+      const awayKind = kind === "tab_hidden" || kind === "window_blur";
+      const awayMs = awayKind ? num(e.duration_ms) ?? num(d.duration_ms) : null;
+      const short = awayKind && awayMs != null && awayMs < SHORT_AWAY_MS;
+      let note: string | null = null;
+      if (kind === "bulk_insert" && d.via === "drop") note = "dropped in";
+      else if (kind === "other") note = str(d.key) ? `${str(d.what) ?? "shortcut"} ${str(d.key)}` : str(d.reported_kind) ?? str(d.what);
+      const client = toMillis(e.client_at);
+      const offset = offsetFor(e.session_id);
+      out.push({
+        at: e.client_at ?? e.created_at ?? null,
+        serverAt: client != null && offset != null ? new Date(client + offset).toISOString() : e.created_at ?? e.client_at ?? null,
+        kind,
+        label: TIMELINE_LABELS[kind] ?? integrityLabel(kind),
+        awayMs,
+        short,
+        afterEnd: d.after_end === true,
+        flag: !short && !RECORDED_ONLY.has(kind),
+        note,
+      });
+    } else if (e.kind === "system") {
+      const what = str(d.what) ?? "other";
+      if (!(what in SYSTEM_LABELS)) continue;
+      const attempt = num(d.attempt);
+      out.push({
+        at: e.created_at ?? null,
+        serverAt: e.created_at ?? null,
+        kind: `system:${what}`,
+        label: what === "started" && attempt != null && attempt > 1 ? `Started attempt ${attempt}` : SYSTEM_LABELS[what],
+        awayMs: what === "came_back" ? num(d.away_ms) : null,
+        short: false,
+        afterEnd: false,
+        flag: false,
+        note: null,
+      });
+    }
+  }
+  return out;
+}
+
+/** "Left the window for 1m 7s", "Tried to paste", "Came back after 25m". */
+export function timelineText(item: TimelineItem): string {
+  if (item.awayMs != null && item.kind.startsWith("system:")) return `${item.label} after ${durationText(item.awayMs)}`;
+  if (item.awayMs != null) return `${item.label} for ${durationText(item.awayMs)}`;
+  return item.label;
+}
+
+/** A timeline item's tags: "not counted" (a blip), "recorded only", "after sending". */
+export function timelineTags(item: TimelineItem): string[] {
+  const tags: string[] = [];
+  // The duration already says "under 1s"; the tag says what that means.
+  if (item.short) tags.push("not counted");
+  if (!item.flag && !item.short && !item.kind.startsWith("system:")) tags.push("recorded only");
+  if (item.afterEnd) tags.push("after sending");
+  if (item.note) tags.push(item.note);
+  return tags;
 }
 
 /* ── Quiz answer keys ──────────────────────────────────────────────────── */
@@ -551,22 +1312,53 @@ function completedAtFor(ctx: BuildContext, stepId: string, record: Obj | null): 
   return str(trusted?.completedAt) ?? str(record?.completedAt) ?? null;
 }
 
+/** Files attached to the form, by question (notes.fileUploads: `{ url,
+ *  imageUrls, isResume }`, the shape ApplicationFormPhase writes). */
+function uploadsOf(ctx: BuildContext): Map<string, { path: string; pages: string[]; isResume: boolean }> {
+  const map = new Map<string, { path: string; pages: string[]; isResume: boolean }>();
+  const raw = obj(ctx.notes.fileUploads);
+  if (!raw) return map;
+  for (const [questionId, value] of Object.entries(raw)) {
+    const u = obj(value);
+    const pages = strList(u?.imageUrls);
+    const path = str(u?.url) ?? str(u?.fileUrl) ?? pages[0] ?? null;
+    if (path) map.set(questionId, { path, pages, isResume: u?.isResume === true });
+  }
+  return map;
+}
+
 function buildApplication(ctx: BuildContext): Built {
   const answers: AnswerItem[] = [];
+  const files = uploadsOf(ctx);
   const raw = Array.isArray(ctx.notes.applicationAnswers) ? (ctx.notes.applicationAnswers as unknown[]) : [];
   raw.forEach((value, i) => {
     const a = obj(value);
     if (!a) return;
     const selected = strList(a.selected).length > 0 ? strList(a.selected) : Array.isArray(a.answer) ? strList(a.answer) : null;
     const answer = typeof a.answer === "string" ? a.answer : selected ? selected.join("; ") : a.answer == null ? "" : String(a.answer);
+    const id = str(a.questionId) ?? `answer-${i}`;
+    const upload = files.get(id);
+    const type = str(a.type);
     answers.push({
-      id: str(a.questionId) ?? `answer-${i}`,
+      id,
       question: str(a.question) ?? `Question ${i + 1}`,
       answer,
       selected: selected && selected.length > 0 ? selected : null,
-      type: str(a.type),
+      type,
+      file: upload
+        ? { path: upload.path, pages: upload.pages }
+        : type === "file" && answer.trim() && !/^https?:\/\//i.test(answer.trim())
+          ? { path: answer.trim(), pages: [] }
+          : null,
     });
   });
+  const uploads: UploadItem[] = [...files.entries()].map(([questionId, u]) => ({
+    questionId,
+    question: answers.find((a) => a.id === questionId)?.question ?? (u.isResume ? "Resume" : "Attached file"),
+    path: u.path,
+    pages: u.pages,
+    isResume: u.isResume,
+  }));
   const coverLetter = str(ctx.app.cover_letter);
   // Ava's deal-breaker line belongs above the answers it is about.
   const flags = ctx.riskFlags.filter((f) => /deal[- ]?breaker|non[- ]?negotiable/i.test(f));
@@ -580,7 +1372,7 @@ function buildApplication(ctx: BuildContext): Built {
     receipt: answers.length > 0 ? headline : null,
     completedAt: null,
     integrity: integrityOf(ctx.notes.applicationIntegrity),
-    detail: { kind: "application", answers, coverLetter, hasResume: !!ctx.app.resume_url, flags },
+    detail: { kind: "application", answers, coverLetter, hasResume: !!ctx.app.resume_url, flags, uploads, draft: null },
   };
 }
 
@@ -611,6 +1403,17 @@ function quizSource(ctx: BuildContext): QuizSource {
     questions: Array.isArray(top) ? top.map((q) => obj(q) ?? {}) : [],
     keyStepId: QUIZ_QUESTIONS_KEY_STEP,
   };
+}
+
+function quizQuestionRefs(questions: Obj[]): QuizQuestionRef[] {
+  return questions.map((q, i) => ({
+    id: str(q.id) ?? `__idx_${i}`,
+    index: i,
+    question: str(q.question) ?? `Question ${i + 1}`,
+    category: str(q.category),
+    options: strList(q.options),
+    type: quizItemType(null, q),
+  }));
 }
 
 function quizItemType(stored: string | null, q: Obj | null): QuizItem["type"] {
@@ -671,6 +1474,11 @@ function buildQuiz(ctx: BuildContext): Built {
       textAnswer: type === "text" ? str(a.textAnswer) ?? str(a.selectedAnswerText) : null,
       isCorrect: typeof a.isCorrect === "boolean" ? a.isCorrect : null,
       partial: a.isPartialCredit === true,
+      seconds: null,
+      approximate: false,
+      changes: 0,
+      correctTexts: null,
+      onScreen: false,
     };
   });
 
@@ -685,7 +1493,7 @@ function buildQuiz(ctx: BuildContext): Built {
       : null,
     completedAt: str(record?.completedAt) ?? completedAtFor(ctx, "quiz", null),
     integrity: integrityOf(record),
-    detail: { kind: "quiz", correct, total, score, passed, items, keyStepId },
+    detail: { kind: "quiz", correct, total, score, passed, items, keyStepId, questions: quizQuestionRefs(questions), live: false },
   };
 }
 
@@ -704,16 +1512,22 @@ function buildTyping(ctx: BuildContext, step: CandidateJourneyStep): Built {
   const requiredAccuracy = num(r?.requiredAccuracy) ?? num(config?.min_accuracy_percent);
   const elapsed = num(r?.elapsedMs);
 
+  // The server never decides typing on its own: submit-typing-test stores
+  // `passed: false` for EVERY run (Ava weighs it with the rest), so a stored
+  // false is not a fail. The job's own bars decide what this row says.
+  const meetsSpeed = wpm != null && requiredWpm != null ? wpm >= requiredWpm : null;
+  const meetsAccuracy = accuracy != null && requiredAccuracy != null ? accuracy >= requiredAccuracy : null;
   let verdict: string | null = null;
   if (passed === true) verdict = "Passed";
-  else if (wpm != null && requiredWpm != null && wpm < requiredWpm) verdict = `Below the ${requiredWpm} WPM bar`;
-  else if (accuracy != null && requiredAccuracy != null && accuracy < requiredAccuracy) verdict = `Below ${requiredAccuracy}% accuracy`;
-  else if (passed === false) verdict = "Did not pass";
+  else if (meetsSpeed === false) verdict = `Below the ${requiredWpm} WPM bar`;
+  else if (meetsAccuracy === false) verdict = `Below ${requiredAccuracy}% accuracy`;
+  else if (meetsSpeed === true) verdict = "Meets the bar";
+  const below = meetsSpeed === false || meetsAccuracy === false;
 
   const headline = wpm != null ? `${Math.round(wpm)} WPM` : null;
   return {
     headline,
-    tone: passed === true ? "jade" : passed === false ? "amber" : "ink",
+    tone: passed === true || (meetsSpeed === true && !below) ? "jade" : below ? "amber" : "ink",
     verdict,
     subline: accuracy != null ? `${Math.round(accuracy)}% accurate` : null,
     receipt: headline
@@ -732,6 +1546,9 @@ function buildTyping(ctx: BuildContext, step: CandidateJourneyStep): Built {
       passage: str(r?.targetText) ?? str(r?.passage),
       typed: typeof r?.typedText === "string" && r.typedText.length > 0 ? r.typedText : null,
       seconds: elapsed != null ? Math.round(elapsed / 1000) : num(r?.seconds),
+      words: null,
+      runs: null,
+      live: false,
     },
   };
 }
@@ -774,6 +1591,7 @@ function buildChatSimulation(ctx: BuildContext, step: CandidateJourneyStep): Bui
       feedback: str(r?.overallFeedback) ?? str(r?.feedback),
       messageCount: num(r?.messageCount) ?? transcript?.length ?? null,
       transcript,
+      live: false,
     },
   };
 }
@@ -817,6 +1635,7 @@ function buildChatInterview(ctx: BuildContext, step: CandidateJourneyStep): Buil
       questionCount,
       messageCount: num(r?.messageCount) ?? transcript?.length ?? null,
       transcript,
+      live: false,
     },
   };
 }
@@ -936,20 +1755,282 @@ const EXTRA_RESULT_KEYS: Array<{ type: string; present: (ctx: BuildContext) => b
   { type: "voice_interview", present: (c) => !!c.app.voice_interview_result || !!turnsOf(c.app.voice_interview_transcript) },
 ];
 
+/* ── What the server's record adds to a step ───────────────────────────── */
+
+const SCORE_FIELDS = [
+  ["Empathy", "empathy"],
+  ["Problem solving", "problemSolving"],
+  ["Communication", "communication"],
+  ["Professionalism", "professionalism"],
+] as const;
+
+/** The right answer(s) a grading kept for one question, as option texts. */
+function correctTextsFrom(value: unknown, options: string[]): string[] | null {
+  if (typeof value === "number") return Number.isInteger(value) && value >= 0 && value < options.length ? [options[value]] : null;
+  if (typeof value === "string" && value.trim()) return [value.trim()];
+  const list = strList(value);
+  return list.length > 0 ? list : null;
+}
+
+/** A finished step, with what the server kept beside the notes: the full
+ *  grading (chat practice's communication, professionalism and feedback are
+ *  computed but never put in notes), the pinned inputs (the scenario, the
+ *  typing passage), and the quiz's seconds per question and right answers. */
+function enrichFromSession(detail: AssessmentDetail | null, session: AssessmentSessionRow): AssessmentDetail | null {
+  if (!detail) return detail;
+  // grading = {graded_at, model, prompt_version, fallback, result, …the step's
+  // own extras at the top level} (gradingRecord in _shared/assessmentSession.ts).
+  const top = obj(session.grading) ?? {};
+  const g = obj(top.result) ?? {};
+  const c = obj(session.context) ?? {};
+  switch (detail.kind) {
+    case "chat_simulation": {
+      const scores = SCORE_FIELDS.flatMap(([label, field]) => {
+        const have = detail.scores.find((x) => x.label === label);
+        if (have) return [have];
+        const v = num(g[field]);
+        return v != null ? [{ label, value: v }] : [];
+      });
+      const graded = obj(top.scenario);
+      return {
+        ...detail,
+        scenario: detail.scenario ?? str(c.scenario) ?? str(graded?.scenario),
+        customerName: detail.customerName ?? str(c.customer_name) ?? str(graded?.customer_name),
+        scores,
+        strengths: detail.strengths.length > 0 ? detail.strengths : strList(g.strengths),
+        improvements: detail.improvements.length > 0 ? detail.improvements : strList(g.improvements),
+        feedback: detail.feedback ?? str(g.overallFeedback),
+      };
+    }
+    case "chat_interview": {
+      const inconsistencies =
+        detail.inconsistencies.length > 0
+          ? detail.inconsistencies
+          : (Array.isArray(g.inconsistencies) ? g.inconsistencies : [])
+              .map(obj)
+              .filter((x): x is Obj => !!x)
+              .map((x) => ({ claim: str(x.claim) ?? "", evidence: str(x.evidence) ?? "", assessment: str(x.assessment) ?? "" }))
+              .filter((x) => x.claim || x.evidence || x.assessment);
+      return {
+        ...detail,
+        score: detail.score ?? num(g.score),
+        recommendation: detail.recommendation ?? str(g.recommendation),
+        credibility: detail.credibility ?? str(g.credibilityRating),
+        summary: detail.summary ?? str(g.summary),
+        strengths: detail.strengths.length > 0 ? detail.strengths : strList(g.strengths),
+        concerns: detail.concerns.length > 0 ? detail.concerns : strList(g.concerns),
+        inconsistencies,
+        questionCount: detail.questionCount ?? num(top.question_count),
+        duration: detail.duration ?? fmtDuration(top.duration_seconds),
+      };
+    }
+    case "typing_test": {
+      const passage = detail.passage ?? str(c.target_text);
+      return {
+        ...detail,
+        passage,
+        wpm: detail.wpm ?? num(g.wpm),
+        accuracy: detail.accuracy ?? num(g.accuracy),
+        requiredWpm: detail.requiredWpm ?? num(g.requiredWpm) ?? num(c.required_wpm),
+        seconds: detail.seconds ?? (num(top.elapsed_ms) != null ? Math.round(num(top.elapsed_ms)! / 1000) : null),
+        words: detail.typed && passage ? typingWords(detail.typed, passage) : detail.words,
+      };
+    }
+    case "quiz": {
+      const graded = new Map<string, Obj>();
+      for (const raw of Array.isArray(g.answers) ? g.answers : []) {
+        const a = obj(raw);
+        const id = str(a?.question_id);
+        if (a && id) graded.set(id, a);
+      }
+      if (graded.size === 0) return detail;
+      return {
+        ...detail,
+        items: detail.items.map((item) => {
+          const a = graded.get(item.id);
+          if (!a) return item;
+          return {
+            ...item,
+            seconds: item.seconds ?? num(a.seconds_on_question),
+            correctTexts: item.correctTexts ?? correctTextsFrom(a.correct_answer, item.options),
+          };
+        }),
+      };
+    }
+    default:
+      return detail;
+  }
+}
+
+/** The answers saved as they typed (save_application_draft), in the job's
+ *  question order. Nothing has been sent yet. */
+function draftDetail(ctx: BuildContext, session: AssessmentSessionRow): AssessmentDetail {
+  const draft = obj(session.draft) ?? {};
+  const codes = obj(draft._phoneCountryCodes) ?? {};
+  const files = uploadsOf(ctx);
+  const questions = (Array.isArray(ctx.app.jobs?.application_questions) ? (ctx.app.jobs!.application_questions as unknown[]) : [])
+    .map(obj)
+    .filter((q): q is Obj => !!q);
+  const answers: AnswerItem[] = [];
+  const push = (id: string, question: string, type: string | null, value: unknown) => {
+    let answer = "";
+    let selected: string[] | null = null;
+    if (Array.isArray(value)) {
+      const list = strList(value);
+      answer = list.join("; ");
+      selected = list.length > 0 ? list : null;
+    } else if (typeof value === "string") {
+      answer = value;
+    } else if (typeof value === "number" || typeof value === "boolean") {
+      answer = String(value);
+    }
+    const code = str(codes[id]);
+    if (code && answer.trim() && (type === "phone" || type === "tel")) answer = `${code} ${answer}`;
+    const upload = files.get(id);
+    answers.push({
+      id,
+      question,
+      answer,
+      selected,
+      type,
+      file: upload ? { path: upload.path, pages: upload.pages } : type === "file" && answer.trim() ? { path: answer.trim(), pages: [] } : null,
+    });
+  };
+  if (questions.length > 0) {
+    questions.forEach((q, i) => {
+      const id = str(q.id) ?? `q-${i}`;
+      push(id, str(q.question) ?? `Question ${i + 1}`, str(q.type), draft[id]);
+    });
+  } else {
+    for (const [key, value] of Object.entries(draft)) if (!key.startsWith("_")) push(key, key, null, value);
+  }
+  const p = obj(session.progress) ?? {};
+  return {
+    kind: "application",
+    answers,
+    coverLetter: str(draft._coverLetter),
+    hasResume: !!ctx.app.resume_url,
+    flags: [],
+    uploads: [],
+    draft: { savedAt: str(p.draft_saved_at) ?? session.last_activity_at ?? null, answered: num(p.answered), total: num(p.total) },
+  };
+}
+
+/** What a step still being taken can show before its events load: the
+ *  server-pinned inputs and how far they are. Events fill in the rest. */
+function liveDetail(ctx: BuildContext, step: CandidateJourneyStep, session: AssessmentSessionRow): AssessmentDetail | null {
+  const c = obj(session.context) ?? {};
+  const p = obj(session.progress) ?? {};
+  const turns = (num(p.candidate_turns) ?? 0) + (num(p.assistant_turns) ?? 0);
+  switch (step.type) {
+    case "application":
+      return draftDetail(ctx, session);
+    case "quiz": {
+      const source = quizSource(ctx);
+      return {
+        kind: "quiz",
+        correct: null,
+        total: num(p.total) ?? (source.questions.length || null),
+        score: null,
+        passed: null,
+        items: [],
+        keyStepId: source.keyStepId,
+        questions: quizQuestionRefs(source.questions),
+        live: true,
+      };
+    }
+    case "typing_test": {
+      const config = stepConfig(ctx, step.id);
+      const elapsed = num(p.elapsed_ms);
+      return {
+        kind: "typing_test",
+        wpm: null,
+        accuracy: null,
+        score: null,
+        passed: null,
+        requiredWpm: num(c.required_wpm) ?? num(config?.min_wpm) ?? num(ctx.app.jobs?.required_wpm),
+        requiredAccuracy: num(config?.min_accuracy_percent),
+        passage: str(c.target_text),
+        typed: null,
+        seconds: elapsed != null ? Math.round(elapsed / 1000) : null,
+        words: null,
+        runs: null,
+        live: true,
+      };
+    }
+    case "chat_simulation":
+      return {
+        kind: "chat_simulation",
+        scenario: str(c.scenario),
+        customerName: str(c.customer_name),
+        scores: [],
+        strengths: [],
+        improvements: [],
+        feedback: null,
+        messageCount: turns || null,
+        transcript: null,
+        live: true,
+      };
+    case "chat_interview":
+      return {
+        kind: "chat_interview",
+        score: null,
+        recommendation: null,
+        credibility: null,
+        summary: null,
+        strengths: [],
+        concerns: [],
+        inconsistencies: [],
+        duration: null,
+        questionCount: num(p.question_count),
+        messageCount: turns || null,
+        transcript: null,
+        live: true,
+      };
+    default:
+      return { kind: "generic", facts: [], lists: [], summary: null, transcript: null };
+  }
+}
+
+/** Options for the builder: the server's attempts when loaded, and "now". */
+export interface BuildOptions {
+  /** `assessment_sessions` rows for this application (any order). The staff
+   *  hooks hand them over with the reopen markers attached (`withReopens`). */
+  sessions?: SessionList | null;
+  /** The application's staff reopen markers (`assessment_step_reopens`).
+   *  Defaults to the ones riding on `sessions`. Without a marker no step
+   *  reads "Reopened for a retake", whatever status and phase say. */
+  reopens?: readonly StepReopenRow[] | null;
+  /** Milliseconds since the epoch, for the live labels; defaults to Date.now(). */
+  now?: number;
+}
+
 /**
  * One entry per step the job gives this applicant, in the job's order, then
  * any result the job no longer lists, the resume (when one is on file) right
  * after the application, and a closing integrity row when anything was
  * flagged. A showcase row (no notes, no job) has no record to show: [].
+ *
+ * With `sessions`, a step still being taken reads live ("Answering question 3
+ * of 10 · active 1 min ago", "Left at question 3 · last active 25 min ago")
+ * and opens on what is there so far; a finished step adds what the server
+ * kept beside the notes. Notes still decide what is DONE: a result on file
+ * is done whatever an attempt row says.
  */
-export function buildAssessmentRecord(app: AssessmentAppInput | null | undefined): AssessmentRecord {
-  const empty: AssessmentRecord = { entries: [], riskFlags: [], fillingInForm: false, integrityTotal: 0, jobId: null };
+export function buildAssessmentRecord(app: AssessmentAppInput | null | undefined, options: BuildOptions = {}): AssessmentRecord {
+  const empty: AssessmentRecord = { entries: [], riskFlags: [], fillingInForm: false, integrityTotal: 0, jobId: null, live: null };
   if (!app) return empty;
   const fillingInForm = isFillingInForm(app.status);
   const scorecard = obj(app.ai_scorecard);
   const riskFlags = strList(scorecard?.riskFlags);
   if (app.notes == null && app.jobs == null && !fillingInForm) return { ...empty, riskFlags };
 
+  const sessions = (options.sessions ?? []).filter((x): x is AssessmentSessionRow => !!x && typeof x.step_id === "string");
+  // Only this application's markers (a job-wide list may carry others').
+  const reopens = (options.reopens ?? options.sessions?.reopens ?? []).filter(
+    (r): r is StepReopenRow => !!r && typeof r.step_id === "string" && (!r.application_id || !app.id || r.application_id === app.id),
+  );
+  const now = options.now ?? Date.now();
   const notes = parseApplicationNotes(app.notes ?? null);
   const rawSteps = (Array.isArray(app.jobs?.workflow_steps) ? (app.jobs!.workflow_steps as unknown[]) : []).map((s) => obj(s) ?? {});
   const ctx: BuildContext = {
@@ -970,20 +2051,64 @@ export function buildAssessmentRecord(app: AssessmentAppInput | null | undefined
   const decided = DECIDED_STATUSES.has(app.status ?? "");
 
   const entries: AssessmentEntry[] = [];
+  const earlierGroups: Array<{ key: string; title: string; tally: IntegrityTally; sessionId: string; attempt: number }> = [];
   journey.forEach((step, i) => {
-    let done: boolean;
+    let resultOnFile: boolean;
     if (step.type === "application") {
       const answers = notes.applicationAnswers;
-      done = !fillingInForm && ((Array.isArray(answers) && answers.length > 0) || !!app.status);
+      resultOnFile = !fillingInForm && ((Array.isArray(answers) && answers.length > 0) || !!app.status);
     } else if (step.type === "quiz") {
-      done = !!quiz.record || !!obj(notes.quizResult) || stepHasResult(notes, app.voice_interview_result, step);
+      resultOnFile = !!quiz.record || !!obj(notes.quizResult) || stepHasResult(notes, app.voice_interview_result, step);
     } else {
-      done = stepHasResult(notes, app.voice_interview_result, step);
+      resultOnFile = stepHasResult(notes, app.voice_interview_result, step);
     }
-    const inProgress = !done && !decided && (step.type === "application" ? fillingInForm : i === position.index);
+    const attempts = stepAttempts(sessions, step.id);
+    // Handed back for a retake: status pending with phase on the step AND a
+    // staff reopen marker newer than the result on file — the server's own
+    // rule (assessment_step_completion). The applicant can set their own
+    // status to pending, so status and phase alone never reopen a step. The
+    // old result stays in notes, but the step is theirs to take again.
+    const marker = resultOnFile && !decided ? retakeMarker(app, step, notes, sessions, reopens) : null;
+    const retakeOpen = marker != null;
+    const done = resultOnFile && !retakeOpen && !(attempts.rechecking && !decided);
+    // Reopened, and the new attempt has not started: the row opens on the
+    // earlier result, said plainly.
+    const retakeWaiting = retakeOpen && resultOnFile && !attempts.retake;
+    const session = done
+      ? attempts.result
+      : retakeOpen
+        ? attempts.retake ?? (retakeWaiting ? attempts.lastCompleted : null)
+        : sessionForStep(sessions, step.id);
+    // Live only while it is still theirs to finish: a result on file, or a
+    // decision, ends it whatever the attempt row says.
+    const live = session && !done && !decided && !retakeWaiting ? sessionLiveStatus(session, now, step.title) : null;
+    const inProgress = !done && !decided && (live != null || retakeOpen || (step.type === "application" ? fillingInForm : i === position.index));
     const status: AssessmentStatus = done ? "done" : inProgress ? "in_progress" : "not_started";
-    const built = done ? buildStep(ctx, step) : null;
-    const detail = built?.detail ?? null;
+    const built = done || retakeWaiting ? buildStep(ctx, step) : null;
+    let detail: AssessmentDetail | null = built?.detail ?? null;
+    if ((done || retakeWaiting) && session) detail = enrichFromSession(detail, session);
+    if (!done && !retakeWaiting && inProgress && session) detail = liveDetail(ctx, step, session);
+
+    // The server's tally whenever it has one for the attempt shown, even at
+    // zero: it is what the bell and the timeline say. The notes' shapes
+    // (written by older pages, and still kept for them) only without one, and
+    // only for the attempt whose result they are. The form step never
+    // alerts: leaving it is normal, so it raises no flag here either.
+    const notesTally = built?.integrity ?? EMPTY_TALLY;
+    const serverTally = session && step.type !== "application" ? integrityFromSummary(session.integrity_summary) : null;
+    const integrity = serverTally ?? notesTally;
+    // Every other attempt of this step that raised flags keeps its own tally.
+    const earlierIntegrity: EarlierAttemptFlags[] =
+      step.type === "application"
+        ? []
+        : attempts.all
+            .filter((a) => a.id !== session?.id)
+            .map((a) => ({ sessionId: a.id, attempt: attemptNo(a), tally: integrityFromSummary(a.integrity_summary) }))
+            .filter((a): a is EarlierAttemptFlags => !!a.tally && a.tally.total > 0);
+    for (const e of earlierIntegrity) {
+      earlierGroups.push({ key: `${step.id}#${e.attempt}`, title: `${step.title} · attempt ${e.attempt}`, tally: e.tally, sessionId: e.sessionId, attempt: e.attempt });
+    }
+
     entries.push({
       key: step.id,
       kind: kindFor(step.type),
@@ -994,10 +2119,10 @@ export function buildAssessmentRecord(app: AssessmentAppInput | null | undefined
         ? step.type === "application"
           ? "Sent"
           : "Done"
+        : retakeWaiting
+          ? "Reopened for a retake"
         : inProgress
-          ? step.type === "application"
-            ? "Filling in the form"
-            : "In progress"
+          ? live?.text ?? (retakeOpen ? "Reopened for a retake" : step.type === "application" ? "Filling in the form" : "In progress")
           : i < position.index
             ? // The record says they went past it, but no result is on file
               // (an older application, or a result that was never saved).
@@ -1009,11 +2134,24 @@ export function buildAssessmentRecord(app: AssessmentAppInput | null | undefined
       tone: done ? built!.tone : "muted",
       verdict: built?.verdict ?? null,
       subline: built?.subline ?? null,
-      receipt: built?.receipt ?? null,
-      completedAt: built?.completedAt ?? null,
-      integrity: built?.integrity ?? EMPTY_TALLY,
-      openable: done && detail != null,
+      receipt: done ? built?.receipt ?? null : live?.receipt ?? null,
+      completedAt: built?.completedAt ?? (done ? session?.ended_at ?? null : null),
+      integrity,
+      openable: detail != null && (done || retakeWaiting || (inProgress && session != null)),
       detail,
+      session: session
+        ? {
+            id: session.id,
+            attempt: session.attempt ?? 1,
+            status: session.status,
+            live: retakeWaiting ? null : live ?? sessionLiveStatus(session, now, step.title),
+            earlierAttempts: attempts.all.filter((s) => s.id !== session.id).length,
+          }
+        : null,
+      timeline: null,
+      retake: retakeWaiting ? "open" : null,
+      reopen: marker ? { at: marker.reopened_at ?? null, count: num(marker.reopen_count) } : null,
+      earlierIntegrity: earlierIntegrity.length > 0 ? earlierIntegrity : undefined,
     });
 
     // The resume sits with the application it came in on.
@@ -1034,6 +2172,8 @@ export function buildAssessmentRecord(app: AssessmentAppInput | null | undefined
         integrity: EMPTY_TALLY,
         openable: true,
         detail: { kind: "resume" },
+        session: null,
+        timeline: null,
       });
     }
   });
@@ -1052,23 +2192,49 @@ export function buildAssessmentRecord(app: AssessmentAppInput | null | undefined
       statusLabel: "Done",
       ...built,
       openable: built.detail != null,
+      session: null,
+      timeline: null,
     });
   }
 
-  const flagged = entries.filter((e) => e.integrity.total > 0);
-  const integrityTotal = flagged.reduce((n, e) => n + e.integrity.total, 0);
+  // One group per flagged attempt, in the job's order and then attempt by
+  // attempt. When a test was taken more than once, every group says which.
+  const groups: Array<{ key: string; title: string; tally: IntegrityTally; sessionId: string | null }> = [];
+  for (const e of entries) {
+    const others = earlierGroups.filter((g) => g.key.startsWith(`${e.key}#`));
+    const attempt = e.session?.attempt ?? 1;
+    const own =
+      e.integrity.total > 0
+        ? [{ key: e.key, title: others.length > 0 || attempt > 1 ? `${e.title} · attempt ${attempt}` : e.title, tally: e.integrity, sessionId: e.session?.id ?? null, attempt }]
+        : [];
+    for (const g of [...own, ...others].sort((a, b) => a.attempt - b.attempt)) {
+      groups.push({ key: g.key, title: g.title, tally: g.tally, sessionId: g.sessionId });
+    }
+  }
+  const flaggedTests = new Set(groups.map((g) => g.key.split("#")[0])).size;
+  const integrityTotal = groups.reduce((n, g) => n + g.tally.total, 0);
   if (integrityTotal > 0) {
-    const all: IntegrityTally = flagged.reduce<IntegrityTally>(
-      (acc, e) => ({
-        total: acc.total + e.integrity.total,
-        tabSwitches: acc.tabSwitches + e.integrity.tabSwitches,
-        copyPaste: acc.copyPaste + e.integrity.copyPaste,
-        other: acc.other + e.integrity.other,
-        events: [...acc.events, ...e.integrity.events],
-        countsOnly: acc.countsOnly || e.integrity.countsOnly,
+    const all: IntegrityTally = groups.reduce<IntegrityTally>(
+      (acc, g) => ({
+        total: acc.total + g.tally.total,
+        tabSwitches: acc.tabSwitches + g.tally.tabSwitches,
+        copyPaste: acc.copyPaste + g.tally.copyPaste,
+        other: acc.other + g.tally.other,
+        events: [...acc.events, ...g.tally.events],
+        countsOnly: acc.countsOnly || g.tally.countsOnly,
+        awayMs: (acc.awayMs ?? 0) + (g.tally.awayMs ?? 0),
       }),
       EMPTY_TALLY,
     );
+    // Every flagged attempt counted by the server: add the counts up and say
+    // them in the card's words ("possible screenshot ×1", not "1 other").
+    if (groups.every((g) => g.tally.counts)) {
+      const counts: Record<string, number> = {};
+      for (const g of groups) for (const [k, v] of Object.entries(g.tally.counts!)) counts[k] = (counts[k] ?? 0) + v;
+      all.counts = counts;
+      all.parts = integrityParts(counts, all.awayMs ?? 0);
+      all.fromSession = true;
+    }
     entries.push({
       key: "integrity",
       kind: "integrity",
@@ -1078,17 +2244,394 @@ export function buildAssessmentRecord(app: AssessmentAppInput | null | undefined
       statusLabel: "Flagged",
       headline: `${integrityTotal} ${integrityTotal === 1 ? "flag" : "flags"}`,
       tone: "amber",
-      verdict: `in ${flagged.length} ${flagged.length === 1 ? "test" : "tests"}`,
+      verdict: `in ${flaggedTests} ${flaggedTests === 1 ? "test" : "tests"}`,
       subline: integritySummary(all),
       receipt: null,
       completedAt: null,
       integrity: all,
       openable: true,
-      detail: { kind: "integrity", groups: flagged.map((e) => ({ key: e.key, title: e.title, tally: e.integrity })) },
+      detail: {
+        kind: "integrity",
+        groups: groups.map((g) => ({ ...g, timeline: null })),
+      },
+      session: null,
+      timeline: null,
     });
   }
 
-  return { entries, riskFlags, fillingInForm, integrityTotal, jobId: str(app.jobs?.id) ?? null };
+  // What they are doing right now: the unfinished attempt they touched last.
+  const live =
+    entries
+      .filter((e) => e.status === "in_progress" && e.session?.live && e.session.live.state !== "finished")
+      .map((e) => e.session!.live!)
+      .sort((a, b) => (toMillis(b.lastActivityAt) ?? 0) - (toMillis(a.lastActivityAt) ?? 0))[0] ?? null;
+
+  return { entries, riskFlags, fillingInForm, integrityTotal, jobId: str(app.jobs?.id) ?? null, live };
+}
+
+/* ── Folding in one attempt's events (the record sheet) ────────────────── */
+
+function pickedFrom(answer: unknown, options: string[]): { picked: number[]; pickedText: string[]; text: string | null } {
+  const one = (v: unknown): { index: number | null; text: string | null } => {
+    if (typeof v === "number" && Number.isInteger(v) && v >= 0 && v < options.length) return { index: v, text: options[v] };
+    if (typeof v === "string" && v.trim()) {
+      const i = options.findIndex((o) => norm(o) === norm(v));
+      return { index: i >= 0 ? i : null, text: v.trim() };
+    }
+    return { index: null, text: null };
+  };
+  const list = Array.isArray(answer) ? answer : answer == null ? [] : [answer];
+  const parts = list.map(one);
+  const picked = parts.map((p) => p.index).filter((x): x is number => x != null);
+  const pickedText = parts.map((p) => p.text).filter((x): x is string => !!x);
+  const text = parts.length === 1 && parts[0].index == null ? parts[0].text : null;
+  return { picked, pickedText, text };
+}
+
+function mergeEventsIntoDetail(detail: AssessmentDetail, events: readonly AssessmentEventRow[]): AssessmentDetail {
+  switch (detail.kind) {
+    case "chat_simulation":
+    case "chat_interview": {
+      const transcript = transcriptFromEvents(events);
+      return transcript ? { ...detail, transcript, messageCount: transcript.length } : detail;
+    }
+    case "generic": {
+      const transcript = transcriptFromEvents(events);
+      return transcript ? { ...detail, transcript } : detail;
+    }
+    case "typing_test": {
+      const snaps = events.filter((e) => e.kind === "typing_snapshot");
+      if (snaps.length === 0) return detail;
+      const final = [...snaps].reverse().find((e) => obj(e.detail)?.final === true) ?? null;
+      const latest = final ?? snaps[snaps.length - 1];
+      const d = obj(latest.detail) ?? {};
+      const typed = typeof d.typed_text === "string" && d.typed_text.length > 0 ? d.typed_text : detail.typed;
+      const passage = str(d.target_text) ?? detail.passage;
+      const elapsed = num(d.elapsed_ms);
+      const runs = snaps.reduce((n, e) => Math.max(n, num(obj(e.detail)?.attempt_run) ?? 1), 1);
+      return {
+        ...detail,
+        typed,
+        passage,
+        wpm: detail.wpm ?? num(d.wpm),
+        accuracy: detail.accuracy ?? num(d.accuracy),
+        seconds: elapsed != null ? Math.round(elapsed / 1000) : detail.seconds,
+        words: typed && passage ? typingWords(typed, passage) : detail.words,
+        runs: runs > 1 ? runs : detail.runs,
+        live: detail.live && !final,
+      };
+    }
+    case "quiz": {
+      const timings = quizTimings(events);
+      const shownOrder: string[] = [];
+      for (const e of events) {
+        const id = e.kind === "quiz_shown" || e.kind === "quiz_answer" ? str(obj(e.detail)?.question_id) : null;
+        if (id && !shownOrder.includes(id)) shownOrder.push(id);
+      }
+      const lastShown = [...events].reverse().find((e) => e.kind === "quiz_shown");
+      const onScreenId = lastShown ? str(obj(lastShown.detail)?.question_id) : null;
+      if (detail.items.length > 0) {
+        return {
+          ...detail,
+          items: detail.items.map((item) => {
+            const t = timings.get(item.id);
+            // A written answer is saved as they type: its edits are not changes of mind.
+            return t ? { ...item, seconds: t.seconds ?? item.seconds, approximate: t.approximate, changes: item.type === "text" ? 0 : t.changes } : item;
+          }),
+        };
+      }
+      if (!detail.live || shownOrder.length === 0) return detail;
+      // Still being answered: every question they have seen, in the job's
+      // order, with the pick so far and the time on it. Nothing is marked
+      // right or wrong until the quiz is sent and graded.
+      const items: QuizItem[] = detail.questions
+        .filter((q) => shownOrder.includes(q.id))
+        .map((q) => {
+          const t = timings.get(q.id);
+          const picks = t ? pickedFrom(t.answer, q.options) : { picked: [], pickedText: [], text: null };
+          return {
+            id: q.id,
+            index: q.index,
+            question: q.question,
+            category: q.category,
+            type: q.type,
+            options: q.options,
+            picked: picks.picked,
+            pickedText: picks.pickedText,
+            textAnswer: q.type === "text" ? picks.text : null,
+            isCorrect: null,
+            partial: false,
+            seconds: t?.seconds ?? null,
+            approximate: t?.approximate ?? false,
+            changes: q.type === "text" ? 0 : t?.changes ?? 0,
+            correctTexts: null,
+            onScreen: q.id === onScreenId && !t,
+          };
+        });
+      return { ...detail, items };
+    }
+    default:
+      return detail;
+  }
+}
+
+/**
+ * One entry with its attempt's events folded in: the conversation from the
+ * server's turns, what they typed against the passage, the seconds on each
+ * question, and the timeline of every switch away and paste. The notes'
+ * versions stay where the events have nothing to add.
+ */
+export function withSessionEvents(entry: AssessmentEntry, events: readonly AssessmentEventRow[] | null | undefined): AssessmentEntry {
+  if (!events || events.length === 0) return entry;
+  const sorted = [...events].sort((a, b) => a.seq - b.seq);
+  if (entry.detail?.kind === "integrity") {
+    return {
+      ...entry,
+      detail: {
+        ...entry.detail,
+        groups: entry.detail.groups.map((g) => {
+          if (!g.sessionId) return g;
+          const timeline = integrityTimeline(sorted.filter((e) => e.session_id === g.sessionId));
+          return { ...g, timeline: timeline.length > 0 ? timeline : g.timeline };
+        }),
+      },
+    };
+  }
+  const timeline = integrityTimeline(sorted);
+  const detail = entry.detail ? mergeEventsIntoDetail(entry.detail, sorted) : null;
+  return { ...entry, detail, timeline: timeline.length > 0 ? timeline : entry.timeline };
+}
+
+/* ── The owner's integrity card (notifications, type "integrity") ─────── */
+
+export interface IntegrityCard {
+  applicationId: string;
+  stepId: string;
+  /** The test's own title, from "During <title>: …". */
+  during: string | null;
+  /** "left the window 3 times (1m 12s away)", "paste attempt ×1". */
+  parts: string[];
+  /** Opens the applicant's full profile on that test's record. */
+  link: string;
+}
+
+/** Each part of the card, in its order (assessment_integrity_alert): the
+ *  words it starts with, and how a toast says that one more happened. */
+const CARD_KINDS: ReadonlyArray<{ key: string; start: string; did: string }> = [
+  { key: "away", start: "left the window", did: "left the window" },
+  { key: "paste", start: "paste attempt", did: "tried to paste" },
+  { key: "bulk_insert", start: "pasted-in text", did: "put in pasted text" },
+  { key: "copy", start: "copy attempt", did: "tried to copy" },
+  { key: "screenshot_key", start: "screenshot attempt", did: "tried to take a screenshot" },
+  { key: "screenshot_suspected", start: "possible screenshot", did: "may have taken a screenshot" },
+  { key: "devtools", start: "developer tools opened", did: "opened developer tools" },
+  { key: "page_closed", start: "closed the test page", did: "closed the test page" },
+];
+/** The words each part of the card starts with (assessment_integrity_alert). */
+const CARD_PART_STARTS = CARD_KINDS.map((k) => k.start);
+const CARD_MESSAGE = new RegExp(`^During (.+?): ((?:${CARD_PART_STARTS.join("|")})\\b.*)$`);
+
+/**
+ * Reads one grouped integrity card (public.assessment_integrity_alert:
+ * group_key `integrity:<application_id>:<step_id>`, message "During <step
+ * title>: <part>, <part>"). Null for any other notification.
+ */
+export function parseIntegrityCard(n: { type?: string | null; group_key?: string | null; message?: string | null; link?: string | null }): IntegrityCard | null {
+  const key = n.group_key ?? "";
+  const m = key.match(/^integrity:([0-9a-fA-F-]{36}):(.+)$/);
+  if (!m) return null;
+  const [, applicationId, stepId] = m;
+  const msg = (n.message ?? "").trim();
+  // The test's title is the job's own and may hold ": " itself, so the split
+  // is anchored on the card's first part, which is always one of these words.
+  const said = msg.match(CARD_MESSAGE);
+  const parts = (said ? said[2] : msg)
+    .split(/,\s+/)
+    .map((p) => p.trim().replace(/ x(\d+)$/, " ×$1"))
+    .filter(Boolean);
+  return {
+    applicationId,
+    stepId,
+    during: said ? said[1] : null,
+    parts,
+    link: `/applicants/${applicationId}?record=${encodeURIComponent(stepId)}&focus=integrity`,
+  };
+}
+
+/* ── A live toast for every new flag on the card ───────────────────────── */
+// The owner: told EVERY time an applicant copies, pastes, tries a screenshot
+// or switches windows. The server keeps ONE card per applicant per test and
+// rewrites it on each new batch of events (new tally, unread again,
+// created_at = now()), so after the first event the bell sees UPDATEs, not
+// INSERTs. These turn each counted-up card into one toast — once per batch,
+// never for the same update twice, never for a "mark as read".
+
+/** The slice of a `notifications` row the toast reads. */
+export interface IntegrityCardRow {
+  id?: string | null;
+  type?: string | null;
+  group_key?: string | null;
+  title?: string | null;
+  message?: string | null;
+  link?: string | null;
+  is_read?: boolean | null;
+  created_at?: string | null;
+}
+
+export interface IntegrityToast {
+  /** One id per card update: the same update is one toast however often it arrives. */
+  id: string;
+  /** "Robin Okafor left the window during Player chat practice (3rd time)". */
+  title: string;
+  /** The running tally in the card's words: "So far: left the window 3 times (1m 12s away) · paste attempt ×1". */
+  description: string;
+  /** That test's timeline on the applicant's profile. */
+  link: string;
+}
+
+/** The card's counts by part ("left the window 3 times" → away: 3,
+ *  "paste attempt ×1" → paste: 1). Parts it does not know are skipped. */
+export function integrityCardCounts(parts: readonly string[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const raw of parts) {
+    const part = raw.trim();
+    const kind = CARD_KINDS.find((k) => part.startsWith(k.start));
+    if (!kind) continue;
+    const n =
+      kind.key === "away"
+        ? Number(part.match(/^left the window (\d+) times?\b/)?.[1] ?? NaN)
+        : Number(part.match(/[×x](\d+)\s*$/)?.[1] ?? NaN);
+    if (Number.isFinite(n) && n > 0) counts[kind.key] = (counts[kind.key] ?? 0) + n;
+  }
+  return counts;
+}
+
+/** "Robin Okafor" from "Integrity — Robin Okafor" (the server's own fallback
+ *  when there is no name is "A candidate"). */
+function cardPerson(title: string | null | undefined): string {
+  const t = (title ?? "").trim();
+  const m = t.match(/^Integrity\s+[—–-]\s+(.+)$/);
+  return (m ? m[1].trim() : "") || "A candidate";
+}
+
+/** 1st, 2nd, 3rd, 4th … 11th, 12th, 13th … 21st. */
+export function ordinal(n: number): string {
+  const tens = n % 100;
+  const suffix = tens >= 11 && tens <= 13 ? "th" : n % 10 === 1 ? "st" : n % 10 === 2 ? "nd" : n % 10 === 3 ? "rd" : "th";
+  return `${n}${suffix}`;
+}
+
+function andList(items: readonly string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+/** The id one update of a card toasts under: the card and the time of its update. */
+export function integrityToastId(row: IntegrityCardRow): string {
+  return `integrity:${row.group_key ?? row.id ?? ""}:${row.created_at ?? ""}`;
+}
+
+/**
+ * The toast for one write of the owner's integrity card, or null when it
+ * says nothing new. `prev` is the card as it was last seen: `null` when the
+ * card is new (everything on it is new), `undefined` when it was never seen
+ * (an update whose earlier counts are unknown: said without a count).
+ */
+export function integrityCardToast(prev: IntegrityCardRow | null | undefined, next: IntegrityCardRow): IntegrityToast | null {
+  const card = parseIntegrityCard(next);
+  if (!card) return null;
+  const now = integrityCardCounts(card.parts);
+  if (Object.keys(now).length === 0) return null;
+  const person = cardPerson(next.title);
+  const during = card.during ? ` during ${card.during}` : "";
+  const base = {
+    id: integrityToastId(next),
+    description: `So far: ${card.parts.join(" · ")}`,
+    link: card.link,
+  };
+  if (prev === undefined) return { ...base, title: `${person} was flagged again${during}` };
+
+  const before = prev ? integrityCardCounts(parseIntegrityCard(prev)?.parts ?? []) : {};
+  const grew = CARD_KINDS.filter((k) => (now[k.key] ?? 0) > (before[k.key] ?? 0));
+  if (grew.length === 0) return null;
+  if (grew.length > 1) return { ...base, title: `${person} ${andList(grew.map((k) => k.did))}${during}` };
+
+  const kind = grew[0];
+  const total = now[kind.key];
+  const added = total - (before[kind.key] ?? 0);
+  const title =
+    added === 1
+      ? `${person} ${kind.did}${during}${total > 1 ? ` (${ordinal(total)} time)` : ""}`
+      : added === total
+        ? `${person} ${kind.did} ${total} times${during}`
+        : `${person} ${kind.did} ${added} more times${during} (${total} in all)`;
+  return { ...base, title };
+}
+
+/**
+ * Decides, for each realtime write of a notification, whether it is a new
+ * flag to toast. One per tab (module scope in the toast host), so two mounts
+ * or a re-delivered message can never toast the same update twice.
+ *
+ *  - `seed(rows)`: the cards as fetched (on subscribe and after a reconnect),
+ *    so the next update is compared with what the card said.
+ *  - `consider(event, row)`: a toast, or null for anything that is not an
+ *    integrity card, is read (a mark-as-read, here or on another device),
+ *    is older than what was seen, or adds nothing.
+ */
+export function createIntegrityToastGate(limit = 500) {
+  type Seen = { row: IntegrityCardRow; at: number | null; fromSeed: boolean };
+  const cards = new Map<string, Seen>();
+  const shown = new Set<string>();
+  const keyOf = (row: IntegrityCardRow) => row.group_key ?? row.id ?? "";
+  const trim = <T,>(set: Set<T> | Map<T, unknown>) => {
+    while (set.size > limit) {
+      const first = set.keys().next().value as T;
+      set.delete(first);
+    }
+  };
+  const isCard = (row: IntegrityCardRow | null | undefined): row is IntegrityCardRow => !!row && parseIntegrityCard(row) != null;
+
+  return {
+    seed(rows: readonly (IntegrityCardRow | null | undefined)[] | null | undefined) {
+      for (const row of rows ?? []) {
+        if (!isCard(row)) continue;
+        const at = toMillis(row.created_at);
+        const held = cards.get(keyOf(row));
+        // Never step back over a newer write the channel already delivered.
+        if (held && (held.at == null || (at != null && held.at >= at))) continue;
+        cards.set(keyOf(row), { row: { ...row }, at, fromSeed: true });
+      }
+      trim(cards);
+    },
+    consider(event: "INSERT" | "UPDATE", row: IntegrityCardRow | null | undefined): IntegrityToast | null {
+      if (!isCard(row)) return null;
+      const key = keyOf(row);
+      const at = toMillis(row.created_at);
+      const held = cards.get(key);
+      // A write older than the one already seen changes nothing.
+      if (held && held.at != null && at != null && at < held.at) return null;
+      cards.set(key, { row: { ...row }, at, fromSeed: false });
+      trim(cards);
+      if (row.is_read === true) return null;
+      const id = integrityToastId(row);
+      if (shown.has(id)) return null;
+      const same = !!held && held.row.created_at === row.created_at && held.row.message === row.message;
+      // Delivered before (or marked unread again): nothing new happened.
+      if (same && !held!.fromSeed) return null;
+      // Compared with the card as last seen. A new card: everything on it is
+      // new. An update of a card never seen — or seen only by the seed, which
+      // read this very write before its message arrived — grew by an unknown
+      // part, so it is said without a count.
+      const prev: IntegrityCardRow | null | undefined = held && !same ? held.row : event === "INSERT" ? null : undefined;
+      const toast = integrityCardToast(prev, row);
+      if (toast) {
+        shown.add(id);
+        trim(shown);
+      }
+      return toast;
+    },
+  };
 }
 
 /** What Ava had in hand, for her letterhead's "…, weighed against the job"

@@ -45,6 +45,9 @@ export interface TypingTestResult {
   passed: boolean;
 }
 
+/** How the score is made, in words, for the staff record (session.grading). */
+export const TYPING_FORMULA = "gross WPM × word accuracy";
+
 export function calculateTypingResults(
   typedText: string,
   targetText: string,

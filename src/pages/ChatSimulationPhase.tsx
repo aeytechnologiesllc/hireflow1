@@ -17,12 +17,36 @@ import {
   Send,
   CheckCircle,
   Loader2,
-  ShieldAlert
 } from "lucide-react";
 import { toast } from "sonner";
 import { invokeTriggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
-import { StepAdvanceScreen, TestRulesNotice } from "@/components/candidate/NextStepCard";
+import { StepAdvanceScreen } from "@/components/candidate/NextStepCard";
+import {
+  EndEarlyDialog,
+  TestPausedOverlay,
+  TestRulesCard,
+  TestRulesReminder,
+} from "@/components/candidate/TestRulesCard";
+import { useTestIntegrity } from "@/hooks/useTestIntegrity";
+import {
+  TURN_RESEND_DELAY_MS,
+  TurnNotSavedError,
+  assessmentRequestHeaders,
+  gradingReplyOutcome,
+  isTurnNotSaved,
+  newClientId,
+  pinnedScenarioFrom,
+  restoreUnsentText,
+  serverConversationState,
+  storedResultKey,
+  turnsFromJson,
+  turnsToMessages,
+  unansweredCandidateTurn,
+  useAssessmentSession,
+  useServerCheck,
+  useResultKeyAtFirstLoad,
+} from "@/hooks/useAssessmentSession";
 import { parseApplicationNotes } from "@/utils/applicationNotes";
 import { AvaSeal } from "@/components/ava/AvaSeal";
 
@@ -34,12 +58,6 @@ interface Message {
   role: "customer" | "agent";
   content: string;
   timestamp: Date;
-}
-
-interface AntiCheatViolation {
-  type: 'tab_switch' | 'copy_attempt' | 'paste_attempt' | 'screenshot_attempt' | 'right_click';
-  timestamp: string;
-  details: string;
 }
 
 interface ChatScenario {
@@ -144,9 +162,10 @@ export default function ChatSimulationPhase() {
   const [isTyping, setIsTyping] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentScenario, setCurrentScenario] = useState<ChatScenario | null>(null);
-  const [isBlurred, setIsBlurred] = useState(false);
-  const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
   const [isResolved, setIsResolved] = useState(false);
+  // The rules card's "I understand" — Start stays disabled until it is ticked.
+  const [rulesAccepted, setRulesAccepted] = useState(false);
+  const [confirmEndOpen, setConfirmEndOpen] = useState(false);
   const [completionCountdown, setCompletionCountdown] = useState<number | null>(null);
   // The simulated customer failed to answer the candidate's last message. The
   // wrap-up button is normally gated on a minimum number of replies, so a
@@ -236,6 +255,59 @@ export default function ChatSimulationPhase() {
   // two-second redirect to the overview.
   const advance = useStepAdvance({ applicationId: id, stepId, job: application?.jobs });
 
+  // Check if already submitted
+  const existingResult = (() => {
+    // If application was reconsidered (status reset to pending), allow re-submission
+    if (application?.status === "pending" && application?.phase === stepId) {
+      return null;
+    }
+    if (!application?.notes) return null;
+    try {
+      const notes = parseApplicationNotes(application.notes);
+      return notes.chatSimulationResult || null;
+    } catch {
+      return null;
+    }
+  })();
+
+  // "Already done" is decided once, from the first read after this page
+  // mounted — never from a refresh that lands after the candidate sends.
+  const resultAtFirstLoad = useResultAtFirstLoad(isFetchedAfterMount && !!application, !!existingResult);
+  // A step the server already holds has no use for a local draft (the send
+  // that stored it may have been cut off before it could clear one), and a
+  // later retake must never resume inside the old conversation.
+  useEffect(() => {
+    if (resultAtFirstLoad) clearConversationDraft();
+  }, [resultAtFirstLoad, clearConversationDraft]);
+
+  // The record the hiring team reads (docs/ASSESSMENT-RECORD.md): opened when
+  // this page loads on a step that is not done, so a reload resumes from what
+  // the server holds, with a heartbeat while the page is open.
+  // A conversation the server is already checking (End was pressed here
+  // before a reload, or on another device) is waited on, never put back as a
+  // live chat the server no longer records (useServerCheck).
+  const storedChatResult = useMemo(
+    () => storedResultKey(parseApplicationNotes(application?.notes).chatSimulationResult),
+    [application?.notes],
+  );
+  // The baseline of a wait this page did not start with its own send (the
+  // heartbeat says End was pressed elsewhere, or a reload while it is being
+  // checked): the result as first read, never the one cached since, which
+  // the page's realtime refresh has usually already replaced by the time the
+  // heartbeat says "completed" (useResultKeyAtFirstLoad).
+  const loadResultKey = useResultKeyAtFirstLoad(isFetchedAfterMount && !!application, storedChatResult);
+  const [serverCheckWaiting, setServerCheckWaiting] = useState(false);
+
+  const session = useAssessmentSession({
+    applicationId: id,
+    stepId,
+    enabled: resultAtFirstLoad === false,
+    // While the server checks a send this page did not see through, the
+    // heartbeat goes on: it is how the page learns that the check failed.
+    live: state === "intro" || state === "chatting" || serverCheckWaiting,
+    clientProgress: { screen: state === "intro" ? "intro" : "conversation" },
+  });
+
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -279,87 +351,14 @@ export default function ChatSimulationPhase() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [completionCountdown]);
 
-  // Log anti-cheat violation
-  const logViolation = useCallback((type: AntiCheatViolation['type'], details: string) => {
-    if (state === "chatting") {
-      setViolations(prev => [...prev, {
-        type,
-        timestamp: new Date().toISOString(),
-        details,
-      }]);
-    }
-  }, [state]);
+  // Copy, paste, switching away and screenshots: the one shared hook
+  // (useTestIntegrity), live to the server while the conversation runs. It
+  // replaced this page's own copy, which logged one tab switch twice (window
+  // blur AND visibilitychange) and never said how long anyone was away.
+  const integrity = useTestIntegrity({ applicationId: id, stepId, active: state === "chatting" });
 
-  // Anti-cheat: Blur content when page loses focus
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden && state === "chatting") {
-        logViolation('tab_switch', 'User switched to another tab or window');
-      }
-      setIsBlurred(document.hidden);
-    };
-
-    const handleBlur = () => {
-      if (state === "chatting") {
-        logViolation('tab_switch', 'Window lost focus');
-      }
-      setIsBlurred(true);
-    };
-    const handleFocus = () => setIsBlurred(false);
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("blur", handleBlur);
-    window.addEventListener("focus", handleFocus);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("blur", handleBlur);
-      window.removeEventListener("focus", handleFocus);
-    };
-  }, [state, logViolation]);
-
-  // Anti-cheat handlers
-  const preventCopy = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    logViolation('copy_attempt', 'User attempted to copy content');
-    toast.error("Copy is turned off during this conversation");
-  };
-
-  const preventPaste = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    logViolation('paste_attempt', 'User attempted to paste content');
-    toast.error("Paste is turned off during this conversation");
-  };
-
-  const preventContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-    logViolation('right_click', 'User attempted right-click context menu');
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.ctrlKey || e.metaKey) {
-      if (e.key.toLowerCase() === 'c') {
-        e.preventDefault();
-        logViolation('copy_attempt', 'User pressed Ctrl/Cmd+C');
-        toast.error("Copy is turned off during this conversation");
-      } else if (e.key.toLowerCase() === 'v') {
-        e.preventDefault();
-        logViolation('paste_attempt', 'User pressed Ctrl/Cmd+V');
-        toast.error("Paste is turned off during this conversation");
-      } else if (['p', 's'].includes(e.key.toLowerCase())) {
-        e.preventDefault();
-        toast.error("Keyboard shortcuts are turned off during this conversation");
-      }
-    }
-    if (e.key === 'PrintScreen') {
-      e.preventDefault();
-      logViolation('screenshot_attempt', 'User pressed PrintScreen');
-    }
-  };
-
-  // Enter-to-send lives on the textarea itself; Ctrl/Cmd shortcut blocking
-  // reaches every keystroke by bubbling up to the root handler below, so it
-  // only needs to fire once per keypress.
+  // Enter-to-send lives on the textarea itself; copy/paste/shortcut blocking
+  // is document-level in useTestIntegrity, so it fires once per keypress.
   const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey && state === "chatting") {
       e.preventDefault();
@@ -367,35 +366,87 @@ export default function ChatSimulationPhase() {
     }
   };
 
-  const streamCustomerResponse = async (mode: "start" | "respond", agentMessage?: string) => {
-    if (!currentScenario) return;
-
+  /**
+   * One request for the customer's next message — the opener ("start") or a
+   * reply ("respond") — streamed into the conversation as it arrives.
+   *
+   * It carries the applicant's own JWT, the application and step, and an id
+   * per message (clientMsgId), so the server can keep every turn as it
+   * happens (docs/ASSESSMENT-RECORD.md §5.1): a closed tab no longer loses the
+   * conversation, and a retried message is stored once. The full `messages`
+   * history still rides along for a server on the previous build.
+   *
+   * When the server could not store the message (503 `turn_not_saved`) it
+   * sent no reply: the message goes once more under the same id, and if that
+   * fails too, `giveBack` takes the bubble off and puts the text back in the
+   * reply box. A message on screen is never one nobody will answer.
+   */
+  const streamCustomerReply = async (
+    mode: "start" | "respond",
+    scenario: ChatScenario,
+    opts: { agentMessage?: string; clientMsgId?: string; history: Message[]; giveBack?: boolean },
+  ) => {
     setIsTyping(true);
 
     try {
-      const response = await fetch(CHAT_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({
-          mode,
-          scenario: currentScenario.scenario,
-          customerName: currentScenario.customerName,
-          jobTitle: application?.jobs?.title || "",
-          messages: messages.map(m => ({
-            role: m.role === "agent" ? "user" : "assistant",
-            content: m.content
-          })),
-          agentMessage,
-          messageCount: messages.length,
-        }),
-      });
+      const request = async () =>
+        fetch(CHAT_URL, {
+          method: "POST",
+          headers: await assessmentRequestHeaders(),
+          body: JSON.stringify({
+            mode,
+            scenario: scenario.scenario,
+            customerName: scenario.customerName,
+            jobTitle: application?.jobs?.title || "",
+            messages: opts.history.map(m => ({
+              role: m.role === "agent" ? "user" : "assistant",
+              content: m.content
+            })),
+            agentMessage: opts.agentMessage,
+            messageCount: opts.history.length,
+            applicationId: id,
+            stepId,
+            clientMsgId: opts.clientMsgId,
+            clientAt: new Date().toISOString(),
+            // The server pins the scenario on the attempt the first time it starts.
+            scenarioId: scenario.id,
+          }),
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to get customer response");
+      let response = await request();
+      for (let resent = false; !response.ok; resent = true) {
+        const errorData = await response.json().catch(() => null);
+        if (!isTurnNotSaved(response.status, errorData)) {
+          throw new Error(errorData?.error || "Failed to get customer response");
+        }
+        if (resent) throw new TurnNotSavedError();
+        // Not stored, no reply: once more under the same id (stored once).
+        await new Promise((resolve) => setTimeout(resolve, TURN_RESEND_DELAY_MS));
+        response = await request();
+      }
+
+      // The scenario the attempt is pinned to wins over this page's pick (they
+      // differ only if the job's scenarios changed after the attempt began).
+      const adoptPinnedScenario = (body: unknown) => {
+        const pinned = pinnedScenarioFrom(body);
+        if (!pinned) return;
+        setCurrentScenario((current) =>
+          current && current.scenario === pinned.scenario && current.customerName === pinned.customerName
+            ? current
+            : { id: current?.id ?? scenario.id, ...pinned },
+        );
+      };
+
+      // A conversation the server already holds comes back as its stored
+      // turns rather than a second opener (another tab or device started it).
+      if ((response.headers.get("content-type") || "").includes("application/json")) {
+        const body = await response.json().catch(() => null);
+        const turns = turnsFromJson(body);
+        if (!turns || turns.length === 0) throw new Error("No reply in the response");
+        adoptPinnedScenario(body);
+        setMessages(turnsToMessages(turns, { candidate: "agent", other: "customer" }, session.offsetMs));
+        setCustomerUnavailable(false);
+        return;
       }
 
       const reader = response.body?.getReader();
@@ -425,6 +476,9 @@ export default function ChatSimulationPhase() {
 
           try {
             const parsed = JSON.parse(jsonStr);
+            // The server's first line says what it recorded (and, on a start,
+            // the pinned scenario); it carries no text.
+            if (parsed?.assessment && mode === "start") adoptPinnedScenario(parsed);
             const content = parsed.choices?.[0]?.delta?.content;
             if (content) {
               customerContent += content;
@@ -453,24 +507,35 @@ export default function ChatSimulationPhase() {
       // Finalize the message with a proper ID
       setMessages(prev => prev.map(m =>
         m.id.startsWith("customer-streaming")
-          ? { ...m, id: `customer-${Date.now()}` }
+          ? { ...m, id: mode === "start" ? "customer-initial" : `customer-${Date.now()}` }
           : m
       ));
       if (customerContent) setCustomerUnavailable(false);
 
     } catch (error) {
-      console.error("Chat simulation error:", error);
+      if (error instanceof TurnNotSavedError && mode === "respond" && opts.giveBack && opts.clientMsgId && opts.agentMessage) {
+        // The server has not got this message and will not answer it: take
+        // the bubble back off and give the text back to send again.
+        const unsent = opts.agentMessage;
+        const unsentId = opts.clientMsgId;
+        setMessages((prev) => prev.filter((m) => m.id !== unsentId));
+        setInputValue((current) => restoreUnsentText(current, unsent));
+        toast.error("Your message didn't save — it's back in the box. Send it again.");
+        return;
+      }
       // The raw message here comes from the edge function, so preferring it
-      // showed candidates backend internals (rate limits, provider errors) and
-      // used our own plain-English copy only when the throw was NOT an Error —
-      // exactly backwards. The candidate gets the sentence; the console keeps
-      // the detail for debugging.
-      console.error("Chat simulation message failed:", error);
+      // showed candidates backend internals (rate limits, provider errors).
+      // The candidate gets the sentence; the console keeps the detail.
+      console.error(mode === "start" ? "Chat simulation failed to start:" : "Chat simulation message failed:", error);
       setCustomerUnavailable(true);
-      toast.error("That didn't come through — give it another try.");
+      toast.error(
+        mode === "start"
+          ? "Couldn't start the conversation — give it another try."
+          : "That didn't come through — give it another try.",
+      );
     } finally {
       setIsTyping(false);
-      // Auto-focus the input after customer responds
+      // Auto-focus the input after the customer responds
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   };
@@ -479,117 +544,17 @@ export default function ChatSimulationPhase() {
     // Use the preselected scenario that the candidate already saw
     setCurrentScenario(preselectedScenario);
     setState("chatting");
-
-    // Small delay to ensure state is set before streaming
-    setTimeout(async () => {
-      await streamCustomerResponseWithScenario("start", preselectedScenario);
-      inputRef.current?.focus();
-    }, 100);
-  };
-
-  // Separate function to handle initial message with scenario
-  const streamCustomerResponseWithScenario = async (mode: "start", scenario: ChatScenario) => {
-    setIsTyping(true);
-
-    try {
-      const response = await fetch(CHAT_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({
-          mode,
-          scenario: scenario.scenario,
-          customerName: scenario.customerName,
-          jobTitle: application?.jobs?.title || "",
-          messages: [],
-          messageCount: 0,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to start simulation");
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response body");
-
-      const decoder = new TextDecoder();
-      let customerContent = "";
-      let textBuffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        textBuffer += decoder.decode(value, { stream: true });
-
-        let newlineIndex: number;
-        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
-          let line = textBuffer.slice(0, newlineIndex);
-          textBuffer = textBuffer.slice(newlineIndex + 1);
-
-          if (line.endsWith("\r")) line = line.slice(0, -1);
-          if (line.startsWith(":") || line.trim() === "") continue;
-          if (!line.startsWith("data: ")) continue;
-
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === "[DONE]") break;
-
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) {
-              customerContent += content;
-              setMessages(prev => {
-                const last = prev[prev.length - 1];
-                if (last?.role === "customer" && last.id.startsWith("customer-streaming")) {
-                  return prev.map((m, i) =>
-                    i === prev.length - 1 ? { ...m, content: customerContent } : m
-                  );
-                }
-                return [...prev, {
-                  id: `customer-streaming-${Date.now()}`,
-                  role: "customer",
-                  content: customerContent,
-                  timestamp: new Date(),
-                }];
-              });
-            }
-          } catch {
-            textBuffer = line + "\n" + textBuffer;
-            break;
-          }
-        }
-      }
-
-      // Finalize the message
-      setMessages(prev => prev.map(m =>
-        m.id.startsWith("customer-streaming")
-          ? { ...m, id: `customer-initial` }
-          : m
-      ));
-      if (customerContent) setCustomerUnavailable(false);
-
-    } catch (error) {
-      console.error("Chat simulation error:", error);
-      console.error("Chat simulation failed to start:", error);
-      setCustomerUnavailable(true);
-      toast.error("Couldn't start the conversation — give it another try.");
-    } finally {
-      setIsTyping(false);
-      // Auto-focus the input after initial customer message
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
+    await streamCustomerReply("start", preselectedScenario, { history: [] });
+    inputRef.current?.focus();
   };
 
   const sendMessage = async () => {
     if (!inputValue.trim() || isTyping || !currentScenario) return;
 
+    // The message's id is also the server's key for it, so a retry is stored once.
+    const clientMsgId = newClientId();
     const agentMessage: Message = {
-      id: `agent-${Date.now()}`,
+      id: clientMsgId,
       role: "agent",
       content: inputValue.trim(),
       timestamp: new Date(),
@@ -599,8 +564,77 @@ export default function ChatSimulationPhase() {
     const messageToSend = inputValue.trim();
     setInputValue("");
 
-    await streamCustomerResponse("respond", messageToSend);
+    await streamCustomerReply("respond", currentScenario, {
+      agentMessage: messageToSend,
+      clientMsgId,
+      history: messages,
+      giveBack: true,
+    });
   };
+
+  // A reload (or another device) resumes the conversation instead of showing
+  // the intro and asking for a fresh opener on top of it. The server's stored
+  // turns win; without them (a server on the previous build, or the record
+  // unreachable) this device's own draft is used. A last message nobody
+  // answered yet (the tab closed while the reply was coming) is asked for
+  // again under its own id. A conversation the server is already checking
+  // gets the waiting screen instead, and one whose check failed is sent again.
+  const resumeDecidedRef = useRef(false);
+  const [resumeDecided, setResumeDecided] = useState(false);
+  const resumeConversation = useCallback(() => {
+    const turns = session.reply?.turns ?? [];
+    const restored: Message[] =
+      turns.length > 0
+        ? (turnsToMessages(turns, { candidate: "agent", other: "customer" }, session.offsetMs) as Message[])
+        : messages;
+    const where = serverConversationState(session.reply, session.serverStatus);
+    if (where === "checking" || where === "done") {
+      if (restored.length > 0) setMessages(restored);
+      setCurrentScenario(preselectedScenario);
+      waitForServerCheck(where === "done");
+      return true;
+    }
+    if (restored.length === 0) return false;
+    setMessages(restored);
+    setCurrentScenario(preselectedScenario);
+    setRulesAccepted(true);
+    setState("chatting");
+    if (where === "owed") {
+      // Sent before, and its check crashed: the result is still owed.
+      setResendTriggered(true);
+      return true;
+    }
+    toast.info("Picked up where you left off", { description: "Your conversation is saved as you go." });
+
+    const pending = turns.length > 0 ? unansweredCandidateTurn(turns) : null;
+    const lastLocal = restored[restored.length - 1];
+    if (pending) {
+      void streamCustomerReply("respond", preselectedScenario, {
+        agentMessage: pending.content,
+        clientMsgId: pending.client_msg_id ?? undefined,
+        history: restored.slice(0, -1),
+      });
+    } else if (turns.length === 0 && lastLocal?.role === "agent") {
+      // Only on this device: if the server cannot store it, it goes back in the box.
+      void streamCustomerReply("respond", preselectedScenario, {
+        agentMessage: lastLocal.content,
+        clientMsgId: lastLocal.id,
+        history: restored.slice(0, -1),
+        giveBack: true,
+      });
+    }
+    return true;
+    // streamCustomerReply and waitForServerCheck are plain functions that read
+    // the latest render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.reply, session.serverStatus, session.offsetMs, messages, preselectedScenario]);
+
+  useEffect(() => {
+    if (resumeDecidedRef.current || resultAtFirstLoad !== false || !session.settled || state !== "intro") return;
+    resumeDecidedRef.current = true;
+    setResumeDecided(true);
+    resumeConversation();
+  }, [resultAtFirstLoad, session.settled, state, resumeConversation]);
 
   const endChat = () => {
     setState("evaluating");
@@ -614,6 +648,9 @@ export default function ChatSimulationPhase() {
     if (!application || !currentScenario) return;
 
     setIsSubmitting(true);
+    // The stored result before this send: a 409 "already being checked"
+    // waits for a result different from this one.
+    const resultBeforeSend = storedChatResult;
     try {
       // CRITICAL: Re-fetch fresh job data to get current processing_mode
       const { data: freshJob } = await supabase
@@ -656,12 +693,22 @@ export default function ChatSimulationPhase() {
             role: m.role === "agent" ? "user" : "assistant",
             content: m.content
           })),
-          violations,
+          // The old-shape list, for a server that does not read the live
+          // record yet; the record itself was sent as it happened.
+          violations: integrity.violations,
         }),
       });
 
       if (!evalResponse.ok) {
         const errorData = await evalResponse.json().catch(() => null);
+        const outcome = gradingReplyOutcome(evalResponse.status, errorData);
+        if (outcome === "checking" || outcome === "on_file") {
+          // We have the conversation: it is being checked (another tab, a
+          // retry whose first answer was lost) or already on file. Wait for
+          // the result and the next step; never an error, never a second send.
+          waitForServerCheck(outcome === "on_file", resultBeforeSend);
+          return;
+        }
         throw new Error(errorData?.error || "Failed to record chat simulation result");
       }
 
@@ -673,6 +720,7 @@ export default function ChatSimulationPhase() {
       // been done before this visit and swap the waiting screen for a dead
       // end. The overview simply re-reads.
       clearConversationDraft();
+      integrity.finish();
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
       queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
 
@@ -705,31 +753,92 @@ export default function ChatSimulationPhase() {
       setIsSubmitting(false);
     }
   };
+  const handleSubmitRef = useRef(handleSubmit);
+  handleSubmitRef.current = handleSubmit;
 
-  // Check if already submitted
-  const existingResult = (() => {
-    // If application was reconsidered (status reset to pending), allow re-submission
-    if (application?.status === "pending" && application?.phase === stepId) {
-      return null;
-    }
-    if (!application?.notes) return null;
-    try {
-      const notes = parseApplicationNotes(application.notes);
-      return notes.chatSimulationResult || null;
-    } catch {
-      return null;
-    }
-  })();
-
-  // "Already done" is decided once, from the first read after this page
-  // mounted — never from a refresh that lands after the candidate sends.
-  const resultAtFirstLoad = useResultAtFirstLoad(isFetchedAfterMount && !!application, !!existingResult);
-  // A step the server already holds has no use for a local draft (the send
-  // that stored it may have been cut off before it could clear one), and a
-  // later retake must never resume inside the old conversation.
+  // A send whose check crashed is sent again — once per visit; after that the
+  // wrap-up button is there as usual.
+  const [resendTriggered, setResendTriggered] = useState(false);
+  const resentRef = useRef(false);
   useEffect(() => {
-    if (resultAtFirstLoad) clearConversationDraft();
-  }, [resultAtFirstLoad, clearConversationDraft]);
+    if (!resendTriggered) return;
+    setResendTriggered(false);
+    if (resentRef.current) {
+      setState("chatting");
+      return;
+    }
+    resentRef.current = true;
+    setState("evaluating");
+    void handleSubmitRef.current();
+  }, [resendTriggered]);
+
+  /** The server has the result of a send this page did not see through. */
+  const finishCheckedSend = async () => {
+    setServerCheckWaiting(false);
+    clearConversationDraft();
+    integrity.finish();
+    queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
+    queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
+    if (application?.jobs?.processing_mode === "auto") {
+      advance.markSaved();
+      const reply = await invokeTriggerAvaAnalysis({
+        applicationId: id!,
+        autopilotDecision: true,
+        currentPhaseId: stepId,
+      });
+      advance.settle(reply);
+    } else {
+      invokeTriggerAvaAnalysis({ applicationId: id! }).catch((err) =>
+        console.error("[ChatSimulationPhase] AVA analysis trigger failed:", err),
+      );
+      setState("completed");
+    }
+  };
+  const finishCheckedSendRef = useRef(finishCheckedSend);
+  finishCheckedSendRef.current = finishCheckedSend;
+
+  const serverCheck = useServerCheck({
+    storedResultKey: storedChatResult,
+    serverStatus: session.serverStatus,
+    loadResultKey,
+    onLanded: () => void finishCheckedSendRef.current(),
+    onOwed: () => {
+      setServerCheckWaiting(false);
+      setResendTriggered(true);
+    },
+    onStale: () => queryClient.invalidateQueries({ queryKey: ["chat-simulation-application", id] }),
+  });
+
+  /** The waiting screen for a send the server is checking (or has on file).
+   *  `baselineKey`: the stored result before this page's own send (a 409). */
+  const waitForServerCheck = (alreadyOnFile = false, baselineKey?: string | null) => {
+    setCompletionCountdown(null);
+    setState("evaluating");
+    if (application?.jobs?.processing_mode === "auto") {
+      advance.begin();
+      // The server holds the conversation: the usual one-minute hand-over to
+      // the live card applies if the check runs long.
+      advance.markSaved();
+    }
+    if (alreadyOnFile) {
+      void finishCheckedSendRef.current();
+      return;
+    }
+    setServerCheckWaiting(true);
+    serverCheck.begin(baselineKey);
+  };
+
+  // The heartbeat says the server is checking this conversation while it is
+  // still on screen here: End was pressed on another device.
+  useEffect(() => {
+    if (state !== "chatting" && state !== "intro") return;
+    if (!resumeDecidedRef.current || isSubmitting || serverCheck.waiting) return;
+    if (serverConversationState(null, session.serverStatus) !== "checking") return;
+    if (!currentScenario) setCurrentScenario(preselectedScenario);
+    waitForServerCheck();
+    // waitForServerCheck reads the latest render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.serverStatus, state, isSubmitting, serverCheck.waiting]);
 
   if (authLoading || isLoading) {
     return (
@@ -812,28 +921,27 @@ export default function ChatSimulationPhase() {
       : state === "chatting"
         ? "Reply the way you would on the job. Wrap up whenever it feels resolved."
         : state === "evaluating"
-          ? "Sending your conversation — keep this page open for a moment."
+          ? serverCheckWaiting
+            ? "We have your conversation — it's being checked now."
+            : "Sending your conversation — keep this page open for a moment."
           : "All set.";
 
   return (
-    <div
-      className="ck-page mx-auto max-w-3xl space-y-6 relative"
-      onCopy={preventCopy}
-      onPaste={preventPaste}
-      onCut={preventCopy}
-      onContextMenu={preventContextMenu}
-      onKeyDown={handleKeyDown}
-    >
-      {/* Paused overlay when the page loses focus mid-conversation */}
-      {isBlurred && state === "chatting" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 backdrop-blur-xl">
-          <div className="p-8 text-center">
-            <MessageSquare className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
-            <h2 className="font-display text-xl text-foreground mb-2">Paused</h2>
-            <p className="text-muted-foreground">Click back anywhere to pick the conversation back up.</p>
-          </div>
-        </div>
-      )}
+    <div className="ck-page mx-auto max-w-3xl space-y-6 relative">
+      {/* Paused overlay when focus leaves the page mid-conversation */}
+      <TestPausedOverlay
+        show={integrity.away && state === "chatting"}
+        body="Click back anywhere to pick the conversation back up. Leaving the test is recorded."
+      />
+
+      <EndEarlyDialog
+        open={confirmEndOpen}
+        onOpenChange={setConfirmEndOpen}
+        what="conversation"
+        answered={agentReplyCount}
+        usual={chatConfig.minMessages}
+        onConfirm={endChat}
+      />
 
       {/* Journey header — where am I, what's happening now, what's next */}
       <header className="ck-reveal space-y-4">
@@ -878,14 +986,7 @@ export default function ChatSimulationPhase() {
           </div>
         )}
 
-        {violations.length > 0 && (
-          <div className="flex items-center gap-2 rounded-lg border border-warning/20 bg-warning/10 px-3 py-2 text-sm text-warning">
-            <ShieldAlert className="h-4 w-4 shrink-0" />
-            <span>
-              {violations.length} thing{violations.length === 1 ? "" : "s"} flagged during this session
-            </span>
-          </div>
-        )}
+        {state === "chatting" && <TestRulesReminder recorded={integrity.flagged} />}
       </header>
 
       {/* Main Card */}
@@ -905,21 +1006,32 @@ export default function ChatSimulationPhase() {
                   <li className="flex items-start gap-2.5">
                     <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     <span>
-                      Once it feels resolved, wrap up and send — you'll need at least{" "}
-                      <strong className="text-foreground">{chatConfig.minMessages}</strong> replies first.
+                      Once it feels resolved, wrap up and send — usually after about{" "}
+                      <strong className="text-foreground">{chatConfig.minMessages}</strong> replies. You can end
+                      sooner if you need to.
                     </span>
                   </li>
+                  <li className="flex items-start gap-2.5">
+                    <Send className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <span>Every message is saved as you send it, so a dropped connection loses nothing.</span>
+                  </li>
                 </ul>
-                <TestRulesNotice />
               </div>
+
+              <TestRulesCard accepted={rulesAccepted} onAcceptedChange={setRulesAccepted} />
 
               <div className="flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-muted-foreground">
-                  You can't get this wrong by being yourself.
+                  {rulesAccepted ? "You can't get this wrong by being yourself." : "Tick the box above to start."}
                 </p>
-                <Button onClick={startChat} size="lg" className="w-full gap-2 sm:w-auto">
-                  <MessageSquare className="h-5 w-5" />
-                  Start the conversation
+                <Button
+                  onClick={startChat}
+                  disabled={!rulesAccepted || !resumeDecided}
+                  size="lg"
+                  className="w-full gap-2 sm:w-auto"
+                >
+                  {resumeDecided ? <MessageSquare className="h-5 w-5" /> : <Loader2 className="h-5 w-5 animate-spin" />}
+                  {resumeDecided ? "Start the conversation" : "Getting things ready…"}
                 </Button>
               </div>
             </div>
@@ -1049,8 +1161,9 @@ export default function ChatSimulationPhase() {
                     </div>
                   )}
 
-                  {/* End Chat Button - only show if not auto-resolved */}
-                  {state === "chatting" && canEndChat && !isResolved && (
+                  {/* End Chat Button — from the first reply on; before the usual
+                      number it asks first ("End now — we'll send what you have"). */}
+                  {state === "chatting" && agentReplyCount > 0 && !isResolved && (
                     <div className="space-y-2 text-center pt-2">
                       {endingShort && (
                         <p className="text-sm text-muted-foreground">
@@ -1059,10 +1172,10 @@ export default function ChatSimulationPhase() {
                       )}
                       <Button
                         variant="outline"
-                        onClick={endChat}
+                        onClick={() => (canEndChat ? endChat() : setConfirmEndOpen(true))}
                         disabled={isTyping}
                       >
-                        {endingShort ? "Send what I have" : "Wrap up and send"}
+                        {canEndChat ? (endingShort ? "Send what I have" : "Wrap up and send") : "End now"}
                       </Button>
                     </div>
                   )}
@@ -1074,8 +1187,14 @@ export default function ChatSimulationPhase() {
                         <Loader2 className="h-6 w-6 animate-spin text-primary" />
                       </div>
                       <div className="space-y-1.5">
-                        <h2 className="font-display ck-ink text-xl text-foreground sm:text-2xl">Sending your conversation</h2>
-                        <p className="text-sm text-muted-foreground">Keep this page open for a moment.</p>
+                        <h2 className="font-display ck-ink text-xl text-foreground sm:text-2xl">
+                          {serverCheckWaiting ? "We have your conversation" : "Sending your conversation"}
+                        </h2>
+                        <p className="text-sm text-muted-foreground">
+                          {serverCheckWaiting
+                            ? "It's being checked now. This page moves on by itself when it's done."
+                            : "Keep this page open for a moment."}
+                        </p>
                       </div>
                     </div>
                   )}

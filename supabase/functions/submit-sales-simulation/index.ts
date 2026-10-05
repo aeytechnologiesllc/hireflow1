@@ -25,10 +25,39 @@
 //
 // SalesSimulationPhase.tsx no longer touches applications.notes/phase at
 // all for this step — see its handleSubmit.
+//
+// The assessment record (2026-10-06, docs/ASSESSMENT-RECORD.md §5.1), best
+// effort, never blocking the step: the conversation itself streams through
+// ai-sales-simulation, which does not record turns, so the transcript graded
+// here is the request's unless the attempt's record already holds the
+// candidate's own turns. The request's transcript is stored on the attempt
+// so the hiring team has it, the full evaluation goes to session.grading
+// (staff only), and the notes' violation counts come from the integrity
+// events the page recorded when there are any. Once the result is recorded,
+// an auto-mode job's move to the next step is asked for by the server too
+// (_shared/stepMoveOn.ts), so a tab closed during grading still moves on.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callOpenAIJson, requireJsonKeys, type OpenAIMessage } from "../_shared/openai.ts";
 import { guardAuthenticatedAiCall } from "../_shared/rateLimit.ts";
 import { recordStepResult, type MinimalSupabaseAdmin } from "../_shared/trustedResults.ts";
+import {
+  chatSimulationEndReason,
+  chooseIntegrity,
+  chooseTranscript,
+  failSession,
+  finishGrading,
+  gateGrading,
+  gradingRecord,
+  loadIntegrityEvents,
+  loadTurns,
+  readStepOnFile,
+  releaseGrading,
+  resolveSession,
+  storeSubmittedTranscript,
+  unstoredTail,
+  type AssessmentAdmin,
+} from "../_shared/assessmentSession.ts";
+import { scheduleStepMoveOn } from "../_shared/stepMoveOn.ts";
 import {
   buildApiMessages,
   buildEvaluationPrompt,
@@ -48,6 +77,8 @@ const corsHeaders = {
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const OPENAI_SALES_SIMULATION_EVAL_MODEL = Deno.env.get("OPENAI_SALES_SIMULATION_EVAL_MODEL") || "gpt-5.6-luna";
+/** Named in session.grading.prompt_version; bump when the evaluation prompt changes. */
+const EVAL_PROMPT_VERSION = "sales-sim-eval-1";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -148,6 +179,10 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
+  // An attempt this request claimed for grading: if anything below throws,
+  // it is marked failed (the result is still owed), not left "grading".
+  let heldClaim: { admin: AssessmentAdmin; sessionId: string } | null = null;
+
   try {
     const callerId = await resolveCallerId(req);
     if (!callerId) {
@@ -190,15 +225,73 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "violations must be an array." }, 400);
     }
 
-    const evaluation = await gradeTranscript({
-      scenario,
-      prospectName,
-      prospectCompany,
-      productService,
-      jobTitle,
-      candidateName,
-      messages,
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
+    const record = admin as unknown as AssessmentAdmin;
+
+    // The attempt's record, best effort: with none (the migration not
+    // applied, a finished or closed step) this grades the request's
+    // transcript exactly as before.
+    const resolved = await resolveSession(record, {
+      applicationId,
+      stepId,
+      userId: callerId,
+      stepType: "sales_simulation",
+      purpose: "submit",
     });
+    const session = resolved.ok ? resolved.session : null;
+    if (!resolved.ok) console.log("[submit-sales-simulation] submit without a record:", resolved.reason, resolved.detail ?? "");
+
+    // ONE request grades an attempt, and a result already on file is never
+    // graded again from a request body (a retried or replayed submit gets
+    // "already recorded" back). Decided before anything is spent.
+    const gate = await gateGrading(record, session, resolved.ok ? null : resolved.reason);
+    if (!gate.go) {
+      if (gate.why === "checking") {
+        return jsonResponse({ error: "This sales practice is already being checked.", code: "already_checking" }, 409);
+      }
+      const onFile = await readStepOnFile(record, applicationId, stepId, "salesSimulationResult");
+      if (!onFile?.result) return jsonResponse({ error: "This step is already recorded.", code: "already_recorded" }, 409);
+      return jsonResponse({ success: true, next: onFile.next, alreadyRecorded: true });
+    }
+    const claimed = gate.claim === "claimed";
+    if (session && claimed) heldClaim = { admin: record, sessionId: session.id };
+
+    const storedTurns = session ? await loadTurns(record, session.id) : null;
+    const transcript = chooseTranscript(storedTurns, messages);
+    const gradedMessages: EvalChatMessage[] = transcript.source === "stored" ? transcript.messages : messages;
+    const tail = session && storedTurns ? unstoredTail(storedTurns, messages) : null;
+    if (session && tail && tail.messages.length > 0) {
+      await storeSubmittedTranscript(record, session.id, tail, { candidate: "agent", assistant: "customer" });
+    }
+
+    let evaluation: SalesEvaluation;
+    try {
+      evaluation = await gradeTranscript({
+        scenario,
+        prospectName,
+        prospectCompany,
+        productService,
+        jobTitle,
+        candidateName,
+        messages: gradedMessages,
+      });
+    } catch (error) {
+      if (session && claimed) await failSession(record, session.id, error instanceof Error ? error.message : String(error));
+      throw error;
+    }
+
+    // gradeTranscript answers with one of its two fixed fallbacks when the
+    // model could not be reached or read; the staff record says so.
+    const evaluationJson = JSON.stringify(evaluation);
+    const usedFallback = evaluationJson === JSON.stringify(parseFallbackEvaluation()) ||
+      evaluationJson === JSON.stringify(fetchFallbackEvaluation());
+
+    // The notes' violation counts: the integrity events the page recorded
+    // when there are any, else the request's own list.
+    const integrity = chooseIntegrity(session ? await loadIntegrityEvents(record, session.id) : null, violations);
 
     // Matches SalesSimulationPhase.tsx's own former `updatedNotes.salesSimulationResult`
     // shape exactly — see grading.ts's own doc comment / docs/TRUSTED-RESULTS.md's
@@ -206,15 +299,10 @@ Deno.serve(async (req) => {
     const salesSimulationResult = buildSalesSimulationResult({
       scenario,
       prospectCompany,
-      messageCount: messages.length,
+      messageCount: gradedMessages.length,
       evaluation,
-      violations,
+      violations: integrity.violations as AntiCheatViolation[],
     });
-
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    );
 
     // The real supabase-js client's query builder is a thenable, not a
     // structural Promise (missing catch/finally in TS's eyes), which trips
@@ -240,16 +328,47 @@ Deno.serve(async (req) => {
     });
 
     if (!outcome.ok) {
+      if (session && claimed) {
+        if (outcome.code === "write_failed") await failSession(record, session.id, outcome.error);
+        else await releaseGrading(record, session.id, gate.fromStatus ?? "active");
+      }
       return jsonResponse({ error: outcome.error }, outcome.code === "step_not_reached" ? 409 : 400);
+    }
+
+    // The end must not depend on the tab: in an auto-mode job the server asks
+    // for the next step itself, in the background, with this request's own
+    // JWT (_shared/stepMoveOn.ts). The page's own ask, if it is still open,
+    // gets the same idempotent answer. Never blocks this response.
+    scheduleStepMoveOn(record, { applicationId, stepId, authorization: req.headers.get("Authorization") });
+
+    if (session) {
+      await finishGrading(
+        record,
+        session.id,
+        gate,
+        gradingRecord({
+          model: usedFallback ? null : OPENAI_SALES_SIMULATION_EVAL_MODEL,
+          promptVersion: EVAL_PROMPT_VERSION,
+          fallback: usedFallback,
+          result: evaluation,
+          extra: {
+            scenario: { scenario, prospect_name: prospectName, prospect_company: prospectCompany, product_service: productService },
+            transcript_source: transcript.source,
+            messages_graded: gradedMessages.length,
+            integrity_source: integrity.source,
+          },
+        }),
+        chatSimulationEndReason(storedTurns),
+      );
     }
 
     // phase_ai_analysis isn't part of recordStepResult's write (it only
     // owns notes/phase/status) and isn't guarded by
     // protect_application_columns at all — best-effort, service-role, same
     // text SalesSimulationPhase.tsx's own update used to send alongside
-    // notes. Not fatal: trigger-ava-analysis (still called by the page right
-    // after this) overwrites this field moments later in the normal auto-
-    // mode flow anyway.
+    // notes. Not fatal: trigger-ava-analysis (called by the page right after
+    // this, and by the server's own move-on above) overwrites this field
+    // moments later in the normal auto-mode flow anyway.
     const { error: analysisError } = await admin
       .from("applications")
       .update({ phase_ai_analysis: buildPhaseAiAnalysis(evaluation) })
@@ -258,9 +377,16 @@ Deno.serve(async (req) => {
       console.error("[submit-sales-simulation] Failed to write phase_ai_analysis (non-fatal):", analysisError);
     }
 
-    return jsonResponse({ success: true, evaluation, next: outcome.next });
+    // The full evaluation stays on the server (session.grading for staff): no
+    // page reads it, and the notes already hold what the candidate may see.
+    return jsonResponse({
+      success: true,
+      next: outcome.next,
+      ...(session ? { assessment: { recorded: true, session_id: session.id } } : {}),
+    });
   } catch (error) {
     console.error("[submit-sales-simulation] Unexpected error:", error);
+    if (heldClaim) await failSession(heldClaim.admin, heldClaim.sessionId, error instanceof Error ? error.message : String(error));
     return jsonResponse({ error: error instanceof Error ? error.message : "Unknown error" }, 500);
   }
 });

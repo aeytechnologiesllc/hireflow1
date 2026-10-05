@@ -113,3 +113,8 @@ verify_jwt = false
 [functions.page-views]
 verify_jwt = false
 
+[functions.applicant-file-url]
+# Staff only: a five-minute signed link to a file an application lists
+# (notes.fileUploads, resume_url). The function also checks the caller is the
+# job's owner or an active team member scoped to the job.
+verify_jwt = true

@@ -46,6 +46,27 @@ const {
   integrityOf,
   weighedPhrase,
   QUIZ_QUESTIONS_KEY_STEP,
+  sessionLiveStatus,
+  sessionForStep,
+  durationText,
+  agoText,
+  integrityFromSummary,
+  integritySummary,
+  integrityTimeline,
+  timelineText,
+  timelineTags,
+  transcriptFromEvents,
+  typingWords,
+  quizTimings,
+  withSessionEvents,
+  parseIntegrityCard,
+  LEFT_AFTER_MS,
+  retakeMarker,
+  withReopens,
+  integrityCardCounts,
+  integrityCardToast,
+  createIntegrityToastGate,
+  ordinal,
 } = await import("../src/cockpit/lib/assessmentRecord.ts");
 
 let passed = 0;
@@ -438,6 +459,618 @@ const noText = buildAssessmentRecord(
 ).entries.find((e) => e.key === "quiz");
 check("an old record with only the index still shows the pick", JSON.stringify(noText.detail.items[0].picked) === "[1]");
 
+/* ── 10. Live labels: the lazy "left" rule (contract §5.3) ─────────────── */
+// Wave 2 (2026-10-06). The owner: "live progress ('answering question 3 ·
+// active 1 min ago', 'Left at question 3 · last active 25 min ago')". The
+// rule is lazy — no sweep — so the label must turn into "Left" by itself
+// once an active attempt has been quiet for ten minutes.
+
+const NOW = Date.parse("2026-10-06T16:00:00Z");
+const ago = (ms) => new Date(NOW - ms).toISOString();
+const MIN = 60_000;
+const sess = (over = {}) => ({
+  id: "s-1",
+  application_id: "app-1",
+  step_id: "quiz",
+  step_type: "quiz",
+  attempt: 1,
+  status: "active",
+  started_at: ago(5 * MIN),
+  last_activity_at: ago(MIN),
+  hidden_at: null,
+  ended_at: null,
+  progress: { answered: 2, total: 10, current_question_id: "zq3", current_index: 2 },
+  integrity_summary: {},
+  ...over,
+});
+
+let live = sessionLiveStatus(sess(), NOW);
+check("active quiz: 'Answering question 3 of 10 · active 1 min ago'", live?.text === "Answering question 3 of 10 · active 1 min ago" && live.state === "doing", live?.text);
+check("active quiz: the rail receipt is the question", live?.receipt === "Question 3 of 10", live?.receipt);
+live = sessionLiveStatus(sess({ last_activity_at: ago(25 * MIN) }), NOW);
+check("quiet 25 min: 'Left at question 3 · last active 25 min ago'", live?.text === "Left at question 3 · last active 25 min ago" && live.state === "left", live?.text);
+check("just under ten minutes quiet is still 'active'", sessionLiveStatus(sess({ last_activity_at: ago(LEFT_AFTER_MS - 1000) }), NOW)?.state === "doing");
+check("ten minutes quiet reads as left", sessionLiveStatus(sess({ last_activity_at: ago(LEFT_AFTER_MS) }), NOW)?.state === "left");
+check("an abandoned attempt (the sweep) reads as left", sessionLiveStatus(sess({ status: "abandoned", last_activity_at: ago(40 * MIN) }), NOW)?.text === "Left at question 3 · last active 40 min ago");
+live = sessionLiveStatus(sess({ hidden_at: ago(3 * MIN), last_activity_at: ago(3 * MIN) }), NOW);
+check("page hidden, under ten minutes: 'Away from the test for 3 min'", live?.text === "Away from the test for 3 min" && live.state === "away", live?.text);
+check("left beats away once it is ten minutes", sessionLiveStatus(sess({ hidden_at: ago(12 * MIN), last_activity_at: ago(12 * MIN) }), NOW)?.state === "left");
+live = sessionLiveStatus(sess({ step_id: "application", step_type: "application", progress: { answered: 6, total: 11 }, last_activity_at: ago(30_000) }), NOW);
+check("the form: 'Filling in the form · 6 of 11 answered · active just now'", live?.text === "Filling in the form · 6 of 11 answered · active just now", live?.text);
+check("the form left: 'Left the form at 6 of 11'", sessionLiveStatus(sess({ step_id: "application", step_type: "application", progress: { answered: 6, total: 11 }, last_activity_at: ago(15 * MIN) }), NOW)?.text === "Left the form at 6 of 11 · last active 15 min ago");
+live = sessionLiveStatus(sess({ step_id: "step_interview", step_type: "chat_interview", progress: { candidate_turns: 4, assistant_turns: 5 } }), NOW, "Written interview");
+check("a chat: 'In the conversation · 4 replies · active 1 min ago'", live?.text === "In the conversation · 4 replies · active 1 min ago", live?.text);
+check("a chat, said about the person, names the test", live?.summary === "Written interview: in the conversation · 4 replies · active 1 min ago", live?.summary);
+check("a quiz line about the person needs no test name", sessionLiveStatus(sess(), NOW, "Skills check")?.summary === "Answering question 3 of 10 · active 1 min ago");
+check("one reply is singular", sessionLiveStatus(sess({ step_type: "chat_simulation", progress: { candidate_turns: 1 }, last_activity_at: ago(11 * MIN) }), NOW)?.text === "Left after 1 reply · last active 11 min ago");
+check("typing left: 'Left during the typing test'", sessionLiveStatus(sess({ step_type: "typing_test", progress: {}, last_activity_at: ago(12 * MIN) }), NOW)?.text === "Left during the typing test · last active 12 min ago");
+check("grading: 'Checking the answers'", sessionLiveStatus(sess({ status: "grading" }), NOW)?.text === "Checking the answers");
+check("failed: 'Checking failed. Retrying'", sessionLiveStatus(sess({ status: "failed" }), NOW)?.text === "Checking failed. Retrying");
+check("completed: 'Finished 5 min ago'", sessionLiveStatus(sess({ status: "completed", ended_at: ago(5 * MIN) }), NOW)?.text === "Finished 5 min ago");
+check("superseded: no label (a newer attempt exists)", sessionLiveStatus(sess({ status: "superseded" }), NOW) === null);
+check("hours and days read as hours and days", agoText(3 * 60 * MIN) === "3 h ago" && agoText(49 * 60 * MIN) === "2 days ago" && agoText(59_000) === "just now");
+
+check(
+  "durations read like the bell card (assessment_duration_text)",
+  durationText(999) === "under 1s" && durationText(45_000) === "45s" && durationText(72_000) === "1m 12s" && durationText(60_000) === "1m" && durationText(3_900_000) === "1h 5m" && durationText(3_600_000) === "1h",
+  [999, 45_000, 72_000, 60_000, 3_900_000, 3_600_000].map(durationText).join(" | "),
+);
+
+const attempts = [
+  sess({ id: "a1", attempt: 1, status: "completed" }),
+  sess({ id: "a2", attempt: 2, status: "active" }),
+  sess({ id: "x", step_id: "step_typing", step_type: "typing_test" }),
+];
+check("the live attempt is the one shown", sessionForStep(attempts, "quiz")?.id === "a2");
+check("a replaced attempt is never shown", sessionForStep([sess({ id: "a1", attempt: 1, status: "completed" }), sess({ id: "a2", attempt: 2, status: "superseded" })], "quiz")?.id === "a1");
+check("no attempt for the step: null", sessionForStep(attempts, "step_chat") === null && sessionForStep(null, "quiz") === null);
+
+/* ── 11. The server's integrity tally, in the owner's card words ──────── */
+
+const contractSummary = { counts: { tab_hidden: 2, window_blur: 1, paste: 1, right_click: 1 }, total: 5, away_ms: 75000, short_away: 0, dropped: 0 };
+const tally = integrityFromSummary(contractSummary);
+check("flags count every switch away and the paste, never the right-click", tally.total === 4 && tally.tabSwitches === 3 && tally.copyPaste === 1 && tally.recordedOnly === 1, JSON.stringify(tally));
+check("the card's words: 'left the window 3 times (1m 15s away)', 'paste attempt ×1'", tally.parts[0] === "left the window 3 times (1m 15s away)" && tally.parts[1] === "paste attempt ×1", JSON.stringify(tally.parts));
+check("the row line reads like the card", integritySummary(tally) === "Left the window 3 times (1m 15s away) · paste attempt ×1", integritySummary(tally));
+const blip = integrityFromSummary({ counts: { tab_hidden: 1, window_blur: 1 }, away_ms: 67400, short_away: 1 });
+check("a sub-second blip is not a flag", blip.total === 1 && blip.tabSwitches === 1 && blip.shortAway === 1);
+check("screenshots, devtools and a closed page are flags", integrityFromSummary({ counts: { screenshot_key: 1, screenshot_suspected: 2, devtools: 1, page_closed: 1, bulk_insert: 1 } }).total === 6);
+check("nothing recorded: no tally", integrityFromSummary({}) === null && integrityFromSummary(null) === null);
+
+/* ── 12. The builder with the server's attempts ────────────────────────── */
+
+const APP_QUESTIONS = [
+  { id: "q1", type: "text", question: "Full name" },
+  { id: "q3", type: "tel", question: "Phone number" },
+  { id: "q5", type: "multi_select", question: "Which shifts?", options: ["Daytime", "Evening", "Weekends"] },
+  { id: "q9", type: "textarea", question: "Your support experience" },
+  { id: "q11", type: "file", question: "Speed test screenshot" },
+];
+const JOB2 = { ...JOB, application_questions: APP_QUESTIONS };
+
+const quizNow = buildAssessmentRecord(
+  { id: "app-2", status: "pending", phase: "quiz", notes: JSON.stringify({ applicationAnswers: [{ question: "Name", answer: "Robin" }] }), jobs: JOB2 },
+  { sessions: [sess()], now: NOW },
+);
+const quizEntry = quizNow.entries.find((e) => e.key === "quiz");
+check("a quiz being taken reads live on its row", quizEntry.status === "in_progress" && quizEntry.statusLabel === "Answering question 3 of 10 · active 1 min ago", quizEntry.statusLabel);
+check("…and its rail receipt says where", quizEntry.receipt === "Question 3 of 10", quizEntry.receipt);
+check("…and it opens on what is there so far", quizEntry.openable && quizEntry.detail.kind === "quiz" && quizEntry.detail.live === true && quizEntry.detail.questions.length === 10);
+check("the record knows what they are doing right now", quizNow.live?.text === quizEntry.statusLabel && quizNow.live.stepId === "quiz");
+const leftNow = buildAssessmentRecord(
+  { id: "app-2", status: "pending", phase: "quiz", notes: JSON.stringify({ applicationAnswers: [{ question: "Name", answer: "Robin" }] }), jobs: JOB2 },
+  { sessions: [sess({ last_activity_at: ago(25 * MIN), hidden_at: ago(25 * MIN) })], now: NOW },
+);
+check("…and turns into 'Left at question 3' on its own", leftNow.entries.find((e) => e.key === "quiz").statusLabel === "Left at question 3 · last active 25 min ago" && leftNow.live.state === "left");
+
+const healed = buildAssessmentRecord(finishedApp(), {
+  sessions: [sess({ id: "old", step_id: "step_interview", step_type: "chat_interview", last_activity_at: ago(30 * MIN), progress: { candidate_turns: 4 } })],
+  now: NOW,
+});
+check("a result on file wins over an attempt still marked active", healed.entries.find((e) => e.key === "step_interview").status === "done" && healed.live === null);
+const passedOn = buildAssessmentRecord(
+  { id: "app-3", status: "rejected", phase: "quiz", notes: JSON.stringify({ applicationAnswers: [{ question: "Name", answer: "Robin" }] }), jobs: JOB2 },
+  { sessions: [sess()], now: NOW },
+);
+check("a decided application shows nobody as taking a test", passedOn.live === null && passedOn.entries.find((e) => e.key === "quiz").status === "not_started");
+
+const formNow = buildAssessmentRecord(
+  { id: "app-4", status: "in_progress", phase: "application", notes: null, jobs: JOB2 },
+  {
+    sessions: [
+      sess({
+        id: "f1",
+        step_id: "application",
+        step_type: "application",
+        last_activity_at: ago(MIN),
+        progress: { answered: 3, total: 5, draft_saved_at: ago(MIN) },
+        draft: { q1: "Dana Example", q3: "555 0100", q5: ["Evening", "Weekends"], q9: "", _phoneCountryCodes: { q3: "+1" }, _coverLetter: "Hello" },
+        // Two trips away from the form (finding a resume, a speed test).
+        integrity_summary: { counts: { tab_hidden: 2 }, total: 2, away_ms: 95000, short_away: 0 },
+      }),
+    ],
+    now: NOW,
+  },
+);
+const formEntry = formNow.entries[0];
+check("the form row: 'Filling in the form · 3 of 5 answered · active 1 min ago'", formEntry.statusLabel === "Filling in the form · 3 of 5 answered · active 1 min ago", formEntry.statusLabel);
+check("the form opens on the saved draft, in the job's question order", formEntry.openable && formEntry.detail.kind === "application" && formEntry.detail.answers.map((a) => a.id).join(",") === "q1,q3,q5,q9,q11");
+check("the phone answer carries its country code", formEntry.detail.answers[1].answer === "+1 555 0100", formEntry.detail.answers[1].answer);
+check("a pick-several draft is a list", JSON.stringify(formEntry.detail.answers[2].selected) === '["Evening","Weekends"]');
+check("the draft says how far and when it was saved", formEntry.detail.draft.answered === 3 && formEntry.detail.draft.total === 5 && formEntry.detail.coverLetter === "Hello");
+check("the form never raises a flag, even with switches away", formEntry.integrity.total === 0);
+
+const graded = buildAssessmentRecord(finishedApp(), {
+  sessions: [
+    sess({
+      id: "c1",
+      step_id: "step_chat",
+      step_type: "chat_simulation",
+      status: "completed",
+      ended_at: "2026-10-05T15:51:46Z",
+      context: { scenario: "Devin lost $200 tonight and says the game is rigged.", customer_name: "Devin" },
+      grading: { result: { score: 18, empathy: 15, problemSolving: 12, communication: 26, professionalism: 31, overallFeedback: "Polite, but suggested more play." } },
+      integrity_summary: { counts: { tab_hidden: 2, window_blur: 1, paste: 1 }, away_ms: 72800, short_away: 1 },
+    }),
+    sess({ id: "t1", step_id: "step_typing", step_type: "typing_test", status: "completed", context: { target_text: "The quick brown fox", required_wpm: 45 } }),
+    sess({
+      id: "q1",
+      step_id: "quiz",
+      step_type: "quiz",
+      status: "completed",
+      grading: { result: { answers: QUIZ_QUESTIONS.map((q, i) => ({ question_id: q.id, correct_answer: q.options[1], seconds_on_question: 10 + i })) } },
+    }),
+  ],
+  now: NOW,
+});
+const gChat = graded.entries.find((e) => e.key === "step_chat");
+check("chat practice adds the grading notes never kept", gChat.detail.scores.map((x) => x.label).join(",") === "Empathy,Problem solving,Communication,Professionalism" && gChat.detail.feedback === "Polite, but suggested more play.");
+check("chat practice flags come from the server's tally when it has one", gChat.integrity.fromSession === true && gChat.integrity.total === 3 && gChat.integrity.parts[0] === "left the window 2 times (1m 12s away)", JSON.stringify(gChat.integrity.parts));
+check("the typing passage comes from the attempt's pinned context", graded.entries.find((e) => e.key === "step_typing").detail.passage === "The quick brown fox");
+const manualGraded = buildAssessmentRecord(
+  finishedApp({ notes: JSON.stringify(finishedNotes({ chatInterviewResult: { messageCount: 8, score: 40, recommendation: "Maybe", completed: true } })) }),
+  {
+    sessions: [
+      sess({
+        id: "i2",
+        step_id: "step_interview",
+        step_type: "chat_interview",
+        status: "completed",
+        grading: { result: { score: 40, credibilityRating: "Low", summary: "Short answers." }, question_count: 5, duration_seconds: 251 },
+      }),
+    ],
+    now: NOW,
+  },
+).entries.find((e) => e.key === "step_interview");
+check(
+  "an End-button interview gets what the server kept: credibility, summary, questions, length",
+  manualGraded.detail.credibility === "Low" && manualGraded.detail.summary === "Short answers." && manualGraded.detail.questionCount === 5 && manualGraded.detail.duration === "4:11",
+  JSON.stringify(manualGraded.detail),
+);
+const gQuiz = graded.entries.find((e) => e.key === "quiz");
+check("the quiz carries seconds per question and this attempt's right answers", gQuiz.detail.items[3].seconds === 13 && gQuiz.detail.items[0].correctTexts?.[0] === QUIZ_QUESTIONS[0].options[1]);
+check("the integrity row counts the server's flags", graded.entries.find((e) => e.key === "integrity").detail.groups.some((g) => g.sessionId === "c1"));
+const twoTests = buildAssessmentRecord(
+  finishedApp({ notes: JSON.stringify(finishedNotes({ chatInterviewResult: { ...finishedNotes().chatInterviewResult, violations: [] } })) }),
+  {
+    sessions: [
+      sess({ id: "c1", step_id: "step_chat", step_type: "chat_simulation", status: "completed", integrity_summary: { counts: { tab_hidden: 2, paste: 1 }, away_ms: 72000 } }),
+      sess({ id: "i1", step_id: "step_interview", step_type: "chat_interview", status: "completed", integrity_summary: { counts: { tab_hidden: 1, screenshot_suspected: 1 }, away_ms: 41000 } }),
+    ],
+    now: NOW,
+  },
+).entries.find((e) => e.key === "integrity");
+check(
+  "the integrity row adds the tests up in the card's words",
+  twoTests.subline === "Left the window 3 times (1m 53s away) · paste attempt ×1 · possible screenshot ×1" && twoTests.headline === "5 flags",
+  `${twoTests.headline} | ${twoTests.subline}`,
+);
+
+const sam = buildAssessmentRecord(
+  finishedApp({
+    notes: JSON.stringify(finishedNotes({ typingTestResult: { wpm: 52, accuracy: 96, score: 96, passed: false, requiredWpm: 45 }, step_typing: undefined })),
+  }),
+).entries.find((e) => e.key === "step_typing");
+check("typing at or over the job's bars meets it, whatever the always-false `passed` says", sam.verdict === "Meets the bar" && sam.tone === "jade", `${sam.verdict} ${sam.tone}`);
+
+/* ── 13. One attempt's events folded in (the record sheet) ─────────────── */
+
+let seq = 0;
+const ev = (kind, over = {}) => ({ session_id: "s-1", seq: ++seq, kind, created_at: ago((100 - seq) * 1000), ...over });
+
+seq = 0;
+const chatEvents = [
+  ev("system", { detail: { what: "started", attempt: 1 } }),
+  ev("assistant_turn", { content: "My deposit is missing.", detail: { role: "customer" } }),
+  ev("candidate_turn", { content: "Sorry to hear that. Which name did you send it from?", detail: { role: "agent" } }),
+  ev("integrity", { duration_ms: 67000, client_at: ago(80_000), detail: { kind: "tab_hidden", duration_ms: 67000 } }),
+  ev("integrity", { duration_ms: 400, detail: { kind: "window_blur", duration_ms: 400 } }),
+  ev("integrity", { detail: { kind: "paste", target: "reply" } }),
+  ev("integrity", { detail: { kind: "right_click" } }),
+  ev("assistant_turn", { content: "Robin Example.", detail: { role: "customer" } }),
+  ev("integrity", { detail: { kind: "page_closed", after_end: true } }),
+  ev("system", { detail: { what: "came_back", away_ms: 1_500_000 } }),
+];
+const turns = transcriptFromEvents(chatEvents);
+check("the transcript is both sides, in the server's order", turns.length === 3 && turns[0].role === "other" && turns[1].role === "candidate" && turns[2].text === "Robin Example.");
+const tl = integrityTimeline(chatEvents);
+check("the timeline keeps every integrity event and the markers", tl.length === 7, String(tl.length));
+check("a switch away says how long: 'Left the window for 1m 7s'", timelineText(tl[1]) === "Left the window for 1m 7s" && tl[1].flag && tl[1].at === ago(80_000));
+check("a sub-second blip is on the timeline, marked, never a flag", tl[2].short && !tl[2].flag && timelineText(tl[2]) === "Clicked out of the window for under 1s" && timelineTags(tl[2]).includes("not counted"));
+check("a blocked paste is a flag", tl[3].label === "Tried to paste" && tl[3].flag);
+check("a right-click is recorded only", !tl[4].flag && timelineTags(tl[4]).includes("recorded only"));
+check("a flush from a closing tab is marked 'after sending'", tl[5].afterEnd && timelineTags(tl[5]).includes("after sending"));
+check("coming back says how long they were gone", timelineText(tl[6]) === "Came back after 25m", timelineText(tl[6]));
+
+const chatEntry = withSessionEvents(graded.entries.find((e) => e.key === "step_chat"), chatEvents);
+check("chat practice gets its transcript from the events", chatEntry.detail.transcript.length === 3 && chatEntry.detail.messageCount === 3);
+check("…and its timeline", chatEntry.timeline.length === 7);
+check("no events: the entry is unchanged", withSessionEvents(gChat, []) === gChat && withSessionEvents(gChat, null) === gChat);
+
+const robinTyped = "Customer service is about creating positive experiences for every client. Active listning, empathy, and clear comunication are esential skills. A great suport representative can turn a frustrated";
+const passage = "Customer service is about creating positive experiences for every client. Active listening, empathy, and clear communication are essential skills. A great support representative can turn a frustrated customer into a loyal advocate.";
+const words = typingWords(robinTyped, passage);
+check("typed vs the passage: 4 wrong words, the grader's own rule (85% of 27)", words.wrong === 4 && Math.round(((27 - 4) / 27) * 100) === 85, String(words.wrong));
+check("a wrong word knows the passage's word", words.typed[11].state === "wrong" && words.typed[11].expected === "listening,");
+check("passage words they never reached are marked", words.passage.filter((w) => w.state === "missed").length === 5);
+check("words typed past the end of the passage are extra", typingWords("a b c", "a b").typed[2].state === "extra");
+check("a word is checked against the word at the SAME place, not anywhere", typingWords("one three two", "one two three").wrong === 2);
+
+seq = 0;
+const typingEvents = [
+  ev("typing_snapshot", { detail: { typed_text: "Customer service", elapsed_ms: 5000, final: false } }),
+  ev("typing_snapshot", { detail: { typed_text: robinTyped, target_text: passage, wpm: 38, accuracy: 85, elapsed_ms: 61600, final: true } }),
+  ev("typing_snapshot", { detail: { typed_text: "Customer", elapsed_ms: 2000, final: false, attempt_run: 2 } }),
+];
+const typingEntry = withSessionEvents(buildAssessmentRecord(finishedApp()).entries.find((e) => e.key === "step_typing"), typingEvents);
+check("the final snapshot is what they sent, even with a later one", typingEntry.detail.typed === robinTyped && typingEntry.detail.passage === passage && typingEntry.detail.seconds === 62);
+check("…marked word by word", typingEntry.detail.words.wrong === 4);
+check("…and a second run is counted", typingEntry.detail.runs === 2);
+
+seq = 0;
+const quizEvents = [
+  ev("quiz_shown", { detail: { question_id: "zq1", question_index: 0 } }),
+  ev("quiz_answer", { duration_ms: 12000, detail: { question_id: "zq1", answer: 1, seconds_on_question: 12, timing_source: "server" } }),
+  ev("quiz_shown", { detail: { question_id: "zq2", question_index: 1 } }),
+  ev("quiz_answer", { detail: { question_id: "zq2", answer: 0, seconds_on_question: 19, timing_source: "server" } }),
+  ev("quiz_answer", { detail: { question_id: "zq2", answer: "False", seconds_on_question: 31, timing_source: "previous_answer", changed: true } }),
+  ev("quiz_shown", { detail: { question_id: "zq3", question_index: 2 } }),
+];
+const timings = quizTimings(quizEvents);
+check("seconds per question come from the latest pick", timings.get("zq1").seconds === 12 && timings.get("zq2").seconds === 31);
+check("a changed pick is counted, and a non-server time is approximate", timings.get("zq2").changes === 1 && timings.get("zq2").approximate && !timings.get("zq1").approximate);
+const doneQuiz = withSessionEvents(buildAssessmentRecord(finishedApp()).entries.find((e) => e.key === "quiz"), quizEvents);
+check("a finished quiz gets each question's seconds", doneQuiz.detail.items[0].seconds === 12 && doneQuiz.detail.items[1].changes === 1);
+const liveQuiz = withSessionEvents(quizEntry, quizEvents);
+check("a quiz in progress lists only the questions seen so far", liveQuiz.detail.items.map((i) => i.id).join(",") === "zq1,zq2,zq3");
+check("…with the pick so far, never marked right or wrong", JSON.stringify(liveQuiz.detail.items[1].picked) === "[1]" && liveQuiz.detail.items.every((i) => i.isCorrect === null));
+check("…and the one on screen now", liveQuiz.detail.items[2].onScreen && !liveQuiz.detail.items[0].onScreen);
+
+const combined = graded.entries.find((e) => e.key === "integrity");
+const combinedShown = withSessionEvents(combined, chatEvents.map((e) => ({ ...e, session_id: "c1" })));
+check("the integrity sheet gives each test its own timeline", combinedShown.detail.groups.find((g) => g.sessionId === "c1").timeline.length === 7);
+
+/* ── 14. The owner's integrity card ────────────────────────────────────── */
+
+const cardIn = {
+  type: "integrity",
+  group_key: "integrity:0ccadfc5-130e-45ea-9a43-745e049242b3:step_chat",
+  message: "During Player chat practice: left the window 2 times (1m 12s away), paste attempt x1",
+  link: "/applicants/0ccadfc5-130e-45ea-9a43-745e049242b3",
+};
+const card = parseIntegrityCard(cardIn);
+check("the card names the test", card.during === "Player chat practice" && card.stepId === "step_chat");
+check("the tally is split into its parts", card.parts.length === 2 && card.parts[0] === "left the window 2 times (1m 12s away)" && card.parts[1] === "paste attempt ×1", JSON.stringify(card.parts));
+check("a tap opens that test's timeline", card.link === "/applicants/0ccadfc5-130e-45ea-9a43-745e049242b3?record=step_chat&focus=integrity", card.link);
+check("any other notification is not an integrity card", parseIntegrityCard({ type: "application", group_key: null, message: "x" }) === null && parseIntegrityCard({ group_key: "integrity:not-a-uuid:quiz" }) === null);
+
+/* ── 15. Review fixes (2026-10-06) ─────────────────────────────────────── */
+// Each check below is a case an independent review proved wrong in the first
+// build of this wave.
+
+// A right-click and a blocked Ctrl+P are recorded, never flags: the page's
+// own counter, the server and the bell all say so, and so must the record.
+const rcOnly = integrityOf({ violations: [
+  { type: "right_click", timestamp: "2026-10-06T15:50:00Z", details: "Right-click attempted" },
+  { type: "keyboard_shortcut", timestamp: "2026-10-06T15:50:05Z", details: "Blocked P shortcut" },
+] });
+check("old lists: a right-click and a blocked shortcut are kept but are not flags", rcOnly.total === 0 && rcOnly.recordedOnly === 2 && rcOnly.events.length === 2 && rcOnly.events.every((e) => e.recordedOnly), JSON.stringify(rcOnly));
+check("…and the server's own 'other' in a list is recorded only too", integrityOf({ violations: [{ type: "other" }, { type: "tab_switch" }] }).total === 1);
+const RC_VIOLATIONS = [
+  { type: "right_click", timestamp: "2026-10-05T15:46:00Z", details: "Right-click attempted" },
+  { type: "keyboard_shortcut", timestamp: "2026-10-05T15:46:05Z", details: "Blocked P shortcut" },
+];
+const rcRecord = buildAssessmentRecord(
+  finishedApp({
+    notes: JSON.stringify(finishedNotes({
+      chatSimulationResult: { ...finishedNotes().chatSimulationResult, antiCheatSummary: undefined },
+      chatInterviewResult: { ...finishedNotes().chatInterviewResult, violations: [] },
+      typingTestResult: { ...finishedNotes().typingTestResult, violations: RC_VIOLATIONS },
+      step_typing: { ...finishedNotes().step_typing, violations: RC_VIOLATIONS },
+    })),
+  }),
+  { sessions: [sess({ id: "t9", step_id: "step_typing", step_type: "typing_test", status: "completed", integrity_summary: { counts: { right_click: 1, other: 1 }, total: 2, away_ms: 0, short_away: 0 } })], now: NOW },
+);
+check("a typing test with only a right-click and a shortcut has no flags", rcRecord.entries.find((e) => e.key === "step_typing").integrity.total === 0);
+check("…and the record has no 'Integrity checks' row", !rcRecord.entries.some((e) => e.key === "integrity") && rcRecord.integrityTotal === 0);
+const serverZero = buildAssessmentRecord(
+  finishedApp(),
+  { sessions: [sess({ id: "c0", step_id: "step_chat", step_type: "chat_simulation", status: "completed", integrity_summary: { counts: { right_click: 1 }, total: 1, away_ms: 0, short_away: 0 } })], now: NOW },
+).entries.find((e) => e.key === "step_chat");
+check("the server's tally wins whenever it has one, even at zero (the bell said nothing)", serverZero.integrity.total === 0 && serverZero.integrity.fromSession === true);
+
+// A step handed back for a retake: the old result is still in notes, the new
+// attempt is being taken. Nothing of attempt 2 may be laid over attempt 1.
+// A hand-back is the staff marker (assessment_step_reopens), newer than the
+// result on file — here attempt 1's end, 170 min ago.
+const retakeNotes = JSON.stringify(finishedNotes({ chatInterviewResult: undefined, _trusted: undefined }));
+const chatReopen = { application_id: "app-1", step_id: "step_chat", job_id: "job-1", reopened_at: ago(30 * MIN), reopened_by: "owner-1", reopen_count: 1 };
+const s1Done = sess({
+  id: "r1", step_id: "step_chat", step_type: "chat_simulation", attempt: 1, status: "completed",
+  started_at: ago(3 * 60 * MIN), ended_at: ago(170 * MIN), last_activity_at: ago(170 * MIN),
+  integrity_summary: { counts: { tab_hidden: 5 }, total: 5, away_ms: 300000, short_away: 0 },
+});
+const s2Live = sess({
+  id: "r2", step_id: "step_chat", step_type: "chat_simulation", attempt: 2, status: "active",
+  started_at: ago(4 * MIN), last_activity_at: ago(MIN), progress: { candidate_turns: 1, assistant_turns: 2 },
+  context: { scenario: "A new scenario", customer_name: "Mo" },
+});
+const retaking = buildAssessmentRecord(
+  finishedApp({ status: "pending", phase: "step_chat", notes: retakeNotes }),
+  { sessions: [s1Done, s2Live], reopens: [chatReopen], now: NOW },
+);
+const rtChat = retaking.entries.find((e) => e.key === "step_chat");
+check("a retake being taken reads live, not 'Done'", rtChat.status === "in_progress" && rtChat.statusLabel === "In the conversation · 1 reply · active 1 min ago", rtChat.statusLabel);
+check("…shows the new attempt, never the old score over it", rtChat.session?.id === "r2" && rtChat.detail?.live === true && rtChat.detail.scores.length === 0 && rtChat.detail.scenario === "A new scenario" && rtChat.headline === null);
+check("…keeps the earlier attempt's flags in view", rtChat.earlierIntegrity?.length === 1 && rtChat.earlierIntegrity[0].attempt === 1 && rtChat.earlierIntegrity[0].tally.total === 5, JSON.stringify(rtChat.earlierIntegrity));
+const rtAll = retaking.entries.find((e) => e.key === "integrity");
+check("…and the integrity row counts them, as their own attempt", retaking.integrityTotal === 5 && rtAll?.detail.groups.some((g) => g.sessionId === "r1" && g.title === "Player chat practice · attempt 1"), JSON.stringify(rtAll?.detail.groups));
+const twoAttempts = buildAssessmentRecord(
+  finishedApp({ status: "pending", phase: "step_chat", notes: retakeNotes }),
+  { sessions: [s1Done, { ...s2Live, integrity_summary: { counts: { tab_hidden: 1 }, total: 1, away_ms: 12000, short_away: 0 } }], reopens: [chatReopen], now: NOW },
+).entries.find((e) => e.key === "integrity");
+check(
+  "…both attempts named, in attempt order, added up as one test",
+  twoAttempts.detail.groups.map((g) => g.title).join("|") === "Player chat practice · attempt 1|Player chat practice · attempt 2" && twoAttempts.headline === "6 flags" && twoAttempts.verdict === "in 1 test",
+  JSON.stringify(twoAttempts.detail.groups.map((g) => g.title)),
+);
+const reopened = buildAssessmentRecord(
+  finishedApp({ status: "pending", phase: "step_chat", notes: retakeNotes }),
+  { sessions: [s1Done], reopens: [chatReopen], now: NOW },
+).entries.find((e) => e.key === "step_chat");
+check("reopened, not started yet: says so, and still opens the earlier result", reopened.status === "in_progress" && reopened.statusLabel === "Reopened for a retake" && reopened.retake === "open" && reopened.openable && reopened.detail.scores.length > 0 && reopened.session?.id === "r1", reopened.statusLabel);
+check("…and carries when staff handed it back", reopened.reopen?.at === chatReopen.reopened_at && reopened.reopen?.count === 1, JSON.stringify(reopened.reopen));
+
+/* ── 15b. A hand-back is a staff marker, never status and phase alone ──── */
+// The applicant can set their own status to 'pending' (the server's
+// protect_application_columns allows it), and an auto-mode step whose move
+// was never triggered leaves phase on the step. Neither is a retake.
+const selfPending = buildAssessmentRecord(
+  finishedApp({ status: "pending", phase: "step_chat", notes: retakeNotes }),
+  { sessions: [s1Done], now: NOW },
+).entries.find((e) => e.key === "step_chat");
+check("status pending + phase on a finished step, no marker: still Done", selfPending.status === "done" && selfPending.statusLabel === "Done" && !selfPending.retake && !selfPending.reopen && selfPending.session?.id === "r1", selfPending.statusLabel);
+check("…with its score, not 'Reopened for a retake'", selfPending.headline != null && !/Reopened/.test(selfPending.statusLabel));
+const staleMarker = buildAssessmentRecord(
+  finishedApp({ status: "pending", phase: "step_chat", notes: retakeNotes }),
+  { sessions: [s1Done], reopens: [{ ...chatReopen, reopened_at: ago(4 * 60 * MIN) }], now: NOW },
+).entries.find((e) => e.key === "step_chat");
+check("a marker older than the result on file reopens nothing", staleMarker.status === "done" && !staleMarker.retake);
+const trustedLater = buildAssessmentRecord(
+  finishedApp({ status: "pending", phase: "step_chat", notes: JSON.stringify(finishedNotes({ chatInterviewResult: undefined, _trusted: { step_chat: { stepType: "chat_simulation", completedAt: ago(10 * MIN) } } })) }),
+  { sessions: [s1Done], reopens: [chatReopen], now: NOW },
+).entries.find((e) => e.key === "step_chat");
+check("…nor one older than the server's own completedAt (the retake's result landed)", trustedLater.status === "done" && !trustedLater.retake);
+const retakeLanded = buildAssessmentRecord(
+  finishedApp({ status: "pending", phase: "step_chat", notes: retakeNotes }),
+  { sessions: [s1Done, { ...s2Live, status: "completed", ended_at: ago(5 * MIN), last_activity_at: ago(5 * MIN) }], reopens: [chatReopen], now: NOW },
+).entries.find((e) => e.key === "step_chat");
+check("the retake sent and recorded: done again, on the new attempt, phase unmoved", retakeLanded.status === "done" && retakeLanded.session?.id === "r2" && !retakeLanded.reopen);
+const legacyResult = buildAssessmentRecord(
+  finishedApp({ status: "pending", phase: "step_chat", notes: retakeNotes }),
+  { sessions: [], reopens: [chatReopen], now: NOW },
+).entries.find((e) => e.key === "step_chat");
+check("a result with no time at all is older than any marker (and still opens)", legacyResult.statusLabel === "Reopened for a retake" && legacyResult.retake === "open" && legacyResult.openable, legacyResult.statusLabel);
+const riding = buildAssessmentRecord(
+  finishedApp({ status: "pending", phase: "step_chat", notes: retakeNotes }),
+  { sessions: withReopens([s1Done, s2Live], [chatReopen]), now: NOW },
+).entries.find((e) => e.key === "step_chat");
+check("the markers ride on the hooks' session list (withReopens)", riding.status === "in_progress" && riding.session?.id === "r2" && riding.reopen?.count === 1);
+const othersMarker = buildAssessmentRecord(
+  finishedApp({ status: "pending", phase: "step_chat", notes: retakeNotes }),
+  { sessions: withReopens([s1Done], [{ ...chatReopen, application_id: "app-2" }]), now: NOW },
+).entries.find((e) => e.key === "step_chat");
+check("another application's marker is not this one's", othersMarker.status === "done" && !othersMarker.retake);
+const wrongStep = buildAssessmentRecord(
+  finishedApp({ status: "pending", phase: "step_chat", notes: retakeNotes }),
+  { sessions: [s1Done], reopens: [{ ...chatReopen, step_id: "step_typing" }], now: NOW },
+).entries.find((e) => e.key === "step_chat");
+check("a marker on another step reopens nothing here", wrongStep.status === "done");
+const neverTaken = buildAssessmentRecord(
+  finishedApp({ status: "pending", phase: "step_chat", notes: JSON.stringify(finishedNotes({ chatSimulationResult: undefined, chatInterviewResult: undefined, _trusted: undefined })) }),
+  { sessions: [], now: NOW },
+).entries.find((e) => e.key === "step_chat");
+check("pending on a step never taken: in progress, not 'Reopened for a retake'", neverTaken.status === "in_progress" && neverTaken.statusLabel === "In progress", neverTaken.statusLabel);
+check(
+  "retakeMarker: the quiz and the form are never reopened by a marker",
+  retakeMarker({ status: "pending", phase: "quiz" }, { id: "quiz", type: "quiz" }, {}, [], [{ step_id: "quiz", reopened_at: ago(MIN) }]) === null &&
+    retakeMarker({ status: "pending", phase: "application" }, { id: "application", type: "application" }, {}, [], [{ step_id: "application", reopened_at: ago(MIN) }]) === null,
+);
+check(
+  "retakeMarker: a marker with no time is not proof",
+  retakeMarker({ status: "pending", phase: "step_chat" }, { id: "step_chat", type: "chat_simulation" }, {}, [], [{ step_id: "step_chat", reopened_at: null }]) === null,
+);
+check(
+  "retakeMarker: a decision or a moved phase closes it",
+  retakeMarker({ status: "reviewing", phase: "step_chat" }, { id: "step_chat", type: "chat_simulation" }, {}, [], [chatReopen]) === null &&
+    retakeMarker({ status: "pending", phase: "step_interview" }, { id: "step_chat", type: "chat_simulation" }, {}, [], [chatReopen]) === null,
+);
+const rechecking = buildAssessmentRecord(
+  finishedApp({ status: "pending", phase: "step_interview", notes: retakeNotes }),
+  { sessions: [s1Done, { ...s2Live, status: "grading" }], now: NOW },
+).entries.find((e) => e.key === "step_chat");
+check("a retake sent and being checked reads 'Checking', not the old result", rechecking.status === "in_progress" && rechecking.statusLabel === "Checking the answers" && rechecking.session?.id === "r2", rechecking.statusLabel);
+const movedOn = buildAssessmentRecord(
+  finishedApp({ notes: retakeNotes }),
+  { sessions: [s1Done, s2Live], now: NOW },
+).entries.find((e) => e.key === "step_chat");
+check("done with a later attempt left open: the result's own attempt is shown", movedOn.status === "done" && movedOn.session?.id === "r1" && movedOn.integrity.total === 5);
+const decidedRecheck = buildAssessmentRecord(
+  finishedApp({ status: "rejected", notes: retakeNotes }),
+  { sessions: [s1Done, { ...s2Live, status: "grading" }], now: NOW },
+).entries.find((e) => e.key === "step_chat");
+check("decided: the result on file is done, with its own attempt", decidedRecheck.status === "done" && decidedRecheck.session?.id === "r1");
+
+// Flags are placed in the conversation by the server's clock, not the
+// laptop's: a clock 3 minutes slow must not move them or the offsets.
+const T0 = Date.parse("2026-10-06T15:00:00Z");
+const iso = (ms) => new Date(ms).toISOString();
+const slow = 180_000;
+seq = 0;
+const skewEvents = [
+  ev("assistant_turn", { content: "Hi, my deposit is gone.", created_at: iso(T0), detail: { role: "customer" } }),
+  ev("candidate_turn", { content: "Sorry! Which name did you send it from?", created_at: iso(T0 + 35_000), client_at: iso(T0 + 35_000 - slow), detail: { role: "agent" } }),
+  ev("integrity", { kind: "integrity", created_at: iso(T0 + 50_300), client_at: iso(T0 + 50_000 - slow), detail: { kind: "paste" } }),
+  ev("integrity", { kind: "integrity", duration_ms: 67_000, created_at: iso(T0 + 60_000 + 67_000 + 400), client_at: iso(T0 + 60_000 - slow), detail: { kind: "tab_hidden", duration_ms: 67_000 } }),
+  ev("assistant_turn", { content: "Robin Example.", created_at: iso(T0 + 130_000), detail: { role: "customer" } }),
+];
+const skewTl = integrityTimeline(skewEvents);
+const near = (a, b, tol = 1500) => a != null && Math.abs(Date.parse(a) - b) <= tol;
+check("each flag also carries the server's time for it", near(skewTl[0].serverAt, T0 + 50_000) && near(skewTl[1].serverAt, T0 + 60_000), `${skewTl[0].serverAt} ${skewTl[1].serverAt}`);
+check("…while the timeline still shows the page's own time", skewTl[0].at === iso(T0 + 50_000 - slow));
+check("an event the page sent no time for reads the server's", integrityTimeline([ev("integrity", { created_at: iso(T0), detail: { kind: "copy" } })])[0].serverAt === iso(T0));
+
+// The step's own title may contain ": " — the card's words must not be cut there.
+const colonCard = parseIntegrityCard({
+  type: "integrity",
+  group_key: "integrity:0ccadfc5-130e-45ea-9a43-745e049242b3:step_chat",
+  message: "During Chat practice: refunds: left the window 2 times (1m 12s away), paste attempt x1",
+});
+check("a test title with ': ' in it keeps its words", colonCard.during === "Chat practice: refunds" && colonCard.parts.join("|") === "left the window 2 times (1m 12s away)|paste attempt ×1", JSON.stringify(colonCard));
+
+// A resent pick, or a written answer saved in bursts, is not a changed answer.
+seq = 0;
+const resent = quizTimings([
+  ev("quiz_answer", { detail: { question_id: "zq1", answer: 1, seconds_on_question: 9, timing_source: "server" } }),
+  ev("quiz_answer", { detail: { question_id: "zq1", answer: 1, seconds_on_question: 9.4, timing_source: "server", changed: true } }),
+  ev("quiz_answer", { detail: { question_id: "zq4", answer: ["b", "a"], seconds_on_question: 9, timing_source: "server" } }),
+  ev("quiz_answer", { detail: { question_id: "zq4", answer: ["a", "b"], seconds_on_question: 11, timing_source: "server", changed: true } }),
+  ev("quiz_answer", { detail: { question_id: "zq5", answer: 0, seconds_on_question: 4, timing_source: "server" } }),
+  ev("quiz_answer", { detail: { question_id: "zq5", answer: 2, seconds_on_question: 6, timing_source: "server", changed: true } }),
+  ev("quiz_answer", { detail: { question_id: "zq5", answer: 2, seconds_on_question: 7, timing_source: "server", changed: true } }),
+]);
+check("a pick sent twice is not a change", resent.get("zq1").changes === 0);
+check("the same picks in another order are not a change", resent.get("zq4").changes === 0);
+check("a real change is counted once, not once per resend", resent.get("zq5").changes === 1);
+const textQuizJob = { ...JOB, quiz_questions: [...QUIZ_QUESTIONS.slice(0, 9), { id: "zq10", type: "text", category: "payments", question: "Write a reply", options: [] }] };
+seq = 0;
+const textBursts = [
+  ev("quiz_shown", { detail: { question_id: "zq10", question_index: 9 } }),
+  ev("quiz_answer", { detail: { question_id: "zq10", answer: "I would", seconds_on_question: 5, timing_source: "server" } }),
+  ev("quiz_answer", { detail: { question_id: "zq10", answer: "I would ask the player", seconds_on_question: 12, timing_source: "server", changed: true } }),
+];
+const textLive = withSessionEvents(
+  buildAssessmentRecord({ id: "app-t", status: "pending", phase: "quiz", notes: JSON.stringify({ applicationAnswers: [{ question: "Name", answer: "Robin" }] }), jobs: textQuizJob }, { sessions: [sess()], now: NOW }).entries.find((e) => e.key === "quiz"),
+  textBursts,
+);
+const textItem = textLive.detail.items.find((i) => i.id === "zq10");
+check("a written answer saved as they type is never 'changed N×'", textItem && textItem.changes === 0 && textItem.textAnswer === "I would ask the player", JSON.stringify(textItem));
+const textDone = withSessionEvents(buildAssessmentRecord(finishedApp({ jobs: textQuizJob })).entries.find((e) => e.key === "quiz"), textBursts);
+const textDoneItem = textDone.detail.items.find((i) => i.id === "zq10");
+check("…nor once the quiz is sent", textDoneItem && textDoneItem.type === "text" && textDoneItem.changes === 0 && textDoneItem.seconds === 12, JSON.stringify(textDoneItem));
+
+/* ── 16. A live toast for every new flag on the owner's card ───────────── */
+// The owner: told EVERY time an applicant copies, pastes, tries a screenshot
+// or switches windows. After the first flag the server UPDATEs one card per
+// applicant per test (new tally, unread again, created_at = now()), so the
+// toast has to come from those updates — once per batch, never twice for the
+// same update, never for a mark-as-read.
+const APP_T = "0ccadfc5-130e-45ea-9a43-745e049242b3";
+const cardRow = (message, created_at, over = {}) => ({
+  id: "n-1",
+  user_id: "owner-1",
+  type: "integrity",
+  title: "Integrity — Robin Okafor",
+  message: `During Player chat practice: ${message}`,
+  link: `/applicants/${APP_T}`,
+  group_key: `integrity:${APP_T}:step_chat`,
+  is_read: false,
+  created_at,
+  ...over,
+});
+const c1 = cardRow("left the window 1 time (12s away)", "2026-10-06T15:49:58.100Z");
+const c2 = cardRow("left the window 2 times (40s away)", "2026-10-06T15:50:31.400Z");
+const c3 = cardRow("left the window 3 times (1m 12s away)", "2026-10-06T15:51:02.900Z");
+const c3p = cardRow("left the window 3 times (1m 12s away), paste attempt x1", "2026-10-06T15:51:20.000Z");
+check("the card's counts are read back from its words", JSON.stringify(integrityCardCounts(parseIntegrityCard(c3p).parts)) === JSON.stringify({ away: 3, paste: 1 }));
+check(
+  "every part the server writes is counted",
+  JSON.stringify(integrityCardCounts(["left the window 1 time", "pasted-in text ×2", "copy attempt x3", "screenshot attempt x1", "possible screenshot x4", "developer tools opened x1", "closed the test page x2"])) ===
+    JSON.stringify({ away: 1, bulk_insert: 2, copy: 3, screenshot_key: 1, screenshot_suspected: 4, devtools: 1, page_closed: 2 }),
+);
+check("ordinals", [1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 101, 111].map(ordinal).join(" ") === "1st 2nd 3rd 4th 11th 12th 13th 21st 22nd 23rd 101st 111th");
+
+let tt = integrityCardToast(c2, c3);
+check("one more switch: 'Robin Okafor left the window during Player chat practice (3rd time)'", tt?.title === "Robin Okafor left the window during Player chat practice (3rd time)", tt?.title);
+check("…with the running tally under it", tt?.description === "So far: left the window 3 times (1m 12s away)", tt?.description);
+check("…opening that test's timeline", tt?.link === `/applicants/${APP_T}?record=step_chat&focus=integrity`);
+tt = integrityCardToast(c3, c3p);
+check("a paste: 'Robin Okafor tried to paste during Player chat practice'", tt?.title === "Robin Okafor tried to paste during Player chat practice", tt?.title);
+tt = integrityCardToast(null, c1);
+check("the first flag (a new card): no count on a first time", tt?.title === "Robin Okafor left the window during Player chat practice", tt?.title);
+tt = integrityCardToast(c1, cardRow("left the window 3 times (1m 12s away)", "2026-10-06T15:52:00Z"));
+check("two switches in one batch: said as two more, with the total", tt?.title === "Robin Okafor left the window 2 more times during Player chat practice (3 in all)", tt?.title);
+tt = integrityCardToast(c2, cardRow("left the window 3 times (1m 12s away), possible screenshot x1", "2026-10-06T15:52:00Z"));
+check("two kinds in one batch: both named", tt?.title === "Robin Okafor left the window and may have taken a screenshot during Player chat practice", tt?.title);
+check("nothing grew: no toast", integrityCardToast(c3, cardRow("left the window 3 times (1m 12s away)", "2026-10-06T15:59:00Z")) === null);
+tt = integrityCardToast(undefined, c3);
+check("an update of a card never seen: said without a count", tt?.title === "Robin Okafor was flagged again during Player chat practice", tt?.title);
+check("no name on the card: the server's own 'A candidate'", integrityCardToast(null, { ...c1, title: "Integrity — A candidate" })?.title.startsWith("A candidate left the window"));
+check("not an integrity card: no toast", integrityCardToast(null, { ...c1, type: "application", group_key: null }) === null);
+tt = integrityCardToast(c1, { ...c2, message: "During Chat practice: refunds: left the window 2 times (40s away)" });
+check("a test title with ': ' stays whole in the sentence", tt?.title === "Robin Okafor left the window during Chat practice: refunds (2nd time)", tt?.title);
+
+// The gate: what the toast host runs every realtime write through.
+let gate = createIntegrityToastGate();
+gate.seed([c1]);
+const shownIds = [];
+const consider = (event, row) => {
+  const t = gate.consider(event, row);
+  if (t) shownIds.push(t.id);
+  return t;
+};
+check("an UPDATE whose tally grew toasts", consider("UPDATE", c2)?.title === "Robin Okafor left the window during Player chat practice (2nd time)");
+check("the same UPDATE delivered again does not", consider("UPDATE", { ...c2 }) === null);
+check("a mark-as-read UPDATE does not", consider("UPDATE", { ...c2, is_read: true }) === null);
+check("the next flag after it was read toasts", consider("UPDATE", c3)?.title === "Robin Okafor left the window during Player chat practice (3rd time)");
+check("an older write arriving late does not", consider("UPDATE", { ...c2, is_read: false }) === null);
+check("…nor does a mark-all-read", consider("UPDATE", { ...c3, is_read: true }) === null);
+check("a paste on the same card toasts as a paste", consider("UPDATE", c3p)?.title === "Robin Okafor tried to paste during Player chat practice");
+check("every toast has its own id (one per batch)", new Set(shownIds).size === shownIds.length && shownIds.length === 3, JSON.stringify(shownIds));
+check("an ordinary notification never goes through it", consider("UPDATE", { id: "n-9", type: "application", title: "New application", message: "x", group_key: null, is_read: false, created_at: c3.created_at }) === null);
+gate = createIntegrityToastGate();
+check("a brand-new card (INSERT) toasts its first flag", gate.consider("INSERT", c1)?.title === "Robin Okafor left the window during Player chat practice");
+check("…and the same INSERT twice toasts once", gate.consider("INSERT", { ...c1 }) === null);
+check("a card deleted and written again is compared with what it said", gate.consider("INSERT", { ...c3, id: "n-2" })?.title === "Robin Okafor left the window 2 more times during Player chat practice (3 in all)");
+gate = createIntegrityToastGate();
+gate.seed([c1]);
+gate.consider("UPDATE", c3);
+check("a late, older write is not a flag…", gate.consider("UPDATE", { ...c2, created_at: "2026-10-06T15:50:59.000Z" }) === null);
+check("…and the next one is still compared with the newest", gate.consider("UPDATE", c3p)?.title === "Robin Okafor tried to paste during Player chat practice");
+gate = createIntegrityToastGate();
+check("an UPDATE of a card the tab never saw toasts, without a count", gate.consider("UPDATE", c3)?.title === "Robin Okafor was flagged again during Player chat practice");
+gate = createIntegrityToastGate();
+gate.seed([c3]);
+check("the seed read this very write before its message: still toasted", gate.consider("UPDATE", c3)?.title === "Robin Okafor was flagged again during Player chat practice");
+check("…once", gate.consider("UPDATE", c3) === null);
+gate = createIntegrityToastGate();
+gate.consider("UPDATE", { ...c3, is_read: true });
+gate.seed([c2]);
+check("a late seed never steps back over a newer write", gate.consider("UPDATE", c3p)?.title === "Robin Okafor tried to paste during Player chat practice");
+gate = createIntegrityToastGate();
+gate.seed([c3]);
+check("after a mark-as-read, the same write unread again is not a new flag", gate.consider("UPDATE", { ...c3, is_read: true }) === null && gate.consider("UPDATE", { ...c3 }) === null);
+
 /* ── 9. Where it is mounted (source checks) ────────────────────────────── */
 // The panel's old tiles were two viewport-specific copies split at 1160px;
 // replacing only one left the other width on the old tiles. And the full
@@ -468,6 +1101,50 @@ check(
 );
 const hooks = await src("src/cockpit/hooks/useCockpitData.ts");
 check("useCockpitCandidate never falls back to someone else's row", !/applications\[0\]/.test(hooks));
+// Wave 2: both staff pages build the record WITH the server's attempts, the
+// sheet loads an attempt's events only while open, and the alert link opens
+// the right test.
+check("the Applicants panel reads the attempts of the person on screen", /useApplicationSessions\(selected\?\.id/.test(applicantsPage) && /buildAssessmentRecord\(selectedApp, \{ sessions: selectedSessions, now \}\)/.test(applicantsPage));
+check("the Applicants list reads everyone's open attempts", /useOpenSessions\(/.test(applicantsPage) && /live=\{/.test(applicantsPage));
+check("the full profile reads the attempts and opens ?record=", /useApplicationSessions\(id/.test(detailPage) && /searchParams\.get\("record"\)/.test(detailPage));
+const sheet = await src("src/cockpit/components/AssessmentRecordSheet.tsx");
+check("the sheet folds in the attempt's events", /useSessionEvents\(/.test(sheet) && /withSessionEvents\(/.test(sheet) && /useApplicationIntegrityEvents\(/.test(sheet));
+const sessionsHook = await src("src/cockpit/hooks/useAssessmentSessions.ts");
+check("the record reads as empty, not broken, before the tables exist", /PGRST205/.test(sessionsHook) && /isRecordNotDeployed\(error\)\) return \[\]/.test(sessionsHook));
+check("the record hooks open no realtime channel of their own (the shell's live sync does)", !/\.channel\(/.test(sessionsHook));
+const notificationsPage = await src("src/pages/Notifications.tsx");
+check("the bell has an icon for integrity cards", /integrity:\s*ShieldAlert/.test(notificationsPage) && /parseIntegrityCard\(/.test(notificationsPage));
+// Review fixes: the phone sees live lines, links outlive five minutes, the
+// open list is bounded, and transcript flags sit on the server's clock.
+check(
+  "on a phone the list names who is in a test now (the chips have no room)",
+  /data-ck-live-strip className="[^"]*min-\[1160px\]:hidden/.test(applicantsPage) && /liveInList\.slice\(0, LIVE_STRIP_ROWS\)/.test(applicantsPage),
+);
+check("file links are re-minted while on screen and on return", /refetchInterval: FILE_LINK_REFRESH_MS/.test(sessionsHook) && /useApplicantFileUrl[\s\S]{0,900}refetchOnWindowFocus: true/.test(sessionsHook));
+check("the open-attempts list is newest first and bounded", /\.order\("last_activity_at", \{ ascending: false \}\)\s*\.limit\(OPEN_SESSION_LIMIT\)/.test(sessionsHook));
+check("the timeline's times are on the same clock as its markers", /when\(item\.serverAt \?\? item\.at, "h:mm:ss a"\)/.test(sheet));
+check("transcript flags use the server's clock, offsets count from the first turn", /at: t\.serverAt \?\? t\.at/.test(sheet) && /const origin = start \?\? flagStart/.test(sheet));
+check("an old list marks a right-click as recorded only", /function FlagList/.test(sheet) && /e\.recordedOnly && <span[^>]*> · recorded only/.test(sheet));
+check("a reopened step says so in its sheet", /shown\.retake === "open"/.test(sheet) && /Reopened for a retake/.test(sheet));
+// Wave 3: the owner hears about every new flag, a hand-back is a staff
+// marker, and a quiz still being answered shows no answer key.
+const toastsHost = await src("src/components/GlobalNotificationToasts.tsx");
+const toastChannel = toastsHost.slice(toastsHost.indexOf(".channel("), toastsHost.indexOf(".subscribe("));
+check(
+  "the toast host listens for UPDATEs of the card, not only INSERTs, before it subscribes",
+  /event: "UPDATE",\s*schema: "public",\s*table: "notifications"/.test(toastChannel) && /event: "INSERT",\s*schema: "public",\s*table: "notifications"/.test(toastChannel),
+);
+check("…runs every write through one gate per tab", /^const integrityToasts = createIntegrityToastGate\(\);/m.test(toastsHost) && /integrityToasts\.consider\("UPDATE"/.test(toastsHost) && /integrityToasts\.consider\("INSERT"/.test(toastsHost));
+check("…reads the cards as they stand on every (re)join", /status === "SUBSCRIBED"[\s\S]{0,80}seedIntegrityCards\(/.test(toastsHost));
+check("…and shows the ONE toast design, under a per-update id", /toast\(t\.title, \{\s*id: t\.id,/.test(toastsHost) && !/toast\.custom|toast\.warning|toast\.error\(t\./.test(toastsHost));
+const notificationsHook = await src("src/hooks/useNotifications.ts");
+const listHook = notificationsHook.slice(notificationsHook.indexOf("export function useNotifications"), notificationsHook.indexOf("export function useUnreadCount"));
+check("the bell's list refetches on a card's UPDATE too", /event: "\*"/.test(listHook) && !/event: "INSERT"/.test(listHook));
+check("a quiz still being answered never loads or shows the answer key", /enabled: enabled && !!jobId && sent,/.test(sheet) && /const keysReady = sent &&/.test(sheet) && /const correct = !sent\s*\?\s*null/.test(sheet));
+check("the record reads the staff hand-backs for the person and for the list", (sessionsHook.match(/\.from\("assessment_step_reopens"\)/g) ?? []).length === 2 && /withReopens\(query\.data, reopens\.data\)/.test(sessionsHook) && /withReopens\(list, marks\.get\(appId\)/.test(sessionsHook));
+check("…under the applications keys the live sync refetches on a hand-back", /reopens: \(applicationId[^)]*\) => \["applications", "step-reopens"/.test(sessionsHook));
+const fixturesSrc = await src("src/dev-preview/fixtures.ts");
+check("the preview's reopened applicant carries a staff marker", /assessment_step_reopens: onlyApplying \? \[\] : \[\{ \.\.\.jordanChatReopen \}\]/.test(fixturesSrc));
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

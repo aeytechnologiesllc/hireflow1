@@ -3,12 +3,13 @@ import { useNotifications, useMarkNotificationAsRead, useMarkAllNotificationsAsR
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Check, MessageSquare, Briefcase, Calendar, Users, AlertCircle, Trash2, ChevronRight } from "lucide-react";
+import { Bell, Check, MessageSquare, Briefcase, Calendar, Users, AlertCircle, Trash2, ChevronRight, ShieldAlert } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import type { Notification } from "@/hooks/useNotifications";
+import { parseIntegrityCard } from "@/cockpit/lib/assessmentRecord";
 
 const notificationIcons: Record<string, React.ElementType> = {
   message: MessageSquare,
@@ -17,6 +18,9 @@ const notificationIcons: Record<string, React.ElementType> = {
   status_update: AlertCircle,
   team: Users,
   system: Bell,
+  // One live card per applicant per test (public.assessment_integrity_alert):
+  // it counts up and comes back as unread on every new switch away or paste.
+  integrity: ShieldAlert,
 };
 
 interface NotificationCardProps {
@@ -26,6 +30,11 @@ interface NotificationCardProps {
 
 function NotificationCard({ notification, onMarkAsRead }: NotificationCardProps) {
   const Icon = notificationIcons[notification.type] || Bell;
+  // The integrity card: "Integrity — Robin Okafor", then the test and the
+  // running tally as separate marks, and a link straight to that test's
+  // timeline. Its created_at is the time of the latest event ("updated").
+  const integrity = notification.type === "integrity" ? parseIntegrityCard(notification) : null;
+  const link = integrity?.link ?? notification.link;
 
   const content = (
     <Card 
@@ -37,13 +46,16 @@ function NotificationCard({ notification, onMarkAsRead }: NotificationCardProps)
     >
       <CardContent className="p-4">
         <div className="flex items-start gap-4">
-          <div className={cn(
-            "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
-            notification.is_read ? "bg-secondary" : "bg-primary/10"
-          )}>
+          <div
+            className={cn(
+              "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
+              integrity ? "" : notification.is_read ? "bg-secondary" : "bg-primary/10"
+            )}
+            style={integrity ? { background: "var(--amber-bg)", color: "var(--amber-fg)" } : undefined}
+          >
             <Icon className={cn(
               "h-5 w-5",
-              notification.is_read ? "text-muted-foreground" : "text-primary"
+              integrity ? "" : notification.is_read ? "text-muted-foreground" : "text-primary"
             )} />
           </div>
 
@@ -55,20 +67,44 @@ function NotificationCard({ notification, onMarkAsRead }: NotificationCardProps)
               )}>
                 {notification.title}
               </h3>
-              <span className="text-xs text-muted-foreground whitespace-nowrap">
-                {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
-              </span>
+              {/* An integrity card keeps its time under the title: the name
+                  needs the width, and "updated" is the point of the line. */}
+              {!integrity && (
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                </span>
+              )}
             </div>
-            <p className="text-sm text-muted-foreground mt-1">
-              {notification.message}
-            </p>
+            {integrity ? (
+              <>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {integrity.during ? `During ${integrity.during} · ` : ""}
+                  updated {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                </p>
+                <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="What was recorded">
+                  {integrity.parts.map((part) => (
+                    <li
+                      key={part}
+                      className="rounded-md border px-2 py-0.5 text-xs font-medium leading-snug"
+                      style={{ color: "var(--amber-fg)", background: "var(--amber-bg)", borderColor: "var(--brass-line, transparent)" }}
+                    >
+                      {part.charAt(0).toUpperCase() + part.slice(1)}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground mt-1">
+                {notification.message}
+              </p>
+            )}
             {!notification.is_read && (
               <Badge variant="secondary" className="mt-2 text-xs">
                 New
               </Badge>
             )}
           </div>
-          {notification.link && (
+          {link && (
             <ChevronRight className="h-5 w-5 text-muted-foreground/50 hidden max-sm:block self-center flex-shrink-0 animate-fade-in" />
           )}
         </div>
@@ -76,8 +112,8 @@ function NotificationCard({ notification, onMarkAsRead }: NotificationCardProps)
     </Card>
   );
 
-  if (notification.link) {
-    return <Link to={notification.link}>{content}</Link>;
+  if (link) {
+    return <Link to={link}>{content}</Link>;
   }
 
   return content;

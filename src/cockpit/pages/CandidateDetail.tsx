@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ChevronLeft,
   ChevronRight,
@@ -25,9 +25,10 @@ import { ResumeViewerDialog } from "../components/ResumeViewerDialog";
 import { buildCandidateJourney, nextJourneyStep, positionFor, type WorkflowStepLike } from "@/lib/candidateJourney";
 import { stepHasResult } from "@/lib/journeyProgress";
 import { parseApplicationNotes } from "@/lib/applicationNotes";
-import { AssessmentRecordList } from "../components/AssessmentRecordList";
+import { AssessmentRecordList, LiveDot } from "../components/AssessmentRecordList";
 import { AssessmentRecordSheet } from "../components/AssessmentRecordSheet";
-import { buildAssessmentRecord, type AssessmentAppInput, type AssessmentEntry } from "../lib/assessmentRecord";
+import { useApplicationSessions, useNow } from "../hooks/useAssessmentSessions";
+import { buildAssessmentRecord, liveTone, type AssessmentAppInput, type AssessmentEntry } from "../lib/assessmentRecord";
 
 const STRENGTH_ICONS = [UserRound, MessageCircle, Target, BookOpen];
 
@@ -82,6 +83,12 @@ export default function CockpitCandidateDetail() {
   const [hirePrompt, setHirePrompt] = useState(false);
   const [resumeOpen, setResumeOpen] = useState(false);
   const [recordKey, setRecordKey] = useState<string | null>(null);
+  // An integrity alert opens on that test's timeline (see Notifications).
+  const [recordFocus, setRecordFocus] = useState<"integrity" | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const now = useNow(30_000);
+  // The server's record of every attempt (live through useEmployerLiveSync).
+  const { data: sessions } = useApplicationSessions(id ?? null);
 
   // A "New application" alert can be tapped before the list it opens has heard
   // of the person, so a missing id gets one fresh fetch before the page says
@@ -98,14 +105,31 @@ export default function CockpitCandidateDetail() {
 
   // What they submitted, test by test — the same record the Applicants panel lists.
   const record = useMemo(
-    () => (application ? buildAssessmentRecord(application as unknown as AssessmentAppInput) : null),
-    [application],
+    () => (application ? buildAssessmentRecord(application as unknown as AssessmentAppInput, { sessions, now }) : null),
+    [application, sessions, now],
   );
   const openEntry = recordKey ? record?.entries.find((e) => e.key === recordKey) ?? null : null;
   const openRecord = (entry: AssessmentEntry) => {
+    setRecordFocus(null);
     if (entry.kind === "resume") setResumeOpen(true);
     else setRecordKey(entry.key);
   };
+
+  // `?record=<step id>` (an integrity alert's link) opens that test's record
+  // once the person is loaded; `&focus=integrity` lands on its timeline. The
+  // parameters are then dropped, so closing the sheet does not reopen it.
+  const recordParam = searchParams.get("record");
+  useEffect(() => {
+    if (!recordParam || !record) return;
+    if (record.entries.some((e) => e.key === recordParam)) {
+      setRecordKey(recordParam);
+      setRecordFocus(searchParams.get("focus") === "integrity" ? "integrity" : null);
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete("record");
+    next.delete("focus");
+    setSearchParams(next, { replace: true });
+  }, [recordParam, record, searchParams, setSearchParams]);
 
   // Go back to where they came from (the applicants list, with its filter +
   // selection intact); fall back to the list if this was a deep link.
@@ -272,8 +296,10 @@ export default function CockpitCandidateDetail() {
                 >
                   Needs review
                 </span>
-              ) : c.fillingInForm && !isRejected ? (
+              ) : record?.live?.stepType === "application" ? null : c.fillingInForm && !isRejected ? (
                 // Pressed Apply, still on the form: live, not "Application".
+                // (Once the form saves as they type, the live line below says
+                // it with the count: "Filling in the form · 6 of 11 answered".)
                 <span className="ck-pill ck-pill-stage-neutral">
                   <span className="ck-dot ck-dot-live" aria-hidden />
                   Filling in the form
@@ -282,6 +308,16 @@ export default function CockpitCandidateDetail() {
                 <span className="ck-pill ck-pill-stage">{c.stage}</span>
               )}
             </div>
+            {/* Part-way through a test right now, or gone from it. */}
+            {record?.live && !isTerminal && (
+              <div
+                className="mt-1.5 flex items-start gap-1.5 text-[12px] font-semibold leading-[1.4]"
+                style={{ color: record.live.state === "doing" ? "var(--hf-text-soft)" : liveTone(record.live.state) }}
+              >
+                <LiveDot state={record.live.state} className="mt-[4.5px]" />
+                <span>{record.live.summary}</span>
+              </div>
+            )}
           </div>
           {/* The record carries the score once, in jade, the way .read-sc does
               in the design. Unscored is "—", not "0%" — a 0 would be a claim. */}
@@ -304,7 +340,9 @@ export default function CockpitCandidateDetail() {
               {analyzed
                 ? avaProse(c.readFull) || c.read
                 : c.fillingInForm
-                  ? "They're filling in the application form right now. Nothing is sent until they submit it — the moment they do, I read it and their answers land below."
+                  ? record?.entries.some((e) => e.detail?.kind === "application" && !!e.detail.draft)
+                    ? "They're filling in the application form right now. Their answers save as they type — open the Application row below to read them so far. The moment they send it, I read it."
+                    : "They're filling in the application form right now. Nothing is sent until they submit it — the moment they do, I read it and their answers land below."
                   : "I'm still reading this one — the score and my working land here the moment screening finishes."}
             </p>
           </div>
@@ -509,8 +547,13 @@ export default function CockpitCandidateDetail() {
         open={!!openEntry}
         entry={openEntry}
         candidateName={c.name}
+        applicationId={c.id}
         jobId={record?.jobId ?? null}
-        onClose={() => setRecordKey(null)}
+        focus={recordFocus}
+        onClose={() => {
+          setRecordKey(null);
+          setRecordFocus(null);
+        }}
         onOpenResume={() => {
           // One modal at a time: the resume viewer takes over from the sheet.
           setRecordKey(null);

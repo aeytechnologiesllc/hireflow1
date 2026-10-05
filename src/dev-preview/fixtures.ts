@@ -28,6 +28,8 @@ import {
   APP_ZULU_DONE_ID,
   APP_ZULU_FORM_ID,
   APP_ZULU_TESTING_ID,
+  APP_ZULU_LEFT_ID,
+  APP_ZULU_RETAKE_ID,
   CANDIDATE_USER_ID,
   DOC_DECLINED_ID,
   DOC_PENDING_CANDIDATE_ID,
@@ -53,6 +55,8 @@ import {
   ZULU_DONE_USER_ID,
   ZULU_FORM_USER_ID,
   ZULU_TESTING_USER_ID,
+  ZULU_LEFT_USER_ID,
+  ZULU_RETAKE_USER_ID,
 } from "./ids";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -863,6 +867,7 @@ const zuluJob: FixtureRow = {
     { id: "q6", type: "select", question: "How many hours a week can you work?", options: ["Under 20", "20 to 30", "30 to 40", "40 or more"], required: true },
     { id: "q9", type: "textarea", question: "Describe any customer support or chat support experience you have.", required: true },
     { id: "q10", type: "textarea", question: "Why do you want this job, and what makes you good with upset people?", required: true },
+    { id: "q11", type: "file", question: "Screenshot of a speed test (fast.com or speedtest.net)", required: false },
   ],
   quiz_questions: zuluQuizQuestions,
   workflow_steps: [
@@ -894,6 +899,8 @@ const zuluProfiles = [
   zuluProfile(ZULU_DONE_USER_ID, "robin.okafor@example.com", "Robin Okafor"),
   zuluProfile(ZULU_FORM_USER_ID, "dana.whitfield@example.com", "Dana Whitfield"),
   zuluProfile(ZULU_TESTING_USER_ID, "sam.osei@example.com", "Sam Osei"),
+  zuluProfile(ZULU_LEFT_USER_ID, "lena.park@example.com", "Lena Park"),
+  zuluProfile(ZULU_RETAKE_USER_ID, "jordan.reyes@example.com", "Jordan Reyes"),
 ];
 
 function makeZuluApplication(overrides: FixtureRow): FixtureRow {
@@ -962,7 +969,16 @@ const zuluDoneNotes = {
       question: "Why do you want this job, and what makes you good with upset people?",
       questionId: "q10",
     },
+    {
+      type: "file",
+      answer: `${ZULU_DONE_USER_ID}/1759678000000_q11.png`,
+      question: "Screenshot of a speed test (fast.com or speedtest.net)",
+      questionId: "q11",
+    },
   ],
+  fileUploads: {
+    q11: { url: `${ZULU_DONE_USER_ID}/1759678000000_q11.png`, imageUrls: [`${ZULU_DONE_USER_ID}/1759678000000_q11.png`], isResume: false },
+  },
   typingTestResult: { wpm: 38, accuracy: 85, score: 72, passed: false, requiredWpm: 45, tabSwitches: 0, violations: [] },
   step_typing: { type: "typing_test", wpm: 38, accuracy: 85, score: 72, passed: false, requiredWpm: 45, tabSwitches: 0, violations: [], completedAt: at(8, 21) },
   chatSimulationResult: {
@@ -1064,12 +1080,13 @@ const appZuluTesting = makeZuluApplication({
   id: APP_ZULU_TESTING_ID,
   candidate_id: ZULU_TESTING_USER_ID,
   status: "reviewing",
-  phase: "step_typing",
-  created_at: minutesAgo(9),
-  updated_at: minutesAgo(1),
+  // In the written interview right now (see the live attempt below).
+  phase: "step_interview",
+  created_at: minutesAgo(38),
+  updated_at: minutesAgo(7),
   ai_score: 71,
   notes: JSON.stringify({
-    ...zuluQuizRecord([2, 6], minutesAgo(2)),
+    ...zuluQuizRecord([2, 6], minutesAgo(31)),
     applicationAnswers: [
       { type: "text", answer: "Sam Osei", question: "Full name", questionId: "q1" },
       { type: "email", answer: "sam.osei@example.com", question: "Email address", questionId: "q2" },
@@ -1082,9 +1099,94 @@ const appZuluTesting = makeZuluApplication({
       },
       { type: "select", answer: "30 to 40", question: "How many hours a week can you work?", questionId: "q6" },
     ],
+    typingTestResult: { wpm: 52, accuracy: 96, score: 96, passed: false, requiredWpm: 45, tabSwitches: 0, violations: [] },
+    step_typing: { type: "typing_test", wpm: 52, accuracy: 96, score: 96, passed: false, requiredWpm: 45, tabSwitches: 0, violations: [], completedAt: minutesAgo(26) },
+    chatSimulationResult: {
+      scenario: String((zuluJob.workflow_steps as Array<{ config?: { scenarios?: Array<{ scenario: string }> } }>)[1].config!.scenarios![0].scenario),
+      messageCount: 9,
+      score: 64,
+      empathy: 70,
+      problemSolving: 58,
+      strengths: ["Named the spending limit and showed where to set it"],
+      improvements: ["Say plainly that support cannot see or change results"],
+      completed: true,
+      antiCheatSummary: { hasViolations: false, violationCount: 0, tabSwitches: 0, copyPasteAttempts: 0 },
+    },
+    _trusted: {
+      step_typing: { stepType: "typing_test", completedAt: minutesAgo(26) },
+      step_chat: { stepType: "chat_simulation", completedAt: minutesAgo(8) },
+    },
   }),
-  ai_analysis: "Summary: Solid on the rules so far; the typing test, chat practice and written interview are still to come.",
+  ai_analysis: "Summary: Solid on the rules and the practice chat; the written interview is under way.",
   ai_scorecard: { overallScore: 71, recommendedAction: "review", decisionState: "needs_more_evidence", riskFlags: ["Resume could not be analyzed"] },
+});
+
+const appZuluLeft = makeZuluApplication({
+  id: APP_ZULU_LEFT_ID,
+  candidate_id: ZULU_LEFT_USER_ID,
+  status: "pending",
+  phase: "quiz",
+  created_at: minutesAgo(44),
+  updated_at: minutesAgo(33),
+  ai_score: 58,
+  notes: JSON.stringify({
+    applicationAnswers: [
+      { type: "text", answer: "Lena Park", question: "Full name", questionId: "q1" },
+      { type: "email", answer: "lena.park@example.com", question: "Email address", questionId: "q2" },
+      { type: "text", answer: "Manila, Philippines", question: "Country and city you will work from", questionId: "q4" },
+      {
+        type: "multi_select",
+        answer: "Overnight, midnight to 8am Eastern",
+        selected: ["Overnight, midnight to 8am Eastern"],
+        question: "Which shifts can you cover, in US Eastern time? Pick every one that works.",
+        questionId: "q5",
+      },
+      { type: "select", answer: "40 or more", question: "How many hours a week can you work?", questionId: "q6" },
+    ],
+  }),
+  ai_analysis: "Summary: Covers the overnight shift the team needs most; the skills check is next.",
+  ai_scorecard: { overallScore: 58, recommendedAction: "review", decisionState: "needs_more_evidence", riskFlags: ["Resume could not be analyzed"] },
+});
+
+// Jordan's chat practice was handed back for a retake (status pending, phase
+// on the step): the first attempt's result is still in notes, the second
+// attempt is being taken now.
+const ZULU_CHAT_SCENARIO = String((zuluJob.workflow_steps as Array<{ config?: { scenarios?: Array<{ scenario: string }> } }>)[1].config!.scenarios![0].scenario);
+const appZuluRetake = makeZuluApplication({
+  id: APP_ZULU_RETAKE_ID,
+  candidate_id: ZULU_RETAKE_USER_ID,
+  status: "pending",
+  phase: "step_chat",
+  created_at: minutesAgo(3 * 60 + 10),
+  updated_at: minutesAgo(9),
+  ai_score: 49,
+  notes: JSON.stringify({
+    ...zuluQuizRecord([4], minutesAgo(3 * 60)),
+    applicationAnswers: [
+      { type: "text", answer: "Jordan Reyes", question: "Full name", questionId: "q1" },
+      { type: "email", answer: "jordan.reyes@example.com", question: "Email address", questionId: "q2" },
+      { type: "select", answer: "40 or more", question: "How many hours a week can you work?", questionId: "q6" },
+    ],
+    typingTestResult: { wpm: 49, accuracy: 96, score: 94, passed: false, requiredWpm: 45, tabSwitches: 0, violations: [] },
+    step_typing: { type: "typing_test", wpm: 49, accuracy: 96, score: 94, passed: false, requiredWpm: 45, tabSwitches: 0, violations: [], completedAt: minutesAgo(2 * 60 + 50) },
+    chatSimulationResult: {
+      scenario: ZULU_CHAT_SCENARIO,
+      messageCount: 6,
+      score: 22,
+      empathy: 25,
+      problemSolving: 18,
+      strengths: ["Stayed polite"],
+      improvements: ["Answer the question he asked", "Do not promise a refund support cannot give"],
+      completed: true,
+      antiCheatSummary: { hasViolations: true, violationCount: 5, tabSwitches: 4, copyPasteAttempts: 1 },
+    },
+    _trusted: {
+      step_typing: { stepType: "typing_test", completedAt: minutesAgo(2 * 60 + 50) },
+      step_chat: { stepType: "chat_simulation", completedAt: minutesAgo(2 * 60 + 30) },
+    },
+  }),
+  ai_analysis: "Summary: Quick and accurate typist; the first practice chat was rushed, so it was handed back for a second try.",
+  ai_scorecard: { overallScore: 49, recommendedAction: "review", decisionState: "needs_more_evidence", riskFlags: ["Resume could not be analyzed"] },
 });
 
 const appZuluForm = makeZuluApplication({
@@ -1092,10 +1194,538 @@ const appZuluForm = makeZuluApplication({
   candidate_id: ZULU_FORM_USER_ID,
   status: "in_progress",
   phase: "application",
-  created_at: minutesAgo(2),
-  updated_at: minutesAgo(2),
+  created_at: minutesAgo(5),
+  updated_at: minutesAgo(5),
   notes: null,
 });
+
+// --------------------------------------- the test record (wave 2, sessions)
+// What the server keeps of each attempt (docs/ASSESSMENT-RECORD.md): one
+// assessment_sessions row per application × step × attempt, and its
+// append-only assessment_events. Robin's five finished attempts carry the
+// whole record (both chat transcripts, every quiz pick with its seconds, the
+// typing snapshots against the passage, switches away with how long); Sam is
+// in the written interview right now; Lena left the skills check at question
+// 3 and closed the page; Dana is filling in the form (6 of 9 answered).
+
+const ZULU_PASSAGE =
+  "Customer service is about creating positive experiences for every client. Active listening, empathy, and clear communication are essential skills. A great support representative can turn a frustrated customer into a loyal advocate.";
+const ROBIN_TYPED =
+  "Customer service is about creating positive experiences for every client. Active listning, empathy, and clear comunication are esential skills. A great suport representative can turn a frustrated";
+
+const sessionId = (n: number) => `60000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+
+function zuluSession(
+  id: string,
+  applicationId: string,
+  candidateId: string,
+  stepId: string,
+  stepType: string,
+  overrides: FixtureRow,
+): FixtureRow {
+  return {
+    id,
+    application_id: applicationId,
+    job_id: JOB_FRESH_ID,
+    candidate_id: candidateId,
+    step_id: stepId,
+    step_type: stepType,
+    attempt: 1,
+    status: "completed",
+    end_reason: "submitted",
+    last_heartbeat_at: null,
+    hidden_at: null,
+    progress: {},
+    context: {},
+    draft: null,
+    grading: null,
+    integrity_summary: {},
+    event_seq: 0,
+    ...overrides,
+    created_at: overrides.started_at,
+    updated_at: overrides.ended_at ?? overrides.last_activity_at,
+  };
+}
+
+type FixtureEvent = { kind: string; at: string; content?: string; detail?: FixtureRow; duration_ms?: number; client_at?: string };
+let zuluEventId = 0;
+/** One attempt's events, numbered in order the way the events trigger numbers them. */
+function zuluEvents(session: FixtureRow, list: FixtureEvent[]): FixtureRow[] {
+  return list.map((e, i) => {
+    zuluEventId += 1;
+    return {
+      id: zuluEventId,
+      session_id: session.id,
+      application_id: session.application_id,
+      job_id: session.job_id,
+      seq: i + 1,
+      kind: e.kind,
+      content: e.content ?? null,
+      detail: e.detail ?? {},
+      duration_ms: e.duration_ms ?? null,
+      client_at: e.client_at ?? null,
+      created_at: e.at,
+      client_msg_id: null,
+    };
+  });
+}
+
+const shift = (iso: string, secs: number) => new Date(Date.parse(iso) + secs * 1000).toISOString();
+
+// ── Robin Okafor: every step finished ───────────────────────────────────
+const robinForm = zuluSession(sessionId(1), APP_ZULU_DONE_ID, ZULU_DONE_USER_ID, "application", "application", {
+  started_at: at(0, 0),
+  last_activity_at: at(2, 55),
+  ended_at: at(3, 0),
+  progress: { answered: 9, total: 9, draft_saved_at: at(2, 55) },
+  integrity_summary: { counts: { tab_hidden: 1 }, total: 1, away_ms: 42000, short_away: 0, dropped: 0 },
+});
+const robinFormEvents = zuluEvents(robinForm, [
+  { kind: "system", at: at(0, 0), detail: { what: "started", attempt: 1 } },
+  { kind: "integrity", at: at(2, 22), client_at: at(1, 40), duration_ms: 42000, detail: { kind: "tab_hidden", duration_ms: 42000 } },
+  { kind: "system", at: at(3, 0), detail: { what: "submitted" } },
+]);
+
+// Seconds on each of the ten questions; question 3 was changed once.
+const ROBIN_QUIZ_SECS = [12, 9, 31, 7, 14, 10, 22, 6, 11, 18];
+const robinQuizEventsList: FixtureEvent[] = [{ kind: "system", at: at(3, 30), detail: { what: "started", attempt: 1 } }];
+let quizClock = Date.parse(at(3, 32));
+zuluQuizQuestions.forEach((q, i) => {
+  const shownAt = new Date(quizClock).toISOString();
+  robinQuizEventsList.push({ kind: "quiz_shown", at: shownAt, detail: { question_id: q.id, question_index: i } });
+  if (i === 2) {
+    robinQuizEventsList.push({
+      kind: "quiz_answer",
+      at: shift(shownAt, 19),
+      duration_ms: 19000,
+      detail: { question_id: q.id, question_index: i, answer: 0, seconds_on_question: 19, shown_at: shownAt, timing_source: "server", changed: false },
+    });
+  }
+  const secs = ROBIN_QUIZ_SECS[i];
+  robinQuizEventsList.push({
+    kind: "quiz_answer",
+    at: shift(shownAt, secs),
+    duration_ms: secs * 1000,
+    detail: {
+      question_id: q.id,
+      question_index: i,
+      answer: ZULU_QUIZ[i].right,
+      seconds_on_question: secs,
+      shown_at: shownAt,
+      // One timing the server could not anchor to its own "shown" time.
+      timing_source: i === 6 ? "previous_answer" : "server",
+      changed: i === 2,
+    },
+  });
+  quizClock += (secs + 2) * 1000;
+});
+robinQuizEventsList.push({ kind: "system", at: at(6, 24), detail: { what: "submitted" } });
+const robinQuiz = zuluSession(sessionId(2), APP_ZULU_DONE_ID, ZULU_DONE_USER_ID, "quiz", "quiz", {
+  started_at: at(3, 30),
+  last_activity_at: at(6, 22),
+  ended_at: at(6, 24),
+  progress: { answered: 10, total: 10, current_question_id: "zq10", current_index: 9 },
+  grading: {
+    graded_at: at(6, 25),
+    result: {
+      score: 100,
+      correct: 10,
+      total: 10,
+      answers: zuluQuizQuestions.map((q, i) => ({
+        question_id: q.id,
+        picked: ZULU_QUIZ[i].right,
+        picked_text: q.options[ZULU_QUIZ[i].right],
+        correct_answer: q.options[ZULU_QUIZ[i].right],
+        is_correct: true,
+        seconds_on_question: ROBIN_QUIZ_SECS[i],
+      })),
+    },
+  },
+});
+const robinQuizEvents = zuluEvents(robinQuiz, robinQuizEventsList);
+
+const robinTyping = zuluSession(sessionId(3), APP_ZULU_DONE_ID, ZULU_DONE_USER_ID, "step_typing", "typing_test", {
+  started_at: at(6, 40),
+  last_activity_at: at(8, 20),
+  ended_at: at(8, 21),
+  context: { target_text: ZULU_PASSAGE, required_wpm: 45 },
+  progress: { typed_chars: ROBIN_TYPED.length, elapsed_ms: 61600 },
+  grading: {
+    graded_at: at(8, 21),
+    result: { wpm: 38, accuracy: 85, score: 72, requiredWpm: 45, passed: false, formula: "gross WPM × word accuracy" },
+  },
+});
+const robinTypingEvents = zuluEvents(robinTyping, [
+  { kind: "system", at: at(6, 40), detail: { what: "started", attempt: 1 } },
+  { kind: "typing_snapshot", at: at(7, 0), detail: { typed_text: ROBIN_TYPED.slice(0, 52), wpm: null, accuracy: null, elapsed_ms: 15000, final: false } },
+  { kind: "typing_snapshot", at: at(7, 30), detail: { typed_text: ROBIN_TYPED.slice(0, 131), wpm: null, accuracy: null, elapsed_ms: 45000, final: false } },
+  {
+    kind: "typing_snapshot",
+    at: at(8, 20),
+    detail: { typed_text: ROBIN_TYPED, target_text: ZULU_PASSAGE, wpm: 38, accuracy: 85, elapsed_ms: 61600, final: true },
+  },
+  { kind: "system", at: at(8, 21), detail: { what: "submitted" } },
+]);
+
+const ROBIN_CHAT: Array<[string, string, number, number]> = [
+  // [speaker, text, minute, second]
+  ["customer", "This game is rigged. I lost $200 tonight and I want ALL of it back right now.", 8, 45],
+  ["agent", "Hi Devin, I'm sorry you're upset. Let me see what I can do for you.", 9, 20],
+  ["customer", "What you can do is refund me. The machine never pays.", 9, 41],
+  ["agent", "I understand. Sometimes the games go on a cold streak, it will turn around if you keep playing.", 10, 1],
+  ["customer", "Keep playing?? I'm asking for help to STOP.", 11, 12],
+  ["agent", "Sorry, I didn't mean it like that. Would a bonus help you feel better?", 11, 58],
+  ["customer", "I don't want a bonus. I want my money back.", 12, 2],
+  ["agent", "I can't refund money that was played. I can pause your account if you want a break.", 12, 10],
+  ["customer", "Fine. Pause it. And tell me how to stop this happening again.", 12, 16],
+  ["agent", "Done, it's paused. You can also set a daily limit in Settings.", 12, 22],
+  ["customer", "Okay. Thanks, I guess.", 12, 25],
+];
+const robinChat = zuluSession(sessionId(4), APP_ZULU_DONE_ID, ZULU_DONE_USER_ID, "step_chat", "chat_simulation", {
+  started_at: at(8, 40),
+  last_activity_at: at(12, 22),
+  ended_at: at(12, 27),
+  end_reason: "customer_resolved",
+  context: {
+    scenario:
+      "Devin lost $200 tonight, says the game is rigged, and wants all of his money back. What you know: results are random and support cannot change or see them, and money that has been played cannot be refunded. You can show him how to set a spending limit or take a break.",
+    customer_name: "Devin",
+  },
+  progress: { candidate_turns: 5, assistant_turns: 6 },
+  integrity_summary: {
+    counts: { window_blur: 1, tab_hidden: 2, paste: 1 },
+    total: 4,
+    away_ms: 72800,
+    short_away: 1,
+    dropped: 0,
+    first_event_at: at(9, 31),
+    last_event_at: at(11, 56),
+  },
+  grading: {
+    graded_at: at(12, 30),
+    model: "gpt-5.6-terra",
+    result: {
+      score: 18,
+      empathy: 15,
+      problemSolving: 12,
+      communication: 26,
+      professionalism: 31,
+      strengths: ["Apologised for how he was feeling early on", "Offered to pause the account in the end"],
+      improvements: [
+        "Never suggest another deposit to someone asking for help to stop",
+        "Say plainly that results are random and support cannot see or change them",
+        "Walk him through setting a limit instead of promising it will be okay",
+      ],
+      overallFeedback:
+        "Polite, but told a player who asked for help to stop that a cold streak would turn around, and offered a bonus before a limit. The pause came only at the end.",
+    },
+  },
+});
+const robinChatEvents = zuluEvents(robinChat, [
+  { kind: "system", at: at(8, 40), detail: { what: "started", attempt: 1 } },
+  ...ROBIN_CHAT.slice(0, 3).map(([who, text, m, sec]): FixtureEvent => ({
+    kind: who === "agent" ? "candidate_turn" : "assistant_turn",
+    at: at(m, sec),
+    content: text,
+    detail: { role: who },
+  })),
+  { kind: "integrity", at: at(9, 31), client_at: at(9, 30), duration_ms: 400, detail: { kind: "window_blur", duration_ms: 400 } },
+  ...ROBIN_CHAT.slice(3, 4).map(([who, text, m, sec]): FixtureEvent => ({
+    kind: who === "agent" ? "candidate_turn" : "assistant_turn",
+    at: at(m, sec),
+    content: text,
+    detail: { role: who },
+  })),
+  { kind: "integrity", at: at(11, 9), client_at: at(10, 2), duration_ms: 67000, detail: { kind: "tab_hidden", duration_ms: 67000 } },
+  ...ROBIN_CHAT.slice(4, 5).map(([who, text, m, sec]): FixtureEvent => ({
+    kind: who === "agent" ? "candidate_turn" : "assistant_turn",
+    at: at(m, sec),
+    content: text,
+    detail: { role: who },
+  })),
+  { kind: "integrity", at: at(11, 30), client_at: at(11, 30), detail: { kind: "paste", target: "reply" } },
+  { kind: "integrity", at: at(11, 56), client_at: at(11, 50), duration_ms: 5400, detail: { kind: "tab_hidden", duration_ms: 5400 } },
+  ...ROBIN_CHAT.slice(5).map(([who, text, m, sec]): FixtureEvent => ({
+    kind: who === "agent" ? "candidate_turn" : "assistant_turn",
+    at: at(m, sec),
+    content: text,
+    detail: who === "agent" ? { role: who } : { role: who, model: "gpt-5.6-terra", ...(text.startsWith("Okay") ? { resolved: true } : {}) },
+  })),
+  { kind: "system", at: at(12, 27), detail: { what: "submitted" } },
+]);
+
+const robinInterviewTurns = (zuluDoneNotes.chatInterviewResult.messages as Array<{ role: string; content: string; timestamp: string }>).map(
+  (m): FixtureEvent => ({
+    kind: m.role === "user" ? "candidate_turn" : "assistant_turn",
+    at: m.timestamp,
+    content: m.content,
+    detail: m.role === "user" ? { role: "candidate" } : { role: "interviewer", model: "gpt-5.6-terra" },
+  }),
+);
+const robinInterview = zuluSession(sessionId(5), APP_ZULU_DONE_ID, ZULU_DONE_USER_ID, "step_interview", "chat_interview", {
+  started_at: at(13, 50),
+  last_activity_at: at(19, 12),
+  ended_at: at(19, 40),
+  end_reason: "ai_closed",
+  progress: { candidate_turns: 4, assistant_turns: 5 },
+  integrity_summary: {
+    counts: { window_blur: 1, tab_hidden: 2, screenshot_suspected: 1 },
+    total: 4,
+    away_ms: 71000,
+    short_away: 0,
+    dropped: 0,
+    first_event_at: at(14, 7),
+    last_event_at: at(19, 4),
+  },
+  grading: { graded_at: at(19, 45), result: zuluDoneNotes.chatInterviewResult.evaluation },
+});
+const robinInterviewEvents = zuluEvents(
+  robinInterview,
+  [
+    { kind: "system", at: at(13, 50), detail: { what: "started", attempt: 1 } },
+    ...robinInterviewTurns,
+    { kind: "integrity", at: at(14, 7), client_at: at(14, 1), duration_ms: 6000, detail: { kind: "window_blur", duration_ms: 6000 } },
+    { kind: "integrity", at: at(14, 50), client_at: at(14, 9), duration_ms: 41000, detail: { kind: "tab_hidden", duration_ms: 41000 } },
+    { kind: "integrity", at: at(17, 51), client_at: at(17, 50), detail: { kind: "screenshot_suspected", keys: "Meta+Shift" } },
+    { kind: "integrity", at: at(19, 4), client_at: at(18, 40), duration_ms: 24000, detail: { kind: "tab_hidden", duration_ms: 24000 } },
+    { kind: "system", at: at(19, 40), detail: { what: "submitted" } },
+  ].sort((a, b) => Date.parse(a.at) - Date.parse(b.at)),
+);
+
+// ── Sam Osei: in the written interview now ─────────────────────────────
+const samDone = (n: number, stepId: string, stepType: string, from: number, to: number) =>
+  zuluSession(sessionId(n), APP_ZULU_TESTING_ID, ZULU_TESTING_USER_ID, stepId, stepType, {
+    started_at: minutesAgo(from),
+    last_activity_at: minutesAgo(to),
+    ended_at: minutesAgo(to),
+  });
+const samInterview = zuluSession(sessionId(10), APP_ZULU_TESTING_ID, ZULU_TESTING_USER_ID, "step_interview", "chat_interview", {
+  status: "active",
+  end_reason: null,
+  started_at: minutesAgo(7),
+  last_activity_at: minutesAgo(1),
+  last_heartbeat_at: minutesAgo(0.4),
+  ended_at: null,
+  progress: { candidate_turns: 3, assistant_turns: 4 },
+  integrity_summary: { counts: { window_blur: 1 }, total: 1, away_ms: 3200, short_away: 0, dropped: 0, first_event_at: minutesAgo(4), last_event_at: minutesAgo(4) },
+});
+const SAM_TURNS: Array<[string, string, number]> = [
+  ["interviewer", "Welcome, Sam. What interests you most about supporting players for this team?", 6.8],
+  ["candidate", "I've done night-shift chat for a ticketing company, and I like being the calm person at 3am when something has gone wrong.", 6.1],
+  ["interviewer", "Tell me about a time you handled a customer who was upset about money.", 5.9],
+  ["candidate", "A customer was charged twice for the same tickets. I checked both charges in our admin, refunded the duplicate, sent the reference number and set a reminder to confirm it landed.", 4.6],
+  ["interviewer", "Good. A player says their cash-out is late and they need it for rent. What do you write?", 4.4],
+  ["candidate", "I'd say I'm sorry it's late and I know it matters, check where it is in the queue, and tell them honestly when it will go out instead of guessing.", 1.1],
+  ["interviewer", "And if it's stuck for a reason you can't fix yourself?", 1.0],
+];
+const samInterviewEvents = zuluEvents(samInterview, [
+  { kind: "system", at: minutesAgo(7), detail: { what: "started", attempt: 1 } },
+  ...SAM_TURNS.slice(0, 4).map(([role, text, ago]): FixtureEvent => ({
+    kind: role === "candidate" ? "candidate_turn" : "assistant_turn",
+    at: minutesAgo(ago),
+    content: text,
+    detail: { role },
+  })),
+  { kind: "integrity", at: minutesAgo(3.9), client_at: minutesAgo(4), duration_ms: 3200, detail: { kind: "window_blur", duration_ms: 3200 } },
+  ...SAM_TURNS.slice(4).map(([role, text, ago]): FixtureEvent => ({
+    kind: role === "candidate" ? "candidate_turn" : "assistant_turn",
+    at: minutesAgo(ago),
+    content: text,
+    detail: { role },
+  })),
+]);
+
+// ── Lena Park: left the skills check at question 3, 25 minutes ago ──────
+const lenaQuiz = zuluSession(sessionId(20), APP_ZULU_LEFT_ID, ZULU_LEFT_USER_ID, "quiz", "quiz", {
+  status: "active",
+  end_reason: null,
+  started_at: minutesAgo(28),
+  last_activity_at: minutesAgo(25),
+  last_heartbeat_at: minutesAgo(25),
+  hidden_at: minutesAgo(25),
+  ended_at: null,
+  progress: { answered: 2, total: 10, current_question_id: "zq3", current_index: 2 },
+  integrity_summary: { counts: { page_closed: 1 }, total: 1, away_ms: 0, short_away: 0, dropped: 0, first_event_at: minutesAgo(24.9), last_event_at: minutesAgo(24.9) },
+});
+const lenaQuizEvents = zuluEvents(lenaQuiz, [
+  { kind: "system", at: minutesAgo(28), detail: { what: "started", attempt: 1 } },
+  { kind: "quiz_shown", at: minutesAgo(27.6), detail: { question_id: "zq1", question_index: 0 } },
+  { kind: "quiz_answer", at: minutesAgo(27.3), duration_ms: 18000, detail: { question_id: "zq1", question_index: 0, answer: 1, seconds_on_question: 18, timing_source: "server", changed: false } },
+  { kind: "quiz_shown", at: minutesAgo(27.25), detail: { question_id: "zq2", question_index: 1 } },
+  { kind: "quiz_answer", at: minutesAgo(26.7), duration_ms: 33000, detail: { question_id: "zq2", question_index: 1, answer: 0, seconds_on_question: 33, timing_source: "server", changed: false } },
+  { kind: "quiz_shown", at: minutesAgo(25), detail: { question_id: "zq3", question_index: 2 } },
+  { kind: "integrity", at: minutesAgo(24.9), client_at: minutesAgo(24.9), detail: { kind: "page_closed" } },
+]);
+const lenaForm = zuluSession(sessionId(21), APP_ZULU_LEFT_ID, ZULU_LEFT_USER_ID, "application", "application", {
+  started_at: minutesAgo(44),
+  last_activity_at: minutesAgo(41),
+  ended_at: minutesAgo(40),
+  progress: { answered: 5, total: 9 },
+});
+
+// ── Jordan Reyes: chat practice reopened, attempt 2 under way ────────────
+// Attempt 1 left the window four times and pasted once; attempt 2 is live,
+// on a laptop whose clock runs three minutes slow (the transcript places its
+// flag by the server's clock all the same).
+const jordanDone = (n: number, stepId: string, stepType: string, from: number, to: number) =>
+  zuluSession(sessionId(n), APP_ZULU_RETAKE_ID, ZULU_RETAKE_USER_ID, stepId, stepType, {
+    started_at: minutesAgo(from),
+    last_activity_at: minutesAgo(to),
+    ended_at: minutesAgo(to),
+  });
+const jordanChat1 = zuluSession(sessionId(43), APP_ZULU_RETAKE_ID, ZULU_RETAKE_USER_ID, "step_chat", "chat_simulation", {
+  started_at: minutesAgo(2 * 60 + 45),
+  last_activity_at: minutesAgo(2 * 60 + 31),
+  ended_at: minutesAgo(2 * 60 + 30),
+  context: { scenario: ZULU_CHAT_SCENARIO, customer_name: "Devin" },
+  progress: { candidate_turns: 3, assistant_turns: 3 },
+  integrity_summary: { counts: { tab_hidden: 4, paste: 1 }, total: 5, away_ms: 252000, short_away: 0, dropped: 0 },
+  grading: { result: { score: 22, empathy: 25, problemSolving: 18, communication: 30, professionalism: 41, overallFeedback: "Rushed: answered a question Devin did not ask and promised a refund support cannot give." } },
+});
+const jordanChat1Events = zuluEvents(jordanChat1, [
+  { kind: "system", at: minutesAgo(2 * 60 + 45), detail: { what: "started", attempt: 1 } },
+  { kind: "integrity", at: minutesAgo(2 * 60 + 42), client_at: minutesAgo(2 * 60 + 43), duration_ms: 61000, detail: { kind: "tab_hidden", duration_ms: 61000 } },
+  { kind: "integrity", at: minutesAgo(2 * 60 + 40), client_at: minutesAgo(2 * 60 + 40), detail: { kind: "paste", target: "reply" } },
+  { kind: "integrity", at: minutesAgo(2 * 60 + 37), client_at: minutesAgo(2 * 60 + 38), duration_ms: 74000, detail: { kind: "tab_hidden", duration_ms: 74000 } },
+  { kind: "integrity", at: minutesAgo(2 * 60 + 34), client_at: minutesAgo(2 * 60 + 35), duration_ms: 58000, detail: { kind: "tab_hidden", duration_ms: 58000 } },
+  { kind: "integrity", at: minutesAgo(2 * 60 + 32), client_at: minutesAgo(2 * 60 + 33), duration_ms: 59000, detail: { kind: "tab_hidden", duration_ms: 59000 } },
+  { kind: "system", at: minutesAgo(2 * 60 + 30), detail: { what: "submitted" } },
+]);
+const jordanChat2 = zuluSession(sessionId(44), APP_ZULU_RETAKE_ID, ZULU_RETAKE_USER_ID, "step_chat", "chat_simulation", {
+  attempt: 2,
+  status: "active",
+  end_reason: null,
+  started_at: minutesAgo(6),
+  last_activity_at: minutesAgo(1),
+  last_heartbeat_at: minutesAgo(0.4),
+  ended_at: null,
+  context: { scenario: ZULU_CHAT_SCENARIO, customer_name: "Devin" },
+  progress: { candidate_turns: 2, assistant_turns: 3 },
+  integrity_summary: { counts: { tab_hidden: 1 }, total: 1, away_ms: 12000, short_away: 0, dropped: 0 },
+});
+const SLOW_CLOCK_MIN = 3;
+const jordanChat2Events = zuluEvents(jordanChat2, [
+  { kind: "system", at: minutesAgo(6), detail: { what: "started", attempt: 2 } },
+  { kind: "assistant_turn", at: minutesAgo(5.8), content: "I lost $200 tonight. This game is rigged and I want my money back.", detail: { role: "customer" } },
+  {
+    kind: "candidate_turn",
+    at: minutesAgo(4.9),
+    client_at: minutesAgo(4.9 + SLOW_CLOCK_MIN),
+    content: "I'm sorry tonight went that way, Devin. I can't see or change game results, and they are random, but I can help you set a limit or take a break.",
+    detail: { role: "agent" },
+  },
+  { kind: "assistant_turn", at: minutesAgo(4.6), content: "So you won't refund me? Then what are you for?", detail: { role: "customer" } },
+  // Away for 12 s at 3.5 min ago; the page sent it on return, on its slow clock.
+  { kind: "integrity", at: minutesAgo(3.3), client_at: minutesAgo(3.5 + SLOW_CLOCK_MIN), duration_ms: 12000, detail: { kind: "tab_hidden", duration_ms: 12000 } },
+  {
+    kind: "candidate_turn",
+    at: minutesAgo(2.2),
+    client_at: minutesAgo(2.2 + SLOW_CLOCK_MIN),
+    content: "Played money can't be refunded, and I won't promise what I can't do. What I can do right now is set a daily limit with you so tonight doesn't repeat.",
+    detail: { role: "agent" },
+  },
+  { kind: "assistant_turn", at: minutesAgo(1.9), content: "Fine. How do I set it?", detail: { role: "customer" } },
+]);
+
+// ── Dana Whitfield: on the form, 6 of 9 answered ─────────────────────────
+const danaForm = zuluSession(sessionId(30), APP_ZULU_FORM_ID, ZULU_FORM_USER_ID, "application", "application", {
+  status: "active",
+  end_reason: null,
+  started_at: minutesAgo(5),
+  last_activity_at: minutesAgo(1),
+  last_heartbeat_at: minutesAgo(0.3),
+  ended_at: null,
+  progress: { answered: 6, total: 9, draft_saved_at: minutesAgo(1) },
+  draft: {
+    q1: "Dana Whitfield",
+    q2: "dana.whitfield@example.com",
+    q3: "555 014 2290",
+    q4: "Kingston, Jamaica",
+    q5: ["Evening, 4pm to midnight Eastern", "Weekends (Saturday and Sunday)"],
+    q6: "30 to 40",
+    q9: "",
+    _phoneCountryCodes: { q3: "+1" },
+  },
+  integrity_summary: { counts: { tab_hidden: 1 }, total: 1, away_ms: 38000, short_away: 0, dropped: 0 },
+});
+const danaFormEvents = zuluEvents(danaForm, [
+  { kind: "system", at: minutesAgo(5), detail: { what: "started", attempt: 1 } },
+  { kind: "integrity", at: minutesAgo(2.4), client_at: minutesAgo(3), duration_ms: 38000, detail: { kind: "tab_hidden", duration_ms: 38000 } },
+]);
+
+// The hand-back behind Jordan's retake (assessment_step_reopens, written by
+// the server's trigger when staff put him back on the step). Without it the
+// record would read his chat practice as done: status and phase alone are
+// something an applicant can set, so they are never proof of a reopen.
+const jordanChatReopen: FixtureRow = {
+  application_id: APP_ZULU_RETAKE_ID,
+  step_id: "step_chat",
+  job_id: JOB_FRESH_ID,
+  reopened_at: minutesAgo(9),
+  reopened_by: EMPLOYER_USER_ID,
+  reopen_count: 1,
+};
+
+function zuluSessions(onlyApplying: boolean): { sessions: FixtureRow[]; events: FixtureRow[] } {
+  if (onlyApplying) return { sessions: [danaForm], events: danaFormEvents };
+  return {
+    sessions: [
+      robinForm,
+      robinQuiz,
+      robinTyping,
+      robinChat,
+      robinInterview,
+      samDone(11, "application", "application", 38, 35),
+      samDone(12, "quiz", "quiz", 34, 31),
+      samDone(13, "step_typing", "typing_test", 29, 26),
+      samDone(14, "step_chat", "chat_simulation", 14, 8),
+      samInterview,
+      lenaForm,
+      lenaQuiz,
+      jordanDone(40, "application", "application", 3 * 60 + 10, 3 * 60 + 5),
+      jordanDone(41, "quiz", "quiz", 3 * 60 + 4, 3 * 60),
+      jordanDone(42, "step_typing", "typing_test", 2 * 60 + 58, 2 * 60 + 50),
+      jordanChat1,
+      jordanChat2,
+      danaForm,
+    ],
+    events: [
+      ...robinFormEvents,
+      ...robinQuizEvents,
+      ...robinTypingEvents,
+      ...robinChatEvents,
+      ...robinInterviewEvents,
+      ...samInterviewEvents,
+      ...lenaQuizEvents,
+      ...jordanChat1Events,
+      ...jordanChat2Events,
+      ...danaFormEvents,
+    ],
+  };
+}
+
+/** The owner's integrity cards: one per applicant per test, counted up
+ *  (public.assessment_integrity_alert writes exactly these words). */
+function zuluIntegrityCards(onlyApplying: boolean): FixtureRow[] {
+  if (onlyApplying) return [];
+  const card = (n: number, appId: string, stepId: string, name: string, message: string, createdAt: string, read: boolean) =>
+    notification(`a0000000-0000-4000-8000-0000000002${String(n).padStart(2, "0")}`, EMPLOYER_USER_ID, {
+      type: "integrity",
+      title: `Integrity — ${name}`,
+      message,
+      link: `/applicants/${appId}`,
+      group_key: `integrity:${appId}:${stepId}`,
+      is_read: read,
+      created_at: createdAt,
+    });
+  return [
+    card(5, APP_ZULU_RETAKE_ID, "step_chat", "Jordan Reyes", "During Player chat practice: left the window 1 time (12s away)", minutesAgo(3.3), false),
+    card(1, APP_ZULU_TESTING_ID, "step_interview", "Sam Osei", "During Written interview: left the window 1 time (3s away)", minutesAgo(3.9), false),
+    card(2, APP_ZULU_LEFT_ID, "quiz", "Lena Park", "During Skills check: closed the test page x1", minutesAgo(24.9), false),
+    card(3, APP_ZULU_DONE_ID, "step_interview", "Robin Okafor", "During Written interview: left the window 3 times (1m 11s away), possible screenshot x1", at(19, 4), false),
+    card(4, APP_ZULU_DONE_ID, "step_chat", "Robin Okafor", "During Player chat practice: left the window 2 times (1m 12s away), paste attempt x1", at(11, 56), true),
+  ];
+}
 
 /** The right answers, filed the way get_job_quiz_keys returns them. */
 const zuluQuizKeys = zuluQuizQuestions.map((q, i) => ({
@@ -1105,14 +1735,19 @@ const zuluQuizKeys = zuluQuizQuestions.map((q, i) => ({
 }));
 
 function buildZuluTables(onlyApplying: boolean): FixtureTables {
-  const apps = onlyApplying ? [appZuluForm] : [appZuluDone, appZuluTesting, appZuluForm];
+  const apps = onlyApplying ? [appZuluForm] : [appZuluDone, appZuluTesting, appZuluLeft, appZuluRetake, appZuluForm];
+  const record = zuluSessions(onlyApplying);
   return {
     ...buildFreshTables(),
     profiles: [freshEmployerProfile, teamMemberProfile, ...zuluProfiles].map((r) => ({ ...r })),
     jobs: [{ ...zuluJob }],
     applications: apps.map((r) => ({ ...r })),
     published_jobs_public: [{ ...zuluJob }],
+    assessment_sessions: record.sessions.map((r) => ({ ...r })),
+    assessment_events: record.events.map((r) => ({ ...r })),
+    assessment_step_reopens: onlyApplying ? [] : [{ ...jordanChatReopen }],
     notifications: [
+      ...zuluIntegrityCards(onlyApplying),
       notification("a0000000-0000-4000-8000-000000000101", EMPLOYER_USER_ID, {
         type: "application",
         title: "New application",
@@ -1168,6 +1803,10 @@ function buildCafeTables(): FixtureTables {
     user_roles: userRoles.map((r) => ({ ...r })),
     subscriptions: subscriptions.map((r) => ({ ...r })),
     notifications: notifications.map((r) => ({ ...r })),
+    // The test record (wave 2): nothing recorded for the café's applicants.
+    assessment_sessions: [],
+    assessment_events: [],
+    assessment_step_reopens: [],
     employer_public_branding: employerPublicBranding.map((r) => ({ ...r })),
     published_jobs_public: publishedJobsPublic.map((r) => ({ ...r })),
     activity: [],

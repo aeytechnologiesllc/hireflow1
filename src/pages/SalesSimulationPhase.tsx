@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/integrations/supabase/client";
@@ -24,7 +24,31 @@ import {
 import { toast } from "sonner";
 import { invokeTriggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
-import { StepAdvanceScreen, TestRulesNotice } from "@/components/candidate/NextStepCard";
+import { StepAdvanceScreen } from "@/components/candidate/NextStepCard";
+import {
+  EndEarlyDialog,
+  TestPausedOverlay,
+  TestRulesCard,
+  TestRulesReminder,
+} from "@/components/candidate/TestRulesCard";
+import { useTestIntegrity } from "@/hooks/useTestIntegrity";
+import {
+  TURN_RESEND_DELAY_MS,
+  TurnNotSavedError,
+  assessmentRequestHeaders,
+  gradingReplyOutcome,
+  isTurnNotSaved,
+  newClientId,
+  restoreUnsentText,
+  serverConversationState,
+  storedResultKey,
+  turnsFromJson,
+  turnsToMessages,
+  unansweredCandidateTurn,
+  useAssessmentSession,
+  useServerCheck,
+  useResultKeyAtFirstLoad,
+} from "@/hooks/useAssessmentSession";
 import { useResultAtFirstLoad, useStepAdvance } from "@/hooks/useStepAdvance";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import { PhaseContextCard } from "@/components/PhaseContextCard";
@@ -37,12 +61,6 @@ interface Message {
   role: "prospect" | "salesRep";
   content: string;
   timestamp: Date;
-}
-
-interface AntiCheatViolation {
-  type: 'tab_switch' | 'copy_attempt' | 'paste_attempt' | 'screenshot_attempt' | 'right_click';
-  timestamp: string;
-  details: string;
 }
 
 interface SalesScenario {
@@ -110,6 +128,13 @@ interface ApplicationDetails {
   } | null;
 }
 
+/** Same seed, same index, every time (31-hash, unsigned). */
+function stableIndex(seed: string, length: number) {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  return length > 0 ? hash % length : 0;
+}
+
 // Default sales scenarios
 const defaultScenarios: SalesScenario[] = [
   {
@@ -164,9 +189,10 @@ export default function SalesSimulationPhase() {
     setMessages,
     state === "selling"
   );
-  const [isBlurred, setIsBlurred] = useState(false);
-  const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
-  
+  // The rules card's "I understand" — Start stays disabled until it is ticked.
+  const [rulesAccepted, setRulesAccepted] = useState(false);
+  const [confirmEndOpen, setConfirmEndOpen] = useState(false);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -234,6 +260,59 @@ export default function SalesSimulationPhase() {
   // two-second redirect to the overview.
   const advance = useStepAdvance({ applicationId: id, stepId, job: application?.jobs });
 
+  // Check if already submitted
+  const existingResult = (() => {
+    // If application was reconsidered (status reset to pending), allow re-submission
+    if (application?.status === "pending" && application?.phase === stepId) {
+      return null;
+    }
+    if (!application?.notes) return null;
+    try {
+      const notes = parseApplicationNotes(application.notes);
+      return notes.salesSimulationResult || null;
+    } catch {
+      return null;
+    }
+  })();
+
+  // "Already done" is decided once, from the first read after this page
+  // mounted — never from a refresh that lands after the candidate sends.
+  const resultAtFirstLoad = useResultAtFirstLoad(isFetchedAfterMount && !!application, !!existingResult);
+  // A step the server already holds has no use for a local draft (the send
+  // that stored it may have been cut off before it could clear one), and a
+  // later retake must never resume inside the old conversation.
+  useEffect(() => {
+    if (resultAtFirstLoad) clearConversationDraft();
+  }, [resultAtFirstLoad, clearConversationDraft]);
+
+  // The record the hiring team reads (docs/ASSESSMENT-RECORD.md): opened when
+  // this page loads on a step that is not done, so a reload resumes from what
+  // the server holds, with a heartbeat while the page is open.
+  // A meeting the server is already checking (End was pressed here before a
+  // reload, or on another device) is waited on, never put back as a live
+  // meeting the server no longer records (useServerCheck).
+  const storedSalesResult = useMemo(
+    () => storedResultKey(parseApplicationNotes(application?.notes).salesSimulationResult),
+    [application?.notes],
+  );
+  // The baseline of a wait this page did not start with its own send (the
+  // heartbeat says End was pressed elsewhere, or a reload while it is being
+  // checked): the result as first read, never the one cached since, which
+  // the page's realtime refresh has usually already replaced by the time the
+  // heartbeat says "completed" (useResultKeyAtFirstLoad).
+  const loadResultKey = useResultKeyAtFirstLoad(isFetchedAfterMount && !!application, storedSalesResult);
+  const [serverCheckWaiting, setServerCheckWaiting] = useState(false);
+
+  const record = useAssessmentSession({
+    applicationId: id,
+    stepId,
+    enabled: resultAtFirstLoad === false,
+    // While the server checks a send this page did not see through, the
+    // heartbeat goes on: it is how the page learns that the check failed.
+    live: state === "intro" || state === "selling" || serverCheckWaiting,
+    clientProgress: { screen: state === "intro" ? "intro" : "conversation" },
+  });
+
   // Get config from workflow
   const salesConfig = (() => {
     const workflowSteps = application?.jobs?.workflow_steps;
@@ -244,146 +323,101 @@ export default function SalesSimulationPhase() {
     };
   })();
 
-  // Pre-select scenario on mount so we can show preview
+  // The same prospect on every load of this application's step: a random pick
+  // per mount meant a reload (a phone switching apps) brought back the saved
+  // conversation with a different prospect in the briefing.
   useEffect(() => {
     if (!currentScenario && salesConfig.scenarios.length > 0) {
       const scenarios = salesConfig.scenarios;
-      const randomScenario = scenarios[Math.floor(Math.random() * scenarios.length)];
-      setCurrentScenario(randomScenario);
+      setCurrentScenario(scenarios[stableIndex(`${id}:${stepId}`, scenarios.length)]);
     }
-  }, [salesConfig.scenarios, currentScenario]);
+  }, [salesConfig.scenarios, currentScenario, id, stepId]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Log anti-cheat violation
-  const logViolation = useCallback((type: AntiCheatViolation['type'], details: string) => {
-    if (state === "selling") {
-      setViolations(prev => [...prev, {
-        type,
-        timestamp: new Date().toISOString(),
-        details,
-      }]);
-    }
-  }, [state]);
-
-  // Anti-cheat: Blur content when page loses focus
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden && state === "selling") {
-        logViolation('tab_switch', 'User switched to another tab or window');
-      }
-      setIsBlurred(document.hidden);
-    };
-    
-    const handleBlur = () => {
-      if (state === "selling") {
-        logViolation('tab_switch', 'Window lost focus');
-      }
-      setIsBlurred(true);
-    };
-    const handleFocus = () => setIsBlurred(false);
-    
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("blur", handleBlur);
-    window.addEventListener("focus", handleFocus);
-    
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("blur", handleBlur);
-      window.removeEventListener("focus", handleFocus);
-    };
-  }, [state, logViolation]);
-
-  // Anti-cheat handlers
-  const preventCopy = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    logViolation('copy_attempt', 'User attempted to copy content');
-    toast.error("Copy is turned off here — just type your own words.");
-  };
-
-  const preventPaste = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    logViolation('paste_attempt', 'User attempted to paste content');
-    toast.error("Paste is turned off here — type your answer directly.");
-  };
-
-  const preventContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-    logViolation('right_click', 'User attempted right-click context menu');
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.ctrlKey || e.metaKey) {
-      if (e.key.toLowerCase() === 'c') {
-        e.preventDefault();
-        logViolation('copy_attempt', 'User pressed Ctrl/Cmd+C');
-        toast.error("Copy is turned off here — just type your own words.");
-      } else if (e.key.toLowerCase() === 'v') {
-        e.preventDefault();
-        logViolation('paste_attempt', 'User pressed Ctrl/Cmd+V');
-        toast.error("Paste is turned off here — type your answer directly.");
-      } else if (['p', 's'].includes(e.key.toLowerCase())) {
-        // 'a' deliberately NOT here. Ctrl/Cmd+A is select-all: blocking it
-        // stops someone clearing their own draft to start over, which is
-        // exactly what a person writing a pitch does. It prevents no cheating
-        // — copy and paste are each already blocked on their own handlers
-        // above. Print and Save stay blocked; those copy the assessment out.
-        e.preventDefault();
-        toast.error("That shortcut is turned off here.");
-      }
-    }
-    if (e.key === 'PrintScreen') {
-      e.preventDefault();
-      logViolation('screenshot_attempt', 'User pressed PrintScreen');
-    }
-  };
+  // Copy, paste, switching away and screenshots: the one shared hook
+  // (useTestIntegrity), live to the server while the meeting runs. This page's
+  // own copy logged one switch twice (window blur AND visibilitychange).
+  const integrity = useTestIntegrity({ applicationId: id, stepId, active: state === "selling" });
 
   const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    handleKeyDown(e);
     if (e.key === "Enter" && !e.shiftKey && state === "selling") {
       e.preventDefault();
       sendMessage();
     }
   };
 
-  const streamProspectResponse = async (mode: "start" | "respond", salesRepMessage?: string) => {
-    if (!currentScenario) return;
-    
+  /**
+   * One request for the prospect's next message — the opener ("start") or a
+   * reply ("respond") — streamed in as it arrives. It carries the applicant's
+   * own JWT, the application and step, and an id per message (clientMsgId),
+   * so the server can keep every turn as it happens
+   * (docs/ASSESSMENT-RECORD.md §5.1). The full `messages` history still rides
+   * along for a server on the previous build.
+   *
+   * When the server could not store the message (503 `turn_not_saved`) it
+   * sent no reply: the message goes once more under the same id, and if that
+   * fails too, `giveBack` takes the bubble off and puts the text back in the
+   * reply box. A message on screen is never one nobody will answer.
+   */
+  const streamProspectReply = async (
+    mode: "start" | "respond",
+    scenario: SalesScenario,
+    opts: { salesRepMessage?: string; clientMsgId?: string; history: Message[]; giveBack?: boolean },
+  ) => {
     setIsTyping(true);
-    
+
     // Add typing delay for more natural feel (1.5 seconds)
     await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    try {
-      const response = await fetch(SALES_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({
-          mode,
-          scenario: currentScenario.scenario,
-          prospectName: currentScenario.prospectName,
-          prospectCompany: currentScenario.prospectCompany,
-          productService: currentScenario.productService,
-          jobTitle: application?.jobs?.title || "",
-          candidateName: application?.candidateName || "the sales representative",
-          messages: messages.map(m => ({ 
-            role: m.role === "salesRep" ? "user" : "assistant", 
-            content: m.content 
-          })),
-          salesRepMessage,
-          messageCount: messages.length,
-        }),
-      });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to get prospect response");
+    try {
+      const request = async () =>
+        fetch(SALES_URL, {
+          method: "POST",
+          headers: await assessmentRequestHeaders(),
+          body: JSON.stringify({
+            mode,
+            scenario: scenario.scenario,
+            prospectName: scenario.prospectName,
+            prospectCompany: scenario.prospectCompany,
+            productService: scenario.productService,
+            jobTitle: application?.jobs?.title || "",
+            candidateName: application?.candidateName || "the sales representative",
+            messages: opts.history.map(m => ({
+              role: m.role === "salesRep" ? "user" : "assistant",
+              content: m.content
+            })),
+            salesRepMessage: opts.salesRepMessage,
+            messageCount: opts.history.length,
+            applicationId: id,
+            stepId,
+            clientMsgId: opts.clientMsgId,
+            clientAt: new Date().toISOString(),
+          }),
+        });
+
+      let response = await request();
+      for (let resent = false; !response.ok; resent = true) {
+        const errorData = await response.json().catch(() => null);
+        if (!isTurnNotSaved(response.status, errorData)) {
+          throw new Error(errorData?.error || "Failed to get prospect response");
+        }
+        if (resent) throw new TurnNotSavedError();
+        // Not stored, no reply: once more under the same id (stored once).
+        await new Promise((resolve) => setTimeout(resolve, TURN_RESEND_DELAY_MS));
+        response = await request();
+      }
+
+      // A meeting the server already holds comes back as its stored turns
+      // rather than a second opener (another tab or device started it).
+      if ((response.headers.get("content-type") || "").includes("application/json")) {
+        const turns = turnsFromJson(await response.json().catch(() => null));
+        if (!turns || turns.length === 0) throw new Error("No reply in the response");
+        setMessages(turnsToMessages(turns, { candidate: "salesRep", other: "prospect" }, record.offsetMs) as Message[]);
+        return;
       }
 
       const reader = response.body?.getReader();
@@ -396,21 +430,21 @@ export default function SalesSimulationPhase() {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        
+
         textBuffer += decoder.decode(value, { stream: true });
-        
+
         let newlineIndex: number;
         while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
           let line = textBuffer.slice(0, newlineIndex);
           textBuffer = textBuffer.slice(newlineIndex + 1);
-          
+
           if (line.endsWith("\r")) line = line.slice(0, -1);
           if (line.startsWith(":") || line.trim() === "") continue;
           if (!line.startsWith("data: ")) continue;
-          
+
           const jsonStr = line.slice(6).trim();
           if (jsonStr === "[DONE]") break;
-          
+
           try {
             const parsed = JSON.parse(jsonStr);
             const content = parsed.choices?.[0]?.delta?.content;
@@ -419,7 +453,7 @@ export default function SalesSimulationPhase() {
               setMessages(prev => {
                 const last = prev[prev.length - 1];
                 if (last?.role === "prospect" && last.id.startsWith("prospect-streaming")) {
-                  return prev.map((m, i) => 
+                  return prev.map((m, i) =>
                     i === prev.length - 1 ? { ...m, content: prospectContent } : m
                   );
                 }
@@ -438,20 +472,33 @@ export default function SalesSimulationPhase() {
         }
       }
 
-      setMessages(prev => prev.map(m => 
-        m.id.startsWith("prospect-streaming") 
-          ? { ...m, id: `prospect-${Date.now()}` } 
+      setMessages(prev => prev.map(m =>
+        m.id.startsWith("prospect-streaming")
+          ? { ...m, id: mode === "start" ? "prospect-initial" : `prospect-${Date.now()}` }
           : m
       ));
 
     } catch (error) {
-      console.error("Sales simulation error:", error);
+      if (error instanceof TurnNotSavedError && mode === "respond" && opts.giveBack && opts.clientMsgId && opts.salesRepMessage) {
+        // The server has not got this message and will not answer it: take
+        // the bubble back off and give the text back to send again.
+        const unsent = opts.salesRepMessage;
+        const unsentId = opts.clientMsgId;
+        setMessages((prev) => prev.filter((m) => m.id !== unsentId));
+        setInputValue((current) => restoreUnsentText(current, unsent));
+        toast.error("Your message didn't save — it's back in the box. Send it again.");
+        return;
+      }
       // Candidates get our sentence, not the edge function's raw error string.
-      console.error("Sales simulation message failed:", error);
-      toast.error("That didn't come through — give it another try.");
+      console.error(mode === "start" ? "Sales simulation failed to start:" : "Sales simulation message failed:", error);
+      toast.error(
+        mode === "start"
+          ? "Couldn't start the conversation — give it another try."
+          : "That didn't come through — give it another try.",
+      );
     } finally {
       setIsTyping(false);
-      // Auto-focus the input after prospect responds
+      // Auto-focus the input after the prospect responds
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   };
@@ -459,129 +506,90 @@ export default function SalesSimulationPhase() {
   const startSales = async () => {
     if (!currentScenario) return;
     setState("selling");
-    
-    setTimeout(async () => {
-      await streamProspectResponseWithScenario("start", currentScenario);
-      inputRef.current?.focus();
-    }, 100);
-  };
-
-  const streamProspectResponseWithScenario = async (mode: "start", scenario: SalesScenario) => {
-    setIsTyping(true);
-    
-    // Add typing delay for more natural feel (1.5 seconds)
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    try {
-      const response = await fetch(SALES_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({
-          mode,
-          scenario: scenario.scenario,
-          prospectName: scenario.prospectName,
-          prospectCompany: scenario.prospectCompany,
-          productService: scenario.productService,
-          jobTitle: application?.jobs?.title || "",
-          candidateName: application?.candidateName || "the sales representative",
-          messages: [],
-          messageCount: 0,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to start simulation");
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response body");
-
-      const decoder = new TextDecoder();
-      let prospectContent = "";
-      let textBuffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        
-        textBuffer += decoder.decode(value, { stream: true });
-        
-        let newlineIndex: number;
-        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
-          let line = textBuffer.slice(0, newlineIndex);
-          textBuffer = textBuffer.slice(newlineIndex + 1);
-          
-          if (line.endsWith("\r")) line = line.slice(0, -1);
-          if (line.startsWith(":") || line.trim() === "") continue;
-          if (!line.startsWith("data: ")) continue;
-          
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === "[DONE]") break;
-          
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) {
-              prospectContent += content;
-              setMessages(prev => {
-                const last = prev[prev.length - 1];
-                if (last?.role === "prospect" && last.id.startsWith("prospect-streaming")) {
-                  return prev.map((m, i) => 
-                    i === prev.length - 1 ? { ...m, content: prospectContent } : m
-                  );
-                }
-                return [...prev, {
-                  id: `prospect-streaming-${Date.now()}`,
-                  role: "prospect",
-                  content: prospectContent,
-                  timestamp: new Date(),
-                }];
-              });
-            }
-          } catch {
-            textBuffer = line + "\n" + textBuffer;
-            break;
-          }
-        }
-      }
-
-      setMessages(prev => prev.map(m => 
-        m.id.startsWith("prospect-streaming") 
-          ? { ...m, id: `prospect-initial` } 
-          : m
-      ));
-
-    } catch (error) {
-      console.error("Sales simulation error:", error);
-      console.error("Sales simulation failed to start:", error);
-      toast.error("Couldn't start the conversation — give it another try.");
-    } finally {
-      setIsTyping(false);
-      // Auto-focus the input after initial prospect message
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
+    await streamProspectReply("start", currentScenario, { history: [] });
+    inputRef.current?.focus();
   };
 
   const sendMessage = async () => {
     if (!inputValue.trim() || isTyping || !currentScenario) return;
-    
+
+    // The message's id is also the server's key for it, so a retry is stored once.
+    const clientMsgId = newClientId();
     const salesRepMessage: Message = {
-      id: `salesRep-${Date.now()}`,
+      id: clientMsgId,
       role: "salesRep",
       content: inputValue.trim(),
       timestamp: new Date(),
     };
-    
+
     setMessages(prev => [...prev, salesRepMessage]);
     const messageToSend = inputValue.trim();
     setInputValue("");
-    
-    await streamProspectResponse("respond", messageToSend);
+
+    await streamProspectReply("respond", currentScenario, {
+      salesRepMessage: messageToSend,
+      clientMsgId,
+      history: messages,
+      giveBack: true,
+    });
   };
+
+  // A reload (or another device) resumes the meeting instead of showing the
+  // briefing and asking for a fresh opener on top of it. The server's stored
+  // turns win; without them this device's own draft is used. A last message
+  // nobody answered yet is asked for again under its own id. A meeting the
+  // server is already checking gets the waiting screen instead, and one whose
+  // check failed is sent again.
+  const resumeDecidedRef = useRef(false);
+  const [resumeDecided, setResumeDecided] = useState(false);
+  useEffect(() => {
+    if (resumeDecidedRef.current || resultAtFirstLoad !== false || !record.settled || state !== "intro") return;
+    if (!currentScenario) return;
+    resumeDecidedRef.current = true;
+    setResumeDecided(true);
+    const turns = record.reply?.turns ?? [];
+    const restored: Message[] =
+      turns.length > 0
+        ? (turnsToMessages(turns, { candidate: "salesRep", other: "prospect" }, record.offsetMs) as Message[])
+        : messages;
+    const where = serverConversationState(record.reply, record.serverStatus);
+    if (where === "checking" || where === "done") {
+      if (restored.length > 0) setMessages(restored);
+      waitForServerCheck(where === "done");
+      return;
+    }
+    if (restored.length === 0) return;
+    setMessages(restored);
+    setRulesAccepted(true);
+    setState("selling");
+    if (where === "owed") {
+      // Sent before, and its check crashed: the result is still owed.
+      setResendTriggered(true);
+      return;
+    }
+    toast.info("Picked up where you left off", { description: "Your conversation is saved as you go." });
+
+    const pending = turns.length > 0 ? unansweredCandidateTurn(turns) : null;
+    const last = restored[restored.length - 1];
+    if (pending) {
+      void streamProspectReply("respond", currentScenario, {
+        salesRepMessage: pending.content,
+        clientMsgId: pending.client_msg_id ?? undefined,
+        history: restored.slice(0, -1),
+      });
+    } else if (turns.length === 0 && last?.role === "salesRep") {
+      // Only on this device: if the server cannot store it, it goes back in the box.
+      void streamProspectReply("respond", currentScenario, {
+        salesRepMessage: last.content,
+        clientMsgId: last.id,
+        history: restored.slice(0, -1),
+        giveBack: true,
+      });
+    }
+    // streamProspectReply and waitForServerCheck are plain functions reading
+    // the latest render; this runs once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resultAtFirstLoad, record.settled, record.reply, record.offsetMs, state, currentScenario]);
 
   const endSales = () => {
     setState("evaluating");
@@ -595,6 +603,9 @@ export default function SalesSimulationPhase() {
     if (!application || !currentScenario) return;
 
     setIsSubmitting(true);
+    // The stored result before this send: a 409 "already being checked"
+    // waits for a result different from this one.
+    const resultBeforeSend = storedSalesResult;
     try {
       const { data: freshJob } = await supabase
         .from("jobs")
@@ -640,18 +651,29 @@ export default function SalesSimulationPhase() {
             role: m.role === "salesRep" ? "user" : "assistant",
             content: m.content
           })),
-          violations,
+          // The old-shape list, for a server that does not read the live
+          // record yet; the record itself was sent as it happened.
+          violations: integrity.violations,
         }),
       });
 
       const submitBody = await submitResponse.json().catch(() => null);
       if (!submitResponse.ok) {
+        const outcome = gradingReplyOutcome(submitResponse.status, submitBody);
+        if (outcome === "checking" || outcome === "on_file") {
+          // We have the meeting: it is being checked (another tab, a retry
+          // whose first answer was lost) or already on file. Wait for the
+          // result and the next step; never an error, never a second send.
+          waitForServerCheck(outcome === "on_file", resultBeforeSend);
+          return;
+        }
         throw new Error(submitBody?.error || "Failed to submit sales simulation");
       }
 
       // The server holds the result now; drop the local draft so a retake
       // never resumes inside the old transcript.
       clearConversationDraft();
+      integrity.finish();
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
       queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
 
@@ -682,31 +704,90 @@ export default function SalesSimulationPhase() {
       setIsSubmitting(false);
     }
   };
+  const handleSubmitRef = useRef(handleSubmit);
+  handleSubmitRef.current = handleSubmit;
 
-  // Check if already submitted
-  const existingResult = (() => {
-    // If application was reconsidered (status reset to pending), allow re-submission
-    if (application?.status === "pending" && application?.phase === stepId) {
-      return null;
-    }
-    if (!application?.notes) return null;
-    try {
-      const notes = parseApplicationNotes(application.notes);
-      return notes.salesSimulationResult || null;
-    } catch {
-      return null;
-    }
-  })();
-
-  // "Already done" is decided once, from the first read after this page
-  // mounted — never from a refresh that lands after the candidate sends.
-  const resultAtFirstLoad = useResultAtFirstLoad(isFetchedAfterMount && !!application, !!existingResult);
-  // A step the server already holds has no use for a local draft (the send
-  // that stored it may have been cut off before it could clear one), and a
-  // later retake must never resume inside the old conversation.
+  // A send whose check crashed is sent again — once per visit; after that the
+  // End button is there as usual.
+  const [resendTriggered, setResendTriggered] = useState(false);
+  const resentRef = useRef(false);
   useEffect(() => {
-    if (resultAtFirstLoad) clearConversationDraft();
-  }, [resultAtFirstLoad, clearConversationDraft]);
+    if (!resendTriggered) return;
+    setResendTriggered(false);
+    if (resentRef.current) {
+      setState("selling");
+      return;
+    }
+    resentRef.current = true;
+    setState("evaluating");
+    void handleSubmitRef.current();
+  }, [resendTriggered]);
+
+  /** The server has the result of a send this page did not see through. */
+  const finishCheckedSend = async () => {
+    setServerCheckWaiting(false);
+    clearConversationDraft();
+    integrity.finish();
+    queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
+    queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
+    if (application?.jobs?.processing_mode === "auto") {
+      advance.markSaved();
+      const reply = await invokeTriggerAvaAnalysis({
+        applicationId: id!,
+        autopilotDecision: true,
+        currentPhaseId: stepId,
+      });
+      advance.settle(reply);
+    } else {
+      invokeTriggerAvaAnalysis({ applicationId: id! }).catch((err) =>
+        console.error("[SalesSimulationPhase] trigger-ava-analysis failed:", err),
+      );
+      setState("completed");
+    }
+  };
+  const finishCheckedSendRef = useRef(finishCheckedSend);
+  finishCheckedSendRef.current = finishCheckedSend;
+
+  const serverCheck = useServerCheck({
+    storedResultKey: storedSalesResult,
+    serverStatus: record.serverStatus,
+    loadResultKey,
+    onLanded: () => void finishCheckedSendRef.current(),
+    onOwed: () => {
+      setServerCheckWaiting(false);
+      setResendTriggered(true);
+    },
+    onStale: () => queryClient.invalidateQueries({ queryKey: ["sales-simulation-application", id] }),
+  });
+
+  /** The waiting screen for a send the server is checking (or has on file).
+   *  `baselineKey`: the stored result before this page's own send (a 409). */
+  const waitForServerCheck = (alreadyOnFile = false, baselineKey?: string | null) => {
+    setState("evaluating");
+    if (application?.jobs?.processing_mode === "auto") {
+      advance.begin();
+      // The server holds the meeting: the usual one-minute hand-over to the
+      // live card applies if the check runs long.
+      advance.markSaved();
+    }
+    if (alreadyOnFile) {
+      void finishCheckedSendRef.current();
+      return;
+    }
+    setServerCheckWaiting(true);
+    serverCheck.begin(baselineKey);
+  };
+
+  // The heartbeat says the server is checking this meeting while it is still
+  // on screen here: End was pressed on another device.
+  useEffect(() => {
+    if (state !== "selling" && state !== "intro") return;
+    if (!resumeDecidedRef.current || isSubmitting || serverCheck.waiting) return;
+    if (serverConversationState(null, record.serverStatus) !== "checking") return;
+    waitForServerCheck();
+    // waitForServerCheck reads the latest render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [record.serverStatus, state, isSubmitting, serverCheck.waiting]);
 
   if (authLoading || isLoading) {
     return (
@@ -765,11 +846,26 @@ export default function SalesSimulationPhase() {
     );
   }
 
-  const canEndSales = messages.filter(m => m.role === "salesRep").length >= salesConfig.minMessages;
-
+  const salesRepCount = messages.filter(m => m.role === "salesRep").length;
+  const canEndSales = salesRepCount >= salesConfig.minMessages;
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
+      <TestPausedOverlay
+        show={integrity.away && state === "selling"}
+        body="Click back anywhere to pick the meeting back up. Leaving the test is recorded."
+      />
+
+      <EndEarlyDialog
+        open={confirmEndOpen}
+        onOpenChange={setConfirmEndOpen}
+        what="meeting"
+        answered={salesRepCount}
+        usual={salesConfig.minMessages}
+        unit="responses"
+        onConfirm={endSales}
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <Button 
@@ -804,6 +900,7 @@ export default function SalesSimulationPhase() {
             Step {journeyStep.index + 1} of {journeyStep.total} — {journeyStep.title}
           </span>
           <Progress value={journeyStep.progressPct} className="mt-1.5 h-1.5 bg-[var(--track)]" />
+          {state === "selling" && <TestRulesReminder recorded={integrity.flagged} className="mt-3" />}
         </CardHeader>
         <CardContent className="space-y-4">
           {state === "intro" && (
@@ -872,17 +969,24 @@ export default function SalesSimulationPhase() {
                 </ul>
                 
                 <p className="text-muted-foreground text-xs mt-4 italic">
-                  Complete at least {salesConfig.minMessages} responses before ending the meeting.
+                  Aim for about {salesConfig.minMessages} responses before ending the meeting. Every message is
+                  saved as you send it, and you can end sooner if you need to.
                 </p>
               </div>
 
-              <TestRulesNotice />
-              
-              <div className="text-center">
-                <Button onClick={startSales} size="lg" className="gap-2 bg-primary hover:bg-primary/90" disabled={!currentScenario}>
-                  <TrendingUp className="h-5 w-5" />
-                  Start Meeting
+              <TestRulesCard accepted={rulesAccepted} onAcceptedChange={setRulesAccepted} />
+
+              <div className="space-y-2 text-center">
+                <Button
+                  onClick={startSales}
+                  size="lg"
+                  className="w-full gap-2 bg-primary hover:bg-primary/90 sm:w-auto"
+                  disabled={!currentScenario || !rulesAccepted || !resumeDecided}
+                >
+                  {resumeDecided ? <TrendingUp className="h-5 w-5" /> : <Loader2 className="h-5 w-5 animate-spin" />}
+                  {resumeDecided ? "Start Meeting" : "Getting things ready…"}
                 </Button>
+                {!rulesAccepted && <p className="text-xs text-muted-foreground">Tick the box above to start.</p>}
               </div>
             </div>
           )}
@@ -971,9 +1075,6 @@ export default function SalesSimulationPhase() {
                     onChange={(e) => setInputValue(e.target.value)}
                     placeholder="Make your pitch... (Press Enter to send)"
                     onKeyDown={handleTextareaKeyDown}
-                    onCopy={preventCopy}
-                    onPaste={preventPaste}
-                    onContextMenu={preventContextMenu}
                     disabled={isTyping}
                     rows={3}
                     className="resize-none min-h-[80px] bg-background/50"
@@ -990,12 +1091,13 @@ export default function SalesSimulationPhase() {
                 </div>
               )}
 
-              {/* End Sales Button */}
-              {state === "selling" && canEndSales && (
+              {/* End Sales Button — from the first response on; before the usual
+                  number it asks first ("End now — we'll send what you have"). */}
+              {state === "selling" && salesRepCount > 0 && (
                 <div className="text-center pt-2">
-                  <Button 
-                    variant="outline" 
-                    onClick={endSales}
+                  <Button
+                    variant="outline"
+                    onClick={() => (canEndSales ? endSales() : setConfirmEndOpen(true))}
                     disabled={isTyping}
                   >
                     End Call & Submit
@@ -1007,9 +1109,13 @@ export default function SalesSimulationPhase() {
               {state === "evaluating" && (
                 <div className="text-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary mb-4" />
-                  <p className="text-foreground font-medium">Sending your meeting</p>
+                  <p className="text-foreground font-medium">
+                    {serverCheckWaiting ? "We have your meeting" : "Sending your meeting"}
+                  </p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Keep this page open for a moment.
+                    {serverCheckWaiting
+                      ? "It's being checked now. This page moves on by itself when it's done."
+                      : "Keep this page open for a moment."}
                   </p>
                 </div>
               )}

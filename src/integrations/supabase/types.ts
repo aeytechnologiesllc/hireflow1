@@ -204,6 +204,177 @@ export type Database = {
           },
         ]
       }
+      assessment_events: {
+        Row: {
+          application_id: string
+          client_at: string | null
+          client_msg_id: string | null
+          content: string | null
+          created_at: string
+          detail: Json
+          duration_ms: number | null
+          id: number
+          job_id: string
+          kind: string
+          seq: number
+          session_id: string
+        }
+        Insert: {
+          application_id: string
+          client_at?: string | null
+          client_msg_id?: string | null
+          content?: string | null
+          created_at?: string
+          detail?: Json
+          duration_ms?: number | null
+          id?: never
+          job_id: string
+          kind: string
+          seq?: number
+          session_id: string
+        }
+        Update: {
+          application_id?: string
+          client_at?: string | null
+          client_msg_id?: string | null
+          content?: string | null
+          created_at?: string
+          detail?: Json
+          duration_ms?: number | null
+          id?: never
+          job_id?: string
+          kind?: string
+          seq?: number
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessment_events_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "assessment_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assessment_sessions: {
+        Row: {
+          application_id: string
+          attempt: number
+          candidate_id: string
+          context: Json
+          created_at: string
+          draft: Json | null
+          end_reason: string | null
+          ended_at: string | null
+          event_seq: number
+          grading: Json | null
+          hidden_at: string | null
+          id: string
+          integrity_summary: Json
+          job_id: string
+          last_activity_at: string
+          last_heartbeat_at: string | null
+          progress: Json
+          started_at: string
+          status: string
+          step_id: string
+          step_type: string
+          updated_at: string
+        }
+        Insert: {
+          application_id: string
+          attempt?: number
+          candidate_id: string
+          context?: Json
+          created_at?: string
+          draft?: Json | null
+          end_reason?: string | null
+          ended_at?: string | null
+          event_seq?: number
+          grading?: Json | null
+          hidden_at?: string | null
+          id?: string
+          integrity_summary?: Json
+          job_id: string
+          last_activity_at?: string
+          last_heartbeat_at?: string | null
+          progress?: Json
+          started_at?: string
+          status?: string
+          step_id: string
+          step_type: string
+          updated_at?: string
+        }
+        Update: {
+          application_id?: string
+          attempt?: number
+          candidate_id?: string
+          context?: Json
+          created_at?: string
+          draft?: Json | null
+          end_reason?: string | null
+          ended_at?: string | null
+          event_seq?: number
+          grading?: Json | null
+          hidden_at?: string | null
+          id?: string
+          integrity_summary?: Json
+          job_id?: string
+          last_activity_at?: string
+          last_heartbeat_at?: string | null
+          progress?: Json
+          started_at?: string
+          status?: string
+          step_id?: string
+          step_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessment_sessions_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assessment_step_reopens: {
+        Row: {
+          application_id: string
+          job_id: string
+          reopen_count: number
+          reopened_at: string
+          reopened_by: string | null
+          step_id: string
+        }
+        Insert: {
+          application_id: string
+          job_id: string
+          reopen_count?: number
+          reopened_at?: string
+          reopened_by?: string | null
+          step_id: string
+        }
+        Update: {
+          application_id?: string
+          job_id?: string
+          reopen_count?: number
+          reopened_at?: string
+          reopened_by?: string | null
+          step_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessment_step_reopens_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       blueprint_purchases: {
         Row: {
           amount_paid: number | null
@@ -1183,6 +1354,7 @@ export type Database = {
       notifications: {
         Row: {
           created_at: string
+          group_key: string | null
           id: string
           is_read: boolean
           link: string | null
@@ -1194,6 +1366,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          group_key?: string | null
           id?: string
           is_read?: boolean
           link?: string | null
@@ -1205,6 +1378,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          group_key?: string | null
           id?: string
           is_read?: boolean
           link?: string | null
@@ -2060,6 +2234,41 @@ export type Database = {
     }
     Functions: {
       accept_team_invitation: { Args: { p_code: string }; Returns: string }
+      assessment_duration_text: { Args: { p_ms: number }; Returns: string }
+      assessment_integrity_alert: {
+        Args: { p_session_id: string }
+        Returns: number
+      }
+      assessment_journey: {
+        Args: { p_has_quiz: boolean; p_workflow_steps: Json }
+        Returns: Json
+      }
+      assessment_jsonb_truthy: { Args: { p_value: Json }; Returns: boolean }
+      assessment_notes_object: { Args: { p_notes: string }; Returns: Json }
+      assessment_session_for_write: {
+        Args: { p_access: Json }
+        Returns: Json
+      }
+      assessment_session_payload: {
+        Args: { p_session_id: string; p_with_turns: boolean }
+        Returns: Json
+      }
+      assessment_step_access: {
+        Args: { p_application_id: string; p_caller: string; p_step_id: string }
+        Returns: Json
+      }
+      assessment_step_completion: {
+        Args: {
+          p_app_status: string
+          p_application_id: string
+          p_notes: Json
+          p_phase: string
+          p_step_id: string
+          p_step_type: string
+          p_voice_result: Json
+        }
+        Returns: Json
+      }
       assign_user_role: { Args: { p_role: string }; Returns: undefined }
       can_create_document_workflows_for_user: {
         Args: { target_user_id: string }
@@ -2227,6 +2436,18 @@ export type Database = {
         Returns: boolean
       }
       job_voice_interviews_used: { Args: { p_job_id: string }; Returns: number }
+      mark_stale_assessment_sessions: {
+        Args: { p_idle_minutes?: number }
+        Returns: number
+      }
+      open_assessment_session: {
+        Args: {
+          p_application_id: string
+          p_candidate_id: string
+          p_step_id: string
+        }
+        Returns: Json
+      }
       protected_application_notes_subset: {
         Args: { p_notes: Json }
         Returns: Json
@@ -2261,6 +2482,10 @@ export type Database = {
           out_occurrence_count: number
         }[]
       }
+      record_integrity_events: {
+        Args: { p_application_id: string; p_events: Json; p_step_id: string }
+        Returns: Json
+      }
       record_page_view: {
         Args: {
           p_day: string
@@ -2272,6 +2497,23 @@ export type Database = {
           p_utm_source: string
         }
         Returns: undefined
+      }
+      record_quiz_answer: {
+        Args: {
+          p_answer: Json
+          p_application_id: string
+          p_question_id: string
+          p_shown_at?: string
+        }
+        Returns: Json
+      }
+      save_application_draft: {
+        Args: { p_answers: Json; p_application_id: string }
+        Returns: Json
+      }
+      start_assessment_session: {
+        Args: { p_application_id: string; p_step_id: string }
+        Returns: Json
       }
       submit_quiz_attempt: {
         Args: {
@@ -2297,6 +2539,15 @@ export type Database = {
       team_member_limit_for_user: {
         Args: { target_user_id: string }
         Returns: number
+      }
+      touch_assessment_session: {
+        Args: {
+          p_active?: boolean
+          p_hidden?: boolean
+          p_progress?: Json
+          p_session_id: string
+        }
+        Returns: Json
       }
       trusted_result_key_for: {
         Args: { p_key: string; p_type: string }
@@ -2324,6 +2575,7 @@ export type Database = {
         | "status_update"
         | "team"
         | "system"
+        | "integrity"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2472,6 +2724,7 @@ export const Constants = {
         "status_update",
         "team",
         "system",
+        "integrity",
       ],
     },
   },

@@ -54,6 +54,8 @@ import { resolveResumeUrl } from "@/utils/resumeSignedUrl";
 import { GlyphLetter } from "@/components/candidate/glyphs";
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 import { useResultAtFirstLoad, useStepAdvance } from "@/hooks/useStepAdvance";
+import { draftToFormState, formStateToDraft, useAssessmentSession } from "@/hooks/useAssessmentSession";
+import { useTestIntegrity } from "@/hooks/useTestIntegrity";
 import { parseApplicationNotes } from "@/lib/applicationNotes";
 
 // A slim brass rule across the top of a card — the letterhead mark
@@ -65,12 +67,6 @@ const BRASS_RULE = (
 // Considered field styling — filled var(--ground), var(--line) borders, a
 // gold focus ring instead of the app-wide jade one.
 const FIELD_CLASS = "border-[var(--line)] bg-[var(--ground)] focus-visible:ring-[var(--brass-line)]";
-
-interface AntiCheatViolation {
-  type: 'tab_switch' | 'copy_attempt' | 'paste_attempt' | 'cut_attempt' | 'right_click' | 'keyboard_shortcut';
-  timestamp: string;
-  details?: string;
-}
 
 interface ApplicationQuestion {
   id: string;
@@ -282,63 +278,7 @@ export default function ApplicationFormPhase() {
   const [usingProfileResume, setUsingProfileResume] = useState(false);
   const [expandedCriteriaQuestionId, setExpandedCriteriaQuestionId] = useState<string | null>(null);
 
-  // Anti-cheating state
-  const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
   const formContainerRef = useRef<HTMLDivElement>(null);
-
-  // Anti-cheating: Record violation
-  const recordViolation = useCallback((type: AntiCheatViolation['type'], details?: string) => {
-    const violation: AntiCheatViolation = {
-      type,
-      timestamp: new Date().toISOString(),
-      details,
-    };
-    setViolations(prev => [...prev, violation]);
-  }, []);
-
-  // Anti-cheating: Prevent copy
-  const handleCopy = useCallback((e: React.ClipboardEvent) => {
-    e.preventDefault();
-    recordViolation('copy_attempt', 'Copy attempted');
-    toast.warning("Copy is turned off here — just type your own words.", {
-      icon: <ShieldAlert className="h-4 w-4" />,
-    });
-  }, [recordViolation]);
-
-  // Anti-cheating: Prevent paste
-  const handlePaste = useCallback((e: React.ClipboardEvent) => {
-    e.preventDefault();
-    recordViolation('paste_attempt', 'Paste attempted');
-    toast.warning("Paste is turned off here — type your answer directly.", {
-      icon: <ShieldAlert className="h-4 w-4" />,
-    });
-  }, [recordViolation]);
-
-  // Anti-cheating: Prevent cut
-  const handleCut = useCallback((e: React.ClipboardEvent) => {
-    e.preventDefault();
-    recordViolation('cut_attempt', 'Cut attempted');
-  }, [recordViolation]);
-
-  // Anti-cheating: Prevent right-click
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    recordViolation('right_click', 'Right-click attempted');
-    toast.warning("Right-click is turned off here.", {
-      icon: <ShieldAlert className="h-4 w-4" />,
-    });
-  }, [recordViolation]);
-
-  // Anti-cheating: Block keyboard shortcuts
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x'].includes(e.key.toLowerCase())) {
-      e.preventDefault();
-      recordViolation('keyboard_shortcut', `Blocked ${e.key.toUpperCase()} shortcut`);
-      toast.warning("That shortcut is turned off here.", {
-        icon: <ShieldAlert className="h-4 w-4" />,
-      });
-    }
-  }, [recordViolation]);
 
   // Fetch application details - force refetch on mount to handle reconsider workflow
   const { data: application, isLoading, isFetchedAfterMount } = useQuery({
@@ -568,23 +508,34 @@ export default function ApplicationFormPhase() {
   // check" with "Application Submitted · Back to Application".
   const resultAtFirstLoad = useResultAtFirstLoad(isFetchedAfterMount && !!application, alreadySubmitted);
 
-  // Anti-cheating: Tab visibility detection
-  useEffect(() => {
-    if (alreadySubmitted) return;
-    
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        recordViolation('tab_switch', 'User switched to another tab or window');
-        toast.warning("Looks like you switched tabs", {
-          description: "That's been noted — stay on this page if you can.",
-          icon: <ShieldAlert className="h-4 w-4" />,
-        });
-      }
-    };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [alreadySubmitted, recordViolation]);
+  // Copy/paste guarding and switching away, through the one shared hook
+  // (useTestIntegrity) in its form mode: the answer fields are guarded as
+  // before, the email and phone fields take a paste (data-allow-paste), and
+  // the server records it all without ever alerting the owner — applicants
+  // have good reasons to leave a form (a speed test, finding their resume).
+  // This page's old copy kept its record in memory and never sent it.
+  const formIsOpen = !!application && !alreadySubmitted && !advance.view;
+  const integrity = useTestIntegrity({
+    applicationId: id,
+    stepId: "application",
+    active: formIsOpen,
+    mode: "form",
+  });
+
+  // The record the hiring team reads (docs/ASSESSMENT-RECORD.md): the form
+  // is saved as a draft while it is filled in, so if the applicant closes the
+  // tab the team still sees how far they got — and so do they, when they come
+  // back. Only while the form has not been sent.
+  const formDraftOpen =
+    !!application && application.status === "in_progress" && !alreadySubmitted && resultAtFirstLoad === false;
+  const session = useAssessmentSession({
+    applicationId: id,
+    stepId: "application",
+    enabled: formDraftOpen,
+    live: formDraftOpen && !advance.view,
+    clientProgress: { screen: "form" },
+  });
+  const { saveDraft, flushDraft } = session;
 
   // Auto-fill form fields from candidate profile data
   const [hasPrefilledFromProfile, setHasPrefilledFromProfile] = useState(false);
@@ -669,6 +620,56 @@ export default function ApplicationFormPhase() {
       setHasPrefilledFromProfile(true);
     }
   }, [profile, questions, hasPrefilledFromProfile, alreadySubmitted, application?.resume_url, resumeFile, questionFileUrls]);
+
+  // Bring back a saved draft (a reload, a closed tab, another device). The
+  // draft wins over the profile prefill — it is what the applicant typed —
+  // and nothing is saved until this has been decided, so an empty form never
+  // overwrites the draft it is about to restore.
+  const [draftDecided, setDraftDecided] = useState(false);
+  useEffect(() => {
+    if (draftDecided || !session.settled) return;
+    setDraftDecided(true);
+    const restored = draftToFormState(session.reply?.draft ?? null, questions);
+    if (!restored) return;
+    setAnswers(prev => ({ ...prev, ...restored.answers }));
+    if (Object.keys(restored.multiAnswers).length > 0) {
+      multiAnswersRef.current = { ...multiAnswersRef.current, ...restored.multiAnswers };
+      setMultiAnswers(multiAnswersRef.current);
+    }
+    if (Object.keys(restored.phoneCountryCodes).length > 0) {
+      setPhoneCountryCodes(prev => ({ ...prev, ...restored.phoneCountryCodes }));
+    }
+    if (Object.keys(restored.questionFileUrls).length > 0) {
+      setQuestionFileUrls(prev => ({ ...prev, ...restored.questionFileUrls }));
+    }
+    if (restored.coverLetter) setCoverLetter(current => current || restored.coverLetter);
+    if (restored.filled > 0) {
+      toast.info("We kept your answers", { description: "Pick up where you left off." });
+    }
+  }, [draftDecided, session.settled, session.reply, questions]);
+
+  // Every change is saved as a draft about 1.5 s after the applicant stops
+  // (and at once when the page is hidden or closed — useAssessmentSession),
+  // so the hiring team sees how far they got even if they never press
+  // Continue.
+  const draftPayload = useMemo(
+    () => formStateToDraft({ answers, multiAnswers, phoneCountryCodes, questionFileUrls, coverLetter }),
+    [answers, multiAnswers, phoneCountryCodes, questionFileUrls, coverLetter],
+  );
+  const lastSavedDraftRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!draftDecided || !formDraftOpen || isSubmitting || !draftPayload) return;
+    const text = JSON.stringify(draftPayload);
+    if (lastSavedDraftRef.current === null) {
+      // The first payload after the restore is what is already on record (or
+      // the empty or prefilled form): nothing the applicant changed yet.
+      lastSavedDraftRef.current = text;
+      return;
+    }
+    if (text === lastSavedDraftRef.current) return;
+    lastSavedDraftRef.current = text;
+    saveDraft(draftPayload);
+  }, [draftDecided, formDraftOpen, isSubmitting, draftPayload, saveDraft]);
 
   const handleFileSelect = useCallback(async (file: File) => {
     if (!isSupportedResumeFile(file)) {
@@ -980,6 +981,9 @@ export default function ApplicationFormPhase() {
     // "Sending your answers" goes up now; in auto mode it stays until the
     // next step is open (useStepAdvance).
     advance.begin();
+    // The last keystrokes reach the draft before the form is sent (after the
+    // send the draft is closed by the server).
+    void flushDraft();
 
     try {
       // CRITICAL FIX: If using profile resume, we MUST convert it to images before submission
@@ -1069,6 +1073,9 @@ export default function ApplicationFormPhase() {
         status: "pending",
         ...(finalResumeUrl && !application.resume_url ? { resume_url: finalResumeUrl } : {}),
       });
+      // Sent: stop guarding the form (a page change after this is not
+      // "leaving the form").
+      integrity.finish();
 
       // This is the moment the application is actually submitted — the row was
       // created when they opened the form (JobDetails, status "in_progress").
@@ -1190,11 +1197,7 @@ export default function ApplicationFormPhase() {
   }
 
   return (
-    <div
-      ref={formContainerRef}
-      className="ck-page mx-auto max-w-3xl space-y-6"
-      onContextMenu={handleContextMenu}
-    >
+    <div ref={formContainerRef} className="ck-page mx-auto max-w-3xl space-y-6">
       {/* Journey header — where am I, what's happening now, what's next */}
       <header className="ck-reveal space-y-4">
         <div className="flex items-center gap-3">
@@ -1229,11 +1232,11 @@ export default function ApplicationFormPhase() {
           </p>
         </div>
 
-        {violations.length > 0 && (
+        {integrity.flagged > 0 && (
           <div className="flex items-center gap-2 rounded-lg border border-warning/20 bg-warning/10 px-3 py-2 text-sm text-warning">
             <ShieldAlert className="h-4 w-4 shrink-0" />
             <span>
-              {violations.length} thing{violations.length === 1 ? "" : "s"} flagged during this session
+              <span className="ck-num">{integrity.flagged}</span> thing{integrity.flagged === 1 ? "" : "s"} flagged during this session
             </span>
           </div>
         )}
@@ -1336,9 +1339,6 @@ export default function ApplicationFormPhase() {
                   onChange={(e) => { setAnswers(prev => ({ ...prev, [question.id]: e.target.value })); syncQuestionError(question, e.target.value); }}
                   placeholder="Your answer"
                   className={cn(FIELD_CLASS, validationErrors[question.id] && "border-destructive")}
-                  onCopy={handleCopy}
-                  onPaste={handlePaste}
-                  onCut={handleCut}
                 />
               )}
 
@@ -1359,9 +1359,6 @@ export default function ApplicationFormPhase() {
                   }}
                   placeholder="Your answer"
                   className={cn(FIELD_CLASS, validationErrors[question.id] && "border-destructive")}
-                  onCopy={handleCopy}
-                  onPaste={handlePaste}
-                  onCut={handleCut}
                 />
               )}
 
@@ -1372,9 +1369,6 @@ export default function ApplicationFormPhase() {
                   onChange={(e) => { setAnswers(prev => ({ ...prev, [question.id]: e.target.value })); syncQuestionError(question, e.target.value); }}
                   placeholder="Your answer"
                   className={cn(FIELD_CLASS, validationErrors[question.id] && "border-destructive")}
-                  onCopy={handleCopy}
-                  onPaste={handlePaste}
-                  onCut={handleCut}
                 />
               )}
 
@@ -1386,9 +1380,6 @@ export default function ApplicationFormPhase() {
                   placeholder="Your answer"
                   rows={4}
                   className={cn(FIELD_CLASS, validationErrors[question.id] && "border-destructive")}
-                  onCopy={handleCopy}
-                  onPaste={handlePaste}
-                  onCut={handleCut}
                 />
               )}
 
@@ -1400,6 +1391,7 @@ export default function ApplicationFormPhase() {
                   onChange={(e) => { setAnswers(prev => ({ ...prev, [question.id]: e.target.value })); syncQuestionError(question, e.target.value); }}
                   placeholder="email@example.com"
                   className={cn(FIELD_CLASS, validationErrors[question.id] && "border-destructive")}
+                  data-allow-paste=""
                   /* No anti-cheat on contact details. Pasting your own email is
                      the most ordinary thing a person does on a form — it is how
                      password managers, autofill and every phone keyboard work —
@@ -1413,7 +1405,7 @@ export default function ApplicationFormPhase() {
               )}
 
               {questionType === "phone" && (
-                <div className="flex gap-2">
+                <div className="flex gap-2" data-allow-paste="">
                   <CountryCodeSelect
                     value={phoneCountryCodes[question.id] || "+1"}
                     onValueChange={(value) => setPhoneCountryCodes(prev => ({ ...prev, [question.id]: value }))}
@@ -1863,11 +1855,6 @@ export default function ApplicationFormPhase() {
             <Textarea
               value={coverLetter}
               onChange={(e) => setCoverLetter(e.target.value)}
-              onPaste={handlePaste}
-              onCopy={handleCopy}
-              onCut={handleCut}
-              onContextMenu={handleContextMenu}
-              onKeyDown={handleKeyDown}
               placeholder="Anything you'd like the hiring team to know..."
               rows={6}
               className={FIELD_CLASS}

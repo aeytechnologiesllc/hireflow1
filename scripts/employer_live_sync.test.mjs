@@ -19,7 +19,12 @@
  *  - an UPDATE is merged into the cached row at once without losing the
  *    joined job / profile, and a stale, truncated or unknown payload is
  *    ignored; DELETE drops the row; INSERT waits for the refetch;
- *  - cleanup removes the channel and nothing fires afterwards.
+ *  - cleanup removes the channel and nothing fires afterwards;
+ *  - wave 2: the test record (assessment_sessions) has its OWN per-instance
+ *    channel, so a missing or failing table can never stall the applicant
+ *    list; an attempt's UPDATE lands in every cached session list at once
+ *    (without widening a narrow list), and refetches only that attempt's
+ *    events; its SUBSCRIBED catch-up refetches every events query on screen.
  *
  * The hook file imports "@/..." aliases, so it is bundled with esbuild (a Vite
  * dependency) with those three modules stubbed; nothing else is mocked.
@@ -72,8 +77,10 @@ const mod = await import(
 const {
   QueryClient,
   LIVE_SYNC_QUERY_KEYS,
+  LIVE_SYNC_SESSION_KEYS,
   LIVE_SYNC_COALESCE_MS,
   applyApplicationChange,
+  applySessionChange,
   createLiveSyncCoalescer,
   startEmployerLiveSync,
 } = mod;
@@ -218,13 +225,24 @@ console.log("one channel per mounted instance, bound before subscribe");
   const timers = fakeTimers();
   const stopA = startEmployerLiveSync({ client, queryClient, userId: USER, instanceId: ":r1:", timers });
   const stopB = startEmployerLiveSync({ client, queryClient, userId: USER, instanceId: ":r7:", timers });
-  const topics = [...client.channels.keys()];
-  assert(topics.length === 2, `two mounts open two channels (got ${topics.length}: ${topics.join(", ")})`);
+  const all = [...client.channels.keys()];
+  const topics = all.filter((t) => t.startsWith(`employer-live-${USER}-`));
+  const sessionTopics = all.filter((t) => t.startsWith(`employer-sessions-${USER}-`));
+  assert(topics.length === 2, `two mounts open two applications channels (got ${topics.length}: ${topics.join(", ")})`);
+  assert(sessionTopics.length === 2 && all.length === 4, `…and two test-record channels of their own (got ${all.join(", ")})`);
   assert(
-    topics.every((t) => t.startsWith(`employer-live-${USER}-`)),
-    "topics read employer-live-<uid>-<instance>",
+    [...topics, ...sessionTopics].every((t) => t.endsWith(":r1:") || t.endsWith(":r7:")),
+    "every topic carries its instance id",
   );
-  const [a, b] = [...client.channels.values()];
+  const [a, b] = topics.map((t) => client.channels.get(t));
+  const [sa, sb] = sessionTopics.map((t) => client.channels.get(t));
+  assert(!sa.boundAfterSubscribe && !sb.boundAfterSubscribe, "no test-record binding is added after subscribe()");
+  const sf = sa.bindings[0]?.filter ?? {};
+  assert(
+    sa.bindings.length === 1 && sa.bindings[0].type === "postgres_changes" && sf.event === "*" && sf.schema === "public" &&
+      sf.table === "assessment_sessions" && sf.filter === undefined,
+    "the test-record channel listens to every change on public.assessment_sessions (RLS scopes delivery)",
+  );
   assert(!a.boundAfterSubscribe && !b.boundAfterSubscribe, "no binding is added after subscribe()");
   assert(
     client.log.indexOf(`on:${a.topic}`) < client.log.indexOf(`subscribe:${a.topic}`),
@@ -239,7 +257,7 @@ console.log("one channel per mounted instance, bound before subscribe");
   stopA();
   stopB();
   await settle();
-  assert(client.removed.length === 2 && client.channels.size === 0, "cleanup removes both channels");
+  assert(client.removed.length === 4 && client.channels.size === 0, "cleanup removes all four channels");
 }
 
 console.log("\nSUBSCRIBED runs a catch-up round that never cancels a fetch in flight");
@@ -355,7 +373,73 @@ console.log("\ncleanup stops everything");
   chan.status("SUBSCRIBED");
   await timers.fire();
   assert(calls.length === 0, "nothing refetches after cleanup");
-  assert(client.removed.length === 1, "the channel is removed");
+  assert(client.removed.length === 2, "both channels are removed");
+}
+
+console.log("\nthe test record: an attempt's change lands at once and refetches only its own events");
+{
+  const client = fakeClient();
+  const { queryClient, calls } = spyClient();
+  const timers = fakeTimers();
+  const appKey = ["assessment-sessions", "application", "app-1"];
+  const jobsKey = ["assessment-sessions", "jobs", job.id];
+  const wide = { id: "s1", application_id: "app-1", step_id: "quiz", status: "active", progress: { current_index: 1 }, grading: null, updated_at: "2026-10-06T15:50:00Z" };
+  const narrow = { id: "s1", application_id: "app-1", step_id: "quiz", status: "active", progress: { current_index: 1 }, updated_at: "2026-10-06T15:50:00Z" };
+  const other = { id: "s2", application_id: "app-2", step_id: "step_chat", status: "active", progress: {}, updated_at: "2026-10-06T15:40:00Z" };
+  queryClient.setQueryData(appKey, [wide]);
+  queryClient.setQueryData(jobsKey, [narrow, other]);
+  const stop = startEmployerLiveSync({ client, queryClient, userId: USER, instanceId: ":r1:", timers });
+  const sessions = [...client.channels.values()].find((c) => c.topic.startsWith("employer-sessions-"));
+  const apps = [...client.channels.values()].find((c) => c.topic.startsWith("employer-live-"));
+
+  const next = { ...wide, progress: { current_index: 2 }, grading: { secret: true }, last_activity_at: "2026-10-06T15:51:00Z", updated_at: "2026-10-06T15:51:00Z" };
+  sessions.emit({ eventType: "UPDATE", schema: "public", table: "assessment_sessions", errors: null, new: next, old: { id: "s1" } });
+  const a1 = queryClient.getQueryData(appKey);
+  const j1 = queryClient.getQueryData(jobsKey);
+  assert(a1[0].progress.current_index === 2 && j1[0].progress.current_index === 2, "the new question shows in every cached list before any refetch");
+  assert(!("grading" in j1[0]) && !("last_activity_at" in j1[0]), "a narrow list is not widened with columns it never selected");
+  assert(j1[1] === other, "other attempts keep their identity");
+  assert(timers.count === 1, "one round is armed");
+  await timers.fire();
+  const keys = calls.map((c) => c.key);
+  assert(keys.includes('["assessment-sessions"]'), "the session lists refetch");
+  assert(keys.includes('["assessment-events","s1"]') && keys.includes('["assessment-events","integrity","app-1"]'), "only that attempt's events (and its applicant's integrity list) refetch");
+  assert(!keys.includes('["assessment-events"]') && !keys.some((k) => k.startsWith('["applications"')), "nothing broader refetches for one attempt");
+  assert(calls.every((c) => c.cancelRefetch === true), "a real change uses cancelRefetch:true");
+
+  calls.length = 0;
+  const stale = { ...wide, progress: { current_index: 0 }, updated_at: "2026-10-06T15:30:00Z" };
+  sessions.emit({ eventType: "UPDATE", schema: "public", table: "assessment_sessions", errors: null, new: stale, old: { id: "s1" } });
+  assert(queryClient.getQueryData(appKey)[0].progress.current_index === 2, "an older update never rolls the list back");
+  await timers.fire();
+
+  calls.length = 0;
+  sessions.status("SUBSCRIBED");
+  await timers.fire();
+  const catchUp = calls.map((c) => c.key);
+  assert(catchUp.includes('["assessment-sessions"]') && catchUp.includes('["assessment-events"]'), "a (re)join catches up every session list and every open timeline");
+  assert(calls.every((c) => c.cancelRefetch === false), "the catch-up never cancels a fetch in flight");
+
+  calls.length = 0;
+  sessions.status("CHANNEL_ERROR");
+  apps.emit(update({ id: "a1", phase: "step_chat" }));
+  await timers.fire();
+  assert(calls.length === LIVE_SYNC_QUERY_KEYS.length, "a failing test-record channel never stalls the applicant list");
+  stop();
+  sessions.emit({ eventType: "UPDATE", schema: "public", table: "assessment_sessions", errors: null, new: next, old: { id: "s1" } });
+  assert(timers.count === 0, "nothing is armed after cleanup");
+}
+
+console.log("\napplySessionChange");
+{
+  const rows = [{ id: "s1", status: "active", updated_at: "2026-10-06T15:50:00Z" }];
+  const ev = (eventType, n, o = {}) => ({ eventType, errors: null, new: n, old: o });
+  assert(applySessionChange(rows, ev("INSERT", { id: "s9" })) === rows, "an INSERT waits for the refetch (it decides which list it belongs to)");
+  assert(applySessionChange(rows, ev("UPDATE", { id: "zz", status: "completed" })) === rows, "an UPDATE for an attempt not in the list changes nothing");
+  assert(applySessionChange(rows, { ...ev("UPDATE", { id: "s1", status: "completed" }), errors: ["too large"] }) === rows, "a truncated payload is ignored");
+  assert(applySessionChange(rows, ev("DELETE", {}, { id: "s1" })).length === 0, "a DELETE drops the attempt");
+  assert(applySessionChange(undefined, ev("UPDATE", { id: "s1" })) === undefined, "nothing cached: nothing written");
+  assert(LIVE_SYNC_SESSION_KEYS.some((k) => JSON.stringify(k) === '["assessment-sessions"]'), "the session keys are exported for the hooks to share");
 }
 
 console.log("\nthe coalescer on its own");
