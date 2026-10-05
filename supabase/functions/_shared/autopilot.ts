@@ -60,9 +60,51 @@ export function isPendingPhaseNote(note: string) {
   return NOT_HAPPENED_YET.test(note) && ASSESSMENT_STEP.test(note);
 }
 
-/** The judge's hard conflicts, minus notes that only say a later step is still to come. */
-export function realHardConflicts(value: string[] | null | undefined, limit = 6) {
-  return sanitizeList(value, 64).filter((note) => !isPendingPhaseNote(note)).slice(0, limit);
+/**
+ * What each test measures, keyed by the labels pendingHighSignalPhases uses. The
+ * judge words the same non-reason many ways ("…have not yet been verified; the
+ * typing test is pending", "No evidence is provided for the required 45+ WPM
+ * typing threshold"), so a phrase list alone kept missing it: while a test is
+ * still to come, a note about what that test measures is the test's job, not a
+ * reason to stop anyone before it.
+ */
+const PHASE_TOPICS: Record<string, RegExp> = {
+  "typing test": /\b(?:typ(?:ing|ed|es|e speed)|wpm|words? (?:a|per) minute|keyboard\w*)\b/i,
+  quiz: /\b(?:quiz\w*|skills? check|knowledge (?:test|check))\b/i,
+  "chat simulation": /\b(?:chat (?:simulation|practice)|simulat\w*|role[- ]?play\w*|practice chat)\b/i,
+  "sales simulation": /\b(?:sales (?:simulation|role[- ]?play|call)|simulat\w*)\b/i,
+  "chat interview": /\binterview\w*\b/i,
+  "Ava interview": /\b(?:interview\w*|spoken|speaking|verbal)\b/i,
+  "portfolio review": /\b(?:portfolio|work samples?)\b/i,
+  "video response": /\bvideo\b/i,
+};
+
+/**
+ * Deal-breakers no test can change: who the person is, whether they may and can
+ * do the job at all. These still stop someone part-way (the owner decides), and a
+ * note that names one is never dropped as "the test's job".
+ */
+const ELIGIBILITY_BLOCKER =
+  /\b(?:deal[- ]?breaker|non[- ]?negotiable|cannot work|can't work|unable to work|not available|unavailable|schedule|shifts?|visa|work permit|eligib\w*|licen[cs]e\w*|certif\w*|wrong resume|different person|mismatch\w*|fabricat\w*|fraud\w*|authenticity|plagiar\w*|cheat\w*)\b/i;
+
+export function isEligibilityBlocker(note: string) {
+  return ELIGIBILITY_BLOCKER.test(note);
+}
+
+/**
+ * The judge's hard conflicts, minus notes that only say a later step is still to
+ * come and, while a test is still ahead, notes about what that test measures.
+ */
+export function realHardConflicts(
+  value: string[] | null | undefined,
+  limit = 6,
+  pendingPhases: readonly string[] = [],
+) {
+  const pendingTopics = pendingPhases.map((phase) => PHASE_TOPICS[phase]).filter(Boolean);
+  return sanitizeList(value, 64)
+    .filter((note) => !isPendingPhaseNote(note))
+    .filter((note) => isEligibilityBlocker(note) || !pendingTopics.some((topic) => topic.test(note)))
+    .slice(0, limit);
 }
 
 function averageOf(values: Array<number | null | undefined>, fallback: number) {
@@ -150,6 +192,8 @@ export interface JudgmentSubScores {
   authenticityScore?: number | null;
   specificityScore?: number | null;
   hardRequirementConflicts?: string[] | null;
+  /** Tests still to come (pendingHighSignalPhases labels): conflicts about what they measure don't count yet. */
+  pendingPhases?: readonly string[] | null;
 }
 
 /**
@@ -178,7 +222,7 @@ export function computeJudgmentScore(input: JudgmentSubScores): number {
   const attention = clampPercent(numOr(input.attentionToDetailScore, 70));
   const specificity = clampPercent(numOr(input.specificityScore, 50));
   const authenticity = clampPercent(numOr(input.authenticityScore, 80));
-  const conflicts = realHardConflicts(input.hardRequirementConflicts, 8);
+  const conflicts = realHardConflicts(input.hardRequirementConflicts, 8, input.pendingPhases ?? []);
 
   // Weighted substance average: role fit (direct/transferable/learning, 46%) plus
   // candidate-authored quality signals (writing/attention/specificity, 54%).
@@ -279,6 +323,37 @@ export function buildAvaScorecard(params: {
     evidenceFingerprint,
   } = params;
 
+  // Which tests are done and which are still ahead decide what counts as a
+  // conflict yet (realHardConflicts), so they come first.
+  const workflowTypes = Array.isArray(workflowSteps)
+    ? workflowSteps.map((step) => String(step?.type || "").toLowerCase()).filter(Boolean)
+    : [];
+  const pendingHighSignalPhases: string[] = [];
+  const completedHighSignalPhases: string[] = [];
+
+  const registerHighSignal = (label: string, score: number | null | undefined, configured: boolean, treatAsSubmitted = false) => {
+    if (!configured) return;
+    if (typeof score === "number" || treatAsSubmitted) {
+      completedHighSignalPhases.push(label);
+    } else {
+      pendingHighSignalPhases.push(label);
+    }
+  };
+
+  registerHighSignal("quiz", quizScore, quizConfigured);
+  registerHighSignal("chat simulation", chatSimulationScore, workflowTypes.includes("chat_simulation"));
+  registerHighSignal("sales simulation", salesSimulationScore, workflowTypes.includes("sales_simulation"));
+  registerHighSignal("chat interview", chatInterviewScore, workflowTypes.includes("chat_interview"));
+  registerHighSignal("Ava interview", voiceScore, workflowTypes.includes("voice_interview"));
+  registerHighSignal("typing test", typingTest?.score, workflowTypes.includes("typing_test"));
+  registerHighSignal("portfolio review", portfolioScore, workflowTypes.includes("portfolio_upload"));
+  registerHighSignal(
+    "video response",
+    videoIntroScore,
+    workflowTypes.includes("video_intro") || workflowTypes.includes("video_message"),
+    videoIntroSubmitted,
+  );
+
   // The deterministic aggregate of the judge's sub-scores — NOT the LLM's own
   // holistic overallScore, which never reaches this function and has zero
   // effect on the persisted score. This is the dominant signal; `finalScore`
@@ -295,6 +370,7 @@ export function buildAvaScorecard(params: {
     authenticityScore,
     specificityScore,
     hardRequirementConflicts,
+    pendingPhases: pendingHighSignalPhases,
   });
   const safeScore = clampPercent(
     weightedAverage(
@@ -310,7 +386,7 @@ export function buildAvaScorecard(params: {
   const riskFlags: string[] = [];
   const evidenceRefs: string[] = [];
   const normalizedTransferableEvidence = sanitizeList(transferableEvidence, 4);
-  const normalizedHardRequirementConflicts = realHardConflicts(hardRequirementConflicts, 4);
+  const normalizedHardRequirementConflicts = realHardConflicts(hardRequirementConflicts, 4, pendingHighSignalPhases);
 
   if (!resumeUnavailable) {
     evidenceRefs.push("resume");
@@ -400,35 +476,6 @@ export function buildAvaScorecard(params: {
         ? 65
         : 48,
   );
-  const workflowTypes = Array.isArray(workflowSteps)
-    ? workflowSteps.map((step) => String(step?.type || "").toLowerCase()).filter(Boolean)
-    : [];
-  const pendingHighSignalPhases: string[] = [];
-  const completedHighSignalPhases: string[] = [];
-
-  const registerHighSignal = (label: string, score: number | null | undefined, configured: boolean, treatAsSubmitted = false) => {
-    if (!configured) return;
-    if (typeof score === "number" || treatAsSubmitted) {
-      completedHighSignalPhases.push(label);
-    } else {
-      pendingHighSignalPhases.push(label);
-    }
-  };
-
-  registerHighSignal("quiz", quizScore, quizConfigured);
-  registerHighSignal("chat simulation", chatSimulationScore, workflowTypes.includes("chat_simulation"));
-  registerHighSignal("sales simulation", salesSimulationScore, workflowTypes.includes("sales_simulation"));
-  registerHighSignal("chat interview", chatInterviewScore, workflowTypes.includes("chat_interview"));
-  registerHighSignal("Ava interview", voiceScore, workflowTypes.includes("voice_interview"));
-  registerHighSignal("typing test", typingTest?.score, workflowTypes.includes("typing_test"));
-  registerHighSignal("portfolio review", portfolioScore, workflowTypes.includes("portfolio_upload"));
-  registerHighSignal(
-    "video response",
-    videoIntroScore,
-    workflowTypes.includes("video_intro") || workflowTypes.includes("video_message"),
-    videoIntroSubmitted,
-  );
-
   const hardRequirements = clampPercent(
     weightedAverage(
       [
@@ -523,9 +570,15 @@ export function buildAvaScorecard(params: {
       (resumeUnavailable ? 10 : 0),
   );
 
+  // While tests are still ahead, only a deal-breaker no test can change stops
+  // someone (owner, 2026-10-05: everyone takes every test). A shortfall a test
+  // measured, like a slow typing result, is his to weigh at the end.
+  const testsStillAhead = pendingHighSignalPhases.length > 0;
   const structuredHardRejectReason =
     normalizedHardRequirementConflicts.find((conflict) =>
-      /deal[- ]?breaker|non[- ]?negotiable|cannot|can't|not available|schedule|required|license|certification|wrong resume|different person|mismatch|fabricated|fraud|authenticity/i.test(conflict),
+      testsStillAhead
+        ? isEligibilityBlocker(conflict)
+        : /deal[- ]?breaker|non[- ]?negotiable|cannot|can't|not available|schedule|required|license|certification|wrong resume|different person|mismatch|fabricated|fraud|authenticity/i.test(conflict),
     ) || null;
   const hardRejectReason =
     structuredHardRejectReason ||

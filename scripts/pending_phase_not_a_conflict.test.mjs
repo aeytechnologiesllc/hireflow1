@@ -19,6 +19,7 @@
 import {
   buildAvaScorecard,
   computeJudgmentScore,
+  isEligibilityBlocker,
   isPendingPhaseNote,
   resolveAutopilotAction,
 } from "../supabase/functions/_shared/autopilot.ts";
@@ -159,6 +160,46 @@ assert(allDone.autopilotAction === "reject", `and Ava's read on a weak finisher 
 
 const blockedEarly = applicationStage(["Cannot work the required overnight schedule."], weak);
 assert(blockedEarly.autopilotAction === "reject", "a real deal-breaker still stops someone before the next test");
+
+console.log("\nThe judge words the same non-reason differently every time (2026-10-05, second run):\n");
+
+// Seen live on the second throwaway applicant, after the phrase-list fix shipped.
+const REWORDED = "No evidence is provided for the required 45+ WPM typing threshold or high typing accuracy.";
+assert(!isPendingPhaseNote(REWORDED), "the phrase list alone does not catch this wording (why the topic rule exists)");
+const reworded = applicationStage([REWORDED]);
+assert(reworded.hardRejectReason === null, `a typing note is not a reason to stop anyone before the typing test (got ${JSON.stringify(reworded.hardRejectReason)})`);
+assert(reworded.autopilotAction === "defer", `the applicant moves on (got "${reworded.autopilotAction}")`);
+assert(!reworded.riskFlags.includes(REWORDED), "and it is not shown to the owner as a risk while the test is still ahead");
+assert(reworded.overallScore === applicationStage([]).overallScore, "and costs no points");
+
+console.log("\nA measured shortfall waits for the end; a deal-breaker does not:\n");
+
+const SLOW = "Typing speed of 20 WPM is far below the required 45 WPM.";
+assert(!isEligibilityBlocker(SLOW), "a slow typing result is not an eligibility deal-breaker");
+const typedSlowly = applicationStage([SLOW], { ...weak, typingTest: { wpm: 20, score: 44, accuracy: 90 } });
+assert(typedSlowly.hardRejectReason === null, `after the typing test, a slow result does not stop them before the chat practice (got ${JSON.stringify(typedSlowly.hardRejectReason)})`);
+assert(typedSlowly.autopilotAction === "defer", `they go on to the chat practice (got "${typedSlowly.autopilotAction}")`);
+assert(typedSlowly.riskFlags.includes(SLOW), "the measured result is shown to the owner");
+
+const finishedSlow = applicationStage([SLOW], {
+  ...weak,
+  typingTest: { wpm: 20, score: 44, accuracy: 90 },
+  chatSimulationScore: 35,
+  chatInterviewScore: 40,
+});
+assert(finishedSlow.hardRejectReason === SLOW, "after the last test it is Ava's reason for the owner to weigh");
+assert(finishedSlow.autopilotAction === "reject", "and her read is to decline, for him to confirm");
+
+for (const blocker of [
+  "Says they cannot work any US Eastern shift.",
+  "Work visa is pending.",
+  "Name mismatch between the application and the documents.",
+  "Answers appear fabricated.",
+]) {
+  assert(isEligibilityBlocker(blocker), `eligibility deal-breaker: "${blocker}"`);
+  const early = applicationStage([blocker], weak);
+  assert(early.autopilotAction === "reject", `"${blocker}" still stops someone before the next test`);
+}
 
 console.log(failures ? `\n${failures} assertion(s) failed.` : "\nAll assertions passed.");
 process.exit(failures ? 1 : 0);
