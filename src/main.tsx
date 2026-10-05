@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import { installCrashReporter } from "./lib/crashReporter";
+import { isStaffHost } from "./lib/hosts";
 import "./index.css";
 import "./cockpit/cockpit.css";
 import "./styles/candidate-jade.css";
@@ -10,6 +11,10 @@ import "./styles/motion.css";
 // Crash alerts: window 'error' / 'unhandledrejection' (ErrorBoundary.tsx
 // wires the React render-time case separately). See src/lib/crashReporter.ts.
 installCrashReporter();
+
+// index.html's title is the careers site's. On the staff host the tab (and an
+// iPhone home-screen bookmark) should say whose door this is.
+if (isStaffHost()) document.title = "Zulu Support Team — Staff";
 
 // Unregister any cached service workers that might interfere with fetch requests
 if ('serviceWorker' in navigator) {
