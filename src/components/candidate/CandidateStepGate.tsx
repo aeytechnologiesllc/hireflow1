@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
@@ -50,6 +50,10 @@ export default function CandidateStepGate({
 }) {
   const { id: applicationId, stepId } = useParams();
   const navigate = useNavigate();
+  // Per-instance topic: realtime-js hands back the SAME channel for a repeated
+  // topic, and two gates for one application (a step and its next step during
+  // a switch) would add listeners to an already-subscribed channel.
+  const channelId = useId();
 
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -65,6 +69,9 @@ export default function CandidateStepGate({
     }
 
     let cancelled = false;
+    // A new step in the URL is a new question: show the gate's own loading
+    // state until it is answered, rather than the previous step's verdict.
+    setLoading(true);
 
     const load = async () => {
       const { data: app, error } = await supabase
@@ -101,7 +108,7 @@ export default function CandidateStepGate({
     // the gate live, not just at first load — otherwise a step reset out from
     // under a still-open tab stays reachable until the candidate reloads.
     const channel = supabase
-      .channel(`step-gate-${applicationId}`)
+      .channel(`step-gate-${applicationId}-${channelId}`)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "applications", filter: `id=eq.${applicationId}` },
@@ -113,7 +120,7 @@ export default function CandidateStepGate({
       cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, [applicationId]);
+  }, [applicationId, stepId, channelId]);
 
   // The job's real journey, and where this URL's stepId resolves in it —
   // strictly: only a stepId that names a real step of THIS route's own

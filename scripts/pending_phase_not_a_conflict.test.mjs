@@ -13,6 +13,14 @@
  * step 1. These checks run the real pure functions in
  * supabase/functions/_shared/autopilot.ts (Node 24+ strips the types natively).
  *
+ * Later the same day the owner went further: in auto mode nobody is ever
+ * parked part-way. Every applicant takes every test up to and including the
+ * written interview, Ava only scores and flags, and he decides at the end. A
+ * real deal-breaker (visa, schedule, wrong resume) is now a highlighted flag
+ * (scorecard.dealBreakerFlags), never a stop; the judge's prose ("below the
+ * non-negotiable 45 WPM requirement") is never a reason at all. Manual jobs
+ * keep the early recommendation.
+ *
  * Run with: node scripts/pending_phase_not_a_conflict.test.mjs
  */
 
@@ -21,7 +29,10 @@ import {
   computeJudgmentScore,
   isEligibilityBlocker,
   isPendingPhaseNote,
+  proseAffirmsDealBreaker,
+  readChatInterviewResult,
   resolveAutopilotAction,
+  STATED_DEAL_BREAKER_FLAG,
 } from "../supabase/functions/_shared/autopilot.ts";
 
 let failures = 0;
@@ -45,7 +56,12 @@ const ZULU_STEPS = [
   { id: "step_interview", type: "chat_interview" },
 ];
 
-/** An applicant who has only sent the application form (nothing else has happened yet). */
+/**
+ * An applicant to the live role (an AUTO-mode job, like the real one) who has
+ * only sent the application form unless `done` says otherwise. `done.mode`
+ * switches the job to manual; `done.analysisText` / `done.jobRequirements`
+ * feed the judge's prose and the job's own text.
+ */
 function applicationStage(hardRequirementConflicts, done = {}) {
   return buildAvaScorecard({
     finalScore: done.finalScore ?? null,
@@ -60,7 +76,7 @@ function applicationStage(hardRequirementConflicts, done = {}) {
     chatInterviewScore: done.chatInterviewScore ?? null,
     videoIntroScore: null,
     videoIntroSubmitted: false,
-    analysisText: "",
+    analysisText: done.analysisText ?? "",
     resumeUnavailable: true,
     resumeTextUsed: false,
     resumeImageCount: 0,
@@ -69,8 +85,10 @@ function applicationStage(hardRequirementConflicts, done = {}) {
     workflowSteps: ZULU_STEPS,
     jobTitle: "Customer Support Chat Agent (Zulu Royal & Zulu Rush)",
     jobDescription: "Remote chat support for players",
+    jobRequirements: done.jobRequirements ?? "• Typing speed of at least 45 words a minute with high accuracy",
     jobSkillsRequired: ["Fluent written English", "Fast, accurate typing", "De-escalation"],
     experienceLevel: "entry",
+    processingMode: done.mode ?? "auto",
     directMatchScore: done.directMatchScore ?? 62,
     transferableFitScore: 66,
     learningSignalScore: 60,
@@ -127,13 +145,30 @@ assert(
   "computeJudgmentScore ignores it too",
 );
 
-const blocked = applicationStage(["Cannot work the required overnight schedule."]);
-assert(blocked.hardRejectReason !== null, "a real schedule blocker is still the hard reject reason");
-assert(blocked.autopilotAction === "reject", `and still holds the applicant for the owner (got "${blocked.autopilotAction}")`);
+// Owner, 2026-10-05 (second decision that day): in auto mode NOBODY is parked
+// part-way. A real deal-breaker is a highlighted flag for him, never a stop.
+const SCHEDULE_BLOCKER = "Cannot work the required overnight schedule.";
+const blocked = applicationStage([SCHEDULE_BLOCKER]);
+assert(blocked.hardRejectReason === null, `a real schedule blocker is NOT a reason to stop anyone mid-way (got ${JSON.stringify(blocked.hardRejectReason)})`);
+assert(blocked.autopilotAction === "defer", `the applicant goes on to the next test (got "${blocked.autopilotAction}")`);
+assert(resolveAutopilotAction(blocked.overallScore, 60, blocked) === "defer", "nothing in trigger-ava-analysis would hold them");
+assert(blocked.dealBreakerFlags?.includes(SCHEDULE_BLOCKER), `it is highlighted for the owner (dealBreakerFlags: ${JSON.stringify(blocked.dealBreakerFlags)})`);
+assert(blocked.riskFlags.includes(SCHEDULE_BLOCKER), "and listed with the risks");
+assert(blocked.hardRequirementStatus === "at_risk", "the hard-requirement read says at risk");
+assert(/Flagged for your review/.test(blocked.rationale), `Ava's note says it is flagged, not that she stopped them (${blocked.rationale})`);
 
 const mixed = applicationStage([OBSERVED_NOTE, "Work visa is pending."]);
-assert(mixed.hardRejectReason === null || mixed.hardRejectReason === "Work visa is pending.", "a pending note never hides a real one");
+assert(mixed.hardRejectReason === null, "a pending note never becomes a reason, and the real one is a flag mid-way");
 assert(mixed.riskFlags.includes("Work visa is pending."), "the real one is still shown to the owner");
+assert(mixed.dealBreakerFlags?.includes("Work visa is pending.") && !mixed.dealBreakerFlags.includes(OBSERVED_NOTE), "only the real one is highlighted");
+
+// Manual jobs are untouched: there the owner reviews each step, and Ava may
+// still recommend stopping at a real deal-breaker.
+const manualBlocked = applicationStage([SCHEDULE_BLOCKER], { mode: "manual" });
+assert(manualBlocked.hardRejectReason === SCHEDULE_BLOCKER, "manual job: a real deal-breaker is still Ava's reason to stop early");
+assert(manualBlocked.autopilotAction === "reject", `manual job: and her action is still "reject" (got "${manualBlocked.autopilotAction}")`);
+const manualPending = applicationStage([OBSERVED_NOTE], { mode: "manual" });
+assert(manualPending.hardRejectReason === null && manualPending.autopilotAction === "defer", "manual job: a pending-step note is still not a reason");
 
 console.log("\nEveryone takes every test; the owner decides at the end (2026-10-05):\n");
 
@@ -158,8 +193,19 @@ assert(allDone.pendingHighSignalPhases.length === 0, `nothing left to take (pend
 assert(allDone.decisionState === "ready_for_decision", "after the last test the decision is the owner's");
 assert(allDone.autopilotAction === "reject", `and Ava's read on a weak finisher is to decline, for him to confirm (got "${allDone.autopilotAction}")`);
 
-const blockedEarly = applicationStage(["Cannot work the required overnight schedule."], weak);
-assert(blockedEarly.autopilotAction === "reject", "a real deal-breaker still stops someone before the next test");
+const blockedEarly = applicationStage([SCHEDULE_BLOCKER], weak);
+assert(blockedEarly.autopilotAction === "defer", `a real deal-breaker no longer stops someone before the next test (got "${blockedEarly.autopilotAction}")`);
+assert(blockedEarly.dealBreakerFlags?.includes(SCHEDULE_BLOCKER), "it is flagged for the owner instead");
+
+const blockedAtEnd = applicationStage([SCHEDULE_BLOCKER], {
+  ...weak,
+  typingTest: { wpm: 50, score: 80, accuracy: 97 },
+  chatSimulationScore: 70,
+  chatInterviewScore: 70,
+});
+assert(blockedAtEnd.hardRejectReason === SCHEDULE_BLOCKER, "after the last test it is Ava's reason for the owner to weigh");
+assert(blockedAtEnd.autopilotAction === "reject" && blockedAtEnd.recommendedAction === "reject", "and her end-of-tests read is to decline, for him to confirm");
+assert(/nobody was stopped/.test(blockedAtEnd.rationale), `her note says nobody was stopped (${blockedAtEnd.rationale})`);
 
 console.log("\nThe judge words the same non-reason differently every time (2026-10-05, second run):\n");
 
@@ -172,7 +218,7 @@ assert(reworded.autopilotAction === "defer", `the applicant moves on (got "${rew
 assert(!reworded.riskFlags.includes(REWORDED), "and it is not shown to the owner as a risk while the test is still ahead");
 assert(reworded.overallScore === applicationStage([]).overallScore, "and costs no points");
 
-console.log("\nA measured shortfall waits for the end; a deal-breaker does not:\n");
+console.log("\nA measured shortfall waits for the end, and in auto mode so does a deal-breaker:\n");
 
 const SLOW = "Typing speed of 20 WPM is far below the required 45 WPM.";
 assert(!isEligibilityBlocker(SLOW), "a slow typing result is not an eligibility deal-breaker");
@@ -198,8 +244,69 @@ for (const blocker of [
 ]) {
   assert(isEligibilityBlocker(blocker), `eligibility deal-breaker: "${blocker}"`);
   const early = applicationStage([blocker], weak);
-  assert(early.autopilotAction === "reject", `"${blocker}" still stops someone before the next test`);
+  assert(early.autopilotAction === "defer" && early.hardRejectReason === null, `"${blocker}" does not stop anyone before the next test`);
+  assert(early.dealBreakerFlags?.includes(blocker), `"${blocker}" is highlighted for the owner`);
+  assert(applicationStage([blocker], { ...weak, mode: "manual" }).autopilotAction === "reject", `manual job: "${blocker}" still makes Ava recommend stopping`);
 }
+
+console.log("\nThe judge's prose is never a reason to stop anyone (2026-10-05, the run that parked twice):\n");
+
+// Stored word for word in the owner's test applicant's ai_analysis. The job
+// never says non-negotiable; the judge did.
+const JUDGE_ADJECTIVE = "Areas of Concern:\n- The completed typing test was below the non-negotiable 45 WPM requirement at 38 WPM.";
+const everyTestDone = {
+  ...weak,
+  typingTest: { wpm: 38, score: 72, accuracy: 85 },
+  chatSimulationScore: 18,
+  chatInterviewScore: 25,
+};
+const judged = applicationStage([], { ...everyTestDone, analysisText: JUDGE_ADJECTIVE });
+assert(judged.hardRejectReason === null, `the judge's own adjective is not a reason (got ${JSON.stringify(judged.hardRejectReason)})`);
+assert(!judged.riskFlags.includes(STATED_DEAL_BREAKER_FLAG), "and not even a flag: the job states no non-negotiable");
+const judgedMidway = applicationStage([], { ...weak, typingTest: { wpm: 38, score: 72, accuracy: 85 }, analysisText: JUDGE_ADJECTIVE });
+assert(judgedMidway.autopilotAction === "defer" && judgedMidway.hardRejectReason === null, "mid-way it stops nobody either");
+
+const WEEKEND_JOB = "Non-negotiable: you must work every weekend.";
+for (const [text, expected] of [
+  ["No deal-breakers identified.", false],
+  ["There are no non-negotiables in this posting.", false],
+  ["Non-negotiables: none stated.", false],
+  ["Nothing here is a dealbreaker.", false],
+  ["The candidate is available for the required schedule.", false],
+  ["The candidate did not mention a deal-breaker.", false],
+  ["Working weekends is a deal-breaker for this candidate.", true],
+  ["The candidate cannot work weekends, which conflicts with the non-negotiable.", true],
+  ["Did not list a preference, but cannot work nights.", true],
+]) {
+  assert(
+    proseAffirmsDealBreaker(text, WEEKEND_JOB) === expected,
+    `${expected ? "flags" : "does not flag"}: "${text}"`,
+  );
+}
+assert(!proseAffirmsDealBreaker("This is a deal-breaker for the role.", "Remote chat support"), "a deal-breaker the job never stated is not flagged");
+assert(proseAffirmsDealBreaker("This is a deal-breaker for the role.", WEEKEND_JOB), "one the job states is");
+
+const statedConflict = applicationStage([], {
+  ...everyTestDone,
+  jobRequirements: WEEKEND_JOB,
+  analysisText: "The candidate cannot work weekends, which conflicts with the non-negotiable.",
+});
+assert(statedConflict.riskFlags.includes(STATED_DEAL_BREAKER_FLAG), "a real, affirmed conflict with the job's own non-negotiable is shown to the owner");
+assert(statedConflict.hardRejectReason !== STATED_DEAL_BREAKER_FLAG, "but the prose flag is never promoted to the reason itself");
+
+console.log("\nThe written interview counts in both of its shapes:\n");
+
+const flatInterview = readChatInterviewResult({ score: 64, recommendation: "Hire", messageCount: 12 });
+assert(flatInterview?.score === 64 && flatInterview.recommendation === "Hire" && flatInterview.messageCount === 12, "the End Interview (flat) shape");
+const nestedInterview = readChatInterviewResult({
+  evaluation: { score: 25, recommendation: "No Hire" },
+  messages: [{ role: "assistant", content: "Hi" }, { role: "user", content: "Hello" }],
+  questionCount: 4,
+});
+assert(nestedInterview?.score === 25 && nestedInterview.recommendation === "No Hire", `the auto-end (nested) shape (${JSON.stringify(nestedInterview)})`);
+assert(nestedInterview?.messageCount === 2, "its message count comes from the transcript");
+assert(readChatInterviewResult({ score: 0 })?.score === 0, "a real 0 is a score, not 'not completed'");
+assert(readChatInterviewResult(null) === null && readChatInterviewResult("x") === null, "no result reads as none");
 
 console.log(failures ? `\n${failures} assertion(s) failed.` : "\nAll assertions passed.");
 process.exit(failures ? 1 : 0);

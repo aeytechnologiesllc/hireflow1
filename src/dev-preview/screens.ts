@@ -18,6 +18,8 @@ import {
   APP_TYPING_ID,
   APP_VIDEO_ID,
   APP_VOICE_ID,
+  APP_ZULU_DONE_ID,
+  APP_ZULU_FORM_ID,
   CANDIDATE_USER_ID,
   JOB_FRESH_ID,
   STEP_CHAT_INTERVIEW,
@@ -58,6 +60,14 @@ export const PREVIEW_SCREENS: PreviewScreen[] = [
   { id: "fresh-applicants", group: "New account (1 live role, 0 applicants)", label: "Applicants (via Open)", role: "employer", path: `/applicants?roleId=${JOB_FRESH_ID}&__previewScenario=fresh` },
   { id: "fresh-interviews", group: "New account (1 live role, 0 applicants)", label: "Interviews", role: "employer", path: "/interviews?__previewScenario=fresh" },
   { id: "fresh-analytics", group: "New account (1 live role, 0 applicants)", label: "Analytics", role: "employer", path: "/analytics?__previewScenario=fresh" },
+
+  // ---------------- employer cockpit: what each applicant submitted (Zulu role)
+  { id: "zulu-applicants", group: "Applicant record (Zulu role)", label: "Applicants — every test, tappable", role: "employer", path: "/applicants?__previewScenario=zulu" },
+  { id: "zulu-applicant-detail", group: "Applicant record (Zulu role)", label: "Full profile — What they submitted", role: "employer", path: `/applicants/${APP_ZULU_DONE_ID}?__previewScenario=zulu` },
+  { id: "zulu-applicant-form", group: "Applicant record (Zulu role)", label: "Full profile — still filling in the form", role: "employer", path: `/applicants/${APP_ZULU_FORM_ID}?__previewScenario=zulu` },
+  { id: "zulu-dashboard", group: "Applicant record (Zulu role)", label: "Dashboard", role: "employer", path: "/dashboard?__previewScenario=zulu" },
+  { id: "applying-applicants", group: "Applicant record (Zulu role)", label: "Applicants — only someone on the form", role: "employer", path: "/applicants?__previewScenario=applying" },
+  { id: "applying-dashboard", group: "Applicant record (Zulu role)", label: "Dashboard — only someone on the form", role: "employer", path: "/dashboard?__previewScenario=applying" },
 
   // -------------------------------------------------------------- candidate side
   { id: "cand-applications", group: "Candidate", label: "Applications — list", role: "candidate", path: "/applications" },

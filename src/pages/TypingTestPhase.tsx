@@ -22,12 +22,12 @@ import {
 } from "lucide-react";
 import { GlyphClock } from "@/components/candidate/glyphs";
 import { toast } from "sonner";
-import { parseApplicationNotes, stringifyApplicationNotes } from "@/utils/applicationNotes";
-import { invokeTriggerAvaAnalysis, triggerAvaAnalysis, evaluatePhaseSubmission } from "@/utils/triggerAvaAnalysis";
-import { EvaluationScreen } from "@/components/EvaluationScreen";
+import { parseApplicationNotes } from "@/utils/applicationNotes";
+import { invokeTriggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
-import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
+import { StepAdvanceScreen, TestRulesNotice } from "@/components/candidate/NextStepCard";
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
+import { useResultAtFirstLoad, useStepAdvance } from "@/hooks/useStepAdvance";
 
 // The candidate passage is now chosen server-side by submit-typing-test's
 // "start" action (supabase/functions/submit-typing-test/calculateResults.ts)
@@ -93,10 +93,6 @@ export default function TypingTestPhase() {
   } | null>(null);
   const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
   
-  // Evaluation screen state for autopilot mode
-  const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | "failed" | null>(null);
-  const [nextPhaseInfo, setNextPhaseInfo] = useState<{ id: string; title: string } | null>(null);
-  
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typedTextRef = useRef<string>("");
@@ -158,7 +154,7 @@ export default function TypingTestPhase() {
   }, [recordViolation]);
 
   // Fetch application details - force refetch on mount to handle reconsider workflow
-  const { data: application, isLoading } = useQuery({
+  const { data: application, isLoading, isFetchedAfterMount } = useQuery({
     queryKey: ["typing-test-application", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -212,6 +208,10 @@ export default function TypingTestPhase() {
   // workflow_steps via the shared candidateJourney builder, so this screen
   // agrees with every other candidate screen. Never invented.
   const journeyStep = useJourneyPosition(application?.jobs, { stepId, phase: application?.phase });
+
+  // After "Submit results": the waiting screen, then "Start <next step>" the
+  // moment the row says the next step is open (see useStepAdvance).
+  const advance = useStepAdvance({ applicationId: id, stepId, job: application?.jobs });
 
   const calculateResults = useCallback(() => {
     const currentTypedText = typedTextRef.current;
@@ -384,10 +384,10 @@ export default function TypingTestPhase() {
 
       const isAutoMode = freshJob?.processing_mode === "auto";
 
-      // For autopilot mode, show evaluation screen
-      if (isAutoMode) {
-        setEvaluationState("evaluating");
-      }
+      // Auto mode: the waiting screen goes up now and stays until the next
+      // step is open (useStepAdvance) — never a toast and a trip back to the
+      // overview.
+      if (isAutoMode) advance.begin();
 
       // Grade server-side: submit-typing-test computes elapsed time from
       // ITS OWN server-recorded start time (never anything this browser
@@ -409,123 +409,41 @@ export default function TypingTestPhase() {
         throw submitError || new Error(submitData?.error || "Failed to submit typing test");
       }
 
-      // UNIFIED SCORING: Do NOT make pass/fail decision locally — the
-      // backend (trigger-ava-analysis) is the SINGLE SOURCE OF TRUTH. The
-      // server's own next-step lookup (mirroring the same journey rules
-      // this page used to compute locally) drives the "Start Next Phase"
-      // button — not for voice_interview (needs employer approval to
-      // start) or the closing decision stage (nothing to click into, just
-      // wait), which the server already resolves to "waiting" for us.
-      if (isAutoMode && submitData?.next && submitData.next !== "waiting") {
-        setNextPhaseInfo({
-          id: submitData.next.id,
-          title: submitData.next.title,
-        });
-      }
-      // Manual mode - NEVER auto-advance or reject. Employer controls.
-
       // Invalidate candidate applications to update the tile status
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
       queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
 
-      // CRITICAL: Trigger backend analysis with autopilotDecision=true in auto mode
-      // The backend will calculate weighted score and decide pass/fail
-      const analysisPromise = invokeTriggerAvaAnalysis({
-        applicationId: id!,
-        autopilotDecision: isAutoMode,
-        currentPhaseId: stepId,
-      });
-
       if (isAutoMode) {
-        // Wait for backend to process and set the result
-        setEvaluationState("evaluating");
-        
-        try {
-          const { data: analysisResult } = await analysisPromise;
-
-          // Check the backend's decision
-          if (analysisResult?.decision === "rejected") {
-            setEvaluationState("failed");
-          } else if (analysisResult?.decision === "advanced" || analysisResult?.decision === "needs_employer_approval") {
-            setEvaluationState("passed");
-          } else {
-            // Fallback: fetch fresh application status. The CLIENT MUST NEVER
-            // DECIDE A REJECTION — only a server-confirmed status:"rejected"
-            // row may show the rejected screen. Ava can return
-            // "recommend_decline" (status stays "reviewing" for a human) and
-            // that is NOT a rejection; comparing the score to the passing
-            // score here would manufacture one that no human made.
-            const { data: freshApp } = await supabase
-              .from("applications")
-              .select("status")
-              .eq("id", id!)
-              .single();
-
-            if (freshApp?.status === "rejected") {
-              setEvaluationState("failed");
-            } else {
-              // Neutral, honest outcome — submitted, hiring team reviewing.
-              // No guess about pass/fail the server hasn't confirmed.
-              setEvaluationState(null);
-              toast.success("Typing test submitted successfully!", {
-                description: "Your results have been recorded. The hiring team is reviewing your submission.",
-              });
-              navigate(`/applications/${id}`);
-            }
-          }
-        } catch (err) {
-          console.error("[TypingTestPhase] Backend analysis failed:", err);
-          // Keep evaluating state - backend is source of truth, no local fallback
-          setEvaluationState("evaluating");
-        }
+        // The result is stored. Which step opens next is the server's call
+        // (it moves `phase`); the screen follows the row, and the trigger's
+        // reply only speeds that up. invokeTriggerAvaAnalysis never throws.
+        advance.markSaved();
+        const reply = await invokeTriggerAvaAnalysis({
+          applicationId: id!,
+          autopilotDecision: true,
+          currentPhaseId: stepId,
+        });
+        advance.settle(reply);
       } else {
-        // Manual mode - just trigger analysis in background, toast and navigate
-        analysisPromise.catch(err => console.error("[TypingTestPhase] AVA analysis trigger failed:", err));
-        
-        toast.success("Typing test submitted successfully!", {
-          description: "Your results have been recorded. The employer will review your submission.",
+        // Manual mode - NEVER auto-advance or reject. Employer controls.
+        invokeTriggerAvaAnalysis({
+          applicationId: id!,
+          autopilotDecision: false,
+          currentPhaseId: stepId,
+        }).catch(err => console.error("[TypingTestPhase] AVA analysis trigger failed:", err));
+
+        toast.success("Typing test sent", {
+          description: "Your result is saved. The hiring team will review it and get back to you.",
         });
         navigate(`/applications/${id}`);
       }
     } catch (error) {
       console.error("Error submitting typing test:", error);
-      toast.error("Failed to submit typing test");
-      setEvaluationState(null);
+      toast.error("That didn't send — please try again.");
+      advance.cancel();
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  // Handlers for evaluation screen
-  const handleStartNextPhase = () => {
-    if (!nextPhaseInfo || !application) return;
-    
-    const workflowSteps = application.jobs?.workflow_steps || [];
-    const nextStep = workflowSteps.find((s) => s.id === nextPhaseInfo.id);
-    
-    if (nextStep) {
-      const phaseRoutes: Record<string, string> = {
-        typing_test: "typing-test",
-        video_intro: "video-intro",
-        video_message: "video-intro",
-        portfolio_upload: "portfolio",
-        chat_simulation: "chat-simulation",
-        chat_interview: "chat-interview",
-        sales_simulation: "sales-simulation",
-        voice_interview: "voice-interview",
-        quiz: "quiz",
-      };
-      const route = phaseRoutes[nextStep.type] || nextStep.type;
-      navigate(`/applications/${id}/${route}/${nextPhaseInfo.id}`);
-    } else {
-      // Next stage isn't a real workflow step (e.g. the closing decision
-      // stage) — nothing to navigate into, just head back to the overview.
-      navigate(`/applications/${id}`);
-    }
-  };
-
-  const handleDoLater = () => {
-    navigate(`/applications/${id}`);
   };
 
   const resetTest = () => {
@@ -555,6 +473,12 @@ export default function TypingTestPhase() {
     }
   })();
 
+  // "Already done" is decided once, from the first read after this page
+  // mounted. A refresh that brings back the result just sent (this page's own
+  // realtime subscription does exactly that, seconds after "Submit results")
+  // must never swap the waiting screen for a dead end.
+  const resultAtFirstLoad = useResultAtFirstLoad(isFetchedAfterMount && !!application, !!existingResult);
+
   if (authLoading || isLoading) {
     return (
       <div className="mx-auto max-w-3xl space-y-6 p-6">
@@ -583,43 +507,40 @@ export default function TypingTestPhase() {
     );
   }
 
-  // Show already submitted view if phase was completed
-  if (existingResult) {
+  // Sent in this visit: the waiting screen, then the next step's button.
+  if (advance.view) {
+    return (
+      <StepAdvanceScreen
+        advance={advance}
+        applicationId={id!}
+        jobTitle={application.jobs?.title}
+        completedTitle={journeyStep.title}
+      />
+    );
+  }
+
+  if (resultAtFirstLoad === null) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-6 p-6">
+        <Skeleton className="h-12 w-48" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  // Done before this visit began (a bookmark, the back button): say where
+  // things stand and offer the next step, never a dead end.
+  if (resultAtFirstLoad && existingResult) {
     return (
       <PhaseAlreadySubmitted
         applicationId={id!}
-        phaseName="Typing Test"
+        phaseName={journeyStep.title}
         isManualMode={application.jobs?.processing_mode === "manual"}
       />
     );
   }
 
   const isAutoMode = application.jobs?.processing_mode !== "manual";
-  const passingScore = application.jobs?.passing_score || 60;
-
-  // Show evaluation screen for autopilot mode
-  if (evaluationState) {
-    // Show CandidateStatusScreen for failed state
-    if (evaluationState === "failed") {
-      return (
-        <CandidateStatusScreen
-          state="rejected"
-          jobTitle={application?.jobs?.title}
-          onClose={() => navigate(`/applications/${id}`)}
-        />
-      );
-    }
-    
-    // Show EvaluationScreen for passed/evaluating states
-    return (
-      <EvaluationScreen
-        state={evaluationState}
-        onStartNextPhase={nextPhaseInfo ? handleStartNextPhase : undefined}
-        onDoLater={handleDoLater}
-        nextPhaseName={nextPhaseInfo?.title}
-      />
-    );
-  }
 
   // Quiet, real-time WPM readout while the clock is running — not a dashboard,
   // just the one number a nervous typist wants to glance at.
@@ -714,12 +635,7 @@ export default function TypingTestPhase() {
                     <span>Accuracy counts as much as speed — steady beats frantic.</span>
                   </li>
                 </ul>
-                <div className="flex items-start gap-2.5 rounded-md border border-warning/20 bg-warning/10 px-3 py-2.5">
-                  <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-                  <p className="text-sm text-warning">
-                    Copy, paste, and right-click are turned off here, and switching tabs gets noted — just you and the keyboard.
-                  </p>
-                </div>
+                <TestRulesNotice />
               </div>
 
               <div className="flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
@@ -818,7 +734,7 @@ export default function TypingTestPhase() {
                   <p className="text-muted-foreground">
                     Submit when you're ready —{" "}
                     {isAutoMode
-                      ? "you'll see your result right away."
+                      ? "your next step opens right after."
                       : "the hiring team will review it and follow up."}
                   </p>
                 </div>

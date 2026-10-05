@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, useId } from "react";
 import { parseApplicationNotes, isPhaseSkipped as checkPhaseSkipped, type StepRecordLike } from "@/utils/applicationNotes";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -19,6 +19,7 @@ import {
   Briefcase,
   Calendar,
   AlertCircle,
+  CheckCircle,
   FileUp
 } from "lucide-react";
 import { toast } from "sonner";
@@ -38,6 +39,7 @@ import { DocumentRequestCard } from "@/components/documents/DocumentRequestCard"
 import { DocumentUploadDialog } from "@/components/documents/DocumentUploadDialog";
 import { phaseDurationEstimates } from "@/lib/phaseDurations";
 import { buildCandidateJourney, positionFor, titleFor } from "@/lib/candidateJourney";
+import { stepHasResult, stepIsDone, stepRoute, whereCandidateStands } from "@/lib/journeyProgress";
 import { glyphForKind } from "@/components/glyphForKind";
 
 interface WorkflowStep {
@@ -86,7 +88,11 @@ export default function CandidateApplicationDetail() {
   // Fetch document requests for this application
   const { data: documentRequests = [], refetch: refetchDocumentRequests } = useDocumentRequests();
 
-  // Fetch application with job details
+  // Fetch application with job details. Always fresh: on 2026-10-05 this
+  // page inherited the app-wide five-minute cache and showed a finished
+  // written interview as "Up next · Begin Interview" from a copy loaded
+  // before the candidate took it. Every step page already reads fresh; this
+  // one does too, and refetches when the tab regains focus.
   const { data: application, isLoading, refetch } = useQuery({
     queryKey: ["candidate-application", id],
     queryFn: async () => {
@@ -100,6 +106,9 @@ export default function CandidateApplicationDetail() {
       return data as ApplicationDetails;
     },
     enabled: !!id && !!user && !authLoading,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 
   // Fetch interview for this application (for candidate confirmation card)
@@ -159,12 +168,16 @@ export default function CandidateApplicationDetail() {
     }
   };
 
-  // Subscribe to real-time updates for this application
+  // Subscribe to real-time updates for this application. The topic carries
+  // this instance's id: a static `application-${id}` is shared with anything
+  // else listening to the same row under that name, and a second
+  // `.on()` on an already-joined channel throws.
+  const liveInstanceId = useId();
   useEffect(() => {
     if (!id) return;
 
     const channel = supabase
-      .channel(`application-${id}`)
+      .channel(`application-${id}-${liveInstanceId}`)
       .on(
         "postgres_changes",
         {
@@ -244,19 +257,24 @@ export default function CandidateApplicationDetail() {
           previousPhaseRef.current = newPhase as string;
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        // Catch up on anything that changed before the socket joined (or
+        // while it was down) — a step finished in another tab, the next one
+        // opened by the server.
+        if (status === "SUBSCRIBED") refetch();
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [id, refetch]);
+  }, [id, refetch, liveInstanceId]);
 
   // Subscribe to real-time updates for interview changes (cancel/reschedule detection)
   useEffect(() => {
     if (!id) return;
 
     const channel = supabase
-      .channel(`interview-candidate-${id}`)
+      .channel(`interview-candidate-${id}-${liveInstanceId}`)
       .on(
         "postgres_changes",
         {
@@ -305,7 +323,7 @@ export default function CandidateApplicationDetail() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [id, refetchInterview]);
+  }, [id, refetchInterview, liveInstanceId]);
 
   // Check on initial load if status or phase changed recently (within last 30 seconds)
   useEffect(() => {
@@ -397,33 +415,14 @@ export default function CandidateApplicationDetail() {
     return checkPhaseSkipped(notes, phaseId, phaseType);
   }, [notes]);
   
-  // Helper to check if a phase has submission data
-  const hasPhaseData = useCallback((phaseId: string, phaseType: string) => {
-    if (phaseType === "application") {
-      return !!(notes.applicationAnswers && notes.applicationAnswers.length > 0);
-    } else if (phaseType === "typing_test") {
-      return !!notes.typingTestResult;
-    } else if (phaseType === "chat_simulation") {
-      return !!notes.chatSimulationResult;
-    } else if (phaseType === "chat_interview") {
-      return !!notes.chatInterviewResult;
-    } else if (phaseType === "sales_simulation") {
-      return !!notes.salesSimulationResult;
-    } else if (phaseType === "quiz") {
-      const stepData = notes[phaseId] as StepRecordLike | undefined;
-      return !!(stepData?.completedAt || notes.quizResult);
-    } else if (phaseType === "video_intro" || phaseType === "video_message") {
-      const stepData = notes[phaseId] as StepRecordLike | undefined;
-      return !!notes.videoIntroUrl || !!(stepData?.videoUrl || stepData?.completed);
-    } else if (phaseType === "portfolio_upload") {
-      return !!notes.portfolioResult;
-    } else if (phaseType === "voice_interview") {
-      return !!application?.voice_interview_result;
-    } else if (phaseType === "decision") {
-      return true; // The closing, employer-driven stage has no candidate data
-    }
-    return !!notes[phaseId];
-  }, [notes, application?.voice_interview_result]);
+  // Does a step have its result on file? One rule, shared with the step
+  // pages' next-step card and the cockpit (journeyProgress.stepHasResult) —
+  // this screen used to carry two inline copies of it.
+  const hasPhaseData = useCallback(
+    (phaseId: string, phaseType: string) =>
+      stepHasResult(notes, application?.voice_interview_result, { id: phaseId, type: phaseType }),
+    [notes, application?.voice_interview_result],
+  );
 
   // Helper to check if a phase is implicitly skipped (behind current, no data, candidate-facing)
   const isImplicitlySkipped = useCallback((phaseIndex: number, phaseId: string, phaseType: string) => {
@@ -439,116 +438,40 @@ export default function CandidateApplicationDetail() {
     return true;
   }, [effectivePhaseIndex, hasPhaseData, isEmployerSkipped]);
 
-  // Determine phase status for each step
-  const getPhaseStatus = (phaseIndex: number) => {
-    const phase = phases[phaseIndex];
-    const isManualMode = application?.jobs?.processing_mode === "manual";
-    
-    // If this phase was skipped by employer (explicitly or implicitly), mark as completed
-    if ((isEmployerSkipped(phase.id, phase.type) || isImplicitlySkipped(phaseIndex, phase.id, phase.type)) && phaseIndex < effectivePhaseIndex) {
-      return "completed";
-    }
-    
-    if (phaseIndex < effectivePhaseIndex) return "completed";
-    if (phaseIndex === effectivePhaseIndex) {
-      // If application is rejected, show current phase as rejected
-      if (application?.status === "rejected") {
-        return "rejected";
-      }
-      
-      // Check if phase data exists (use type-specific keys)
-      let hasPhaseData = false;
-      
-      if (phase.type === "application") {
-        // Check if application form was submitted (applicationAnswers exist in notes)
-        hasPhaseData = !!(notes.applicationAnswers && notes.applicationAnswers.length > 0);
-      } else if (phase.type === "typing_test") {
-        hasPhaseData = !!notes.typingTestResult;
-      } else if (phase.type === "chat_simulation") {
-        hasPhaseData = !!notes.chatSimulationResult;
-      } else if (phase.type === "chat_interview") {
-        hasPhaseData = !!notes.chatInterviewResult;
-      } else if (phase.type === "sales_simulation") {
-        hasPhaseData = !!notes.salesSimulationResult;
-      } else if (phase.type === "quiz") {
-        // Check step-specific storage (notes[phase.id].completedAt) OR quizResult
-        const stepData = notes[phase.id] as StepRecordLike | undefined;
-        hasPhaseData = !!(stepData?.completedAt || notes.quizResult);
-      } else if (phase.type === "video_intro" || phase.type === "video_message") {
-        // Check both legacy videoIntroUrl and stepId-based storage
-        const stepData = notes[phase.id] as StepRecordLike | undefined;
-        hasPhaseData = !!notes.videoIntroUrl || !!(stepData?.videoUrl || stepData?.completed);
-      } else if (phase.type === "portfolio_upload") {
-        hasPhaseData = !!notes.portfolioResult;
-      } else if (phase.type === "voice_interview") {
-        // Voice interview results are stored in dedicated column, not notes
-        hasPhaseData = !!application?.voice_interview_result;
-      } else {
-        hasPhaseData = !!notes[phase.id];
-      }
-      
-      if (hasPhaseData) {
-        // In Manual Mode, show "Employer Reviewing" - employer must manually advance
-        // In Auto Mode, show "Pending Review" - system will auto-advance
-        return isManualMode ? "employer_reviewing" : "pending";
-      }
-      
-      return "awaiting_action"; // Needs to complete this phase
-    }
-    return "upcoming";
+  // Where the candidate stands, read from the DATA: the step at `phase` is
+  // "take" (open, no result yet), "waiting" (its result is in, the next step
+  // is not open yet), or every step is behind them ("finished"). Position
+  // alone used to decide this, so a finished last step — whose phase never
+  // moves past it — read "Up next" or "Under review" forever.
+  const journeyApp = {
+    phase: application?.phase,
+    status: application?.status,
+    notes,
+    voiceInterviewResult: application?.voice_interview_result,
   };
-
-  // Calculate progress percentage
-  const progressPercentage = ((effectivePhaseIndex + 1) / phases.length) * 100;
+  const standing = whereCandidateStands(phases, journeyApp);
 
   const job = application?.jobs;
   const companyName = employerBranding || "This employer";
 
-  // Handle starting a phase action (quiz, typing test, etc.)
+  // Handle starting a phase action (quiz, typing test, etc.) — through the
+  // one step-to-route map the step pages use too (journeyProgress.stepRoute).
   const handleStartPhase = (phaseId: string, phaseType: string) => {
     setActivePhaseAction(phaseId);
-    
-    // Navigate to the appropriate phase completion page
-    switch (phaseType) {
-      case "application":
-        navigate(`/applications/${id}/application/${phaseId}`);
-        break;
-      case "quiz":
-        navigate(`/applications/${id}/quiz/${phaseId}`);
-        break;
-      case "typing_test":
-        navigate(`/applications/${id}/typing-test/${phaseId}`);
-        break;
-      case "video_intro":
-      case "video_message":
-        navigate(`/applications/${id}/video-intro/${phaseId}`);
-        break;
-      case "chat_simulation":
-        navigate(`/applications/${id}/chat-simulation/${phaseId}`);
-        break;
-      case "chat_interview":
-        navigate(`/applications/${id}/chat-interview/${phaseId}`);
-        break;
-      case "sales_simulation":
-        navigate(`/applications/${id}/sales-simulation/${phaseId}`);
-        break;
-      case "portfolio_upload":
-        navigate(`/applications/${id}/portfolio/${phaseId}`);
-        break;
-      case "voice_interview":
-        navigate(`/applications/${id}/voice-interview/${phaseId}`);
-        break;
-      default:
-        // Reachable only if a job is configured with a step type this build
-        // cannot open. "Not yet implemented" is our word, not theirs — it tells
-        // a candidate nothing, blames nobody, and leaves them staring at a
-        // button that did nothing. Say whose problem it is and where to go.
-        console.error("No route for candidate phase type:", phaseType, "step:", phaseId);
-        toast.error("We can't open this step right now", {
-          description: "That's on our side, not yours — nothing you've done is lost. Try again shortly.",
-        });
-        setActivePhaseAction(null);
+    const route = id ? stepRoute(id, { id: phaseId, type: phaseType }) : null;
+    if (route) {
+      navigate(route);
+      return;
     }
+    // Reachable only if a job is configured with a step type this build
+    // cannot open. "Not yet implemented" is our word, not theirs — it tells
+    // a candidate nothing, blames nobody, and leaves them staring at a
+    // button that did nothing. Say whose problem it is and where to go.
+    console.error("No route for candidate phase type:", phaseType, "step:", phaseId);
+    toast.error("We can't open this step right now", {
+      description: "That's on our side, not yours — nothing you've done is lost. Try again shortly.",
+    });
+    setActivePhaseAction(null);
   };
 
   if (role === "employer") {
@@ -601,21 +524,28 @@ export default function CandidateApplicationDetail() {
     );
   }
 
-  const currentPhase = phases[effectivePhaseIndex];
   const applicationStatus = application.status;
   const isRejected = applicationStatus === "rejected";
   const isHired = applicationStatus === "hired";
 
   // GUIDED: the one status line that answers "what's happening right now" and,
-  // where there's something to do, "what's the one next thing".
-  const currentStatus = getPhaseStatus(effectivePhaseIndex);
-  const isTerminalPhaseType = currentPhase.type === "decision";
-  const isPendingHeld = currentStatus === "pending" || currentStatus === "employer_reviewing";
-  const showCta = !isRejected && !isHired && currentStatus === "awaiting_action" && !isTerminalPhaseType;
+  // where there's something to do, "what's the one next thing". Once every
+  // step is behind them the header moves to the closing stage — "Step 6 of 6
+  // — Decision · You've finished every step" — with no button to begin
+  // anything they have already done.
+  const isFinished = standing.kind === "finished";
+  const isWaiting = standing.kind === "waiting";
+  // Every step is in and the application is held for the hiring team's
+  // review — the only time anything on this screen reads "In review".
+  const isPendingHeld = isFinished;
+  const focusIndex = isFinished ? standing.index : effectivePhaseIndex;
+  const currentPhase = phases[focusIndex] ?? phases[effectivePhaseIndex];
+  const showCta = !isRejected && !isHired && standing.kind === "take";
+  const progressPercentage = isFinished ? 100 : ((focusIndex + 1) / phases.length) * 100;
 
   let guidanceMessage = "The hiring team will get back to you — everyone hears back.";
   let guidanceIcon: "clock" | null = null;
-  if (!isPendingHeld && !isTerminalPhaseType) {
+  if (standing.kind === "take") {
     const duration = phaseDurationEstimates[currentPhase.type];
     if (duration?.isCandidateAction) {
       guidanceMessage = `About ${duration.label.replace(/ min$/, " minutes")}.`;
@@ -623,6 +553,13 @@ export default function CandidateApplicationDetail() {
     } else {
       guidanceMessage = "Take your time — you can't break anything.";
     }
+  } else if (isWaiting) {
+    // Same promise as NextStepCard's: in auto mode the next step normally
+    // opens within seconds; if it has not, a person opens it.
+    guidanceMessage =
+      application.jobs?.processing_mode === "manual"
+        ? "Saved — the hiring team opens your next step. You can close this page."
+        : "Saved — your next step opens here. If it hasn't opened in a few minutes, the hiring team will open it.";
   }
 
   return (
@@ -723,15 +660,20 @@ export default function CandidateApplicationDetail() {
               <div className="mt-5 border-t border-[var(--hair)] pt-5">
                 <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
                   <p className="font-display text-base font-medium text-foreground sm:text-lg">
-                    <span className="ck-num">Step {effectivePhaseIndex + 1}</span> of{" "}
+                    <span className="ck-num">Step {focusIndex + 1}</span> of{" "}
                     <span className="ck-num">{phases.length}</span> — {currentPhase.title}
                   </p>
-                  {isPendingHeld && (
-                    <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                      <Eye className="h-3.5 w-3.5" />
-                      Under review
+                  {isFinished ? (
+                    <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-foreground">
+                      <CheckCircle className="h-3.5 w-3.5 text-[var(--jade)]" />
+                      You&apos;ve finished every step
                     </span>
-                  )}
+                  ) : isWaiting ? (
+                    <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      <CheckCircle className="h-3.5 w-3.5 text-[var(--jade)]" />
+                      Done
+                    </span>
+                  ) : null}
                 </div>
 
                 <div
@@ -765,7 +707,12 @@ export default function CandidateApplicationDetail() {
                     ) : (
                       <Play className="h-4 w-4" />
                     )}
-                    {phaseActionMessages[currentPhase.type]?.buttonText || "Continue"}
+                    {/* Named after the step itself, the same words the
+                        next-step card uses ("Start Player chat practice"),
+                        not a generic label for its type. */}
+                    {currentPhase.type === "application"
+                      ? phaseActionMessages.application?.buttonText || "Complete Application"
+                      : `Start ${currentPhase.title}`}
                   </Button>
                 )}
               </div>
@@ -840,14 +787,19 @@ export default function CandidateApplicationDetail() {
           </p>
           <div className="mt-3 divide-y divide-border rounded-xl border border-border bg-card">
             {phases.map((phase, index) => {
-              const status = getPhaseStatus(index);
               const Icon = phase.icon;
-              const isCurrent = index === effectivePhaseIndex;
-              const isCompleted = index < effectivePhaseIndex;
-              const skipped =
-                isCompleted &&
-                (isEmployerSkipped(phase.id, phase.type) || isImplicitlySkipped(index, phase.id, phase.type));
+              // The row the header is about: the step to take or just done,
+              // or the closing stage once every step is behind them.
+              const isCurrent = index === focusIndex;
+              const isBehind = index < effectivePhaseIndex;
               const isDecisionStep = phase.type === "decision";
+              // Labelled from its DATA: a step whose result is on file is
+              // done, even when the phase has not moved past it yet.
+              const isDone = !isDecisionStep && stepIsDone(journeyApp, phase);
+              const isCompleted = isBehind || isDone;
+              const skipped =
+                isBehind &&
+                (isEmployerSkipped(phase.id, phase.type) || isImplicitlySkipped(index, phase.id, phase.type));
               const isDecided = isHired || isRejected;
 
               // A decided application has no "Upcoming". This list used to
@@ -859,14 +811,16 @@ export default function CandidateApplicationDetail() {
               // pending. Once there is an outcome, every row must reflect it.
               let statusText = "Upcoming";
               if (skipped) statusText = "Skipped";
-              else if (isCompleted) statusText = "Completed";
+              else if (isBehind) statusText = "Completed";
               else if (isDecisionStep && isDecided) statusText = isHired ? "Offer" : "Closed";
               else if (isHired) {
                 // Finished it, or the employer decided before reaching it.
-                statusText =
-                  status === "pending" || status === "employer_reviewing" ? "Completed" : "Not needed";
-              } else if (isRejected) statusText = isCurrent ? "Not passed" : "Not reached";
-              else if (isCurrent) statusText = isPendingHeld ? "Under review" : "Up next";
+                statusText = isDone ? "Completed" : "Not needed";
+              } else if (isRejected) statusText = index === effectivePhaseIndex ? "Not passed" : "Not reached";
+              else if (isDone) statusText = "Completed";
+              // The header's row: the step to take next, or — once every
+              // step is in — the closing stage, in review.
+              else if (isCurrent) statusText = isPendingHeld ? "In review" : "Up next";
 
               return (
                 <div key={phase.id} className="flex items-center gap-3 px-4 py-3">

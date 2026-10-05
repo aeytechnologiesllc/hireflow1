@@ -1,11 +1,5 @@
 import { SUPABASE_ANON_KEY, SUPABASE_URL, supabase } from "@/integrations/supabase/client";
 
-export interface EvaluationResult {
-  score: number | null;
-  passed: boolean;
-  analysis: string | null;
-}
-
 export interface TriggerAvaAnalysisPayload {
   applicationId: string;
   force?: boolean;
@@ -83,6 +77,15 @@ async function getAccessTokenWithRetry() {
   return data.session?.access_token ?? null;
 }
 
+/**
+ * Asks the server to score an application and, with `autopilotDecision`, to
+ * open the next step. Never throws: a failure comes back as `{ error }`.
+ *
+ * Candidate pages read only `decision` / `nextPhaseId` from the reply, through
+ * useStepAdvance — and even those just speed up what the application row
+ * says anyway. `score` may be null (the server can move a candidate on before
+ * scoring finishes) and is never shown to a candidate.
+ */
 export async function invokeTriggerAvaAnalysis<T = Record<string, unknown>>(
   payload: TriggerAvaAnalysisPayload,
 ) {
@@ -182,6 +185,11 @@ function safeParseJson(value: string) {
  * 
  * This is the SINGLE SOURCE OF TRUTH for all scoring.
  * No front-end scoring should ever be done - all scores come from the backend.
+ *
+ * Scores only — it asks for no decision and names no step. A page that has
+ * just finished a step must call invokeTriggerAvaAnalysis({ autopilotDecision,
+ * currentPhaseId }) instead: on 2026-10-05 the interview's auto-end path used
+ * this one and the candidate never reached Decision.
  */
 export async function triggerAvaAnalysis(applicationId: string): Promise<void> {
   try {
@@ -197,61 +205,5 @@ export async function triggerAvaAnalysis(applicationId: string): Promise<void> {
 
   } catch (error) {
     console.error("[triggerAvaAnalysis] Unexpected error:", error);
-  }
-}
-
-/**
- * Waits for the backend to complete analysis and returns the result.
- * This does NOT calculate any scores locally - it only triggers backend analysis
- * and waits for the backend to set ai_score on the application.
- * 
- * The backend is the SINGLE SOURCE OF TRUTH for pass/fail decisions.
- */
-export async function evaluatePhaseSubmission(
-  applicationId: string,
-  _phaseScore: number, // Ignored - backend calculates the actual score
-  passingScore: number = 60
-): Promise<EvaluationResult> {
-  try {
-    // Trigger the backend analysis
-    await triggerAvaAnalysis(applicationId);
-    
-    // Wait a moment for the backend to complete
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Fetch the updated analysis from the backend (SINGLE SOURCE OF TRUTH)
-    const { data: application, error } = await supabase
-      .from("applications")
-      .select("ai_analysis, ai_score, status")
-      .eq("id", applicationId)
-      .single();
-    
-    if (error) {
-      console.error("[evaluatePhaseSubmission] Error fetching analysis:", error);
-      // Return unknown state - let realtime subscription handle it
-      return {
-        score: null,
-        passed: false,
-        analysis: null,
-      };
-    }
-    
-    // Use the BACKEND score for pass/fail decision, not local calculation
-    const backendScore = application?.ai_score;
-    const passed = backendScore !== null && backendScore >= passingScore;
-    
-    return {
-      score: backendScore,
-      passed,
-      analysis: application?.ai_analysis || null,
-    };
-  } catch (error) {
-    console.error("[evaluatePhaseSubmission] Error:", error);
-    // Return unknown state on error
-    return {
-      score: null,
-      passed: false,
-      analysis: null,
-    };
   }
 }

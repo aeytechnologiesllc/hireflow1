@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
@@ -34,8 +35,9 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { invokeTriggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
-import { EvaluationScreen } from "@/components/EvaluationScreen";
+import { formatMultiSelectAnswer } from "@/utils/applicationNotes";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
+import { StepAdvanceScreen } from "@/components/candidate/NextStepCard";
 import CountryCodeSelect from "@/components/CountryCodeSelect";
 import { convertPdfFileToImages, base64ToBlob } from "@/utils/pdfToImage";
 import {
@@ -50,8 +52,8 @@ import {
 import { notifyApplicationSubmitted } from "@/utils/emailNotifications";
 import { resolveResumeUrl } from "@/utils/resumeSignedUrl";
 import { GlyphLetter } from "@/components/candidate/glyphs";
-import { buildCandidateJourney, DECISION_STAGE_ID } from "@/lib/candidateJourney";
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
+import { useResultAtFirstLoad, useStepAdvance } from "@/hooks/useStepAdvance";
 import { parseApplicationNotes } from "@/lib/applicationNotes";
 
 // A slim brass rule across the top of a card — the letterhead mark
@@ -73,7 +75,7 @@ interface AntiCheatViolation {
 interface ApplicationQuestion {
   id: string;
   question: string;
-  type: "text" | "textarea" | "select" | "email" | "phone" | "file" | "date" | "number" | string;
+  type: "text" | "textarea" | "select" | "multi_select" | "email" | "phone" | "file" | "date" | "number" | string;
   required: boolean;
   options?: string[];
   placeholder?: string;
@@ -117,11 +119,39 @@ const normalizeQuestionType = (value: string | null | undefined) => {
       return "file";
     case "dropdown":
       return "select";
+    // Pick-several (2026-10-05): the shift question needs "daytime AND
+    // weekends". Rendered as checkbox rows; stored as a readable "; "-joined
+    // answer plus `selected` (see formatMultiSelectAnswer).
+    case "multiselect":
+    case "multi-select":
+    case "checkbox":
+    case "checkboxes":
+      return "multi_select";
     case "short_text":
       return "text";
+    // The live job's phone question is stored as "tel"; it fell through to the
+    // paste-blocked plain input, so pasting your own number was logged as a
+    // paste violation. It is a phone field.
+    case "tel":
+    case "telephone":
+    case "mobile":
+      return "phone";
     default:
       return normalized;
   }
+};
+
+// A choice question with nothing to choose from cannot be answered by
+// choosing, so it is a plain text question EVERYWHERE: what is drawn, what
+// Continue checks and what is stored. Deciding it only when drawing left a
+// pick-several question with no options showing a text box whose answer
+// validation and storage ignored, so the form could never be sent.
+const hasChoiceOptions = (question: Pick<ApplicationQuestion, "options">) =>
+  Array.isArray(question.options) && question.options.length > 0;
+
+const answerTypeOf = (question: Pick<ApplicationQuestion, "type" | "options">) => {
+  const type = normalizeQuestionType(question.type);
+  return (type === "select" || type === "multi_select") && !hasChoiceOptions(question) ? "text" : type;
 };
 
 // Email validation regex
@@ -224,6 +254,13 @@ export default function ApplicationFormPhase() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  // Pick-several questions keep their ticked options here, apart from the
+  // string answers, so no string-typed path above has to learn about arrays.
+  const [multiAnswers, setMultiAnswers] = useState<Record<string, string[]>>({});
+  // Mirrors multiAnswers synchronously, so two taps that land before a
+  // re-render both count (each toggle reads the other's result, not a stale
+  // render's copy).
+  const multiAnswersRef = useRef<Record<string, string[]>>({});
   const [phoneCountryCodes, setPhoneCountryCodes] = useState<Record<string, string>>({});
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [coverLetter, setCoverLetter] = useState("");
@@ -245,11 +282,6 @@ export default function ApplicationFormPhase() {
   const [usingProfileResume, setUsingProfileResume] = useState(false);
   const [expandedCriteriaQuestionId, setExpandedCriteriaQuestionId] = useState<string | null>(null);
 
-  // Evaluation screen state
-  const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | "failed" | null>(null);
-  const [nextPhaseInfo, setNextPhaseInfo] = useState<{ id: string; title: string } | null>(null);
-  const [aiScore, setAiScore] = useState<number | null>(null);
-  
   // Anti-cheating state
   const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
   const formContainerRef = useRef<HTMLDivElement>(null);
@@ -309,7 +341,7 @@ export default function ApplicationFormPhase() {
   }, [recordViolation]);
 
   // Fetch application details - force refetch on mount to handle reconsider workflow
-  const { data: application, isLoading } = useQuery({
+  const { data: application, isLoading, isFetchedAfterMount } = useQuery({
     queryKey: ["application-form", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -444,11 +476,27 @@ export default function ApplicationFormPhase() {
     });
   };
 
+  // Tick or untick one option of a pick-several question. Kept in the job's
+  // own option order, and the joined string feeds the same live warning sync
+  // every other field uses.
+  const toggleMultiAnswer = (question: ApplicationQuestion, option: string) => {
+    const current = multiAnswersRef.current[question.id] ?? [];
+    const toggled = current.includes(option) ? current.filter((o) => o !== option) : [...current, option];
+    const { answer, selected } = formatMultiSelectAnswer(question.options, toggled);
+    multiAnswersRef.current = { ...multiAnswersRef.current, [question.id]: selected };
+    setMultiAnswers(multiAnswersRef.current);
+    syncQuestionError(question, answer);
+  };
+
   // Where the candidate is in the whole journey — derived from the job's real
   // workflow_steps via the shared candidateJourney builder, so this screen
   // agrees with every other candidate screen. This screen IS the
   // application stage, so it's always step 1.
   const journeyStep = useJourneyPosition(application?.jobs, { phase: "application" });
+
+  // After "Continue": the waiting screen, then "Start <next step>" straight
+  // into it the moment the row says it is open (see useStepAdvance).
+  const advance = useStepAdvance({ applicationId: id, stepId: stepId || "application", job: application?.jobs });
 
   // Parse notes to check if already submitted. This runs during RENDER, so a
   // bare JSON.parse here throws inside the render pass on any malformed row and
@@ -514,6 +562,11 @@ export default function ApplicationFormPhase() {
                          application?.phase === stepId && 
                          !application?.ai_analysis;
   const alreadySubmitted = hasApplicationAnswers && !isReconsidered;
+  // "Already done" for RENDERING is decided once, from the first read after
+  // this page mounted. The scoring write that lands seconds after Continue
+  // used to flip alreadySubmitted mid-wait and replace "Start the skills
+  // check" with "Application Submitted · Back to Application".
+  const resultAtFirstLoad = useResultAtFirstLoad(isFetchedAfterMount && !!application, alreadySubmitted);
 
   // Anti-cheating: Tab visibility detection
   useEffect(() => {
@@ -860,12 +913,18 @@ export default function ApplicationFormPhase() {
       return true;
     });
 
-    // Validate required questions (only visible ones)
+    // Validate required questions (only visible ones). A pick-several
+    // question counts as answered once at least one box is ticked.
     visibleQuestions.forEach(q => {
-      if (q.required && !answers[q.id]?.trim()) {
+      const type = answerTypeOf(q);
+      const value =
+        type === "multi_select"
+          ? formatMultiSelectAnswer(q.options, multiAnswers[q.id]).answer
+          : answers[q.id];
+      if (q.required && !value?.trim()) {
         errors[q.id] = REQUIRED_FIELD_MESSAGE;
       }
-      if (normalizeQuestionType(q.type) === "email" && answers[q.id] && !isValidEmail(answers[q.id])) {
+      if (type === "email" && answers[q.id] && !isValidEmail(answers[q.id])) {
         errors[q.id] = EMAIL_FIELD_MESSAGE;
       }
     });
@@ -910,7 +969,7 @@ export default function ApplicationFormPhase() {
                             document.querySelector('.border-destructive');
         if (errorElement) {
           errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          const input = errorElement.querySelector('input, textarea, select');
+          const input = errorElement.querySelector('input, textarea, select, button[role="checkbox"]');
           if (input) (input as HTMLElement).focus();
         }
       }, 100);
@@ -918,7 +977,9 @@ export default function ApplicationFormPhase() {
     }
 
     setIsSubmitting(true);
-    setEvaluationState("evaluating");
+    // "Sending your answers" goes up now; in auto mode it stays until the
+    // next step is open (useStepAdvance).
+    advance.begin();
 
     try {
       // CRITICAL FIX: If using profile resume, we MUST convert it to images before submission
@@ -969,20 +1030,29 @@ export default function ApplicationFormPhase() {
           console.error("[ApplicationFormPhase] Profile resume conversion failed:", conversionError);
           toast.error(`We couldn't read that resume — please upload a ${RESUME_FORMATS_LABEL}.`);
           setIsSubmitting(false);
-          setEvaluationState(null);
+          advance.cancel();
           return;
         }
       }
       
-      // Format answers for storage
-      const applicationAnswers = questions.map(q => ({
-        questionId: q.id,
-        question: q.question,
-        answer: normalizeQuestionType(q.type) === "phone" && phoneCountryCodes[q.id]
-          ? `${phoneCountryCodes[q.id]} ${answers[q.id] || ""}`
-          : answers[q.id] || "",
-        type: normalizeQuestionType(q.type),
-      }));
+      // Format answers for storage. A pick-several answer stays a readable
+      // string in `answer` (every server reader prints it as-is) and adds
+      // `selected`, the ticked options in the job's own order.
+      const applicationAnswers = questions.map(q => {
+        const type = answerTypeOf(q);
+        if (type === "multi_select") {
+          const { answer, selected } = formatMultiSelectAnswer(q.options, multiAnswers[q.id]);
+          return { questionId: q.id, question: q.question, answer, selected, type };
+        }
+        return {
+          questionId: q.id,
+          question: q.question,
+          answer: type === "phone" && phoneCountryCodes[q.id]
+            ? `${phoneCountryCodes[q.id]} ${answers[q.id] || ""}`
+            : answers[q.id] || "",
+          type,
+        };
+      });
 
       // Update notes with application answers AND resume image URLs
       const updatedNotes = {
@@ -1010,122 +1080,53 @@ export default function ApplicationFormPhase() {
         void notifyApplicationSubmitted(application.job_id, application.candidate_id, candidateName);
       }
 
-      // Get workflow steps to find the next stage in the real journey
-      const workflowSteps = application.jobs?.workflow_steps || [];
-      const quizQuestions = application.jobs?.quiz_questions;
-      const hasQuizQuestions = Array.isArray(quizQuestions) && quizQuestions.length > 0;
-
-      const allPhases = buildCandidateJourney(workflowSteps, { hasQuiz: hasQuizQuestions });
-
-      // Find current step index (application phase)
-      const currentIndex = allPhases.findIndex((p) => p.type === "application" || p.id === stepId);
-
-      // Determine next phase
-      let nextPhase: { id: string; type: string; title?: string } | null = null;
-      if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
-        nextPhase = allPhases[currentIndex + 1];
-      }
-
-      // Not for voice_interview (needs employer approval to start) or the
-      // closing decision stage (nothing to click into, just wait).
-      if (nextPhase && nextPhase.type !== "voice_interview" && nextPhase.id !== DECISION_STAGE_ID) {
-        setNextPhaseInfo({ id: nextPhase.id, title: nextPhase.title || nextPhase.type });
-      }
-
-      // Handle autopilot mode: Call backend to run AI analysis AND make decision (bypasses RLS)
+      // Handle autopilot mode. The answers are stored; which step opens next
+      // is the server's call (it moves `phase`). The screen follows the row,
+      // and the trigger's reply only speeds that up — a slow or failed reply
+      // keeps the honest waiting screen, then the live next-step card, never
+      // a toast and a trip back to the overview. invokeTriggerAvaAnalysis
+      // never throws, and its score is never shown to the candidate.
       if (isAutoPilot) {
-        const { data: autopilotResult, error: autopilotError } = await invokeTriggerAvaAnalysis({
+        advance.markSaved();
+        queryClient.invalidateQueries({ queryKey: ["applications"] });
+        queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
+        const reply = await invokeTriggerAvaAnalysis({
           applicationId: id!,
           autopilotDecision: true,
           currentPhaseId: "application",
         });
-        
-        if (autopilotError) {
-          console.error("[ApplicationFormPhase] Autopilot backend error:", autopilotError);
-          // Don't block submission - show warning instead of error
-          toast.warning("Application submitted.", {
-            description: "We're still finishing up — check back shortly for your result.",
-          });
-          queryClient.invalidateQueries({ queryKey: ["applications"] });
-          navigate(`/applications/${id}`);
-          return;
+        if (reply.error) {
+          console.error("[ApplicationFormPhase] Autopilot backend error:", reply.error);
         }
-        
-        const score = autopilotResult?.score || 0;
-        setAiScore(score);
-        
-        if (autopilotResult?.decision === "advanced") {
-          setEvaluationState("passed");
-          setNextPhaseInfo({ 
-            id: autopilotResult.nextPhaseId, 
-            title: autopilotResult.nextPhaseTitle || autopilotResult.nextPhaseId 
-          });
-        } else if (autopilotResult?.decision === "rejected") {
-          setEvaluationState("failed");
-        } else {
-          // The CLIENT MUST NEVER DECIDE A REJECTION — only a server-confirmed
-          // status:"rejected" row may show the rejected screen. Ava can return
-          // "recommend_decline" (status stays "reviewing" for a human) and
-          // that is NOT a rejection; comparing the score to the passing score
-          // here would manufacture one that no human made.
-          const { data: freshApp } = await supabase
-            .from("applications")
-            .select("status")
-            .eq("id", id!)
-            .single();
-
-          if (freshApp?.status === "rejected") {
-            setEvaluationState("failed");
-          } else {
-            // Neutral, honest outcome — submitted, hiring team reviewing.
-            // No guess about pass/fail the server hasn't confirmed.
-            setEvaluationState(null);
-            toast.success("Application submitted!", {
-              description: "The hiring team has what they need. Everyone hears back.",
-            });
-            queryClient.invalidateQueries({ queryKey: ["applications"] });
-            navigate(`/applications/${id}`);
-            return;
-          }
-        }
+        advance.settle(reply);
       } else {
         // Manual mode - NEVER auto-advance phases.
         // We only persist the submission data (done above), trigger analysis, and return to the application.
-        // Employers control advancement in manual review mode.
-
-        const { error: analysisError } = await invokeTriggerAvaAnalysis({
+        // Employers control advancement in manual review mode. The answers
+        // are already saved, so nobody waits on the scoring call here (it is
+        // a keepalive request and finishes on its own).
+        invokeTriggerAvaAnalysis({
           applicationId: id!,
-        }).catch(err => {
-          console.error("[ApplicationFormPhase] AVA analysis trigger failed:", err);
-          return { data: null, error: err };
+        }).then(({ error: analysisError }) => {
+          if (analysisError) console.error("[ApplicationFormPhase] AVA analysis trigger failed:", analysisError);
         });
 
-        if (analysisError) {
-          toast.warning("Application submitted.", {
-            description: "Your review is still being prepared — the hiring team will follow up soon.",
-          });
-        } else {
-          toast.success("Application submitted!", {
-            description: "The hiring team has what they need. Everyone hears back.",
-          });
-        }
+        toast.success("Application sent", {
+          description: "Your answers are saved. The hiring team will get back to you — everyone hears back.",
+        });
 
-        await queryClient.invalidateQueries({ queryKey: ["application", id] });
+        queryClient.invalidateQueries({ queryKey: ["application", id] });
         queryClient.invalidateQueries({ queryKey: ["applications"] });
+        queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
         navigate(`/applications/${id}`);
       }
     } catch (error) {
       console.error("Error submitting application:", error);
       toast.error("That didn't go through — please try again.");
-      setEvaluationState(null);
+      advance.cancel();
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleEvaluationComplete = () => {
-    queryClient.invalidateQueries({ queryKey: ["applications"] });
-    navigate(`/applications/${id}`);
   };
 
   if (authLoading || isLoading) {
@@ -1154,25 +1155,36 @@ export default function ApplicationFormPhase() {
     );
   }
 
-  // Show already submitted screen
-  if (alreadySubmitted) {
+  // Sent in this visit: the waiting screen, then "Start <next step>"
+  // straight into it — not to the overview.
+  if (advance.view) {
     return (
-      <PhaseAlreadySubmitted
+      <StepAdvanceScreen
+        advance={advance}
         applicationId={id!}
-        phaseName="Application"
-        isManualMode={!isAutoPilot}
+        jobTitle={application.jobs?.title}
+        completedTitle={journeyStep.title}
       />
     );
   }
 
-  // Show evaluation screen
-  if (evaluationState) {
+  if (resultAtFirstLoad === null) {
     return (
-      <EvaluationScreen
-        state={evaluationState}
-        nextPhaseName={nextPhaseInfo?.title}
-        onStartNextPhase={handleEvaluationComplete}
-        onDoLater={handleEvaluationComplete}
+      <div className="mx-auto max-w-3xl space-y-6">
+        <Skeleton className="h-12 w-48" />
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
+
+  // Sent before this visit began (a bookmark, the back button): say where
+  // things stand and offer the next step, never a dead end.
+  if (resultAtFirstLoad && alreadySubmitted) {
+    return (
+      <PhaseAlreadySubmitted
+        applicationId={id!}
+        phaseName={journeyStep.title}
+        isManualMode={!isAutoPilot}
       />
     );
   }
@@ -1241,38 +1253,39 @@ export default function ApplicationFormPhase() {
               return true;
             })
             .map((question) => {
-            const questionType = normalizeQuestionType(question.type);
+            // answerTypeOf: an optionless choice question arrives here as
+            // "text" and is drawn as the plain text input.
+            const questionType = answerTypeOf(question);
             const fieldId = `application-question-${question.id}`;
             const labelTargetId =
               questionType === "phone"
                 ? `${fieldId}-phone`
-                : questionType === "select" || questionType === "file"
+                : questionType === "select" || questionType === "multi_select" || questionType === "file"
                   ? undefined
                   : fieldId;
             const usePlainInput = questionType === "text";
             const useNumericInput = questionType === "number";
-            // A "select" question with no options to choose from can't render
-            // a radio group over nothing — same "type checked before options"
-            // trap as the quiz's getQuestionType. Fall through to a plain
-            // text input instead of rendering an empty, unanswerable field.
-            const hasSelectOptions = Array.isArray(question.options) && question.options.length > 0;
-            const useFallbackInput =
-              ![
-                "text",
-                "number",
-                "textarea",
-                "email",
-                "phone",
-                "date",
-                "select",
-                "file",
-              ].includes(questionType) || (questionType === "select" && !hasSelectOptions);
+            // Kept for the option lists below (answerTypeOf has already
+            // turned an optionless choice question into "text").
+            const hasSelectOptions = hasChoiceOptions(question);
+            const useFallbackInput = ![
+              "text",
+              "number",
+              "textarea",
+              "email",
+              "phone",
+              "date",
+              "select",
+              "multi_select",
+              "file",
+            ].includes(questionType);
+            const labelId = `${fieldId}-label`;
             const criteriaContext = getQuestionCriteriaContext(question, application?.jobs ?? null);
             const isCriteriaExpanded = expandedCriteriaQuestionId === question.id;
 
             return (
             <div key={question.id} className="space-y-2" data-field={question.id}>
-              <Label htmlFor={labelTargetId} className="text-foreground">
+              <Label id={labelId} htmlFor={labelTargetId} className="text-foreground">
                 {question.question}
                 {question.required && <span className="text-destructive ml-1">*</span>}
               </Label>
@@ -1487,6 +1500,43 @@ export default function ApplicationFormPhase() {
                 </RadioGroup>
               )}
               
+              {questionType === "multi_select" && hasSelectOptions && (
+                // Pick-several: one checkbox row per option, the whole row a
+                // tap target at least 44px tall (the quiz's multi-select
+                // pattern). The <label> forwards a tap anywhere on the row
+                // to the checkbox, so it toggles exactly once.
+                <div role="group" aria-labelledby={labelId} className="space-y-2">
+                  {/* Only when the question itself does not already say so. */}
+                  {!/pick every|all that apply|select all|choose all/i.test(question.question) && (
+                    <p className="text-sm text-muted-foreground">Pick every one that works</p>
+                  )}
+                  {question.options.map((option, idx) => {
+                    const optionId = `${fieldId}-option-${idx}`;
+                    const checked = (multiAnswers[question.id] ?? []).includes(option);
+                    return (
+                      <label
+                        key={idx}
+                        htmlFor={optionId}
+                        className={cn(
+                          "flex min-h-[44px] cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors",
+                          checked ? "border-primary bg-primary/10" : "border-border hover:bg-muted/50",
+                          validationErrors[question.id] && !checked && "border-destructive/60",
+                        )}
+                      >
+                        <Checkbox
+                          id={optionId}
+                          checked={checked}
+                          onCheckedChange={() => toggleMultiAnswer(question, option)}
+                        />
+                        <span className="min-w-0 flex-1 break-words text-sm leading-snug text-foreground">
+                          {option}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+
               {questionType === "file" && (
                 <div
                   className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${

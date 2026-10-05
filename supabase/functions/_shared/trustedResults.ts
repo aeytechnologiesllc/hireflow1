@@ -31,7 +31,10 @@
  *      application hasn't been rejected;
  *   3. merges the result into `notes` in exactly the shapes today's readers
  *      (trigger-ava-analysis, the cockpit, CondensedAIAnalysis) expect, plus
- *      a `_trusted` marker no client write can ever produce;
+ *      a `_trusted` marker no client write can ever produce — through the
+ *      service-role `merge_application_notes` RPC, which merges only these
+ *      keys into what is stored at that moment (2026-10-05: Ava now scores
+ *      in the background, so a whole-object write could erase hers);
  *   4. advances `phase` (and `status`) using exactly today's client rules —
  *      never anything new — and tells the caller what the candidate should
  *      see next. "Exactly today's client rules" is per-step-type, not
@@ -47,7 +50,10 @@
  *      while `trigger-ava-analysis` deliberately leaves `phase` alone on
  *      that recommendation for a human to review. Each call site passes
  *      its own step's correct value as the required `advance:
- *      "auto_mode" | "never"` input.
+ *      "auto_mode" | "never"` input. (Since 2026-10-05 an AUTO-mode job
+ *      never parks anyone: trigger-ava-analysis moves them on through
+ *      `advanceAfterStep` below, which never reads Ava's recommendation.
+ *      Manual jobs are unchanged.)
  *
  * `recordStepResult` runs with the SERVICE-ROLE client, so it is not
  * restricted by `protect_application_columns` (that trigger exempts
@@ -64,14 +70,16 @@
  * import-free) — no `supabase-js`, no Deno std, nothing URL-imported. That
  * keeps every pure function below runnable from plain Node (see
  * scripts/trusted_results_logic.test.mjs) as well as from Deno inside an
- * edge function; only `recordStepResult` touches a database, and it takes
- * that client as a parameter rather than constructing one.
+ * edge function; only `recordStepResult` and `advanceAfterStep` touch a
+ * database, and they take that client as a parameter rather than
+ * constructing one.
  */
 
 import {
   buildCandidateJourney,
   positionFor,
   resolveGatedStep,
+  typeMatchesPhase,
   DECISION_STAGE_ID,
   type WorkflowStepLike,
   type CandidateJourneyStep,
@@ -410,25 +418,57 @@ export function mergeTrustedNotes(
   >,
   completedAt: string,
 ): string {
-  let existing: Record<string, unknown> = {};
-  if (existingNotesJson) {
+  const existing = parseNotesObject(existingNotesJson);
+  return JSON.stringify({ ...existing, ...buildTrustedNotesPatch(existing, input, completedAt) });
+}
+
+/** A stored `notes` value (TEXT JSON, or an already-parsed object) as an
+ *  object — anything missing, malformed or not an object reads as {}, the
+ *  same rule every notes reader (and merge_application_notes) applies. */
+export function parseNotesObject(notes: unknown): Record<string, unknown> {
+  if (notes && typeof notes === "object" && !Array.isArray(notes)) {
+    return notes as Record<string, unknown>;
+  }
+  if (typeof notes === "string" && notes.trim()) {
     try {
-      const parsed = JSON.parse(existingNotesJson);
+      const parsed = JSON.parse(notes);
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        existing = parsed as Record<string, unknown>;
+        return parsed as Record<string, unknown>;
       }
     } catch {
-      existing = {};
+      // fall through
     }
   }
+  return {};
+}
 
+/**
+ * Only the top-level `notes` keys one step result OWNS — what
+ * `mergeTrustedNotes` lays over the existing object, and exactly what
+ * `recordStepResult` hands to `merge_application_notes` so the database
+ * merges it into whatever is stored at that moment instead of overwriting the
+ * whole object from a snapshot (supabase/migrations/20261005180943_*.sql).
+ *
+ * `_trusted` is one shared top-level key, so its value is this step's marker
+ * laid over the markers in `existing` (the row this call just read). Two step
+ * results recorded for the same application within the same few
+ * milliseconds could still drop each other's marker; steps are sequential,
+ * so that cannot happen in a real journey.
+ */
+export function buildTrustedNotesPatch(
+  existing: Record<string, unknown>,
+  input: Pick<
+    RecordStepResultInput,
+    "stepId" | "stepType" | "resultKey" | "result" | "legacyStepEntry" | "extraNotesEntries"
+  >,
+  completedAt: string,
+): Record<string, unknown> {
   const existingTrusted =
     existing._trusted && typeof existing._trusted === "object" && !Array.isArray(existing._trusted)
       ? (existing._trusted as Record<string, unknown>)
       : {};
 
-  const updated: Record<string, unknown> = {
-    ...existing,
+  const patch: Record<string, unknown> = {
     ...(input.extraNotesEntries ?? {}),
     [input.resultKey]: input.result,
     _trusted: {
@@ -438,10 +478,10 @@ export function mergeTrustedNotes(
   };
 
   if (input.legacyStepEntry) {
-    updated[input.stepId] = input.legacyStepEntry;
+    patch[input.stepId] = input.legacyStepEntry;
   }
 
-  return JSON.stringify(updated);
+  return patch;
 }
 
 export type RecordStepResultOutcome =
@@ -463,6 +503,56 @@ export interface MinimalSupabaseAdmin {
     select(columns: string): { eq(column: string, value: string): { maybeSingle(): Promise<{ data: unknown; error: unknown }> } };
     update(values: Record<string, unknown>): { eq(column: string, value: string): Promise<{ error: unknown }> };
   };
+  /** The real client always has it. Optional only because two hand-rolled
+   *  adapters (ai-chat-interview's toMinimalAdmin and the PGlite test
+   *  fakes) predate `merge_application_notes`; without it recordStepResult
+   *  falls back to its old single whole-notes write. */
+  rpc?(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }>;
+}
+
+/** True when PostgREST/Postgres says the function itself does not exist
+ *  (PGRST202 / 42883) — i.e. migration 20261005180943 has not been applied
+ *  yet. Only that error falls back to a whole-notes write; any other failure
+ *  is a real failure. */
+export function isMissingFunctionError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const code = (error as { code?: unknown }).code;
+  return code === "PGRST202" || code === "42883";
+}
+
+/**
+ * `value` with every NUL character (U+0000) in a string or object key
+ * replaced by U+FFFD. JSON.stringify writes a NUL as the escape \u0000,
+ * which JavaScript reads back fine but Postgres jsonb refuses outright
+ * ("unsupported Unicode escape sequence") — so a merge_application_notes
+ * patch holding one, say a pasted chat transcript, would fail to save at
+ * all, where the old whole-notes TEXT write accepted it. Every patch handed
+ * to that function goes through this first. Nothing else is changed.
+ */
+export function withoutNulCharacters<T>(value: T): T {
+  if (typeof value === "string") {
+    return (value.includes("\u0000") ? value.split("\u0000").join("\uFFFD") : value) as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => withoutNulCharacters(item)) as T;
+  }
+  // Plain objects only: a Date or anything else with its own toJSON is left
+  // for JSON.stringify to serialise exactly as before.
+  const proto = value && typeof value === "object" ? Object.getPrototypeOf(value) : undefined;
+  if (proto === Object.prototype || proto === null) {
+    const out: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+      out[withoutNulCharacters(key)] = withoutNulCharacters(item);
+    }
+    return out as T;
+  }
+  return value;
+}
+
+function errorMessage(error: unknown): string {
+  return typeof error === "object" && error && "message" in error
+    ? String((error as { message?: unknown }).message)
+    : String(error);
 }
 
 /**
@@ -518,7 +608,6 @@ export async function recordStepResult(
   }
 
   const completedAt = new Date().toISOString();
-  const newNotes = mergeTrustedNotes(application.notes, input, completedAt);
 
   // Always computed, regardless of `input.advance` — this is also what
   // populates the informational `next` this function returns below, which
@@ -528,19 +617,367 @@ export async function recordStepResult(
   // gets the `advance` value it does.
   const decision = computeNextStepDecision(steps, input.stepId, application.phase, job.processing_mode);
 
-  const updatePayload: Record<string, unknown> = { notes: newNotes };
+  const advancePayload: Record<string, unknown> = {};
   if (input.advance === "auto_mode" && decision.advance) {
-    updatePayload.phase = decision.nextStep.id;
-    updatePayload.status = decision.nextStatus;
+    advancePayload.phase = decision.nextStep.id;
+    advancePayload.status = decision.nextStatus;
   }
 
-  const { error: updateError } = await admin.from("applications").update(updatePayload).eq("id", input.applicationId);
-  if (updateError) {
-    const message = typeof updateError === "object" && updateError && "message" in updateError
-      ? String((updateError as { message?: unknown }).message)
-      : String(updateError);
-    return { ok: false, code: "write_failed", error: `Failed to save step result: ${message}` };
+  // Notes go through merge_application_notes: only this step's own keys are
+  // merged into whatever is stored at that moment, so Ava's background
+  // analysis (trigger-ava-analysis, which now runs after the candidate has
+  // already moved on) and this step result can never erase each other. The
+  // old whole-object write from the snapshot read above remains only for an
+  // adapter with no .rpc, or while the migration is not applied yet.
+  let notesWritten = false;
+  if (typeof admin.rpc === "function") {
+    const patch = buildTrustedNotesPatch(parseNotesObject(application.notes), input, completedAt);
+    const { error: mergeError } = await admin.rpc("merge_application_notes", {
+      p_application_id: input.applicationId,
+      p_patch: withoutNulCharacters(patch),
+    });
+    if (!mergeError) {
+      notesWritten = true;
+    } else if (!isMissingFunctionError(mergeError)) {
+      return { ok: false, code: "write_failed", error: `Failed to save step result: ${errorMessage(mergeError)}` };
+    } else {
+      console.error(
+        "[recordStepResult] merge_application_notes does not exist — apply migration 20261005180943_merge_application_notes.sql. Falling back to a whole-notes write.",
+      );
+    }
+  }
+
+  const updatePayload: Record<string, unknown> = notesWritten
+    ? advancePayload
+    : { notes: mergeTrustedNotes(application.notes, input, completedAt), ...advancePayload };
+
+  if (Object.keys(updatePayload).length > 0) {
+    const { error: updateError } = await admin.from("applications").update(updatePayload).eq("id", input.applicationId);
+    if (updateError) {
+      return { ok: false, code: "write_failed", error: `Failed to save step result: ${errorMessage(updateError)}` };
+    }
   }
 
   return { ok: true, next: nextStepForCandidate(decision) };
+}
+
+// ============================================================================
+// Moving a candidate on after a step, in auto mode (2026-10-05)
+// ============================================================================
+//
+// Owner: in auto mode nobody is ever parked part-way. Every applicant takes
+// every test up to and including the last one, Ava only scores and flags, and
+// he decides at the end. Until now the move to the next step waited on Ava's
+// full write-up (37-47 s per step) and on her recommendation, which parked the
+// owner's own test applicant twice.
+//
+// advanceAfterStep is the move on its own: it never reads Ava's output. It
+//   1. only acts for a job whose processing_mode (read from the DATABASE by
+//      the caller, never from the browser) is "auto";
+//   2. only moves someone off the step they say they finished when that step
+//      IS their current phase — a retry, a stale tab or a missing step id can
+//      never skip a step (a retry after the move answers "already moved" and
+//      writes nothing);
+//   3. requires that step's own result to be stored first (stepResultLanded);
+//   4. moves phase with one compare-and-set UPDATE ... WHERE phase = the
+//      finished step AND status NOT IN (rejected, hired, offered), so two
+//      requests can never both move them;
+//   5. after the last real step, moves them to the Decision stage
+//      (DECISION_STAGE_ID, the stage every journey screen ends on), and stops
+//      before a voice_interview exactly like every other auto-mode rule.
+// trigger-ava-analysis calls it and then scores in the background.
+
+/** Statuses after which nothing moves a candidate any more. */
+const CLOSED_STATUSES = new Set(["rejected", "hired", "offered"]);
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+/** The application fields the advance needs, as the caller already read them. */
+export interface AdvanceSnapshot {
+  phase: string | null;
+  status: string | null;
+  notes: unknown;
+  voice_interview_result?: unknown;
+}
+
+/** Step types whose result only ever arrives through recordStepResult, which
+ *  always writes the per-step `_trusted[step.id]` marker beside it. */
+const SERVER_RECORDED_STEP_TYPES = new Set([
+  "typing_test",
+  "chat_simulation",
+  "chat_interview",
+  "sales_simulation",
+  "portfolio_upload",
+  "video_intro",
+  "video_message",
+]);
+
+/**
+ * Whether `step`'s own result is stored — the evidence the advance needs
+ * before it moves anyone off that step. A server-only `_trusted[step.id]`
+ * marker (recordStepResult) is enough on its own.
+ *
+ * For a step type recorded through recordStepResult that marker is also
+ * REQUIRED once the row has any `_trusted` markers at all: the per-type keys
+ * (typingTestResult, chatSimulationResult, ...) are shared by every step of
+ * that type, so in a job with two chat simulations the first one's result
+ * would otherwise count as the second's and move the candidate past a step
+ * they never took. Only a legacy row with no `_trusted` object at all falls
+ * back to those keys. The application form (sent: status no longer
+ * "in_progress", answers saved), the quiz (its own database function writes
+ * quizResult) and the voice interview (its own column) have no marker and
+ * are read the way trigger-ava-analysis and autopilot-batch read them.
+ */
+export function stepResultLanded(step: CandidateJourneyStep, application: AdvanceSnapshot): boolean {
+  const notes = parseNotesObject(application.notes);
+  const trustedMarkers = isPlainObject(notes._trusted) ? notes._trusted : null;
+  const trusted = trustedMarkers ? trustedMarkers[step.id] : undefined;
+  if (isPlainObject(trusted) && typeof trusted.stepType === "string" && typeMatchesPhase(trusted.stepType, step.type)) {
+    return true;
+  }
+  if (trustedMarkers && SERVER_RECORDED_STEP_TYPES.has(step.type)) {
+    return false;
+  }
+
+  switch (step.type) {
+    case "application":
+      return application.status !== "in_progress" && Array.isArray(notes.applicationAnswers);
+    case "quiz": {
+      const byId = notes[step.id];
+      return isPlainObject(notes.quizResult) || (isPlainObject(byId) && !!byId.completedAt);
+    }
+    case "typing_test":
+      return isPlainObject(notes.typingTestResult);
+    case "chat_simulation":
+      return isPlainObject(notes.chatSimulationResult);
+    case "chat_interview":
+      return isPlainObject(notes.chatInterviewResult);
+    case "sales_simulation":
+      return isPlainObject(notes.salesSimulationResult);
+    case "portfolio_upload":
+      return isPlainObject(notes[step.id]) || isPlainObject(notes.portfolioResult);
+    case "video_intro":
+    case "video_message":
+      return !!notes.videoIntroUrl || isPlainObject(notes.videoIntroResult) || isPlainObject(notes[step.id]);
+    case "voice_interview":
+      return application.voice_interview_result != null;
+    default:
+      return false;
+  }
+}
+
+/**
+ * Whether the analysis stored in notes.avaAnalysisMeta has already read
+ * `stepId`'s result, so a repeat request about that step need not start
+ * another. True when that analysis STARTED after the step's result was
+ * recorded (`_trusted[stepId].completedAt`, written by recordStepResult; a
+ * run reads the row when it starts). For a step with no such marker (the
+ * application form, the quiz) it is true when that analysis was the one the
+ * step itself asked for (`triggeredByStep`).
+ *
+ * False whenever nothing says so (an analysis saved by an older version has
+ * no start time), and the caller then scores again: at worst a run repeats,
+ * which is what every request did before 2026-10-05.
+ *
+ * This is what makes a step that moves the candidate on by itself get
+ * scored: complete-video-intro and ai-analyze-portfolio advance in auto mode
+ * inside recordStepResult, so the page's own trigger call finds the
+ * candidate already moved ("already_advanced") — yet no analysis has read
+ * that video or portfolio.
+ */
+export function analysisCoversStep(stepId: string, notes: unknown): boolean {
+  const parsed = parseNotesObject(notes);
+  const meta = isPlainObject(parsed.avaAnalysisMeta) ? parsed.avaAnalysisMeta : null;
+  if (!meta) return false;
+
+  const marker = isPlainObject(parsed._trusted) ? parsed._trusted[stepId] : undefined;
+  const recordedAt = isPlainObject(marker) && typeof marker.completedAt === "string" ? Date.parse(marker.completedAt) : NaN;
+  if (Number.isFinite(recordedAt)) {
+    const startedAt = typeof meta.analysisStartedAt === "string" ? Date.parse(meta.analysisStartedAt) : NaN;
+    return Number.isFinite(startedAt) && startedAt >= recordedAt;
+  }
+  return meta.triggeredByStep === stepId && typeof meta.analysisStartedAt === "string";
+}
+
+export type AutoAdvanceRefusal =
+  /** The job is not in auto mode — nothing here moves anyone. */
+  | "not_auto_mode"
+  /** No finished step was named. The advance never guesses it from `phase`. */
+  | "no_step_id"
+  /** The named step is not a real step of this job's journey (or is Decision). */
+  | "unknown_step"
+  /** The application is rejected, hired or offered. */
+  | "application_closed"
+  /** The candidate is not on that step (and not just past it). */
+  | "phase_mismatch"
+  /** The step's own result is not stored yet. */
+  | "result_missing";
+
+export type AutoAdvancePlan =
+  | {
+      kind: "advance";
+      completedStep: CandidateJourneyStep;
+      nextStep: CandidateJourneyStep;
+      nextStatus: "reviewing";
+      finishedAllSteps: boolean;
+    }
+  | {
+      /** A repeat of a request that already moved them: nothing to write. */
+      kind: "already_advanced";
+      completedStep: CandidateJourneyStep;
+      nextStep: CandidateJourneyStep;
+      finishedAllSteps: boolean;
+    }
+  | { kind: "needs_employer_approval"; completedStep: CandidateJourneyStep; nextStep: CandidateJourneyStep }
+  | { kind: "refused"; reason: AutoAdvanceRefusal };
+
+/** Pure: what moving on after `completedStepId` means for this application. */
+export function planAutoAdvance(input: {
+  steps: readonly CandidateJourneyStep[];
+  completedStepId: string | null | undefined;
+  application: AdvanceSnapshot;
+  processingMode: string | null | undefined;
+}): AutoAdvancePlan {
+  const { steps, completedStepId, application, processingMode } = input;
+  if (processingMode !== "auto") return { kind: "refused", reason: "not_auto_mode" };
+  if (!completedStepId) return { kind: "refused", reason: "no_step_id" };
+  if (application.status && CLOSED_STATUSES.has(application.status)) {
+    return { kind: "refused", reason: "application_closed" };
+  }
+
+  const index = steps.findIndex((step) => step.id === completedStepId);
+  const completedStep = index === -1 ? null : steps[index];
+  if (!completedStep || completedStep.id === DECISION_STAGE_ID) {
+    return { kind: "refused", reason: "unknown_step" };
+  }
+
+  // Same next-step rule as everywhere else (stops before voice_interview).
+  // The step was found by id, so this never falls back to `phase`.
+  const decision = computeNextStepDecision(steps, completedStep.id, completedStep.id, "auto");
+  const nextStep = decision.nextStep;
+  if (!nextStep) return { kind: "refused", reason: "unknown_step" };
+
+  const landed = stepResultLanded(completedStep, application);
+
+  if (application.phase === completedStep.id) {
+    if (!landed) return { kind: "refused", reason: "result_missing" };
+    if (!decision.advance) {
+      return { kind: "needs_employer_approval", completedStep, nextStep };
+    }
+    return {
+      kind: "advance",
+      completedStep,
+      nextStep,
+      nextStatus: decision.nextStatus,
+      finishedAllSteps: nextStep.id === DECISION_STAGE_ID,
+    };
+  }
+
+  if (decision.advance && application.phase === nextStep.id && landed) {
+    return { kind: "already_advanced", completedStep, nextStep, finishedAllSteps: nextStep.id === DECISION_STAGE_ID };
+  }
+
+  return { kind: "refused", reason: "phase_mismatch" };
+}
+
+/** The slice of the Supabase client advanceAfterStep uses: a compare-and-set
+ *  UPDATE and a one-row read. The real client fits it (call sites cast, the
+ *  same way they do for MinimalSupabaseAdmin). */
+export interface AdvanceAdmin {
+  from(table: string): {
+    update(values: Record<string, unknown>): {
+      eq(column: string, value: string): {
+        eq(column: string, value: string): {
+          not(column: string, operator: string, value: string): {
+            select(columns: string): { maybeSingle(): PromiseLike<{ data: unknown; error: unknown }> };
+          };
+        };
+      };
+    };
+    select(columns: string): {
+      eq(column: string, value: string): { maybeSingle(): PromiseLike<{ data: unknown; error: unknown }> };
+    };
+  };
+}
+
+export type AdvanceAfterStepOutcome =
+  | (Extract<AutoAdvancePlan, { kind: "advance" }> & { moved: true })
+  | Extract<AutoAdvancePlan, { kind: "already_advanced" | "needs_employer_approval" }>
+  | { kind: "refused"; reason: AutoAdvanceRefusal | "state_changed"; currentPhase: string | null; currentStatus: string | null }
+  | { kind: "error"; error: string };
+
+/**
+ * Moves the candidate on after `completedStepId`, at once, without waiting on
+ * or reading Ava. See the section comment above for the rules; this adds the
+ * one write. If the compare-and-set finds the row already changed, it re-reads
+ * it once so a concurrent duplicate request reads "already moved" rather than
+ * a failure.
+ */
+export async function advanceAfterStep(
+  admin: AdvanceAdmin,
+  input: {
+    applicationId: string;
+    steps: readonly CandidateJourneyStep[];
+    completedStepId: string | null | undefined;
+    application: AdvanceSnapshot;
+    processingMode: string | null | undefined;
+  },
+): Promise<AdvanceAfterStepOutcome> {
+  const plan = planAutoAdvance(input);
+  if (plan.kind === "refused") {
+    return { kind: "refused", reason: plan.reason, currentPhase: input.application.phase, currentStatus: input.application.status };
+  }
+  if (plan.kind !== "advance") return plan;
+
+  const { data, error } = await admin
+    .from("applications")
+    .update({ phase: plan.nextStep.id, status: plan.nextStatus })
+    .eq("id", input.applicationId)
+    .eq("phase", plan.completedStep.id)
+    .not("status", "in", `(${Array.from(CLOSED_STATUSES).join(",")})`)
+    .select("id, status, phase")
+    .maybeSingle();
+
+  if (error) return { kind: "error", error: `Failed to move the candidate on: ${errorMessage(error)}` };
+  if (data) return { ...plan, moved: true };
+
+  // Nothing matched: something else changed the row first. Read it once.
+  const { data: latest } = await admin
+    .from("applications")
+    .select("phase, status")
+    .eq("id", input.applicationId)
+    .maybeSingle();
+  const latestRow = isPlainObject(latest) ? latest : {};
+  const currentPhase = typeof latestRow.phase === "string" ? latestRow.phase : null;
+  const currentStatus = typeof latestRow.status === "string" ? latestRow.status : null;
+  if (currentPhase === plan.nextStep.id && !(currentStatus && CLOSED_STATUSES.has(currentStatus))) {
+    return { kind: "already_advanced", completedStep: plan.completedStep, nextStep: plan.nextStep, finishedAllSteps: plan.finishedAllSteps };
+  }
+  return {
+    kind: "refused",
+    reason: currentStatus && CLOSED_STATUSES.has(currentStatus) ? "application_closed" : "state_changed",
+    currentPhase,
+    currentStatus,
+  };
+}
+
+/**
+ * Whether the request that got `outcome` from advanceAfterStep should start
+ * Ava's analysis. Yes when it moved the candidate on. Yes for "already
+ * moved on" or "waiting on the employer" when no stored analysis has read
+ * this step's result yet (analysisCoversStep): a video intro or a portfolio
+ * moves the candidate on by itself, so the page's own call after it always
+ * finds them already moved and is the only request that will ever ask for
+ * that step to be scored. No for a true repeat (the step's analysis already
+ * started after its result was recorded), so a network retry does not pay
+ * for a second analysis or notify the employer twice. No for a refusal.
+ */
+export function shouldScoreAfterStep(outcome: AdvanceAfterStepOutcome, notes: unknown): boolean {
+  if (outcome.kind === "advance") return true;
+  if (outcome.kind === "already_advanced" || outcome.kind === "needs_employer_approval") {
+    return !analysisCoversStep(outcome.completedStep.id, notes);
+  }
+  return false;
 }

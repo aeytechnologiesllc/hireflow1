@@ -23,7 +23,14 @@ import {
   computeNextStepDecision,
   nextStepForCandidate,
   mergeTrustedNotes,
+  buildTrustedNotesPatch,
   recordStepResult,
+  stepResultLanded,
+  planAutoAdvance,
+  advanceAfterStep,
+  analysisCoversStep,
+  shouldScoreAfterStep,
+  withoutNulCharacters,
 } from "../supabase/functions/_shared/trustedResults.ts";
 import { buildCandidateJourney, DECISION_STAGE_ID } from "../supabase/functions/_shared/candidateJourney.ts";
 
@@ -548,6 +555,10 @@ for (const { stepType, resultKey } of neverAdvanceCases) {
 // ever writes status: "reviewing" + phase_ai_analysis — it NEVER touches
 // phase either. The candidate must end this whole flow still sitting on
 // the step they just submitted, never one step into the next.
+// (Since 2026-10-05 that reject branch is reached for MANUAL jobs only. An
+// auto-mode job never parks anyone: trigger-ava-analysis moves them on with
+// advanceAfterStep, proved further down, and recordStepResult itself still
+// never moves a "never" step.)
 console.log("\nrecordStepResult — recommend-decline path leaves phase exactly where it was:\n");
 {
   const workflowSteps = [
@@ -641,6 +652,700 @@ console.log("\nrecordStepResult — advance:\"auto_mode\" steps (portfolio_uploa
   check(
     "portfolio_upload manual mode: phase is NOT advanced — manual mode never advances regardless of advance:\"auto_mode\"",
     manualRow.phase === "wf-portfolio",
+  );
+}
+
+// ============================================================================
+// recordStepResult writes notes through merge_application_notes (2026-10-05)
+//
+// Ava now scores in the background after the candidate has already moved on,
+// so the old whole-notes write (read the row, merge in JS, write the WHOLE
+// object back) could erase a scorecard that landed in between, and Ava's own
+// whole-notes write could erase the next step's result. With a client that
+// has .rpc, recordStepResult hands the database only the keys it owns.
+// ============================================================================
+console.log("\nrecordStepResult — notes go through merge_application_notes:\n");
+
+/** fakeAdmin plus an `rpc` that merges like the SQL function does, against
+ *  the row AS IT IS when the RPC runs — and an optional hook that runs right
+ *  after recordStepResult's own read, to simulate a write landing between
+ *  that read and its write. */
+function fakeAdminWithMerge(row, { afterRead, rpcError } = {}) {
+  const base = fakeAdmin(row);
+  const calls = [];
+  return {
+    calls,
+    from(table) {
+      const inner = base.from(table);
+      return {
+        select(columns) {
+          return {
+            eq(column, value) {
+              return {
+                async maybeSingle() {
+                  const result = await inner.select(columns).eq(column, value).maybeSingle();
+                  if (afterRead) afterRead(row);
+                  return result;
+                },
+              };
+            },
+          };
+        },
+        update(values) {
+          calls.push({ kind: "update", values });
+          return inner.update(values);
+        },
+      };
+    },
+    async rpc(fn, args) {
+      calls.push({ kind: "rpc", fn, args });
+      if (rpcError) return { data: null, error: rpcError };
+      let existing = {};
+      try {
+        const parsed = row.notes ? JSON.parse(row.notes) : {};
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) existing = parsed;
+      } catch {
+        existing = {};
+      }
+      const merged = { ...existing, ...args.p_patch };
+      row.notes = JSON.stringify(merged);
+      return { data: merged, error: null };
+    },
+  };
+}
+
+{
+  const workflowSteps = [
+    { id: "wf-typing", type: "typing_test", title: "Typing test" },
+    { id: "wf-chat", type: "chat_simulation", title: "Chat simulation" },
+  ];
+  const lateScorecard = { overallScore: 58, evidenceFingerprint: "landed-meanwhile" };
+  const row = newRow({
+    phase: "wf-typing",
+    notes: JSON.stringify({ applicationAnswers: [{ question: "Name", answer: "A" }] }),
+    jobs: { processing_mode: "auto", workflow_steps: workflowSteps, quiz_questions: undefined },
+  });
+  // Ava's background write lands after recordStepResult has read the row.
+  const admin = fakeAdminWithMerge(row, {
+    afterRead(r) {
+      const notes = JSON.parse(r.notes);
+      r.notes = JSON.stringify({ ...notes, avaScorecard: lateScorecard });
+    },
+  });
+  const outcome = await recordStepResult(admin, {
+    applicationId: "app-1",
+    callerUserId: "cand-1",
+    stepId: "wf-typing",
+    stepType: "typing_test",
+    advance: "never",
+    resultKey: "typingTestResult",
+    result: { wpm: 52 },
+    legacyStepEntry: { type: "typing_test", wpm: 52 },
+  });
+  const notes = JSON.parse(row.notes);
+  check("merge path: recordStepResult succeeds", outcome.ok === true, outcome.ok ? "" : outcome.error);
+  const rpcCall = admin.calls.find((call) => call.kind === "rpc");
+  check("merge path: it calls merge_application_notes", rpcCall?.fn === "merge_application_notes");
+  check(
+    "merge path: the patch carries only this step's keys (result, by-id entry, _trusted)",
+    rpcCall && Object.keys(rpcCall.args.p_patch).sort().join(",") === ["_trusted", "typingTestResult", "wf-typing"].sort().join(","),
+    rpcCall ? Object.keys(rpcCall.args.p_patch).join(",") : "no rpc call",
+  );
+  check("merge path: the patch never carries the application answers", rpcCall && !("applicationAnswers" in rpcCall.args.p_patch));
+  check(
+    "merge path: a scorecard written between the read and the write SURVIVES",
+    notes.avaScorecard?.evidenceFingerprint === "landed-meanwhile",
+    JSON.stringify(notes.avaScorecard),
+  );
+  check("merge path: the step result landed", notes.typingTestResult?.wpm === 52 && notes._trusted?.["wf-typing"]?.stepType === "typing_test");
+  check("merge path: the answers are untouched", notes.applicationAnswers?.[0]?.answer === "A");
+  check(
+    "merge path: an advance:\"never\" step makes no .update() call at all",
+    !admin.calls.some((call) => call.kind === "update"),
+    JSON.stringify(admin.calls.filter((call) => call.kind === "update")),
+  );
+  check("merge path: phase/status untouched", row.phase === "wf-typing" && row.status === "reviewing");
+}
+
+{
+  // The same race through the OLD path (an adapter without .rpc) erases the
+  // scorecard — the defect the merge path exists to remove.
+  const row = newRow({
+    phase: "wf-typing",
+    notes: JSON.stringify({ applicationAnswers: [] }),
+    jobs: { processing_mode: "auto", workflow_steps: [{ id: "wf-typing", type: "typing_test" }], quiz_questions: undefined },
+  });
+  const legacy = fakeAdmin(row);
+  const wrapped = {
+    from(table) {
+      const inner = legacy.from(table);
+      return {
+        select: (columns) => ({
+          eq: (column, value) => ({
+            async maybeSingle() {
+              const result = await inner.select(columns).eq(column, value).maybeSingle();
+              row.notes = JSON.stringify({ ...JSON.parse(row.notes), avaScorecard: { overallScore: 1 } });
+              return result;
+            },
+          }),
+        }),
+        update: (values) => inner.update(values),
+      };
+    },
+  };
+  await recordStepResult(wrapped, {
+    applicationId: "app-1",
+    callerUserId: "cand-1",
+    stepId: "wf-typing",
+    stepType: "typing_test",
+    advance: "never",
+    resultKey: "typingTestResult",
+    result: { wpm: 40 },
+  });
+  check(
+    "(control) without .rpc the old whole-notes write still erases a scorecard that landed meanwhile",
+    JSON.parse(row.notes).avaScorecard === undefined,
+  );
+}
+
+{
+  // advance:"auto_mode" (portfolio) through the merge path: notes via the
+  // RPC first, then one phase/status update.
+  const workflowSteps = [
+    { id: "wf-portfolio", type: "portfolio_upload", title: "Portfolio" },
+    { id: "wf-chat4", type: "chat_simulation", title: "Chat simulation" },
+  ];
+  const row = newRow({
+    phase: "wf-portfolio",
+    jobs: { processing_mode: "auto", workflow_steps: workflowSteps, quiz_questions: undefined },
+  });
+  const admin = fakeAdminWithMerge(row);
+  const outcome = await recordStepResult(admin, {
+    applicationId: "app-1",
+    callerUserId: "cand-1",
+    stepId: "wf-portfolio",
+    stepType: "portfolio_upload",
+    advance: "auto_mode",
+    resultKey: "portfolioResult",
+    result: { score: 90 },
+  });
+  const order = admin.calls.map((call) => call.kind).join(",");
+  check("merge path, auto_mode: succeeds", outcome.ok === true);
+  check("merge path, auto_mode: notes first, then the move", order === "rpc,update", order);
+  const update = admin.calls.find((call) => call.kind === "update");
+  check(
+    "merge path, auto_mode: the update carries only phase/status, never the whole notes",
+    update && Object.keys(update.values).sort().join(",") === "phase,status",
+    update ? Object.keys(update.values).join(",") : "no update",
+  );
+  check("merge path, auto_mode: phase advanced", row.phase === "wf-chat4");
+  check("merge path, auto_mode: result stored", JSON.parse(row.notes).portfolioResult?.score === 90);
+}
+
+{
+  // Migration not applied yet: PGRST202 falls back to the old single write.
+  const row = newRow({
+    phase: "wf-current",
+    jobs: { processing_mode: "auto", workflow_steps: [{ id: "wf-current", type: "typing_test" }], quiz_questions: undefined },
+  });
+  const admin = fakeAdminWithMerge(row, { rpcError: { code: "PGRST202", message: "Could not find the function" } });
+  const originalError = console.error;
+  console.error = () => {};
+  const outcome = await recordStepResult(admin, {
+    applicationId: "app-1",
+    callerUserId: "cand-1",
+    stepId: "wf-current",
+    stepType: "typing_test",
+    advance: "never",
+    resultKey: "typingTestResult",
+    result: { wpm: 33 },
+  });
+  console.error = originalError;
+  check("missing RPC: still saves the result (falls back, loudly)", outcome.ok === true && JSON.parse(row.notes).typingTestResult?.wpm === 33);
+
+  // Any other RPC failure is a real failure — never a silent fallback.
+  const row2 = newRow({
+    phase: "wf-current",
+    jobs: { processing_mode: "auto", workflow_steps: [{ id: "wf-current", type: "typing_test" }], quiz_questions: undefined },
+  });
+  const admin2 = fakeAdminWithMerge(row2, { rpcError: { code: "57014", message: "canceling statement due to statement timeout" } });
+  const outcome2 = await recordStepResult(admin2, {
+    applicationId: "app-1",
+    callerUserId: "cand-1",
+    stepId: "wf-current",
+    stepType: "typing_test",
+    advance: "never",
+    resultKey: "typingTestResult",
+    result: { wpm: 33 },
+  });
+  check("other RPC error: write_failed, nothing written", outcome2.ok === false && outcome2.code === "write_failed" && row2.notes === null);
+  check("other RPC error: no whole-notes fallback write", !admin2.calls.some((call) => call.kind === "update"));
+}
+
+check(
+  "buildTrustedNotesPatch + spread equals mergeTrustedNotes (one rule, two uses)",
+  (() => {
+    const existing = { a: 1, _trusted: { s0: { stepType: "quiz", completedAt: "x" } } };
+    const input = { stepId: "s1", stepType: "typing_test", resultKey: "typingTestResult", result: { wpm: 1 }, legacyStepEntry: { wpm: 1 } };
+    const viaPatch = JSON.stringify({ ...existing, ...buildTrustedNotesPatch(existing, input, "t") });
+    return viaPatch === mergeTrustedNotes(JSON.stringify(existing), input, "t");
+  })(),
+);
+
+// ============================================================================
+// Moving on after a step in auto mode — planAutoAdvance / advanceAfterStep
+// (2026-10-05). The live Zulu job's journey: application -> Skills check ->
+// typing -> player chat practice -> written interview -> Decision.
+// ============================================================================
+console.log("\nAuto mode: moving on after a step, without waiting on Ava:\n");
+
+const ZULU = buildCandidateJourney(
+  [
+    { id: "step_typing", type: "typing_test", title: "Typing speed and accuracy" },
+    { id: "step_chat", type: "chat_simulation", title: "Player chat practice" },
+    { id: "step_interview", type: "chat_interview", title: "Written interview" },
+  ],
+  { hasQuiz: true },
+);
+const trusted = (stepId, stepType) => ({ _trusted: { [stepId]: { stepType, completedAt: "2026-10-05T15:47:40.146Z" } } });
+const plan = (completedStepId, application, processingMode = "auto") =>
+  planAutoAdvance({ steps: ZULU, completedStepId, application, processingMode });
+
+{
+  const answers = JSON.stringify({ applicationAnswers: [{ question: "Full name", answer: "A" }] });
+  const p1 = plan("application", { phase: "application", status: "pending", notes: answers });
+  check(
+    "application sent -> Skills check, titled the way the journey titles it",
+    p1.kind === "advance" && p1.nextStep.id === "quiz" && p1.nextStep.title === "Skills check" && p1.nextStatus === "reviewing",
+    JSON.stringify(p1),
+  );
+  const p1b = plan("application", { phase: "application", status: "in_progress", notes: answers });
+  check("a form still being filled in (in_progress) is not moved on", p1b.kind === "refused" && p1b.reason === "result_missing");
+
+  const p2 = plan("quiz", { phase: "quiz", status: "reviewing", notes: JSON.stringify({ quizResult: { score: 40 } }) });
+  check("skills check graded (even a low score) -> typing test", p2.kind === "advance" && p2.nextStep.id === "step_typing");
+  const p2b = plan("quiz", { phase: "quiz", status: "reviewing", notes: "{}" });
+  check("skills check not graded yet -> nobody moves", p2b.kind === "refused" && p2b.reason === "result_missing");
+
+  const p3 = plan("step_typing", { phase: "step_typing", status: "reviewing", notes: JSON.stringify(trusted("step_typing", "typing_test")) });
+  check(
+    "typing recorded -> Player chat practice (38 WPM or not, Ava is not asked)",
+    p3.kind === "advance" && p3.nextStep.id === "step_chat" && p3.nextStep.title === "Player chat practice",
+  );
+  const p3b = plan("step_chat", { phase: "step_chat", status: "reviewing", notes: JSON.stringify(trusted("step_typing", "typing_test")) });
+  check("the chat step's own result is required, not an earlier step's", p3b.kind === "refused" && p3b.reason === "result_missing");
+
+  const p4 = plan("step_interview", {
+    phase: "step_interview",
+    status: "reviewing",
+    notes: JSON.stringify({ chatInterviewResult: { evaluation: { score: 25 } } }),
+  });
+  check(
+    "written interview done -> the Decision stage, and the journey is finished",
+    p4.kind === "advance" && p4.nextStep.id === DECISION_STAGE_ID && p4.nextStep.title === "Decision" && p4.finishedAllSteps === true,
+    JSON.stringify(p4),
+  );
+  check("only the last step finishes the journey", p3.kind === "advance" && p3.finishedAllSteps === false);
+
+  console.log("\nA retry can never skip a step:\n");
+  const retry = plan("step_typing", { phase: "step_chat", status: "reviewing", notes: JSON.stringify(trusted("step_typing", "typing_test")) });
+  check("a repeat after the move answers 'already moved' and writes nothing", retry.kind === "already_advanced" && retry.nextStep.id === "step_chat");
+  const late = plan("step_typing", {
+    phase: "step_interview",
+    status: "reviewing",
+    notes: JSON.stringify({ ...trusted("step_typing", "typing_test") }),
+  });
+  check("a repeat two steps late is refused, not applied", late.kind === "refused" && late.reason === "phase_mismatch");
+  const ahead = plan("step_chat", { phase: "step_typing", status: "reviewing", notes: JSON.stringify(trusted("step_typing", "typing_test")) });
+  check("naming a step they have not reached is refused", ahead.kind === "refused" && ahead.reason === "phase_mismatch");
+  const noId = plan(null, { phase: "step_typing", status: "reviewing", notes: JSON.stringify(trusted("step_typing", "typing_test")) });
+  check("no step named: refused — it never falls back to the stored phase", noId.kind === "refused" && noId.reason === "no_step_id");
+  check("the Decision stage is not a step to finish", plan(DECISION_STAGE_ID, { phase: DECISION_STAGE_ID, status: "reviewing", notes: "{}" }).reason === "unknown_step");
+  check("an unknown step id is refused", plan("step_nope", { phase: "step_nope", status: "reviewing", notes: "{}" }).reason === "unknown_step");
+
+  console.log("\nOnly auto-mode jobs, and only open applications:\n");
+  check(
+    "manual job: nothing moves (the owner moves people himself)",
+    plan("step_typing", { phase: "step_typing", status: "reviewing", notes: JSON.stringify(trusted("step_typing", "typing_test")) }, "manual").reason === "not_auto_mode",
+  );
+  for (const status of ["rejected", "hired", "offered"]) {
+    check(
+      `${status}: never moved`,
+      plan("step_typing", { phase: "step_typing", status, notes: JSON.stringify(trusted("step_typing", "typing_test")) }).reason === "application_closed",
+    );
+  }
+
+  const voiceSteps = buildCandidateJourney(
+    [
+      { id: "wf-typing", type: "typing_test" },
+      { id: "wf-voice", type: "voice_interview" },
+    ],
+    { hasQuiz: false },
+  );
+  const voice = planAutoAdvance({
+    steps: voiceSteps,
+    completedStepId: "wf-typing",
+    application: { phase: "wf-typing", status: "reviewing", notes: JSON.stringify({ typingTestResult: { wpm: 50 } }) },
+    processingMode: "auto",
+  });
+  check("a voice interview next still waits for the employer to set it up", voice.kind === "needs_employer_approval");
+}
+
+console.log("\nstepResultLanded reads each step type's own result:\n");
+{
+  const step = (id, type) => ({ id, type, title: type });
+  check("a _trusted marker of the right type is enough", stepResultLanded(step("s", "chat_simulation"), { phase: "s", status: "reviewing", notes: trusted("s", "chat_simulation") }));
+  check("a _trusted marker of the WRONG type is not", !stepResultLanded(step("s", "chat_simulation"), { phase: "s", status: "reviewing", notes: trusted("s", "typing_test") }));
+  check("video_message counts as video_intro", stepResultLanded(step("v", "video_intro"), { phase: "v", status: "reviewing", notes: trusted("v", "video_message") }));
+  check("voice: the result column", stepResultLanded(step("vo", "voice_interview"), { phase: "vo", status: "reviewing", notes: null, voice_interview_result: { overall_score: 70 } }));
+  check("malformed notes read as nothing landed", !stepResultLanded(step("s", "typing_test"), { phase: "s", status: "reviewing", notes: "{oops" }));
+}
+
+console.log("\nadvanceAfterStep: one compare-and-set write:\n");
+
+/** A fake for advanceAfterStep's update/select chains that really applies
+ *  the eq/not filters against one row. */
+function casAdmin(row, { error } = {}) {
+  const writes = [];
+  return {
+    writes,
+    from() {
+      return {
+        update(values) {
+          const filters = [];
+          const chain = {
+            eq(column, value) {
+              filters.push((r) => r[column] === value);
+              return chain;
+            },
+            not(column, operator, value) {
+              const list = value.replace(/^\(|\)$/g, "").split(",");
+              filters.push((r) => !list.includes(r[column]));
+              return chain;
+            },
+            select() {
+              return {
+                async maybeSingle() {
+                  writes.push({ values, filters: filters.length });
+                  if (error) return { data: null, error };
+                  if (!filters.every((f) => f(row))) return { data: null, error: null };
+                  Object.assign(row, values);
+                  return { data: { id: row.id, phase: row.phase, status: row.status }, error: null };
+                },
+              };
+            },
+          };
+          return chain;
+        },
+        select() {
+          return {
+            eq() {
+              return { maybeSingle: async () => ({ data: { phase: row.phase, status: row.status }, error: null }) };
+            },
+          };
+        },
+      };
+    },
+  };
+}
+
+{
+  const snapshot = { phase: "step_chat", status: "reviewing", notes: JSON.stringify(trusted("step_chat", "chat_simulation")) };
+  const row = { id: "app-z", ...snapshot };
+  const admin = casAdmin(row);
+  const outcome = await advanceAfterStep(admin, {
+    applicationId: "app-z",
+    steps: ZULU,
+    completedStepId: "step_chat",
+    application: snapshot,
+    processingMode: "auto",
+  });
+  check("moves the row on", outcome.kind === "advance" && outcome.moved === true && row.phase === "step_interview" && row.status === "reviewing");
+  check("with three filters: id, phase = the finished step, status still open", admin.writes[0]?.filters === 3, JSON.stringify(admin.writes));
+
+  // The same request again (a network retry) from the same old snapshot: the
+  // compare-and-set matches nothing, the re-read says they already moved.
+  const again = await advanceAfterStep(admin, {
+    applicationId: "app-z",
+    steps: ZULU,
+    completedStepId: "step_chat",
+    application: snapshot,
+    processingMode: "auto",
+  });
+  check("a duplicate request reads 'already moved', and does not move them twice", again.kind === "already_advanced" && row.phase === "step_interview");
+
+  // Staff moved them somewhere else meanwhile: refused, nothing written.
+  const row2 = { id: "app-y", ...snapshot, phase: "quiz" };
+  const lost = await advanceAfterStep(casAdmin(row2), {
+    applicationId: "app-y",
+    steps: ZULU,
+    completedStepId: "step_chat",
+    application: snapshot,
+    processingMode: "auto",
+  });
+  check("if the row changed under it, it refuses and leaves the row alone", lost.kind === "refused" && lost.reason === "state_changed" && row2.phase === "quiz");
+
+  // Rejected in between: the status filter stops the write.
+  const row3 = { id: "app-x", ...snapshot, status: "rejected" };
+  const closed = await advanceAfterStep(casAdmin(row3), {
+    applicationId: "app-x",
+    steps: ZULU,
+    completedStepId: "step_chat",
+    application: snapshot,
+    processingMode: "auto",
+  });
+  check("rejected in between: not moved", closed.kind === "refused" && closed.reason === "application_closed" && row3.phase === "step_chat");
+
+  const failing = await advanceAfterStep(casAdmin({ id: "app-w", ...snapshot }, { error: { message: "boom" } }), {
+    applicationId: "app-w",
+    steps: ZULU,
+    completedStepId: "step_chat",
+    application: snapshot,
+    processingMode: "auto",
+  });
+  check("a database error is reported, not swallowed", failing.kind === "error" && /boom/.test(failing.error));
+
+  const refusedEarly = await advanceAfterStep(casAdmin({ id: "app-v", ...snapshot }), {
+    applicationId: "app-v",
+    steps: ZULU,
+    completedStepId: "step_chat",
+    application: { ...snapshot, notes: "{}" },
+    processingMode: "auto",
+  });
+  check("no stored result: refused before any write", refusedEarly.kind === "refused" && refusedEarly.reason === "result_missing");
+}
+
+// ============================================================================
+// Review fixes (2026-10-05, second pass).
+// ============================================================================
+console.log("\nstepResultLanded: a step recorded by the server needs its OWN marker:\n");
+{
+  const twoChats = buildCandidateJourney(
+    [
+      { id: "wf-chat-a", type: "chat_simulation", title: "Chat A" },
+      { id: "wf-chat-b", type: "chat_simulation", title: "Chat B" },
+      { id: "wf-interview", type: "chat_interview", title: "Interview" },
+    ],
+    { hasQuiz: false },
+  );
+  const afterFirstChat = JSON.stringify({
+    applicationAnswers: [{ question: "Name", answer: "A" }],
+    chatSimulationResult: { score: 70 },
+    _trusted: { "wf-chat-a": { stepType: "chat_simulation", completedAt: "2026-10-05T15:51:46.150Z" } },
+  });
+  const chatB = twoChats.find((step) => step.id === "wf-chat-b");
+  check(
+    "two chat simulations: the first one's result does NOT count as the second's",
+    stepResultLanded(chatB, { phase: "wf-chat-b", status: "reviewing", notes: afterFirstChat }) === false,
+  );
+  const skip = planAutoAdvance({
+    steps: twoChats,
+    completedStepId: "wf-chat-b",
+    application: { phase: "wf-chat-b", status: "reviewing", notes: afterFirstChat },
+    processingMode: "auto",
+  });
+  check(
+    "so naming the second chat (a batch passes the stored phase) cannot move them past it",
+    skip.kind === "refused" && skip.reason === "result_missing",
+    JSON.stringify(skip),
+  );
+  check(
+    "a legacy row with no _trusted markers at all still reads the per-type key",
+    stepResultLanded(chatB, { phase: "wf-chat-b", status: "reviewing", notes: JSON.stringify({ chatSimulationResult: { score: 70 } }) }) === true,
+  );
+  const quizStep = ZULU.find((step) => step.id === "quiz");
+  check(
+    "the quiz (saved by its own database function, no marker) still reads quizResult beside other markers",
+    stepResultLanded(quizStep, { phase: "quiz", status: "reviewing", notes: JSON.stringify({ ...trusted("step_typing", "typing_test"), quizResult: { score: 40 } }) }),
+  );
+  const appStep = ZULU.find((step) => step.id === "application");
+  check(
+    "the application form still counts once sent with its answers, beside other markers",
+    stepResultLanded(appStep, { phase: "application", status: "pending", notes: JSON.stringify({ ...trusted("step_typing", "typing_test"), applicationAnswers: [] }) }),
+  );
+  check(
+    "the live row's shape (every server step has its own marker) lands each step",
+    ["step_typing", "step_chat", "step_interview"].every((id) =>
+      stepResultLanded(ZULU.find((step) => step.id === id), {
+        phase: id,
+        status: "reviewing",
+        notes: JSON.stringify({
+          typingTestResult: {},
+          chatSimulationResult: {},
+          chatInterviewResult: { evaluation: { score: 25 } },
+          _trusted: {
+            step_typing: { stepType: "typing_test", completedAt: "2026-10-05T15:47:40.146Z" },
+            step_chat: { stepType: "chat_simulation", completedAt: "2026-10-05T15:51:46.150Z" },
+            step_interview: { stepType: "chat_interview", completedAt: "2026-10-05T15:57:59.597Z" },
+          },
+        }),
+      }),
+    ),
+  );
+}
+
+console.log("\nanalysisCoversStep: has the stored analysis read this step's result?\n");
+{
+  const recorded = "2026-10-05T15:51:46.150Z";
+  const notesWith = (meta) => JSON.stringify({ _trusted: { step_chat: { stepType: "chat_simulation", completedAt: recorded } }, avaAnalysisMeta: meta });
+  check("no analysis stored: no", analysisCoversStep("step_chat", JSON.stringify(trusted("step_chat", "chat_simulation"))) === false);
+  check(
+    "an analysis that started after the result was recorded: yes",
+    analysisCoversStep("step_chat", notesWith({ analysisStartedAt: "2026-10-05T15:51:47.000Z", triggeredByStep: "step_chat" })) === true,
+  );
+  check(
+    "an analysis that started before it (the previous step's, still the stored one): no",
+    analysisCoversStep("step_chat", notesWith({ analysisStartedAt: "2026-10-05T15:47:41.000Z", triggeredByStep: "step_typing" })) === false,
+  );
+  check(
+    "an analysis saved by an older version (no start time): no, so it scores again",
+    analysisCoversStep("step_chat", notesWith({ analyzedAt: "2026-10-05T15:52:30.000Z", triggeredByStep: "step_chat" })) === false,
+  );
+  check(
+    "a step with no marker (the quiz): yes only when that analysis was the quiz's own",
+    analysisCoversStep("quiz", JSON.stringify({ quizResult: {}, avaAnalysisMeta: { analysisStartedAt: "2026-10-05T15:45:44.000Z", triggeredByStep: "quiz" } })) === true
+      && analysisCoversStep("quiz", JSON.stringify({ quizResult: {}, avaAnalysisMeta: { analysisStartedAt: "2026-10-05T15:45:44.000Z", triggeredByStep: "application" } })) === false,
+  );
+  check("malformed notes: no", analysisCoversStep("step_chat", "{oops") === false);
+}
+
+console.log("\nA step that moves the candidate on by itself still gets scored:\n");
+{
+  // complete-video-intro / ai-analyze-portfolio call recordStepResult with
+  // advance:"auto_mode", which moves the phase. The page's own trigger call
+  // then finds the candidate already moved on.
+  const steps = buildCandidateJourney(
+    [
+      { id: "wf-typing", type: "typing_test", title: "Typing test" },
+      { id: "wf-portfolio", type: "portfolio_upload", title: "Portfolio" },
+    ],
+    { hasQuiz: false },
+  );
+  const typingAnalysis = { analysisStartedAt: "2026-10-05T15:47:41.000Z", triggeredByStep: "wf-typing" };
+  const row = newRow({
+    phase: "wf-portfolio",
+    status: "reviewing",
+    notes: JSON.stringify({
+      typingTestResult: { wpm: 52 },
+      _trusted: { "wf-typing": { stepType: "typing_test", completedAt: "2026-10-05T15:47:40.146Z" } },
+      avaAnalysisMeta: typingAnalysis,
+    }),
+    jobs: { processing_mode: "auto", workflow_steps: [
+      { id: "wf-typing", type: "typing_test", title: "Typing test" },
+      { id: "wf-portfolio", type: "portfolio_upload", title: "Portfolio" },
+    ], quiz_questions: undefined },
+  });
+  const recorded = await recordStepResult(fakeAdminWithMerge(row), {
+    applicationId: "app-1",
+    callerUserId: "cand-1",
+    stepId: "wf-portfolio",
+    stepType: "portfolio_upload",
+    advance: "auto_mode",
+    resultKey: "portfolioResult",
+    result: { files: [{ name: "work.pdf" }] },
+    legacyStepEntry: { files: [{ name: "work.pdf" }] },
+  });
+  check("(setup) the portfolio's own write moved them to Decision", recorded.ok && row.phase === DECISION_STAGE_ID, JSON.stringify({ recorded, phase: row.phase }));
+
+  const snapshot = { phase: row.phase, status: row.status, notes: row.notes };
+  const outcome = await advanceAfterStep(casAdmin({ id: "app-1", ...snapshot }), {
+    applicationId: "app-1",
+    steps,
+    completedStepId: "wf-portfolio",
+    application: snapshot,
+    processingMode: "auto",
+  });
+  check("the page's call finds them already moved on", outcome.kind === "already_advanced" && outcome.finishedAllSteps === true, JSON.stringify(outcome));
+  const oldRule = (o) => o.kind === "advance" || o.kind === "needs_employer_approval";
+  check("(control) the first-pass rule scored nothing here: the portfolio was never read", oldRule(outcome) === false);
+  check("now that call starts the analysis", shouldScoreAfterStep(outcome, row.notes) === true);
+
+  // The analysis saves (it started after the portfolio was recorded). A
+  // network retry of the same call then starts nothing.
+  const portfolioRecordedAt = JSON.parse(row.notes)._trusted["wf-portfolio"].completedAt;
+  const savedNotes = JSON.stringify({
+    ...JSON.parse(row.notes),
+    avaAnalysisMeta: { analysisStartedAt: new Date(Date.parse(portfolioRecordedAt) + 300).toISOString(), triggeredByStep: "wf-portfolio" },
+  });
+  check("a repeat after that analysis started and saved starts nothing", shouldScoreAfterStep(outcome, savedNotes) === false);
+
+  // The ordinary step: this request moved them, so it scores.
+  const typingSnapshot = { phase: "step_typing", status: "reviewing", notes: JSON.stringify(trusted("step_typing", "typing_test")) };
+  const moved = await advanceAfterStep(casAdmin({ id: "app-2", ...typingSnapshot }), {
+    applicationId: "app-2",
+    steps: ZULU,
+    completedStepId: "step_typing",
+    application: typingSnapshot,
+    processingMode: "auto",
+  });
+  check("the request that moved them always scores", moved.kind === "advance" && shouldScoreAfterStep(moved, typingSnapshot.notes) === true);
+  check(
+    "a refused request never scores",
+    shouldScoreAfterStep({ kind: "refused", reason: "phase_mismatch", currentPhase: "quiz", currentStatus: "reviewing" }, typingSnapshot.notes) === false,
+  );
+
+  const voiceSteps = buildCandidateJourney(
+    [
+      { id: "wf-typing", type: "typing_test" },
+      { id: "wf-voice", type: "voice_interview" },
+    ],
+    { hasQuiz: false },
+  );
+  const waiting = planAutoAdvance({
+    steps: voiceSteps,
+    completedStepId: "wf-typing",
+    application: { phase: "wf-typing", status: "reviewing", notes: JSON.stringify(trusted("wf-typing", "typing_test")) },
+    processingMode: "auto",
+  });
+  check("voice interview next: the first request scores (and tells the employer)", shouldScoreAfterStep(waiting, JSON.stringify(trusted("wf-typing", "typing_test"))) === true);
+  check(
+    "a repeat after that analysis saved does not score or tell the employer again",
+    shouldScoreAfterStep(
+      waiting,
+      JSON.stringify({ ...trusted("wf-typing", "typing_test"), avaAnalysisMeta: { analysisStartedAt: "2026-10-05T15:47:41.000Z", triggeredByStep: "wf-typing" } }),
+    ) === false,
+  );
+}
+
+console.log("\nwithoutNulCharacters: jsonb refuses a NUL, so patches never carry one:\n");
+{
+  const NUL = String.fromCharCode(0);
+  const input = {
+    transcript: [{ role: "candidate", content: `hi${NUL}there` }],
+    [`key${NUL}`]: 1,
+    nested: { deep: [`a${NUL}${NUL}b`, 3, null, true] },
+    when: new Date("2026-10-05T00:00:00.000Z"),
+  };
+  const out = withoutNulCharacters(input);
+  check("a NUL inside a nested string becomes U+FFFD", out.transcript[0].content === "hi�there");
+  check("in an object key too", Object.keys(out).includes("key�"));
+  check("every NUL, not only the first", out.nested.deep[0] === "a��b");
+  check("numbers, null and booleans are untouched", out.nested.deep[1] === 3 && out.nested.deep[2] === null && out.nested.deep[3] === true);
+  check("a Date is left for JSON.stringify exactly as before", out.when instanceof Date && JSON.stringify(out.when) === JSON.stringify(input.when));
+  check("nothing to replace: the same JSON", JSON.stringify(withoutNulCharacters({ a: "plain", b: [1, { c: "x" }] })) === JSON.stringify({ a: "plain", b: [1, { c: "x" }] }));
+  check("the input is not mutated", input.transcript[0].content === `hi${NUL}there`);
+
+  const row = newRow({
+    phase: "wf-chat",
+    notes: JSON.stringify({ applicationAnswers: [] }),
+    jobs: { processing_mode: "auto", workflow_steps: [{ id: "wf-chat", type: "chat_simulation", title: "Chat" }], quiz_questions: undefined },
+  });
+  const admin = fakeAdminWithMerge(row);
+  const outcome = await recordStepResult(admin, {
+    applicationId: "app-1",
+    callerUserId: "cand-1",
+    stepId: "wf-chat",
+    stepType: "chat_simulation",
+    advance: "never",
+    resultKey: "chatSimulationResult",
+    result: { messages: [{ role: "candidate", content: `pasted${NUL}text` }] },
+  });
+  const rpcCall = admin.calls.find((call) => call.kind === "rpc");
+  check("recordStepResult with a NUL in the transcript still succeeds", outcome.ok === true, outcome.ok ? "" : outcome.error);
+  check(
+    "and the patch it hands merge_application_notes holds no \\u0000 escape",
+    rpcCall && !JSON.stringify(rpcCall.args.p_patch).includes("\\u0000") && rpcCall.args.p_patch.chatSimulationResult.messages[0].content === "pasted�text",
+    rpcCall ? JSON.stringify(rpcCall.args.p_patch) : "no rpc call",
   );
 }
 

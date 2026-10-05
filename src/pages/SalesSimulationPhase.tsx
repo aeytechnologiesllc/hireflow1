@@ -22,9 +22,10 @@ import {
   Building
 } from "lucide-react";
 import { toast } from "sonner";
-import { invokeTriggerAvaAnalysis, triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
+import { invokeTriggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
-import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
+import { StepAdvanceScreen, TestRulesNotice } from "@/components/candidate/NextStepCard";
+import { useResultAtFirstLoad, useStepAdvance } from "@/hooks/useStepAdvance";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import { PhaseContextCard } from "@/components/PhaseContextCard";
 import { parseApplicationNotes } from "@/lib/applicationNotes";
@@ -149,7 +150,7 @@ export default function SalesSimulationPhase() {
   const { user, session, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   
-  const [state, setState] = useState<"intro" | "selling" | "evaluating" | "completed" | "rejected">("intro");
+  const [state, setState] = useState<"intro" | "selling" | "evaluating" | "completed">("intro");
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -165,16 +166,13 @@ export default function SalesSimulationPhase() {
   );
   const [isBlurred, setIsBlurred] = useState(false);
   const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
-  // Only ever checked for truthiness below (the rejection screen reads
-  // application/jobs directly), so a partial shape is enough.
-  const [rejectedAppData, setRejectedAppData] = useState<Partial<ApplicationDetails> | null>(null);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch application details - force refetch on mount to handle reconsider workflow
-  const { data: application, isLoading } = useQuery({
+  const { data: application, isLoading, isFetchedAfterMount } = useQuery({
     queryKey: ["sales-simulation-application", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -230,6 +228,11 @@ export default function SalesSimulationPhase() {
     stepId,
     phase: application?.phase,
   });
+
+  // After the meeting is sent: the waiting screen, then "Start <next step>"
+  // the moment the row says it is open (see useStepAdvance). Replaces the old
+  // two-second redirect to the overview.
+  const advance = useStepAdvance({ applicationId: id, stepId, job: application?.jobs });
 
   // Get config from workflow
   const salesConfig = (() => {
@@ -582,9 +585,9 @@ export default function SalesSimulationPhase() {
 
   const endSales = () => {
     setState("evaluating");
-    // Finished and on its way to be scored — drop the local draft so a retake
-    // never resumes inside the old transcript.
-    clearConversationDraft();
+    // The local draft is dropped only once the server has the transcript
+    // (in handleSubmit) — clearing it first lost the meeting if the tab
+    // closed or the send failed mid-way.
     handleSubmit();
   };
 
@@ -600,6 +603,10 @@ export default function SalesSimulationPhase() {
         .single();
 
       const isAutoMode = freshJob?.processing_mode === "auto";
+
+      // Auto mode: the honest waiting screen goes up now and stays until the
+      // next step is open (useStepAdvance).
+      if (isAutoMode) advance.begin();
 
       // The candidate's own session — the trusted write path verifies this
       // is really this application's candidate before it records anything
@@ -642,57 +649,34 @@ export default function SalesSimulationPhase() {
         throw new Error(submitBody?.error || "Failed to submit sales simulation");
       }
 
+      // The server holds the result now; drop the local draft so a retake
+      // never resumes inside the old transcript.
+      clearConversationDraft();
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
       queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
 
       if (isAutoMode) {
-        try {
-          const { data: analysisResult } = await invokeTriggerAvaAnalysis({
-            applicationId: id!,
-            autopilotDecision: true,
-            currentPhaseId: stepId,
-          });
-          // Backend returns decision: "rejected" | "advanced" | "needs_employer_approval"
-          if (analysisResult?.decision === "rejected") {
-            setRejectedAppData({ ...application, status: "rejected" });
-            setState("rejected");
-          } else if (analysisResult?.decision === "advanced" || analysisResult?.decision === "needs_employer_approval") {
-            toast.success("Sales simulation completed!");
-            setState("completed");
-            setTimeout(() => navigate(`/applications/${id}`), 2000);
-          } else {
-            // Fallback: check application status from database
-            const { data: updatedApp } = await supabase
-              .from("applications")
-              .select("status")
-              .eq("id", id!)
-              .single();
-            
-            if (updatedApp?.status === "rejected") {
-              setRejectedAppData({ ...application, status: "rejected" });
-              setState("rejected");
-            } else {
-              toast.success("Sales simulation completed!");
-              setState("completed");
-              setTimeout(() => navigate(`/applications/${id}`), 2000);
-            }
-          }
-        } catch (err) {
-          setState("completed");
-          setTimeout(() => navigate(`/applications/${id}`), 2000);
-        }
+        // Which step opens next is the server's call (it moves `phase`); the
+        // screen follows the row, and the trigger's reply only speeds that
+        // up. invokeTriggerAvaAnalysis never throws.
+        advance.markSaved();
+        const reply = await invokeTriggerAvaAnalysis({
+          applicationId: id!,
+          autopilotDecision: true,
+          currentPhaseId: stepId,
+        });
+        advance.settle(reply);
       } else {
         invokeTriggerAvaAnalysis({ applicationId: id! }).catch((err) => {
-          /* Ava analysis is triggered in the background and non-critical; the user already sees a success toast */
+          /* Ava analysis is triggered in the background and non-critical */
           console.error("[SalesSimulationPhase] trigger-ava-analysis failed:", err);
         });
-        toast.success("Sales simulation completed!");
         setState("completed");
-        setTimeout(() => navigate(`/applications/${id}`), 2000);
       }
     } catch (error) {
       console.error("Error submitting sales simulation:", error);
-      toast.error("Failed to submit sales simulation");
+      toast.error("That didn't send — please try again.");
+      advance.cancel();
       setState("selling");
     } finally {
       setIsSubmitting(false);
@@ -713,6 +697,16 @@ export default function SalesSimulationPhase() {
       return null;
     }
   })();
+
+  // "Already done" is decided once, from the first read after this page
+  // mounted — never from a refresh that lands after the candidate sends.
+  const resultAtFirstLoad = useResultAtFirstLoad(isFetchedAfterMount && !!application, !!existingResult);
+  // A step the server already holds has no use for a local draft (the send
+  // that stored it may have been cut off before it could clear one), and a
+  // later retake must never resume inside the old conversation.
+  useEffect(() => {
+    if (resultAtFirstLoad) clearConversationDraft();
+  }, [resultAtFirstLoad, clearConversationDraft]);
 
   if (authLoading || isLoading) {
     return (
@@ -738,12 +732,34 @@ export default function SalesSimulationPhase() {
     );
   }
 
-  // Show already submitted view if phase was completed
-  if (existingResult) {
+  // Sent in this visit: the waiting screen, then the next step's button.
+  if (advance.view) {
+    return (
+      <StepAdvanceScreen
+        advance={advance}
+        applicationId={id!}
+        jobTitle={application.jobs?.title}
+        completedTitle={journeyStep.title}
+      />
+    );
+  }
+
+  if (resultAtFirstLoad === null) {
+    return (
+      <div className="space-y-6 max-w-3xl mx-auto p-6">
+        <Skeleton className="h-12 w-48" />
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
+
+  // Done before this visit began (a bookmark, the back button): say where
+  // things stand and offer the next step, never a dead end.
+  if (resultAtFirstLoad && existingResult && state === "intro") {
     return (
       <PhaseAlreadySubmitted
         applicationId={id!}
-        phaseName="Sales Simulation"
+        phaseName={journeyStep.title}
         isManualMode={application.jobs?.processing_mode === "manual"}
       />
     );
@@ -751,16 +767,6 @@ export default function SalesSimulationPhase() {
 
   const canEndSales = messages.filter(m => m.role === "salesRep").length >= salesConfig.minMessages;
 
-  // Show rejection screen for autopilot mode failure
-  if (state === "rejected" && rejectedAppData) {
-    return (
-      <CandidateStatusScreen
-        state="rejected"
-        jobTitle={application?.jobs?.title}
-        onClose={() => navigate(`/applications/${id}`)}
-      />
-    );
-  }
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
@@ -869,6 +875,8 @@ export default function SalesSimulationPhase() {
                   Complete at least {salesConfig.minMessages} responses before ending the meeting.
                 </p>
               </div>
+
+              <TestRulesNotice />
               
               <div className="text-center">
                 <Button onClick={startSales} size="lg" className="gap-2 bg-primary hover:bg-primary/90" disabled={!currentScenario}>
@@ -995,25 +1003,29 @@ export default function SalesSimulationPhase() {
                 </div>
               )}
 
-              {/* Evaluating State */}
+              {/* Sending State */}
               {state === "evaluating" && (
                 <div className="text-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary mb-4" />
-                  <p className="text-foreground font-medium">Evaluating your sales performance...</p>
+                  <p className="text-foreground font-medium">Sending your meeting</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Reviewing your pitch
+                    Keep this page open for a moment.
                   </p>
                 </div>
               )}
 
-              {/* Completed State */}
+              {/* Completed State (manual-review jobs) — no timed redirect */}
               {state === "completed" && (
-                <div className="text-center py-8">
-                  <CheckCircle className="h-12 w-12 mx-auto text-success mb-4" />
-                  <p className="text-foreground font-medium">Sales Simulation Complete!</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Redirecting to your application...
+                <div className="text-center py-8 space-y-3">
+                  <CheckCircle className="h-12 w-12 mx-auto text-success" />
+                  <p className="text-foreground font-medium">Sent</p>
+                  <p className="text-sm text-muted-foreground">
+                    Your meeting is saved. The hiring team will get back to you — you can close this page.
                   </p>
+                  <Button onClick={() => navigate(`/applications/${id}`)} className="w-full gap-2 sm:w-auto">
+                    <ArrowLeft className="h-4 w-4" />
+                    Back to your application
+                  </Button>
                 </div>
               )}
             </>

@@ -58,9 +58,28 @@ export interface StepRecordLike {
   completed?: boolean;
 }
 
+/**
+ * One answer on the application form, as stored in notes.applicationAnswers.
+ *
+ * `answer` is always a readable string — every reader (the scoring prompt,
+ * the interview prompt, the dossier PDF, the staff screens) prints it as-is.
+ * A pick-several question (type "multi_select", 2026-10-05: "Which shifts can
+ * you cover?") ALSO carries `selected`, the ticked options in the job's own
+ * option order; its `answer` is those options joined with "; " — never ","
+ * because the options themselves contain commas ("Daytime, 8am to 4pm
+ * Eastern").
+ */
+export interface ApplicationAnswerRecord {
+  questionId?: string;
+  question: string;
+  answer: string;
+  type?: string;
+  selected?: string[];
+}
+
 export interface ApplicationNotesData {
   // Standard application fields
-  applicationAnswers?: Array<{ question: string; answer: string }>;
+  applicationAnswers?: ApplicationAnswerRecord[];
 
   // Quiz data
   quizAnswers?: Record<string, unknown>;
@@ -100,6 +119,25 @@ export interface ApplicationNotesData {
   // Dynamic step data (step IDs as keys) — real shape varies by step type;
   // narrow with a local cast at the read site instead of widening this.
   [stepId: string]: unknown;
+}
+
+/** Separator for a pick-several answer's readable string. Not "," — the
+ *  options themselves contain commas. */
+export const MULTI_SELECT_ANSWER_SEPARATOR = "; ";
+
+/**
+ * A pick-several answer, ready to store: the ticked options in the job's own
+ * option order (not click order — the stored answer and the scoring
+ * fingerprint must not change because someone ticked boxes bottom-up), any
+ * value no longer among the options dropped, and the readable string.
+ */
+export function formatMultiSelectAnswer(
+  options: readonly string[] | null | undefined,
+  selected: readonly string[] | null | undefined,
+): { answer: string; selected: string[] } {
+  const picked = new Set(selected ?? []);
+  const ordered = (options ?? []).filter((option, index, all) => picked.has(option) && all.indexOf(option) === index);
+  return { answer: ordered.join(MULTI_SELECT_ANSWER_SEPARATOR), selected: ordered };
 }
 
 /**

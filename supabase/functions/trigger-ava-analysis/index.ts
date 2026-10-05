@@ -13,14 +13,38 @@ import {
   buildEvidenceFingerprint,
   computeJudgmentScore,
   inferJobFamily,
+  readChatInterviewResult,
   resolveAutopilotAction,
   type AvaScorecard,
   type AutopilotAction,
 } from "../_shared/autopilot.ts";
+import { buildCandidateJourney, type WorkflowStepLike } from "../_shared/candidateJourney.ts";
+import {
+  advanceAfterStep,
+  isMissingFunctionError,
+  parseNotesObject,
+  planAutoAdvance,
+  shouldScoreAfterStep,
+  withoutNulCharacters,
+  type AdvanceAdmin,
+  type AdvanceAfterStepOutcome,
+  type AdvanceSnapshot,
+} from "../_shared/trustedResults.ts";
 import { hasSubscriptionBypassForUser } from "../_shared/subscriptionBypass.ts";
 import { isScopedTeamMemberFromRpc } from "../_shared/teamMemberRpcAccess.ts";
 
-const ANALYSIS_VERSION = 4;
+// 5 (2026-10-05): the scorecard's auto-mode rules changed (nobody is stopped
+// part-way; dealBreakerFlags), and the written interview is read in both of
+// its shapes. Bumping it re-runs a frozen analysis once instead of reusing a
+// scorecard built on the old rules.
+const ANALYSIS_VERSION = 5;
+
+// Supabase's hosted edge runtime keeps a worker alive for a promise handed to
+// EdgeRuntime.waitUntil after the response has been sent (up to the 400 s
+// wall clock on Pro). Declared here because nothing in this project's Deno
+// setup types it; where it is missing (a plain local Deno run) the work is
+// simply awaited before responding.
+declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void } | undefined;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -174,6 +198,12 @@ async function notifyEmployerInterviewReady(params: {
   }
 }
 
+/**
+ * The original decision path: score first, then advance, defer or park on
+ * Ava's recommendation. Since 2026-10-05 it serves MANUAL jobs only (their
+ * behaviour is unchanged). Auto-mode jobs go through handleAutoModeStep
+ * below, which never parks anyone and never waits on Ava.
+ */
 async function handleAutopilotDecision(params: {
   supabaseAdmin: any;
   application: any;
@@ -426,133 +456,65 @@ async function handleAutopilotDecision(params: {
 }
 
 
-serve(async (req) => {
-  // Handle CORS preflight
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+
+/** Runs `task` after the response when the runtime allows it, otherwise
+ *  before. Never throws: a background failure is logged, not surfaced. */
+async function runInBackground(label: string, task: Promise<unknown>) {
+  const guarded = task.catch((error) => {
+    console.error(`[trigger-ava-analysis] ${label} failed:`, error);
+  });
+  if (typeof EdgeRuntime !== "undefined" && EdgeRuntime && typeof EdgeRuntime.waitUntil === "function") {
+    EdgeRuntime.waitUntil(guarded);
+    return;
   }
+  await guarded;
+}
 
+// The client and the rows below are the same untyped values the handler has
+// always worked with (an untyped createClient, select("*") rows); this names
+// them once for the context passed into runAvaAnalysis.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- see above
+type Loose = any;
+
+interface AnalysisContext {
+  supabaseAdmin: Loose;
+  application: Loose;
+  applicationId: string;
+  job: Loose;
+  employerId: string | null | undefined;
+  force: boolean;
+  /** The step the caller says was just finished — informational for the
+   *  analysis (it is part of the evidence fingerprint). */
+  currentPhaseId: string | null;
+  /** jobs.processing_mode === "auto", read from the database row. */
+  autoMode: boolean;
+}
+
+type AnalysisOutcome =
+  | {
+      ok: true;
+      /** The stored analysis already matched this evidence; nothing was re-run. */
+      reused: boolean;
+      /** A run that started later had already saved; this one wrote nothing. */
+      superseded: boolean;
+      score: number | null;
+      scorecard: AvaScorecard | null;
+      profile: Loose;
+    }
+  | { ok: false; status: number; body: Record<string, unknown>; profile: Loose };
+
+/**
+ * Ava's analysis of everything this application has submitted so far: the
+ * ai-analyze call (~40 s), the weighted score and the scorecard, saved into
+ * ai_analysis / ai_score / ai_scorecard / resume_score (and, in auto mode,
+ * phase_ai_analysis as information) plus notes.avaScorecard /
+ * notes.avaAnalysisMeta. It NEVER writes phase or status: moving a candidate
+ * is advanceAfterStep's job (auto mode) or handleAutopilotDecision's (manual).
+ */
+async function runAvaAnalysis(ctx: AnalysisContext): Promise<AnalysisOutcome> {
+  const { supabaseAdmin, application, applicationId, job, employerId, force, currentPhaseId, autoMode } = ctx;
+  const runStartedAt = new Date().toISOString();
   try {
-    const { applicationId, force = false, autopilotDecision = false, previewOnly = false, currentPhaseId = null } = await req.json();
-    
-    if (!applicationId) {
-      return new Response(
-        JSON.stringify({ error: "applicationId is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    console.log("[trigger-ava-analysis] Starting analysis for application:", applicationId, "force:", force, "autopilotDecision:", autopilotDecision, "previewOnly:", previewOnly, "currentPhaseId:", currentPhaseId);
-
-    // Create admin client to bypass RLS
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-    const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
-
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Authentication required" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const supabaseUserClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: authHeader,
-        },
-      },
-    });
-
-    const {
-      data: { user: requestingUser },
-      error: requestingUserError,
-    } = await supabaseUserClient.auth.getUser();
-
-    if (requestingUserError || !requestingUser) {
-      console.error("[trigger-ava-analysis] Invalid auth token:", requestingUserError);
-      return new Response(
-        JSON.stringify({ error: "Invalid authentication token" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Fetch application data with all job fields needed for autopilot decision
-    const { data: application, error: fetchError } = await supabaseAdmin
-      .from("applications")
-      .select(`
-        *,
-        jobs(title, description, requirements, skills_required, experience_level, job_type, workflow_steps, passing_score, processing_mode, quiz_questions, employer_id)
-      `)
-      .eq("id", applicationId)
-      .single();
-
-    if (fetchError || !application) {
-      console.error("[trigger-ava-analysis] Failed to fetch application:", fetchError);
-      return new Response(
-        JSON.stringify({ error: "Application not found", details: fetchError?.message }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const employerId = (application.jobs as any)?.employer_id;
-
-    const isCandidateOwner = application.candidate_id === requestingUser.id;
-    const isEmployerOwner = employerId === requestingUser.id;
-
-    // Team-member access must be scoped to THIS job the same way the live
-    // RLS policy on `applications` scopes it ("Team members can view
-    // applications for assigned jobs" -> is_active_team_member_for_job),
-    // whose definition requires assigned_job_ids to be null (whole-employer
-    // access) OR contain this job's id. A plain team_members row check
-    // (user_id + employer_id + active) would let a team member scoped to
-    // job A trigger/read analysis for job B's application at the same
-    // employer -- call the same SECURITY DEFINER function the applications
-    // RLS policy uses (via the caller's own JWT, so its
-    // p_user_id = auth.uid() check passes) instead of re-implementing the
-    // scoping rule here.
-    const [teamMemberRpc, { data: developerRole }] = await Promise.all([
-      !isCandidateOwner && !isEmployerOwner && employerId
-        ? supabaseUserClient.rpc("is_active_team_member_for_job", {
-            p_job_id: application.job_id,
-            p_user_id: requestingUser.id,
-          })
-        : Promise.resolve({ data: false, error: null }),
-      supabaseAdmin
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", requestingUser.id)
-        .eq("role", "developer")
-        .maybeSingle(),
-    ]);
-
-    if (teamMemberRpc.error) {
-      // Fail closed: an RPC error must never be treated as access granted.
-      console.error("[trigger-ava-analysis] is_active_team_member_for_job RPC error:", teamMemberRpc.error);
-    }
-    const isScopedTeamMember = isScopedTeamMemberFromRpc(teamMemberRpc);
-
-    if (!isCandidateOwner && !isEmployerOwner && !isScopedTeamMember && !developerRole) {
-      console.warn("[trigger-ava-analysis] Unauthorized analysis attempt", {
-        requesterId: requestingUser.id,
-        applicationId,
-        employerId,
-        candidateId: application.candidate_id,
-      });
-      return new Response(
-        JSON.stringify({ error: "You do not have permission to analyze this application" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // RACE CONDITION FIX: Skip if application was already rejected (unless force=true for reconsider)
-    if (application.status === "rejected" && !force) {
-      console.log("[trigger-ava-analysis] Application already rejected, skipping duplicate analysis");
-      return jsonResponse({ success: true, message: "Application already rejected", skipped: true });
-    }
-
     // Fetch profile separately using candidate_id
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
@@ -665,8 +627,6 @@ Purpose: This is a supplementary document for the above question. It is NOT a re
 ).join("\n\n")}`
       : "";
 
-    const job = application.jobs as any;
-    
     // Extract workflow phases from job to inform AI what phases exist for this job
     const workflowSteps = (job?.workflow_steps as any[]) || [];
     const workflowPhaseTypes = workflowSteps.map((step: any) => step.type).filter(Boolean);
@@ -736,13 +696,9 @@ Purpose: This is a supplementary document for the above question. It is NOT a re
             problemSolving: parsedNotes.chatSimulationResult.problemSolving || null,
           }
         : null,
-      chatInterview: parsedNotes.chatInterviewResult
-        ? {
-            score: parsedNotes.chatInterviewResult.score || parsedNotes.chatInterviewResult.overall_score || null,
-            recommendation: parsedNotes.chatInterviewResult.recommendation || null,
-            messageCount: parsedNotes.chatInterviewResult.messageCount || null,
-          }
-        : null,
+      // Both of the interview's result shapes (flat and nested under
+      // .evaluation) — the auto-end shape used to read as all-null here.
+      chatInterview: readChatInterviewResult(parsedNotes.chatInterviewResult),
       salesSimulation: parsedNotes.salesSimulationResult
         ? {
             score: parsedNotes.salesSimulationResult.score || parsedNotes.salesSimulationResult.overallScore || null,
@@ -781,30 +737,14 @@ Purpose: This is a supplementary document for the above question. It is NOT a re
 
     if (canReuseExistingAnalysis) {
       console.log("[trigger-ava-analysis] Reusing frozen analysis for unchanged evidence snapshot");
-
-      if (!autopilotDecision && !previewOnly) {
-        return jsonResponse({
-          success: true,
-          message: "Analysis already present",
-          skipped: true,
-          reused: true,
-          score: application.ai_score,
-          scorecard: existingScorecard,
-        });
-      }
-
-      return await handleAutopilotDecision({
-        supabaseAdmin,
-        application,
-        applicationId,
-        currentPhaseId: currentPhaseId || application.phase,
-        passingScore: (job?.passing_score as number) || 60,
+      return {
+        ok: true,
+        reused: true,
+        superseded: false,
         score: application.ai_score,
         scorecard: existingScorecard,
         profile,
-        job,
-        previewOnly,
-      });
+      };
     }
 
     // ========== AI ANALYSES LIMIT CHECK ==========
@@ -827,10 +767,15 @@ Purpose: This is a supplementary document for the above question. It is NOT a re
             (!subscription.trial_end || new Date(subscription.trial_end) > new Date()));
 
         if (!hasActiveSubscriptionAccess) {
-          return jsonResponse({
-            error: "Subscription inactive",
-            message: "This employer's subscription is not active, so Ava analysis is unavailable.",
-          }, 403);
+          return {
+            ok: false,
+            status: 403,
+            body: {
+              error: "Subscription inactive",
+              message: "This employer's subscription is not active, so Ava analysis is unavailable.",
+            },
+            profile,
+          };
         }
 
         const planType = subscription?.plan_type || "trial";
@@ -859,11 +804,16 @@ Purpose: This is a supplementary document for the above question. It is NOT a re
             const currentCount = analysisCount || 0;
             if (currentCount >= aiLimit) {
               console.log(`[trigger-ava-analysis] AI analysis limit reached for employer ${employerId}: ${currentCount}/${aiLimit}`);
-              return jsonResponse({
-                error: "AI analysis limit reached",
-                message: `You've reached your AI analysis limit (${currentCount}/${aiLimit}). Upgrade your plan for more analyses.`,
-                limitReached: true,
-              }, 403);
+              return {
+                ok: false,
+                status: 403,
+                body: {
+                  error: "AI analysis limit reached",
+                  message: `You've reached your AI analysis limit (${currentCount}/${aiLimit}). Upgrade your plan for more analyses.`,
+                  limitReached: true,
+                },
+                profile,
+              };
             }
             console.log(`[trigger-ava-analysis] AI analysis count: ${currentCount}/${aiLimit}`);
           }
@@ -947,12 +897,13 @@ Chat Simulation (Customer Support) Results:
 `;
     }
 
-    // Add Chat Interview results if available  
-    if (parsedNotes.chatInterviewResult) {
+    // Add Chat Interview results if available (either result shape)
+    const chatInterview = readChatInterviewResult(parsedNotes.chatInterviewResult);
+    if (chatInterview) {
       content += `
 Interview Results:
-- Overall Score: ${parsedNotes.chatInterviewResult.score || 'N/A'}/100
-- Recommendation: ${parsedNotes.chatInterviewResult.recommendation || 'N/A'}
+- Overall Score: ${chatInterview.score ?? 'N/A'}/100
+- Recommendation: ${chatInterview.recommendation || 'N/A'}
 `;
     }
 
@@ -1050,10 +1001,12 @@ ${interviewType} Interview with AVA Results:
 
     if (analysisError) {
       console.error("[trigger-ava-analysis] AI analysis error:", analysisError);
-      return new Response(
-        JSON.stringify({ error: "AI analysis failed", details: analysisError.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return {
+        ok: false,
+        status: 500,
+        body: { error: "AI analysis failed", details: analysisError.message },
+        profile,
+      };
     }
 
     console.log("[trigger-ava-analysis] AI analysis completed, extracting score...");
@@ -1154,11 +1107,7 @@ ${interviewType} Interview with AVA Results:
     const voiceResult = application.voice_interview_result as any;
     const chatSimulationScore = parsedNotes.chatSimulationResult?.overallScore || parsedNotes.chatSimulationResult?.score || null;
     const salesSimulationScore = parsedNotes.salesSimulationResult?.overallScore || parsedNotes.salesSimulationResult?.score || null;
-    const chatInterviewScore =
-      parsedNotes.chatInterviewResult?.score ||
-      parsedNotes.chatInterviewResult?.overall_score ||
-      parsedNotes.chatInterviewResult?.evaluation?.score ||
-      null;
+    const chatInterviewScore = chatInterview?.score ?? null;
     const hasVideoIntro = !!(parsedNotes.videoIntroResult?.completed || parsedNotes.videoIntroUrl);
     const videoIntroScore = typeof parsedNotes.videoIntroResult?.score === "number"
       ? parsedNotes.videoIntroResult.score
@@ -1300,8 +1249,10 @@ ${interviewType} Interview with AVA Results:
       workflowSteps,
       jobTitle: job?.title || null,
       jobDescription: job?.description || null,
+      jobRequirements: job?.requirements || null,
       jobSkillsRequired: Array.isArray(job?.skills_required) ? (job.skills_required as string[]) : null,
       experienceLevel: job?.experience_level || null,
+      processingMode: job?.processing_mode ?? null,
       directMatchScore: structuredScore?.directMatchScore ?? null,
       transferableFitScore: structuredScore?.transferableFitScore ?? null,
       learningSignalScore: structuredScore?.learningSignalScore ?? null,
@@ -1317,6 +1268,10 @@ ${interviewType} Interview with AVA Results:
       provider: analysisData?.provider || "openai",
       model: analysisData?.model || null,
       analyzedAt: new Date().toISOString(),
+      // When this run began, and the step that asked for it. A run only writes
+      // if no run that STARTED later has written already (see below).
+      analysisStartedAt: runStartedAt,
+      triggeredByStep: currentPhaseId || null,
       analysisVersion: ANALYSIS_VERSION,
       evidenceFingerprint,
       structuredScoring: {
@@ -1356,11 +1311,45 @@ ${interviewType} Interview with AVA Results:
         voiceInterview: typeof voiceResult?.overall_score === "number",
       },
     };
-    const updatedNotes = {
-      ...parsedNotes,
-      avaScorecard: scorecard,
-      avaAnalysisMeta: analysisMeta,
-    };
+    // ---- Saving. In auto mode this runs in the background, after the
+    // candidate has already moved on (and may already be submitting the next
+    // step), so it must never overwrite anything newer than itself:
+    //
+    // 1. A run that started earlier never overwrites one that started later
+    //    (runs take 37-47 s and retries can stretch one, so they can finish
+    //    out of order). The window between this read and the writes below is
+    //    milliseconds, against runs that start tens of seconds apart.
+    // 2. It writes ONLY analysis fields. Never phase, never status.
+    // 3. Its notes keys (avaScorecard, avaAnalysisMeta) go through
+    //    merge_application_notes, which merges just those two keys into what
+    //    is stored at that moment. This used to write the whole notes object
+    //    from the snapshot taken at the start of the request, ~40 s earlier,
+    //    and would have erased the next step's result.
+    const { data: freshRow, error: freshError } = await supabaseAdmin
+      .from("applications")
+      .select("notes")
+      .eq("id", applicationId)
+      .maybeSingle();
+    if (freshError) {
+      console.error("[trigger-ava-analysis] Could not re-read the application before saving:", freshError);
+      return { ok: false, status: 500, body: { error: "Failed to save analysis", details: freshError.message }, profile };
+    }
+    const freshNotes = parseNotesObject(freshRow?.notes);
+    const storedMeta = (freshNotes.avaAnalysisMeta || {}) as Record<string, unknown>;
+    if (typeof storedMeta.analysisStartedAt === "string" && storedMeta.analysisStartedAt > runStartedAt) {
+      console.log("[trigger-ava-analysis] A newer analysis has already been saved; this older run writes nothing", {
+        applicationId,
+        thisRunStartedAt: runStartedAt,
+        savedRunStartedAt: storedMeta.analysisStartedAt,
+      });
+      return { ok: true, reused: false, superseded: true, score: finalScore, scorecard, profile };
+    }
+
+    // Auto mode: Ava's read is information for the owner, never an action —
+    // her rationale says so ("nobody was stopped, and the decision is yours").
+    // It replaces the step's own phase_ai_analysis line the way the old
+    // advance did. Manual runs leave that column to handleAutopilotDecision.
+    const phaseAnalysisNote = autoMode ? scorecard?.rationale || null : null;
 
     // Update the application with AI analysis using admin client (bypasses RLS)
     // ai_score mirrors scorecard.overallScore exactly — buildAvaScorecard is the single
@@ -1375,16 +1364,446 @@ ${interviewType} Interview with AVA Results:
         ai_scorecard: scorecard ?? null,
         // Only set resume_score if the resume was actually analyzed (not RESUME_UNAVAILABLE)
         resume_score: resumeUnavailable ? null : (typeof newScore === "number" && newScore >= 0 && newScore <= 100 ? newScore : null),
-        notes: JSON.stringify(updatedNotes),
+        ...(phaseAnalysisNote ? { phase_ai_analysis: phaseAnalysisNote } : {}),
       })
       .eq("id", applicationId);
 
     if (updateError) {
       console.error("[trigger-ava-analysis] Failed to update application:", updateError);
-      return jsonResponse({ error: "Failed to save analysis", details: updateError.message }, 500);
+      return { ok: false, status: 500, body: { error: "Failed to save analysis", details: updateError.message }, profile };
+    }
+
+    const { error: notesError } = await supabaseAdmin.rpc("merge_application_notes", {
+      p_application_id: applicationId,
+      p_patch: withoutNulCharacters({ avaScorecard: scorecard, avaAnalysisMeta: analysisMeta }),
+    });
+    if (notesError) {
+      if (!isMissingFunctionError(notesError)) {
+        console.error("[trigger-ava-analysis] Failed to save the scorecard into notes:", notesError);
+        return { ok: false, status: 500, body: { error: "Failed to save analysis", details: notesError.message }, profile };
+      }
+      // Migration 20261005180943 not applied yet. Degrade to a whole-notes
+      // write built from the row read a moment ago (not the request's own
+      // snapshot), and say so loudly.
+      console.error(
+        "[trigger-ava-analysis] merge_application_notes does not exist — apply migration 20261005180943_merge_application_notes.sql. Falling back to a whole-notes write.",
+      );
+      const { error: fallbackError } = await supabaseAdmin
+        .from("applications")
+        .update({ notes: JSON.stringify({ ...freshNotes, avaScorecard: scorecard, avaAnalysisMeta: analysisMeta }) })
+        .eq("id", applicationId);
+      if (fallbackError) {
+        console.error("[trigger-ava-analysis] Fallback notes write failed:", fallbackError);
+        return { ok: false, status: 500, body: { error: "Failed to save analysis", details: fallbackError.message }, profile };
+      }
     }
 
     console.log("[trigger-ava-analysis] Analysis completed successfully for application:", applicationId, "score:", finalScore);
+
+    return { ok: true, reused: false, superseded: false, score: finalScore, scorecard, profile };
+  } catch (error) {
+    console.error("[trigger-ava-analysis] Analysis failed:", error);
+    return {
+      ok: false,
+      status: 500,
+      body: { error: "Unexpected error", details: error instanceof Error ? error.message : "Unknown" },
+      profile: null,
+    };
+  }
+}
+
+/**
+ * Auto-mode jobs (processing_mode read from the database, never from the
+ * request). Owner, 2026-10-05: nobody is ever parked part-way; every
+ * applicant takes every test up to and including the last one, Ava only
+ * scores and flags, and he decides at the end.
+ *
+ * So the move to the next step no longer waits on, or reads, Ava: it is
+ * advanceAfterStep (_shared/trustedResults.ts) — the finished step must be
+ * the row's current phase and its result must be stored, and one
+ * compare-and-set moves them on (to Decision after the last step). The
+ * browser gets its answer in well under a second; Ava's ~40 s analysis then
+ * runs in the background and only ever writes analysis fields. Her decline
+ * recommendation is stored for the owner and never acted on.
+ *
+ * `awaitAnalysis` (autopilot-batch) waits for the analysis before answering,
+ * so a batch scores one application at a time instead of starting dozens of
+ * background LLM calls at once.
+ */
+async function handleAutoModeStep(params: {
+  context: AnalysisContext;
+  previewOnly: boolean;
+  awaitAnalysis: boolean;
+}) {
+  const { context, previewOnly, awaitAnalysis } = params;
+  const { supabaseAdmin, application, applicationId, job, currentPhaseId } = context;
+  const steps = buildCandidateJourney((job?.workflow_steps as WorkflowStepLike[]) || [], {
+    hasQuiz: Array.isArray(job?.quiz_questions) && job.quiz_questions.length > 0,
+  });
+  const snapshot: AdvanceSnapshot = {
+    phase: typeof application.phase === "string" ? application.phase : null,
+    status: typeof application.status === "string" ? application.status : null,
+    notes: application.notes,
+    voice_interview_result: application.voice_interview_result,
+  };
+
+  if (previewOnly) {
+    // What the move WOULD be, with a fresh score, and nothing moved.
+    const plan = planAutoAdvance({
+      steps,
+      completedStepId: currentPhaseId,
+      application: snapshot,
+      processingMode: job?.processing_mode,
+    });
+    const analysis = await runAvaAnalysis(context);
+    if (!analysis.ok) return jsonResponse(analysis.body, analysis.status);
+    const wouldBe: AdvanceAfterStepOutcome = plan.kind === "refused"
+      ? { kind: "refused", reason: plan.reason, currentPhase: snapshot.phase, currentStatus: snapshot.status }
+      : plan.kind === "advance"
+        ? { ...plan, moved: true }
+        : plan;
+    return jsonResponse({ ...autoModeAnswer(wouldBe, analysis, false), previewOnly: true });
+  }
+
+  if (!currentPhaseId) {
+    // The advance never guesses the finished step from the stored phase: a
+    // retry or a stale tab would skip a step that way.
+    return jsonResponse({
+      error: "currentPhaseId is required",
+      message: "Say which step was just finished; nobody is moved on a guess.",
+    }, 400);
+  }
+
+  const outcome = await advanceAfterStep(supabaseAdmin as unknown as AdvanceAdmin, {
+    applicationId,
+    steps,
+    completedStepId: currentPhaseId,
+    application: snapshot,
+    processingMode: job?.processing_mode,
+  });
+
+  if (outcome.kind === "error") {
+    console.error("[trigger-ava-analysis] Moving the candidate on failed:", outcome.error);
+    return jsonResponse({ error: "Failed to advance application", details: outcome.error }, 500);
+  }
+
+  console.log("[trigger-ava-analysis] Auto-mode step outcome", {
+    applicationId,
+    completedStepId: currentPhaseId,
+    outcome: outcome.kind,
+    nextPhaseId: "nextStep" in outcome ? outcome.nextStep.id : null,
+    reason: outcome.kind === "refused" ? outcome.reason : null,
+  });
+
+  // Score when this request moved them on, or when no stored analysis has
+  // read this step's result yet (shouldScoreAfterStep). The second case is
+  // not only a repeat: complete-video-intro and ai-analyze-portfolio move
+  // the candidate on themselves (recordStepResult, advance "auto_mode"), so
+  // the page's own call after a video or a portfolio always finds them
+  // "already_advanced" and is the only request that will ever ask for that
+  // step to be scored. A true repeat starts nothing (and does not notify the
+  // employer twice); a refused request scores nothing; a batch always waits
+  // for a score.
+  const startsAnalysis = shouldScoreAfterStep(outcome, application.notes);
+  if (!startsAnalysis && !awaitAnalysis) {
+    return jsonResponse(autoModeAnswer(outcome, null, false));
+  }
+
+  const task = scoreAfterStep(context, outcome);
+  if (awaitAnalysis) {
+    return jsonResponse(autoModeAnswer(outcome, await task, false));
+  }
+  await runInBackground("Background analysis", task);
+  return jsonResponse(autoModeAnswer(outcome, null, true));
+}
+
+/** The background half of an auto-mode step: Ava's analysis, then (only if a
+ *  voice interview is next) the employer's heads-up, which wants her score. */
+async function scoreAfterStep(context: AnalysisContext, outcome: AdvanceAfterStepOutcome): Promise<AnalysisOutcome> {
+  const startedAt = Date.now();
+  const analysis = await runAvaAnalysis(context);
+  if (analysis.ok) {
+    console.log("[trigger-ava-analysis] Background analysis finished", {
+      applicationId: context.applicationId,
+      seconds: Math.round((Date.now() - startedAt) / 100) / 10,
+      score: analysis.score,
+      reused: analysis.reused,
+      superseded: analysis.superseded,
+    });
+  } else {
+    console.error("[trigger-ava-analysis] Background analysis did not save", {
+      applicationId: context.applicationId,
+      status: analysis.status,
+      body: analysis.body,
+    });
+  }
+
+  if (outcome.kind === "needs_employer_approval") {
+    await notifyEmployerInterviewReady({
+      supabaseAdmin: context.supabaseAdmin,
+      employerId: context.job?.employer_id,
+      job: context.job,
+      profile: analysis.profile,
+      applicationId: context.applicationId,
+      score: analysis.ok ? analysis.score : null,
+    });
+  }
+  return analysis;
+}
+
+/** The JSON the candidate's page (or autopilot-batch) gets for an auto-mode
+ *  step. Same decision vocabulary the pages already branch on:
+ *  "advanced" | "needs_employer_approval" | "rejected" | anything else
+ *  (they re-read the row). */
+function autoModeAnswer(
+  outcome: AdvanceAfterStepOutcome,
+  analysis: AnalysisOutcome | null,
+  analysisRunning: boolean,
+): Record<string, unknown> {
+  const scoreFields = analysis && analysis.ok
+    ? { score: analysis.score, scorecard: analysis.scorecard, autopilotAction: analysis.scorecard?.autopilotAction ?? null }
+    : { score: null, scorecard: null, autopilotAction: null };
+  // An analysis this request waited for (awaitAnalysis: autopilot-batch)
+  // that did not save is said out loud, so a batch never reports an
+  // unscored applicant as handled. The move itself still stands.
+  const analysisField = analysis && !analysis.ok
+    ? {
+        analysisPending: analysisRunning,
+        analysisError: {
+          status: analysis.status,
+          error: typeof analysis.body?.error === "string" ? analysis.body.error : "Analysis failed",
+          details: typeof analysis.body?.details === "string" ? analysis.body.details : null,
+        },
+      }
+    : { analysisPending: analysisRunning };
+
+  switch (outcome.kind) {
+    case "advance":
+    case "already_advanced":
+      return {
+        success: true,
+        message: outcome.finishedAllSteps
+          ? "Every step is done; the application is with the hiring team"
+          : "Step recorded; the next step is open",
+        decision: "advanced",
+        nextPhaseId: outcome.nextStep.id,
+        nextPhaseTitle: outcome.nextStep.title,
+        finishedAllSteps: outcome.finishedAllSteps,
+        alreadyAdvanced: outcome.kind === "already_advanced",
+        ...analysisField,
+        ...scoreFields,
+      };
+    case "needs_employer_approval":
+      return {
+        success: true,
+        message: "Step recorded; the next step is an interview the employer sets up",
+        decision: "needs_employer_approval",
+        reason: "Next phase is Ava Interview which requires employer configuration",
+        ...analysisField,
+        ...scoreFields,
+      };
+    case "refused":
+      return {
+        success: true,
+        skipped: true,
+        message:
+          outcome.reason === "result_missing"
+            ? "This step's result is not saved yet, so nobody was moved"
+            : outcome.reason === "application_closed"
+              ? "This application is already decided"
+              : "The application is no longer on this step, so nothing was changed",
+        decision:
+          outcome.reason === "application_closed" && outcome.currentStatus === "rejected"
+            ? "rejected"
+            : outcome.reason === "result_missing"
+              ? "not_ready"
+              : "stale",
+        reason: outcome.reason,
+        currentStatus: outcome.currentStatus,
+        currentPhase: outcome.currentPhase,
+        ...analysisField,
+        ...scoreFields,
+      };
+    default:
+      return { success: false, error: "Unexpected outcome" };
+  }
+}
+
+serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const {
+      applicationId,
+      force = false,
+      autopilotDecision = false,
+      previewOnly = false,
+      currentPhaseId = null,
+      // autopilot-batch: wait for Ava's analysis before answering (see handleAutoModeStep).
+      awaitAnalysis = false,
+    } = await req.json();
+    
+    if (!applicationId) {
+      return new Response(
+        JSON.stringify({ error: "applicationId is required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log("[trigger-ava-analysis] Starting analysis for application:", applicationId, "force:", force, "autopilotDecision:", autopilotDecision, "previewOnly:", previewOnly, "currentPhaseId:", currentPhaseId, "awaitAnalysis:", awaitAnalysis);
+
+    // Create admin client to bypass RLS
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
+
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Authentication required" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabaseUserClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
+    });
+
+    const {
+      data: { user: requestingUser },
+      error: requestingUserError,
+    } = await supabaseUserClient.auth.getUser();
+
+    if (requestingUserError || !requestingUser) {
+      console.error("[trigger-ava-analysis] Invalid auth token:", requestingUserError);
+      return new Response(
+        JSON.stringify({ error: "Invalid authentication token" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Fetch application data with all job fields needed for autopilot decision
+    const { data: application, error: fetchError } = await supabaseAdmin
+      .from("applications")
+      .select(`
+        *,
+        jobs(title, description, requirements, skills_required, experience_level, job_type, workflow_steps, passing_score, processing_mode, quiz_questions, employer_id)
+      `)
+      .eq("id", applicationId)
+      .single();
+
+    if (fetchError || !application) {
+      console.error("[trigger-ava-analysis] Failed to fetch application:", fetchError);
+      return new Response(
+        JSON.stringify({ error: "Application not found", details: fetchError?.message }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const employerId = (application.jobs as any)?.employer_id;
+
+    const isCandidateOwner = application.candidate_id === requestingUser.id;
+    const isEmployerOwner = employerId === requestingUser.id;
+
+    // Team-member access must be scoped to THIS job the same way the live
+    // RLS policy on `applications` scopes it ("Team members can view
+    // applications for assigned jobs" -> is_active_team_member_for_job),
+    // whose definition requires assigned_job_ids to be null (whole-employer
+    // access) OR contain this job's id. A plain team_members row check
+    // (user_id + employer_id + active) would let a team member scoped to
+    // job A trigger/read analysis for job B's application at the same
+    // employer -- call the same SECURITY DEFINER function the applications
+    // RLS policy uses (via the caller's own JWT, so its
+    // p_user_id = auth.uid() check passes) instead of re-implementing the
+    // scoping rule here.
+    const [teamMemberRpc, { data: developerRole }] = await Promise.all([
+      !isCandidateOwner && !isEmployerOwner && employerId
+        ? supabaseUserClient.rpc("is_active_team_member_for_job", {
+            p_job_id: application.job_id,
+            p_user_id: requestingUser.id,
+          })
+        : Promise.resolve({ data: false, error: null }),
+      supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", requestingUser.id)
+        .eq("role", "developer")
+        .maybeSingle(),
+    ]);
+
+    if (teamMemberRpc.error) {
+      // Fail closed: an RPC error must never be treated as access granted.
+      console.error("[trigger-ava-analysis] is_active_team_member_for_job RPC error:", teamMemberRpc.error);
+    }
+    const isScopedTeamMember = isScopedTeamMemberFromRpc(teamMemberRpc);
+
+    if (!isCandidateOwner && !isEmployerOwner && !isScopedTeamMember && !developerRole) {
+      console.warn("[trigger-ava-analysis] Unauthorized analysis attempt", {
+        requesterId: requestingUser.id,
+        applicationId,
+        employerId,
+        candidateId: application.candidate_id,
+      });
+      return new Response(
+        JSON.stringify({ error: "You do not have permission to analyze this application" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // RACE CONDITION FIX: Skip if application was already rejected (unless force=true for reconsider)
+    if (application.status === "rejected" && !force) {
+      console.log("[trigger-ava-analysis] Application already rejected, skipping duplicate analysis");
+      return jsonResponse({ success: true, message: "Application already rejected", skipped: true });
+    }
+
+
+    const job = application.jobs as any;
+    // processing_mode comes from the database row, never from the request.
+    const autoMode = job?.processing_mode === "auto";
+    const analysisContext: AnalysisContext = {
+      supabaseAdmin,
+      application,
+      applicationId,
+      job,
+      employerId,
+      force: !!force,
+      currentPhaseId: typeof currentPhaseId === "string" && currentPhaseId ? currentPhaseId : null,
+      autoMode,
+    };
+
+    if (autoMode && (autopilotDecision || previewOnly)) {
+      return await handleAutoModeStep({
+        context: analysisContext,
+        previewOnly: !!previewOnly,
+        awaitAnalysis: !!awaitAnalysis,
+      });
+    }
+
+    // Manual jobs, and every score-only call: unchanged — the analysis runs
+    // while the caller waits.
+    const analysis = await runAvaAnalysis(analysisContext);
+    if (!analysis.ok) {
+      return jsonResponse(analysis.body, analysis.status);
+    }
+
+    if (analysis.reused && !autopilotDecision && !previewOnly) {
+      return jsonResponse({
+        success: true,
+        message: "Analysis already present",
+        skipped: true,
+        reused: true,
+        score: analysis.score,
+        scorecard: analysis.scorecard,
+      });
+    }
 
     if (autopilotDecision || previewOnly) {
       return await handleAutopilotDecision({
@@ -1392,10 +1811,10 @@ ${interviewType} Interview with AVA Results:
         application,
         applicationId,
         currentPhaseId: currentPhaseId || application.phase,
-        passingScore,
-        score: finalScore,
-        scorecard,
-        profile,
+        passingScore: (job?.passing_score as number) || 60,
+        score: analysis.score,
+        scorecard: analysis.scorecard,
+        profile: analysis.profile,
         job,
         previewOnly,
       });
@@ -1404,9 +1823,9 @@ ${interviewType} Interview with AVA Results:
     return jsonResponse({ 
       success: true, 
       message: "Analysis completed and saved",
-      score: finalScore,
+      score: analysis.score,
       forced: force,
-      scorecard,
+      scorecard: analysis.scorecard,
     });
 
   } catch (error) {

@@ -69,7 +69,9 @@ import {
   Type,
   Clock,
   HelpCircle,
-  ListChecks
+  ListChecks,
+  CircleDot,
+  EllipsisVertical
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -85,6 +87,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Accordion,
   AccordionContent,
@@ -131,6 +143,9 @@ interface ApplicationQuestion {
   question: string;
   required: boolean;
   placeholder?: string;
+  /** The choices of a "Pick one" (`select`) or "Pick several" (`multi_select`)
+   *  question, in the order the applicant sees them. */
+  options?: string[];
 }
 
 interface QuizQuestion {
@@ -380,9 +395,285 @@ const QUESTION_TYPE_ICONS: Record<string, React.ElementType> = {
   phone: Phone,
   file: Upload,
   textarea: FileTextIcon,
-  select: HelpCircle,
+  select: CircleDot,
+  multi_select: ListChecks,
+  date: CalendarIcon,
   number: Target,
 };
+
+// #region application-question-editor
+// Pure rules for the application-question dialog. No JSX and no imports in this
+// block: scripts/job_editor_choice_questions.test.mjs strips its types and runs it.
+//
+// Until 2026-10-05 this editor had no choice type at all. The live Zulu job's
+// q5-q8 are `select` questions with options, so opening one showed a blank Type
+// and nothing to edit the choices with; only the dialog's object spread kept them.
+
+/** Every type the dialog offers, in the owner's words. The application form
+ *  (ApplicationFormPhase.tsx) draws `select` as one-pick radio rows and
+ *  `multi_select` as tick-every-one-that-works checkbox rows. */
+const APPLICATION_QUESTION_TYPE_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "text", label: "Text" },
+  { value: "email", label: "Email" },
+  { value: "phone", label: "Phone" },
+  { value: "textarea", label: "Long Text" },
+  { value: "select", label: "Pick one" },
+  { value: "multi_select", label: "Pick several" },
+  { value: "file", label: "File Upload" },
+  { value: "date", label: "Date" },
+  { value: "number", label: "Number" },
+];
+
+const CHOICE_QUESTION_TYPES: ReadonlyArray<string> = ["select", "multi_select"];
+const MIN_CHOICE_OPTIONS = 2;
+const MAX_CHOICE_OPTIONS = 8;
+
+/** The type the dialog SHOWS for a stored type: the same answer as
+ *  normalizeQuestionType in ApplicationFormPhase.tsx, so the owner sees the field
+ *  the applicant will get (scripts/job_editor_choice_questions.test.mjs compares
+ *  the two switches). A type the form does not know is shown as itself, never as
+ *  a blank. Only what is shown changes: the stored value is rewritten only when
+ *  the owner picks a type himself, so opening and saving a job leaves every
+ *  question exactly as it was. */
+function editorQuestionType(type: string | null | undefined): string {
+  const normalized = (type || "text").toLowerCase().trim();
+  switch (normalized) {
+    case "long_text":
+    case "multi_line":
+      return "textarea";
+    case "file_upload":
+    case "upload":
+      return "file";
+    case "dropdown":
+      return "select";
+    case "multiselect":
+    case "multi-select":
+    case "checkbox":
+    case "checkboxes":
+      return "multi_select";
+    case "short_text":
+      return "text";
+    // The live job's phone question is stored as "tel"; it fell through to the
+    // paste-blocked plain input, so pasting your own number was logged as a
+    // paste violation. It is a phone field.
+    case "tel":
+    case "telephone":
+    case "mobile":
+      return "phone";
+    default:
+      return normalized || "text";
+  }
+}
+
+function isChoiceQuestionType(type: string | null | undefined): boolean {
+  return CHOICE_QUESTION_TYPES.includes(editorQuestionType(type));
+}
+
+/** The label the owner reads for a stored type; an unknown type is shown as itself. */
+function questionTypeLabel(type: string | null | undefined): string {
+  const shown = editorQuestionType(type);
+  return APPLICATION_QUESTION_TYPE_OPTIONS.find((option) => option.value === shown)?.label ?? (type || "text");
+}
+
+/** Choices as they are stored: trimmed, blanks dropped, order kept. */
+function cleanChoiceOptions(options: unknown): string[] {
+  if (!Array.isArray(options)) return [];
+  return options
+    .map((option) => (typeof option === "string" ? option.trim() : ""))
+    .filter((option) => option.length > 0);
+}
+
+/** Why this question cannot be saved, finishing the sentence "This question …",
+ *  or null. Only choice questions have rules here. */
+function choiceQuestionProblem(question: Pick<ApplicationQuestion, "type" | "options">): string | null {
+  if (!isChoiceQuestionType(question.type)) return null;
+  const options = cleanChoiceOptions(question.options);
+  if (options.length < MIN_CHOICE_OPTIONS) return `needs at least ${MIN_CHOICE_OPTIONS} choices`;
+  if (options.length > MAX_CHOICE_OPTIONS) return `can have at most ${MAX_CHOICE_OPTIONS} choices`;
+  // Two identical choices would be one radio value / one stored pick.
+  const seen = new Set<string>();
+  for (const option of options) {
+    const key = option.toLowerCase();
+    if (seen.has(key)) return `lists "${option}" twice`;
+    seen.add(key);
+  }
+  return null;
+}
+
+/** The first application question the job cannot be saved with, as a sentence
+ *  that names it, or null. */
+function applicationQuestionsProblem(questions: ReadonlyArray<ApplicationQuestion>): string | null {
+  for (let index = 0; index < questions.length; index += 1) {
+    const problem = choiceQuestionProblem(questions[index]);
+    if (!problem) continue;
+    const text = (questions[index].question || "").trim();
+    const name = text.length > 60 ? `${text.slice(0, 57)}...` : text;
+    return `Application question ${index + 1}${name ? ` ("${name}")` : ""} ${problem}.`;
+  }
+  return null;
+}
+
+/** The question after the owner picks a type in the dialog. Choosing a choice
+ *  type keeps every choice already written (so "Pick one" -> "Pick several"
+ *  loses nothing) and makes room for at least two. Choosing any other type
+ *  leaves the choices on the draft until Save, so a mis-tap back loses nothing. */
+function withQuestionType(question: ApplicationQuestion, nextType: string): ApplicationQuestion {
+  if (nextType === editorQuestionType(question.type)) return question;
+  if (!CHOICE_QUESTION_TYPES.includes(nextType)) return { ...question, type: nextType };
+  const options = Array.isArray(question.options) ? [...question.options] : [];
+  while (options.length < MIN_CHOICE_OPTIONS) options.push("");
+  return { ...question, type: nextType, options };
+}
+
+/** The question exactly as the dialog's Save writes it back. A choice question
+ *  keeps its cleaned choices; any other type drops choices it does not use.
+ *  Every other field, including the stored type, is untouched. */
+function finalizeEditedQuestion(question: ApplicationQuestion): ApplicationQuestion {
+  if (isChoiceQuestionType(question.type)) {
+    return { ...question, options: cleanChoiceOptions(question.options) };
+  }
+  if (!Object.prototype.hasOwnProperty.call(question, "options")) return question;
+  const withoutOptions = { ...question };
+  delete withoutOptions.options;
+  return withoutOptions;
+}
+
+/** One choice moved up or down a place; out-of-range moves change nothing. */
+function moveChoiceOption(options: ReadonlyArray<string>, index: number, direction: "up" | "down"): string[] {
+  const next = [...options];
+  const target = direction === "up" ? index - 1 : index + 1;
+  if (index < 0 || index >= next.length || target < 0 || target >= next.length) return next;
+  [next[index], next[target]] = [next[target], next[index]];
+  return next;
+}
+// #endregion application-question-editor
+
+// #region job-edit-save
+// What an edit of an existing job writes back. No JSX and no imports in this
+// block: scripts/job_editor_choice_questions.test.mjs strips its types and runs it.
+//
+// Until 2026-10-05 /jobs/edit/:id wrote the WHOLE row on every save, and loading
+// the row into the form is lossy: skills and benefits are joined with ", " and
+// split again on every comma (the live Zulu job's "Fast, accurate typing" came
+// back as two skills), the location is geocoded again (a miss stored
+// "(worldwide)" as the city of "Remote (worldwide)"), and the pay period always
+// loaded as yearly. So the first save of a one-question edit rewrote columns
+// nobody touched. An edit now sends only the columns whose own fields changed
+// since the job was loaded; a field nobody touched never reaches the database.
+
+const JOB_LOCATION_COLUMNS: ReadonlyArray<string> = [
+  "location",
+  "location_city",
+  "location_region",
+  "location_country",
+  "location_country_code",
+  "latitude",
+  "longitude",
+  "is_remote",
+];
+
+/** Each field the editor holds, and the job columns it writes. `is_remote` is
+ *  worked out from the location, the job type and the description, so a change
+ *  to any of the three sends it. Every column handleSubmit builds is listed here
+ *  (the test checks), so none can silently stop being saved on an edit. */
+const JOB_EDIT_FIELD_COLUMNS: Readonly<Record<string, ReadonlyArray<string>>> = {
+  title: ["title"],
+  description: ["description", "is_remote"],
+  requirements: ["requirements"],
+  responsibilities: ["responsibilities"],
+  location: JOB_LOCATION_COLUMNS,
+  job_type: ["job_type", "is_remote"],
+  experience_level: ["experience_level"],
+  department: ["department"],
+  salary_type: ["salary_min", "salary_max"],
+  salary_min: ["salary_min", "salary_max"],
+  salary_max: ["salary_min", "salary_max"],
+  salary_fixed: ["salary_min", "salary_max"],
+  salary_currency: ["salary_currency"],
+  salary_period: ["salary_period"],
+  skills_required: ["skills_required"],
+  benefits: ["benefits"],
+  application_deadline: ["application_deadline"],
+  status: ["status"],
+  application_questions: ["application_questions"],
+  quiz_questions: ["quiz_questions"],
+  workflow_steps: ["workflow_steps"],
+  workflow_difficulty: ["workflow_difficulty"],
+  processing_mode: ["processing_mode"],
+  passing_score: ["passing_score"],
+  required_wpm: ["required_wpm"],
+};
+
+/** Same value for the purpose of "did the owner change it": dates compare as
+ *  their ISO text, and a missing value equals null. */
+function sameJobEditValue(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+}
+
+/** The columns an edit must send: every column written by a field whose value
+ *  differs from the value the job was loaded with. Empty when nothing changed. */
+function changedJobEditColumns(
+  loaded: Readonly<Record<string, unknown>>,
+  current: Readonly<Record<string, unknown>>,
+): Set<string> {
+  const columns = new Set<string>();
+  for (const [field, fieldColumns] of Object.entries(JOB_EDIT_FIELD_COLUMNS)) {
+    if (sameJobEditValue(loaded[field], current[field])) continue;
+    for (const column of fieldColumns) columns.add(column);
+  }
+  return columns;
+}
+
+/** Only the named columns of a job row, for the update call. */
+function pickJobColumns<T extends Record<string, unknown>>(row: T, columns: ReadonlySet<string>): Partial<T> {
+  const picked: Partial<T> = {};
+  for (const key of Object.keys(row) as Array<keyof T & string>) {
+    if (columns.has(key)) picked[key] = row[key];
+  }
+  return picked;
+}
+
+/** The comma-separated skills/benefits text as a list, split on commas, except
+ *  that an item the job already had stays whole even when it contains a comma:
+ *  adding "Patience" to the Zulu job keeps "Fast, accurate typing" one skill. */
+function splitListKeepingItems(text: string, keepWhole: ReadonlyArray<string> = []): string[] {
+  const key = (value: string) => value.split(",").map((part) => part.trim()).filter(Boolean).join(", ");
+  const known = new Set(keepWhole.map((item) => key(item)).filter((item) => item.includes(",")));
+  const pieces = text.split(",");
+  const items: string[] = [];
+  let index = 0;
+  while (index < pieces.length) {
+    let taken = 1;
+    for (let end = pieces.length; end > index + 1; end -= 1) {
+      if (known.has(key(pieces.slice(index, end).join(",")))) {
+        taken = end - index;
+        break;
+      }
+    }
+    const item = key(pieces.slice(index, index + taken).join(","));
+    if (item) items.push(item);
+    index += taken;
+  }
+  return items;
+}
+
+/** The stored pay period (HOUR / MONTH / YEAR) as the form's Pay Period. */
+function fromGoogleSalaryPeriod(period: string | null | undefined): "hourly" | "monthly" | "yearly" {
+  const normalized = (period ?? "").toLowerCase();
+  if (normalized.startsWith("hour")) return "hourly";
+  if (normalized.startsWith("month")) return "monthly";
+  return "yearly";
+}
+
+/** The form's Pay Period as stored. */
+function toGoogleSalaryPeriod(period: string | null | undefined): string | null {
+  const normalized = (period ?? "").toLowerCase();
+  if (normalized.startsWith("hour")) return "HOUR";
+  if (normalized.startsWith("month")) return "MONTH";
+  if (normalized.startsWith("year") || normalized.startsWith("annual")) return "YEAR";
+  return null;
+}
+// #endregion job-edit-save
 
 const VOICE_INTERVIEW_LANGUAGES = [
   { value: "en", label: "English" },
@@ -482,19 +773,19 @@ const CURRENCIES = [
   { value: "XAF", label: "XAF (FCFA) - Central African CFA Franc" },
 ];
 
-const parseCommaSeparatedList = (value: unknown): string[] =>
-  normalizeCommaSeparatedText(value)
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-
-const toGoogleSalaryPeriod = (period: string | null | undefined): string | null => {
-  const normalized = (period ?? "").toLowerCase();
-  if (normalized.startsWith("hour")) return "HOUR";
-  if (normalized.startsWith("month")) return "MONTH";
-  if (normalized.startsWith("year") || normalized.startsWith("annual")) return "YEAR";
-  return null;
+// The workflow state's starting values, also used when an existing job leaves a
+// column empty.
+const WORKFLOW_DEFAULTS = {
+  difficulty: "medium",
+  processingMode: "auto" as "auto" | "manual",
+  passingScore: 60,
+  requiredWpm: 35,
 };
+
+// `keepWhole`: items the job already had, kept whole if they contain a comma
+// (see splitListKeepingItems).
+const parseCommaSeparatedList = (value: unknown, keepWhole: ReadonlyArray<string> = []): string[] =>
+  splitListKeepingItems(normalizeCommaSeparatedText(value), keepWhole);
 
 export default function CreateJob() {
   const navigate = useNavigate();
@@ -513,6 +804,9 @@ export default function CreateJob() {
   const hasVoiceInterviewAccess = false;
   const canManageJobs = role === "employer" || (isTeamMember && teamPermissions?.canCreateJobs);
   const guestDraftHydratedRef = useRef(false);
+  // Edit mode: every saved field as the job was loaded (set by the load effect
+  // below); handleSubmit sends only the columns whose fields differ from it.
+  const loadedEditFieldsRef = useRef<Record<string, unknown> | null>(null);
   
   // Phase warning dismissed state
   const [phaseWarningDismissed, setPhaseWarningDismissed] = useState(false);
@@ -540,10 +834,10 @@ export default function CreateJob() {
   });
 
   // Workflow state
-  const [workflowDifficulty, setWorkflowDifficulty] = useState<string>("medium");
-  const [processingMode, setProcessingMode] = useState<"auto" | "manual">("auto");
-  const [passingScore, setPassingScore] = useState<number>(60);
-  const [requiredWpm, setRequiredWpm] = useState<number>(35);
+  const [workflowDifficulty, setWorkflowDifficulty] = useState<string>(WORKFLOW_DEFAULTS.difficulty);
+  const [processingMode, setProcessingMode] = useState<"auto" | "manual">(WORKFLOW_DEFAULTS.processingMode);
+  const [passingScore, setPassingScore] = useState<number>(WORKFLOW_DEFAULTS.passingScore);
+  const [requiredWpm, setRequiredWpm] = useState<number>(WORKFLOW_DEFAULTS.requiredWpm);
   const [applicationQuestions, setApplicationQuestions] = useState<ApplicationQuestion[]>([]);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
   // Whole minutes the timed questions add up to; 0 when none carries a time limit.
@@ -564,6 +858,10 @@ export default function CreateJob() {
   
   // Edit dialogs
   const [editingQuestion, setEditingQuestion] = useState<ApplicationQuestion | null>(null);
+  // On a live job's edit screen, deleting a question and saving as a draft
+  // (which takes the job off the careers page) each ask first.
+  const [questionPendingDelete, setQuestionPendingDelete] = useState<ApplicationQuestion | null>(null);
+  const [confirmUnpublishOpen, setConfirmUnpublishOpen] = useState(false);
   const [editingQuizQuestion, setEditingQuizQuestion] = useState<QuizQuestion | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -602,7 +900,7 @@ export default function CreateJob() {
   // Load existing job data for edit mode
   useEffect(() => {
     if (isEditMode && existingJob) {
-      setFormData({
+      const loadedForm: AvaJobFormData = {
         ...DEFAULT_GUIDED_JOB_SETUP,
         title: existingJob.title || "",
         description: existingJob.description || "",
@@ -613,7 +911,7 @@ export default function CreateJob() {
         experience_level: existingJob.experience_level || "",
         department: existingJob.department || "",
         salary_type: existingJob.salary_min === existingJob.salary_max ? "fixed" : "range",
-        salary_period: "yearly",
+        salary_period: fromGoogleSalaryPeriod(existingJob.salary_period),
         salary_min: existingJob.salary_min?.toString() || "",
         salary_max: existingJob.salary_max?.toString() || "",
         salary_fixed: existingJob.salary_min === existingJob.salary_max ? existingJob.salary_min?.toString() || "" : "",
@@ -621,32 +919,35 @@ export default function CreateJob() {
         skills_required: existingJob.skills_required?.join(", ") || "",
         benefits: existingJob.benefits?.join(", ") || "",
         application_deadline: existingJob.application_deadline ? new Date(existingJob.application_deadline) : null,
-      });
+      };
+      setFormData(loadedForm);
       setJobContentGenerated(true);
-      
-      // Load workflow data
-      if (existingJob.workflow_difficulty) {
-        setWorkflowDifficulty(existingJob.workflow_difficulty);
-      }
-      if (existingJob.processing_mode) {
-        setProcessingMode(existingJob.processing_mode as "auto" | "manual");
-      }
-      if (existingJob.passing_score) {
-        setPassingScore(existingJob.passing_score);
-      }
-      if (existingJob.required_wpm) {
-        setRequiredWpm(existingJob.required_wpm);
-      }
+
+      // Load workflow data. A column left empty keeps the state's own default,
+      // so the values are resolved once here and the snapshot below matches.
+      const loadedWorkflow = {
+        application_questions: (existingJob.application_questions as unknown as ApplicationQuestion[] | null) ?? [],
+        quiz_questions: (existingJob.quiz_questions as unknown as QuizQuestion[] | null) ?? [],
+        workflow_steps: (existingJob.workflow_steps as unknown as WorkflowStep[] | null) ?? [],
+        workflow_difficulty: existingJob.workflow_difficulty || WORKFLOW_DEFAULTS.difficulty,
+        processing_mode: (existingJob.processing_mode as "auto" | "manual" | null) || WORKFLOW_DEFAULTS.processingMode,
+        passing_score: existingJob.passing_score || WORKFLOW_DEFAULTS.passingScore,
+        required_wpm: existingJob.required_wpm || WORKFLOW_DEFAULTS.requiredWpm,
+      };
+      setWorkflowDifficulty(loadedWorkflow.workflow_difficulty);
+      setProcessingMode(loadedWorkflow.processing_mode);
+      setPassingScore(loadedWorkflow.passing_score);
+      setRequiredWpm(loadedWorkflow.required_wpm);
+      setApplicationQuestions(loadedWorkflow.application_questions);
+      setQuizQuestions(loadedWorkflow.quiz_questions);
+      setWorkflowSteps(loadedWorkflow.workflow_steps);
       if (existingJob.application_questions) {
-        setApplicationQuestions(existingJob.application_questions as unknown as ApplicationQuestion[]);
         setWorkflowGenerated(true);
       }
-      if (existingJob.quiz_questions) {
-        setQuizQuestions(existingJob.quiz_questions as unknown as QuizQuestion[]);
-      }
-      if (existingJob.workflow_steps) {
-        setWorkflowSteps(existingJob.workflow_steps as unknown as WorkflowStep[]);
-      }
+
+      // What Save compares against, so an edit sends only what changed (see
+      // changedJobEditColumns).
+      loadedEditFieldsRef.current = { ...loadedForm, ...loadedWorkflow, status: existingJob.status };
     }
   }, [isEditMode, existingJob]);
 
@@ -1129,6 +1430,22 @@ export default function CreateJob() {
       return;
     }
 
+    // A "Pick one" / "Pick several" question with fewer than two real choices
+    // gives the applicant nothing to pick, and the form falls back to a text box.
+    const questionsProblem = applicationQuestionsProblem(applicationQuestions);
+    if (questionsProblem) {
+      toast.error(questionsProblem);
+      return;
+    }
+
+    // An edit compares against the job as it was loaded; without that it
+    // cannot tell what changed, so it writes nothing.
+    const loadedEditFields = loadedEditFieldsRef.current;
+    if (isEditMode && !loadedEditFields) {
+      toast.error("The job is still loading. Try again in a moment.");
+      return;
+    }
+
     // A published job with no business name on file never reaches candidates
     // or job boards correctly (silently dropped from the feed, shows
     // "Confidential"). Catch it here — inline, never a dead end — so the job
@@ -1172,7 +1489,26 @@ export default function CreateJob() {
         toast.error("Add a location before publishing, like \"Remote (worldwide)\" or \"London, United Kingdom\".");
         return;
       }
-      const geo = locationText ? await geocodePlace(locationText) : { ok: false as const };
+      // On an edit, only the columns whose fields changed since the job was
+      // loaded are written (see changedJobEditColumns); every other column is
+      // left exactly as stored.
+      const editedColumns = isEditMode && loadedEditFields
+        ? changedJobEditColumns(loadedEditFields, {
+            ...formData,
+            status,
+            application_questions: applicationQuestions,
+            quiz_questions: quizQuestions,
+            workflow_steps: workflowSteps,
+            workflow_difficulty: workflowDifficulty,
+            processing_mode: processingMode,
+            passing_score: passingScore,
+            required_wpm: requiredWpm,
+          })
+        : null;
+      // Only a new or changed location is geocoded; an unchanged one keeps the
+      // columns already stored for it.
+      const needsGeocode = !!locationText && (!editedColumns || editedColumns.has("location_city"));
+      const geo = needsGeocode ? await geocodePlace(locationText) : { ok: false as const };
       // When the geocoder misses, the feed and sitemap still need the stored
       // columns — fill them from the text the gate above already accepted.
       const fallbackLoc = geo.ok ? null : fallbackLocationFields(locationText);
@@ -1200,8 +1536,8 @@ export default function CreateJob() {
           : (formData.salary_max ? parseInt(formData.salary_max) : null),
         salary_currency: formData.salary_currency,
         salary_period: toGoogleSalaryPeriod(formData.salary_period),
-        skills_required: parseCommaSeparatedList(formData.skills_required),
-        benefits: parseCommaSeparatedList(formData.benefits),
+        skills_required: parseCommaSeparatedList(formData.skills_required, existingJob?.skills_required ?? []),
+        benefits: parseCommaSeparatedList(formData.benefits, existingJob?.benefits ?? []),
         application_deadline: formData.application_deadline ? formData.application_deadline.toISOString() : null,
         status,
         // Workflow data - cast to Json type as Supabase expects
@@ -1215,7 +1551,15 @@ export default function CreateJob() {
       };
 
       if (isEditMode && id) {
-        await updateJob.mutateAsync({ id, ...jobData });
+        const columns = editedColumns ?? new Set<string>();
+        if (columns.size === 0) {
+          toast("Nothing changed, so nothing was saved.");
+          navigate("/jobs");
+          return;
+        }
+        // `status` always rides along: it is what the button chose, and the
+        // showcase schema's update reads a missing status as "live".
+        await updateJob.mutateAsync({ id, ...pickJobColumns(jobData, columns), status });
         toast.success(status === "published" ? "Job updated and published!" : "Job updated");
         navigate("/jobs");
       } else {
@@ -1293,6 +1637,50 @@ export default function CreateJob() {
     };
     setApplicationQuestions(prev => [...prev, newQuestion]);
     setEditingQuestion(newQuestion);
+  };
+
+  // Choices of the question open in the dialog ("Pick one" / "Pick several")
+  const updateChoiceOption = (index: number, value: string) => {
+    setEditingQuestion(prev => {
+      if (!prev) return prev;
+      const options = [...(prev.options || [])];
+      options[index] = value;
+      return { ...prev, options };
+    });
+  };
+
+  const addChoiceOption = () => {
+    setEditingQuestion(prev => {
+      if (!prev) return prev;
+      const options = prev.options || [];
+      if (options.length >= MAX_CHOICE_OPTIONS) return prev;
+      return { ...prev, options: [...options, ""] };
+    });
+  };
+
+  const removeChoiceOption = (index: number) => {
+    setEditingQuestion(prev => {
+      if (!prev) return prev;
+      const options = prev.options || [];
+      if (options.length <= MIN_CHOICE_OPTIONS) return prev;
+      return { ...prev, options: options.filter((_, i) => i !== index) };
+    });
+  };
+
+  const moveChoice = (index: number, direction: 'up' | 'down') => {
+    setEditingQuestion(prev => prev ? { ...prev, options: moveChoiceOption(prev.options || [], index, direction) } : prev);
+  };
+
+  const saveEditingQuestion = () => {
+    if (!editingQuestion) return;
+    const problem = choiceQuestionProblem(editingQuestion);
+    if (problem) {
+      toast.error(`This question ${problem}.`);
+      return;
+    }
+    const saved = finalizeEditedQuestion(editingQuestion);
+    setApplicationQuestions(prev => prev.map(q => q.id === saved.id ? saved : q));
+    setEditingQuestion(null);
   };
 
   // Quiz question management
@@ -1610,6 +1998,126 @@ export default function CreateJob() {
     },
   } as const;
   const currentRiskStyles = screeningRiskAlertStyles[screeningPlanRisk.level];
+
+  // The application questions card. Shown on create AND on edit: unlike the
+  // tests, a question can be reworded or turned into a "Pick several" after the
+  // job is live (2026-10-05, the Zulu shift question), because answers already
+  // sent are stored with their own copy of the question.
+  const applicationQuestionsSection = (
+    <div className="space-y-2">
+      <span className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground/60">Application</span>
+      <Card className="bg-card border-border">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg">Application Questions</CardTitle>
+          <Button variant="outline" size="sm" onClick={addNewQuestion} className="gap-1">
+            <Plus className="h-4 w-4" />
+            Add Question
+          </Button>
+        </div>
+        <CardDescription>
+          {applicationQuestions.length} questions for the initial application
+          {isEditMode && ". Changes apply to anyone who has not sent the form yet."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3 sm:space-y-2">
+          {applicationQuestions.map((q, index) => {
+            const QuestionIcon = QUESTION_TYPE_ICONS[editorQuestionType(q.type)] || HelpCircle;
+            return (
+              <div
+                key={q.id}
+                className="flex items-start sm:items-center justify-between p-4 rounded-xl bg-secondary/50 group border border-border/50 gap-3"
+              >
+                <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+                  {/* Like Edit/Delete: shown on a phone, hover-revealed from sm up. */}
+                  <div className="flex shrink-0 flex-col gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 sm:opacity-0 sm:group-hover:opacity-100"
+                      aria-label={`Move question ${index + 1} up`}
+                      onClick={() => moveQuestion(index, 'up')}
+                      disabled={index === 0}
+                    >
+                      <ChevronUp className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 sm:opacity-0 sm:group-hover:opacity-100"
+                      aria-label={`Move question ${index + 1} down`}
+                      onClick={() => moveQuestion(index, 'down')}
+                      disabled={index === applicationQuestions.length - 1}
+                    >
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
+                  </div>
+                  {/* Decorative (the badge names the type); dropped on a phone to give the question room. */}
+                  <div className="hidden h-10 w-10 rounded-lg bg-primary/10 sm:flex items-center justify-center shrink-0">
+                    <QuestionIcon className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm break-words [overflow-wrap:anywhere]">{q.question}</div>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground mt-0.5">
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 whitespace-nowrap">
+                        {questionTypeLabel(q.type)}
+                      </Badge>
+                      {isChoiceQuestionType(q.type) && (
+                        <span className="whitespace-nowrap">{cleanChoiceOptions(q.options).length} choices</span>
+                      )}
+                      {q.required && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 whitespace-nowrap bg-brass/20 text-brass border-brass/30">
+                          Required
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                {/* Always visible on a phone (no hover there); hover-revealed from sm up. */}
+                <div className="flex shrink-0 gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          aria-label={`Edit question ${index + 1}`}
+                          onClick={() => setEditingQuestion(q)}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Edit</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive"
+                          aria-label={`Delete question ${index + 1}`}
+                          onClick={() => (isEditMode ? setQuestionPendingDelete(q) : deleteQuestion(q.id))}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Delete</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+
+    </div>
+  );
 
   return (
     <div className="space-y-8 sm:space-y-6">
@@ -2347,8 +2855,9 @@ export default function CreateJob() {
               exit={{ opacity: 0, x: -20 }}
               className="space-y-4"
             >
-              {/* Edit Mode: Read-only workflow view */}
+              {/* Edit Mode: the tests stay read-only; the application questions stay editable */}
               {isEditMode ? (
+                <>
                 <Card className="bg-card border-border">
                   <CardHeader>
                       <CardTitle className="text-lg flex items-center gap-2">
@@ -2356,7 +2865,7 @@ export default function CreateJob() {
                       Screening Plan (Read Only)
                       </CardTitle>
                     <CardDescription>
-                      The screening plan cannot be modified after job creation. You can only edit the job draft and publishing details.
+                      The tests and their order cannot be changed after the job is created. You can still edit the application questions below.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -2374,6 +2883,8 @@ export default function CreateJob() {
                     </div>
                   </CardContent>
                 </Card>
+                {applicationQuestionsSection}
+                </>
               ) : (
                 <>
                   {!workflowGenerated ? (
@@ -2597,108 +3108,7 @@ export default function CreateJob() {
                   </Card>
 
                   {/* APPLICATION section */}
-                  <div className="space-y-2">
-                    <span className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground/60">Application</span>
-                    <Card className="bg-card border-border">
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg">Application Questions</CardTitle>
-                        <Button variant="outline" size="sm" onClick={addNewQuestion} className="gap-1">
-                          <Plus className="h-4 w-4" />
-                          Add Question
-                        </Button>
-                      </div>
-                      <CardDescription>
-                        {applicationQuestions.length} questions for the initial application
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3 sm:space-y-2">
-                        {applicationQuestions.map((q, index) => {
-                          const QuestionIcon = QUESTION_TYPE_ICONS[q.type] || HelpCircle;
-                          return (
-                            <div
-                              key={q.id}
-                              className="flex items-start sm:items-center justify-between p-4 rounded-xl bg-secondary/50 group border border-border/50 gap-3"
-                            >
-                              <div className="flex items-center gap-4">
-                                <div className="flex flex-col gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-5 w-5 opacity-0 group-hover:opacity-100"
-                                    onClick={() => moveQuestion(index, 'up')}
-                                    disabled={index === 0}
-                                  >
-                                    <ChevronUp className="h-3 w-3" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-5 w-5 opacity-0 group-hover:opacity-100"
-                                    onClick={() => moveQuestion(index, 'down')}
-                                    disabled={index === applicationQuestions.length - 1}
-                                  >
-                                    <ChevronDown className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                                  <QuestionIcon className="h-5 w-5 text-primary" />
-                                </div>
-                                <div>
-                                  <div className="font-medium text-sm">{q.question}</div>
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                      {q.type}
-                                    </Badge>
-                                    {q.required && (
-                                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-brass/20 text-brass border-brass/30">
-                                        Required
-                                      </Badge>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="flex gap-1 opacity-0 group-hover:opacity-100">
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8"
-                                        onClick={() => setEditingQuestion(q)}
-                                      >
-                                        <Edit2 className="h-4 w-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Edit</TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-destructive"
-                                        onClick={() => deleteQuestion(q.id)}
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Delete</TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  </div>
+                  {applicationQuestionsSection}
 
                   {/* SCREENING section */}
                   <div className="space-y-2">
@@ -3391,6 +3801,11 @@ export default function CreateJob() {
                                   <p className="text-sm text-foreground break-words [overflow-wrap:anywhere]">{index + 1}. {question.question}</p>
                                   {question.required && <Badge variant="outline">Required</Badge>}
                                 </div>
+                                {isChoiceQuestionType(question.type) && (
+                                  <p className="mt-1 text-xs text-muted-foreground break-words [overflow-wrap:anywhere]">
+                                    {questionTypeLabel(question.type)}: {cleanChoiceOptions(question.options).join(" · ")}
+                                  </p>
+                                )}
                                 {question.placeholder && (
                                   <p className="mt-1 text-xs text-muted-foreground break-words [overflow-wrap:anywhere]">Prompt hint: {question.placeholder}</p>
                                 )}
@@ -3488,7 +3903,7 @@ export default function CreateJob() {
               <div className="flex gap-3">
                 <Button
                   variant="outline"
-                  onClick={() => handleSubmit("draft")}
+                  onClick={() => (isEditMode && existingJob?.status === "published" ? setConfirmUnpublishOpen(true) : handleSubmit("draft"))}
                   disabled={isSubmitting}
                 >
                   <Save className="h-4 w-4 mr-2" />
@@ -3511,6 +3926,55 @@ export default function CreateJob() {
         </div>
       </div>
 
+      {/* Edit screen: deleting a question from a job that already has one */}
+      <AlertDialog open={!!questionPendingDelete} onOpenChange={(open) => !open && setQuestionPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this question?</AlertDialogTitle>
+            <AlertDialogDescription className="break-words [overflow-wrap:anywhere]">
+              {questionPendingDelete?.question ? `"${questionPendingDelete.question}" ` : "It "}
+              comes off the form for anyone who has not sent it yet. Answers already sent keep it. Nothing changes until you save the job.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep it</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (questionPendingDelete) deleteQuestion(questionPendingDelete.id);
+                setQuestionPendingDelete(null);
+              }}
+            >
+              Delete question
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit screen: "Save Draft" on a published job unpublishes it */}
+      <AlertDialog open={confirmUnpublishOpen} onOpenChange={setConfirmUnpublishOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Take this job off your careers page?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Saving it as a draft unpublishes it: new applicants can't open the job or apply until you publish it again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-0">
+            <AlertDialogCancel className="mt-0">Keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => handleSubmit("draft")}
+            >
+              Unpublish and save
+            </AlertDialogAction>
+            <AlertDialogAction onClick={() => handleSubmit("published")}>
+              Save and keep it live
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Edit Application Question Dialog */}
       <Dialog open={!!editingQuestion} onOpenChange={() => setEditingQuestion(null)}>
         <DialogContent>
@@ -3530,22 +3994,25 @@ export default function CreateJob() {
                 <div className="space-y-2">
                   <Label>Type</Label>
                   <Select
-                    value={editingQuestion.type}
-                    onValueChange={(v) => setEditingQuestion({ ...editingQuestion, type: v })}
+                    value={editorQuestionType(editingQuestion.type)}
+                    onValueChange={(v) => setEditingQuestion(withQuestionType(editingQuestion, v))}
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="text">Text</SelectItem>
-                      <SelectItem value="email">Email</SelectItem>
-                      <SelectItem value="phone">Phone</SelectItem>
-                      <SelectItem value="textarea">Long Text</SelectItem>
-                      <SelectItem value="file">File Upload</SelectItem>
-                      <SelectItem value="date">Date</SelectItem>
+                      {APPLICATION_QUESTION_TYPE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      ))}
+                      {/* A type this list does not know is still shown, never a blank. */}
+                      {!APPLICATION_QUESTION_TYPE_OPTIONS.some((option) => option.value === editorQuestionType(editingQuestion.type)) && (
+                        <SelectItem value={editorQuestionType(editingQuestion.type)}>
+                          {editingQuestion.type || "text"}
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
-                  {editingQuestion.type === "file" && (
+                  {editorQuestionType(editingQuestion.type) === "file" && (
                     <div className="mt-2 p-3 rounded-lg bg-brass/10 border border-brass/30">
                       <div className="flex items-start gap-2">
                         <AlertTriangle className="h-4 w-4 text-brass mt-0.5 shrink-0" />
@@ -3575,6 +4042,116 @@ export default function CreateJob() {
                   </Select>
                 </div>
               </div>
+              {isChoiceQuestionType(editingQuestion.type) && (
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <Label>Choices</Label>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {editorQuestionType(editingQuestion.type) === "multi_select"
+                          ? "Applicants tick every choice that applies."
+                          : "Applicants pick one choice."}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addChoiceOption}
+                      disabled={(editingQuestion.options?.length || 0) >= MAX_CHOICE_OPTIONS}
+                      className="gap-1 h-8 shrink-0"
+                    >
+                      <Plus className="h-3 w-3" />
+                      Add Choice
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {(editingQuestion.options || []).map((option, index, all) => (
+                      <div key={index} className="flex items-center gap-1">
+                        <Input
+                          value={option}
+                          onChange={(e) => updateChoiceOption(index, e.target.value)}
+                          placeholder={`Choice ${index + 1}`}
+                          aria-label={`Choice ${index + 1}`}
+                          className="min-w-0 flex-1"
+                        />
+                        {/* From sm up: the three actions inline. */}
+                        <div className="hidden shrink-0 items-center gap-1 sm:flex">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => moveChoice(index, 'up')}
+                            disabled={index === 0}
+                            aria-label={`Move choice ${index + 1} up`}
+                            className="h-10 w-9 shrink-0"
+                          >
+                            <ChevronUp className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => moveChoice(index, 'down')}
+                            disabled={index === all.length - 1}
+                            aria-label={`Move choice ${index + 1} down`}
+                            className="h-10 w-9 shrink-0"
+                          >
+                            <ChevronDown className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeChoiceOption(index)}
+                            disabled={all.length <= MIN_CHOICE_OPTIONS}
+                            aria-label={`Remove choice ${index + 1}`}
+                            className="h-10 w-9 shrink-0 text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        {/* On a phone the three would leave a long choice ("Daytime, 8am to 4pm
+                            Eastern") about 176px at 360 wide, so they share one menu there. */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Choice ${index + 1} actions`}
+                              className="h-10 w-10 shrink-0 sm:hidden"
+                            >
+                              <EllipsisVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem disabled={index === 0} onSelect={() => moveChoice(index, 'up')}>
+                              <ChevronUp className="mr-2 h-4 w-4" />
+                              Move up
+                            </DropdownMenuItem>
+                            <DropdownMenuItem disabled={index === all.length - 1} onSelect={() => moveChoice(index, 'down')}>
+                              <ChevronDown className="mr-2 h-4 w-4" />
+                              Move down
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={all.length <= MIN_CHOICE_OPTIONS}
+                              onSelect={() => removeChoiceOption(index)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Remove
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {MIN_CHOICE_OPTIONS} to {MAX_CHOICE_OPTIONS} choices, shown in this order.
+                  </p>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Placeholder</Label>
                 <Input
@@ -3586,14 +4163,7 @@ export default function CreateJob() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingQuestion(null)}>Cancel</Button>
-            <Button onClick={() => {
-              if (editingQuestion) {
-                setApplicationQuestions(prev => 
-                  prev.map(q => q.id === editingQuestion.id ? editingQuestion : q)
-                );
-                setEditingQuestion(null);
-              }
-            }}>
+            <Button onClick={saveEditingQuestion}>
               Save Changes
             </Button>
           </DialogFooter>

@@ -156,8 +156,14 @@ export function useCockpitJobsData() {
 }
 
 export function useCockpitCandidates() {
-  const { data: mode } = useSchemaMode();
-  const { data: applications = [], isLoading: hfLoading, isError: hfFailed, refetch: refetchApps } = useEmployerApplications();
+  const { data: mode, isLoading: modeLoading } = useSchemaMode();
+  const {
+    data: applications = [],
+    isLoading: hfLoading,
+    isError: hfFailed,
+    isFetching: hfFetching,
+    refetch: refetchApps,
+  } = useEmployerApplications();
 
   const showcaseQ = useQuery({
     queryKey: ["showcase-candidates"],
@@ -191,9 +197,11 @@ export function useCockpitCandidates() {
 
   const showcaseApps = showcaseQ.data?.applications ?? [];
 
-  const refetch = () => {
-    void refetchApps();
-    void showcaseQ.refetch();
+  // Resolves once the list in use has come back, so a page can wait on it —
+  // CandidateDetail does, before it says an applicant cannot be found.
+  const refetch = async (): Promise<void> => {
+    if (mode === "showcase") await showcaseQ.refetch();
+    else if (mode === "hireflow1") await refetchApps();
   };
 
   return {
@@ -201,7 +209,12 @@ export function useCockpitCandidates() {
     applications: mode === "showcase" ? showcaseApps : applications,
     pipeline,
     signals,
-    isLoading: mode === "showcase" ? showcaseQ.isLoading : hfLoading,
+    // Until the schema probe answers, neither list has started — that is
+    // loading, not "nobody" (CandidateDetail would otherwise say it cannot
+    // find a person on a cold deep link).
+    isLoading: modeLoading || (mode === "showcase" ? showcaseQ.isLoading : hfLoading),
+    /** A background refetch is in flight (live update, focus, retry). */
+    isFetching: mode === "showcase" ? showcaseQ.isFetching : hfFetching,
     // Failed ≠ empty: "Nobody has applied yet" would be a false statement in
     // Ava's voice to an owner whose pipeline simply failed to load.
     isError: mode === "showcase" ? showcaseQ.isError : hfFailed,
@@ -259,16 +272,19 @@ export function useCockpitDashboard() {
 }
 
 export function useCockpitCandidate(id: string | undefined) {
-  const { candidates, applications, isLoading, isError, refetch } = useCockpitCandidates();
+  const { candidates, applications, isLoading, isFetching, isError, refetch } = useCockpitCandidates();
   const candidate = useMemo(
     () => candidates.find((c) => c.id === id) ?? null,
     [candidates, id],
   );
+  // This person's row or nothing. It used to fall back to the first row in
+  // the list, which put somebody else's record (their status, their notes)
+  // behind this person's name whenever the id was not in the list yet.
   const application = useMemo(
-    () => applications.find((a) => a.id === id) ?? applications[0] ?? null,
+    () => applications.find((a) => a.id === id) ?? null,
     [applications, id],
   );
-  return { candidate, application, isLoading, isError, refetch };
+  return { candidate, application, isLoading, isFetching, isError, refetch };
 }
 
 /** DB status progression for the "Advance" button. Caps at "offered" — moving

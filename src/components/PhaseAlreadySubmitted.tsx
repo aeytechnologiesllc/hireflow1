@@ -1,64 +1,28 @@
-import { useNavigate } from "react-router-dom";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { CheckCircle, Clock, ArrowLeft } from "lucide-react";
+import { NextStepCard } from "@/components/candidate/NextStepCard";
 
 interface PhaseAlreadySubmittedProps {
   applicationId: string;
+  /** The step's candidate-facing title (from the journey, never a machine name). */
   phaseName: string;
+  /** Kept for existing callers; the card reads the live row instead. */
   submittedAt?: string;
+  /** Kept for existing callers; the card reads processing_mode from the live row. */
   isManualMode?: boolean;
 }
 
-export function PhaseAlreadySubmitted({
-  applicationId,
-  phaseName,
-  submittedAt,
-  isManualMode = true,
-}: PhaseAlreadySubmittedProps) {
-  const navigate = useNavigate();
-
-  return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <Card className="bg-card border-border max-w-md w-full">
-        <CardContent className="p-8 text-center space-y-6">
-          <div className="w-16 h-16 mx-auto rounded-full bg-success/20 flex items-center justify-center">
-            <CheckCircle className="h-8 w-8 text-success" />
-          </div>
-          
-          <div className="space-y-2">
-            <h2 className="text-xl font-semibold text-foreground">
-              {phaseName} Submitted
-            </h2>
-            <p className="text-muted-foreground">
-              Thank you for completing this phase. Your submission has been recorded.
-            </p>
-          </div>
-
-          <div className="flex items-center justify-center gap-2 text-muted-foreground">
-            <Clock className="h-4 w-4" />
-            <span className="text-sm">
-              {isManualMode 
-                ? "Awaiting employer review" 
-                : "Your application is being processed"}
-            </span>
-          </div>
-
-          {submittedAt && (
-            <p className="text-xs text-muted-foreground">
-              Submitted on {new Date(submittedAt).toLocaleString()}
-            </p>
-          )}
-
-          <Button 
-            onClick={() => navigate(`/applications/${applicationId}`)} 
-            className="w-full gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Application
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
-  );
+/**
+ * Shown when a candidate opens a step whose result was ALREADY on file when
+ * the page first loaded (a bookmarked link, the back button, a second tab).
+ *
+ * This used to be "<Step> Submitted · Your application is being processed"
+ * with one button, "Back to Application". Every step page swapped its own
+ * waiting and "Start next step" screens for it as soon as a background refresh
+ * brought the just-sent result back, so on 2026-10-05 the owner hit it after
+ * the form, the typing test, the chat practice and the interview. Step pages
+ * now decide "already done" once, at first load; and this card is no longer a
+ * dead end — it is the live NextStepCard: "Start <next step>" when one is
+ * open, or exactly where things stand when it is not.
+ */
+export function PhaseAlreadySubmitted({ applicationId, phaseName }: PhaseAlreadySubmittedProps) {
+  return <NextStepCard applicationId={applicationId} completedTitle={phaseName} />;
 }

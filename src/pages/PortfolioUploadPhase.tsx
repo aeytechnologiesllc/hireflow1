@@ -21,9 +21,10 @@ import {
   Sparkles
 } from "lucide-react";
 import { toast } from "sonner";
-import { invokeTriggerAvaAnalysis, triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
+import { invokeTriggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
-import { EvaluationScreen } from "@/components/EvaluationScreen";
+import { StepAdvanceScreen } from "@/components/candidate/NextStepCard";
+import { useResultAtFirstLoad, useStepAdvance } from "@/hooks/useStepAdvance";
 import { compressImage, needsCompression } from "@/utils/imageCompression";
 import { PhaseContextCard } from "@/components/PhaseContextCard";
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
@@ -83,12 +84,9 @@ export default function PortfolioUploadPhase() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Evaluation screen state for autopilot mode
-  const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | "failed" | null>(null);
-  const [nextPhaseInfo, setNextPhaseInfo] = useState<{ id: string; title: string } | null>(null);
 
   // Fetch application details - force refetch on mount to handle reconsider workflow
-  const { data: application, isLoading } = useQuery({
+  const { data: application, isLoading, isFetchedAfterMount } = useQuery({
     queryKey: ["portfolio-application", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -132,6 +130,10 @@ export default function PortfolioUploadPhase() {
     stepId,
     phase: application?.phase,
   });
+
+  // After the portfolio is sent: the waiting screen, then "Start <next
+  // step>" the moment the row says it is open (see useStepAdvance).
+  const advance = useStepAdvance({ applicationId: id, stepId, job: application?.jobs });
 
   // Get portfolio config
   const portfolioConfig = (() => {
@@ -377,122 +379,41 @@ export default function PortfolioUploadPhase() {
         return;
       }
 
-      // "waiting" covers manual mode, needing employer approval before
-      // voice_interview, and the closing decision stage — none of those show
-      // a "Start Next Phase" button, matching this page's own prior checks.
-      if (submitData.next && submitData.next !== "waiting") {
-        setNextPhaseInfo({
-          id: submitData.next.id,
-          title: submitData.next.title || submitData.next.type,
-        });
-      }
-
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
       queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
       
       if (isAutoMode) {
-        // Show evaluating state while backend processes
-        setEvaluationState("evaluating");
-        
-        // Trigger AVA analysis and WAIT for backend decision
-        try {
-          const { data: analysisResult, error: analysisError } = await invokeTriggerAvaAnalysis({
-            applicationId: id!,
-            autopilotDecision: true,
-            currentPhaseId: stepId,
-          });
-          
-          if (analysisError) {
-            console.error("[PortfolioUploadPhase] AVA analysis error:", analysisError);
-            // See the catch below — same reasoning, same honest exit.
-            setEvaluationState(null);
-            toast.success("Portfolio submitted", {
-              description: "Your work is uploaded. This is taking a moment — the hiring team will see it either way.",
-            });
-            navigate(`/applications/${id}`);
-          } else {
-            // Backend decides pass/fail based on weighted ai_score vs passing_score
-            const decision = analysisResult?.decision;
-            if (decision === "advanced") {
-              setEvaluationState("passed");
-            } else if (decision === "rejected") {
-              setEvaluationState("failed"); // EvaluationScreen handles "failed"
-            } else {
-              // Fallback: check application status
-              const { data: updatedApp } = await supabase
-                .from("applications")
-                .select("status, ai_score")
-                .eq("id", id!)
-                .single();
-              
-              if (updatedApp?.status === "rejected") {
-                setEvaluationState("failed");
-              } else {
-                // Was setEvaluationState("passed") — so ANY state this branch
-                // did not recognise (still pending, null, a status added later)
-                // showed the candidate a celebration screen saying they had
-                // passed. Nothing decided that. The backend is the only thing
-                // allowed to call an outcome, and when it has not called one
-                // yet the honest answer is that the work is in.
-                setEvaluationState(null);
-                toast.success("Portfolio submitted", {
-                  description: "Your work is uploaded. The hiring team will review it.",
-                });
-                navigate(`/applications/${id}`);
-              }
-            }
-          }
-        } catch (err) {
-          console.error("[PortfolioUploadPhase] Backend analysis failed:", err);
-          // Same trap the quiz had: refusing to invent a local result is right,
-          // but holding the candidate on a full-screen "evaluating" with no
-          // timeout and no way out is not neutrality. The upload already
-          // succeeded above, so say so and let them go.
-          setEvaluationState(null);
-          toast.success("Portfolio submitted", {
-            description: "Your work is uploaded. This is taking a moment — the hiring team will see it either way.",
-          });
-          navigate(`/applications/${id}`);
-        }
+        // The work is stored. What opens next is read off the row (the
+        // server moves `phase`), and the trigger's reply only speeds that up.
+        // invokeTriggerAvaAnalysis never throws.
+        advance.begin();
+        advance.markSaved();
+        const reply = await invokeTriggerAvaAnalysis({
+          applicationId: id!,
+          autopilotDecision: true,
+          currentPhaseId: stepId,
+        });
+        advance.settle(reply);
       } else {
         // Manual mode - just trigger analysis in background, toast and navigate
         invokeTriggerAvaAnalysis({
           applicationId: id!,
         }).catch(err => console.error("[PortfolioUploadPhase] AVA analysis trigger failed:", err));
         
-        toast.success("Portfolio submitted!", {
-          description: "Your portfolio has been uploaded. The employer will review your work.",
+        toast.success("Portfolio sent", {
+          description: "Your work is saved. The hiring team will review it and get back to you.",
         });
         navigate(`/applications/${id}`);
       }
     } catch (error) {
       console.error("Error submitting portfolio:", error);
-      toast.error("Failed to submit portfolio");
-      setEvaluationState(null);
+      toast.error("That didn't send — please try again.");
+      advance.cancel();
     } finally {
       setIsSubmitting(false);
       setIsAnalyzing(false);
     }
   };
-
-  // Handlers for evaluation screen
-  const handleStartNextPhase = () => {
-    if (!nextPhaseInfo || !application) return;
-    const workflowSteps = application.jobs?.workflow_steps || [];
-    const nextStep = workflowSteps.find((s) => s.id === nextPhaseInfo.id);
-    if (nextStep) {
-      const phaseRoutes: Record<string, string> = {
-        typing_test: "typing-test", video_intro: "video-intro", portfolio_upload: "portfolio",
-        chat_simulation: "chat-simulation", chat_interview: "chat-interview",
-        sales_simulation: "sales-simulation", voice_interview: "voice-interview", quiz: "quiz",
-      };
-      navigate(`/applications/${id}/${phaseRoutes[nextStep.type] || nextStep.type}/${nextPhaseInfo.id}`);
-    } else {
-      navigate(`/applications/${id}`);
-    }
-  };
-
-  const handleDoLater = () => navigate(`/applications/${id}`);
 
   // Check if already submitted - check both stepId key and global portfolioResult key
   const existingResult = (() => {
@@ -509,6 +430,10 @@ export default function PortfolioUploadPhase() {
       return null;
     }
   })();
+
+  // "Already done" is decided once, from the first read after this page
+  // mounted — never from a refresh that lands after the candidate sends.
+  const resultAtFirstLoad = useResultAtFirstLoad(isFetchedAfterMount && !!application, !!existingResult);
 
   if (authLoading || isLoading) {
     return (
@@ -534,25 +459,35 @@ export default function PortfolioUploadPhase() {
     );
   }
 
-  // Show already submitted view
-  if (existingResult) {
+  // Sent in this visit: the waiting screen, then the next step's button.
+  if (advance.view) {
     return (
-      <PhaseAlreadySubmitted
+      <StepAdvanceScreen
+        advance={advance}
         applicationId={id!}
-        phaseName="Portfolio Upload"
-        isManualMode={application.jobs?.processing_mode === "manual"}
+        jobTitle={application.jobs?.title}
+        completedTitle={journeyStep.title}
       />
     );
   }
 
-  // Show evaluation screen for autopilot mode
-  if (evaluationState) {
+  if (resultAtFirstLoad === null) {
     return (
-      <EvaluationScreen
-        state={evaluationState}
-        onStartNextPhase={nextPhaseInfo ? handleStartNextPhase : undefined}
-        onDoLater={handleDoLater}
-        nextPhaseName={nextPhaseInfo?.title}
+      <div className="space-y-6 max-w-3xl mx-auto p-6">
+        <Skeleton className="h-12 w-48" />
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
+
+  // Done before this visit began (a bookmark, the back button): say where
+  // things stand and offer the next step, never a dead end.
+  if (resultAtFirstLoad && existingResult && !isSubmitting) {
+    return (
+      <PhaseAlreadySubmitted
+        applicationId={id!}
+        phaseName={journeyStep.title}
+        isManualMode={application.jobs?.processing_mode === "manual"}
       />
     );
   }

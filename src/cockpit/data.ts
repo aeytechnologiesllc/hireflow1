@@ -104,6 +104,11 @@ export interface Candidate {
    *  test now (owner, 2026-10-05), so this is most applicants mid-way. Optional:
    *  showcase data and manual-mode jobs never set it. */
   stillTesting?: boolean;
+  /** Pressed Apply and is on the application form right now (status
+   *  `in_progress`): nothing of theirs has been sent, so there is nothing for
+   *  Ava to read yet. Shown as "Filling in the form", never as "Applied" or
+   *  "still screening". Optional: showcase data never sets it. */
+  fillingInForm?: boolean;
   source: string;
 }
 

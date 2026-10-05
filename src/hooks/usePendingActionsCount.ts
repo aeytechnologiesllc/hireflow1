@@ -55,7 +55,7 @@ export function usePendingActionsCount() {
         const phase = app.phase || "application";
         
         // Skip if in waiting phases (no action needed)
-        if (["application", "review", "interview", "hired"].includes(phase)) {
+        if (["application", "review", "decision", "interview", "hired"].includes(phase)) {
           continue;
         }
         

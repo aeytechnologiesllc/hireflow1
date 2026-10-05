@@ -21,6 +21,28 @@ interface AutopilotDecisionData {
   decision?: string | null;
   nextPhaseId?: string | null;
   nextPhaseTitle?: string | null;
+  /** Set when the analysis this batch waited for did not save (auto mode:
+   *  the move still happened). */
+  analysisError?: { status?: number; error?: string; details?: string | null } | null;
+}
+
+/**
+ * What the batch reports for one application of an AUTO-mode job. Since
+ * 2026-10-05 trigger-ava-analysis moves an auto-mode applicant on only when
+ * they finished their current step (its result stored, compare-and-set on the
+ * phase) and never parks anyone on Ava's read, so the action comes from what
+ * actually happened to them, not from her recommendation: moved on is
+ * "advance", waiting on the employer or on the owner's decision is "review",
+ * still mid-way with nothing to move is "defer". Her decline read stays in
+ * hardRejectReason/rationale for the owner.
+ */
+function autoModeAction(
+  decisionData: AutopilotDecisionData | null,
+  decisionState: string,
+): "advance" | "review" | "defer" {
+  if (decisionData?.decision === "advanced") return "advance";
+  if (decisionData?.decision === "needs_employer_approval") return "review";
+  return decisionState === "needs_more_evidence" ? "defer" : "review";
 }
 
 async function invokeTriggerAvaAnalysis(params: {
@@ -32,6 +54,7 @@ async function invokeTriggerAvaAnalysis(params: {
   force: boolean;
   autopilotDecision: boolean;
   previewOnly: boolean;
+  awaitAnalysis: boolean;
 }): Promise<
   | { data: AutopilotDecisionData | null; error: null }
   | { data: null; error: { message: string; status: number; body: unknown } }
@@ -49,6 +72,7 @@ async function invokeTriggerAvaAnalysis(params: {
       force: params.force,
       autopilotDecision: params.autopilotDecision,
       previewOnly: params.previewOnly,
+      awaitAnalysis: params.awaitAnalysis,
     }),
   });
 
@@ -196,7 +220,7 @@ serve(async (req) => {
 
     const { data: job, error: jobError } = await supabaseAdmin
       .from("jobs")
-      .select("id, title, employer_id, passing_score, workflow_steps, quiz_questions")
+      .select("id, title, employer_id, passing_score, workflow_steps, quiz_questions, processing_mode")
       .eq("id", jobId)
       .single();
 
@@ -263,6 +287,7 @@ serve(async (req) => {
 
     const workflowSteps = Array.isArray(job.workflow_steps) ? job.workflow_steps : [];
     const passingScore = job.passing_score || 60;
+    const autoMode = job.processing_mode === "auto";
     const response = {
       success: true,
       previewOnly,
@@ -309,6 +334,10 @@ serve(async (req) => {
         force: application.ai_score === null || application.ai_score === undefined,
         autopilotDecision: !previewOnly,
         previewOnly,
+        // trigger-ava-analysis scores auto-mode steps in the background by
+        // default; a batch waits for each one, so it scores one application
+        // at a time and can report the score it got.
+        awaitAnalysis: true,
       });
 
       if (decisionError) {
@@ -325,6 +354,32 @@ serve(async (req) => {
         continue;
       }
 
+      // Auto mode: the applicant may have been moved on while Ava could not
+      // score them (the model erroring, the plan's analysis limit). That is
+      // a failure for the owner to see, not an "advanced": counted in
+      // `failed`, which the toggle reports as "trouble updating N
+      // applicants … refresh the recommendation", with the move kept in the
+      // row.
+      if (decisionData?.analysisError) {
+        const why = [decisionData.analysisError.error, decisionData.analysisError.details].filter(Boolean).join(": ");
+        response.totals.failed++;
+        response.applicants.push({
+          applicationId: application.id,
+          candidateId: application.candidate_id,
+          candidateName: profile?.name || "Unknown Applicant",
+          candidateEmail: profile?.email || "",
+          currentPhaseId: phaseId,
+          action: "failed",
+          decision: decisionData.decision || null,
+          nextPhaseId: decisionData.nextPhaseId || null,
+          nextPhaseTitle: decisionData.nextPhaseTitle || null,
+          error: decisionData.decision === "advanced"
+            ? `Moved on, but Ava could not score them${why ? ` (${why})` : ""}`
+            : `Ava could not score them${why ? ` (${why})` : ""}`,
+        });
+        continue;
+      }
+
       const scorecard = decisionData?.scorecard || null;
       const decisionState = scorecard?.decisionState || "ready_for_decision";
       const autopilotAction = resolveAutopilotAction(
@@ -335,21 +390,24 @@ serve(async (req) => {
       const needsEmployerReview = decisionData?.decision === "needs_employer_approval"
         || (!decisionData?.nextPhaseId && autopilotAction !== "reject");
 
-      if (autopilotAction === "reject") {
+      // Manual jobs: unchanged. Auto-mode jobs: what actually happened.
+      const action = autoMode
+        ? autoModeAction(decisionData, decisionState)
+        : autopilotAction === "defer" || decisionState === "needs_more_evidence"
+          ? "defer"
+          : needsEmployerReview
+            ? "review"
+            : autopilotAction;
+
+      if (action === "reject") {
         response.totals.reject++;
-      } else if (autopilotAction === "defer" || decisionState === "needs_more_evidence") {
+      } else if (action === "defer") {
         response.totals.defer++;
-      } else if (needsEmployerReview) {
+      } else if (action === "review") {
         response.totals.review++;
       } else {
         response.totals.advance++;
       }
-
-      const action = autopilotAction === "defer" || decisionState === "needs_more_evidence"
-        ? "defer"
-        : needsEmployerReview
-          ? "review"
-          : autopilotAction;
 
       response.applicants.push({
         applicationId: application.id,

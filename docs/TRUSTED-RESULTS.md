@@ -76,7 +76,11 @@ write) if any of the first three fail:
    passed `legacyStepEntry`, plus any flat top-level keys you passed in
    `extraNotesEntries`, plus a server-only
    `notes._trusted[stepId] = { stepType, completedAt }` marker no client
-   write can ever produce.
+   write can ever produce. Since 2026-10-05 it hands ONLY those keys to the
+   service-role `merge_application_notes(p_application_id, p_patch)` RPC
+   (migration `20261005180943_merge_application_notes.sql`), which merges
+   them into whatever `notes` holds at that moment under the row lock — see
+   "Notes writes are merges" below. It never writes the whole object back.
 5. Computes what the next configured step would be (auto mode, next step
    exists, and it isn't `voice_interview`) exactly like the candidate's own
    browser always did — but only actually **writes** `phase`/`status` to
@@ -90,6 +94,131 @@ grading, done before you call it (or via a separate
 to move the candidate to the **next configured step**, mirroring what the
 candidate's own browser already computes for its "Start next phase" button.
 
+## Notes writes are merges, never whole-object writes (2026-10-05)
+
+`applications.notes` is one TEXT JSON object shared by the candidate's
+answers, every step's trusted result, the quiz RPC and Ava's scorecard. The
+edge-function writers used to read it, merge in JavaScript and write the
+whole object back. That stopped being safe the day Ava started scoring in the
+background (see "Moving on in auto mode" below): her run takes ~40 s, starts
+from a snapshot, and would erase the next step's result; a step result
+written from a stale snapshot would erase her scorecard.
+
+So every server-side notes write goes through one function:
+
+```sql
+public.merge_application_notes(p_application_id uuid, p_patch jsonb) returns jsonb
+-- SECURITY DEFINER, search_path public, EXECUTE for service_role ONLY
+-- (revoked from PUBLIC, anon, authenticated).
+```
+
+- It merges `p_patch`'s **top-level** keys into the stored object
+  (`stored || p_patch`) under `SELECT ... FOR UPDATE`, so two merges on one
+  application serialize. A patched key replaces that key's whole value
+  (a retaken result replaces the old one; it is not a deep merge).
+- What is stored is never thrown away. NULL, blank or JSON-null notes read as
+  `{}`. Notes holding a NUL character (JavaScript writes it as the `\u0000`
+  escape, which `JSON.parse` reads and Postgres `jsonb` refuses) are read in
+  full with the NUL as U+FFFD. Anything else that is not a JSON object
+  (malformed text, an array, a scalar) is kept whole under `_unparsedNotes`
+  with the patch merged beside it. None of these is an error. (The first
+  draft read them all as `{}` and wrote the patch over them, which would
+  have erased an application whose chat transcript held a NUL.)
+- A patch holding a NUL cannot reach the function at all (`jsonb` refuses the
+  parameter), so both writers pass every patch through
+  `withoutNulCharacters` first: NUL becomes U+FFFD, nothing else changes.
+- `updated_at` moves through the table's own trigger, and
+  `protect_application_columns` still runs (and exempts the service role, as
+  for every other server write).
+- It returns the merged object.
+
+Who writes what through it:
+
+| writer | keys it owns |
+|---|---|
+| `recordStepResult` | `resultKey`, `stepId` (when `legacyStepEntry`), `extraNotesEntries`, `_trusted` (this step's marker laid over the markers it just read) |
+| `trigger-ava-analysis` | `avaScorecard`, `avaAnalysisMeta` |
+
+Two adapters predate the RPC and have no `.rpc` (ai-chat-interview's
+`toMinimalAdmin` and the PGlite test fakes); with those, `recordStepResult`
+falls back to its old single whole-notes write. If the RPC itself does not
+exist yet (PGRST202 / 42883 — the migration was not applied before the
+functions were deployed), both writers fall back loudly; any other RPC error
+is a real failure. **Apply the migration before deploying the functions.**
+
+Proof: `scripts/merge_application_notes.pglite.test.mjs` (real Postgres) and
+the "notes go through merge_application_notes" section of
+`scripts/trusted_results_logic.test.mjs`, which reproduces the race and shows
+the old path losing the scorecard.
+
+## Moving on in auto mode — `advanceAfterStep` (2026-10-05)
+
+Owner: in an **auto-mode** job nobody is ever parked part-way. Every
+applicant takes every test up to and including the last one, Ava only scores
+and flags, and he decides at the end. Deal-breakers are a highlighted flag
+(`avaScorecard.dealBreakerFlags`), never a stop.
+
+`trigger-ava-analysis({ autopilotDecision: true, currentPhaseId })` on an
+auto-mode job now:
+
+1. reads `jobs.processing_mode` from the database (never the request);
+2. calls `advanceAfterStep` (`_shared/trustedResults.ts`), which
+   - refuses unless `currentPhaseId` names a real step AND is the row's
+     current `phase` (it never falls back to the stored phase — a retry or a
+     stale tab can never skip a step; a repeat after the move answers
+     "already moved" and writes nothing),
+   - refuses unless that step's own result is stored (`stepResultLanded`:
+     a `_trusted[stepId]` marker. For a step recorded by `recordStepResult`
+     that marker is required whenever the row has any markers, because the
+     per-type keys such as `chatSimulationResult` are shared by every step
+     of that type; only a legacy row with no markers at all falls back to
+     them. The quiz reads `quizResult`, the voice interview its column, the
+     application form counts once it is sent),
+   - moves `phase` with one compare-and-set
+     `UPDATE ... WHERE id = ? AND phase = <finished step> AND status NOT IN
+     ('rejected','hired','offered')`, status `reviewing`,
+   - goes to the Decision stage (`DECISION_STAGE_ID`, `"decision"`) after the
+     last real step, and still stops before a `voice_interview`;
+3. answers the browser at once — `decision: "advanced"`, `nextPhaseId`,
+   `nextPhaseTitle` (the journey's own titles: "Skills check", "Player chat
+   practice", "Decision"), `finishedAllSteps`, `alreadyAdvanced`, and
+   `score: null` / `analysisPending: true`. Refusals answer `"stale"`,
+   `"not_ready"` (result not stored yet) or `"rejected"`;
+4. runs Ava's analysis after the response with `EdgeRuntime.waitUntil`
+   when `shouldScoreAfterStep` says so: always when this request moved the
+   candidate, and on "already moved on" or "waiting on the employer" when no
+   stored analysis has read this step's result yet (`analysisCoversStep`:
+   `avaAnalysisMeta.analysisStartedAt` is later than
+   `_trusted[stepId].completedAt`). The second case matters because
+   `complete-video-intro` and `ai-analyze-portfolio` move the candidate on
+   themselves (`advance: "auto_mode"`), so the page's call after a video or a
+   portfolio always finds them already moved and is the only request that
+   will ever score that step. A true repeat after the analysis saved starts
+   nothing and does not notify the employer twice. That run writes analysis
+   fields only (`ai_analysis`, `ai_score`,
+   `ai_scorecard`, `resume_score`, `phase_ai_analysis` as information, and
+   `notes.avaScorecard` / `notes.avaAnalysisMeta` through the merge) and
+   **never** `phase` or `status`. A run that started earlier never
+   overwrites one that started later (`avaAnalysisMeta.analysisStartedAt`).
+   Her decline recommendation is stored for the owner and acted on by
+   nothing.
+
+`ai-analyze` shares one 135 s deadline across all of its OpenAI attempts, so
+the background run always finishes inside Supabase's 150 s request idle
+timeout and 400 s wall clock. The structured attempts stop 55 s before that
+deadline (`NARRATIVE_RESERVE_MS`), so a hung structured call can never use up
+the narrative fallback's time: worst case 80 s + 55 s. `autopilot-batch`
+passes `awaitAnalysis: true` so a batch scores one application at a time; an
+analysis that did not save comes back as `analysisError`, and the batch
+counts that applicant in `failed` ("Moved on, but Ava could not score them")
+rather than as handled.
+
+Manual-mode jobs are unchanged: the analysis runs while the caller waits, and
+`handleAutopilotDecision` (score, then advance / defer / recommend-decline)
+is reached only for them. `recordStepResult`'s own `advance` flag (below) is
+unchanged too — for auto-mode jobs the move after a `"never"` step is
+`advanceAfterStep`'s, made after the step's result is stored.
+
 ## The `advance` flag
 
 `recordStepResult`'s own write to `applications` never advances `phase`/
@@ -99,9 +228,12 @@ because only TWO of the seven step types' pre-conversion pages ever wrote
 `phase` from the browser themselves; the other five always left the whole
 advance/reject decision to a follow-up
 `trigger-ava-analysis({ autopilotDecision: true, currentPhaseId })` call —
-which, critically, leaves `phase` untouched (only `status: "reviewing"` +
-`phase_ai_analysis`) when Ava recommends declining, so a human reviews
-before the candidate moves on. Advancing `phase` from `recordStepResult`
+which, for a manual-mode job, leaves `phase` untouched (only
+`status: "reviewing"` + `phase_ai_analysis`) when Ava recommends declining,
+so a human reviews before the candidate moves on. (For an auto-mode job that
+call now moves them on regardless of her read — "Moving on in auto mode"
+above — but only after the step's result is stored, which is still exactly
+why `recordStepResult` itself must not move a `"never"` step.) Advancing `phase` from `recordStepResult`
 itself for one of those five steps would put the candidate one step ahead
 of that still-pending human review the moment their result triggers a
 decline recommendation — `CandidateStepGate.tsx` would then let them
@@ -240,14 +372,26 @@ moment the flag flips, because the migration blocks
   `scripts/guards/candidate-journey-shared-copy.mjs` (part of
   `node scripts/guardrails.mjs`) — if you ever need to touch the journey
   rules themselves, edit both files identically.
-- `supabase/functions/_shared/trustedResults.ts` — `recordStepResult` and
-  its pure helpers (`hasReachedStep`, `computeNextStepDecision`,
-  `mergeTrustedNotes`). Zero imports beyond `candidateJourney.ts`, so its
-  pure functions run under plain Node too.
+- `supabase/functions/_shared/trustedResults.ts` — `recordStepResult`,
+  `advanceAfterStep` and their pure helpers (`hasReachedStep`,
+  `computeNextStepDecision`, `mergeTrustedNotes`, `buildTrustedNotesPatch`,
+  `stepResultLanded`, `planAutoAdvance`, `analysisCoversStep`,
+  `shouldScoreAfterStep`, `withoutNulCharacters`). Zero imports beyond
+  `candidateJourney.ts`, so its pure functions run under plain Node too.
+- `supabase/migrations/20261005180943_merge_application_notes.sql` — the
+  service-role notes merge both server writers use.
 - `supabase/migrations/20260915140000_trusted_step_results.sql` — the
   `trusted_result_enforcement` table and the extended
   `protect_application_columns()` trigger.
 - `scripts/trusted_results_logic.test.mjs` — plain-Node test of
-  `trustedResults.ts`'s pure decision logic across realistic journeys.
+  `trustedResults.ts`'s pure decision logic across realistic journeys,
+  including the merge path and the auto-mode advance on the live Zulu
+  journey.
+- `scripts/merge_application_notes.pglite.test.mjs` — real-Postgres proof of
+  the merge function (merge semantics, unreadable notes kept, the NUL case,
+  service-role only).
+- `scripts/pending_phase_not_a_conflict.test.mjs` — the scorecard rules:
+  nothing stops an auto-mode applicant part-way, the judge's prose is never a
+  reason, the interview counts in both result shapes.
 - `scripts/trusted_step_results.pglite.test.mjs` — real-Postgres (PGlite)
   proof of the migration's trigger, flags on and off.

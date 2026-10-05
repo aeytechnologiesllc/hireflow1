@@ -14,6 +14,7 @@ import EmployerWelcome from "./EmployerWelcome";
 import CandidateOnboardingWizard from "./candidate/CandidateOnboardingWizard";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { GlobalNotificationToasts } from "@/components/GlobalNotificationToasts";
+import { EmployerLiveSync } from "@/cockpit/hooks/useEmployerLiveSync";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { Card, CardContent } from "@/components/ui/card";
@@ -349,6 +350,10 @@ export default function AppLayout() {
       <OfflineIndicator />
       {/* Global notification toasts listener */}
       <GlobalNotificationToasts />
+      {/* Keeps Applicants, the selected panel, Dashboard and the full profile
+          live as applicants act — mounted once per shell, never inside the
+          sidebar or tab bar (they mount twice). */}
+      <EmployerLiveSync />
       {/* Deep Jade Owner Cockpit shell (desktop sidebar + mobile bottom tabs) */}
       <CockpitShell>
         <Outlet />
@@ -494,6 +499,8 @@ function TeamMemberLayout({
       >
         <OfflineIndicator />
         <GlobalNotificationToasts />
+        {/* Same live applicant sync as the owner shell. */}
+        <EmployerLiveSync />
         <div className="hidden md:block absolute top-0 right-0 md:w-[600px] md:h-[600px] bg-primary/15 rounded-full md:blur-[150px] pointer-events-none" />
         <div className="hidden md:block absolute bottom-0 left-0 md:w-[500px] md:h-[500px] bg-accent/12 rounded-full md:blur-[150px] pointer-events-none" />
 

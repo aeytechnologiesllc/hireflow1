@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { Tables } from "@/integrations/supabase/types";
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 
 export type Notification = Tables<"notifications">;
 
@@ -25,22 +25,29 @@ export function useNotifications() {
     enabled: !!user,
   });
 
-  // Real-time subscription
+  // Real-time subscription. Topics carry the instance id: realtime-js returns
+  // the same channel for a repeated topic, so two mounted callers sharing one
+  // would break each other's join (see useUnreadCount below).
+  // Keyed on the id string, not the user object: every auth event (an hourly
+  // token refresh included) hands out a new object, and re-running this
+  // effect on the same topic picks up the channel that is still leaving.
+  const instanceId = useId();
+  const userId = user?.id;
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
 
     const channel = supabase
-      .channel(`notifications-${user.id}`)
+      .channel(`notifications-${userId}-${instanceId}`)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
           table: "notifications",
-          filter: `user_id=eq.${user.id}`,
+          filter: `user_id=eq.${userId}`,
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: ["notifications", user.id] });
+          queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
         }
       )
       .subscribe();
@@ -48,7 +55,7 @@ export function useNotifications() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, queryClient]);
+  }, [userId, instanceId, queryClient]);
 
   return query;
 }
@@ -72,23 +79,29 @@ export function useUnreadCount() {
     enabled: !!user,
   });
 
-  // Real-time subscription for unread count
+  // Real-time subscription for unread count. The cockpit mounts the bell
+  // twice (the sidebar rail and the phone top bar), so this hook runs twice at
+  // once; a per-user topic alone gave both the SAME channel and the second
+  // `.on()` failed the join. The instance id gives each its own.
+  // Keyed on the id string for the same reason as useNotifications above.
+  const instanceId = useId();
+  const userId = user?.id;
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
 
     const channel = supabase
-      .channel(`notifications-unread-${user.id}`)
+      .channel(`notifications-unread-${userId}-${instanceId}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "notifications",
-          filter: `user_id=eq.${user.id}`,
+          filter: `user_id=eq.${userId}`,
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: ["notifications", "unread", user.id] });
-          queryClient.invalidateQueries({ queryKey: ["notifications", user.id] });
+          queryClient.invalidateQueries({ queryKey: ["notifications", "unread", userId] });
+          queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
         }
       )
       .subscribe();
@@ -96,7 +109,7 @@ export function useUnreadCount() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, queryClient]);
+  }, [userId, instanceId, queryClient]);
 
   return query;
 }

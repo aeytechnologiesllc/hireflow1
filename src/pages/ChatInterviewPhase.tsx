@@ -24,8 +24,9 @@ import {
   MessageSquare
 } from "lucide-react";
 import { toast } from "sonner";
-import { invokeTriggerAvaAnalysis, triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
-import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
+import { invokeTriggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
+import { StepAdvanceScreen, TestRulesNotice } from "@/components/candidate/NextStepCard";
+import { useResultAtFirstLoad, useStepAdvance } from "@/hooks/useStepAdvance";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import { parseApplicationNotes } from "@/utils/applicationNotes";
 import { AvaSeal } from "@/components/ava/AvaSeal";
@@ -77,7 +78,7 @@ export default function ChatInterviewPhase() {
   const { user, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   
-  const [state, setState] = useState<"intro" | "interviewing" | "evaluating" | "completed" | "rejected">("intro");
+  const [state, setState] = useState<"intro" | "interviewing" | "evaluating" | "completed">("intro");
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -96,7 +97,6 @@ export default function ChatInterviewPhase() {
   const [isBlurred, setIsBlurred] = useState(false);
   const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
   const [autoEndTriggered, setAutoEndTriggered] = useState(false);
-  const [rejectedAppData, setRejectedAppData] = useState<ApplicationDetails | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -113,7 +113,7 @@ export default function ChatInterviewPhase() {
   }, [state, startTime]);
 
   // Fetch application details - force refetch on mount to handle reconsider workflow
-  const { data: application, isLoading } = useQuery({
+  const { data: application, isLoading, isFetchedAfterMount } = useQuery({
     queryKey: ["chat-interview-application", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -284,88 +284,14 @@ export default function ChatInterviewPhase() {
     return context;
   }, [application]);
 
-  // Auto-end interview when closing message is detected
-  useEffect(() => {
-    if (autoEndTriggered && state === "interviewing") {
-      setState("evaluating");
-      // Need to call handleSubmit - we'll trigger it via the button's logic
-      setAutoEndTriggered(false);
-      // Directly execute the submission logic
-      const runSubmit = async () => {
-        if (!application) return;
-        setIsSubmitting(true);
-        try {
-          const candidateContext = buildCandidateContext();
-
-          // The eval score, notes.chatInterviewResult write, and any auto-
-          // mode phase advance are now ONE trusted, server-side call —
-          // never a client-computed evaluation relayed into a plain
-          // .update(), never a client-decided phase advance. See
-          // docs/TRUSTED-RESULTS.md.
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session?.access_token) {
-            throw new Error("Your session expired — please sign in again.");
-          }
-
-          const submitResponse = await fetch(CHAT_URL, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({
-              mode: "submit",
-              applicationId: id,
-              stepId,
-              path: "auto_end",
-              jobTitle: application.jobs?.title || "",
-              jobDescription: application.jobs?.description || "",
-              candidateName: application.profiles?.full_name || "Candidate",
-              candidateContext,
-              messages: messages.map(m => ({ role: m.role, content: m.content, timestamp: m.timestamp })),
-              duration: getDuration(),
-              questionCount,
-              violations,
-            }),
-          });
-
-          if (!submitResponse.ok) {
-            const errBody = await submitResponse.json().catch(() => ({}));
-            throw new Error(errBody.error || "Failed to submit interview");
-          }
-
-          // Trigger backend analysis - it will calculate weighted ai_score and decide pass/fail
-          await triggerAvaAnalysis(id!);
-
-          queryClient.invalidateQueries({ queryKey: ["applications"] });
-          queryClient.invalidateQueries({ queryKey: ["chat-interview-application", id] });
-
-          toast.success("Interview sent!", {
-            description: "The hiring team will get back to you — everyone hears back.",
-          });
-          setState("completed");
-          setTimeout(() => navigate(`/applications/${id}`), 2000);
-        } catch (error) {
-          console.error("Submit error:", error);
-          toast.error("That didn't send — please try again.");
-          setState("interviewing");
-        } finally {
-          setIsSubmitting(false);
-        }
-      };
-      runSubmit();
-    }
-    // Safe to depend on all of these despite how often several of them
-    // change (messages/violations especially): `autoEndTriggered` is reset
-    // to false as the very first thing this body does once it runs, so a
-    // re-fire caused by any of the other deps hits that guard and no-ops
-    // instead of resubmitting.
-  }, [autoEndTriggered, application, buildCandidateContext, getDuration, id, messages, navigate, queryClient, questionCount, state, stepId, violations]);
-
   // Where the candidate is in the whole journey — derived from the job's real
   // workflow_steps via the shared candidateJourney builder, so this screen
   // agrees with every other candidate screen. Never invented.
   const journeyStep = useJourneyPosition(application?.jobs, { stepId, phase: application?.phase });
+
+  // After the interview is sent: the waiting screen, then "You've finished
+  // every step" (or the next step's button) the moment the row says so.
+  const advance = useStepAdvance({ applicationId: id, stepId, job: application?.jobs });
 
   const streamChat = async (mode: "start" | "respond", userMessage?: string) => {
     if (!application?.jobs) return;
@@ -530,13 +456,26 @@ export default function ChatInterviewPhase() {
 
   const endInterview = () => {
     setState("evaluating");
-    // Finished and on its way to be scored — drop the local draft so a retake
-    // never resumes inside the old transcript.
-    clearConversationDraft();
-    handleSubmit();
+    // The local draft is dropped only once the server has the transcript
+    // (in submitInterview) — clearing it first lost the interview if the tab
+    // closed or the send failed mid-way.
+    void submitInterview("manual");
   };
 
-  const handleSubmit = async () => {
+  /**
+   * The ONE way an interview is sent, for both endings: the closing message
+   * the interviewer writes ("auto_end") and the candidate's own End button
+   * ("manual"). They used to be two copies that disagreed — the auto-end copy
+   * asked for scoring with no decision and no step id, so on 2026-10-05 the
+   * owner's interview never reached Decision, and it never refreshed the
+   * overview, which went on saying "Up next · Begin Interview".
+   *
+   * The eval score and the notes.chatInterviewResult write are ONE trusted,
+   * server-side call — never a client-computed evaluation relayed into a
+   * plain .update(), never a client-decided phase advance. See
+   * docs/TRUSTED-RESULTS.md.
+   */
+  const submitInterview = async (path: "auto_end" | "manual") => {
     if (!application) return;
 
     setIsSubmitting(true);
@@ -550,13 +489,20 @@ export default function ChatInterviewPhase() {
 
       const isAutoMode = freshJob?.processing_mode === "auto";
 
-      const candidateContext = buildCandidateContext();
-      const duration = startTime ? Math.floor((new Date().getTime() - startTime.getTime()) / 1000) : 0;
+      // Auto mode: the honest waiting screen goes up now and stays until the
+      // row says what comes next (useStepAdvance).
+      if (isAutoMode) advance.begin();
 
-      // The eval score and the notes.chatInterviewResult write are now ONE
-      // trusted, server-side call — the score can never be relayed from an
-      // earlier client-side fetch a candidate could have edited before this
-      // write. See docs/TRUSTED-RESULTS.md.
+      const candidateContext = buildCandidateContext();
+      // Each ending keeps the duration shape the server's result builder has
+      // always received from it: "m:ss" for auto_end, seconds for manual.
+      const duration =
+        path === "auto_end"
+          ? getDuration()
+          : startTime
+            ? Math.floor((new Date().getTime() - startTime.getTime()) / 1000)
+            : 0;
+
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
         throw new Error("Your session expired — please sign in again.");
@@ -572,7 +518,7 @@ export default function ChatInterviewPhase() {
           mode: "submit",
           applicationId: id,
           stepId,
-          path: "manual",
+          path,
           jobTitle: application.jobs?.title || "",
           jobDescription: application.jobs?.description || "",
           candidateName: application.profiles?.full_name || "Candidate",
@@ -589,82 +535,56 @@ export default function ChatInterviewPhase() {
         throw new Error(errBody.error || "Failed to submit interview");
       }
 
-      // Invalidate queries
-      queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
+      // The server holds the interview now.
+      clearConversationDraft();
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
       queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
 
-      // SINGLE SOURCE OF TRUTH: Let backend decide pass/fail
       if (isAutoMode) {
-        try {
-          const { data: analysisResult } = await invokeTriggerAvaAnalysis({
-            applicationId: id!,
-            autopilotDecision: true,
-            // recordStepResult (called by the submit above) never advances
-            // applications.phase for chat_interview — see StepAdvanceMode's
-            // doc comment on RecordStepResultInput in trustedResults.ts.
-            // Pass the true current step explicitly anyway (rather than
-            // letting trigger-ava-analysis fall back to re-reading
-            // application.phase) so its pass/fail decision is always
-            // computed relative to chat_interview regardless of how phase
-            // is stored between requests.
-            currentPhaseId: stepId,
-          });
-          
-          // Backend returns decision: "rejected" | "advanced" | "needs_employer_approval"
-          if (analysisResult?.decision === "rejected") {
-            setRejectedAppData({ ...application, status: "rejected" });
-            setState("rejected");
-          } else if (analysisResult?.decision === "advanced" || analysisResult?.decision === "needs_employer_approval") {
-            toast.success("Interview sent!", {
-              description: "You've moved on to the next step.",
-            });
-            setState("completed");
-            setTimeout(() => navigate(`/applications/${id}`), 2000);
-          } else {
-            // Fallback: check application status from database
-            const { data: updatedApp } = await supabase
-              .from("applications")
-              .select("status")
-              .eq("id", id!)
-              .single();
-            
-            if (updatedApp?.status === "rejected") {
-              setRejectedAppData({ ...application, status: "rejected" });
-              setState("rejected");
-            } else {
-              toast.success("Interview sent!", {
-                description: "The hiring team will get back to you — everyone hears back.",
-              });
-              setState("completed");
-              setTimeout(() => navigate(`/applications/${id}`), 2000);
-            }
-          }
-        } catch (err) {
-          console.error("[ChatInterviewPhase] Backend analysis failed:", err);
-          setState("completed");
-          setTimeout(() => navigate(`/applications/${id}`), 2000);
-        }
+        // Same call for both endings: a decision, relative to THIS step.
+        // recordStepResult (called by the submit above) never advances
+        // applications.phase for chat_interview — see StepAdvanceMode's doc
+        // comment on RecordStepResultInput in trustedResults.ts — so the
+        // step id is passed explicitly rather than re-read from the row.
+        // invokeTriggerAvaAnalysis never throws.
+        advance.markSaved();
+        const reply = await invokeTriggerAvaAnalysis({
+          applicationId: id!,
+          autopilotDecision: true,
+          currentPhaseId: stepId,
+        });
+        advance.settle(reply);
       } else {
         // Manual mode - trigger analysis in background
         invokeTriggerAvaAnalysis({
           applicationId: id!,
         }).catch(err => console.error("[ChatInterviewPhase] AVA analysis trigger failed:", err));
-        
-        toast.success("Interview sent!", {
-          description: "The hiring team will get back to you — everyone hears back.",
-        });
+
         setState("completed");
-        setTimeout(() => navigate(`/applications/${id}`), 2000);
       }
-      
     } catch (error) {
       console.error("Error submitting interview:", error);
       toast.error("That didn't send — please try again.");
+      advance.cancel();
       setState("interviewing");
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  // The interviewer's closing message ends the interview by itself (see
+  // streamChat). Read the latest submitInterview through a ref so the
+  // transcript it sends includes that closing message.
+  const submitInterviewRef = useRef(submitInterview);
+  submitInterviewRef.current = submitInterview;
+  useEffect(() => {
+    if (autoEndTriggered && state === "interviewing") {
+      // Reset first, so a re-render can never send it twice.
+      setAutoEndTriggered(false);
+      setState("evaluating");
+      void submitInterviewRef.current("auto_end");
+    }
+  }, [autoEndTriggered, state]);
 
   // Anti-cheat handlers
   const preventCopy = (e: React.ClipboardEvent) => {
@@ -728,6 +648,16 @@ export default function ChatInterviewPhase() {
     }
   })();
 
+  // "Already done" is decided once, from the first read after this page
+  // mounted — never from a refresh that lands after the candidate sends.
+  const resultAtFirstLoad = useResultAtFirstLoad(isFetchedAfterMount && !!application, !!existingResult);
+  // A step the server already holds has no use for a local draft (the send
+  // that stored it may have been cut off before it could clear one), and a
+  // later retake must never resume inside the old conversation.
+  useEffect(() => {
+    if (resultAtFirstLoad) clearConversationDraft();
+  }, [resultAtFirstLoad, clearConversationDraft]);
+
   if (authLoading || isLoading) {
     return (
       <div className="mx-auto max-w-3xl space-y-6">
@@ -756,12 +686,35 @@ export default function ChatInterviewPhase() {
     );
   }
 
-  // Show already submitted view if phase was completed
-  if (existingResult) {
+  // Sent in this visit: the waiting screen, then "You've finished every
+  // step" (or the next step's button).
+  if (advance.view) {
+    return (
+      <StepAdvanceScreen
+        advance={advance}
+        applicationId={id!}
+        jobTitle={application.jobs?.title}
+        completedTitle={journeyStep.title}
+      />
+    );
+  }
+
+  if (resultAtFirstLoad === null) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-6">
+        <Skeleton className="h-12 w-48" />
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
+
+  // Done before this visit began (a bookmark, the back button): say where
+  // things stand, never a dead end.
+  if (resultAtFirstLoad && existingResult && state === "intro") {
     return (
       <PhaseAlreadySubmitted
         applicationId={id!}
-        phaseName="Interview"
+        phaseName={journeyStep.title}
         isManualMode={application.jobs?.processing_mode === "manual"}
       />
     );
@@ -770,17 +723,6 @@ export default function ChatInterviewPhase() {
   const minQuestions = 5;
   const candidateResponseCount = messages.filter((message) => message.role === "user").length;
   const canEndInterview = questionCount >= minQuestions || candidateResponseCount >= minQuestions;
-
-  // Show rejection screen for autopilot mode failure
-  if (state === "rejected" && rejectedAppData) {
-    return (
-      <CandidateStatusScreen
-        state="rejected"
-        jobTitle={application?.jobs?.title}
-        onClose={() => navigate(`/applications/${id}`)}
-      />
-    );
-  }
 
   return (
     <div
@@ -863,6 +805,7 @@ export default function ChatInterviewPhase() {
                     <span>You'll get a chance to wrap up and ask anything before it ends</span>
                   </li>
                 </ul>
+                <TestRulesNotice />
               </div>
 
               <Button onClick={startInterview} size="lg" className="w-full gap-2 sm:w-auto">
@@ -985,25 +928,31 @@ export default function ChatInterviewPhase() {
                 </div>
               )}
 
-              {/* Evaluating — a held moment, not a bare spinner */}
+              {/* Sending — a held moment, not a bare spinner. In auto mode the
+                  full-screen waiting screen takes over as soon as the send starts. */}
               {state === "evaluating" && (
-                <div className="ck-reveal flex flex-col items-center justify-center gap-4 py-16">
+                <div className="ck-reveal flex flex-col items-center justify-center gap-4 py-16 text-center">
                   <span className="ck-seal-breathe">
                     <AvaSeal size={32} />
                   </span>
-                  <p className="font-display text-lg text-foreground">Reviewing your answers…</p>
-                  <p className="text-sm text-muted-foreground">This can take a moment — stay on this page.</p>
+                  <p className="font-display text-lg text-foreground">Sending your interview</p>
+                  <p className="text-sm text-muted-foreground">Keep this page open for a moment.</p>
                 </div>
               )}
 
-              {/* Completed — a small seal-press payoff, and what happens next */}
+              {/* Completed (manual-review jobs) — a small seal-press payoff,
+                  what happens next, and the way back. No timed redirect. */}
               {state === "completed" && (
-                <div className="ck-reveal flex flex-col items-center justify-center gap-3 py-16">
+                <div className="ck-reveal flex flex-col items-center justify-center gap-3 py-16 text-center">
                   <AvaSeal size={40} tilt={-3} className="ck-seal-press" />
                   <p className="font-display text-lg text-foreground">Interview sent</p>
                   <p className="text-sm text-muted-foreground">
-                    The hiring team will get back to you — everyone hears back.
+                    Your answers are saved. The hiring team will get back to you — you can close this page.
                   </p>
+                  <Button onClick={() => navigate(`/applications/${id}`)} className="mt-2 w-full gap-2 sm:w-auto">
+                    <ArrowLeft className="h-4 w-4" />
+                    Back to your application
+                  </Button>
                 </div>
               )}
             </>

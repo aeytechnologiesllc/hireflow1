@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
-import { EvaluationScreen } from "@/components/EvaluationScreen";
+import { StepAdvanceScreen } from "@/components/candidate/NextStepCard";
+import { useResultAtFirstLoad, useStepAdvance } from "@/hooks/useStepAdvance";
 import { AvaSeal } from "@/components/ava/AvaSeal";
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 import {
@@ -22,7 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import { invokeTriggerAvaAnalysis, triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
+import { invokeTriggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { parseApplicationNotes } from "@/lib/applicationNotes";
 
 interface ApplicationDetails {
@@ -58,9 +59,6 @@ export default function VideoIntroPhase() {
   const [recordingTime, setRecordingTime] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Evaluation screen state for autopilot mode
-  const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | "failed" | null>(null);
-  const [nextPhaseInfo, setNextPhaseInfo] = useState<{ id: string; title: string } | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewRef = useRef<HTMLVideoElement>(null);
@@ -74,7 +72,7 @@ export default function VideoIntroPhase() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch application details - force refetch on mount to handle reconsider workflow
-  const { data: application, isLoading } = useQuery({
+  const { data: application, isLoading, isFetchedAfterMount } = useQuery({
     queryKey: ["video-intro-application", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -124,6 +122,40 @@ export default function VideoIntroPhase() {
   // workflow_steps used to build the journey at submit time below, via the
   // shared candidateJourney builder, never invented.
   const journey = useJourneyPosition(application?.jobs, { stepId, phase: application?.phase });
+
+  // After the recording is sent: the waiting screen, then "Start <next step>"
+  // the moment the row says it is open (see useStepAdvance).
+  const advance = useStepAdvance({ applicationId: id, stepId, job: application?.jobs });
+
+  // Once the recording is stored server-side: in auto mode, follow the row
+  // to the next step; in manual mode, the hiring team opens it.
+  const afterVideoSaved = async (isAutoMode: boolean) => {
+    queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
+    queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
+
+    if (isAutoMode) {
+      // invokeTriggerAvaAnalysis never throws; the screen follows the row.
+      advance.begin();
+      advance.markSaved();
+      const reply = await invokeTriggerAvaAnalysis({
+        applicationId: id!,
+        autopilotDecision: true,
+        currentPhaseId: stepId,
+      });
+      advance.settle(reply);
+      return;
+    }
+
+    // Manual mode - just trigger analysis in background, toast and navigate
+    invokeTriggerAvaAnalysis({
+      applicationId: id!,
+    }).catch(err => console.error("[VideoIntroPhase] AVA analysis trigger failed:", err));
+
+    toast.success("Video sent", {
+      description: "Your recording is saved. The hiring team will get back to you — everyone hears back.",
+    });
+    navigate(`/applications/${id}`);
+  };
 
 
   // Cleanup
@@ -290,11 +322,9 @@ export default function VideoIntroPhase() {
         .single();
       
       const isAutoMode = freshJob?.processing_mode === "auto";
-    
-      // Show evaluation screen immediately for autopilot mode
-      if (isAutoMode) {
-        setEvaluationState("evaluating");
-      }
+
+      // Show the honest waiting screen immediately for autopilot mode
+      if (isAutoMode) advance.begin();
       // 1. Upload video. Name and label it with what the browser ACTUALLY
       // recorded — an iOS recording is mp4, and storing it as .webm with a
       // video/webm content type produces a file nothing will play back for the
@@ -336,99 +366,9 @@ export default function VideoIntroPhase() {
         throw new Error(message);
       }
 
-      // Mirrors this screen's own former "DON'T show Start Next Phase if the
-      // next stage is the closing decision stage" rule — complete-video-intro
-      // already applies that (and the voice_interview / manual-mode holds)
-      // before returning "waiting" instead of a real next step.
-      const nextStepInfo = completeData.next as { id: string; type: string; title: string } | "waiting";
-      if (nextStepInfo !== "waiting") {
-        setNextPhaseInfo({ id: nextStepInfo.id, title: nextStepInfo.title });
-      }
-
-      queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
-      queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
-
-      if (isAutoMode) {
-        // Show evaluating state while backend processes
-        setEvaluationState("evaluating");
-        
-        // Trigger AVA analysis and WAIT for backend decision
-        try {
-          const { data: analysisResult, error: analysisError } = await invokeTriggerAvaAnalysis({
-            applicationId: id!,
-            autopilotDecision: true,
-            currentPhaseId: stepId,
-          });
-          
-          if (analysisError) {
-            console.error("[VideoIntroPhase] AVA analysis error:", analysisError);
-            // The video is already saved (the notes update above succeeded).
-            // Holding the candidate on a full-screen "reviewing" with no exit
-            // because a backend call failed is not neutrality — say the work
-            // is in and let them go. Same rule as PortfolioUploadPhase.
-            setEvaluationState(null);
-            toast.success("Video submitted", {
-              description: "Your recording is saved. This is taking a moment — the hiring team will see it either way.",
-            });
-            navigate(`/applications/${id}`);
-            return;
-          } else {
-            // Backend decides pass/fail — the client must never decide either
-            // outcome on its own. "advanced"/"needs_employer_approval" and a
-            // server-confirmed status:"rejected" are the only cases we act on;
-            // anything else (e.g. Ava recommended declining and the row is
-            // sitting in "reviewing" for a human) is neutral, not "passed" —
-            // defaulting to "passed" here would hand the candidate a "Start
-            // next phase" button the hiring team never approved.
-            const decision = analysisResult?.decision;
-            if (decision === "advanced" || decision === "needs_employer_approval") {
-              setEvaluationState("passed");
-            } else if (decision === "rejected") {
-              setEvaluationState("failed"); // EvaluationScreen handles "failed"
-            } else {
-              // Fallback: check application status
-              const { data: updatedApp } = await supabase
-                .from("applications")
-                .select("status")
-                .eq("id", id!)
-                .single();
-
-              if (updatedApp?.status === "rejected") {
-                setEvaluationState("failed");
-              } else {
-                // Neutral, honest outcome — submitted, hiring team reviewing.
-                setEvaluationState(null);
-                setNextPhaseInfo(null);
-                toast.success("Video submitted!", {
-                  description: "The hiring team will get back to you — everyone hears back.",
-                });
-                navigate(`/applications/${id}`);
-                return;
-              }
-            }
-          }
-        } catch (err) {
-          console.error("[VideoIntroPhase] Backend analysis failed:", err);
-          // Never decide pass/fail locally — but never trap them either.
-          setEvaluationState(null);
-          toast.success("Video submitted", {
-            description: "Your recording is saved. This is taking a moment — the hiring team will see it either way.",
-          });
-          navigate(`/applications/${id}`);
-          return;
-        }
-      } else {
-        // Manual mode - just trigger analysis in background, toast and navigate
-        invokeTriggerAvaAnalysis({
-          applicationId: id!,
-        }).catch(err => console.error("[VideoIntroPhase] AVA analysis trigger failed:", err));
-        
-        toast.success("Video submitted!", {
-          description: "The hiring team will get back to you — everyone hears back.",
-        });
-        navigate(`/applications/${id}`);
-      }
-      
+      // The recording is stored. What opens next is read off the row (the
+      // server moves `phase`), not off complete-video-intro's `next`.
+      await afterVideoSaved(isAutoMode);
     } catch (error) {
       console.error("Submit error:", error);
       
@@ -449,80 +389,7 @@ export default function VideoIntroPhase() {
               .select("processing_mode")
               .eq("id", application.job_id)
               .single();
-            const isAutoModeCheck = freshJobCheck?.processing_mode === "auto";
-            
-            queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
-            queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
-
-            if (isAutoModeCheck) {
-              // Show evaluating state while backend processes
-              setEvaluationState("evaluating");
-              
-              // Trigger AVA analysis and WAIT for backend decision
-              try {
-                const { data: analysisResult, error: analysisError } = await invokeTriggerAvaAnalysis({
-                  applicationId: id!,
-                  autopilotDecision: true,
-                  currentPhaseId: stepId,
-                });
-                
-                if (analysisError) {
-                  console.error("[VideoIntroPhase] AVA analysis error (recovery):", analysisError);
-                  setEvaluationState(null);
-                  toast.success("Video submitted", {
-                    description: "Your recording is saved. This is taking a moment — the hiring team will see it either way.",
-                  });
-                  navigate(`/applications/${id}`);
-                  return;
-                } else {
-                  // Same rule as the primary path: never decide "passed" or
-                  // "failed" locally — only act on a server-confirmed decision
-                  // or a server-confirmed status:"rejected" row.
-                  const decision = analysisResult?.decision;
-                  if (decision === "advanced" || decision === "needs_employer_approval") {
-                    setEvaluationState("passed");
-                  } else if (decision === "rejected") {
-                    setEvaluationState("failed");
-                  } else {
-                    const { data: updatedApp } = await supabase
-                      .from("applications")
-                      .select("status")
-                      .eq("id", id!)
-                      .single();
-
-                    if (updatedApp?.status === "rejected") {
-                      setEvaluationState("failed");
-                    } else {
-                      // Neutral, honest outcome — submitted, hiring team reviewing.
-                      setEvaluationState(null);
-                      setNextPhaseInfo(null);
-                      toast.success("Video submitted!", {
-                        description: "The hiring team will get back to you — everyone hears back.",
-                      });
-                      navigate(`/applications/${id}`);
-                      return;
-                    }
-                  }
-                }
-              } catch (err) {
-                console.error("[VideoIntroPhase] Backend analysis failed (recovery):", err);
-                setEvaluationState(null);
-                toast.success("Video submitted", {
-                  description: "Your recording is saved. This is taking a moment — the hiring team will see it either way.",
-                });
-                navigate(`/applications/${id}`);
-                return;
-              }
-            } else {
-              invokeTriggerAvaAnalysis({
-                applicationId: id!,
-              }).catch(err => console.error("[VideoIntroPhase] AVA analysis trigger failed:", err));
-              
-              toast.success("Video submitted!", {
-                description: "The hiring team will get back to you — everyone hears back.",
-              });
-              navigate(`/applications/${id}`);
-            }
+            await afterVideoSaved(freshJobCheck?.processing_mode === "auto");
             return;
           }
         }
@@ -537,42 +404,10 @@ export default function VideoIntroPhase() {
         description: "Your recording is still here — check your connection and try again.",
       });
       setRecordingState("preview");
-      setEvaluationState(null);
+      advance.cancel();
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  // Handlers for evaluation screen
-  const handleStartNextPhase = () => {
-    if (!nextPhaseInfo || !application) return;
-    
-    const workflowSteps = application.jobs?.workflow_steps || [];
-    const nextStep = workflowSteps.find((s) => s.id === nextPhaseInfo.id);
-    
-    if (nextStep) {
-      const phaseRoutes: Record<string, string> = {
-        typing_test: "typing-test",
-        video_intro: "video-intro",
-        video_message: "video-intro",
-        portfolio_upload: "portfolio",
-        chat_simulation: "chat-simulation",
-        chat_interview: "chat-interview",
-        sales_simulation: "sales-simulation",
-        voice_interview: "voice-interview",
-        quiz: "quiz",
-      };
-      const route = phaseRoutes[nextStep.type] || nextStep.type;
-      navigate(`/applications/${id}/${route}/${nextPhaseInfo.id}`);
-    } else {
-      // Next stage isn't a real workflow step (e.g. the closing decision
-      // stage) — nothing to navigate into, just head back to the overview.
-      navigate(`/applications/${id}`);
-    }
-  };
-
-  const handleDoLater = () => {
-    navigate(`/applications/${id}`);
   };
 
   // Check if already submitted
@@ -589,6 +424,10 @@ export default function VideoIntroPhase() {
       return null;
     }
   })();
+
+  // "Already done" is decided once, from the first read after this page
+  // mounted — never from a refresh that lands after the candidate sends.
+  const resultAtFirstLoad = useResultAtFirstLoad(isFetchedAfterMount && !!application, !!existingResult);
 
   if (authLoading || isLoading) {
     return (
@@ -617,24 +456,35 @@ export default function VideoIntroPhase() {
     );
   }
 
-  if (existingResult) {
+  // Sent in this visit: the waiting screen, then the next step's button.
+  if (advance.view) {
     return (
-      <PhaseAlreadySubmitted
+      <StepAdvanceScreen
+        advance={advance}
         applicationId={id!}
-        phaseName="Video Introduction"
-        isManualMode={application.jobs?.processing_mode === "manual"}
+        jobTitle={application.jobs?.title}
+        completedTitle={journey.title}
       />
     );
   }
 
-  // Show evaluation screen for autopilot mode
-  if (evaluationState) {
+  if (resultAtFirstLoad === null) {
     return (
-      <EvaluationScreen
-        state={evaluationState}
-        onStartNextPhase={nextPhaseInfo ? handleStartNextPhase : undefined}
-        onDoLater={handleDoLater}
-        nextPhaseName={nextPhaseInfo?.title}
+      <div className="mx-auto max-w-3xl space-y-6">
+        <Skeleton className="h-12 w-48" />
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
+
+  // Done before this visit began (a bookmark, the back button): say where
+  // things stand and offer the next step, never a dead end.
+  if (resultAtFirstLoad && existingResult && !isSubmitting) {
+    return (
+      <PhaseAlreadySubmitted
+        applicationId={id!}
+        phaseName={journey.title}
+        isManualMode={application.jobs?.processing_mode === "manual"}
       />
     );
   }

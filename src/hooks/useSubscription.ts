@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
@@ -145,12 +145,15 @@ export function useSubscription() {
     },
   });
 
-  // Keep the Ava voice minute count live while a session is running.
+  // Keep the Ava voice minute count live while a session is running. The
+  // topic is per instance: this hook is mounted several times at once, and a
+  // repeated topic hands back an already-subscribed channel.
+  const voiceCreditsChannelId = useId();
   useEffect(() => {
     if (!user?.id || schemaMode === "showcase") return;
 
     const voiceCreditsChannel = supabase
-      .channel(`subscription-voice-credits-${user.id}`)
+      .channel(`subscription-voice-credits-${user.id}-${voiceCreditsChannelId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'voice_credits', filter: `user_id=eq.${user.id}` },
@@ -163,7 +166,7 @@ export function useSubscription() {
     return () => {
       supabase.removeChannel(voiceCreditsChannel);
     };
-  }, [user?.id, queryClient, schemaMode]);
+  }, [user?.id, queryClient, schemaMode, voiceCreditsChannelId]);
 
   const getVoiceMinutesRemaining = () => {
     return data?.voiceCredits?.totalMinutesAvailable || 0;

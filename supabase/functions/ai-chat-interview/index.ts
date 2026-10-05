@@ -104,6 +104,13 @@ function toMinimalAdmin(client: ReturnType<typeof createClient>): MinimalSupabas
         },
       };
     },
+    // recordStepResult merges notes through merge_application_notes when the
+    // adapter can call it; without this the interview result fell back to a
+    // whole-notes overwrite that a background analysis could race. A method
+    // call on the client, never a detached reference (supabase-js needs `this`).
+    rpc(fn: string, args: Record<string, unknown>) {
+      return client.rpc(fn, args);
+    },
   };
 }
 

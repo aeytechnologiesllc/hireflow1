@@ -1,0 +1,382 @@
+#!/usr/bin/env node
+/**
+ * The staff applicant screens update themselves as applicants act.
+ *
+ * On 2026-10-05 the owner watched his own test applicant from the staff tab
+ * and saw "Nobody has applied yet." for the whole run, then reloaded to follow
+ * every step: nothing on the staff side listened for changes to
+ * public.applications, and the list sat on a 5-minute cache. These checks run
+ * the real src/cockpit/hooks/useEmployerLiveSync.ts against a fake realtime
+ * client and a real TanStack QueryClient, and prove that:
+ *
+ *  - each mounted instance opens its OWN channel (realtime-js hands back the
+ *    same channel for a repeated topic), with the applications binding added
+ *    before subscribe();
+ *  - a burst of row changes becomes one refetch round, and a change that
+ *    lands mid-round gets exactly one more round after it, never two at once;
+ *  - every SUBSCRIBED (first join and each rejoin after a dropped socket)
+ *    runs a catch-up round that does not cancel a fetch already under way;
+ *  - an UPDATE is merged into the cached row at once without losing the
+ *    joined job / profile, and a stale, truncated or unknown payload is
+ *    ignored; DELETE drops the row; INSERT waits for the refetch;
+ *  - cleanup removes the channel and nothing fires afterwards.
+ *
+ * The hook file imports "@/..." aliases, so it is bundled with esbuild (a Vite
+ * dependency) with those three modules stubbed; nothing else is mocked.
+ *
+ * Run with: node scripts/employer_live_sync.test.mjs
+ */
+
+import path from "node:path";
+import { build } from "esbuild";
+
+const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+
+const STUBS = {
+  "@/integrations/supabase/client": "export const supabase = {};",
+  "@/hooks/useAuth": "export const useAuth = () => ({ user: null, role: null });",
+  "@/hooks/useSchemaMode": "export const useSchemaMode = () => ({ data: undefined });",
+  "@/hooks/useApplications": "export {};",
+};
+
+const bundle = await build({
+  stdin: {
+    contents:
+      'export * from "./src/cockpit/hooks/useEmployerLiveSync.ts";\n' +
+      'export { QueryClient } from "@tanstack/react-query";\n',
+    resolveDir: ROOT,
+    loader: "ts",
+  },
+  bundle: true,
+  write: false,
+  format: "esm",
+  platform: "node",
+  define: { "process.env.NODE_ENV": '"production"' },
+  logLevel: "silent",
+  plugins: [
+    {
+      name: "stub-aliases",
+      setup(b) {
+        b.onResolve({ filter: /^@\// }, (args) => {
+          if (!(args.path in STUBS)) throw new Error(`no stub for ${args.path}`);
+          return { path: args.path, namespace: "stub" };
+        });
+        b.onLoad({ filter: /.*/, namespace: "stub" }, (args) => ({ contents: STUBS[args.path], loader: "js" }));
+      },
+    },
+  ],
+});
+const mod = await import(
+  "data:text/javascript;base64," + Buffer.from(bundle.outputFiles[0].text).toString("base64")
+);
+const {
+  QueryClient,
+  LIVE_SYNC_QUERY_KEYS,
+  LIVE_SYNC_COALESCE_MS,
+  applyApplicationChange,
+  createLiveSyncCoalescer,
+  startEmployerLiveSync,
+} = mod;
+
+let failures = 0;
+function assert(condition, message) {
+  if (condition) {
+    console.log(`  ok    ${message}`);
+  } else {
+    failures += 1;
+    console.log(`  FAIL  ${message}`);
+  }
+}
+
+/** Settles every pending promise callback. */
+const settle = () => new Promise((resolve) => setImmediate(resolve));
+
+/** Manual timers, so nothing depends on wall-clock time. */
+function fakeTimers() {
+  let seq = 0;
+  const pending = new Map();
+  return {
+    setTimeout(fn, ms) {
+      seq += 1;
+      pending.set(seq, { fn, ms });
+      return seq;
+    },
+    clearTimeout(id) {
+      pending.delete(id);
+    },
+    get count() {
+      return pending.size;
+    },
+    delays() {
+      return [...pending.values()].map((t) => t.ms);
+    },
+    async fire() {
+      const due = [...pending.entries()];
+      pending.clear();
+      for (const [, t] of due) t.fn();
+      await settle();
+    },
+  };
+}
+
+/** A realtime client that records what callers do to it, like realtime-js 2.87.1. */
+function fakeClient() {
+  const channels = new Map();
+  const log = [];
+  const removed = [];
+  return {
+    log,
+    removed,
+    channels,
+    channel(topic) {
+      if (channels.has(topic)) return channels.get(topic); // realtime-js reuses a topic
+      const chan = {
+        topic,
+        bindings: [],
+        subscribed: false,
+        subscribeCallback: null,
+        on(type, filter, callback) {
+          log.push(`on:${topic}`);
+          if (chan.subscribed) chan.boundAfterSubscribe = true;
+          chan.bindings.push({ type, filter, callback });
+          return chan;
+        },
+        subscribe(callback) {
+          log.push(`subscribe:${topic}`);
+          chan.subscribed = true;
+          chan.subscribeCallback = callback;
+          return chan;
+        },
+        emit(payload) {
+          for (const b of chan.bindings) b.callback(payload);
+        },
+        status(s) {
+          chan.subscribeCallback?.(s);
+        },
+      };
+      channels.set(topic, chan);
+      return chan;
+    },
+    async removeChannel(chan) {
+      removed.push(chan.topic);
+      channels.delete(chan.topic);
+      return "ok";
+    },
+  };
+}
+
+/** A real QueryClient whose invalidateQueries calls are recorded and can be held open. */
+function spyClient({ hold = false } = {}) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const calls = [];
+  const gates = [];
+  const real = queryClient.invalidateQueries.bind(queryClient);
+  queryClient.invalidateQueries = (filters, options) => {
+    calls.push({ key: JSON.stringify(filters.queryKey), cancelRefetch: options?.cancelRefetch });
+    const done = real(filters, options);
+    if (!hold) return done;
+    return new Promise((resolve) => gates.push(() => done.then(resolve)));
+  };
+  return {
+    queryClient,
+    calls,
+    openGates() {
+      gates.splice(0).forEach((g) => g());
+    },
+  };
+}
+
+const USER = "e32a8a14-0000-4000-8000-000000000001";
+const job = { id: "02f91311-a3a4-461c-a52d-5893cef7a9f3", title: "Customer Support Chat Agent", employer_id: USER };
+const row = (id, extra = {}) => ({
+  id,
+  job_id: job.id,
+  candidate_id: `cand-${id}`,
+  status: "reviewing",
+  phase: "quiz",
+  notes: { applicationAnswers: { q1: "yes" } },
+  updated_at: "2026-10-05T15:46:31.000+00:00",
+  jobs: job,
+  profiles: { user_id: `cand-${id}`, full_name: `Applicant ${id}` },
+  ...extra,
+});
+const update = (next, extra = {}) => ({
+  eventType: "UPDATE",
+  schema: "public",
+  table: "applications",
+  commit_timestamp: "2026-10-05T15:48:18Z",
+  errors: null,
+  new: next,
+  old: { id: next.id },
+  ...extra,
+});
+
+console.log("one channel per mounted instance, bound before subscribe");
+{
+  const client = fakeClient();
+  const { queryClient } = spyClient();
+  const timers = fakeTimers();
+  const stopA = startEmployerLiveSync({ client, queryClient, userId: USER, instanceId: ":r1:", timers });
+  const stopB = startEmployerLiveSync({ client, queryClient, userId: USER, instanceId: ":r7:", timers });
+  const topics = [...client.channels.keys()];
+  assert(topics.length === 2, `two mounts open two channels (got ${topics.length}: ${topics.join(", ")})`);
+  assert(
+    topics.every((t) => t.startsWith(`employer-live-${USER}-`)),
+    "topics read employer-live-<uid>-<instance>",
+  );
+  const [a, b] = [...client.channels.values()];
+  assert(!a.boundAfterSubscribe && !b.boundAfterSubscribe, "no binding is added after subscribe()");
+  assert(
+    client.log.indexOf(`on:${a.topic}`) < client.log.indexOf(`subscribe:${a.topic}`),
+    "the applications binding comes before subscribe()",
+  );
+  const f = a.bindings[0]?.filter ?? {};
+  assert(
+    a.bindings.length === 1 && a.bindings[0].type === "postgres_changes" && f.event === "*" &&
+      f.schema === "public" && f.table === "applications" && f.filter === undefined,
+    "listens to every change on public.applications, unfiltered (RLS scopes delivery)",
+  );
+  stopA();
+  stopB();
+  await settle();
+  assert(client.removed.length === 2 && client.channels.size === 0, "cleanup removes both channels");
+}
+
+console.log("\nSUBSCRIBED runs a catch-up round that never cancels a fetch in flight");
+{
+  const client = fakeClient();
+  const { queryClient, calls } = spyClient();
+  const timers = fakeTimers();
+  const stop = startEmployerLiveSync({ client, queryClient, userId: USER, instanceId: ":r1:", timers });
+  const chan = [...client.channels.values()][0];
+  chan.status("SUBSCRIBED");
+  assert(timers.count === 1 && timers.delays()[0] === LIVE_SYNC_COALESCE_MS, `one round is armed for ${LIVE_SYNC_COALESCE_MS} ms`);
+  await timers.fire();
+  const keys = calls.map((c) => c.key);
+  assert(
+    LIVE_SYNC_QUERY_KEYS.every((k) => keys.includes(JSON.stringify(k))) && calls.length === LIVE_SYNC_QUERY_KEYS.length,
+    `invalidates every staff key once: ${keys.join(" ")}`,
+  );
+  for (const want of ['["applications"]', '["activity-feed"]', '["jobs","employer"]', '["advanced-analytics"]', '["careers-traffic"]', '["new-applicants-count"]']) {
+    assert(keys.includes(want), `catch-up covers ${want}`);
+  }
+  assert(calls.every((c) => c.cancelRefetch === false), "a catch-up round uses cancelRefetch:false");
+
+  calls.length = 0;
+  chan.status("CLOSED");
+  chan.status("CHANNEL_ERROR");
+  await timers.fire();
+  assert(calls.length === 0, "CLOSED / CHANNEL_ERROR do not refetch");
+  chan.status("SUBSCRIBED"); // realtime-js fires this again after every rejoin
+  await timers.fire();
+  assert(calls.length === LIVE_SYNC_QUERY_KEYS.length, "a rejoin after a dropped socket runs another catch-up round");
+  stop();
+}
+
+console.log("\na burst of changes is one round; a change mid-round gets exactly one more");
+{
+  const client = fakeClient();
+  const { queryClient, calls, openGates } = spyClient({ hold: true });
+  const timers = fakeTimers();
+  const stop = startEmployerLiveSync({ client, queryClient, userId: USER, instanceId: ":r1:", timers });
+  const chan = [...client.channels.values()][0];
+  for (let i = 0; i < 5; i += 1) chan.emit(update({ id: "a1", phase: "step_typing" }));
+  assert(timers.count === 1, "five events inside the window arm one timer");
+  await timers.fire();
+  assert(calls.length === LIVE_SYNC_QUERY_KEYS.length, "...and run one round");
+  assert(calls.every((c) => c.cancelRefetch === true), "a real change uses cancelRefetch:true (the new row must win)");
+
+  // The round is still in flight (gates closed). Two more changes arrive.
+  calls.length = 0;
+  chan.emit(update({ id: "a1", phase: "step_chat" }));
+  chan.emit(update({ id: "a1", phase: "step_interview" }));
+  assert(timers.count === 0, "no second round starts while one is in flight");
+  openGates();
+  await settle();
+  assert(timers.count === 1, "when the round finishes, exactly one more is armed");
+  await timers.fire();
+  assert(calls.length === LIVE_SYNC_QUERY_KEYS.length, "...and it runs once for both late changes");
+  openGates();
+  await settle();
+  assert(timers.count === 0, "then it goes quiet");
+  stop();
+}
+
+console.log("\nan UPDATE lands in the cached list at once");
+{
+  const client = fakeClient();
+  const { queryClient } = spyClient();
+  const timers = fakeTimers();
+  const listKey = ["applications", "employer", USER];
+  const before = [row("a1"), row("a2")];
+  queryClient.setQueryData(listKey, before);
+  const stop = startEmployerLiveSync({ client, queryClient, userId: USER, instanceId: ":r1:", timers });
+  const chan = [...client.channels.values()][0];
+
+  // The candidate's typing result lands: the payload is the full row, without the joins.
+  const { jobs: _j, profiles: _p, ...columns } = row("a1");
+  chan.emit(update({ ...columns, phase: "step_chat", updated_at: "2026-10-05T15:51:46.000+00:00" }));
+  const after = queryClient.getQueryData(listKey);
+  assert(after !== before, "the list is replaced, so every reader re-renders");
+  assert(after[0].phase === "step_chat", "the changed column shows before any refetch");
+  assert(after[0].jobs === job && after[0].profiles?.full_name === "Applicant a1", "the joined job and profile are kept");
+  assert(after[1] === before[1], "other rows keep their identity");
+  stop();
+}
+
+console.log("\napplyApplicationChange refuses anything that could roll the list back");
+{
+  const rows = [row("a1"), row("a2")];
+  const same = (r, msg) => assert(r === rows, msg);
+  same(applyApplicationChange(rows, update({ id: "a1", phase: "quiz", updated_at: "2026-10-05T15:40:00Z" })), "an UPDATE older than the cached row is ignored");
+  same(applyApplicationChange(rows, update({ id: "a1", phase: "x" }, { errors: ["Error 413: Payload Too Large"] })), "a payload the server truncated is ignored");
+  same(applyApplicationChange(rows, update({ id: "zz", phase: "x" })), "an UPDATE for a row not in the list waits for the refetch");
+  same(applyApplicationChange(rows, { ...update({ id: "a3" }), eventType: "INSERT", new: row("a3") }), "an INSERT waits for the refetch (it needs the job and profile)");
+  same(applyApplicationChange(rows, { ...update({ id: "a1" }), eventType: "DELETE", new: {}, old: { id: "zz" } }), "a DELETE of a row not in the list changes nothing");
+  assert(applyApplicationChange(undefined, update({ id: "a1" })) === undefined, "nothing cached yet: nothing written");
+  const dropped = applyApplicationChange(rows, { ...update({ id: "a1" }), eventType: "DELETE", new: {}, old: { id: "a1" } });
+  assert(dropped.length === 1 && dropped[0].id === "a2", "a DELETE drops the row");
+  const partial = applyApplicationChange(rows, update({ id: "a2", status: "pending", notes: undefined }));
+  assert(partial[1].status === "pending" && partial[1].notes?.applicationAnswers?.q1 === "yes", "a column the payload does not carry keeps its cached value");
+}
+
+console.log("\ncleanup stops everything");
+{
+  const client = fakeClient();
+  const { queryClient, calls } = spyClient();
+  const timers = fakeTimers();
+  const stop = startEmployerLiveSync({ client, queryClient, userId: USER, instanceId: ":r1:", timers });
+  const chan = [...client.channels.values()][0];
+  chan.emit(update({ id: "a1" }));
+  assert(timers.count === 1, "a change arms a round");
+  stop();
+  assert(timers.count === 0, "cleanup clears the armed round");
+  chan.emit(update({ id: "a1" }));
+  chan.status("SUBSCRIBED");
+  await timers.fire();
+  assert(calls.length === 0, "nothing refetches after cleanup");
+  assert(client.removed.length === 1, "the channel is removed");
+}
+
+console.log("\nthe coalescer on its own");
+{
+  const timers = fakeTimers();
+  const runs = [];
+  const c = createLiveSyncCoalescer((force) => runs.push(force), 250, timers);
+  c.schedule(false);
+  c.schedule(true);
+  c.schedule(false);
+  await timers.fire();
+  assert(runs.length === 1 && runs[0] === true, "one run per window; force if any caller was a real change");
+  c.schedule(false);
+  await timers.fire();
+  assert(runs.length === 2 && runs[1] === false, "a window with only catch-ups does not force");
+  const failing = createLiveSyncCoalescer(() => { throw new Error("network"); }, 250, timers);
+  failing.schedule(true);
+  await timers.fire();
+  failing.schedule(true);
+  assert(timers.count === 1, "a failed round does not wedge the next one");
+}
+
+console.log(failures ? `\n${failures} check(s) failed.` : "\nAll checks passed.");
+process.exit(failures ? 1 : 0);

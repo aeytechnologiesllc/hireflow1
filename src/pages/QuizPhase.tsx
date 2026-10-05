@@ -21,14 +21,13 @@ import {
   ShieldAlert
 } from "lucide-react";
 import { toast } from "sonner";
-import { invokeTriggerAvaAnalysis, triggerAvaAnalysis, evaluatePhaseSubmission } from "@/utils/triggerAvaAnalysis";
-import { parseApplicationNotes, stringifyApplicationNotes, type StepRecordLike } from "@/utils/applicationNotes";
-import { EvaluationScreen } from "@/components/EvaluationScreen";
+import { invokeTriggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
+import { parseApplicationNotes, type StepRecordLike } from "@/utils/applicationNotes";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
-import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
+import { StepAdvanceScreen, TestRulesNotice } from "@/components/candidate/NextStepCard";
 import { GlyphJourney, GlyphCheckSeal } from "@/components/candidate/glyphs";
-import { buildCandidateJourney, DECISION_STAGE_ID } from "@/lib/candidateJourney";
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
+import { useResultAtFirstLoad, useStepAdvance } from "@/hooks/useStepAdvance";
 
 // A slim brass rule across the top of a card — the letterhead mark that
 // opens every considered moment in this phase (Founder's Law: "the
@@ -156,9 +155,6 @@ export default function QuizPhase() {
   // Anti-cheating violation tracking
   const [violations, setViolations] = useState<AntiCheatViolation[]>([]);
   
-  // Evaluation screen state for autopilot mode
-  const [evaluationState, setEvaluationState] = useState<"evaluating" | "passed" | "failed" | null>(null);
-  const [nextPhaseInfo, setNextPhaseInfo] = useState<{ id: string; title: string } | null>(null);
 
   // Refs for timer cleanup and stable callbacks
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -169,7 +165,7 @@ export default function QuizPhase() {
   const quizContainerRef = useRef<HTMLDivElement>(null);
 
   // Fetch application details - force refetch on mount to handle reconsider workflow
-  const { data: application, isLoading } = useQuery({
+  const { data: application, isLoading, isFetchedAfterMount } = useQuery({
     queryKey: ["quiz-application", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -185,6 +181,10 @@ export default function QuizPhase() {
     refetchOnMount: "always",
     staleTime: 0,
   });
+
+  // After "Send my answers": the waiting screen, then "Start <next step>" the
+  // moment the row says the next step is open (see useStepAdvance).
+  const advance = useStepAdvance({ applicationId: id, stepId, job: application?.jobs });
 
   // Real-time subscription for phase resets - ensures immediate refresh when employer resets
   useEffect(() => {
@@ -572,10 +572,10 @@ export default function QuizPhase() {
 
       const isAutoMode = freshJob?.processing_mode === "auto";
 
-      // For autopilot mode, show evaluation screen
-      if (isAutoMode) {
-        setEvaluationState("evaluating");
-      }
+      // Auto mode: the waiting screen goes up now and stays until the next
+      // step is open (useStepAdvance) — never a toast and a trip back to the
+      // overview.
+      if (isAutoMode) advance.begin();
 
       // Grade server-side. submit_quiz_attempt is the only thing that ever
       // touches the answer key — it reads the private key table, grades
@@ -594,45 +594,6 @@ export default function QuizPhase() {
       const graded = submission as { score: number; correct: number; total: number; passed: boolean };
       setResults(graded);
 
-      // Build the real journey to find the next stage — local UI navigation
-      // only, off the job's own (already answer-free) workflow_steps.
-      const workflowSteps = application.jobs?.workflow_steps || [];
-      const quizQuestions = application.jobs?.quiz_questions;
-      const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
-
-      const allPhases = buildCandidateJourney(workflowSteps, { hasQuiz });
-
-      // Find current step index
-      let currentIndex = allPhases.findIndex((p) => p.id === stepId);
-      if (currentIndex === -1 && application.phase) {
-        currentIndex = allPhases.findIndex(
-          (p) => p.id === application.phase || p.type === application.phase
-        );
-      }
-
-      // Determine next phase
-      let nextPhase: { id: string; type: string; title: string } | null = null;
-      if (currentIndex >= 0 && currentIndex < allPhases.length - 1) {
-        nextPhase = allPhases[currentIndex + 1];
-      }
-
-      if (isAutoMode) {
-        // UNIFIED SCORING: Do NOT make pass/fail decision locally
-        // The backend (trigger-ava-analysis) is the SINGLE SOURCE OF TRUTH
-        // It will calculate the weighted score and decide pass/fail
-
-        // Determine next phase info for UI (if candidate passes) — not for
-        // voice_interview (needs employer approval to start) or the closing
-        // decision stage (nothing to click into, just wait).
-        if (nextPhase && nextPhase.type !== "voice_interview" && nextPhase.id !== DECISION_STAGE_ID) {
-          setNextPhaseInfo({
-            id: nextPhase.id,
-            title: nextPhase.title,
-          });
-        }
-      }
-      // Manual mode - NEVER auto-advance or reject. Employer controls.
-
       // Clear saved progress after successful submission
       clearSavedProgress();
 
@@ -641,115 +602,37 @@ export default function QuizPhase() {
       // Also invalidate the specific application detail query so UI updates when navigating back
       queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
 
-      // CRITICAL: Trigger backend analysis with autopilotDecision=true in auto mode
-      // The backend will calculate weighted score and decide pass/fail
-      const analysisPromise = invokeTriggerAvaAnalysis({
-        applicationId: id!,
-        autopilotDecision: isAutoMode,
-        currentPhaseId: stepId,
-      });
-
       if (isAutoMode) {
-        // Wait for backend to process and set the result
-        setEvaluationState("evaluating");
-        
-        try {
-          const { data: analysisResult } = await analysisPromise;
-
-          // Check the backend's decision
-          if (analysisResult?.decision === "rejected") {
-            setEvaluationState("failed");
-          } else if (analysisResult?.decision === "advanced" || analysisResult?.decision === "needs_employer_approval") {
-            setEvaluationState("passed");
-          } else {
-            // Fallback: fetch fresh application status. The CLIENT MUST NEVER
-            // DECIDE A REJECTION — only a server-confirmed status:"rejected"
-            // row may show the rejected screen. Ava can return
-            // "recommend_decline" (status stays "reviewing" for a human) and
-            // that is NOT a rejection; comparing the score to the passing
-            // score here would manufacture one that no human made.
-            const { data: freshApp } = await supabase
-              .from("applications")
-              .select("status")
-              .eq("id", id!)
-              .single();
-
-            if (freshApp?.status === "rejected") {
-              setEvaluationState("failed");
-            } else {
-              // Neutral, honest outcome — submitted, hiring team reviewing.
-              // No guess about pass/fail the server hasn't confirmed.
-              // (Progress was already cleared earlier in this submit flow.)
-              setEvaluationState(null);
-              toast.success("Quiz submitted successfully!", {
-                description: "Your answers have been recorded. The hiring team is reviewing your submission.",
-              });
-              navigate(`/applications/${id}`);
-            }
-          }
-        } catch (err) {
-          console.error("[QuizPhase] Backend analysis failed:", err);
-          // The backend stays the source of truth — we still refuse to invent a
-          // local pass or fail. But holding the candidate on the full-screen
-          // "evaluating" state was not neutrality, it was a trap: no timeout, no
-          // message, no way out, on a screen that covers everything. Their
-          // answers were already saved before this call, so the honest move is
-          // to say so and let them leave. The employer's side scores it later.
-          setEvaluationState(null);
-          toast.success("Quiz submitted", {
-            description: "Your answers are saved. This is taking a moment — the hiring team will see them either way.",
-          });
-          navigate(`/applications/${id}`);
-        }
+        // The answers are stored. Which step opens next is the server's call
+        // (it moves `phase`); the screen follows the row, and the trigger's
+        // reply only speeds that up. invokeTriggerAvaAnalysis never throws.
+        advance.markSaved();
+        const reply = await invokeTriggerAvaAnalysis({
+          applicationId: id!,
+          autopilotDecision: true,
+          currentPhaseId: stepId,
+        });
+        advance.settle(reply);
       } else {
-        // Manual mode - just trigger analysis in background, toast and navigate
-        analysisPromise.catch(err => console.error("[QuizPhase] AVA analysis trigger failed:", err));
-        
-        toast.success("Quiz submitted successfully!", {
-          description: "Your answers have been recorded. The employer will review your submission.",
+        // Manual mode - NEVER auto-advance or reject. Employer controls.
+        invokeTriggerAvaAnalysis({
+          applicationId: id!,
+          autopilotDecision: false,
+          currentPhaseId: stepId,
+        }).catch(err => console.error("[QuizPhase] AVA analysis trigger failed:", err));
+
+        toast.success("Skills check sent", {
+          description: "Your answers are saved. The hiring team will review them and get back to you.",
         });
         navigate(`/applications/${id}`);
       }
     } catch (error) {
       console.error("Error submitting quiz:", error);
-      toast.error("Failed to submit quiz");
-      setEvaluationState(null);
+      toast.error("That didn't send — please try again.");
+      advance.cancel();
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  // Handlers for evaluation screen
-  const handleStartNextPhase = () => {
-    if (!nextPhaseInfo || !application) return;
-    
-    const workflowSteps = application.jobs?.workflow_steps || [];
-    const nextStep = workflowSteps.find((s) => s.id === nextPhaseInfo.id);
-    
-    if (nextStep) {
-      // Navigate to the specific phase page based on type
-      const phaseRoutes: Record<string, string> = {
-        typing_test: "typing-test",
-        video_intro: "video-intro",
-        video_message: "video-intro",
-        portfolio_upload: "portfolio",
-        chat_simulation: "chat-simulation",
-        chat_interview: "chat-interview",
-        sales_simulation: "sales-simulation",
-        voice_interview: "voice-interview",
-        quiz: "quiz",
-      };
-      const route = phaseRoutes[nextStep.type] || nextStep.type;
-      navigate(`/applications/${id}/${route}/${nextPhaseInfo.id}`);
-    } else {
-      // Next stage isn't a real workflow step (e.g. the closing decision
-      // stage) — nothing to navigate into, just head back to the overview.
-      navigate(`/applications/${id}`);
-    }
-  };
-
-  const handleDoLater = () => {
-    navigate(`/applications/${id}`);
   };
 
   // Check if already submitted
@@ -769,6 +652,10 @@ export default function QuizPhase() {
       return null;
     }
   })();
+
+  // "Already done" is decided once, from the first read after this page
+  // mounted — never from a refresh that lands while the candidate is here.
+  const resultAtFirstLoad = useResultAtFirstLoad(isFetchedAfterMount && !!application, !!existingResult);
 
   if (authLoading || isLoading) {
     return (
@@ -799,12 +686,34 @@ export default function QuizPhase() {
     );
   }
 
-  // Show already submitted view if phase was completed
-  if (existingResult) {
+  // Sent in this visit: the waiting screen, then the next step's button.
+  if (advance.view) {
+    return (
+      <StepAdvanceScreen
+        advance={advance}
+        applicationId={id!}
+        jobTitle={application.jobs?.title}
+        completedTitle={journeyStep.title}
+      />
+    );
+  }
+
+  if (resultAtFirstLoad === null) {
+    return (
+      <div className="space-y-6 max-w-3xl mx-auto p-6">
+        <Skeleton className="h-12 w-48" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  // Done before this visit began (a bookmark, the back button): say where
+  // things stand and offer the next step, never a dead end.
+  if (resultAtFirstLoad && existingResult) {
     return (
       <PhaseAlreadySubmitted
         applicationId={id!}
-        phaseName="Quiz"
+        phaseName={journeyStep.title}
         isManualMode={application.jobs?.processing_mode === "manual"}
       />
     );
@@ -842,30 +751,6 @@ export default function QuizPhase() {
           </CardContent>
         </Card>
       </div>
-    );
-  }
-
-  // Show evaluation screen for autopilot mode
-  if (evaluationState) {
-    // Show CandidateStatusScreen for failed state
-    if (evaluationState === "failed") {
-      return (
-        <CandidateStatusScreen
-          state="rejected"
-          jobTitle={application?.jobs?.title}
-          onClose={() => navigate(`/applications/${id}`)}
-        />
-      );
-    }
-    
-    // Show EvaluationScreen for passed/evaluating states
-    return (
-      <EvaluationScreen
-        state={evaluationState}
-        onStartNextPhase={nextPhaseInfo ? handleStartNextPhase : undefined}
-        onDoLater={handleDoLater}
-        nextPhaseName={nextPhaseInfo?.title}
-      />
     );
   }
 
@@ -913,6 +798,10 @@ export default function QuizPhase() {
               : "Each question is timed — when the clock runs out, the next one comes up."}
           </p>
         </div>
+
+        {/* The quiz has no intro screen of its own (its clock starts on load),
+            so the rules sit here, above question 1, for the whole quiz. */}
+        {!showResults && <TestRulesNotice />}
 
         {violations.length > 0 && (
           <div className="flex items-center gap-2 rounded-lg border border-warning/20 bg-warning/10 px-3 py-2 text-sm text-warning">

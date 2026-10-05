@@ -117,6 +117,16 @@ export function useCandidateApplications() {
   });
 }
 
+/**
+ * Freshness for the staff applicant queries, overriding the App.tsx defaults
+ * for these two only (scripts/guards/cockpit-live-applicants.mjs checks it).
+ */
+const LIVE_LIST_FRESHNESS = {
+  staleTime: 10_000,
+  refetchOnWindowFocus: true,
+  refetchOnReconnect: true,
+} as const;
+
 export function useEmployerApplications() {
   const { user } = useAuth();
   const { data: mode } = useSchemaMode();
@@ -173,6 +183,12 @@ export function useEmployerApplications() {
       return withProfiles;
     },
     enabled: !!user && mode === "hireflow1",
+    // The app-wide default (5 min, no refetch on focus) left the owner looking
+    // at "Nobody has applied yet." for a whole test run. Live updates come from
+    // useEmployerLiveSync; these make the list heal on its own too — on coming
+    // back to the tab, after the network returns, or on a remount — if a
+    // realtime event was ever missed.
+    ...LIVE_LIST_FRESHNESS,
   });
 }
 
@@ -212,6 +228,7 @@ export function useApplicationStats() {
       };
     },
     enabled: !!user && mode === "hireflow1",
+    ...LIVE_LIST_FRESHNESS,
   });
 }
 

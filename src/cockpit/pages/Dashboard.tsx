@@ -457,6 +457,8 @@ function FirstApplicantMoment({
   onOpen: () => void;
   onDismiss: () => void;
 }) {
+  // They show up the moment they press Apply — before they have sent a word.
+  const filling = !analyzed && !!candidate.fillingInForm;
   return (
     <section
       className="ck-card ck-reveal relative flex flex-col items-start gap-4 p-6 text-left md:p-8"
@@ -484,11 +486,13 @@ function FirstApplicantMoment({
         <p className="mt-2 text-[14.5px] leading-[1.6]" style={{ color: "var(--hf-text-soft)" }}>
           {analyzed
             ? `${candidate.name} applied to ${candidate.role} — and I've already read them. Here's what I found.`
-            : `${candidate.name} just applied to ${candidate.role}. I'm reading them now — the moment I'm done, you'll see them here.`}
+            : filling
+              ? `${candidate.name} has started applying to ${candidate.role} and is filling in the form right now. The moment they send it, I read it.`
+              : `${candidate.name} just applied to ${candidate.role}. I'm reading them now — the moment I'm done, you'll see them here.`}
         </p>
       </div>
       <button className="ck-btn ck-btn-primary !px-5 !py-2.5 !text-[14px]" onClick={onOpen}>
-        {analyzed ? `See ${candidate.name.split(/\s+/)[0]}` : "View their application"}
+        {analyzed ? `See ${candidate.name.split(/\s+/)[0]}` : filling ? "See where they are" : "View their application"}
         <ChevronRight className="h-4 w-4" />
       </button>
     </section>
@@ -665,7 +669,7 @@ export default function CockpitDashboard() {
   }, [applications]);
   const statusOf = (id: string) => statusById[id] || undefined;
 
-  const { sealed, awaitingDecision, passedOver, readCount, hired, stillReading, multiRole } = useMemo(() => {
+  const { sealed, awaitingDecision, passedOver, readCount, hired, stillReading, applying, applyingOne, multiRole } = useMemo(() => {
     // Only people Ava has actually finished get ranked, sealed or counted.
     const analyzed = candidates.filter(isAnalyzed);
     // A decision you have already made is not one waiting on you today, so
@@ -680,7 +684,12 @@ export default function CockpitDashboard() {
       passedOver: candidates.filter((c) => c.stage === "Rejected").length,
       readCount: analyzed.length,
       hired: candidates.filter((c) => c.stage === "Hired").length,
-      stillReading: candidates.filter((c) => !isAnalyzed(c) && c.stage !== "Rejected").length,
+      // Someone still on the application form has sent nothing to read yet —
+      // they are counted apart, never as "in the queue".
+      stillReading: candidates.filter((c) => !isAnalyzed(c) && !c.fillingInForm && c.stage !== "Rejected").length,
+      applying: candidates.filter((c) => !isAnalyzed(c) && c.fillingInForm && c.stage !== "Rejected").length,
+      // Named on the slim line when there is exactly one.
+      applyingOne: candidates.find((c) => !isAnalyzed(c) && c.fillingInForm && c.stage !== "Rejected") ?? null,
       multiRole: new Set(top.map((c) => c.role)).size > 1,
     };
   }, [candidates]);
@@ -1090,7 +1099,24 @@ export default function CockpitDashboard() {
               ))}
             </div>
           ) : (
-            stillReading > 0 && (
+            stillReading === 0 && applying > 0 ? (
+              /* Only people who have pressed Apply and are still on the form. */
+              <section className="ck-card ck-reveal p-6 md:p-8" style={{ ["--ck-i" as string]: 1 }}>
+                <h2 className="font-display text-[20px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
+                  {applying === 1 ? "Someone is applying right now." : `${applying} people are applying right now.`}
+                </h2>
+                <p className="mt-2 max-w-[52ch] text-[14px]" style={{ color: "var(--hf-text-soft)" }}>
+                  {applying === 1 ? "They're" : "They're each"} filling in the application form. Nothing is sent
+                  until they submit it — the moment they do, I read it and they land here.
+                </p>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <button className="ck-btn ck-btn-outline" onClick={() => navigate("/applicants?tab=applying")}>
+                    See who is applying
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </section>
+            ) : stillReading > 0 && (
               /* Applicants are in, but none are finished. No seal, no number, no rank. */
               <section className="ck-card ck-reveal p-6 md:p-8" style={{ ["--ck-i" as string]: 1 }}>
                 <h2 className="font-display text-[20px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
@@ -1108,6 +1134,32 @@ export default function CockpitDashboard() {
                 </div>
               </section>
             )
+          )}
+
+          {/* Someone on the form while the list above is full: still named, so a
+              new applicant is on the Dashboard the moment they press Apply,
+              not only as a number. (With nobody else in, the card above says it.) */}
+          {applying > 0 && (sealed.length > 0 || stillReading > 0) && (
+            <div className="ck-card-flat ck-reveal flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+              <p className="flex min-w-0 items-start gap-2 text-[13.5px] leading-[1.5]" style={{ color: "var(--hf-text-soft)" }}>
+                <span className="ck-dot ck-dot-live mt-[7px] shrink-0" aria-hidden />
+                <span className="min-w-0">
+                  <span style={{ color: "var(--hf-text)", fontWeight: 600 }}>
+                    {applying === 1 && applyingOne
+                      ? `${applyingOne.name} is applying right now`
+                      : `${applying} people are applying right now`}
+                  </span>{" "}
+                  — filling in the form. Nothing is sent until they submit it.
+                </span>
+              </p>
+              <button
+                className="text-[13px]"
+                style={{ color: "var(--hf-gold)" }}
+                onClick={() => navigate("/applicants?tab=applying")}
+              >
+                See where they are →
+              </button>
+            </div>
           )}
 
           {passedOver > 0 && (

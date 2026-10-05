@@ -25,6 +25,9 @@ import {
   APP_TYPING_ID,
   APP_VIDEO_ID,
   APP_VOICE_ID,
+  APP_ZULU_DONE_ID,
+  APP_ZULU_FORM_ID,
+  APP_ZULU_TESTING_ID,
   CANDIDATE_USER_ID,
   DOC_DECLINED_ID,
   DOC_PENDING_CANDIDATE_ID,
@@ -47,12 +50,16 @@ import {
   STEP_VIDEO,
   STEP_VOICE,
   TEAM_MEMBER_USER_ID,
+  ZULU_DONE_USER_ID,
+  ZULU_FORM_USER_ID,
+  ZULU_TESTING_USER_ID,
 } from "./ids";
 
 const DAY = 24 * 60 * 60 * 1000;
 const now = Date.now();
 const daysAgo = (n: number) => new Date(now - n * DAY).toISOString();
 const daysFromNow = (n: number) => new Date(now + n * DAY).toISOString();
+const minutesAgo = (n: number) => new Date(now - n * 60 * 1000).toISOString();
 
 // ---------------------------------------------------------------- profiles
 
@@ -808,19 +815,338 @@ function buildFreshTables(): FixtureTables {
   };
 }
 
+
+// ---------------------------------------------------- "zulu" scenario
+// The Zulu chat-agent role the way the owner's own test run left it on
+// 2026-10-05, so the staff record ("What they submitted" and its sheets) can
+// be reviewed offline: one applicant through every step (shaped key for key
+// like that run's notes, invented people and words), one part-way through the
+// tests, and one who has only pressed Apply. `applying` keeps just the last
+// one, the "a lone applicant who has just started" state.
+
+const ZULU_QUIZ = [
+  { q: "A player says a $50 payment sent 20 minutes ago is not showing. Your first reply?", cat: "payments", opts: ["Payments can take three business days.", "Sorry for the wait, I'll find it. Which name and exact amount did you send?", "Send me your bank login so I can check.", "That isn't something I can help with."], right: 1 },
+  { q: "A player can cash out money still sitting in entries.", cat: "money_rules", opts: ["True", "False"], right: 1, tf: true },
+  { q: "A cash-out has been pending three hours and the player threatens a bad review. Best reply?", cat: "cash_outs", opts: ["I'll push it through now.", "It's in the review queue, handled in order, usually within a day. I'll confirm it's queued.", "Reviews don't scare us.", "Try again tomorrow."], right: 1 },
+  { q: "Support can see and change game results.", cat: "games", opts: ["True", "False"], right: 1, tf: true },
+  { q: "A player asks for a bonus because they've played a lot. You:", cat: "bonuses", opts: ["Explain what's running now and pass the request on.", "Give one yourself.", "Say bonuses don't exist.", "Ignore it."], right: 0 },
+  { q: "Someone asks you to unlock an account they don't own. You:", cat: "accounts", opts: ["Refuse and explain one account per person.", "Unlock it if they're polite.", "Ask for the owner's password.", "Unlock it for a fee."], right: 0 },
+  { q: "A player is upset and typing in capitals. The first thing to do is:", cat: "tone", opts: ["Ask them to stop shouting.", "Close the chat.", "Acknowledge it, then ask one clear question.", "Send the rules page."], right: 2 },
+  { q: "You should ever ask a player for a full card number.", cat: "security", opts: ["True", "False"], right: 1, tf: true },
+  { q: "A player wants to take a break from playing. You:", cat: "player_care", opts: ["Show them how to set a limit or pause.", "Offer a bonus to stay.", "Tell them to log out.", "Say you can't help."], right: 0 },
+  { q: "A loyal player asks for something you can't give. Best reply?", cat: "bonuses", opts: ["No.", "I can't add that myself, but here's what's running and I'll pass your request on.", "Maybe next week.", "Ask a friend."], right: 1 },
+];
+
+const zuluQuizQuestions = ZULU_QUIZ.map((x, i) => ({
+  id: `zq${i + 1}`,
+  type: x.tf ? "true_false" : "multiple_choice",
+  category: x.cat,
+  question: x.q,
+  options: x.opts,
+  time_limit_seconds: x.tf ? 30 : 60,
+}));
+
+const zuluJob: FixtureRow = {
+  ...freshJob,
+  application_questions: [
+    { id: "q1", type: "text", question: "Full name", required: true },
+    { id: "q2", type: "email", question: "Email address", required: true },
+    { id: "q3", type: "tel", question: "Phone number (WhatsApp if you have it)", required: true },
+    { id: "q4", type: "text", question: "Country and city you will work from", required: true },
+    {
+      id: "q5",
+      type: "multi_select",
+      question: "Which shifts can you cover, in US Eastern time? Pick every one that works.",
+      options: ["Daytime, 8am to 4pm Eastern", "Evening, 4pm to midnight Eastern", "Overnight, midnight to 8am Eastern", "Weekends (Saturday and Sunday)"],
+      required: true,
+    },
+    { id: "q6", type: "select", question: "How many hours a week can you work?", options: ["Under 20", "20 to 30", "30 to 40", "40 or more"], required: true },
+    { id: "q9", type: "textarea", question: "Describe any customer support or chat support experience you have.", required: true },
+    { id: "q10", type: "textarea", question: "Why do you want this job, and what makes you good with upset people?", required: true },
+  ],
+  quiz_questions: zuluQuizQuestions,
+  workflow_steps: [
+    { id: "step_typing", type: "typing_test", title: "Typing speed and accuracy", config: { min_wpm: 45, min_accuracy_percent: 95 } },
+    {
+      id: "step_chat",
+      type: "chat_simulation",
+      title: "Player chat practice",
+      config: {
+        scenarios: [
+          {
+            id: "zulu-rigged",
+            customerName: "Devin",
+            scenario:
+              "Devin lost $200 tonight, says the game is rigged, and wants all of his money back. What you know: results are random and support cannot change or see them, and money that has been played cannot be refunded. You can show him how to set a spending limit or take a break.",
+          },
+        ],
+      },
+    },
+    { id: "step_interview", type: "chat_interview", title: "Written interview" },
+  ],
+};
+
+function zuluProfile(id: string, email: string, fullName: string): FixtureRow {
+  return { ...candidateProfile, id, user_id: id, email, full_name: fullName, resume_url: null, skills: null, bio: null, job_title: null, experience_years: null };
+}
+
+const zuluProfiles = [
+  zuluProfile(ZULU_DONE_USER_ID, "robin.okafor@example.com", "Robin Okafor"),
+  zuluProfile(ZULU_FORM_USER_ID, "dana.whitfield@example.com", "Dana Whitfield"),
+  zuluProfile(ZULU_TESTING_USER_ID, "sam.osei@example.com", "Sam Osei"),
+];
+
+function makeZuluApplication(overrides: FixtureRow): FixtureRow {
+  return { ...makeApplication({ ...overrides, job_id: JOB_FRESH_ID, resume_url: null }), jobs: zuluJob };
+}
+
+/** Picks the right answer for every question but the ones listed. */
+function zuluQuizRecord(wrong: number[], completedAt: string) {
+  const answers = zuluQuizQuestions.map((q, i) => {
+    const pick = wrong.includes(i) ? (ZULU_QUIZ[i].right + 1) % q.options.length : ZULU_QUIZ[i].right;
+    return {
+      question: q.question,
+      isCorrect: !wrong.includes(i),
+      questionId: q.id,
+      questionType: "multiple_choice",
+      selectedAnswer: pick,
+      selectedAnswerText: q.options[pick],
+    };
+  });
+  const correct = answers.filter((a) => a.isCorrect).length;
+  const score = Math.round((correct / answers.length) * 100);
+  return {
+    quiz: {
+      type: "quiz",
+      score,
+      total: answers.length,
+      passed: score >= 60,
+      correct,
+      answers,
+      completedAt,
+      totalViolations: 0,
+      violationSummary: "No violations detected",
+      antiCheatViolations: [],
+    },
+    quizResult: { score, total: answers.length, passed: score >= 60, correct },
+  };
+}
+
+const zuluStartedAt = now - 26 * 60 * 1000;
+const at = (min: number, sec = 0) => new Date(zuluStartedAt + (min * 60 + sec) * 1000).toISOString();
+
+const zuluDoneNotes = {
+  ...zuluQuizRecord([], at(6, 24)),
+  applicationAnswers: [
+    { type: "text", answer: "Robin Okafor", question: "Full name", questionId: "q1" },
+    { type: "email", answer: "robin.okafor@example.com", question: "Email address", questionId: "q2" },
+    { type: "tel", answer: "+1 555 010 4477", question: "Phone number (WhatsApp if you have it)", questionId: "q3" },
+    { type: "text", answer: "Accra, Ghana", question: "Country and city you will work from", questionId: "q4" },
+    {
+      type: "multi_select",
+      answer: "Daytime, 8am to 4pm Eastern; Weekends (Saturday and Sunday)",
+      selected: ["Daytime, 8am to 4pm Eastern", "Weekends (Saturday and Sunday)"],
+      question: "Which shifts can you cover, in US Eastern time? Pick every one that works.",
+      questionId: "q5",
+    },
+    { type: "select", answer: "40 or more", question: "How many hours a week can you work?", questionId: "q6" },
+    {
+      type: "textarea",
+      answer: "Two years of chat support for a mobile carrier, mostly billing questions and SIM swaps.",
+      question: "Describe any customer support or chat support experience you have.",
+      questionId: "q9",
+    },
+    {
+      type: "textarea",
+      answer: "I stay calm when people are upset and I like fixing the actual problem, not just apologising.",
+      question: "Why do you want this job, and what makes you good with upset people?",
+      questionId: "q10",
+    },
+  ],
+  typingTestResult: { wpm: 38, accuracy: 85, score: 72, passed: false, requiredWpm: 45, tabSwitches: 0, violations: [] },
+  step_typing: { type: "typing_test", wpm: 38, accuracy: 85, score: 72, passed: false, requiredWpm: 45, tabSwitches: 0, violations: [], completedAt: at(8, 21) },
+  chatSimulationResult: {
+    scenario:
+      "Devin lost $200 tonight, says the game is rigged, and wants all of his money back. What you know: results are random and support cannot change or see them, and money that has been played cannot be refunded. You can show him how to set a spending limit or take a break.",
+    messageCount: 11,
+    score: 18,
+    empathy: 15,
+    problemSolving: 12,
+    strengths: ["Apologised for how he was feeling early on", "Offered to pause the account in the end"],
+    improvements: [
+      "Never suggest another deposit to someone asking for help to stop",
+      "Say plainly that results are random and support cannot see or change them",
+      "Walk him through setting a limit instead of promising it will be okay",
+    ],
+    completed: true,
+    antiCheatSummary: { hasViolations: true, violationCount: 3, tabSwitches: 2, copyPasteAttempts: 1 },
+  },
+  chatInterviewResult: {
+    messages: [
+      { role: "assistant", content: "Welcome, Robin. What interests you most about supporting players for this team?", timestamp: at(14, 2) },
+      { role: "user", content: "I like the energy of the players and I've played these games myself, so I get how they feel.", timestamp: at(15, 10) },
+      { role: "assistant", content: "Tell me about a time you handled a customer who was upset about money.", timestamp: at(15, 31) },
+      { role: "user", content: "A customer was double charged. I said sorry and told them it would be fixed.", timestamp: at(16, 40) },
+      { role: "assistant", content: "What did you do to get it fixed, step by step?", timestamp: at(16, 58) },
+      { role: "user", content: "I passed it to billing and told them to wait.", timestamp: at(17, 44) },
+      { role: "assistant", content: "A player says their cash-out is late and they need it for rent. What do you write?", timestamp: at(18, 5) },
+      { role: "user", content: "I would tell them to take a break and come back when they feel better.", timestamp: at(19, 12) },
+      { role: "assistant", content: "Thanks, Robin — that's everything from me. You'll hear back soon.", timestamp: at(19, 30) },
+    ],
+    duration: "5:28",
+    questionCount: 4,
+    violations: [
+      { type: "tab_switch", timestamp: at(14, 1), details: "Window lost focus" },
+      { type: "tab_switch", timestamp: at(14, 9), details: "Window lost focus" },
+      { type: "tab_switch", timestamp: at(18, 40), details: "Window lost focus" },
+    ],
+    evaluation: {
+      score: 25,
+      strengths: ["Kind, calm tone", "Perfect score on the rules quiz"],
+      concerns: [
+        "Answers were general; no step-by-step way of resolving a cash-out problem",
+        "Steered an upset player towards taking a break instead of answering the question",
+        "Typing came in at 38 WPM against the 45 the job asks for",
+      ],
+      inconsistencies: [
+        {
+          claim: "Says they fix the actual problem, not just apologise.",
+          evidence: "In both money questions the answer was an apology and a hand-off.",
+          assessment: "Not supported by what they wrote here; worth asking for a real example.",
+        },
+        {
+          claim: "Two years of chat support.",
+          evidence: "No detail on tools, volume or escalation steps when asked.",
+          assessment: "May be real, but nothing in the interview shows it.",
+        },
+      ],
+      credibilityRating: "Medium",
+      recommendation: "No Hire",
+      summary: "Friendly and calm, strong on the rules, but the answers stayed general and did not show ownership of a player's problem.",
+    },
+  },
+  _trusted: {
+    step_typing: { stepType: "typing_test", completedAt: at(8, 21) },
+    step_chat: { stepType: "chat_simulation", completedAt: at(12, 27) },
+    step_interview: { stepType: "chat_interview", completedAt: at(19, 40) },
+  },
+};
+
+const appZuluDone = makeZuluApplication({
+  id: APP_ZULU_DONE_ID,
+  candidate_id: ZULU_DONE_USER_ID,
+  status: "reviewing",
+  phase: "step_interview",
+  created_at: new Date(zuluStartedAt).toISOString(),
+  updated_at: at(20, 0),
+  ai_score: 34,
+  notes: JSON.stringify(zuluDoneNotes),
+  ai_analysis:
+    "**OVERALL ASSESSMENT**\nSummary: Strong on the rules quiz and kind in tone, but the practice chat and the written interview showed little ownership of the player's problem, and typing came in under the bar.\n",
+  ai_scorecard: {
+    overallScore: 34,
+    confidence: 70,
+    recommendedAction: "reject",
+    decisionState: "ready_for_decision",
+    hardRejectReason: "Typing test result of 38 WPM is below the job's 45 WPM minimum.",
+    transferableEvidence: ["States two years of chat support for a mobile carrier.", "Perfect score on the rules quiz."],
+    riskFlags: [
+      "Resume could not be analyzed",
+      "Overall score is below the passing threshold",
+      "Typing test result of 38 WPM is below the job's 45 WPM minimum.",
+      "Completed chat practice scored 18/100 — very weak empathy and problem solving for a chat role.",
+      "Written interview recommendation: No Hire.",
+    ],
+  },
+});
+
+const appZuluTesting = makeZuluApplication({
+  id: APP_ZULU_TESTING_ID,
+  candidate_id: ZULU_TESTING_USER_ID,
+  status: "reviewing",
+  phase: "step_typing",
+  created_at: minutesAgo(9),
+  updated_at: minutesAgo(1),
+  ai_score: 71,
+  notes: JSON.stringify({
+    ...zuluQuizRecord([2, 6], minutesAgo(2)),
+    applicationAnswers: [
+      { type: "text", answer: "Sam Osei", question: "Full name", questionId: "q1" },
+      { type: "email", answer: "sam.osei@example.com", question: "Email address", questionId: "q2" },
+      {
+        type: "multi_select",
+        answer: "Evening, 4pm to midnight Eastern; Overnight, midnight to 8am Eastern",
+        selected: ["Evening, 4pm to midnight Eastern", "Overnight, midnight to 8am Eastern"],
+        question: "Which shifts can you cover, in US Eastern time? Pick every one that works.",
+        questionId: "q5",
+      },
+      { type: "select", answer: "30 to 40", question: "How many hours a week can you work?", questionId: "q6" },
+    ],
+  }),
+  ai_analysis: "Summary: Solid on the rules so far; the typing test, chat practice and written interview are still to come.",
+  ai_scorecard: { overallScore: 71, recommendedAction: "review", decisionState: "needs_more_evidence", riskFlags: ["Resume could not be analyzed"] },
+});
+
+const appZuluForm = makeZuluApplication({
+  id: APP_ZULU_FORM_ID,
+  candidate_id: ZULU_FORM_USER_ID,
+  status: "in_progress",
+  phase: "application",
+  created_at: minutesAgo(2),
+  updated_at: minutesAgo(2),
+  notes: null,
+});
+
+/** The right answers, filed the way get_job_quiz_keys returns them. */
+const zuluQuizKeys = zuluQuizQuestions.map((q, i) => ({
+  step_id: "__quiz_questions__",
+  question_id: q.id,
+  key: { correct_answer: q.options[ZULU_QUIZ[i].right] },
+}));
+
+function buildZuluTables(onlyApplying: boolean): FixtureTables {
+  const apps = onlyApplying ? [appZuluForm] : [appZuluDone, appZuluTesting, appZuluForm];
+  return {
+    ...buildFreshTables(),
+    profiles: [freshEmployerProfile, teamMemberProfile, ...zuluProfiles].map((r) => ({ ...r })),
+    jobs: [{ ...zuluJob }],
+    applications: apps.map((r) => ({ ...r })),
+    published_jobs_public: [{ ...zuluJob }],
+    notifications: [
+      notification("a0000000-0000-4000-8000-000000000101", EMPLOYER_USER_ID, {
+        type: "application",
+        title: "New application",
+        message: `Robin Okafor applied to ${String(zuluJob.title)}.`,
+        link: `/applicants/${APP_ZULU_DONE_ID}`,
+        created_at: new Date(zuluStartedAt + 3 * 60 * 1000).toISOString(),
+      }),
+    ],
+  };
+}
+
 // --------------------------------------------------------------- exports
 
-export type FixtureScenario = "cafe" | "fresh";
+/** `cafe` is the default. `fresh`: one live role, nobody yet. `zulu`: the Zulu
+ *  role with three applicants at three points. `applying`: the Zulu role with
+ *  only the applicant still on the form. */
+export type FixtureScenario = "cafe" | "fresh" | "zulu" | "applying";
+
+export const FIXTURE_SCENARIOS: readonly FixtureScenario[] = ["cafe", "fresh", "zulu", "applying"];
 
 export function buildFixtureTables(scenario: FixtureScenario = "cafe"): FixtureTables {
-  return scenario === "fresh" ? buildFreshTables() : buildCafeTables();
+  if (scenario === "fresh") return buildFreshTables();
+  if (scenario === "zulu") return buildZuluTables(false);
+  if (scenario === "applying") return buildZuluTables(true);
+  return buildCafeTables();
 }
 
 export function buildFixtureRpcHandlers(scenario: FixtureScenario = "cafe"): Record<string, (args: unknown) => unknown> {
   return {
     ...fixtureRpcHandlers,
+    // The Zulu role carries a real answer key; the café's quiz has none filed.
+    get_job_quiz_keys: () => (scenario === "zulu" || scenario === "applying" ? zuluQuizKeys : []),
     get_careers_traffic: () =>
-      scenario === "fresh"
+      scenario !== "cafe"
         ? trafficRows(2, (i) => [i === 0 ? 9 : 14, i === 0 ? 4 : 6, i === 0 ? 1 : 2])
         : trafficRows(14, (i) => [20 + ((i * 7) % 11), 9 + ((i * 5) % 7), 3 + (i % 4)]),
   };

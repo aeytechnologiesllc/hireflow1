@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ChevronLeft,
@@ -12,7 +12,6 @@ import {
   ShieldCheck,
   CheckCircle2,
   XCircle,
-  FileText,
   ArrowLeft,
 } from "lucide-react";
 import AvaSeal from "@/components/ava/AvaSeal";
@@ -26,6 +25,9 @@ import { ResumeViewerDialog } from "../components/ResumeViewerDialog";
 import { buildCandidateJourney, nextJourneyStep, positionFor, type WorkflowStepLike } from "@/lib/candidateJourney";
 import { stepHasResult } from "@/lib/journeyProgress";
 import { parseApplicationNotes } from "@/lib/applicationNotes";
+import { AssessmentRecordList } from "../components/AssessmentRecordList";
+import { AssessmentRecordSheet } from "../components/AssessmentRecordSheet";
+import { buildAssessmentRecord, type AssessmentAppInput, type AssessmentEntry } from "../lib/assessmentRecord";
 
 const STRENGTH_ICONS = [UserRound, MessageCircle, Target, BookOpen];
 
@@ -79,6 +81,31 @@ export default function CockpitCandidateDetail() {
   const [dialog, setDialog] = useState<null | "hire" | "reject" | "advance" | "continue">(null);
   const [hirePrompt, setHirePrompt] = useState(false);
   const [resumeOpen, setResumeOpen] = useState(false);
+  const [recordKey, setRecordKey] = useState<string | null>(null);
+
+  // A "New application" alert can be tapped before the list it opens has heard
+  // of the person, so a missing id gets one fresh fetch before the page says
+  // they cannot be found. Once per id; a failed fetch shows the error card.
+  const recheckedFor = useRef<string | null>(null);
+  const [recheckDoneFor, setRecheckDoneFor] = useState<string | null>(null);
+  const missing = !isLoading && !isError && !c && !!id;
+  useEffect(() => {
+    if (!missing || !id || recheckedFor.current === id) return;
+    recheckedFor.current = id;
+    refetch().finally(() => setRecheckDoneFor(id));
+  }, [missing, id, refetch]);
+  const stillLooking = missing && recheckDoneFor !== id;
+
+  // What they submitted, test by test — the same record the Applicants panel lists.
+  const record = useMemo(
+    () => (application ? buildAssessmentRecord(application as unknown as AssessmentAppInput) : null),
+    [application],
+  );
+  const openEntry = recordKey ? record?.entries.find((e) => e.key === recordKey) ?? null : null;
+  const openRecord = (entry: AssessmentEntry) => {
+    if (entry.kind === "resume") setResumeOpen(true);
+    else setRecordKey(entry.key);
+  };
 
   // Go back to where they came from (the applicants list, with its filter +
   // selection intact); fall back to the list if this was a deep link.
@@ -89,7 +116,7 @@ export default function CockpitCandidateDetail() {
 
   // Two different held states, and they must not read the same. Wax does not
   // spin, so the wait is the breathing seal plus a line saying what it's doing.
-  if (isLoading) {
+  if (isLoading || stillLooking) {
     return (
       <div className="mx-auto flex min-h-[40vh] max-w-[640px] flex-col items-center justify-center gap-4">
         <span className="ck-seal-breathe">
@@ -169,6 +196,8 @@ export default function CockpitCandidateDetail() {
   // decides, but the page can't be arguing against Ava's own warning while
   // she's making it.
   const declineRecommended = c.recommendedAction === "reject";
+  // Ava's flags beyond the one the risk line already states.
+  const riskFlags = (record?.riskFlags ?? c.riskFlags).filter((f) => f !== c.risk.note);
   const riskIconColor =
     c.risk.level === "High" || c.risk.level === "Medium" ? "var(--amber-fg)" : c.risk.level === "Low" ? "var(--hf-green)" : "var(--hf-text-muted)";
 
@@ -191,7 +220,12 @@ export default function CockpitCandidateDetail() {
   };
 
   return (
-    <div className="mx-auto max-w-[640px] pb-24 md:pb-20">
+    // pb-36 on a phone: the action bar is `fixed`, but the shell's .ck-page
+    // keeps a transform from its entrance animation, which makes it the bar's
+    // containing block — so today the bar sits at the foot of this column, over
+    // its last 128px, not at the foot of the screen. The padding keeps the last
+    // card clear either way.
+    <div className="mx-auto max-w-[640px] pb-36 md:pb-20">
       {/* Sticky back — stays pinned to the top of the profile while scrolling, so
           there's always a clear way back to the list (it used to scroll away). */}
       <div
@@ -238,6 +272,12 @@ export default function CockpitCandidateDetail() {
                 >
                   Needs review
                 </span>
+              ) : c.fillingInForm && !isRejected ? (
+                // Pressed Apply, still on the form: live, not "Application".
+                <span className="ck-pill ck-pill-stage-neutral">
+                  <span className="ck-dot ck-dot-live" aria-hidden />
+                  Filling in the form
+                </span>
               ) : (
                 <span className="ck-pill ck-pill-stage">{c.stage}</span>
               )}
@@ -261,10 +301,38 @@ export default function CockpitCandidateDetail() {
           <div className="min-w-0">
             <div className="font-display text-[16px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>Ava's read</div>
             <p className="mt-1 text-[13px] leading-snug" style={{ color: "var(--hf-text-soft)" }}>
-              {analyzed ? avaProse(c.readFull) || c.read : "I'm still reading this one — the score and my working land here the moment screening finishes."}
+              {analyzed
+                ? avaProse(c.readFull) || c.read
+                : c.fillingInForm
+                  ? "They're filling in the application form right now. Nothing is sent until they submit it — the moment they do, I read it and their answers land below."
+                  : "I'm still reading this one — the score and my working land here the moment screening finishes."}
             </p>
           </div>
         </div>
+
+        {/* What they submitted — every test the job gives them, in order, each
+            finished one opening its full record. Right under Ava's read, so
+            her review and their own material sit side by side. */}
+        {record && record.entries.length > 0 && (
+          <div className="ck-card p-4">
+            <div className="mb-3 flex items-baseline justify-between gap-3">
+              <div className="font-display text-[16px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
+                What they submitted
+              </div>
+              {record.integrityTotal > 0 && (
+                <span className="text-[12px] font-semibold" style={{ color: "var(--amber-fg)" }}>
+                  {record.integrityTotal} {record.integrityTotal === 1 ? "flag" : "flags"}
+                </span>
+              )}
+            </div>
+            <AssessmentRecordList entries={record.entries} onOpen={openRecord} label={null} />
+            {!resumeUrl && !c.fillingInForm && (
+              <p className="mt-2.5 text-[12px]" style={{ color: "var(--hf-text-muted)" }}>
+                No resume was attached.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Real strengths only (see extractStrengths in mappers.ts) — when Ava
             hasn't produced any worth showing, the card is left out entirely
@@ -288,48 +356,29 @@ export default function CockpitCandidateDetail() {
           </div>
         )}
 
-        {/* Quiz and Voice only — the overall lives up top, and repeating it here
-            made the same number the answer to three different questions. */}
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { label: "Quiz", v: c.quiz },
-            { label: "Voice", v: c.voice },
-          ].map((s) => (
-            <div key={s.label} className="ck-card p-4 text-center">
-              <div className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>{s.label}</div>
-              <div className="ck-num leading-none" style={{ fontSize: 28, color: "var(--hf-text)" }}>
-                {s.v ?? "—"}{s.v !== null ? <span className="text-[14px]" style={{ color: "var(--hf-text-muted)" }}>%</span> : null}
-              </div>
-            </div>
-          ))}
-        </div>
-
         <div className="ck-card flex items-center gap-3 p-4">
           {/* Green means clean everywhere else in this cockpit — an elevated
               risk level gets the same amber treatment as the alert callouts,
               never a green "all clear" shield over a High risk. */}
-          <ShieldCheck className="h-5 w-5 shrink-0" style={{ color: riskIconColor }} />
+          <ShieldCheck className="h-5 w-5 shrink-0 self-start" style={{ color: riskIconColor }} />
           <div className="min-w-0 flex-1">
             <div className="text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>Risk factors</div>
             <div className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>{c.risk.level} — {c.risk.note}</div>
+            {/* Everything else Ava flagged, in her words — for you to weigh,
+                never a stop on its own. The line above already says one. */}
+            {riskFlags.length > 0 && (
+              <ul className="mt-2.5 flex flex-col gap-1.5">
+                {riskFlags.map((flag) => (
+                  <li key={flag} className="flex items-start gap-2.5 text-[12.5px] leading-[1.45]" style={{ color: "var(--hf-text-soft)" }}>
+                    <span aria-hidden className="mt-[6px] block h-[5px] w-[5px] shrink-0 rounded-full" style={{ background: "var(--amber-fg)" }} />
+                    <span>{flag}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
 
-        {/* Resume — clear about whether one was provided */}
-        <div className="ck-card flex items-center gap-3 p-4">
-          <FileText className="h-5 w-5 shrink-0" style={{ color: resumeUrl ? "var(--hf-green)" : "var(--hf-text-muted)" }} />
-          <div className="min-w-0 flex-1">
-            <div className="text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>Resume</div>
-            <div className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>
-              {resumeUrl ? "Uploaded by the candidate." : "No resume provided — Ava scored this from the application answers."}
-            </div>
-          </div>
-          {resumeUrl && (
-            <button onClick={() => setResumeOpen(true)} className="ck-btn ck-btn-outline !px-3 !py-1.5 !text-[12.5px]">
-              View
-            </button>
-          )}
-        </div>
       </div>
 
       <div
@@ -454,6 +503,19 @@ export default function CockpitCandidateDetail() {
         jobTitle={c.role}
         applicationId={c.id}
         onSkip={() => setHirePrompt(false)}
+      />
+
+      <AssessmentRecordSheet
+        open={!!openEntry}
+        entry={openEntry}
+        candidateName={c.name}
+        jobId={record?.jobId ?? null}
+        onClose={() => setRecordKey(null)}
+        onOpenResume={() => {
+          // One modal at a time: the resume viewer takes over from the sheet.
+          setRecordKey(null);
+          setResumeOpen(true);
+        }}
       />
 
       <ResumeViewerDialog

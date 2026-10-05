@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 
 export function useUnreadMessagesCount() {
   const { user } = useAuth();
@@ -29,12 +29,19 @@ export function useUnreadMessagesCount() {
     staleTime: 30000,
   });
 
-  // Real-time subscription for messages
+  // Real-time subscription for messages. The cockpit mounts this hook three
+  // times at once (Sidebar, MobileTabBar, Dashboard). With the old static
+  // topic realtime-js 2.87.1 hands all three the SAME channel; a binding
+  // added after subscribe() either trips "mismatch between server and client
+  // bindings" on the join reply (and the channel errors) or never fires, and
+  // the first caller to unmount tears it down for the rest. The instance id
+  // gives each caller its own channel.
+  const instanceId = useId();
   useEffect(() => {
     if (!user?.id) return;
 
     const channel = supabase
-      .channel("unread-messages-count")
+      .channel(`unread-messages-count-${user.id}-${instanceId}`)
       .on(
         "postgres_changes",
         {
@@ -62,7 +69,7 @@ export function useUnreadMessagesCount() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, queryClient]);
+  }, [user?.id, instanceId, queryClient]);
 
   // Nothing here marks messages read. Landing on /messages used to mark every
   // unread message read at once — including threads the reader never opened —

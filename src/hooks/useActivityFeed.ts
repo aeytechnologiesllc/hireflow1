@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useId, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -222,12 +222,21 @@ export function useActivityFeed(limit: number = 20) {
     staleTime: 30000,
   });
 
-  // Real-time subscription
+  // Real-time subscription. Per-instance topic: only the cockpit Dashboard
+  // calls this today, but it is an ordinary hook (ActivityFeed.tsx and
+  // useCockpitDashboard call it too, unmounted), and a repeated topic hands
+  // every caller the SAME channel — the second `.on()` then fails the join.
+  // Applications changes also reach this feed through useEmployerLiveSync;
+  // this channel still covers interviews and documents.
+  // Keyed on the id string, not the user object, so a token refresh (a new
+  // user object) does not re-run this on the same topic.
+  const instanceId = useId();
+  const userId = user?.id;
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
 
     const channel = supabase
-      .channel("activity-feed-updates")
+      .channel(`activity-feed-${userId}-${instanceId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "applications" },
@@ -248,7 +257,7 @@ export function useActivityFeed(limit: number = 20) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, queryClient]);
+  }, [userId, instanceId, queryClient]);
 
   return { activities: activities || [], isLoading };
 }

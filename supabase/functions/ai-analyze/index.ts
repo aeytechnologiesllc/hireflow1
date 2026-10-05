@@ -3,7 +3,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   callOpenAIChat,
-  callOpenAIJson,
+  parseJsonContent,
   requireNestedJsonPaths,
   type OpenAIMessage,
 } from "../_shared/openai.ts";
@@ -12,6 +12,69 @@ import { isAiAnalyzeCallAuthorized, type JobAccessFacts } from "../_shared/aiAcc
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const OPENAI_MODEL = Deno.env.get("OPENAI_ANALYSIS_MODEL") || "gpt-5.6-terra";
+
+// One time budget for every OpenAI call a request makes (2026-10-05).
+//
+// A full analysis normally takes 37-47 s. The old retries were stacked: a
+// 90 s timeout x 3 HTTP tries x 2 JSON tries, then a narrative fallback with
+// 3 more, then all of that again text-only after a failed resume-image read —
+// well past 20 minutes in the worst case. Supabase answers a function that
+// has not responded within 150 s with a 504 (the request idle timeout), and
+// trigger-ava-analysis now calls this from EdgeRuntime.waitUntil, which is cut
+// off at the 400 s wall clock on Pro. So every attempt below draws on one
+// deadline measured from the start of the request: no attempt runs past it,
+// and none starts with too little of it left to finish.
+const ANALYSIS_DEADLINE_MS = 135_000;
+/** The longest any single OpenAI call may run. */
+const MAX_CALL_MS = 90_000;
+/** Below this much time left, starting another call is pointless. */
+const MIN_CALL_MS = 20_000;
+/**
+ * Kept back from the structured attempts for the narrative fallback, so a
+ * structured call that hangs can never use up the time the fallback needs
+ * (a call normally takes 35-45 s). The structured attempts therefore end by
+ * 80 s into the request: a hung first attempt is cut off there, a second
+ * structured attempt only starts if one failed fast, and the narrative then
+ * has at least 55 s. Worst case: 80 s + 55 s = the 135 s deadline.
+ */
+const NARRATIVE_RESERVE_MS = 55_000;
+const STRUCTURED_ATTEMPTS = 2;
+const NARRATIVE_ATTEMPTS = 2;
+
+function pause(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Runs `call` up to `attempts` times, each with a timeout no longer than
+ * MAX_CALL_MS or the time left before `deadline`, and stops early when less
+ * than MIN_CALL_MS is left. Throws the last error (or an out-of-time error).
+ */
+async function withinDeadline<T>(
+  label: string,
+  deadline: number,
+  attempts: number,
+  call: (timeoutMs: number) => Promise<T>,
+): Promise<T> {
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const remaining = deadline - Date.now();
+    if (remaining < MIN_CALL_MS) {
+      console.warn(`[ai-analyze] ${label}: ${Math.max(0, Math.round(remaining / 1000))} s left, not starting attempt ${attempt}`);
+      break;
+    }
+    try {
+      return await call(Math.min(MAX_CALL_MS, remaining));
+    } catch (error) {
+      lastError = error;
+      console.warn(`[ai-analyze] ${label} attempt ${attempt}/${attempts} failed:`, error);
+      if (attempt < attempts && deadline - Date.now() > MIN_CALL_MS + 1000) await pause(1000);
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`[ai-analyze] ${label}: ran out of the ${ANALYSIS_DEADLINE_MS / 1000} s analysis budget`);
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -135,7 +198,7 @@ Rules for structuredScore (every sub-score is 0-100):
 - personalityTraits: 2-5 JOB-RELEVANT work-style traits inferred WITH evidence (e.g. "customer-empathetic", "detail-oriented", "proactive", "resilient under pressure"). NEVER infer or use age, gender, race, nationality, religion, health, or any protected/demographic attribute.
 - personalitySummary: 1-2 evidence-based sentences on work style and fit for THIS role.
 - overallScore is your holistic 0-100 fit judgment for THIS role and MUST reflect the sub-scores: low writingQuality/attentionToDetail, and ESPECIALLY low authenticity or low specificity, must pull it down materially. A polished-but-fabricated resume is a reject; a strong resume riddled with misspellings is NOT a top candidate. It must match the final score in the narrative report.
-- hardRequirementConflicts must only list explicit hard conflicts, non-negotiables, wrong-resume/authenticity issues, missing legal/licensing blockers, or schedule/work-eligibility blockers. A workflow phase that has not happened yet (a pending quiz, typing test, simulation or interview), or a skill such a phase will measure, is NOT a conflict: missing evidence is never a conflict, so leave it out of this list
+- hardRequirementConflicts must only list explicit conflicts with what THIS job's own text requires (quote the job's own words for the requirement, e.g. 'The job asks for "at least 45 words a minute"; the candidate typed 38 WPM.'), wrong-resume/authenticity issues, missing legal/licensing blockers, or schedule/work-eligibility blockers the candidate's own answers state. Describe a requirement in the job's own words only: never call one "non-negotiable", a "deal-breaker" or "mandatory" unless the job's text uses that word. A workflow phase that has not happened yet (a pending quiz, typing test, simulation or interview), or a skill such a phase will measure, is NOT a conflict: missing evidence is never a conflict, so leave it out of this list
 - transferableEvidence must contain 2-6 short evidence phrases when adjacent fit exists; otherwise use an empty array
 - confidence must reflect evidence coverage and stability, not closeness to the passing threshold
 - summary must be 1-2 sentences and should mention direct fit vs transferable fit when relevant`;
@@ -998,6 +1061,7 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const requestStartedAt = Date.now();
   try {
     if (!OPENAI_API_KEY) {
       console.error("OPENAI_API_KEY is not configured");
@@ -1226,47 +1290,62 @@ Your skill match analysis should be based on what the candidate stated in their 
           : [{ role: "developer", content: structuredResponseInstruction }, ...msgs]
         : msgs;
 
+    // Every call below shares this one deadline (see ANALYSIS_DEADLINE_MS);
+    // the structured attempts stop early enough to leave the narrative
+    // fallback its reserve (NARRATIVE_RESERVE_MS).
+    const deadline = requestStartedAt + ANALYSIS_DEADLINE_MS;
+    const structuredDeadline = deadline - NARRATIVE_RESERVE_MS;
+
     const runAnalysis = async (msgs: OpenAIMessage[]): Promise<{ analysis: string; structuredScore: StructuredScore | null }> => {
       if (structuredResponseInstruction) {
         try {
-          const structuredResult = await callOpenAIJson<StructuredAnalyzeResponse>({
-            apiKey: OPENAI_API_KEY!,
-            model: OPENAI_MODEL,
-            messages: withInstruction(msgs),
-            maxCompletionTokens: 4500,
-            temperature: 0,
-            timeoutMs: 90000,
-            retries: 2,
-            validator: (value) =>
-              requireNestedJsonPaths(value, [
-                "analysis",
-                "structuredScore.overallScore",
-                "structuredScore.directMatchScore",
-                "structuredScore.transferableFitScore",
-                "structuredScore.learningSignalScore",
-                "structuredScore.hardRequirementConflicts",
-                "structuredScore.transferableEvidence",
-                "structuredScore.confidence",
-                "structuredScore.summary",
-              ]),
+          // A bad or incomplete JSON reply counts as a failed attempt, the way
+          // callOpenAIJson's validator did, but within the shared deadline.
+          const structured = await withinDeadline(`structured ${type} analysis`, structuredDeadline, STRUCTURED_ATTEMPTS, async (timeoutMs) => {
+            const result = await callOpenAIChat({
+              apiKey: OPENAI_API_KEY!,
+              model: OPENAI_MODEL,
+              messages: withInstruction(msgs),
+              maxCompletionTokens: 4500,
+              temperature: 0,
+              responseFormat: { type: "json_object" },
+              timeoutMs,
+              retries: 1,
+            });
+            const parsed = parseJsonContent<StructuredAnalyzeResponse>(result.content);
+            const invalid = requireNestedJsonPaths(parsed, [
+              "analysis",
+              "structuredScore.overallScore",
+              "structuredScore.directMatchScore",
+              "structuredScore.transferableFitScore",
+              "structuredScore.learningSignalScore",
+              "structuredScore.hardRequirementConflicts",
+              "structuredScore.transferableEvidence",
+              "structuredScore.confidence",
+              "structuredScore.summary",
+            ]);
+            if (invalid) throw new Error(invalid);
+            return parsed;
           });
           return {
-            analysis: structuredResult.data.analysis ?? "",
-            structuredScore: sanitizeStructuredScore(structuredResult.data.structuredScore),
+            analysis: structured.analysis ?? "",
+            structuredScore: sanitizeStructuredScore(structured.structuredScore),
           };
         } catch (structuredError) {
           console.warn(`[ai-analyze] Structured response failed for ${type}, falling back to narrative output:`, structuredError);
         }
       }
-      const openAIResult = await callOpenAIChat({
-        apiKey: OPENAI_API_KEY!,
-        model: OPENAI_MODEL,
-        messages: msgs,
-        maxCompletionTokens: 4000,
-        ...(type === "interview" ? { temperature: 0.95 } : { temperature: 0 }),
-        timeoutMs: 90000,
-        retries: 3,
-      });
+      const openAIResult = await withinDeadline(`narrative ${type} analysis`, deadline, NARRATIVE_ATTEMPTS, (timeoutMs) =>
+        callOpenAIChat({
+          apiKey: OPENAI_API_KEY!,
+          model: OPENAI_MODEL,
+          messages: msgs,
+          maxCompletionTokens: 4000,
+          ...(type === "interview" ? { temperature: 0.95 } : { temperature: 0 }),
+          timeoutMs,
+          retries: 1,
+        }),
+      );
       return { analysis: openAIResult.content ?? "", structuredScore: null };
     };
 

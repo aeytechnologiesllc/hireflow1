@@ -15,6 +15,7 @@ import {
   type WorkflowStepLike,
 } from "@/lib/candidateJourney";
 import { listingEligibility } from "./listingEligibility";
+import { isFillingInForm } from "./assessmentRecord";
 import type {
   Candidate,
   CandidateStage,
@@ -298,7 +299,17 @@ export function mapCandidate(app: ApplicationWithCandidate): Candidate {
   const voice = extractVoiceScore(app);
   const overall = app.ai_score != null ? Math.round(app.ai_score) : Math.max(quiz ?? 0, voice ?? 0);
   const analyzed = app.ai_score != null || quiz != null || voice != null;
-  const read = (app.ai_analysis ?? app.phase_ai_analysis ?? "Screening in progress…").split("\n")[0].slice(0, 140);
+  // Apply Now inserts the row as `in_progress` before a single answer is sent
+  // (JobDetails.tsx). That person is on the form right now — not "applied",
+  // and not something Ava is "screening": she has nothing of theirs yet.
+  const fillingInForm = isFillingInForm(app.status);
+  const read = (
+    app.ai_analysis ??
+    app.phase_ai_analysis ??
+    (fillingInForm ? "Filling in the application form" : "Screening in progress…")
+  )
+    .split("\n")[0]
+    .slice(0, 140);
   const readFull = app.ai_analysis ?? app.phase_ai_analysis ?? read;
 
   const scorecard = extractScorecard(app);
@@ -311,7 +322,7 @@ export function mapCandidate(app: ApplicationWithCandidate): Candidate {
     avatar: app.candidate_id,
     name,
     email: profile?.email ?? null,
-    appliedAgo: `Applied ${formatDistanceToNow(new Date(app.created_at), { addSuffix: true })}`,
+    appliedAgo: `${fillingInForm ? "Started" : "Applied"} ${formatDistanceToNow(new Date(app.created_at), { addSuffix: true })}`,
     appliedDate: format(new Date(app.created_at), "MMM d, yyyy"),
     role: job?.title ?? "Role",
     stage: mapCandidateStage(app),
@@ -331,13 +342,17 @@ export function mapCandidate(app: ApplicationWithCandidate): Candidate {
           level: hardRejectReason ? "High" : overall >= 75 ? "Low" : overall >= 50 ? "Medium" : "High",
           note: hardRejectReason ?? "Based on completed screening signals.",
         }
-      : { level: "Pending", note: "Ava is still screening this candidate." },
+      : {
+          level: "Pending",
+          note: fillingInForm ? "Still filling in the application form." : "Ava is still screening this candidate.",
+        },
     recommendedAction,
     hardRejectReason,
     riskFlags,
     // Manual-mode jobs wait on the employer at every step, so only an auto job's
     // "more evidence to come" means the candidate is the one with a move to make.
     stillTesting: scorecard?.decisionState === "needs_more_evidence" && job?.processing_mode === "auto",
+    fillingInForm,
     source: "Application",
   };
 }
@@ -532,17 +547,24 @@ export function mapActivityFeed(items: ActivityItem[]): Array<{
   em?: string;
 }> {
   return items.slice(0, 6).map((item) => {
+    // Someone still on the application form has not "changed status": they
+    // have started applying. The feed's raw line would read "…'s status
+    // changed to in_progress".
+    const startedApplying = item.type === "status_change" && item.metadata?.status === "in_progress";
     let icon: ActivityIcon = "userplus";
     if (item.type === "interview") icon = "mic";
     else if (item.type === "hired") icon = "star";
-    else if (item.type === "status_change") icon = "sparkle";
+    else if (item.type === "status_change" && !startedApplying) icon = "sparkle";
 
     return {
       id: item.id,
       avatar: item.metadata?.candidateName ? item.metadata.candidateName.toLowerCase().replace(/\s+/g, "-") : null,
       icon,
       name: item.metadata?.candidateName ?? item.title,
-      action: item.description,
+      action:
+        startedApplying && item.metadata?.candidateName
+          ? `${item.metadata.candidateName} started applying for ${item.metadata.jobTitle ?? "your job"}`
+          : item.description,
       time: formatDistanceToNow(new Date(item.timestamp), { addSuffix: true }),
       em: item.metadata?.candidateName,
     };

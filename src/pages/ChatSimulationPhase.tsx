@@ -20,13 +20,14 @@ import {
   ShieldAlert
 } from "lucide-react";
 import { toast } from "sonner";
-import { invokeTriggerAvaAnalysis, triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
+import { invokeTriggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
-import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
+import { StepAdvanceScreen, TestRulesNotice } from "@/components/candidate/NextStepCard";
 import { parseApplicationNotes } from "@/utils/applicationNotes";
 import { AvaSeal } from "@/components/ava/AvaSeal";
 
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
+import { useResultAtFirstLoad, useStepAdvance } from "@/hooks/useStepAdvance";
 
 interface Message {
   id: string;
@@ -137,7 +138,7 @@ export default function ChatSimulationPhase() {
   const { user, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
 
-  const [state, setState] = useState<"intro" | "chatting" | "evaluating" | "completed" | "rejected">("intro");
+  const [state, setState] = useState<"intro" | "chatting" | "evaluating" | "completed">("intro");
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -161,19 +162,13 @@ export default function ChatSimulationPhase() {
     setMessages,
     state === "chatting"
   );
-  const [completionNote, setCompletionNote] = useState(
-    "The hiring team will get back to you — everyone hears back."
-  );
-  // Only ever checked for truthiness below (the rejection screen reads
-  // application/jobs directly), so a partial shape is enough.
-  const [rejectedAppData, setRejectedAppData] = useState<Partial<ApplicationDetails> | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch application details - force refetch on mount to handle reconsider workflow
-  const { data: application, isLoading } = useQuery({
+  const { data: application, isLoading, isFetchedAfterMount } = useQuery({
     queryKey: ["chat-simulation-application", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -235,6 +230,11 @@ export default function ChatSimulationPhase() {
   // workflow_steps via the shared candidateJourney builder, so this screen
   // agrees with every other candidate screen. Never invented.
   const journeyStep = useJourneyPosition(application?.jobs, { stepId, phase: application?.phase });
+
+  // After the chat is sent: the waiting screen, then "Start <next step>" the
+  // moment the row says it is open (see useStepAdvance). Replaces the old
+  // two-second redirect to the overview.
+  const advance = useStepAdvance({ applicationId: id, stepId, job: application?.jobs });
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -604,9 +604,9 @@ export default function ChatSimulationPhase() {
 
   const endChat = () => {
     setState("evaluating");
-    // The conversation is finished and on its way to be scored — drop the
-    // local draft so a retake never resumes inside the old transcript.
-    clearConversationDraft();
+    // The local draft is dropped only once the server has the transcript
+    // (in handleSubmit) — clearing it first lost the whole conversation if
+    // the tab closed or the send failed mid-way.
     handleSubmit();
   };
 
@@ -623,6 +623,10 @@ export default function ChatSimulationPhase() {
         .single();
 
       const isAutoMode = freshJob?.processing_mode === "auto";
+
+      // Auto mode: the honest waiting screen goes up now and stays until the
+      // next step is open (useStepAdvance).
+      if (isAutoMode) advance.begin();
 
       // The server grades the transcript AND records the result in one call
       // (ai-chat-simulation's "evaluate" mode, service-role) — this page no
@@ -661,107 +665,41 @@ export default function ChatSimulationPhase() {
         throw new Error(errorData?.error || "Failed to record chat simulation result");
       }
 
-      const { chatSimulationResult, phaseAiAnalysis: updatedPhaseAnalysis } = await evalResponse.json() as {
-        chatSimulationResult: Record<string, unknown>;
-        phaseAiAnalysis: string;
-        next: unknown;
-      };
+      await evalResponse.json().catch(() => null);
 
-      const existingNotes = parseApplicationNotes(application.notes);
-      const updatedNotes = {
-        ...existingNotes,
-        chatSimulationResult,
-      };
-      const serializedNotes = JSON.stringify(updatedNotes);
+      // The server holds the result now. Drop the local draft so a retake
+      // never resumes inside the old transcript. This page no longer writes
+      // the result into its own cache: that made the page think the step had
+      // been done before this visit and swap the waiting screen for a dead
+      // end. The overview simply re-reads.
+      clearConversationDraft();
+      queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
+      queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
 
-      // Update relevant caches immediately so the candidate detail page does not flash
-      // a stale "Start Chat Simulation" state after the submission returns.
-      queryClient.setQueryData(["chat-simulation-application", id], (previous: typeof application | undefined) =>
-        previous
-          ? {
-              ...previous,
-              notes: serializedNotes,
-              phase_ai_analysis: updatedPhaseAnalysis,
-            }
-          : previous,
-      );
-      queryClient.setQueryData(["candidate-application", id], (previous: typeof application | undefined) =>
-        previous
-          ? {
-              ...previous,
-              notes: serializedNotes,
-              phase_ai_analysis: updatedPhaseAnalysis,
-            }
-          : previous,
-      );
-
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] }),
-        queryClient.invalidateQueries({ queryKey: ["candidate-application", id] }),
-      ]);
-
-      // SINGLE SOURCE OF TRUTH: Let backend decide pass/fail
       if (isAutoMode) {
-        try {
-          const { data: analysisResult } = await invokeTriggerAvaAnalysis({
-            applicationId: id!,
-            autopilotDecision: true,
-            currentPhaseId: stepId,
-          });
-
-          // Backend returns decision: "rejected" | "advanced" | "needs_employer_approval"
-          if (analysisResult?.decision === "rejected") {
-            setRejectedAppData({ ...application, status: "rejected" });
-            setState("rejected");
-          } else if (analysisResult?.decision === "advanced" || analysisResult?.decision === "needs_employer_approval") {
-            setCompletionNote("You've moved on to the next step — nice work.");
-            toast.success("Chat simulation completed!", {
-              description: "Great work! You've advanced to the next phase.",
-            });
-            setState("completed");
-            setTimeout(() => navigate(`/applications/${id}`), 2000);
-          } else {
-            // Fallback: check application status from database
-            const { data: updatedApp } = await supabase
-              .from("applications")
-              .select("status")
-              .eq("id", id!)
-              .single();
-
-            if (updatedApp?.status === "rejected") {
-              setRejectedAppData({ ...application, status: "rejected" });
-              setState("rejected");
-            } else {
-              setCompletionNote("The hiring team will get back to you — everyone hears back.");
-              toast.success("Chat simulation completed!", {
-                description: "Your responses have been recorded.",
-              });
-              setState("completed");
-              setTimeout(() => navigate(`/applications/${id}`), 2000);
-            }
-          }
-        } catch (err) {
-          console.error("[ChatSimulationPhase] Backend analysis failed:", err);
-          setCompletionNote("The hiring team will get back to you — everyone hears back.");
-          setState("completed");
-          setTimeout(() => navigate(`/applications/${id}`), 2000);
-        }
+        // Which step opens next is the server's call (it moves `phase`); the
+        // screen follows the row, and the trigger's reply only speeds that
+        // up. invokeTriggerAvaAnalysis never throws.
+        advance.markSaved();
+        const reply = await invokeTriggerAvaAnalysis({
+          applicationId: id!,
+          autopilotDecision: true,
+          currentPhaseId: stepId,
+        });
+        advance.settle(reply);
       } else {
-        // Manual mode - trigger analysis in background
+        // Manual mode - trigger analysis in background; the hiring team opens
+        // the next step.
         invokeTriggerAvaAnalysis({
           applicationId: id!,
         }).catch(err => console.error("[ChatSimulationPhase] AVA analysis trigger failed:", err));
 
-        setCompletionNote("The hiring team will get back to you — everyone hears back.");
-        toast.success("Chat simulation completed!", {
-          description: "Your responses have been recorded. The employer will review your performance.",
-        });
         setState("completed");
-        setTimeout(() => navigate(`/applications/${id}`), 2000);
       }
     } catch (error) {
       console.error("Error submitting chat:", error);
       toast.error("That didn't send — give it another try.");
+      advance.cancel();
       setState("chatting");
     } finally {
       setIsSubmitting(false);
@@ -782,6 +720,16 @@ export default function ChatSimulationPhase() {
       return null;
     }
   })();
+
+  // "Already done" is decided once, from the first read after this page
+  // mounted — never from a refresh that lands after the candidate sends.
+  const resultAtFirstLoad = useResultAtFirstLoad(isFetchedAfterMount && !!application, !!existingResult);
+  // A step the server already holds has no use for a local draft (the send
+  // that stored it may have been cut off before it could clear one), and a
+  // later retake must never resume inside the old conversation.
+  useEffect(() => {
+    if (resultAtFirstLoad) clearConversationDraft();
+  }, [resultAtFirstLoad, clearConversationDraft]);
 
   if (authLoading || isLoading) {
     return (
@@ -811,12 +759,34 @@ export default function ChatSimulationPhase() {
     );
   }
 
-  // Show already submitted view if phase was completed
-  if (existingResult) {
+  // Sent in this visit: the waiting screen, then the next step's button.
+  if (advance.view) {
+    return (
+      <StepAdvanceScreen
+        advance={advance}
+        applicationId={id!}
+        jobTitle={application.jobs?.title}
+        completedTitle={journeyStep.title}
+      />
+    );
+  }
+
+  if (resultAtFirstLoad === null) {
+    return (
+      <div className="space-y-6 max-w-3xl mx-auto p-6">
+        <Skeleton className="h-12 w-48" />
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
+
+  // Done before this visit began (a bookmark, the back button): say where
+  // things stand and offer the next step, never a dead end.
+  if (resultAtFirstLoad && existingResult && state === "intro") {
     return (
       <PhaseAlreadySubmitted
         applicationId={id!}
-        phaseName="Chat Simulation"
+        phaseName={journeyStep.title}
         isManualMode={application.jobs?.processing_mode === "manual"}
       />
     );
@@ -832,17 +802,6 @@ export default function ChatSimulationPhase() {
   // Ending early, before the usual minimum — the button and hint change wording.
   const endingShort = canEndEarly && agentReplyCount < Number(chatConfig.minMessages ?? 0);
 
-  // Show rejection screen for autopilot mode failure
-  if (state === "rejected" && rejectedAppData) {
-    return (
-      <CandidateStatusScreen
-        state="rejected"
-        jobTitle={application?.jobs?.title}
-        onClose={() => navigate(`/applications/${id}`)}
-      />
-    );
-  }
-
   // The context a nervous candidate needs to keep reading while they reply —
   // lives in the header so it never disappears once the conversation starts.
   const headerScenario = currentScenario ?? preselectedScenario;
@@ -853,7 +812,7 @@ export default function ChatSimulationPhase() {
       : state === "chatting"
         ? "Reply the way you would on the job. Wrap up whenever it feels resolved."
         : state === "evaluating"
-          ? "Hang tight — we're looking over what you sent."
+          ? "Sending your conversation — keep this page open for a moment."
           : "All set.";
 
   return (
@@ -951,12 +910,7 @@ export default function ChatSimulationPhase() {
                     </span>
                   </li>
                 </ul>
-                <div className="flex items-start gap-2.5 rounded-md border border-warning/20 bg-warning/10 px-3 py-2.5">
-                  <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-                  <p className="text-sm text-warning">
-                    Copy, paste, and right-click are off here, and switching tabs gets noted — just you and the conversation.
-                  </p>
-                </div>
+                <TestRulesNotice />
               </div>
 
               <div className="flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
@@ -1120,23 +1074,29 @@ export default function ChatSimulationPhase() {
                         <Loader2 className="h-6 w-6 animate-spin text-primary" />
                       </div>
                       <div className="space-y-1.5">
-                        <h2 className="font-display ck-ink text-xl text-foreground sm:text-2xl">One moment</h2>
-                        <p className="text-sm text-muted-foreground">We're looking over what you sent.</p>
+                        <h2 className="font-display ck-ink text-xl text-foreground sm:text-2xl">Sending your conversation</h2>
+                        <p className="text-sm text-muted-foreground">Keep this page open for a moment.</p>
                       </div>
                     </div>
                   )}
                 </>
               )}
 
-              {/* Completed State — a small finishing payoff, and what happens next */}
+              {/* Completed State (manual-review jobs) — the hiring team opens
+                  the next step, so say so and stay put: no timed redirect. */}
               {state === "completed" && (
                 <div className="ck-reveal space-y-4 py-10 text-center">
                   <AvaSeal size={44} tilt={-3} className="ck-seal-press" />
                   <div className="space-y-1.5">
                     <h2 className="font-display ck-ink text-2xl text-foreground sm:text-3xl">Sent</h2>
-                    <p className="text-sm text-muted-foreground">{completionNote}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Your conversation is saved. The hiring team will get back to you — you can close this page.
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">Taking you back to your application…</p>
+                  <Button onClick={() => navigate(`/applications/${id}`)} className="w-full gap-2 sm:w-auto">
+                    <ArrowLeft className="h-4 w-4" />
+                    Back to your application
+                  </Button>
                 </div>
               )}
             </>

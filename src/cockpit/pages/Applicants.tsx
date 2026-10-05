@@ -53,6 +53,18 @@ import {
 import type { Candidate, CandidateStage } from "../data";
 import { candidateOrigin } from "@/lib/hosts";
 import { ShareJobCompact } from "../components/ShareJobCard";
+import { AssessmentRecordList } from "../components/AssessmentRecordList";
+import { AssessmentRecordSheet } from "../components/AssessmentRecordSheet";
+import {
+  applicantBucket,
+  applicantTab,
+  applicantTabParam,
+  buildAssessmentRecord,
+  weighedPhrase,
+  type ApplicantBucket,
+  type AssessmentEntry,
+  type AssessmentRecord,
+} from "../lib/assessmentRecord";
 
 /**
  * The people, and Ava's read on them.
@@ -64,7 +76,9 @@ import { ShareJobCompact } from "../components/ShareJobCard";
  *
  * Every value on this screen comes off the application record. Where the record
  * is silent — no transcript, no quiz, no resume — the element is left out
- * rather than filled in.
+ * rather than filled in. What they submitted, test by test, is one list
+ * (AssessmentRecordList) built by one reader (lib/assessmentRecord.ts); each
+ * finished test opens its full record in AssessmentRecordSheet.
  */
 
 /** Real wax never sits square. A stable per-row tilt, so it does not jitter. */
@@ -75,8 +89,9 @@ const PAGE_SIZE = 8;
 /** The stage filter offers everything except Rejected — the tabs own that split. */
 const STAGES: CandidateStage[] = ["Application", "Quiz", "Voice", "Shortlist", "Hired"];
 
-/** Which side of the job a person is on. "reading" only exists while Ava works. */
-type Bucket = "sealed" | "reading" | "passed";
+/** Which side of the job a person is on. "reading" only exists while Ava works;
+ *  "started" only while someone is still on the application form. */
+type Bucket = ApplicantBucket;
 
 /* ── Reading the real record ───────────────────────────────────────────────
    `applications` carries either a live hireflow row or a showcase row, so every
@@ -98,7 +113,9 @@ interface AppRecord {
   /** The job this application belongs to — already joined by `useEmployerApplications`
    *  (`jobs!inner(*)`), so `workflow_steps`/`quiz_questions` ride along for free.
    *  Absent in showcase mode, where the journey strip degrades to Application → Decision. */
-  jobs?: { workflow_steps?: unknown; quiz_questions?: unknown } | null;
+  jobs?: { id?: string | null; workflow_steps?: unknown; quiz_questions?: unknown; passing_score?: number | null } | null;
+  cover_letter?: string | null;
+  ai_scorecard?: unknown;
 }
 
 interface TranscriptTurn {
@@ -207,19 +224,6 @@ function pullQuote(turns: TranscriptTurn[]): { text: string; at: string | null }
   };
 }
 
-interface QuizResult {
-  correct?: number;
-  total?: number;
-  passed?: boolean;
-}
-
-function quizResultOf(app?: AppRecord): QuizResult | null {
-  const notes = parseApplicationNotes(app?.notes ?? null);
-  const result = notes.quizResult as QuizResult | undefined;
-  if (!result || typeof result.total !== "number" || typeof result.correct !== "number") return null;
-  return result;
-}
-
 /** A candidate has real screening signal once any score exists; until then we don't fake strengths.
  *  `candidate.analyzed` is the single source of truth for this (computed once in
  *  `mapCandidate`) — it must never be re-derived from `overall > 0` here, because a
@@ -228,9 +232,14 @@ function isAnalyzed(c: Candidate): boolean {
   return c.analyzed;
 }
 
+/** The rule itself lives in lib/assessmentRecord.ts, beside the one that picks
+ *  the opening tab, so both are tested together. */
 function bucketOf(c: Candidate): Bucket {
-  if (c.stage === "Rejected") return "passed";
-  return isAnalyzed(c) ? "sealed" : "reading";
+  return applicantBucket(c);
+}
+
+function lowerFirst(s: string): string {
+  return s.charAt(0).toLowerCase() + s.slice(1);
 }
 
 /* ── Pieces ────────────────────────────────────────────────────────────── */
@@ -264,9 +273,14 @@ function PersonRow({
   // reads as clean — a name mismatch behind an 85 must never look identical
   // to a genuine 85 in a list an employer is scanning fast.
   const needsReview = candidate.recommendedAction === "reject";
-  const why = needsReview
-    ? clip(candidate.hardRejectReason ? `Needs review — ${candidate.hardRejectReason}` : "Needs review", 64)
-    : clip(avaProse(candidate.readFull) || candidate.read, 64);
+  // Someone on the application form has sent nothing yet: say that, and when
+  // they started, rather than "Applied" or a screening line.
+  const filling = !!candidate.fillingInForm;
+  const why = filling
+    ? `Filling in the form · ${lowerFirst(candidate.appliedAgo)}`
+    : needsReview
+      ? clip(candidate.hardRejectReason ? `Needs review — ${candidate.hardRejectReason}` : "Needs review", 64)
+      : clip(avaProse(candidate.readFull) || candidate.read, 64);
 
   return (
     <button
@@ -310,6 +324,11 @@ function PersonRow({
             style={{ background: "var(--amber-fg)", borderColor: "var(--brass-line)" }}
           />
         )}
+        {/* On the form right now — a live dot where the seal will land, the
+            one cue that survives on a phone, where the line below is hidden. */}
+        {filling && (
+          <span aria-hidden className="ck-dot ck-dot-live absolute -bottom-[1px] -right-[1px] border-2" style={{ borderColor: "var(--surface)", width: 11, height: 11 }} />
+        )}
       </span>
 
       <span className="min-w-0 flex-1">
@@ -317,6 +336,7 @@ function PersonRow({
           {candidate.name}
         </span>
         {needsReview && <span className="sr-only">Needs review</span>}
+        {filling && <span className="sr-only">Filling in the form</span>}
         {why && (
           <span
             className="mt-[2px] hidden truncate text-[11px] min-[1160px]:block"
@@ -337,106 +357,39 @@ function PersonRow({
   );
 }
 
-/** What the record holds on this person, three facts at a time. */
-function EvidenceTiles({
-  candidate,
-  app,
-  className,
-  onOpenResume,
-}: {
-  candidate: Candidate;
-  app?: AppRecord;
-  className: string;
-  /** Opens the resume in the in-app DocumentPreviewDialog — the whole tile is the target. */
-  onOpenResume?: () => void;
-}) {
-  const turns = transcriptOf(app);
-  const minutes = interviewMinutes(turns);
-  const quiz = quizResultOf(app);
-  const resumeUrl = app?.resume_url ?? null;
-
-  // A voice score with no saved transcript has nothing to show — the tile
-  // used to render anyway and read "Completed — No transcript saved", which
-  // looks like something broke. Only show the tile when there's a real
-  // transcript to point to.
-  const hasVoice = turns.length > 0;
-  const hasQuiz = quiz != null || candidate.quiz != null;
-  if (!hasVoice && !hasQuiz && !resumeUrl) return null;
-
-  const tile = "rounded-[10px] border px-[14px] py-3";
-  const tileStyle = {
-    borderColor: "var(--line-soft)",
-    background: "var(--surface)",
-    boxShadow: "var(--hf-shadow-soft)",
-  };
-
-  return (
-    <div className={className}>
-      {hasVoice && (
-        <div className={tile} style={tileStyle}>
-          <Label color="var(--ink-3)">Voice interview</Label>
-          <div className="ck-num mt-1.5 text-[20px] font-semibold leading-[1.15]" style={{ color: "var(--ink)" }}>
-            {minutes != null ? `${minutes} min` : "Completed"}
-          </div>
-          <div className="mt-[3px] text-[11px]" style={{ color: "var(--ink-3)" }}>
-            Transcript ready
-          </div>
-        </div>
-      )}
-
-      {hasQuiz && (
-        <div className={tile} style={tileStyle}>
-          <Label color="var(--ink-3)">Skills check</Label>
-          <div className="ck-num mt-1.5 text-[20px] font-semibold leading-[1.15]" style={{ color: "var(--jade)" }}>
-            {quiz ? `${quiz.correct} / ${quiz.total}` : `${candidate.quiz}%`}
-          </div>
-          <div className="mt-[3px] text-[11px]" style={{ color: "var(--ink-3)" }}>
-            {quiz?.passed === true ? "Passed" : quiz?.passed === false ? "Did not pass" : "Scored"}
-          </div>
-        </div>
-      )}
-
-      {resumeUrl && (
-        // The whole tile is the target, not just a link inside it — opens the
-        // resume in-app first, on Ava's letterhead, never a bare new tab.
-        <button
-          type="button"
-          onClick={onOpenResume}
-          className={`${tile} ck-lift text-left transition-transform duration-150 hover:border-[var(--hair)] active:scale-[0.98]`}
-          style={{ ...tileStyle, cursor: "pointer" }}
-        >
-          <Label color="var(--ink-3)">Resume</Label>
-          <div className="ck-num mt-1.5 text-[20px] font-semibold leading-[1.15]" style={{ color: "var(--ink)" }}>
-            On file
-          </div>
-          <span className="mt-[3px] inline-block text-[11px] font-semibold" style={{ color: "var(--brass)" }}>
-            View
-          </span>
-        </button>
-      )}
-    </div>
-  );
-}
+/** How many of Ava's flags show before "Show all". */
+const FLAGS_SHOWN = 3;
 
 /** Ava's letterhead: brass rule, her mark, the score, and her working. */
-function AvasRead({ candidate, app }: { candidate: Candidate; app?: AppRecord }) {
+function AvasRead({ candidate, app, record }: { candidate: Candidate; app?: AppRecord; record: AssessmentRecord | null }) {
   const analyzed = isAnalyzed(candidate);
   const turns = transcriptOf(app);
   const minutes = interviewMinutes(turns);
   const quote = pullQuote(turns);
   const recording = app?.voice_interview_recording_url ?? null;
   const prose = avaProse(candidate.readFull) || candidate.read;
+  const [allFlags, setAllFlags] = useState(false);
 
-  // Say what she actually weighed — nothing more than the record holds.
-  const weighed = [
-    turns.length > 0 || candidate.voice != null
-      ? minutes != null
-        ? `${minutes}-minute voice interview`
-        : "voice interview"
-      : null,
-    quizResultOf(app) != null || candidate.quiz != null ? "skills check" : null,
-    app?.resume_url ? "resume" : null,
-  ].filter(Boolean) as string[];
+  // Say what she actually weighed — everything this person has finished, read
+  // off the same record the list below shows. Showcase rows carry no record;
+  // they keep the old three-fact line.
+  const finished = record ? weighedPhrase(record.entries) : null;
+  const weighed = finished
+    ? [finished]
+    : ([
+        turns.length > 0 || candidate.voice != null
+          ? minutes != null
+            ? `${minutes}-minute voice interview`
+            : "voice interview"
+          : null,
+        candidate.quiz != null ? "skills check" : null,
+        app?.resume_url ? "resume" : null,
+      ].filter(Boolean) as string[]);
+
+  // Every flag she raised, in her words — the deal-breaker line above already
+  // carries one of them, so it is not said twice.
+  const flags = (record?.riskFlags ?? candidate.riskFlags).filter((f) => f !== candidate.hardRejectReason);
+  const shownFlags = allFlags ? flags : flags.slice(0, FLAGS_SHOWN);
 
   // Ava's own decline recommendation always surfaces here, in her own words,
   // no matter what the number says — a flagged candidate must never read as
@@ -469,9 +422,11 @@ function AvasRead({ candidate, app }: { candidate: Candidate; app?: AppRecord })
         <span className="min-w-0">
           <Label color="var(--jade-soft-fg)">Ava&rsquo;s read</Label>
           <span className="mt-[3px] block text-[11px]" style={{ color: "var(--ink-3)" }}>
-            {weighed.length > 0
-              ? `${weighed.join(", ")}, weighed against the job`
-              : "Weighed against the job"}
+            {candidate.fillingInForm
+              ? "Nothing sent yet"
+              : weighed.length > 0
+                ? `${weighed.join(", ")}, weighed against the job`
+                : "Weighed against the job"}
           </span>
         </span>
         {analyzed && (
@@ -487,7 +442,12 @@ function AvasRead({ candidate, app }: { candidate: Candidate; app?: AppRecord })
         )}
       </div>
 
-      {!analyzed ? (
+      {candidate.fillingInForm ? (
+        <p className="mt-3.5 text-[13px] leading-[1.6]" style={{ color: "var(--ink-2)" }}>
+          {firstName(candidate.name)} is filling in the application form right now. Nothing is sent until
+          they submit it — the moment they do, I read it, and their answers land here.
+        </p>
+      ) : !analyzed ? (
         <p className="mt-3.5 text-[13px] leading-[1.6]" style={{ color: "var(--ink-2)" }}>
           I&rsquo;m still reading this one. The score and the evidence land here the moment
           screening finishes — you don&rsquo;t have to wait on the page.
@@ -552,6 +512,34 @@ function AvasRead({ candidate, app }: { candidate: Candidate; app?: AppRecord })
               </ul>
             </>
           )}
+
+          {/* Everything else she flagged (ai_scorecard.riskFlags), verbatim —
+              for the owner to weigh, never a stop on its own. */}
+          {flags.length > 0 && (
+            <>
+              <div className="my-3 h-px" style={{ background: "var(--line-soft)" }} />
+              <Label color="var(--ink-3)">What I flagged · {flags.length}</Label>
+              <ul className="mt-2 flex flex-col gap-1.5">
+                {shownFlags.map((flag) => (
+                  <li key={flag} className="flex items-start gap-2.5 text-[12.5px] leading-[1.45]" style={{ color: "var(--ink-2)" }}>
+                    <span aria-hidden className="mt-[6px] block h-[5px] w-[5px] shrink-0 rounded-full" style={{ background: "var(--amber-fg)" }} />
+                    <span>{flag}</span>
+                  </li>
+                ))}
+              </ul>
+              {flags.length > FLAGS_SHOWN && (
+                <button
+                  type="button"
+                  className="mt-2 text-[12px] font-semibold hover:underline"
+                  style={{ color: "var(--brass)" }}
+                  aria-expanded={allFlags}
+                  onClick={() => setAllFlags((v) => !v)}
+                >
+                  {allFlags ? "Show fewer" : `Show all ${flags.length}`}
+                </button>
+              )}
+            </>
+          )}
         </>
       )}
     </div>
@@ -597,7 +585,14 @@ function Timeline({ candidate, app }: { candidate: Candidate; app?: AppRecord })
           : candidate.stage;
 
   const steps: React.ReactNode[] = [];
-  if (applied) steps.push(<b key="applied" style={{ color: "var(--ink)" }}>Applied {applied}</b>);
+  // Apply Now creates the row before the form is sent — that moment is when
+  // they started, not when they applied.
+  if (applied)
+    steps.push(
+      <b key="applied" style={{ color: "var(--ink)" }}>
+        {candidate.fillingInForm ? "Started" : "Applied"} {applied}
+      </b>,
+    );
   if (voice) steps.push(<span key="voice">Voice interview {voice}</span>);
   // "Application" is the state they arrive in — the first step already said so.
   if (settled && candidate.stage !== "Application")
@@ -695,7 +690,7 @@ function nextStepFor(candidate: Candidate, app?: AppRecord): CandidateJourneySte
   return nextJourneyStep(steps, where);
 }
 
-function JourneyStrip({ candidate, app }: { candidate: Candidate; app?: AppRecord }) {
+function JourneyStrip({ candidate, app, record }: { candidate: Candidate; app?: AppRecord; record: AssessmentRecord | null }) {
   const workflowSteps = app?.jobs?.workflow_steps as WorkflowStepLike[] | undefined;
   const quizQuestions = app?.jobs?.quiz_questions as unknown[] | undefined;
   // The job's own config decides whether there's a quiz stage at all — not
@@ -710,9 +705,10 @@ function JourneyStrip({ candidate, app }: { candidate: Candidate; app?: AppRecor
   // Decision node's tooltip names it, so the strip and the buttons agree.
   const advanceLabel = advanceTargetLabel(app?.status);
 
-  const turns = transcriptOf(app);
-  const minutes = interviewMinutes(turns);
-  const quiz = quizResultOf(app);
+  // Each gem's receipt is the same figure its row in "What they submitted"
+  // shows — "38 WPM · under 45", "25/100 · No Hire" — never just "Completed"
+  // when the record holds the number.
+  const entryFor = (stepId: string) => record?.entries.find((e) => e.key === stepId) ?? null;
 
   const nodeState = (i: number): "completed" | "current" | "upcoming" => {
     if (steps[i].id === DECISION_STAGE_ID && decided) return "completed";
@@ -731,13 +727,12 @@ function JourneyStrip({ candidate, app }: { candidate: Candidate; app?: AppRecor
       return advanceLabel ? `Pass, or move to ${advanceLabel}` : "Pass, or move forward";
     }
     if (state === "upcoming") return null;
-    if (step.type === "quiz") {
-      if (quiz) return `${quiz.correct}/${quiz.total}${quiz.passed === true ? " · passed" : quiz.passed === false ? " · did not pass" : ""}`;
-      if (candidate.quiz != null) return `${candidate.quiz}%`;
-      return state === "completed" ? "Completed" : null; // "current" with no result yet isn't done
-    }
-    if (step.type === "voice_interview") return minutes != null ? `${minutes} min · transcript ready` : state === "completed" ? "Completed" : null;
-    return state === "completed" ? "Completed" : null;
+    const entry = entryFor(step.id);
+    if (entry?.status === "done" && entry.receipt) return entry.receipt;
+    if (entry?.status === "in_progress" && candidate.fillingInForm) return "Filling in";
+    // Showcase rows carry no record; their quiz figure is on the candidate.
+    if (step.type === "quiz" && candidate.quiz != null) return `${candidate.quiz}%`;
+    return state === "completed" ? "Completed" : null; // "current" with no result yet isn't done
   };
 
   const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
@@ -745,7 +740,9 @@ function JourneyStrip({ candidate, app }: { candidate: Candidate; app?: AppRecor
   const summary =
     decided && outcome
       ? `Completed every phase · decision: ${outcome}`
-      : (() => {
+      : candidate.fillingInForm
+        ? `Filling in the application form · ${lowerFirst(candidate.appliedAgo)}`
+        : (() => {
           // At index 0 they're sitting on the Application stage itself — the
           // very existence of this application record means they already did
           // it, so "next" means the stage after it, not the application again.
@@ -807,7 +804,11 @@ export default function CockpitApplicants() {
   const { jobs, isLoading: jobsLoading } = useCockpitJobsData();
   const { advance, hire, reject, letContinue, isUpdating } = useCockpitActions();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [bucket, setBucket] = useState<Bucket>("sealed");
+  // The tab the owner picked, if any, and the job he picked it on — another
+  // job's people start over from their own data. Until then the page opens on
+  // whichever tab has people (see `bucket` below), so a lone applicant who has
+  // just pressed Apply is on screen instead of behind an empty "Sealed · 0".
+  const [bucketChoice, setBucketChoice] = useState<{ roleId: string | null; bucket: Bucket } | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("");
@@ -825,6 +826,9 @@ export default function CockpitApplicants() {
   // A brief pulse on "Set up interview" after "Later" — the visible hint for
   // where scheduling lives, without forcing the wizard on anyone.
   const [scheduleHintId, setScheduleHintId] = useState<string | null>(null);
+  // The test whose full record is open, by its key in the selected person's
+  // record — looked up fresh each render, so a live update reaches the sheet.
+  const [recordOpen, setRecordOpen] = useState<{ candidateId: string; key: string } | null>(null);
 
   // Map application id → the live record (candidate.id === application.id in
   // both schema modes), so the read can quote the transcript it came from.
@@ -879,10 +883,24 @@ export default function CockpitApplicants() {
   }, [roleScoped, search, stageFilter, scoreFilter]);
 
   const counts = useMemo(() => {
-    const c = { sealed: 0, reading: 0, passed: 0 };
+    const c: Record<Bucket, number> = { sealed: 0, reading: 0, started: 0, passed: 0 };
     scoped.forEach((cand) => { c[bucketOf(cand)] += 1; });
     return c;
   }, [scoped]);
+
+  // The person on screen leads when they move forward live (the form is
+  // sent, Ava seals them): the page moves with them instead of swapping them
+  // for whoever is first on the old tab. A Pass is not followed. Otherwise the
+  // owner's tab for this job, a `?tab=` link, else the first tab with anyone
+  // on it. The rule itself is `applicantTab`, tested on its own.
+  const selectedPerson = selectedId ? scoped.find((c) => c.id === selectedId) ?? null : null;
+  const tabParam = applicantTabParam(searchParams.get("tab"));
+  const chosenTab = bucketChoice && bucketChoice.roleId === roleIdFilter ? bucketChoice.bucket : tabParam;
+  const bucket: Bucket = applicantTab({
+    counts,
+    chosen: chosenTab,
+    onScreen: selectedPerson ? bucketOf(selectedPerson) : null,
+  });
 
   // Strongest first — the point of the page is who is worth your time.
   const listCandidates = useMemo(
@@ -890,14 +908,34 @@ export default function CockpitApplicants() {
     [scoped, bucket],
   );
 
-  // Reset to page 1 whenever the filters or the tab change.
-  useEffect(() => { setPage(1); }, [search, stageFilter, scoreFilter, roleIdFilter, bucket]);
-  // A selection from another tab is not on this one.
+  // Reset to page 1 whenever the filters change. (A tab the owner picks resets
+  // it in chooseBucket; a tab the page follows someone to keeps them in view.)
+  useEffect(() => { setPage(1); }, [search, stageFilter, scoreFilter, roleIdFilter]);
+  // Another job's people are not this one's: start over from the data. (The
+  // tab choice is kept per job — see `chosenTab` — so it needs no reset, and
+  // the first render under the new job already opens on that job's own tab.)
   useEffect(() => {
     setSelectedId(null);
     setInterviewMoment(null);
     setScheduleHintId(null);
-  }, [bucket, roleIdFilter]);
+  }, [roleIdFilter]);
+  // When the page follows someone to another tab, open it at their page.
+  useEffect(() => {
+    if (!selectedId) return;
+    const index = listCandidates.findIndex((c) => c.id === selectedId);
+    if (index >= 0) setPage(Math.floor(index / PAGE_SIZE) + 1);
+    // Only on a change of tab: paging by hand must not snap back.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bucket]);
+
+  /** A tab picked by hand: a fresh look, from the top of that tab. */
+  const chooseBucket = (next: Bucket) => {
+    setBucketChoice({ roleId: roleIdFilter, bucket: next });
+    setSelectedId(null);
+    setInterviewMoment(null);
+    setScheduleHintId(null);
+    setPage(1);
+  };
 
   // The hint pulse is a moment, not a standing state — it fades on its own.
   useEffect(() => {
@@ -932,6 +970,27 @@ export default function CockpitApplicants() {
 
   const selected = listCandidates.find((c) => c.id === selectedId) ?? paged[0] ?? null;
   const selectedIndex = selected ? listCandidates.findIndex((c) => c.id === selected.id) : -1;
+  // Hold on to whoever is on screen, picked or shown first, so the tab can
+  // follow them when their record changes underneath the page. When the one
+  // held is no longer on screen (passed on, filtered out, withdrawn) the hold
+  // hands over to whoever is shown in their place.
+  useEffect(() => {
+    if (selected && selected.id !== selectedId) setSelectedId(selected.id);
+  }, [selectedId, selected]);
+  // What they submitted, test by test — the list, the rail's receipts and
+  // Ava's "weighed" line all read this one record.
+  const selectedApp = selected ? appById[selected.id] : undefined;
+  const selectedRecord = useMemo(() => (selectedApp ? buildAssessmentRecord(selectedApp) : null), [selectedApp]);
+  const openEntry =
+    recordOpen && selected && recordOpen.candidateId === selected.id
+      ? selectedRecord?.entries.find((e) => e.key === recordOpen.key) ?? null
+      : null;
+  const openRecord = (entry: AssessmentEntry) => {
+    if (!selected) return;
+    // The resume has its own viewer; everything else opens its record.
+    if (entry.kind === "resume") setResumePreview(selected);
+    else setRecordOpen({ candidateId: selected.id, key: entry.key });
+  };
   // Ava's own decline recommendation, not the score, decides how loud the
   // panel's action row gets — the human still decides, but the page can't be
   // nudging toward the one thing Ava just warned against. Same rule as the
@@ -947,6 +1006,12 @@ export default function CockpitApplicants() {
     if (!next) return;
     setSelectedId(next.id);
     setPage(Math.floor(index / PAGE_SIZE) + 1);
+  };
+  /** Turning the page shows that page's first person, so the panel is always
+   *  someone on the page you are looking at. */
+  const goToPage = (next: number) => {
+    const target = Math.min(Math.max(1, next), totalPages);
+    goTo((target - 1) * PAGE_SIZE);
   };
 
   const statusOf = (id: string) => statusById[id] || undefined;
@@ -980,12 +1045,18 @@ export default function CockpitApplicants() {
   };
   const confirmReject = async (reason?: string) => {
     if (!actionDialog) return;
+    // Passing on someone keeps the owner on the tab he is working through and
+    // shows the next person on it. Fix the tab first, so a tab the data chose
+    // does not jump when its count changes underneath it.
+    setBucketChoice({ roleId: roleIdFilter, bucket });
     await reject(actionDialog.cand.id, reason);
     setActionDialog(null);
   };
   const setRole = (value: string) => {
     const next = new URLSearchParams(searchParams);
     if (value) next.set("roleId", value); else next.delete("roleId");
+    // A `?tab=` link was about the job it was sent for.
+    next.delete("tab");
     setSearchParams(next);
   };
   const clearFilters = () => {
@@ -1014,6 +1085,17 @@ export default function CockpitApplicants() {
   const activeFilters = [search.trim(), stageFilter, scoreFilter].filter(Boolean).length;
   // Ava's "sealed" (analyzed) triage count for the header line.
   const sealedTotal = roleScoped.filter((c) => bucketOf(c) === "sealed").length;
+  // Pressed Apply, still on the form: counted apart from "applied", because
+  // they have not sent anything yet.
+  const applyingTotal = roleScoped.filter((c) => bucketOf(c) === "started").length;
+  // The same people inside the search and filters, for the line that names
+  // them while another tab is open.
+  const applyingNow = scoped.filter((c) => bucketOf(c) === "started");
+  /** "See" on that line: their tab, and the one person on it when there is one. */
+  const seeApplying = () => {
+    chooseBucket("started");
+    if (applyingNow.length === 1) setSelectedId(applyingNow[0].id);
+  };
 
   /* ── While the record loads ───────────────────────────────────────────
      Shaped like the page it becomes — head, tab strip, then the list column
@@ -1137,6 +1219,9 @@ export default function CockpitApplicants() {
     ...(counts.reading > 0 || bucket === "reading"
       ? [{ key: "reading" as const, label: "Still reading", count: counts.reading }]
       : []),
+    ...(counts.started > 0 || bucket === "started"
+      ? [{ key: "started" as const, label: "Applying", count: counts.started }]
+      : []),
     { key: "passed", label: "Didn't make it", count: counts.passed },
   ];
 
@@ -1149,7 +1234,9 @@ export default function CockpitApplicants() {
           ? "I haven't sealed anyone here yet."
           : bucket === "reading"
             ? "I'm not reading anyone right now — everyone who applied has a score."
-            : "You haven't passed on anyone here.";
+            : bucket === "started"
+              ? "Nobody is filling in the form right now."
+              : "You haven't passed on anyone here.";
 
   return (
     <div className="space-y-4">
@@ -1162,8 +1249,13 @@ export default function CockpitApplicants() {
           {roleName ?? "All applicants"}
         </h1>
         <span className="text-[13px]" style={{ color: "var(--ink-3)" }}>
-          {roleScoped.length} applied ·{" "}
-          <span style={{ color: "var(--jade)", fontWeight: 600 }}>{sealedTotal} sealed</span>
+          {roleScoped.length > applyingTotal && (
+            <>
+              {roleScoped.length - applyingTotal} applied ·{" "}
+              <span style={{ color: "var(--jade)", fontWeight: 600 }}>{sealedTotal} sealed</span>
+            </>
+          )}
+          {applyingTotal > 0 && `${roleScoped.length > applyingTotal ? " · " : ""}${applyingTotal} filling in the form`}
           {activeFilters > 0 && ` · ${scoped.length} match your filters`}
         </span>
         <div className="ml-auto flex flex-wrap gap-2">
@@ -1189,7 +1281,9 @@ export default function CockpitApplicants() {
       </header>
 
       {filtersOpen && (
-        <div className="ck-reveal flex flex-wrap items-center gap-2.5">
+        /* Its own layer above the field: ck-reveal's transform makes this row a
+           stacking context, which trapped the menus' z-50 under the rail below. */
+        <div className="ck-reveal relative z-20 flex flex-wrap items-center gap-2.5">
           <SearchInput placeholder="Search applicants…" className="min-w-[160px] flex-1" value={search} onChange={setSearch} />
           <FilterSelect label="Job" value={roleIdFilter ?? ""} options={roleOptions} onChange={setRole} />
           <FilterSelect label="Stage" value={stageFilter} options={stageOptions} onChange={setStageFilter} />
@@ -1214,7 +1308,7 @@ export default function CockpitApplicants() {
                 role="tab"
                 aria-selected={bucket === t.key}
                 aria-controls="ck-applicant-list"
-                onClick={() => setBucket(t.key)}
+                onClick={() => chooseBucket(t.key)}
                 className={`pb-2 text-[12px] transition-colors${t.key === "reading" ? " ck-reading-pulse" : ""}`}
                 style={
                   bucket === t.key
@@ -1226,6 +1320,34 @@ export default function CockpitApplicants() {
               </button>
             ))}
           </div>
+
+          {/* Someone on the form while another tab is open: named here, one tap
+              away, so a new applicant is never only a number on a tab. */}
+          {bucket !== "started" && applyingNow.length > 0 && (
+            <button
+              type="button"
+              onClick={seeApplying}
+              className="-mt-1 mb-2.5 flex min-h-[32px] w-full max-w-[520px] items-start gap-2 py-1 text-left text-[12px] leading-[1.45]"
+              style={{ color: "var(--ink-2)" }}
+            >
+              <span className="ck-dot ck-dot-live mt-[5px] shrink-0" aria-hidden />
+              {/* Wraps rather than cutting the time off on a phone. */}
+              <span className="min-w-0 flex-1 line-clamp-2">
+                {applyingNow.length === 1 ? (
+                  <>
+                    <span style={{ color: "var(--ink)", fontWeight: 600 }}>{applyingNow[0].name}</span>
+                    {" is filling in the form · "}
+                    {applyingNow[0].appliedAgo.charAt(0).toLowerCase() + applyingNow[0].appliedAgo.slice(1)}
+                  </>
+                ) : (
+                  `${applyingNow.length} people are filling in the form`
+                )}
+              </span>
+              <span className="shrink-0 font-semibold" style={{ color: "var(--jade)" }}>
+                See
+              </span>
+            </button>
+          )}
 
           <div id="ck-applicant-list" role="tabpanel">
             {paged.length === 0 ? (
@@ -1260,7 +1382,7 @@ export default function CockpitApplicants() {
                   type="button"
                   aria-label="Previous page"
                   disabled={pageClamped === 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  onClick={() => goToPage(pageClamped - 1)}
                   className="flex h-7 w-7 items-center justify-center rounded-md disabled:opacity-30"
                   style={{ color: "var(--ink-2)" }}
                 >
@@ -1270,7 +1392,7 @@ export default function CockpitApplicants() {
                   type="button"
                   aria-label="Next page"
                   disabled={pageClamped === totalPages}
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  onClick={() => goToPage(pageClamped + 1)}
                   className="flex h-7 w-7 items-center justify-center rounded-md disabled:opacity-30"
                   style={{ color: "var(--ink-2)" }}
                 >
@@ -1280,12 +1402,14 @@ export default function CockpitApplicants() {
             </div>
           )}
 
-          {selected && (
-            <EvidenceTiles
-              candidate={selected}
-              app={appById[selected.id]}
-              className="mt-3 hidden grid-cols-1 gap-2.5 min-[1160px]:grid"
-              onOpenResume={() => setResumePreview(selected)}
+          {/* ≥1160px: the record sits under the field, beside the letterhead.
+              Below that it moves under the timeline (the second mount below) —
+              the two are one list in two places, never two lists. */}
+          {selected && selectedRecord && (
+            <AssessmentRecordList
+              entries={selectedRecord.entries}
+              onOpen={openRecord}
+              className="mt-4 hidden min-[1160px]:block"
             />
           )}
         </div>
@@ -1316,6 +1440,15 @@ export default function CockpitApplicants() {
                         style={{ color: "var(--amber-fg)", background: "var(--amber-bg)", borderColor: "var(--brass-line)" }}
                       >
                         Needs review
+                      </span>
+                    </div>
+                  )}
+                  {/* Pressed Apply, still on the form — live, not "applied". */}
+                  {selected.fillingInForm && selected.stage !== "Rejected" && (
+                    <div className="mt-1.5">
+                      <span className="ck-pill ck-pill-stage-neutral">
+                        <span className="ck-dot ck-dot-live" aria-hidden />
+                        Filling in the form
                       </span>
                     </div>
                   )}
@@ -1469,16 +1602,18 @@ export default function CockpitApplicants() {
               {/* keyed distinctly from the sibling `key={selected.id}` below (AvasRead) —
                   two siblings sharing one key value is a React key collision, not a
                   harmless coincidence, and it broke reconciliation between candidates */}
-              <JourneyStrip key={`journey-${selected.id}`} candidate={selected} app={appById[selected.id]} />
-              <AvasRead key={selected.id} candidate={selected} app={appById[selected.id]} />
+              <JourneyStrip key={`journey-${selected.id}`} candidate={selected} app={selectedApp} record={selectedRecord} />
+              <AvasRead key={selected.id} candidate={selected} app={selectedApp} record={selectedRecord} />
               <Timeline candidate={selected} app={appById[selected.id]} />
 
-              <EvidenceTiles
-                candidate={selected}
-                app={appById[selected.id]}
-                className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-3 min-[1160px]:hidden"
-                onOpenResume={() => setResumePreview(selected)}
-              />
+              {selectedRecord && (
+                <AssessmentRecordList
+                  entries={selectedRecord.entries}
+                  onOpen={openRecord}
+                  layout="grid"
+                  className="mt-4 min-[1160px]:hidden"
+                />
+              )}
 
               <div className="mt-3 flex flex-wrap gap-4 text-[12px]">
                 <button
@@ -1611,6 +1746,18 @@ export default function CockpitApplicants() {
           onSkip={() => setHirePrompt(null)}
         />
       )}
+      <AssessmentRecordSheet
+        open={!!openEntry}
+        entry={openEntry}
+        candidateName={selected?.name ?? ""}
+        jobId={selectedRecord?.jobId ?? null}
+        onClose={() => setRecordOpen(null)}
+        onOpenResume={() => {
+          // One modal at a time: the resume viewer takes over from the sheet.
+          setRecordOpen(null);
+          if (selected) setResumePreview(selected);
+        }}
+      />
       <DocumentPreviewDialog
         open={!!resumePreview}
         sourceUrl={resumePreview ? (appById[resumePreview.id]?.resume_url ?? null) : null}

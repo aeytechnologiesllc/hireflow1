@@ -29,6 +29,15 @@ export interface AvaScorecard {
   autopilotAction: AutopilotAction;
   decisionState: AvaDecisionState;
   hardRejectReason: string | null;
+  /**
+   * Deal-breakers no test can change (visa, schedule, wrong resume, likely
+   * fabricated, ...), highlighted for the owner. In auto mode these never stop
+   * anyone part-way: every applicant takes every test and the owner decides at
+   * the end, so while tests are still ahead they live here and not in
+   * hardRejectReason. Optional so scorecards stored before 2026-10-05 still
+   * type-check; new scorecards always carry it.
+   */
+  dealBreakerFlags?: string[];
 }
 
 function clampPercent(value: number) {
@@ -81,14 +90,117 @@ const PHASE_TOPICS: Record<string, RegExp> = {
 
 /**
  * Deal-breakers no test can change: who the person is, whether they may and can
- * do the job at all. These still stop someone part-way (the owner decides), and a
- * note that names one is never dropped as "the test's job".
+ * do the job at all. A note that names one is never dropped as "the test's job".
+ * In auto mode they are a highlighted flag for the owner (dealBreakerFlags) and
+ * never stop anyone part-way (owner, 2026-10-05: nobody is parked, everyone
+ * takes every test, he decides at the end). In manual mode the owner reviews
+ * each step anyway, and one still makes Ava recommend stopping early.
  */
 const ELIGIBILITY_BLOCKER =
   /\b(?:deal[- ]?breaker|non[- ]?negotiable|cannot work|can't work|unable to work|not available|unavailable|schedule|shifts?|visa|work permit|eligib\w*|licen[cs]e\w*|certif\w*|wrong resume|different person|mismatch\w*|fabricat\w*|fraud\w*|authenticity|plagiar\w*|cheat\w*)\b/i;
 
 export function isEligibilityBlocker(note: string) {
   return ELIGIBILITY_BLOCKER.test(note);
+}
+
+/**
+ * The judge's PROSE used to be enough to stop someone: any analysis text that
+ * contained "deal-breaker", "non-negotiable", "cannot work" or "required
+ * schedule" became the hard reject reason. The pattern had no word boundaries
+ * and no idea of negation, so "No deal-breakers identified." and "available
+ * for the required schedule" fired it, and on 2026-10-05 the judge's own
+ * adjective ("below the non-negotiable 45 WPM requirement" — the job never
+ * says non-negotiable) parked the owner's test applicant twice.
+ *
+ * It is now an informational risk flag only, never a reason, and it fires
+ * only on prose that AFFIRMS a conflict:
+ *   - "non-negotiable" / "deal-breaker" count only when the job's own text
+ *     uses that word (the judge may not invent a stated non-negotiable);
+ *   - "cannot work" / "can't work" / "unable to work" count on their own;
+ *   - a clause that negates the term ("no non-negotiables", "Nothing here is
+ *     a dealbreaker", "Non-negotiables: none stated") never counts.
+ * Ava's recommendation is built from the judge's structured
+ * hardRequirementConflicts instead.
+ */
+const STATED_DEAL_BREAKER_TERM = /\b(?:deal[- ]?breakers?|non[- ]?negotiables?)\b/i;
+const CANNOT_WORK_TERM = /\b(?:cannot|can't|can not|unable to) work\b/i;
+const NEGATION_BEFORE =
+  /\b(?:no|not|none|nothing|never|without|neither|nor|zero|isn't|aren't|wasn't|weren't|doesn't|don't|didn't)\b/i;
+const NEGATION_AFTER = /^\W*(?:none|n\/a|not (?:stated|identified|found|applicable|present|mentioned|listed))\b/i;
+
+function affirmsTerm(text: string, term: RegExp) {
+  for (const sentence of text.split(/(?<=[.!?])\s+|\n+/)) {
+    const match = term.exec(sentence);
+    if (!match) continue;
+    const before = sentence.slice(0, match.index);
+    // Only the term's own clause: "Did not list one, but cannot work nights"
+    // must still count.
+    const clauseStart = Math.max(
+      before.lastIndexOf(","),
+      before.lastIndexOf(";"),
+      before.lastIndexOf(":"),
+      before.lastIndexOf(" but "),
+      before.lastIndexOf("\u2014"),
+    );
+    const clause = clauseStart >= 0 ? before.slice(clauseStart + 1) : before;
+    const after = sentence.slice(match.index + match[0].length);
+    if (NEGATION_BEFORE.test(clause) || NEGATION_AFTER.test(after)) continue;
+    return true;
+  }
+  return false;
+}
+
+export function proseAffirmsDealBreaker(analysisText: string, jobText: string) {
+  const text = analysisText || "";
+  if (affirmsTerm(text, CANNOT_WORK_TERM)) return true;
+  return STATED_DEAL_BREAKER_TERM.test(jobText || "") && affirmsTerm(text, STATED_DEAL_BREAKER_TERM);
+}
+
+export const STATED_DEAL_BREAKER_FLAG = "A stated non-negotiable or deal-breaker appears to conflict with the application";
+
+/** The end-of-tests reading of a structured conflict as a reason to decline. */
+const END_OF_TESTS_REJECT_REASON =
+  /deal[- ]?breaker|non[- ]?negotiable|cannot|can't|not available|schedule|required|license|certification|wrong resume|different person|mismatch|fabricated|fraud|authenticity/i;
+
+function firstFiniteNumber(...values: unknown[]): number | null {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
+function firstNonEmptyString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return null;
+}
+
+/**
+ * The written interview's result lands in two shapes (see
+ * ai-chat-interview/resultShape.ts): the "End Interview" button flattens the
+ * evaluation onto the result ({ score, recommendation, messageCount }); the
+ * auto-end path nests it ({ evaluation: { score, recommendation }, messages }).
+ * trigger-ava-analysis read only the flat shape for the prompt and the
+ * evidence fingerprint, so an auto-ended interview reached Ava as "N/A" while
+ * the weighted score counted it. Every reader goes through this instead.
+ */
+export function readChatInterviewResult(result: unknown): {
+  score: number | null;
+  recommendation: string | null;
+  messageCount: number | null;
+} | null {
+  if (!result || typeof result !== "object" || Array.isArray(result)) return null;
+  const flat = result as Record<string, unknown>;
+  const nested =
+    flat.evaluation && typeof flat.evaluation === "object" && !Array.isArray(flat.evaluation)
+      ? (flat.evaluation as Record<string, unknown>)
+      : {};
+  return {
+    score: firstFiniteNumber(flat.score, flat.overall_score, nested.score, nested.overall_score),
+    recommendation: firstNonEmptyString(flat.recommendation, nested.recommendation),
+    messageCount: firstFiniteNumber(flat.messageCount, Array.isArray(flat.messages) ? flat.messages.length : null),
+  };
 }
 
 /**
@@ -274,8 +386,17 @@ export function buildAvaScorecard(params: {
   workflowSteps: Array<{ type?: string }>;
   jobTitle?: string | null;
   jobDescription?: string | null;
+  /** The job's own requirements text — the only place a "non-negotiable" may be stated. */
+  jobRequirements?: string | null;
   jobSkillsRequired?: string[] | null;
   experienceLevel?: string | null;
+  /**
+   * jobs.processing_mode, read from the database by the caller. "auto" means
+   * nobody is stopped part-way: deal-breakers are flagged, and Ava's
+   * recommendation is only made once every test is done. Anything else is
+   * manual, where she may still recommend stopping early.
+   */
+  processingMode?: string | null;
   directMatchScore?: number | null;
   transferableFitScore?: number | null;
   learningSignalScore?: number | null;
@@ -309,8 +430,10 @@ export function buildAvaScorecard(params: {
     workflowSteps,
     jobTitle,
     jobDescription,
+    jobRequirements,
     jobSkillsRequired,
     experienceLevel,
+    processingMode,
     directMatchScore,
     transferableFitScore,
     learningSignalScore,
@@ -438,8 +561,10 @@ export function buildAvaScorecard(params: {
   if (Array.isArray(jobSkillsRequired) && jobSkillsRequired.length > 0 && normalizedHardRequirementConflicts.length > 0) {
     riskFlags.push("Required skill alignment needs a closer look");
   }
-  if (/deal[- ]?breaker|non[- ]?negotiable|cannot work|required schedule/i.test(analysisText)) {
-    riskFlags.push("A stated non-negotiable or deal-breaker appears to conflict with the application");
+  // Information for the owner only — see proseAffirmsDealBreaker. It is never
+  // promoted to hardRejectReason.
+  if (proseAffirmsDealBreaker(analysisText, `${jobDescription || ""}\n${jobRequirements || ""}`)) {
+    riskFlags.push(STATED_DEAL_BREAKER_FLAG);
   }
   if (normalizedHardRequirementConflicts.length > 0) {
     riskFlags.push(...normalizedHardRequirementConflicts);
@@ -570,34 +695,44 @@ export function buildAvaScorecard(params: {
       (resumeUnavailable ? 10 : 0),
   );
 
-  // While tests are still ahead, only a deal-breaker no test can change stops
-  // someone (owner, 2026-10-05: everyone takes every test). A shortfall a test
-  // measured, like a slow typing result, is his to weigh at the end.
+  // Owner, 2026-10-05: in auto mode nobody is parked part-way. Every applicant
+  // takes every test, Ava only scores and flags, and he decides at the end. So
+  // while tests are still ahead nothing is a reason to stop: deal-breakers no
+  // test can change are highlighted (dealBreakerFlags) and a shortfall a test
+  // measured, like a slow typing result, waits for the end. Manual jobs keep
+  // the early recommendation for a real deal-breaker; the owner reviews every
+  // step there anyway. The judge's prose (proseAffirmsDealBreaker) is never a
+  // reason in either mode.
+  const autoMode = processingMode === "auto";
   const testsStillAhead = pendingHighSignalPhases.length > 0;
-  const structuredHardRejectReason =
-    normalizedHardRequirementConflicts.find((conflict) =>
-      testsStillAhead
-        ? isEligibilityBlocker(conflict)
-        : /deal[- ]?breaker|non[- ]?negotiable|cannot|can't|not available|schedule|required|license|certification|wrong resume|different person|mismatch|fabricated|fraud|authenticity/i.test(conflict),
-    ) || null;
-  const hardRejectReason =
-    structuredHardRejectReason ||
-    riskFlags.find((flag) => flag.includes("A stated non-negotiable")) ||
-    riskFlags.find((flag) => flag.includes("Resume may not belong")) ||
-    riskFlags.find((flag) => flag.includes("Profile authenticity")) ||
-    null;
+  const verdictFlags = riskFlags.filter(
+    (flag) => flag.includes("Resume may not belong") || flag.includes("Profile authenticity"),
+  );
+  const dealBreakerFlags = sanitizeList(
+    [...normalizedHardRequirementConflicts.filter((conflict) => isEligibilityBlocker(conflict)), ...verdictFlags],
+    6,
+  );
+  const mayRecommendStopping = !testsStillAhead || !autoMode;
+  const structuredHardRejectReason = mayRecommendStopping
+    ? normalizedHardRequirementConflicts.find((conflict) =>
+        testsStillAhead
+          ? isEligibilityBlocker(conflict)
+          : isEligibilityBlocker(conflict) || END_OF_TESTS_REJECT_REASON.test(conflict),
+      ) || null
+    : null;
+  const hardRejectReason = mayRecommendStopping
+    ? structuredHardRejectReason || verdictFlags[0] || null
+    : null;
 
-  // Owner, 2026-10-05: everyone takes every test and he decides at the end ("let
-  // them keep going — I review everyone myself"). Until then one finished test
-  // was enough evidence, so anyone under the passing score after the skills
-  // check was parked for him before the typing test and the chat practice he
-  // wanted to see. Now the evidence is complete only when nothing is left to
-  // take; a real deal-breaker (hardRejectReason) still stops someone early.
+  // The evidence is complete only when nothing is left to take. Before
+  // 2026-10-05 one finished test was enough, so anyone under the passing score
+  // after the skills check was parked before the tests the owner wanted to see.
+  // Only a manual job's real deal-breaker still completes it early.
   const evidenceFloorMet =
     pendingHighSignalPhases.length === 0 ||
-    !!hardRejectReason;
+    (!autoMode && !!hardRejectReason);
 
-  const hardRequirementStatus: AvaScorecard["hardRequirementStatus"] = hardRejectReason
+  const hardRequirementStatus: AvaScorecard["hardRequirementStatus"] = hardRejectReason || dealBreakerFlags.length > 0
     ? "at_risk"
     : safeScore >= passingScore
       ? "met"
@@ -633,13 +768,18 @@ export function buildAvaScorecard(params: {
   const transferableLine = normalizedTransferableEvidence.length > 0
     ? ` Transferable fit recognized from ${formatNaturalList(normalizedTransferableEvidence)}.`
     : "";
+  const flaggedLine = dealBreakerFlags.length > 0 && !hardRejectReason
+    ? ` Flagged for your review: ${formatNaturalList(dealBreakerFlags.map((flag) => flag.replace(/\.$/, "")))}.`
+    : "";
   const rationale =
     hardRejectReason
-      ? `${hardRejectReason}. Ava recommends stopping here based on the evidence already collected.`
+      ? autoMode
+        ? `${hardRejectReason.replace(/\.$/, "")}. Ava recommends declining; nobody was stopped, and the decision is yours.`
+        : `${hardRejectReason}. Ava recommends stopping here based on the evidence already collected.`
       : !evidenceFloorMet
         ? pendingPhaseLabel
-          ? `Ava needs more evidence before a final reject or advance recommendation. Pending signals: ${pendingPhaseLabel}.${transferableLine}`
-          : `Ava needs more evidence before making a final reject or advance recommendation.${transferableLine}`
+          ? `Ava needs more evidence before a final reject or advance recommendation. Pending signals: ${pendingPhaseLabel}.${flaggedLine}${transferableLine}`
+          : `Ava needs more evidence before making a final reject or advance recommendation.${flaggedLine}${transferableLine}`
         : recommendedAction === "advance"
           ? `Strong ${family.replace(/_/g, " ")} evidence and confidence support moving this candidate forward.${transferableLine}`
           : recommendedAction === "review"
@@ -673,6 +813,7 @@ export function buildAvaScorecard(params: {
     autopilotAction,
     decisionState,
     hardRejectReason,
+    dealBreakerFlags,
   };
 }
 
