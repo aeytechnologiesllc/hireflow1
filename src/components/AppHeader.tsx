@@ -3,6 +3,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { getInitialsFromName } from "@/utils/getApplicantDisplayName";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,11 +48,7 @@ export default function AppHeader({ onMenuClick, isMobile }: AppHeaderProps) {
   };
 
   const userInitials = user?.user_metadata?.full_name
-    ? user.user_metadata.full_name
-        .split(" ")
-        .map((n: string) => n[0])
-        .join("")
-        .toUpperCase()
+    ? getInitialsFromName(user.user_metadata.full_name)
     : user?.email?.[0]?.toUpperCase() || "U";
 
   const firstName = (profile?.full_name || user?.user_metadata?.full_name || "")

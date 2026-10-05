@@ -792,7 +792,11 @@ button:not(.ck-btn):not(.cand-btn-primary):not(.cand-btn-ghost):not(:disabled):n
      beat .ck-btn and silently reformatted the whole cockpit at 390px: 32px tall
      buttons and labels wrapping, where the spec's button is a constant 36px at
      every breakpoint. */
-  button:not([data-size="icon"]):not(.ck-btn), 
+  /* Radios, checkboxes and switches are buttons underneath (Radix), and their
+     size IS their shape: the 44px floor stretched every quiz and form circle
+     into a 22x44 pill on phones. Their row is the tap target. :where() keeps
+     the selector's specificity exactly where it was, (0,2,1). */
+  button:not([data-size="icon"]):not(.ck-btn):not(:where([role="radio"], [role="checkbox"], [role="switch"])), 
   [role="button"]:not([data-size="icon"]):not(.ck-btn) {
     font-size: 0.75rem;
     padding-left: 0.625rem;

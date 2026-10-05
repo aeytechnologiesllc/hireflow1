@@ -28,13 +28,17 @@ export function getApplicantDisplayName(
 }
 
 /**
- * Gets initials from a display name
+ * Gets initials from a display name: the first letter or digit of the first two
+ * words that have one, so "Maria (Mia) del Carmen" is "MM", never "M(" — a
+ * bracket or a dash is not an initial, and a third letter spills out of the
+ * round avatar.
  */
 export function getInitialsFromName(name: string): string {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
+  return (name || "")
+    .split(/\s+/)
+    .map((word) => word.match(/[\p{L}\p{N}]/u)?.[0] ?? "")
+    .filter(Boolean)
     .slice(0, 2)
+    .join("")
     .toUpperCase() || "?";
 }

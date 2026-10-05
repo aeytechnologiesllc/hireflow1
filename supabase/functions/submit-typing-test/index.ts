@@ -322,7 +322,9 @@ Deno.serve(async (req) => {
       const phaseAiAnalysis =
         `Typing test: ${results.wpm} WPM (${speedPercent}% of ${requiredWpm} WPM target), ` +
         `Accuracy: ${results.accuracy}%, Combined Score: ${results.score}%. ` +
-        `Local calculation: ${results.passed ? "PASSED" : "FAILED"}. Backend will compute final weighted score.`;
+        // results.passed is always false (calculateResults.ts: Ava decides), so the
+        // old "Local calculation: FAILED" told the owner that every typist failed.
+        `${results.wpm >= requiredWpm ? "Meets" : "Below"} the speed target. Ava weighs it with the rest of the application.`;
       const { error: analysisError } = await admin
         .from("applications")
         .update({ phase_ai_analysis: phaseAiAnalysis })

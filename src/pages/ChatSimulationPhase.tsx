@@ -92,6 +92,13 @@ interface ApplicationDetails {
   } | null;
 }
 
+/** Same seed, same index, every time (31-hash, unsigned). */
+function stableIndex(seed: string, length: number) {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  return length > 0 ? hash % length : 0;
+}
+
 // Default scenarios if none configured
 const defaultScenarios: ChatScenario[] = [
   {
@@ -214,11 +221,15 @@ export default function ChatSimulationPhase() {
     };
   }, [application?.jobs?.workflow_steps, stepId]);
 
-  // Pre-select scenario on component mount so candidates can see it before starting
+  // The candidate reads this player's situation before starting, so it must be
+  // the same player on every load. It was Math.random() per mount: a reload (a
+  // phone switching apps) or any refetch of the application row re-rolled it,
+  // so someone could read Devin's situation and then be messaged by Angela, or
+  // reload until they got a player they liked. One player per application.
   const preselectedScenario = useMemo(() => {
     const scenarios = chatConfig.scenarios;
-    return scenarios[Math.floor(Math.random() * scenarios.length)];
-  }, [chatConfig.scenarios]);
+    return scenarios[stableIndex(`${id}:${stepId}`, scenarios.length)];
+  }, [chatConfig.scenarios, id, stepId]);
 
   // Where the candidate is in the whole journey — derived from the job's real
   // workflow_steps via the shared candidateJourney builder, so this screen

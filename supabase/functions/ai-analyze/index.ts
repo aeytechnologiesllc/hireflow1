@@ -135,7 +135,7 @@ Rules for structuredScore (every sub-score is 0-100):
 - personalityTraits: 2-5 JOB-RELEVANT work-style traits inferred WITH evidence (e.g. "customer-empathetic", "detail-oriented", "proactive", "resilient under pressure"). NEVER infer or use age, gender, race, nationality, religion, health, or any protected/demographic attribute.
 - personalitySummary: 1-2 evidence-based sentences on work style and fit for THIS role.
 - overallScore is your holistic 0-100 fit judgment for THIS role and MUST reflect the sub-scores: low writingQuality/attentionToDetail, and ESPECIALLY low authenticity or low specificity, must pull it down materially. A polished-but-fabricated resume is a reject; a strong resume riddled with misspellings is NOT a top candidate. It must match the final score in the narrative report.
-- hardRequirementConflicts must only list explicit hard conflicts, non-negotiables, wrong-resume/authenticity issues, missing legal/licensing blockers, or schedule/work-eligibility blockers
+- hardRequirementConflicts must only list explicit hard conflicts, non-negotiables, wrong-resume/authenticity issues, missing legal/licensing blockers, or schedule/work-eligibility blockers. A workflow phase that has not happened yet (a pending quiz, typing test, simulation or interview), or a skill such a phase will measure, is NOT a conflict: missing evidence is never a conflict, so leave it out of this list
 - transferableEvidence must contain 2-6 short evidence phrases when adjacent fit exists; otherwise use an empty array
 - confidence must reflect evidence coverage and stability, not closeness to the passing threshold
 - summary must be 1-2 sentences and should mention direct fit vs transferable fit when relevant`;

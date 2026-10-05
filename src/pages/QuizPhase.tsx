@@ -971,7 +971,7 @@ export default function QuizPhase() {
                             onClick={() => handleMultiSelectToggle(index)}
                           >
                             <Checkbox checked={selected} />
-                            <Label className="flex-1 cursor-pointer text-foreground">
+                            <Label className="flex-1 cursor-pointer leading-snug text-foreground">
                               {option}
                             </Label>
                           </div>
@@ -998,7 +998,7 @@ export default function QuizPhase() {
                         <RadioGroupItem value={index.toString()} id={`option-${index}`} />
                         <Label
                           htmlFor={`option-${index}`}
-                          className="flex-1 cursor-pointer text-foreground"
+                          className="flex-1 cursor-pointer leading-snug text-foreground"
                         >
                           {option}
                         </Label>

@@ -39,6 +39,32 @@ function sanitizeList(value: string[] | null | undefined, limit = 6) {
   return Array.from(new Set((value || []).map((entry) => String(entry || "").trim()).filter(Boolean))).slice(0, limit);
 }
 
+/**
+ * A "conflict" that only says a LATER step has not happened yet is not a conflict.
+ * The judge is told never to count a pending phase against anyone, and still writes
+ * notes like "Required typing speed and accuracy have not yet been verified; the
+ * typing test is pending." into hardRequirementConflicts. The word "required" in it
+ * then made it the hard reject reason, so on 2026-10-05 every applicant to a role
+ * with a typing test was held at step 1, recommended for decline, over a step that
+ * comes after it. Missing evidence is what the next phase is for.
+ *
+ * A note is dropped only when it says something is still to come AND names an
+ * assessment step. "Work visa is pending" names no step, so it stays a blocker.
+ */
+const NOT_HAPPENED_YET =
+  /\b(?:pending|not yet|yet to (?:be|complete|take)|(?:has|have) not been (?:verified|tested|assessed|completed|taken)|awaiting|upcoming|later (?:phase|step|stage)|will be (?:verified|tested|assessed|checked|evaluated))\b/i;
+const ASSESSMENT_STEP =
+  /\b(?:typing|quiz|skills? check|simulation|chat practice|role[- ]?play|interview|video|portfolio|assessment|test|phase|step|stage|workflow)\b/i;
+
+export function isPendingPhaseNote(note: string) {
+  return NOT_HAPPENED_YET.test(note) && ASSESSMENT_STEP.test(note);
+}
+
+/** The judge's hard conflicts, minus notes that only say a later step is still to come. */
+export function realHardConflicts(value: string[] | null | undefined, limit = 6) {
+  return sanitizeList(value, 64).filter((note) => !isPendingPhaseNote(note)).slice(0, limit);
+}
+
 function averageOf(values: Array<number | null | undefined>, fallback: number) {
   const numbers = values.filter((value): value is number => typeof value === "number" && Number.isFinite(value));
   if (numbers.length === 0) return fallback;
@@ -152,7 +178,7 @@ export function computeJudgmentScore(input: JudgmentSubScores): number {
   const attention = clampPercent(numOr(input.attentionToDetailScore, 70));
   const specificity = clampPercent(numOr(input.specificityScore, 50));
   const authenticity = clampPercent(numOr(input.authenticityScore, 80));
-  const conflicts = sanitizeList(input.hardRequirementConflicts, 8);
+  const conflicts = realHardConflicts(input.hardRequirementConflicts, 8);
 
   // Weighted substance average: role fit (direct/transferable/learning, 46%) plus
   // candidate-authored quality signals (writing/attention/specificity, 54%).
@@ -284,7 +310,7 @@ export function buildAvaScorecard(params: {
   const riskFlags: string[] = [];
   const evidenceRefs: string[] = [];
   const normalizedTransferableEvidence = sanitizeList(transferableEvidence, 4);
-  const normalizedHardRequirementConflicts = sanitizeList(hardRequirementConflicts, 4);
+  const normalizedHardRequirementConflicts = realHardConflicts(hardRequirementConflicts, 4);
 
   if (!resumeUnavailable) {
     evidenceRefs.push("resume");

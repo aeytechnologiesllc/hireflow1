@@ -275,9 +275,13 @@ async function handleAutopilotDecision(params: {
     // a human makes the final call (bulk-reject in the cockpit). Keep the candidate in
     // a review state with Ava's reasoning — no status:"rejected", no rejected_by_type:"ava",
     // no rejection email to the candidate.
+    // Quote the number that made the decision: scorecard.overallScore, which is
+    // also what ai_score stores and every screen shows. `score` is the phase blend
+    // (a 30% input to it), so the note used to read "64.14% is below 60%".
+    const decidingScore = typeof scorecard?.overallScore === "number" ? scorecard.overallScore : score;
     const declineReason = scorecard?.hardRejectReason
       ? `${scorecard.hardRejectReason}.`
-      : `Overall Ava score of ${score || 0}% is below the passing threshold of ${passingScore}%.`;
+      : `Overall Ava score of ${Math.round(decidingScore || 0)}% is below the passing threshold of ${passingScore}%.`;
 
     const reviewQuery = applyExpectedApplicationStateFilter(
       supabaseAdmin
