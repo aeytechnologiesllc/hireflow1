@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { X, Copy, Check, Printer } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 import { toast } from "sonner";
@@ -116,20 +117,30 @@ export function ShareKitDialog({ open, job, applyUrl, onClose }: ShareKitDialogP
 
   const getQrCanvas = () => qrWrapRef.current?.querySelector("canvas") ?? null;
 
-  return (
-    // Rendered inside a clickable job tile — swallow clicks so the tile's
-    // whole-card navigation never fires while the kit is open.
+  return createPortal(
+    // Portalled to <body>. It is opened from inside a job tile, and the tile's
+    // entrance animation leaves a transform on it, which makes `fixed` mean
+    // "fixed to the tile": the kit opened 111px above the top of the screen
+    // on a laptop (owner, 2026-10-06: "it needs to open up center"). React
+    // events still bubble through the portal to the tile, so clicks are
+    // swallowed here and the tile's whole-card navigation never fires.
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
-      {/* scrim */}
+      {/* scrim: a blur over a light dark tint, never a pale wash (same as the
+          record panel; --slab stays dark in both themes) */}
       <div
         className="absolute inset-0"
-        style={{ background: "color-mix(in srgb, var(--hf-bg) 70%, transparent)", backdropFilter: "blur(2px)" }}
+        style={{
+          background: "color-mix(in srgb, var(--slab) 22%, transparent)",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+        }}
         onClick={onClose}
       />
       <div
         role="dialog"
         aria-modal="true"
-        className="ck-card relative w-full max-w-[460px] p-5"
+        aria-label={`Share ${job.title}`}
+        className="ck-card relative max-h-[calc(100dvh-2rem)] w-full max-w-[460px] overflow-y-auto p-5"
         style={{ animation: "ck-rise 0.22s cubic-bezier(0.4,0,0.2,1) both" }}
       >
         <button onClick={onClose} className="absolute right-3 top-3" style={{ color: "var(--hf-text-muted)" }} aria-label="Close">
@@ -205,7 +216,8 @@ export function ShareKitDialog({ open, job, applyUrl, onClose }: ShareKitDialogP
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
