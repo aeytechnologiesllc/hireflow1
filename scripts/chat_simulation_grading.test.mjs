@@ -22,7 +22,10 @@
  * across realistic inputs: no violations, a mix of every violation type,
  * repeated violations of the same type, and an evaluation carrying extra
  * fields (as the real OpenAI JSON response always does) that must NOT leak
- * into the result.
+ * into the result. Since 2026-10-06 also: a chat the grader could not mark
+ * is stored as `graded: false` with no score and its transcript (never the
+ * old silent 70), and a support-agent job's result is unchanged by the team
+ * leader rubric (scripts/lead_practice_grading.test.mjs covers that one).
  *
  * Run with: node scripts/chat_simulation_grading.test.mjs
  */
@@ -30,6 +33,9 @@ import {
   buildAntiCheatLog,
   buildChatSimulationResult,
   buildPhaseAiAnalysis,
+  phaseAiAnalysisFromStoredResult,
+  supportEvaluationFrom,
+  ungradedEvaluation,
 } from "../supabase/functions/ai-chat-simulation/grading.ts";
 
 let passed = 0;
@@ -173,13 +179,13 @@ check(
 );
 
 check(
-  "a fallback-shaped evaluation (score 70, the callOpenAIJson default) formats the same way",
+  "a real 70 from the grader formats the same way",
   buildPhaseAiAnalysis({
     score: 70,
     empathy: 70,
     problemSolving: 70,
-    strengths: ["Completed simulation"],
-    improvements: ["Unable to parse detailed evaluation"],
+    strengths: ["Stayed calm"],
+    improvements: ["Ask for details sooner"],
   }) === "Chat simulation: 70%. Empathy: 70%, Problem-solving: 70%.",
 );
 
@@ -188,6 +194,38 @@ check(
   buildPhaseAiAnalysis({ ...realisticEvaluation, score: 0, empathy: 0, problemSolving: 0 }) ===
     "Chat simulation: 0%. Empathy: 0%, Problem-solving: 0%.",
 );
+
+// ============================================================================
+console.log("\nA chat the grader could not mark (no more silent 70):\n");
+
+const transcript = [
+  { role: "assistant", content: "I was charged twice." },
+  { role: "user", content: "Sorry about that, let me check." },
+];
+const ungraded = buildChatSimulationResult({
+  scenario: "Billing dispute - charged twice.",
+  messageCount: 2,
+  evaluation: ungradedEvaluation("model_failed"),
+  violations: mixedViolations,
+  transcript,
+});
+check("graded is false", ungraded.graded === false);
+check("score, empathy and problemSolving are null, never 70", ungraded.score === null && ungraded.empathy === null && ungraded.problemSolving === null);
+check("no invented strengths or improvements", ungraded.strengths.length === 0 && ungraded.improvements.length === 0);
+check("the transcript is kept on the result for re-grading", deepEqual(ungraded.transcript, transcript));
+check("completed stays true: the candidate did the step", ungraded.completed === true);
+check("the integrity summary is still there", ungraded.antiCheatSummary.violationCount === 6);
+check(
+  "phase_ai_analysis says it is not graded, with no number",
+  /not graded/.test(buildPhaseAiAnalysis(ungradedEvaluation("model_failed"))) && !/\d+%/.test(buildPhaseAiAnalysis(ungradedEvaluation("model_failed"))),
+);
+check("…and so does the answer to an already-recorded send", /not graded/.test(phaseAiAnalysisFromStoredResult(ungraded) ?? ""));
+
+console.log("\nThe support-agent rubric is read as before:\n");
+const readBack = supportEvaluationFrom(realisticEvaluation);
+const supportResult = buildChatSimulationResult({ scenario: "Billing dispute - charged twice.", messageCount: 7, evaluation: readBack, violations: [] });
+check("a support-agent job's result is exactly the legacy shape", deepEqual(supportResult, resultNoViolations), JSON.stringify(supportResult));
+check("a support answer with no score is not a mark (recorded as not graded)", supportEvaluationFrom({ empathy: 80, strengths: [] }) === null);
 
 // ============================================================================
 console.log(`\n${passed} passed, ${failed} failed.`);

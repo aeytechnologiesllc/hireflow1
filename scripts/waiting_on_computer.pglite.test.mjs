@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * PGlite proof for supabase/migrations/20261006200000_waiting_on_computer.sql:
+ * PGlite proof for supabase/migrations/20261006191020_waiting_on_computer.sql:
  * public.mark_waiting_on_computer, the one write the "Continue on your
  * computer" screen makes (docs/COMPUTER-ONLY-TESTS.md, "Staff").
  *
@@ -13,7 +13,7 @@
  *   20261005180943_merge_application_notes.sql       (the one notes write)
  *   20261005230146_assessment_record.sql             (journey, access rule)
  *   20261006124409_equipment_check.sql
- *   20261006200000_waiting_on_computer.sql           (under test; twice)
+ *   20261006191020_waiting_on_computer.sql           (under test; twice)
  *
  * Proves:
  *   - who may call it: the application's own applicant, signed in. Not
@@ -25,7 +25,10 @@
  *     never the form or the skills check; phone or tablet only;
  *   - idempotent: a second call for the same step (another device, two fired
  *     together) leaves the first stamp exactly as it is; a later step
- *     replaces it;
+ *     replaces it; so does a later visit after an attempt on the step moved
+ *     or the step was reopened, and a stamp dated in the future;
+ *   - an application at the interview stage is refused (HF001), like a
+ *     decided one;
  *   - it opens no attempt, records no event, sends no notification, and
  *     changes nothing but notes.waiting_on_computer (every other key, status
  *     and phase are as they were), through the candidate forgery guard.
@@ -45,7 +48,7 @@ const MIGRATIONS = [
   "20261005230146_assessment_record.sql",
   "20261006124409_equipment_check.sql",
 ];
-const UNDER_TEST = "20261006200000_waiting_on_computer.sql";
+const UNDER_TEST = "20261006191020_waiting_on_computer.sql";
 
 let passed = 0;
 let failed = 0;
@@ -386,6 +389,45 @@ async function main() {
     const w = (await notesOf(APP)).parsed.waiting_on_computer;
     check("…the stamp now names the later step (a later step replaces it)", w?.step_id === "wf-typing" && w?.device_kind === "tablet", JSON.stringify(w));
     check("…and the result that landed is untouched", canonical((await notesOf(APP)).parsed.equipmentCheckResult) === canonical({ download: 50 }));
+
+    // Something happened on the step since: they started it on a computer
+    // (an attempt), then came back to the gate on a phone. A fresh stamp,
+    // because the record shows the line only while every attempt is older
+    // than the stamp; keeping the first one hid this visit for good.
+    await db.query(
+      `insert into public.assessment_sessions (application_id, job_id, candidate_id, step_id, step_type, status)
+       values ($1, $2, $3, 'wf-typing', 'typing_test', 'abandoned')`,
+      [APP, JOB, CANDIDATE],
+    );
+    const back = await mark("authenticated", CANDIDATE, APP, "wf-typing", "phone");
+    const fresh = (await notesOf(APP)).parsed.waiting_on_computer;
+    check("an attempt moved since the stamp: stamped again, fresh", back.error == null && back.data.stamped === true && fresh?.device_kind === "phone" && Date.parse(fresh.at) >= Date.parse(w.at), JSON.stringify(back.error ?? back.data));
+    const steady = await mark("authenticated", CANDIDATE, APP, "wf-typing", "tablet");
+    check("…and with nothing new since THAT stamp, it is kept again", steady.error == null && steady.data.stamped === false && canonical((await notesOf(APP)).parsed.waiting_on_computer) === canonical(fresh), JSON.stringify(steady.error ?? steady.data));
+
+    // Staff reopened the step since the stamp (a retake).
+    await db.query(
+      `insert into public.assessment_step_reopens (application_id, step_id, job_id, reopened_at)
+       values ($1, 'wf-typing', $2, now() + interval '2 seconds')`,
+      [APP, JOB],
+    );
+    const retake = await mark("authenticated", CANDIDATE, APP, "wf-typing", "tablet");
+    check("a reopen since the stamp: stamped again", retake.error == null && retake.data.stamped === true && (await notesOf(APP)).parsed.waiting_on_computer?.device_kind === "tablet", JSON.stringify(retake.error ?? retake.data));
+    await db.query("delete from public.assessment_step_reopens where application_id = $1", [APP]);
+
+    // A stamp written by hand with a time in the future (the applicant can
+    // write this key) is replaced, never kept.
+    await setAsService(APP, "notes = (notes::jsonb || $2::jsonb)::text", [JSON.stringify({ waiting_on_computer: { step_id: "wf-typing", at: "2999-01-01T00:00:00.000Z", device_kind: "phone" } })]);
+    const future = await mark("authenticated", CANDIDATE, APP, "wf-typing", "phone");
+    const replaced = (await notesOf(APP)).parsed.waiting_on_computer;
+    check("a future-dated stamp is replaced with a real one", future.error == null && future.data.stamped === true && Date.parse(replaced.at) < Date.parse("2999-01-01T00:00:00.000Z"), JSON.stringify(replaced));
+
+    // At the interview stage every reader treats the application as decided.
+    await setAsService(APP, "status = 'interview'");
+    const beforeInterview = await notesOf(APP);
+    const interview = await mark("authenticated", CANDIDATE, APP, "wf-typing", "tablet");
+    const afterInterview = await notesOf(APP);
+    check("an application at the interview stage: HF001, nothing written", interview.error?.code === "HF001" && afterInterview.notes === beforeInterview.notes && String(afterInterview.updated_at) === String(beforeInterview.updated_at), JSON.stringify(interview.error));
 
     await setAsService(APP, "status = 'rejected'");
     const closed = await mark("authenticated", CANDIDATE, APP, "wf-typing");

@@ -134,6 +134,13 @@ console.log("\nThe stamp, read:\n");
   check("no step, no stamp", R.waitingOnComputerOf({ waiting_on_computer: stamp({ step_id: "" }) }) === null);
   check("a string is no stamp", R.waitingOnComputerOf({ waiting_on_computer: "wf-check" }) === null);
   check("no notes, no stamp", R.waitingOnComputerOf(null) === null);
+  // The applicant can write this key: a stamp dated in the future would read
+  // "Active now" forever and outrank every later attempt.
+  const future = new Date(NOW + 3 * 24 * HOUR).toISOString();
+  check("a stamp dated in the future is ignored", R.waitingOnComputerOf({ waiting_on_computer: stamp({ at: future }) }, NOW) === null);
+  check("…but a minute of clock skew is allowed", R.waitingOnComputerOf({ waiting_on_computer: stamp({ at: new Date(NOW + 30_000).toISOString() }) }, NOW)?.stepId === "wf-check");
+  const forged = read(app({}, { waiting_on_computer: stamp({ at: future }) }));
+  check("…and the record shows no waiting line for it, and the list does not say 'Active now'", forged.record.live?.state !== "waiting" && forged.row.activeWords !== "Active now", JSON.stringify({ live: forged.record.live, active: forged.row.activeWords }));
 }
 
 console.log("\nOpened on a phone, nothing since:\n");

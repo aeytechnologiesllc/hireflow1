@@ -9,6 +9,8 @@ import {
   askForOpener,
   awaitInFlightReply,
   chatSimulationEndReason,
+  computerOnlyGate,
+  recordStartDevice,
   chooseIntegrity,
   chooseTranscript,
   cleanClientAt,
@@ -34,10 +36,8 @@ import {
   serverMsgId,
   settleTrailingReply,
   sseReplayText,
-  storeSubmittedTranscript,
   teeAndRecordReply,
   turnsToTranscript,
-  unstoredTail,
   updateContext,
   withLeadingSse,
   type AssessmentAdmin,
@@ -45,14 +45,30 @@ import {
   type StoredTurn,
 } from "../_shared/assessmentSession.ts";
 import { scheduleStepMoveOn } from "../_shared/stepMoveOn.ts";
+import { computerRequiredBody, deviceKindOfRequest, needsComputer } from "../_shared/deviceKind.ts";
 import {
   buildChatSimulationResult,
   buildPhaseAiAnalysis,
   buildSimulationApiMessages,
+  leadEvaluationFrom,
   phaseAiAnalysisFromStoredResult,
+  supportEvaluationFrom,
+  ungradedEvaluation,
   type AntiCheatViolation,
   type SimulationChatMessage,
 } from "./grading.ts";
+import {
+  EVAL_PROMPT_VERSION,
+  buildEvaluatorMessages,
+  customerPromptFor,
+  customerTurnInstruction,
+  evaluatorRequiredKeys,
+  knownPinnedCase,
+  practiceStepFrom,
+  rubricForCase,
+  scenarioToPin,
+  type PracticeStepConfig,
+} from "./prompts.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -62,8 +78,6 @@ const corsHeaders = {
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const OPENAI_CHAT_SIMULATION_MODEL = Deno.env.get("OPENAI_CHAT_SIMULATION_MODEL") || "gpt-5.6-luna";
 const OPENAI_CHAT_SIMULATION_EVAL_MODEL = Deno.env.get("OPENAI_CHAT_SIMULATION_EVAL_MODEL") || "gpt-5.6-luna";
-/** Named in session.grading.prompt_version; bump when the evaluation prompt changes. */
-const EVAL_PROMPT_VERSION = "chat-sim-eval-1";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -95,7 +109,10 @@ interface ChatSimulationRequest {
   clientMsgId?: string;
   /** "respond": when the page sent it. */
   clientAt?: string;
-  /** "start": the page's id for the scenario it picked, kept with the scenario. */
+  /** "start": the page's id for the case it shows. Echoed back only: the
+   *  case is always the server's own pick (prompts.ts scenarioToPin), and
+   *  the request's scenario, customerName and scenarioId never reach the
+   *  reviewer. */
   scenarioId?: string;
 }
 
@@ -123,91 +140,64 @@ function recordClient(): AssessmentAdmin | null {
   return createClient(url, serviceKey) as unknown as AssessmentAdmin;
 }
 
-/** The scenario pinned on the attempt the first time it started. */
-function pinnedScenario(context: Record<string, unknown>): { scenario: string; customerName: string; scenarioId: string | null } | null {
+/** The scenario pinned on the attempt the first time it started. `byServer`:
+ *  this build pinned it (always its own pick); an older build pinned the
+ *  request's id or text, which counts only while it is one of the step's own
+ *  cases (prompts.ts knownPinnedCase). */
+function pinnedScenario(
+  context: Record<string, unknown>,
+): { scenario: string; customerName: string; scenarioId: string | null; byServer: boolean } | null {
   if (typeof context.scenario !== "string" || !context.scenario.trim()) return null;
   if (typeof context.customer_name !== "string" || !context.customer_name.trim()) return null;
   return {
     scenario: context.scenario,
     customerName: context.customer_name,
     scenarioId: typeof context.scenario_id === "string" ? context.scenario_id : null,
+    byServer: context.scenario_pinned_by === "server",
   };
 }
 
-function systemPromptFor(customerName: string, scenario: string, mode: ChatSimulationRequest["mode"], messageCount: number): string {
-  return `You are roleplaying as a customer named ${customerName} in a customer support chat simulation.
-
-SCENARIO: ${scenario}
-
-YOUR PERSONALITY & BEHAVIOR:
-- You are a real customer with a genuine problem that's frustrating you
-- Start somewhat frustrated but not hostile
-- Your frustration level can increase OR decrease based on how the support agent responds
-- If the agent is empathetic and helpful, you can become calmer and more cooperative
-- If the agent is dismissive or unhelpful, you can become more frustrated
-- Sometimes you might send a quick follow-up message expressing impatience
-- Be realistic - real customers make typos, use informal language, and sometimes ramble
-
-REALISTIC BEHAVIORS TO EXHIBIT:
-- Express genuine emotion (frustration, relief, gratitude)
-- Ask clarifying questions about solutions
-- Mention how the problem is affecting you personally
-- Reference past experiences if relevant ("this happened before", "I've been a customer for X years")
-- React authentically to solutions (skeptical, relieved, grateful)
-
-CONVERSATION FLOW:
-- If the agent apologizes sincerely and offers help, acknowledge it but stay focused on resolution
-- If the agent provides a solution, ask about timeline or confirmation
-- If the agent asks for information, provide it (use realistic fake details)
-- After ${messageCount >= 5 ? "enough back and forth, if you feel the issue is resolved or being handled well" : "a few more exchanges"}, you can express satisfaction and thank the agent
-
-${mode === 'evaluate' ? `
-EVALUATION MODE: You are now evaluating the support agent's performance. Analyze the conversation and return JSON:
-{
-  "score": <number 0-100>,
-  "empathy": <number 0-100>,
-  "problemSolving": <number 0-100>,
-  "communication": <number 0-100>,
-  "professionalism": <number 0-100>,
-  "strengths": ["strength1", "strength2"],
-  "improvements": ["area1", "area2"],
-  "overallFeedback": "Brief summary of agent performance"
-}
-` : `
-RESPONSE GUIDELINES:
-- Keep responses 1-3 sentences typically (real customers don't write essays)
-- Occasionally send very short responses ("ok", "and?", "I see")
-- Don't be satisfied too easily - make sure the agent actually addresses your concern
-- CRITICAL: Do NOT greet or use the agent's name. You're the customer - just describe your problem. Real frustrated customers don't say "Hello [agent name]" - they just complain.
-
-NATURAL CONVERSATION ENDING:
-- When you feel the agent has genuinely resolved your issue (after at least ${Math.max(5, messageCount)} exchanges), you should naturally wrap up
-- Express genuine gratitude and satisfaction in a natural way like: "Thank you so much! I really appreciate your help." or "That's great, thanks for sorting this out for me!"
-- When you're satisfied and ready to end the conversation, add [RESOLVED] at the very END of your message (this is a hidden marker, write your natural message first then add [RESOLVED] at the end)
-- Only add [RESOLVED] when you're truly satisfied - the agent must have actually addressed your concern
-- Example: "Perfect, that's exactly what I needed. Thanks so much for your help! [RESOLVED]"
-`}`;
+/** The job and this step's own config, read with the service role for the
+ *  signed-in candidate's own application — never from the request. Null
+ *  when it cannot be read (the caller then falls back as before). */
+interface PracticeJob {
+  title: string | null;
+  description: string | null;
+  experienceLevel: string | null;
+  step: PracticeStepConfig | null;
 }
 
-function userContentFor(
-  mode: ChatSimulationRequest["mode"],
-  agentMessage: string | undefined,
-  customerName: string,
-  scenario: string,
-  messageCount: number,
-): string {
-  if (mode === "start") {
-    return "Start the conversation as the frustrated customer. Send your opening message describing your problem.";
+async function loadPracticeJob(
+  admin: AssessmentAdmin,
+  applicationId: string,
+  stepId: string,
+  userId: string,
+): Promise<PracticeJob | null> {
+  try {
+    const { data, error } = await admin
+      .from("applications")
+      .select("candidate_id, jobs(title, description, experience_level, workflow_steps)")
+      .eq("id", applicationId)
+      .maybeSingle();
+    if (error || !data) {
+      if (error) console.error("[ai-chat-simulation] job not read:", error.message ?? error);
+      return null;
+    }
+    const row = data as { candidate_id?: unknown; jobs?: unknown };
+    if (row.candidate_id !== userId) return null;
+    const job = (Array.isArray(row.jobs) ? row.jobs[0] : row.jobs) as Record<string, unknown> | null | undefined;
+    if (!job || typeof job !== "object") return null;
+    const text = (v: unknown) => (typeof v === "string" && v.trim() ? v : null);
+    return {
+      title: text(job.title),
+      description: text(job.description),
+      experienceLevel: text(job.experience_level),
+      step: practiceStepFrom(job.workflow_steps, stepId),
+    };
+  } catch (error) {
+    console.error("[ai-chat-simulation] job not read:", error);
+    return null;
   }
-  if (mode === "respond") {
-    return `The support agent just said: "${agentMessage}"
-      
-Respond as the customer ${customerName}. Remember your scenario: ${scenario}. This is message #${messageCount} in the conversation.`;
-  }
-  if (mode === "evaluate") {
-    return `Evaluate this support agent's performance throughout the conversation. Analyze their empathy, problem-solving, communication skills, and professionalism.`;
-  }
-  return "";
 }
 
 function json(body: unknown, status = 200): Response {
@@ -228,6 +218,17 @@ serve(async (req) => {
     const { mode, scenario, customerName, messages = [], agentMessage, messageCount = 0, applicationId, stepId, violations = [] } = request;
 
     console.log("Chat simulation request:", { mode, scenario, customerName, messageCount });
+
+    if (mode !== "start" && mode !== "respond" && mode !== "evaluate") {
+      return json({ error: "Unknown mode", code: "unknown_mode" }, 400);
+    }
+
+    // The chat practice is taken on a computer (docs/COMPUTER-ONLY-TESTS.md).
+    // Read once from this request's own headers AND the page's own reading
+    // in its body (a phone asking for the desktop site sends a computer's
+    // headers); each path below refuses a phone or tablet BEFORE anything is
+    // opened.
+    const requestDevice = deviceKindOfRequest(req, request);
 
     if (!OPENAI_API_KEY) {
       console.error("OPENAI_API_KEY is not configured");
@@ -269,11 +270,20 @@ serve(async (req) => {
       const admin = createClient(supabaseUrl, serviceKey);
       const record = admin as unknown as AssessmentAdmin;
 
-      // The record of this attempt (docs/ASSESSMENT-RECORD.md §5.1), best
-      // effort: with no record (the migration not applied, a finished or
-      // closed step) this grades the request's transcript exactly as before.
-      // A page on the previous build kept the conversation only in the
-      // browser; its transcript is stored here so the hiring team has it.
+      // A phone or tablet may finish an attempt a COMPUTER started (its
+      // recorded start device), never grade one it opened or the page's
+      // mount opened (docs/COMPUTER-ONLY-TESTS.md). A finished step goes on
+      // to answer the result on file.
+      if (needsComputer(requestDevice)) {
+        const gate = await computerOnlyGate(record, requestDevice, { applicationId, stepId, userId: callerUserId, purpose: "submit" });
+        if (gate === "refuse") return json(computerRequiredBody(requestDevice), 400);
+      }
+
+      // The record of this attempt (docs/ASSESSMENT-RECORD.md §5.1). With the
+      // record system deployed, the chat graded is the one STORED as it
+      // happened, never a transcript in the request (see below). Only where
+      // the record system is not deployed at all is the request's transcript
+      // graded, and the result then says so (transcriptSource "browser").
       const resolved = await resolveSession(record, {
         applicationId,
         stepId,
@@ -283,6 +293,7 @@ serve(async (req) => {
       });
       const session: SessionRow | null = resolved.ok ? resolved.session : null;
       if (!resolved.ok) console.log("[ai-chat-simulation] evaluate without a record:", resolved.reason, resolved.detail ?? "");
+      const recordDeployed = resolved.ok || resolved.reason !== "not_deployed";
 
       // ONE request grades an attempt, and a result already on file is never
       // graded again from a request body (a retried or replayed evaluate gets
@@ -304,67 +315,119 @@ serve(async (req) => {
         });
       }
       const claimed = gate.claim === "claimed";
+      /** Lets go of the claim when this request refuses before grading. */
+      const letGo = async () => {
+        if (session && claimed) await releaseGrading(record, session.id, gate.fromStatus ?? "active");
+      };
 
       const storedTurns = session ? await settleTrailingReply(record, session.id, await loadTurns(record, session.id)) : null;
-      // Graded: the STORED turns whenever the record has the agent's own
-      // messages (each was stored before the customer answered it), else the
-      // transcript in the request.
+      // Graded: the STORED turns whenever the record has the applicant's own
+      // messages (each was stored before the player answered it).
       const transcript = chooseTranscript(storedTurns, messages);
-      const gradedMessages: SimulationChatMessage[] = transcript.source === "stored" ? transcript.messages : messages;
-      const tail = session && storedTurns ? unstoredTail(storedTurns, messages) : null;
-      if (session && tail && tail.messages.length > 0) {
-        await storeSubmittedTranscript(record, session.id, tail, { candidate: "agent", assistant: "customer" });
+      if (transcript.source === "request" && recordDeployed) {
+        // The record system is live but holds none of this applicant's
+        // messages: the chat was never served through it (a page that left
+        // out its application and step on every turn) or every turn failed
+        // to save. A transcript in the request is the applicant's own
+        // writing on BOTH sides, so it is never graded: an applicant could
+        // otherwise invent the player's lines, and the hiring team would read
+        // them as the test's. The page starts the chat again, recorded.
+        await letGo();
+        if (!session && resolved.ok === false && resolved.reason === "error") {
+          return json({ error: "We could not read your saved chat just now. Please try again in a moment.", code: "record_unreadable", retryable: true }, 503);
+        }
+        console.warn("[ai-chat-simulation] evaluate refused: nothing the applicant wrote is on the record", {
+          reason: resolved.ok ? "no_stored_turns" : resolved.reason,
+          requestTurns: transcript.requestTurns,
+        });
+        return json({
+          error: "This chat wasn't saved as you wrote it, so it can't be sent. Please start the chat again.",
+          code: "chat_not_recorded",
+        }, 409);
       }
+      const gradedMessages: SimulationChatMessage[] = transcript.source === "stored" ? transcript.messages : messages;
       if (transcript.source === "stored" && transcript.requestTurns !== transcript.storedTurns) {
         console.warn("[ai-chat-simulation] grading the stored transcript; the request's differs", {
           stored: transcript.storedTurns,
           request: transcript.requestTurns,
         });
       }
+      // Nothing the applicant wrote: nothing to grade (never a real 0).
+      if (!gradedMessages.some((m) => m.role === "user" && typeof m.content === "string" && m.content.trim().length > 0)) {
+        await letGo();
+        return json({ error: "Reply to the player at least once before you send the chat.", code: "no_answers" }, 400);
+      }
+
+      // The job, and this step's own config (its focus, its title, its
+      // cases), read here for the caller's own application: never from the
+      // request. The case graded is the one the attempt is pinned to when the
+      // server can vouch for it (one of the step's own cases), else the
+      // server's own pick for this application and step (the page's stable
+      // index): never the request's scenario, customer name or scenario id,
+      // and none of the request's text reaches the reviewer's instructions.
+      const practiceJob = await loadPracticeJob(record, applicationId, stepId, callerUserId);
+      if (!practiceJob) {
+        await letGo();
+        return json({ error: "We could not load this step just now. Please try again in a moment.", code: "job_unreadable", retryable: true }, 503);
+      }
       const pinned = session ? pinnedScenario(session.context) : null;
-      const gradedScenario = pinned?.scenario ?? scenario;
-      const gradedCustomerName = pinned?.customerName ?? customerName;
+      // A case this build pinned is graded as played, even if the employer
+      // has since edited the step's cases; an older pin only while it is one
+      // of the step's own cases.
+      const graded =
+        knownPinnedCase(practiceJob.step, pinned) ??
+        (pinned?.byServer ? { id: pinned.scenarioId ?? "", customerName: pinned.customerName, scenario: pinned.scenario } : null) ??
+        scenarioToPin(practiceJob.step, { applicationId, stepId });
+      const gradedScenario = graded.scenario;
+      const gradedCustomerName = graded.customerName;
+      const gradedScenarioId = graded.id || null;
+      // The rubric follows the case that was played: a takeover case is
+      // marked as a team leader taking over a mishandled chat, any other case
+      // as a support agent (whatever the job's level says).
+      const rubric = rubricForCase(gradedScenario);
+      const focus = practiceJob.step?.focus ?? [];
 
       try {
-        // Graded here, server-side, every time — including the fallback path
-        // (OpenAI unreachable / bad JSON), so an honest candidate's submission
-        // still completes and gets recorded exactly like the client-side
-        // default evaluation used to guarantee before this conversion.
+        // Graded here, server-side, every time, by a REVIEWER (prompts.ts
+        // evaluatorPromptFor), not the player persona: the whole chat goes as
+        // one message of numbered, labelled lines ("LEAD 3:", "PLAYER 4:", or
+        // AGENT/CUSTOMER), and the server checks every flag the reviewer
+        // raises against those lines itself (grading.ts). When the
+        // model fails or its answer cannot be read, the chat is recorded as
+        // NOT graded (no score, transcript kept for re-grading) so the
+        // candidate still moves on and nobody reads a made-up 70 as real.
         let usedFallback = false;
-        const { data: evaluation } = await callOpenAIJson({
+        const { data: reviewed } = await callOpenAIJson({
           apiKey: OPENAI_API_KEY,
           model: OPENAI_CHAT_SIMULATION_EVAL_MODEL,
-          messages: buildSimulationApiMessages(
-            systemPromptFor(gradedCustomerName, gradedScenario, mode, messageCount),
+          messages: buildEvaluatorMessages(
+            {
+              rubric,
+              scenario: gradedScenario,
+              customerName: gradedCustomerName,
+              jobTitle: practiceJob.title ?? "",
+              focus,
+              stepTitle: practiceJob.step?.title ?? null,
+            },
             gradedMessages,
-            userContentFor(mode, agentMessage, gradedCustomerName, gradedScenario, messageCount),
           ),
-          temperature: 0.35,
-          maxCompletionTokens: 1200,
-          validator: (value) => requireJsonKeys(value, [
-            "score",
-            "empathy",
-            "problemSolving",
-            "communication",
-            "professionalism",
-            "strengths",
-            "improvements",
-            "overallFeedback",
-          ]),
-          fallback: () => {
+          temperature: 0.2,
+          maxCompletionTokens: 2400,
+          validator: (value) => requireJsonKeys(value, evaluatorRequiredKeys(rubric)),
+          // No made-up mark: null means "not graded" below.
+          fallback: (): Record<string, unknown> | null => {
             usedFallback = true;
-            return {
-              score: 70,
-              empathy: 70,
-              problemSolving: 70,
-              communication: 70,
-              professionalism: 70,
-              strengths: ["Completed simulation"],
-              improvements: ["Unable to parse detailed evaluation"],
-              overallFeedback: "Simulation completed successfully.",
-            };
+            return null;
           },
         });
+        const marked = usedFallback
+          ? null
+          : rubric === "team_lead"
+            ? leadEvaluationFrom(reviewed, gradedMessages, { caseText: gradedScenario })
+            : supportEvaluationFrom(reviewed);
+        const graded = marked !== null;
+        const evaluation = marked ?? ungradedEvaluation(usedFallback ? "model_failed" : "answer_unreadable");
+        if (!graded) console.warn("[ai-chat-simulation] chat recorded as not graded:", usedFallback ? "model_failed" : "answer_unreadable");
 
         // The integrity summary in notes comes from the events the page
         // recorded (record_integrity_events) whenever there are any, else
@@ -381,12 +444,19 @@ serve(async (req) => {
         // as pure functions so scripts/chat_simulation_grading.test.mjs can
         // exercise this exact assembly under plain Node. The full grading
         // (communication, professionalism, overallFeedback) goes only to the
-        // staff-only record below, never to notes.
+        // staff-only record below, never to notes. A lead's own items
+        // (ownership, correctedAgent, newPromiseMade, the quoted evidence)
+        // ride along; a chat nobody marked carries graded:false and its
+        // transcript instead of a score.
         const chatSimulationResult = buildChatSimulationResult({
           scenario: gradedScenario,
           messageCount: gradedMessages.length,
           evaluation,
           violations: integrity.violations,
+          transcript: gradedMessages,
+          scenarioId: gradedScenarioId,
+          // Only where the record system is not deployed at all.
+          transcriptSource: transcript.source === "stored" ? "stored" : "browser",
         });
 
         // recordStepResult only needs the minimal from().select().eq().maybeSingle()
@@ -434,15 +504,21 @@ serve(async (req) => {
             session.id,
             gate,
             gradingRecord({
-              model: usedFallback ? null : OPENAI_CHAT_SIMULATION_EVAL_MODEL,
+              model: graded ? OPENAI_CHAT_SIMULATION_EVAL_MODEL : null,
               promptVersion: EVAL_PROMPT_VERSION,
-              fallback: usedFallback,
+              fallback: !graded,
               result: evaluation,
               extra: {
-                scenario: { scenario: gradedScenario, customer_name: gradedCustomerName },
+                graded,
+                rubric,
+                focus,
+                step_title: practiceJob.step?.title ?? null,
+                scenario: { scenario: gradedScenario, customer_name: gradedCustomerName, scenario_id: gradedScenarioId },
                 transcript_source: transcript.source,
                 messages_graded: gradedMessages.length,
                 integrity_source: integrity.source,
+                // An answer that came back but could not be read as a mark, for whoever re-grades it.
+                ...(!graded && !usedFallback ? { unread_answer: reviewed } : {}),
               },
             }),
             chatSimulationEndReason(storedTurns),
@@ -481,16 +557,28 @@ serve(async (req) => {
     // start / respond. A page that records the test sends its session JWT
     // plus applicationId and stepId; anything else is served as before.
     const target = recordingTargetFrom(request);
-    let recording: { admin: AssessmentAdmin; session: SessionRow } | null = null;
+    const callerId = target ? await resolveCallerId(req) : null;
+    // A phone or tablet never starts the chat practice, never opens its
+    // attempt and never holds it without a record: a start or a reply goes
+    // on only for the signed-in candidate's own attempt that a computer
+    // started (a reload or a reply after moving to the phone), or on a step
+    // the rule does not put on a computer. Without an application to record
+    // against it is refused outright: this function serves only that step
+    // (docs/COMPUTER-ONLY-TESTS.md).
+    if (needsComputer(requestDevice)) {
+      const gate = await computerOnlyGate(target ? recordClient() : null, requestDevice, target ? { ...target, userId: callerId, purpose: "turns" } : null);
+      if (gate === "refuse") return json(computerRequiredBody(requestDevice), 400);
+    }
+    let recording: { admin: AssessmentAdmin; session: SessionRow; applicationId: string; stepId: string; userId: string } | null = null;
     let notRecorded: string | null = null;
     if (target) {
-      const userId = await resolveCallerId(req);
+      const userId = callerId;
       const admin = userId ? recordClient() : null;
       if (!userId) notRecorded = "not_signed_in";
       else if (!admin) notRecorded = "error";
       else {
         const resolved = await resolveSession(admin, { ...target, userId, stepType: "chat_simulation", purpose: "turns" });
-        if (resolved.ok) recording = { admin, session: resolved.session };
+        if (resolved.ok) recording = { admin, session: resolved.session, applicationId: target.applicationId, stepId: target.stepId, userId };
         else notRecorded = resolved.reason;
       }
       if (notRecorded) console.log("[ai-chat-simulation] turn not recorded:", notRecorded);
@@ -506,17 +594,27 @@ serve(async (req) => {
 
     if (recording) {
       const { admin, session } = recording;
-      // The scenario is pinned on the attempt the first time it starts (the
-      // page's own stable pick, for now) and served back from then on, so a
-      // reload continues the same customer's problem.
+      // The case is pinned on the attempt the first time it starts and
+      // served back from then on, so a reload continues the same player's
+      // problem. The pin is ALWAYS the server's own pick (scenarioToPin: the
+      // page's stable index over the step's configured cases, else the page's
+      // built-in ones), never the request's scenario id or text, so an
+      // applicant cannot choose the case they rehearsed. Only when the job
+      // cannot be read is nothing pinned, and this one turn is played from
+      // the request's text (the evaluate grades the server's pick regardless).
       let pinned = pinnedScenario(session.context);
-      if (!pinned && typeof scenario === "string" && scenario.trim() && typeof customerName === "string" && customerName.trim()) {
-        await updateContext(admin, session, {
-          scenario,
-          customer_name: customerName,
-          ...(scenarioId ? { scenario_id: scenarioId } : {}),
-        });
-        pinned = { scenario, customerName, scenarioId };
+      if (!pinned) {
+        const practiceJob = await loadPracticeJob(admin, recording.applicationId, recording.stepId, recording.userId);
+        if (practiceJob) {
+          const pick = scenarioToPin(practiceJob.step, { applicationId: recording.applicationId, stepId: recording.stepId });
+          await updateContext(admin, session, {
+            scenario: pick.scenario,
+            customer_name: pick.customerName,
+            scenario_id: pick.id,
+            scenario_pinned_by: "server",
+          });
+          pinned = { scenario: pick.scenario, customerName: pick.customerName, scenarioId: pick.id, byServer: true };
+        }
       }
       if (pinned) {
         liveScenario = pinned.scenario;
@@ -530,6 +628,10 @@ serve(async (req) => {
         }));
 
       if (mode === "start") {
+        // The device the attempt started on (headers plus the page's own
+        // reading), once: a phone may later continue only an attempt a
+        // computer started.
+        await recordStartDevice(admin, session, requestDevice);
         // A reload: the conversation is already on file. Hand it back rather
         // than asking for a second opening message.
         const turns = await loadTurns(admin, session.id);
@@ -601,9 +703,9 @@ serve(async (req) => {
         apiKey: OPENAI_API_KEY,
         model: OPENAI_CHAT_SIMULATION_MODEL,
         messages: buildSimulationApiMessages(
-          systemPromptFor(liveCustomerName, liveScenario, mode, liveMessageCount),
+          customerPromptFor(liveCustomerName, liveScenario, liveMessageCount),
           history,
-          userContentFor(mode, liveAgentMessage, liveCustomerName, liveScenario, liveMessageCount),
+          customerTurnInstruction(mode === "start" ? "start" : "respond", liveAgentMessage, liveCustomerName, liveScenario, liveMessageCount),
         ),
         temperature: 0.9,
         maxCompletionTokens: 700,

@@ -80,7 +80,7 @@ document and the migration together.
 | `hidden_at` | timestamptz | `touch_assessment_session` | the time the page was hidden, or NULL while it is visible |
 | `ended_at` | timestamptz | functions / server | |
 | `progress` | jsonb object | functions / triggers; the page only under `progress.client` | how far they got (2.5). **Returned to the candidate**, so it never holds grading |
-| `context` | jsonb object | server only | test inputs pinned by the server: `{scenario, customer_name, scenario_id?}` for chat practice; `{candidate_context, candidate_name}` for the interview; for typing `{target_text, required_wpm, run, run_started_at, runs: [{run, started_at, target_text}]}` (the current run and up to 20 runs so far, one per "Try again"). Never returned to the candidate |
+| `context` | jsonb object | server only | test inputs pinned by the server: `{scenario, customer_name, scenario_id?}` for chat practice; `{server_candidate_context, candidate_name}` for the interview (the context the server built from the record; the older key `candidate_context`, where a previous build pinned the request's copy, is never read); for typing `{target_text, required_wpm, run, run_started_at, runs: [{run, started_at, target_text}]}` (the current run and up to 20 runs so far, one per "Try again"). Never returned to the candidate |
 | `draft` | jsonb | `save_application_draft` | application form only: the answers not yet sent |
 | `grading` | jsonb | server only | the full grading for staff (2.6). Never returned to the candidate |
 | `integrity_summary` | jsonb object | `record_integrity_events` | 2.7 |

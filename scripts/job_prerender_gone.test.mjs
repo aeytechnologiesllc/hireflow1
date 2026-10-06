@@ -194,6 +194,14 @@ stubFetch({ jobRows: [TEAM_LEAD], branding: [{ company_name: "Zulu Support Team"
   assert.equal((r.body.match(/rel="canonical"/g) ?? []).length, 1);
   assert.deepEqual(robotsTags(r.body), ['<meta name="robots" content="index, follow" />']);
   assert.match(r.headers["cache-control"], /s-maxage=60\b/);
+  // /<slug> is the crawlers' page only; people get the app at the same address.
+  assert.equal(r.headers["vary"], "User-Agent", "the short link's answer varies by user agent");
+}
+// The long link is one page for everyone: no Vary.
+stubFetch({ jobRows: [TEAM_LEAD] });
+{
+  const r = await run(TEAM_LEAD.id);
+  assert.equal(r.headers?.["vary"], undefined);
 }
 // A differently typed name is the same job (JobDetails moves people to the
 // lowercase one).
@@ -213,6 +221,16 @@ stubFetch({ jobRows: [] });
   assert.equal(r.status, 200, "a page of the app is not a removed job");
   assert.equal(r.body, SHELL, "the shell, untouched");
   assert.ok(!/noindex/.test(r.body));
+}
+// A name the SITE uses is never a job's preview, even if a job holds it (the
+// database checks only the shape; the editor refuses these, the API does not).
+stubFetch({ jobRows: [{ ...TEAM_LEAD, slug: "privacy" }] });
+for (const reserved of ["privacy", "terms", "jobs", "applications", "login"]) {
+  const r = await runSlug(reserved);
+  assert.equal(r.status, 200);
+  assert.equal(r.body, SHELL, `${reserved}: the plain shell`);
+  assert.ok(!r.asked.some((u) => u.includes("published_jobs_public")), `${reserved}: never looked up`);
+  assert.equal(r.headers["vary"], "User-Agent");
 }
 {
   // A name the database could never hold is not even looked up.
@@ -258,6 +276,15 @@ stubFetch({ jobRows: [], jobStatus: 503 });
     "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)",
     "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)",
     "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+    // Pinterest's own preview fetcher does not say "Pinterestbot".
+    "Pinterest/0.2 (+https://www.pinterest.com/bot.html)",
+    // Search Console's live test, and Google's other fetcher.
+    "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36 (compatible; Google-InspectionTool/1.0;)",
+    "GoogleOther",
+    "Mozilla/5.0 (compatible; Snap URL Preview Service; bot; snapchat; https://developers.snap.com/robots)",
+    "Snapchat/12.0 (+https://developers.snap.com/robots)",
+    "Mozilla/5.0 (compatible; Embedly/0.2; +http://support.embed.ly/)",
+    "Iframely/1.3.1 (+https://iframely.com/docs/about)",
   ]) {
     assert.ok(re.test(crawler), `a crawler gets the preview: ${crawler}`);
   }

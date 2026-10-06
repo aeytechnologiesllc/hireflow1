@@ -21,7 +21,8 @@
  *
  * THE SHORT LINK (docs/SHORT-JOB-LINKS.md §6-7): vercel.json sends a crawler's
  * request for /<slug> (Facebook, Messenger, WhatsApp, X, LinkedIn, Telegram,
- * Slack, Discord, Viber, Google, Bing, Apple) here as ?slug=, so a shared
+ * Slack, Discord, Viber, Google, Bing, Apple, Pinterest, Snapchat, Embedly,
+ * Iframely) here as ?slug=, so a shared
  * hireflownow.com/team-lead previews as the job ("Chat Support Team Leader
  * …"), not as the careers site's generic card. People are never sent here
  * for /<slug>: they get the app, which opens the job itself. A name that is
@@ -41,6 +42,25 @@ const JOB_FIELDS =
 
 /** A short link's name: the database's own CHECK (jobs_slug_format). */
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
+
+/**
+ * Names the site itself uses: a pinned copy of src/lib/jobSlug.ts
+ * RESERVED_SLUGS (this file takes no imports; scripts/short_job_links.test.mjs
+ * fails when the two differ). The editor refuses these, but the database
+ * checks only the shape, so a job named "privacy" or "jobs" through the API
+ * would otherwise show crawlers (Googlebot included) that job's title, with a
+ * canonical to the job, at hireflownow.com/privacy. Never looked up.
+ */
+const RESERVED_SLUGS = new Set([
+  "__preview", "about", "admin", "adzuna.xml", "analytics", "api", "applicants", "applications",
+  "apply", "assets", "auth", "ava-preview", "candidate", "careers", "contact", "dashboard",
+  "developer", "documents", "favicon.ico", "flow-lab", "help", "home", "index.html", "interviews",
+  "job", "jobs", "jobs.xml", "join-team", "jooble.xml", "landing-assets", "login", "logout",
+  "manifest.webmanifest", "marketing-demo", "media", "messages", "more", "my-documents",
+  "notifications", "oauth", "preview", "privacy", "profile", "register", "robots.txt",
+  "screenshots", "search", "settings", "signin", "signup", "site.webmanifest", "sitemap.xml",
+  "staff", "support", "team", "team-portal", "terms", "verify"
+]);
 
 function esc(s) {
   return String(s ?? "")
@@ -99,7 +119,7 @@ export default async function handler(req, res) {
     if (slug) {
       // The short link: the same public view, looked up by its name.
       let lookupFailed = false;
-      if (SLUG_RE.test(slug)) {
+      if (SLUG_RE.test(slug) && !RESERVED_SLUGS.has(slug)) {
         const jr = await sb(`published_jobs_public?slug=eq.${encodeURIComponent(slug)}&select=${JOB_FIELDS}&limit=1`);
         lookupFailed = !jr.ok;
         if (jr.ok) {
@@ -117,6 +137,9 @@ export default async function handler(req, res) {
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         // A failed lookup is never kept: the next crawl may find the job.
         res.setHeader("Cache-Control", lookupFailed ? "no-store" : "public, s-maxage=60, stale-while-revalidate=60");
+        // /<slug> answers crawlers and people differently (vercel.json): a
+        // cache must never hand one the other's page.
+        res.setHeader("Vary", "User-Agent");
         res.end(shell);
         return;
       }
@@ -223,6 +246,9 @@ export default async function handler(req, res) {
     // 10-minute cache plus a 24-hour stale window kept handing crawlers the old
     // page (seen live 2026-09-16 on a just-deleted test job).
     res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=60");
+    // The short link's page is the crawlers' answer only (people get the app
+    // at the same address): never one cache entry for both.
+    if (slug) res.setHeader("Vary", "User-Agent");
     res.end(out);
   } catch {
     res.statusCode = 200;

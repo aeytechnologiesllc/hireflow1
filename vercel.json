@@ -30,7 +30,7 @@
         {
           "type": "header",
           "key": "user-agent",
-          "value": ".*(facebookexternalhit|Facebot|WhatsApp|Twitterbot|LinkedInBot|TelegramBot|Slackbot|Discordbot|Viber|SkypeUriPreview|Googlebot|bingbot|Applebot|Pinterestbot|redditbot).*"
+          "value": ".*(facebookexternalhit|Facebot|WhatsApp|Twitterbot|LinkedInBot|TelegramBot|Slackbot|Discordbot|Viber|SkypeUriPreview|Googlebot|Google-InspectionTool|GoogleOther|bingbot|Applebot|Pinterestbot|Pinterest/|redditbot|Snapchat|snapchat|Embedly|Iframely).*"
         }
       ],
       "missing": [

@@ -96,7 +96,7 @@ export default [
       // The same stale-state pattern applied to every other question's
       // validationErrors entry (required / email checks). syncQuestionError
       // must exist and must actually clear a stale entry.
-      const syncFnBody = block("const syncQuestionError = (question: ApplicationQuestion, value: string)");
+      const syncFnBody = block("const syncQuestionError = (question: ApplicationQuestion, value: string");
       if (!syncFnBody) {
         bad.push("syncQuestionError() helper is missing (or was renamed — update this guard)");
       } else if (!/delete\s+next\[question\.id\]/.test(syncFnBody)) {

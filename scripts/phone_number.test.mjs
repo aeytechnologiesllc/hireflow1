@@ -19,6 +19,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const P = await import(pathToFileURL(path.join(ROOT, "src/lib/phoneNumber.ts")).href);
+// The selector's own list (import-free), so the guess names real codes.
+const { countryCodes: COUNTRIES } = await import(pathToFileURL(path.join(ROOT, "src/lib/countryCodes.ts")).href);
 
 let passed = 0;
 let failed = 0;
@@ -34,7 +36,7 @@ function check(name, condition, detail = "") {
 const eq = (name, actual, expected) => check(name, actual === expected, `got ${JSON.stringify(actual)}, want ${JSON.stringify(expected)}`);
 
 // A few real codes, including the +1 area codes the selector also lists.
-const KNOWN = ["+1", "+1242", "+1684", "+63", "+44", "+39", "+91", "+234", "+971"];
+const KNOWN = ["+1", "+1242", "+1684", "+63", "+44", "+39", "+91", "+234", "+971", "+225"];
 
 /** Type each character into the field, the way onChange sees it. */
 function typeInto(text, code, known = KNOWN) {
@@ -49,13 +51,22 @@ function typeInto(text, code, known = KNOWN) {
 }
 
 console.log("\nThe code shown before they pick one:\n");
-eq("Asia/Manila → +63", P.guessDialCode({ timeZone: "Asia/Manila", languages: ["en-US"] }), "+63");
-eq("en-PH → +63", P.guessDialCode({ timeZone: "UTC", languages: ["en-PH"] }), "+63");
-eq("fil → +63", P.guessDialCode({ timeZone: null, languages: ["fil"] }), "+63");
-eq("tl_PH (underscore) → +63", P.guessDialCode({ languages: ["tl_PH"] }), "+63");
-eq("America/New_York, en-US → +1", P.guessDialCode({ timeZone: "America/New_York", languages: ["en-US", "en"] }), "+1");
-eq("nothing known → +1", P.guessDialCode(null), "+1");
-eq("en-GB in London → +1 (only the Philippines is guessed)", P.guessDialCode({ timeZone: "Europe/London", languages: ["en-GB"] }), "+1");
+const guess = (hints) => P.guessDialCode(hints, COUNTRIES);
+eq("Asia/Manila → +63", guess({ timeZone: "Asia/Manila", languages: ["en-US"] }), "+63");
+eq("en-PH → +63", guess({ timeZone: "UTC", languages: ["en-PH"] }), "+63");
+eq("fil → +63", guess({ timeZone: null, languages: ["fil"] }), "+63");
+eq("tl_PH (underscore) → +63", guess({ languages: ["tl_PH"] }), "+63");
+eq("America/New_York, en-US → +1", guess({ timeZone: "America/New_York", languages: ["en-US", "en"] }), "+1");
+eq("nothing known → no code at all (they pick one; +1 is never assumed)", P.guessDialCode(null), null);
+eq("en-GB in London → +44", guess({ timeZone: "Europe/London", languages: ["en-GB"] }), "+44");
+eq("en-NG → +234", guess({ timeZone: "UTC", languages: ["en-NG"] }), "+234");
+eq("en-IN in Kolkata → +91 (not +1)", guess({ timeZone: "Asia/Kolkata", languages: ["en-US"] }), "+91");
+eq("a Nigerian browser on en-GB in Lagos → +234 (the time zone beats a default language)", guess({ timeZone: "Africa/Lagos", languages: ["en-GB", "en"] }), "+234");
+eq("a Filipino work laptop on US Eastern time but en-PH → +63 (a chosen language region beats the time zone)", guess({ timeZone: "America/New_York", languages: ["en-PH", "en-US"] }), "+63");
+eq("a zone we do not know, en-US → no code (never +1 by default)", guess({ timeZone: "Africa/Bangui", languages: ["en-US"] }), null);
+eq("UTC and en-US → +1 (the language is all there is)", guess({ timeZone: "UTC", languages: ["en-US"] }), "+1");
+eq("an Indiana zone (by prefix) → +1", guess({ timeZone: "America/Indiana/Knox", languages: [] }), "+1");
+eq("Australia/Perth → +61", guess({ timeZone: "Australia/Perth", languages: ["en-AU"] }), "+61");
 
 console.log("\nThe review's two numbers, typed into a +63 field:\n");
 {
@@ -72,6 +83,24 @@ console.log("\nThe review's two numbers, typed into a +63 field:\n");
   eq("a Manila landline '(02) 8123 4567'", P.phoneAnswer("+63", P.cleanPhoneInput("(02) 8123 4567", "+63", KNOWN).display), "+63 281 234 567");
   eq("an Iligan landline '063 221 1234' keeps its area code 63", P.phoneAnswer("+63", P.cleanPhoneInput("063 221 1234", "+63", KNOWN).display), "+63 632 211 234");
 }
+
+console.log("\nA number typed under a guessed +1 that is not a +1 number keeps every digit:\n");
+for (const [typed, code, saved] of [
+  ["09171234567", "+63", "+63 917 123 4567"],
+  ["08031234567", "+234", "+234 803 123 4567"],
+  ["07911123456", "+44", "+44 791 112 3456"],
+]) {
+  const under = typeInto(typed, "+1");
+  eq(`'${typed}' under +1 is kept whole`, under.display, typed);
+  eq(`…the field says to pick the country`, P.phoneHint("+1", under.display), P.PLUS_ONE_MISMATCH);
+  eq(`…and submit refuses it under +1`, P.phoneProblem("+1", under.display), P.PLUS_ONE_MISMATCH);
+  eq(`…switched to ${code}, the full number is saved`, P.phoneAnswer(code, P.cleanPhoneInput(under.display, code).display), saved);
+}
+eq("left under +1, nothing is cut either: '+1 09171234567', never '+1 091-712-3456'", P.phoneAnswer("+1", typeInto("09171234567", "+1").display), "+1 09171234567");
+eq("more than 11 digits under +1: kept, unformatted", P.cleanPhoneInput("234567890123", "+1").display, "234567890123");
+eq("a US number typed with its 1 in front formats once it is whole", typeInto("15551234567", "+1").display, "555-123-4567");
+eq("a +1 number with ten digits starting 2-9 is fine", P.phoneProblem("+1", "555-123-4567"), null);
+eq("a short +1 number is not", P.phoneProblem("+1", "555-1234"), P.WHOLE_NUMBER);
 
 console.log("\n+1 keeps its format and its ten digits:\n");
 eq("typed '5551234567'", P.cleanPhoneInput("5551234567", "+1").display, "555-123-4567");
@@ -113,6 +142,30 @@ console.log("\nSwitching the country re-reads what was typed:\n");
 eq("'917-123-4567' typed under +1, then +63", P.cleanPhoneInput("917-123-4567", "+63").display, "917 123 4567");
 eq("'917 123 4567' typed under +63, then +1", P.cleanPhoneInput("917 123 4567", "+1").display, "917-123-4567");
 
+console.log("\nA code pasted twice is taken off twice:\n");
+eq("'+1 +1 555 123 4567'", P.cleanPhoneInput("+1 +1 555 123 4567", "+1", KNOWN).display, "555-123-4567");
+eq("'+63 +63 917 123 4567'", P.phoneAnswer("+63", P.cleanPhoneInput("+63 +63 917 123 4567", "+63", KNOWN).display), "+63 917 123 4567");
+eq("'6363 917 123 4567' pasted without the plus", P.phoneAnswer("+63", P.cleanPhoneInput("63639171234567", "+63", KNOWN).display), "+63 917 123 4567");
+
+console.log("\nCountries whose numbers keep their 0:\n");
+eq("Côte d'Ivoire '07 07 12 34 56' keeps its 0", P.phoneAnswer("+225", P.cleanPhoneInput("0707123456", "+225", KNOWN).display), "+225 070 712 3456");
+eq("the Republic of the Congo keeps its 0", P.phoneAnswer("+242", P.cleanPhoneInput("06 123 4567", "+242").display), "+242 061 234 567");
+
+console.log("\nNo code picked yet:\n");
+eq("typed digits are kept, no code put in front", JSON.stringify(P.cleanPhoneInput("0917 123 4567", "", KNOWN)), JSON.stringify({ code: "", display: "0917 123 4567" }));
+eq("…the field asks for the country", P.phoneHint("", "0917 123 4567"), P.PICK_A_COUNTRY);
+eq("…and submit refuses it", P.phoneProblem("", "0917 123 4567"), P.PICK_A_COUNTRY);
+eq("a pasted international number picks the country itself", P.cleanPhoneInput("+234 803 123 4567", "", KNOWN).code, "+234");
+eq("the placeholder asks for the country first", P.phonePlaceholder(""), "Pick your country, then type your number");
+
+console.log("\nA required number must be a number:\n");
+eq("'0' is not a number", P.phoneProblem("+63", "0"), P.WHOLE_NUMBER);
+eq("'+' and '+6' (a code part-typed) are not", P.phoneProblem("+63", "+") ?? P.phoneProblem("+63", "+6"), P.WHOLE_NUMBER);
+eq("'+6' is not", P.phoneProblem("+63", "+6"), P.WHOLE_NUMBER);
+eq("six digits after +63 is not", P.phoneProblem("+63", "917 123"), P.WHOLE_NUMBER);
+eq("a whole Philippine mobile is", P.phoneProblem("+63", "0917 123 4567"), null);
+eq("empty is for the required check, not this one", P.phoneProblem("+63", ""), null);
+
 console.log("\nNothing typed is nothing saved:\n");
 eq("empty", P.phoneAnswer("+63", ""), "");
 eq("only the national 0", P.phoneAnswer("+63", "0"), "");
@@ -138,7 +191,10 @@ console.log("\nThe form's wiring, from its source:\n");
 {
   const src = await readFile(path.join(ROOT, "src/pages/ApplicationFormPhase.tsx"), "utf8");
   check("the old ten-digit formatter is gone", !/const formatPhoneNumber\b/.test(src) && !/formatPhoneNumber\(/.test(src));
-  check("the default code comes from the browser", /guessDialCode\(browserLocaleHints\(\)\)/.test(src));
+  check("the default code comes from the browser, against the selector's own list, and is never assumed", /guessDialCode\(browserLocaleHints\(\), countryCodes\) \?\? ""/.test(src));
+  check("the field asks the browser for the WHOLE number (autoComplete tel, not tel-national)", /autoComplete="tel"/.test(src) && !/tel-national/.test(src));
+  check("a phone answer is checked as it will be saved, on Continue and live", /const problem = phoneProblem\(dialCodeFor\(q\.id\), answers\[q\.id\]\)/.test(src) && /message = phoneProblem\(phoneCode \?\? dialCodeFor\(question\.id\), value\)/.test(src));
+  check("the hint shows under the field", /phoneHint\(dialCodeFor\(question\.id\), answers\[question\.id\]\)/.test(src));
   check("the selector shows the same code that is saved", /value=\{dialCodeFor\(question\.id\)\}/.test(src) && /phoneAnswer\(dialCodeFor\(q\.id\), answers\[q\.id\]\)/.test(src));
   check("the field cleans with the known codes", /cleanPhoneInput\(e\.target\.value, dialCodeFor\(question\.id\), KNOWN_DIAL_CODES\)/.test(src));
   check("the draft carries the shown code too", /phoneCountryCodes: draftPhoneCodes/.test(src));

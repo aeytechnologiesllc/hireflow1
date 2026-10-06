@@ -72,7 +72,7 @@ export default [
       // was the exact regression: prev[question.id] is gone the instant the
       // field is fixed, so a second call for the same question can never
       // reinstate the warning.
-      const syncFnBody = fnBody("const syncQuestionError = (question: ApplicationQuestion, value: string)");
+      const syncFnBody = fnBody("const syncQuestionError = (question: ApplicationQuestion, value: string");
       if (!syncFnBody) {
         bad.push("syncQuestionError() is missing or was renamed — update this guard's regex");
       } else {

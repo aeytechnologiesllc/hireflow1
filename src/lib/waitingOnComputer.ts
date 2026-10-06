@@ -6,7 +6,7 @@
  * screen shows instead of the test. Until now it wrote nothing, so the hiring
  * team could not tell "has not opened the step" from "stuck at the gate on a
  * phone". This asks public.mark_waiting_on_computer
- * (supabase/migrations/20261006200000_waiting_on_computer.sql) to stamp
+ * (supabase/migrations/20261006191020_waiting_on_computer.sql) to stamp
  * applications.notes.waiting_on_computer = {step_id, at, device_kind}, which
  * the staff record and the applicants list read as "Waiting to continue on a
  * computer".

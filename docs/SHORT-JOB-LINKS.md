@@ -173,6 +173,28 @@ What the review found, and what changed:
 - **A name the site cannot open is no short link** (`usableSlug`): the
   database only checks the shape, so a job saved as `dashboard` or `login`
   without the editor keeps its old link everywhere and is never forwarded.
+- **The crawlers' prerender refuses those names too** (second review): it
+  keeps a pinned copy of `RESERVED_SLUGS` (`api/job-prerender.mjs` takes no
+  imports; `scripts/short_job_links.test.mjs` fails when the two differ), so a
+  job named `privacy` or `jobs` through the API is never what Googlebot sees
+  at `hireflownow.com/privacy`. Not built: a CHECK or trigger on `jobs.slug`
+  refusing the list, which would make the editor, the API and the crawler
+  follow one rule (a migration; the list would then live in SQL as well).
+- **More crawlers get the preview**: Pinterest's own fetcher (`Pinterest/`),
+  Search Console's live test (`Google-InspectionTool`), `GoogleOther`,
+  Snapchat, Embedly and Iframely.
+- **One address, two answers**: `/<slug>` is the job's prerender for
+  crawlers and the plain app for people, so every prerender answer for a
+  short link says `Vary: User-Agent`. Not proven on Vercel's cache yet; after
+  the deploy, check both orders:
+  `curl -sI -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/129.0" https://hireflownow.com/team-lead`,
+  then at once `curl -s -A "facebookexternalhit/1.1" https://hireflownow.com/team-lead | grep og:title`
+  (and `WhatsApp/2.23.20.0 A`, `Slackbot-LinkExpanding 1.0`), noting
+  `x-vercel-cache` each time; then the crawler first and the browser second.
+  The crawler must always get the job's `og:title` and the browser the app.
+  If either leaks, answer every `?slug=` request with
+  `Cache-Control: private, no-store` (only crawlers ever get them), or add a
+  `headers` rule for `/:slug` with `Vary: User-Agent` in `vercel.json`.
 - **Renaming, clearing or deleting a short link warns first.** The field says
   the old link will stop working, Save asks ("Change the job's link?"), and
   the Jobs page's delete text says the link stops working. Nothing forwards

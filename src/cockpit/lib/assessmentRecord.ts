@@ -44,6 +44,7 @@ import type { CandidateJourneyStep, WorkflowStepLike } from "@/lib/candidateJour
 import { isRetakeOpen, stepHasResult } from "@/lib/journeyProgress";
 import { parseApplicationNotes } from "@/lib/applicationNotes";
 import { stepNeedsComputer } from "@/lib/deviceGate";
+import { phoneAnswer } from "@/lib/phoneNumber";
 
 /* ── Shapes ────────────────────────────────────────────────────────────── */
 
@@ -842,7 +843,7 @@ export function sessionLiveStatus(session: AssessmentSessionRow, now: number, ti
 
 /** The stamp public.mark_waiting_on_computer writes when the "Continue on
  *  your computer" screen shows on a phone or a tablet
- *  (supabase/migrations/20261006200000_waiting_on_computer.sql). */
+ *  (supabase/migrations/20261006191020_waiting_on_computer.sql). */
 export interface WaitingOnComputer {
   stepId: string;
   /** When they first reached the screen for this step (ISO). */
@@ -850,17 +851,24 @@ export interface WaitingOnComputer {
   deviceKind: "phone" | "tablet";
 }
 
+/** How far ahead of now a stamp's time may be (clock skew) before it is ignored. */
+export const WAITING_STAMP_MAX_AHEAD_MS = 60_000;
+
 /** notes.waiting_on_computer = {step_id, at, device_kind}, or null unless
  *  every part is there and sound. The applicant can write this key
  *  themselves; it only ever describes them, and the builder still checks its
- *  step against the job (stepNeedsComputer) and the attempts. */
-export function waitingOnComputerOf(notes: unknown): WaitingOnComputer | null {
+ *  step against the job (stepNeedsComputer) and the attempts. A stamp dated
+ *  more than a minute in the FUTURE is ignored: one written by hand with a
+ *  far-off `at` used to read "Active now" forever and outrank every later
+ *  attempt. */
+export function waitingOnComputerOf(notes: unknown, now: number = Date.now()): WaitingOnComputer | null {
   const w = obj(obj(notes)?.waiting_on_computer);
   const stepId = str(w?.step_id);
   const at = str(w?.at);
   const kind = w?.device_kind;
   const ms = at != null ? Date.parse(at) : NaN;
   if (!stepId || !Number.isFinite(ms) || (kind !== "phone" && kind !== "tablet")) return null;
+  if (ms > now + WAITING_STAMP_MAX_AHEAD_MS) return null;
   return { stepId, at: new Date(ms).toISOString(), deviceKind: kind };
 }
 
@@ -2205,8 +2213,9 @@ function draftDetail(ctx: BuildContext, session: AssessmentSessionRow): Assessme
     } else if (typeof value === "number" || typeof value === "boolean") {
       answer = String(value);
     }
-    const code = str(codes[id]);
-    if (code && answer.trim() && (type === "phone" || type === "tel")) answer = `${code} ${answer}`;
+    // The number as it will be SAVED on submit (phoneAnswer, the form's own
+    // rule): "+63 917 123 4567", never the raw "+63 0917 …" or a code twice.
+    if (answer.trim() && (type === "phone" || type === "tel")) answer = phoneAnswer(str(codes[id]) ?? "", answer);
     const upload = files.get(id);
     answers.push({
       id,
@@ -2417,7 +2426,7 @@ export function buildAssessmentRecord(app: AssessmentAppInput | null | undefined
   const entries: AssessmentEntry[] = [];
   const earlierGroups: Array<{ key: string; title: string; tally: IntegrityTally; sessionId: string; attempt: number }> = [];
   // At the "Continue on your computer" screen on a phone or a tablet.
-  const waiting = waitingOnComputerOf(notes);
+  const waiting = waitingOnComputerOf(notes, now);
   const waitingLives: LiveStatus[] = [];
   journey.forEach((step, i) => {
     let resultOnFile: boolean;

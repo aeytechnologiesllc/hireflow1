@@ -33,6 +33,7 @@ import {
   withoutNulCharacters,
 } from "../supabase/functions/_shared/trustedResults.ts";
 import { buildCandidateJourney, DECISION_STAGE_ID } from "../supabase/functions/_shared/candidateJourney.ts";
+import { readChatInterviewResult, readChatSimulationResult } from "../supabase/functions/_shared/autopilot.ts";
 
 let passed = 0;
 let failed = 0;
@@ -1397,6 +1398,44 @@ console.log("\nwithoutNulCharacters: jsonb refuses a NUL, so patches never carry
     rpcCall && !JSON.stringify(rpcCall.args.p_patch).includes("\\u0000") && rpcCall.args.p_patch.chatSimulationResult.messages[0].content === "pasted�text",
     rpcCall ? JSON.stringify(rpcCall.args.p_patch) : "no rpc call",
   );
+}
+
+// ============================================================================
+// An ungraded result (2026-10-06): when the chat practice's or the written
+// interview's grader fails, the result is stored with `graded: false` and no
+// score. The candidate DID finish the step, so it still lands and they move
+// on; only Ava's scoring treats it as not taken (and tells the owner to
+// re-grade it). Neither half may borrow the other's answer.
+// ============================================================================
+console.log("\nAn ungraded result still moves the candidate on, and is not a score:\n");
+{
+  const ungradedNotes = JSON.stringify({
+    applicationAnswers: [{ question: "Name", answer: "A" }],
+    chatSimulationResult: { graded: false, score: null, completed: true, messageCount: 8 },
+    chatInterviewResult: { evaluation: { graded: false, score: null }, messages: [{ role: "user", content: "hi" }] },
+    _trusted: {
+      step_chat: { stepType: "chat_simulation", completedAt: "2026-10-06T10:30:00Z" },
+      step_interview: { stepType: "chat_interview", completedAt: "2026-10-06T10:50:00Z" },
+    },
+  });
+  const chatStep = ZULU.find((step) => step.id === "step_chat");
+  const interviewStep = ZULU.find((step) => step.id === "step_interview");
+  check("an ungraded chat practice still lands (the candidate finished it)", stepResultLanded(chatStep, { phase: "step_chat", status: "reviewing", notes: ungradedNotes }));
+  check("an ungraded written interview still lands", stepResultLanded(interviewStep, { phase: "step_interview", status: "reviewing", notes: ungradedNotes }));
+  const plan = planAutoAdvance({
+    steps: ZULU,
+    completedStepId: "step_chat",
+    application: { phase: "step_chat", status: "reviewing", notes: ungradedNotes },
+    processingMode: "auto",
+  });
+  check("so the advance moves them to the next step instead of refusing", plan.kind === "advance" && plan.nextStep.id === "step_interview", JSON.stringify(plan));
+  const legacy = JSON.stringify({ chatSimulationResult: { graded: false, score: 70 } });
+  check("a legacy row (no markers) with an ungraded result lands too", stepResultLanded(chatStep, { phase: "step_chat", status: "reviewing", notes: legacy }));
+  const parsed = JSON.parse(ungradedNotes);
+  check("while the scorer reads the chat practice as no score", readChatSimulationResult(parsed.chatSimulationResult)?.score === null && readChatSimulationResult(parsed.chatSimulationResult)?.graded === false);
+  check("and the written interview (nested shape) as no score", readChatInterviewResult(parsed.chatInterviewResult)?.score === null && readChatInterviewResult(parsed.chatInterviewResult)?.graded === false);
+  check("a placeholder 70 marked graded:false is still no score", readChatSimulationResult({ graded: false, score: 70 })?.score === null);
+  check("a graded 0 is a score", readChatSimulationResult({ score: 0 })?.score === 0 && readChatInterviewResult({ score: 0 })?.score === 0);
 }
 
 console.log(`\n${passed} passed, ${failed} failed.`);

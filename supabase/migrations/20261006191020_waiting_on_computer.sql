@@ -25,7 +25,10 @@
 --     not finished: assessment_step_access, the record's own rule, raises
 --     42501 not_signed_in / not_your_application, HF001 application_closed,
 --     HF002 unknown_step, HF003 step_not_reached; a finished step raises
---     HF004 step_finished, as every candidate function here does.
+--     HF004 step_finished, as every candidate function here does. An
+--     application at 'interview' is refused too (HF001): every reader treats
+--     it as decided, and a write here moved updated_at, which the applicants
+--     list reads as "Decided today".
 --   * Which steps: only a step the computer-only rule covers (the job's first
 --     equipment_check and every step after it; with no connection check, the
 --     first typing test, chat practice, sales practice, written or voice
@@ -34,10 +37,19 @@
 --     supabase/functions/_shared/deviceKind.ts. Any other step: HF002.
 --   * Which devices: 'phone' or 'tablet' (22023 otherwise). A computer never
 --     sees the screen.
---   * At most once per step: a stamp already naming this step is left
---     exactly as it is (its `at` is when they FIRST hit the gate) and the
---     call answers stamped = false. Idempotent under concurrency: the row is
---     locked before the stamp is read.
+--   * At most once per VISIT to the gate: a stamp already naming this step is
+--     left exactly as it is (its `at` is when they FIRST hit the gate) and
+--     the call answers stamped = false, unless something happened on the step
+--     since it was written: an attempt on the step started or moved
+--     (assessment_sessions.started_at / last_activity_at at or after the
+--     stamp), or staff reopened it (assessment_step_reopens.reopened_at at or
+--     after the stamp). Then they came back to the gate later (a retake, or
+--     after starting on a computer) and a FRESH stamp is written: the record
+--     shows the line only while every attempt is older than the stamp, so the
+--     old one hid them for good. A stamp whose time cannot be read, or that
+--     is dated in the future (the applicant can write this key), is replaced
+--     too. Idempotent under concurrency: the row is locked before the stamp
+--     is read.
 --   * The write is merge_application_notes (the one atomic notes path): only
 --     the waiting_on_computer key, so a step result or a scorecard landing at
 --     the same moment is never erased. updated_at moves, as on every write.
@@ -81,7 +93,9 @@ DECLARE
   v_index    integer;
   v_start    integer;
   v_notes    jsonb;
+  v_status   text;
   v_existing jsonb;
+  v_existing_at timestamptz;
   v_stamp    jsonb;
 BEGIN
   IF p_device_kind IS NULL OR p_device_kind NOT IN ('phone', 'tablet') THEN
@@ -124,15 +138,42 @@ BEGIN
   END IF;
 
   -- Lock the row, then read: two screens showing at once stamp it once.
-  SELECT public.assessment_notes_object(a.notes)
-    INTO v_notes
+  SELECT public.assessment_notes_object(a.notes), a.status::text
+    INTO v_notes, v_status
     FROM public.applications a
    WHERE a.id = p_application_id
    FOR UPDATE;
 
+  -- At the interview stage the application is decided for every reader
+  -- (DECIDED_STATUSES): nothing waits on a computer, and nothing is written.
+  IF v_status = 'interview' THEN
+    RAISE EXCEPTION 'application_closed' USING ERRCODE = 'HF001',
+      DETAIL = 'This application is at the interview stage.';
+  END IF;
+
   v_existing := v_notes -> 'waiting_on_computer';
   IF jsonb_typeof(v_existing) = 'object' AND v_existing ->> 'step_id' = p_step_id THEN
-    RETURN jsonb_build_object('stamped', false, 'waiting_on_computer', v_existing);
+    BEGIN
+      v_existing_at := (v_existing ->> 'at')::timestamptz;
+    EXCEPTION WHEN others THEN
+      v_existing_at := NULL;
+    END;
+    -- Kept only while nothing has happened on the step since it was written.
+    IF v_existing_at IS NOT NULL
+       AND v_existing_at <= now() + interval '1 minute'
+       AND NOT EXISTS (
+         SELECT 1 FROM public.assessment_sessions s
+          WHERE s.application_id = p_application_id
+            AND s.step_id = p_step_id
+            AND greatest(s.started_at, s.last_activity_at) >= v_existing_at)
+       AND NOT EXISTS (
+         SELECT 1 FROM public.assessment_step_reopens r
+          WHERE r.application_id = p_application_id
+            AND r.step_id = p_step_id
+            AND r.reopened_at >= v_existing_at)
+    THEN
+      RETURN jsonb_build_object('stamped', false, 'waiting_on_computer', v_existing);
+    END IF;
   END IF;
 
   v_stamp := jsonb_build_object(
@@ -150,4 +191,4 @@ REVOKE ALL ON FUNCTION public.mark_waiting_on_computer(uuid, text, text) FROM PU
 GRANT EXECUTE ON FUNCTION public.mark_waiting_on_computer(uuid, text, text) TO authenticated;
 
 COMMENT ON FUNCTION public.mark_waiting_on_computer(uuid, text, text) IS
-  'The applicant''s own call from the "Continue on your computer" screen: stamps applications.notes.waiting_on_computer = {step_id, at, device_kind} once per step (a stamp naming the step is kept as it is), on a reached, unfinished step the computer-only rule covers, for a phone or a tablet. Opens no attempt and writes nothing else. Readers ignore the stamp once the step has a result, the application is decided, or an attempt on the step has moved since. docs/COMPUTER-ONLY-TESTS.md.';
+  'The applicant''s own call from the "Continue on your computer" screen: stamps applications.notes.waiting_on_computer = {step_id, at, device_kind} once per visit to the gate (a stamp naming the step is kept as it is unless an attempt on the step moved or the step was reopened since, or its time is unreadable or in the future), on a reached, unfinished step the computer-only rule covers, for a phone or a tablet, on an application not yet decided (interview included). Opens no attempt and writes nothing else. Readers ignore the stamp once the step has a result, the application is decided, or an attempt on the step has moved since. docs/COMPUTER-ONLY-TESTS.md.';

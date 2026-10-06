@@ -755,6 +755,20 @@ export default function ChatSimulationPhase() {
           waitForServerCheck(outcome === "on_file", resultBeforeSend);
           return;
         }
+        if (evalResponse.status === 409 && errorData?.code === "chat_not_recorded") {
+          // None of this chat was saved as it was written (the server holds
+          // no reply of theirs), so it cannot be checked: the server grades
+          // only the chat it saved. Start it again, saved this time, rather
+          // than leave them pressing send on a chat that can never go.
+          advance.cancel();
+          clearConversationDraft();
+          setMessages([]);
+          setCurrentScenario(null);
+          setCustomerUnavailable(false);
+          setState("intro");
+          toast.error(errorData?.error || "This chat wasn't saved as you wrote it. Please start it again.");
+          return;
+        }
         throw new Error(errorData?.error || "Failed to record chat simulation result");
       }
 
@@ -1282,7 +1296,7 @@ export default function ChatSimulationPhase() {
                   <div className="space-y-1.5">
                     <h2 className="font-display ck-ink text-2xl text-foreground sm:text-3xl">Sent</h2>
                     <p className="text-sm text-muted-foreground">
-                      Your conversation is saved. The hiring team will get back to you — you can close this page.
+                      Your conversation is saved. The hiring team opens your next step — you can close this page, your place is kept.
                     </p>
                   </div>
                   <Button onClick={() => navigate(`/applications/${id}`)} className="w-full gap-2 sm:w-auto">

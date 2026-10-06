@@ -15,7 +15,9 @@
  *     `{ messageCount, duration, score, strengths, concerns,
  *     recommendation, completed, antiCheatSummary }` — `duration` a number
  *     of seconds, the evaluation's fields flattened onto the result
- *     directly instead of nested.
+ *     directly instead of nested. Since 2026-10-06 it also carries the
+ *     grader's `summary`, `credibilityRating` and `inconsistencies` flat
+ *     (REVIEW_RESULT_KEYS), which the auto-end shape always had nested.
  *
  * Both shapes are real, currently-read shapes (trigger-ava-analysis and
  * CondensedAIAnalysis.tsx both fall back across `.score`, `.evaluation?.score`,
@@ -34,13 +36,60 @@
 export type ChatInterviewSubmitPath = "auto_end" | "manual";
 
 export interface EvaluationResult {
-  score?: number;
+  /** null only when the interview was not graded (`graded: false`). */
+  score?: number | null;
   strengths?: string[];
   concerns?: string[];
-  recommendation?: string;
-  summary?: string;
+  recommendation?: string | null;
+  summary?: string | null;
+  /** false when the grader's model call failed or its answer could not be
+   *  read: nobody marked these answers. Absent means graded. */
+  graded?: boolean;
+  /** A team lead job only: each 0-100 from the lead plan
+   *  (interviewContext.ts), null for a MUST COVER topic never asked. */
+  leadership?: number | null;
+  adaptability?: number | null;
+  workingLead?: number | null;
+  writtenEnglish?: number;
+  /** The candidate's own words behind each lead mark (checked against their answers). */
+  leadEvidence?: Record<string, string>;
+  /** MUST COVER topics the interview never reached. */
+  mustCoverMissing?: string[];
+  /** A lead interview that ended before its plan was covered: graded, but flagged. */
+  incomplete?: true;
   [key: string]: unknown;
 }
+
+/**
+ * Nobody marked this interview (the model call failed, or its answer could
+ * not be read). It is NOT a 70 / "Maybe": no score, no recommendation, and
+ * the answers are kept on the result for re-grading.
+ */
+export function ungradedInterviewEvaluation(reason: string): EvaluationResult {
+  return {
+    graded: false,
+    score: null,
+    strengths: [],
+    concerns: [],
+    recommendation: null,
+    summary: null,
+    gradingError: reason,
+  };
+}
+
+const LEAD_RESULT_KEYS = ["leadership", "adaptability", "workingLead", "writtenEnglish", "leadEvidence", "mustCoverMissing", "incomplete"] as const;
+
+/**
+ * The grader's review of the interview, copied flat onto the End-button
+ * shape too (2026-10-06). The auto-end shape always carried them, nested
+ * under .evaluation; the End-button shape dropped them, so the same "Low"
+ * credibility interview read "review" with the flag one way and "advance"
+ * with no flag the other, and the judge never saw its summary or
+ * inconsistencies. A lead who stops early does it with End (the auto-end is
+ * refused under five answers). Every reader already accepts them flat
+ * (_shared/autopilot.ts readChatInterviewResult).
+ */
+const REVIEW_RESULT_KEYS = ["summary", "credibilityRating", "inconsistencies"] as const;
 
 export interface TranscriptMessageForNotes {
   role: string;
@@ -81,6 +130,7 @@ function buildAntiCheatSummary(violations: AntiCheatViolationForNotes[]) {
  * to `input.path`.
  */
 export function buildChatInterviewResult(input: BuildChatInterviewResultInput): Record<string, unknown> {
+  const ungraded = input.evaluation?.graded === false;
   if (input.path === "auto_end") {
     return {
       messages: input.messages,
@@ -88,10 +138,30 @@ export function buildChatInterviewResult(input: BuildChatInterviewResultInput): 
       questionCount: input.questionCount,
       violations: input.violations.length > 0 ? input.violations : undefined,
       evaluation: input.evaluation,
+      // Said on the result itself too (readers check flat or nested).
+      ...(ungraded ? { graded: false } : {}),
+      ...(!ungraded && input.evaluation?.incomplete === true ? { incomplete: true } : {}),
     };
   }
 
-  return {
+  if (ungraded) {
+    // No score and no recommendation: nobody marked it. The answers are
+    // kept here (this shape has no transcript otherwise) for re-grading.
+    return {
+      messageCount: input.messages.length,
+      duration: input.duration,
+      score: null,
+      strengths: [],
+      concerns: [],
+      recommendation: null,
+      completed: true,
+      antiCheatSummary: buildAntiCheatSummary(input.violations),
+      graded: false,
+      messages: input.messages,
+    };
+  }
+
+  const result: Record<string, unknown> = {
     messageCount: input.messages.length,
     duration: input.duration,
     score: input.evaluation?.score,
@@ -101,6 +171,12 @@ export function buildChatInterviewResult(input: BuildChatInterviewResultInput): 
     completed: true,
     antiCheatSummary: buildAntiCheatSummary(input.violations),
   };
+  // The grader's review, and a team lead job's own marks, ride along only
+  // when the grader gave them.
+  for (const key of [...REVIEW_RESULT_KEYS, ...LEAD_RESULT_KEYS]) {
+    if (input.evaluation?.[key] !== undefined) result[key] = input.evaluation[key];
+  }
+  return result;
 }
 
 /**
@@ -109,10 +185,20 @@ export function buildChatInterviewResult(input: BuildChatInterviewResultInput): 
  * handleSubmit: :647-648).
  */
 export function buildPhaseAiAnalysis(path: ChatInterviewSubmitPath, evaluation: EvaluationResult): string | null {
-  if (path === "auto_end") {
-    return evaluation?.summary || null;
+  if (evaluation?.graded === false) {
+    return "Interview: sent, not graded yet (the check failed). The answers are kept for re-grading.";
   }
-  return `Interview: ${evaluation?.recommendation} (${evaluation?.score}%). ${evaluation?.summary}`;
+  // A lead interview that ended before its plan was covered says so.
+  const missing = Array.isArray(evaluation?.mustCoverMissing) ? evaluation.mustCoverMissing : [];
+  const incomplete = evaluation?.incomplete === true
+    ? `Ended before the plan was covered${missing.length > 0 ? ` (not asked: ${missing.join(", ")})` : ""}.`
+    : null;
+  if (path === "auto_end") {
+    const summary = evaluation?.summary || null;
+    return incomplete ? [summary, incomplete].filter(Boolean).join(" ") : summary;
+  }
+  const text = `Interview: ${evaluation?.recommendation} (${evaluation?.score}%). ${evaluation?.summary}`;
+  return incomplete ? `${text} ${incomplete}` : text;
 }
 
 /**

@@ -94,13 +94,19 @@ use.
 - Staff: **built (2026-10-06).** When the "Continue on your computer"
   screen shows, it makes ONE write, once per step:
   `public.mark_waiting_on_computer(application, step, device_kind)`
-  (`supabase/migrations/20261006200000_waiting_on_computer.sql`, called
+  (`supabase/migrations/20261006191020_waiting_on_computer.sql`, called
   through `src/lib/waitingOnComputer.ts`) stamps
   `applications.notes.waiting_on_computer = {step_id, at, device_kind}`.
   SECURITY DEFINER; only the application's own signed-in applicant may call
   it (revoked from PUBLIC and anon), on a reached, unfinished step the rule
-  above covers, from a phone or a tablet; a stamp already naming the step is
-  kept as it is (`at` = the first time they hit the gate). It goes through
+  above covers, from a phone or a tablet, on an application not yet decided
+  (one at `interview` is refused, HF001, as every reader treats it as
+  decided); a stamp already naming the step is kept as it is (`at` = the
+  first time they hit the gate) unless something happened on the step since
+  (an attempt started or moved, or staff reopened it) or its time is
+  unreadable or in the future: then a fresh stamp is written, so a later
+  visit to the gate (a retake, or after starting on a computer) is shown
+  again. It goes through
   `merge_application_notes`, opens no attempt, records no event and changes
   no status or phase. **Not applied to production yet**: until it is, the
   call fails quietly (logged) and staff see what they saw before.
@@ -115,7 +121,8 @@ use.
   since the stamp (they went to the computer), the step is not theirs now,
   or the rule does not cover it. The applicant could write the key
   themselves (notes outside the protected subsets are theirs); it only ever
-  describes them. The connection check's old phone hint is gone with the
+  describes them, and a stamp dated more than a minute in the future is
+  ignored (it used to read "Active now" forever). The connection check's old phone hint is gone with the
   gate: `earlierNoOf`'s phone/tablet branch (ConnectionCheckPhase) no longer
   fires for new visits, because a phone never reaches that page, so someone
   who opened the check on a phone and then took it on their computer reads

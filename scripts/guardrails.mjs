@@ -981,7 +981,7 @@ const guards = [
         !(
           /cleanPhoneInput\(e\.target\.value, dialCodeFor\(question\.id\), KNOWN_DIAL_CODES\)/.test(phone) &&
           /export function cleanPhoneInput\(/.test(phoneLib) &&
-          /knownCodeAtStart\(digits, \[\.\.\.\(knownCodes \?\? \[\]\), shown\]\)/.test(phoneLib) &&
+          /knownCodeAtStart\(digits, \[\.\.\.\(knownCodes \?\? \[\]\), (?:shown|\.\.\.\(shown \? \[shown\] : \[\]\))\]\)/.test(phoneLib) &&
           /phoneAnswer\(dialCodeFor\(q\.id\), answers\[q\.id\]\)/.test(form)
         )
       ) {

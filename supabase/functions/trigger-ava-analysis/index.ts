@@ -12,11 +12,23 @@ import {
   buildAvaScorecard,
   buildEvidenceFingerprint,
   computeJudgmentScore,
+  familyPhaseWeights,
+  formatQuizAreas,
+  formDealBreakersFrom,
+  formReviewFlagsFrom,
+  highSignalProgress,
   inferJobFamily,
+  orphanFlagOptions,
+  phaseBlendScore,
+  quizAreaBreakdown,
+  quizAreaLabel,
   readChatInterviewResult,
+  readChatSimulationResult,
+  readQuizResult,
   resolveAutopilotAction,
   type AvaScorecard,
   type AutopilotAction,
+  type ConflictNote,
 } from "../_shared/autopilot.ts";
 import { buildCandidateJourney, type WorkflowStepLike } from "../_shared/candidateJourney.ts";
 import {
@@ -38,7 +50,37 @@ import { connectionEvidenceLine, recordedEquipmentCheck } from "../_shared/conne
 // part-way; dealBreakerFlags), and the written interview is read in both of
 // its shapes. Bumping it re-runs a frozen analysis once instead of reusing a
 // scorecard built on the old rules.
-const ANALYSIS_VERSION = 5;
+// 6 (2026-10-06): team-lead scoring (tests 0.65 / judgment 0.35 once the
+// tests are done, judgment counted once, leadership and adaptability
+// evidence), "advance" needs every hard requirement met, a recommended
+// decline sorts below the pass mark, a finished test's own result is never a
+// conflict, form deal-breakers, a real 0 is a score, an ungraded result is
+// not, and the judge now sees responsibilities, the skills check by area and
+// the interview's concerns.
+// 7 (2026-10-06, second pass): the judge says where each conflict came from
+// (a finished test's own result is never a conflict); the interview's
+// credibility is a review flag, not a verdict; availability is read from the
+// form, never from the judge's prose; more measured shortfalls keep a card off
+// "advance"; a decline-grade flag sorts below the pass mark mid-way; a lead
+// job's tests weigh in proportion to the tests it has; the judge's narrative
+// number is used when it returns no sub-scores; the resume penalty applies
+// only when a resume was asked for or sent; and the team-lead judge rates the
+// application only, never the tests.
+// 8 (2026-10-06, third pass): the escalated chat practice's own findings (a
+// new promise or disrespect in the lead's own words, what capped the score, a
+// chat the grader wants a person to read) and the lead interview's own marks
+// (leadership, adaptability, working lead, written English, an interview cut
+// short and the topics it never asked) reach the judge, the fingerprint and
+// the scorecard's flags; a test graded from the page's own transcript
+// (transcriptSource "browser") is flagged as not trusted.
+const ANALYSIS_VERSION = 8;
+
+/** What capped a lead's escalated chat score, in words (readChatSimulationResult.cappedBy). */
+const CHAT_CAP_LABELS: Record<string, string> = {
+  new_promise: "a new promise",
+  disrespect: "disrespect to the player",
+  tone: "tone",
+};
 
 // Supabase's hosted edge runtime keeps a worker alive for a promise handed to
 // EdgeRuntime.waitUntil after the response has been sent (up to the 400 s
@@ -64,10 +106,38 @@ interface StructuredScore {
   attentionToDetailScore: number;
   authenticityScore: number;
   specificityScore: number;
+  /** Team-lead jobs only (ai-analyze asks for them when context.job_family is "team_lead"). */
+  leadershipEvidenceScore?: number | null;
+  adaptabilityEvidenceScore?: number | null;
   hardRequirementConflicts: string[];
+  /**
+   * Where each conflict came from, index for index ("application", "resume",
+   * "interview", or "test:<name>" for a test's own result). Built by
+   * ai-analyze's sanitizer from the judge's { text, source } objects, so the
+   * two arrays always line up; absent from an older ai-analyze.
+   */
+  hardRequirementConflictSources?: Array<string | null>;
   transferableEvidence: string[];
   confidence: number;
   summary: string;
+}
+
+/** The judge's conflicts with their sources, as autopilot.ts reads them (a plain string when no source came back). */
+function sourcedConflictNotes(structured: StructuredScore | null | undefined): ConflictNote[] {
+  const texts = Array.isArray(structured?.hardRequirementConflicts) ? structured!.hardRequirementConflicts : [];
+  const sources = Array.isArray(structured?.hardRequirementConflictSources) ? structured!.hardRequirementConflictSources : [];
+  return texts.map((text, index) => {
+    const source = sources[index];
+    return typeof source === "string" && source.trim() ? { text, source: source.trim() } : text;
+  });
+}
+
+/** A finite number or null: a real 0 stays 0 (`x || null` made it "not taken"). */
+function finiteOrNull(...values: unknown[]): number | null {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+  }
+  return null;
 }
 
 function jsonResponse(body: Record<string, unknown>, status = 200) {
@@ -75,24 +145,6 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
     JSON.stringify(body),
     { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
   );
-}
-
-function weightedAverage(values: Array<{ value: number | null | undefined; weight: number }>, fallback: number) {
-  let weightedTotal = 0;
-  let weightTotal = 0;
-
-  for (const entry of values) {
-    if (typeof entry.value === "number" && Number.isFinite(entry.value)) {
-      weightedTotal += entry.value * entry.weight;
-      weightTotal += entry.weight;
-    }
-  }
-
-  if (weightTotal === 0) {
-    return fallback;
-  }
-
-  return weightedTotal / weightTotal;
 }
 
 function getAutopilotNextPhase(params: {
@@ -663,7 +715,29 @@ Purpose: This is a supplementary document for the above question. It is NOT a re
     // Fall back to profile only if not provided in application
     const candidateName = applicationName || profile?.full_name || "Unknown";
     const candidateEmail = applicationEmail || "Not provided in application";
-    const quizData = parsedNotes.quizResult || parsedNotes.quiz;
+    // Every step's result, read once and the same way for the fingerprint,
+    // the judge's content and the score. A real 0 is a score; a result the
+    // grader marked `graded: false` is not (2026-10-06).
+    const inferredFamily = inferJobFamily(job?.title || null, job?.description || null);
+    const teamLead = inferredFamily === "team_lead";
+    const quizReading = readQuizResult(parsedNotes);
+    const quizAreas = quizAreaBreakdown(quizReading?.answers, job?.quiz_questions);
+    const chatSimulation = readChatSimulationResult(parsedNotes.chatSimulationResult);
+    const salesSimulation = readChatSimulationResult(parsedNotes.salesSimulationResult);
+    const chatInterview = readChatInterviewResult(parsedNotes.chatInterviewResult);
+    // The owner's own deal-breaker answers on the form (questions with
+    // flag_options / flag_label in jobs.application_questions).
+    const formDealBreakers = formDealBreakersFrom(job?.application_questions, applicationAnswers);
+    // …and the answers he marked for review only (flag_severity "review"):
+    // shown, never a decline (partial shift cover, "Never" led a team).
+    const formReviewFlags = formReviewFlagsFrom(job?.application_questions, applicationAnswers);
+    // A flag the owner set on an option he has since renamed catches nobody;
+    // say so in the log until the job editor refuses it on save.
+    const orphanFlags = orphanFlagOptions(job?.application_questions);
+    if (orphanFlags.length > 0) {
+      console.warn("[trigger-ava-analysis] flag_options that match none of their question's options (they catch nobody):", orphanFlags);
+    }
+    const typingRequiredWpmForFlag = finiteOrNull(parsedNotes.typingTestResult?.requiredWpm, job?.required_wpm);
     // The computer and connection check (docs/EQUIPMENT-CHECK.md §6): read
     // here, once, for the fingerprint, the content block, the scorecard's
     // flags and inputsUsed. It MUST be part of the fingerprint: otherwise the
@@ -686,29 +760,48 @@ Purpose: This is a supplementary document for the above question. It is NOT a re
         answer: answer.answer,
       })),
       coverLetter: application.cover_letter || null,
-      quizResult: quizData
+      quizResult: quizReading
         ? {
-            score: quizData.score || quizData.percentage || null,
-            correct: quizData.correct || null,
-            total: quizData.total || null,
-            passed: quizData.passed ?? null,
+            score: quizReading.score,
+            correct: quizReading.correct,
+            total: quizReading.total,
+            passed: quizReading.passed,
+            missedAreas: quizAreas.missed,
           }
         : null,
       typingTest: parsedNotes.typingTestResult
         ? {
-            score: parsedNotes.typingTestResult.score || null,
-            wpm: parsedNotes.typingTestResult.wpm || null,
-            accuracy: parsedNotes.typingTestResult.accuracy || null,
-            requiredWpm: parsedNotes.typingTestResult.requiredWpm || null,
+            score: finiteOrNull(parsedNotes.typingTestResult.score),
+            wpm: finiteOrNull(parsedNotes.typingTestResult.wpm),
+            accuracy: finiteOrNull(parsedNotes.typingTestResult.accuracy),
+            requiredWpm: typingRequiredWpmForFlag,
           }
         : null,
-      chatSimulation: parsedNotes.chatSimulationResult
+      chatSimulation: chatSimulation
         ? {
-            score: parsedNotes.chatSimulationResult.score || parsedNotes.chatSimulationResult.overallScore || null,
-            empathy: parsedNotes.chatSimulationResult.empathy || null,
-            problemSolving: parsedNotes.chatSimulationResult.problemSolving || null,
+            score: chatSimulation.score,
+            graded: chatSimulation.graded,
+            empathy: chatSimulation.empathy,
+            problemSolving: chatSimulation.problemSolving,
+            improvements: chatSimulation.improvements,
+            // The escalated rubric's own findings, and where the transcript
+            // came from: each changes what the judge and the owner are told.
+            rubric: chatSimulation.rubric,
+            ownership: chatSimulation.ownership,
+            correctedAgent: chatSimulation.correctedAgent,
+            newPromiseMade: chatSimulation.newPromiseMade,
+            newPromiseQuote: chatSimulation.newPromiseQuote,
+            newPromiseUnverified: chatSimulation.newPromiseUnverified,
+            disrespectMade: chatSimulation.disrespectMade,
+            disrespectQuote: chatSimulation.disrespectQuote,
+            cappedBy: chatSimulation.cappedBy,
+            needsReview: chatSimulation.needsReview,
+            reviewReasons: chatSimulation.reviewReasons,
+            transcriptSource: chatSimulation.transcriptSource,
           }
         : null,
+      formDealBreakers,
+      formReviewFlags,
       equipmentCheck: equipmentCheck
         ? {
             downloadMbps: equipmentCheck.downloadMbps,
@@ -721,30 +814,36 @@ Purpose: This is a supplementary document for the above question. It is NOT a re
           }
         : null,
       // Both of the interview's result shapes (flat and nested under
-      // .evaluation) — the auto-end shape used to read as all-null here.
-      chatInterview: readChatInterviewResult(parsedNotes.chatInterviewResult),
+      // .evaluation) — the auto-end shape used to read as all-null here —
+      // with its concerns, credibility and inconsistencies, a lead's own
+      // marks and quotes, whether it was cut short (incomplete,
+      // mustCoverMissing) and where its transcript came from: the whole
+      // reading, so every field it carries is in the fingerprint.
+      chatInterview,
       salesSimulation: parsedNotes.salesSimulationResult
         ? {
-            score: parsedNotes.salesSimulationResult.score || parsedNotes.salesSimulationResult.overallScore || null,
-            discovery: parsedNotes.salesSimulationResult.discovery || null,
-            objectionHandling: parsedNotes.salesSimulationResult.objectionHandling || null,
+            score: salesSimulation?.score ?? null,
+            graded: salesSimulation?.graded ?? true,
+            transcriptSource: salesSimulation?.transcriptSource ?? null,
+            discovery: finiteOrNull(parsedNotes.salesSimulationResult.discovery),
+            objectionHandling: finiteOrNull(parsedNotes.salesSimulationResult.objectionHandling),
           }
         : null,
       videoIntro: parsedNotes.videoIntroResult || parsedNotes.videoIntroUrl
         ? {
-            score: parsedNotes.videoIntroResult?.score || null,
+            score: finiteOrNull(parsedNotes.videoIntroResult?.score),
             submitted: !!parsedNotes.videoIntroUrl,
           }
         : null,
       portfolio: parsedNotes.portfolioResult
         ? {
-            score: parsedNotes.portfolioResult.aiAnalysis?.score || parsedNotes.portfolioResult.score || null,
+            score: finiteOrNull(parsedNotes.portfolioResult.aiAnalysis?.score, parsedNotes.portfolioResult.score),
             fileCount: parsedNotes.portfolioResult.files?.length || parsedNotes.portfolioResult.fileCount || null,
           }
         : null,
       voiceInterview: application.voice_interview_result
         ? {
-            overallScore: application.voice_interview_result.overall_score || null,
+            overallScore: finiteOrNull(application.voice_interview_result.overall_score),
             recommendation: application.voice_interview_result.recommendation || null,
           }
         : null,
@@ -846,15 +945,22 @@ Purpose: This is a supplementary document for the above question. It is NOT a re
     }
     // ========== END LIMIT CHECK ==========
 
+    // The skills check lives in jobs.quiz_questions, not workflow_steps, so it
+    // was never on this list, and the judge was told to leave out phases that
+    // are not on it: in every live analysis it never mentioned the skills check.
+    const quizConfiguredForPhases = Array.isArray(job?.quiz_questions) && job.quiz_questions.length > 0;
+    const phaseList = [...(quizConfiguredForPhases ? ["quiz (skills check)"] : []), ...workflowPhaseTypes];
+
     let content = `
 Job Title: ${job?.title || "Unknown"}
 Job Description: ${job?.description || "Not provided"}
 Requirements: ${job?.requirements || "Not specified"}
+Responsibilities: ${job?.responsibilities || "Not specified"}
 Skills Required: ${job?.skills_required?.join(", ") || "Not specified"}
 Experience Level: ${job?.experience_level || "Not specified"}
 
 === JOB WORKFLOW PHASES (ONLY analyze these phases) ===
-${workflowPhaseTypes.length > 0 ? workflowPhaseTypes.map((p: string) => `- ${p}`).join("\n") : "- application_form (standard application only)"}
+${phaseList.length > 0 ? phaseList.map((p: string) => `- ${p}`).join("\n") : "- application_form (standard application only)"}
 
 CRITICAL INSTRUCTION: In your PHASE PERFORMANCE SUMMARY, you must ONLY include phases that are listed above. Do NOT mention phases that were NOT part of this job's workflow. For example, if there is no "typing_test" in the workflow above, do NOT say "Typing Test: Not Completed" - simply omit it entirely.
 
@@ -887,6 +993,18 @@ Resume URL: ${detectedResumeUrl || "Not provided"}
 NOTE: Only the file above is the resume. Any files in "CUSTOM FILE UPLOADS" section are NOT resumes.
 `;
 
+    // A team lead's tests are scored by the system, at 0.65 of the number
+    // (_shared/autopilot.ts). The judge's sub-scores rate the application and
+    // any resume only; if a test result also moved them, the same result was
+    // counted twice (2026-10-06, second pass). It still sees every result, to
+    // describe in its report, under a label that says so.
+    if (teamLead) {
+      content += `
+=== TEST RESULTS (for your written summary only, NOT for scoring) ===
+The system scores every test below separately. They must not raise or lower any structuredScore sub-score, and a test's own result is never a hard requirement conflict. Describe them in the PHASE PERFORMANCE SUMMARY.
+`;
+    }
+
     // Add Typing Test results if available (include requiredWpm for context)
     if (parsedNotes.typingTestResult) {
       const typingRequiredWpm = parsedNotes.typingTestResult.requiredWpm || job?.required_wpm || 35;
@@ -896,7 +1014,7 @@ Typing Test Results:
 - Speed: ${parsedNotes.typingTestResult.wpm} WPM
 - Required: ${typingRequiredWpm} WPM
 - Accuracy: ${parsedNotes.typingTestResult.accuracy}%
-- Score: ${parsedNotes.typingTestResult.score || 'N/A'}
+- Score: ${parsedNotes.typingTestResult.score ?? 'N/A'}
 - Performance: ${meetsRequirement ? 'Meets requirement' : 'Below requirement'}
 `;
     }
@@ -911,33 +1029,67 @@ Computer and connection check (equipment_check):
 `;
     }
 
-    // Add Quiz answers if available
-    if (quizData) {
+    // Add Quiz answers if available. The totals alone made missing the
+    // integrity or money question look the same as missing the writing one, so
+    // the judge also gets the result by area (the job's own categories joined
+    // to the candidate's own isCorrect; no answer key is in either).
+    if (quizReading) {
       content += `
-Quiz Performance:
-- Score: ${quizData.score || quizData.percentage || 'N/A'}%
-- Correct: ${quizData.correct || 'N/A'}/${quizData.total || 'N/A'}
-- Passed: ${quizData.passed ? 'Yes' : 'No'}
-`;
+Skills Check (quiz) Performance:
+- Score: ${quizReading.score ?? 'N/A'}%
+- Correct: ${quizReading.correct ?? 'N/A'}/${quizReading.total ?? 'N/A'}
+- Passed: ${quizReading.passed ? 'Yes' : 'No'}
+${quizAreas.areas.length > 0 ? `- By area: ${formatQuizAreas(quizAreas.areas)}\n` : ""}${quizAreas.mustPassMissed.length > 0 ? `- Must-pass areas missed: ${quizAreas.mustPassMissed.map(quizAreaLabel).join(", ")}\n` : ""}`;
     }
 
     // Add Chat Simulation results if available
-    if (parsedNotes.chatSimulationResult) {
-      content += `
-Chat Simulation (Customer Support) Results:
-- Score: ${parsedNotes.chatSimulationResult.score || 'N/A'}/100
-- Empathy: ${parsedNotes.chatSimulationResult.empathy || 'N/A'}%
-- Problem Solving: ${parsedNotes.chatSimulationResult.problemSolving || 'N/A'}%
+    if (chatSimulation) {
+      // The rubric follows the case that was played (a takeover case is
+      // marked as a team leader whatever the job), so the label does too.
+      const escalatedChat = teamLead || chatSimulation.rubric === "team_lead";
+      const chatLabel = escalatedChat
+        ? "Escalated chat practice (team leader took over a mishandled chat) Results"
+        : "Chat Simulation (Customer Support) Results";
+      const leadChatLines = chatSimulation.rubric === "team_lead"
+        ? `- Owned the team's mistake: ${chatSimulation.ownership ?? 'N/A'}/100
+- Corrected the agent plainly: ${chatSimulation.correctedAgent ?? 'N/A'}/100
+- New promise made: ${chatSimulation.newPromiseMade ? `YES, "${chatSimulation.newPromiseQuote ?? ''}" (score capped at 40)` : 'No'}
+${chatSimulation.disrespectMade ? `- Disrespectful to the player: YES, "${chatSimulation.disrespectQuote ?? ''}"\n` : ""}${chatSimulation.newPromiseUnverified ? `- Possible new promise, not confirmed: "${chatSimulation.newPromiseUnverified}"\n` : ""}${chatSimulation.cappedBy.length > 0 ? `- Score capped by: ${chatSimulation.cappedBy.map((cap) => CHAT_CAP_LABELS[cap] ?? cap).join(", ")}\n` : ""}`
+        : "";
+      content += chatSimulation.graded
+        ? `
+${chatLabel}:
+- Score: ${chatSimulation.score ?? 'N/A'}/100
+- Empathy: ${chatSimulation.empathy ?? 'N/A'}%
+- Problem Solving: ${chatSimulation.problemSolving ?? 'N/A'}%
+${leadChatLines}${chatSimulation.improvements.length > 0 ? `- To improve: ${chatSimulation.improvements.join("; ")}\n` : ""}${chatSimulation.needsReview ? `- Needs a person to read it: ${chatSimulation.reviewReasons.join("; ") || "the grader asked for a review"}\n` : ""}${chatSimulation.transcriptSource === "browser" ? "- Graded from the transcript the page sent, not our own record: not trusted.\n" : ""}`
+        : `
+${chatLabel}:
+- Not graded: the grader failed, so there is no score yet. Do not count it either way.
 `;
     }
 
     // Add Chat Interview results if available (either result shape)
-    const chatInterview = readChatInterviewResult(parsedNotes.chatInterviewResult);
     if (chatInterview) {
-      content += `
+      // A lead interview's own marks, each with the candidate's words behind it.
+      const leadMark = (label: string, key: string, value: number | null) =>
+        `- ${label}: ${value ?? 'not asked'}${value === null ? "" : "/100"}${chatInterview.leadEvidence[key] ? ` ("${chatInterview.leadEvidence[key]}")` : ""}\n`;
+      // Present only when the interview was marked on the lead plan (written
+      // English is always marked there); an older result has none of them.
+      const leadPlanMarked = [chatInterview.leadership, chatInterview.adaptability, chatInterview.workingLead, chatInterview.writtenEnglish]
+        .some((value) => value !== null);
+      const leadInterviewLines = leadPlanMarked
+        ? `${leadMark("Leadership", "leadership", chatInterview.leadership)}${leadMark("Adaptability", "adaptability", chatInterview.adaptability)}${leadMark("Works shifts and leads (working lead)", "workingLead", chatInterview.workingLead)}${chatInterview.writtenEnglish !== null ? leadMark("Written English", "writtenEnglish", chatInterview.writtenEnglish) : ""}`
+        : "";
+      content += chatInterview.graded
+        ? `
 Interview Results:
 - Overall Score: ${chatInterview.score ?? 'N/A'}/100
 - Recommendation: ${chatInterview.recommendation || 'N/A'}
+${leadInterviewLines}${chatInterview.incomplete ? `- Incomplete: ended before the lead plan was covered${chatInterview.mustCoverMissing.length > 0 ? ` (not asked: ${chatInterview.mustCoverMissing.join(", ")})` : ""}\n` : ""}${chatInterview.credibilityRating ? `- Credibility: ${chatInterview.credibilityRating}\n` : ""}${chatInterview.summary ? `- Summary: ${chatInterview.summary}\n` : ""}${chatInterview.concerns.length > 0 ? `- Concerns: ${chatInterview.concerns.join("; ")}\n` : ""}${chatInterview.inconsistencies.length > 0 ? `- Inconsistencies (claim → evidence): ${chatInterview.inconsistencies.join("; ")}\n` : ""}${chatInterview.transcriptSource === "browser" ? "- Graded from the answers the page sent, not our own record: not trusted.\n" : ""}`
+        : `
+Interview Results:
+- Not graded: the grader failed, so there is no score yet. Do not count it either way.
 `;
     }
 
@@ -945,10 +1097,10 @@ Interview Results:
     if (parsedNotes.salesSimulationResult) {
       content += `
 Sales Simulation Results:
-- Score: ${parsedNotes.salesSimulationResult.score || 'N/A'}/100
-- Discovery: ${parsedNotes.salesSimulationResult.discovery || 'N/A'}%
-- Objection Handling: ${parsedNotes.salesSimulationResult.objectionHandling || 'N/A'}%
-- Would Buy: ${parsedNotes.salesSimulationResult.wouldBuy || 'N/A'}
+- Score: ${salesSimulation?.score ?? 'N/A'}/100
+- Discovery: ${parsedNotes.salesSimulationResult.discovery ?? 'N/A'}%
+- Objection Handling: ${parsedNotes.salesSimulationResult.objectionHandling ?? 'N/A'}%
+- Would Buy: ${parsedNotes.salesSimulationResult.wouldBuy ?? 'N/A'}
 `;
     }
 
@@ -965,9 +1117,9 @@ Video Introduction: Submitted (demonstrates candidate effort and initiative)
       content += `
 Portfolio Upload:
 - Files: ${parsedNotes.portfolioResult.files?.length || parsedNotes.portfolioResult.fileCount || 'N/A'} files submitted
-- Score: ${analysis?.score || parsedNotes.portfolioResult.score || 'N/A'}/100
-- Relevance: ${analysis?.relevance?.score || 'N/A'}%
-- Quality: ${analysis?.quality?.score || 'N/A'}%
+- Score: ${analysis?.score ?? parsedNotes.portfolioResult.score ?? 'N/A'}/100
+- Relevance: ${analysis?.relevance?.score ?? 'N/A'}%
+- Quality: ${analysis?.quality?.score ?? 'N/A'}%
 - Summary: ${analysis?.summary || 'Not analyzed'}
 - Strengths: ${analysis?.strengths?.join(', ') || 'None identified'}
 - Areas for Improvement: ${analysis?.areasForImprovement?.join(', ') || 'None identified'}
@@ -980,11 +1132,11 @@ Portfolio Upload:
       const interviewType = application.voice_interview_video_enabled !== false ? 'Video' : 'Voice';
       content += `
 ${interviewType} Interview with AVA Results:
-- Overall Score: ${vr.overall_score || 'N/A'}/100
+- Overall Score: ${vr.overall_score ?? 'N/A'}/100
 - Recommendation: ${vr.recommendation || 'N/A'}
-- Technical Score: ${vr.technical_score || 'N/A'}/100
-- Communication Score: ${vr.communication_score || 'N/A'}/100
-- Culture Fit Score: ${vr.culture_fit_score || 'N/A'}/100
+- Technical Score: ${vr.technical_score ?? 'N/A'}/100
+- Communication Score: ${vr.communication_score ?? 'N/A'}/100
+- Culture Fit Score: ${vr.culture_fit_score ?? 'N/A'}/100
 - Credibility Rating: ${vr.credibility_rating || 'N/A'}
 - Summary: ${vr.summary || 'Not provided'}
 - Concerns: ${vr.concerns?.join(', ') || 'None noted'}
@@ -1010,10 +1162,17 @@ ${interviewType} Interview with AVA Results:
 
     console.log("[trigger-ava-analysis] Calling ai-analyze edge function");
 
+    // A team-lead job that asks for no resume is judged with the APPLICATION
+    // prompt, not the resume prompt (its company-name penalties and "MAX 60%"
+    // caps assume a resume exists). Every other family is sent exactly what
+    // it always was. ai-analyze returns the leadership and adaptability
+    // evidence scores only when context.job_family says "team_lead".
+    const analyzeType = teamLead && !detectedResumeUrl && job?.require_resume !== true ? "application" : "resume";
+
     // Call the AI analysis edge function using the admin client
     const { data: analysisData, error: analysisError } = await supabaseAdmin.functions.invoke("ai-analyze", {
       body: {
-        type: "resume",
+        type: analyzeType,
         content,
         resumeUrl: detectedResumeUrl,
         resumeText,
@@ -1029,6 +1188,7 @@ ${interviewType} Interview with AVA Results:
           experience_level: job?.experience_level,
           job_title: job?.title,
           job_type: job?.job_type,
+          ...(teamLead ? { job_family: inferredFamily } : {}),
         },
       },
     });
@@ -1048,6 +1208,74 @@ ${interviewType} Interview with AVA Results:
     // Improved score extraction with multiple patterns - supports decimal scores
     const analysisText = analysisData?.analysis || "";
     const structuredScore = analysisData?.structuredScore as StructuredScore | null | undefined;
+
+    // Every test's score, read once (a real 0 is a score; an ungraded result
+    // is not) and used for the judgment's measured topics, the phase blend
+    // and the scorecard alike.
+    const quizScore = quizReading?.score ?? null;
+    const typingTest = parsedNotes.typingTestResult;
+    const voiceResult = application.voice_interview_result as any;
+    const voiceScore = finiteOrNull(voiceResult?.overall_score);
+    const chatSimulationScore = chatSimulation?.score ?? null;
+    const salesSimulationScore = salesSimulation?.score ?? null;
+    const chatInterviewScore = chatInterview?.score ?? null;
+    const hasVideoIntro = !!(parsedNotes.videoIntroResult?.completed || parsedNotes.videoIntroUrl);
+    const videoIntroScore = typeof parsedNotes.videoIntroResult?.score === "number"
+      ? parsedNotes.videoIntroResult.score
+      : null;
+    const quizConfigured = Array.isArray(job?.quiz_questions) && job.quiz_questions.length > 0;
+    const workflowTypeSet = new Set(workflowSteps.map((step: { type?: unknown }) => String(step?.type || "").toLowerCase()));
+    const ungradedPhases = [
+      ...(chatSimulation && !chatSimulation.graded && workflowTypeSet.has("chat_simulation") ? ["chat simulation"] : []),
+      ...(salesSimulation && !salesSimulation.graded && workflowTypeSet.has("sales_simulation") ? ["sales simulation"] : []),
+      ...(chatInterview && !chatInterview.graded && workflowTypeSet.has("chat_interview") ? ["chat interview"] : []),
+    ];
+    // A mark graded from the transcript the page sent (the record of the
+    // attempt was not available) is not trusted: flagged, card on "review".
+    const browserTranscriptPhases = [
+      ...(chatSimulationScore !== null && chatSimulation?.transcriptSource === "browser" ? ["chat simulation"] : []),
+      ...(salesSimulationScore !== null && salesSimulation?.transcriptSource === "browser" ? ["sales simulation"] : []),
+      ...(chatInterviewScore !== null && chatInterview?.transcriptSource === "browser" ? ["chat interview"] : []),
+    ];
+
+    // Find portfolio data from workflow step IDs (stored under step ID like "step1", not "portfolioResult")
+    let portfolioScore: number | null = null;
+    for (const step of workflowSteps) {
+      if (step.type === 'portfolio_upload') {
+        const stepScore = finiteOrNull(parsedNotes[step.id]?.aiAnalysis?.score);
+        if (stepScore !== null) {
+          portfolioScore = stepScore;
+          console.log("[trigger-ava-analysis] Found portfolio score from step", step.id, ":", portfolioScore);
+          break;
+        }
+      }
+    }
+    // Fallback to legacy portfolioResult format
+    if (portfolioScore === null) {
+      const legacyResult = parsedNotes.portfolioResult;
+      portfolioScore = finiteOrNull(legacyResult?.aiAnalysis?.score, legacyResult?.score);
+      if (portfolioScore !== null) {
+        console.log("[trigger-ava-analysis] Found portfolio score from legacy portfolioResult:", portfolioScore);
+      }
+    }
+
+    // Tests done, tests ahead and the connection check: a judge conflict about
+    // anything they measure is not counted against the judgment, here or in
+    // buildAvaScorecard (one helper, so both agree).
+    const progress = highSignalProgress({
+      quizScore,
+      quizConfigured,
+      workflowSteps,
+      typingScore: typingTest?.score,
+      voiceScore,
+      portfolioScore,
+      chatSimulationScore,
+      salesSimulationScore,
+      chatInterviewScore,
+      videoIntroScore,
+      videoIntroSubmitted: hasVideoIntro,
+    });
+
     let newScore: number | null = null;
     if (structuredScore) {
       // Deterministic aggregate of the judge's per-dimension sub-scores. The LLM's own
@@ -1063,7 +1291,12 @@ ${interviewType} Interview with AVA Results:
         attentionToDetailScore: structuredScore.attentionToDetailScore,
         authenticityScore: structuredScore.authenticityScore,
         specificityScore: structuredScore.specificityScore,
-        hardRequirementConflicts: structuredScore.hardRequirementConflicts,
+        leadershipEvidenceScore: structuredScore.leadershipEvidenceScore ?? null,
+        adaptabilityEvidenceScore: structuredScore.adaptabilityEvidenceScore ?? null,
+        jobFamily: inferredFamily,
+        hardRequirementConflicts: sourcedConflictNotes(structuredScore),
+        pendingPhases: progress.pendingTopicPhases,
+        takenPhases: progress.completed,
       });
       console.log(
         "[trigger-ava-analysis] Score computed via computeJudgmentScore (sub-scores only, LLM overallScore ignored):",
@@ -1133,142 +1366,53 @@ ${interviewType} Interview with AVA Results:
       });
     }
 
-    // WEIGHTED SCORE CALCULATION: Combine resume score with phase performance
-    // This ensures quiz/assessment performance compensates for resume weaknesses
-    // Reuse quizData from line 243 (already defined above)
-    const quizScore = quizData?.score || quizData?.percentage || null;
-    const typingTest = parsedNotes.typingTestResult;
-    const voiceResult = application.voice_interview_result as any;
-    const chatSimulationScore = parsedNotes.chatSimulationResult?.overallScore || parsedNotes.chatSimulationResult?.score || null;
-    const salesSimulationScore = parsedNotes.salesSimulationResult?.overallScore || parsedNotes.salesSimulationResult?.score || null;
-    const chatInterviewScore = chatInterview?.score ?? null;
-    const hasVideoIntro = !!(parsedNotes.videoIntroResult?.completed || parsedNotes.videoIntroUrl);
-    const videoIntroScore = typeof parsedNotes.videoIntroResult?.score === "number"
-      ? parsedNotes.videoIntroResult.score
-      : null;
-    
-    // Find portfolio data from workflow step IDs (stored under step ID like "step1", not "portfolioResult")
-    let portfolioScore: number | null = null;
-    // Reuse workflowSteps from line 510 (already defined above)
-    for (const step of workflowSteps) {
-      if (step.type === 'portfolio_upload') {
-        const stepData = parsedNotes[step.id];
-        if (stepData?.aiAnalysis?.score) {
-          portfolioScore = stepData.aiAnalysis.score;
-          console.log("[trigger-ava-analysis] Found portfolio score from step", step.id, ":", portfolioScore);
-          break;
-        }
-      }
-    }
-    // Fallback to legacy portfolioResult format
-    if (portfolioScore === null) {
-      const legacyResult = parsedNotes.portfolioResult;
-      portfolioScore = legacyResult?.aiAnalysis?.score || legacyResult?.score || null;
-      if (portfolioScore) {
-        console.log("[trigger-ava-analysis] Found portfolio score from legacy portfolioResult:", portfolioScore);
-      }
-    }
-    
+    // WEIGHTED SCORE CALCULATION: Combine the judge's score with phase
+    // performance. The weights and floors live in _shared/autopilot.ts
+    // (familyPhaseWeights / phaseBlendScore), unchanged for every family but
+    // team_lead, whose blend is the four tests alone (the judgment is the
+    // other half, counted once, in buildAvaScorecard).
+    // A team lead's blend is the tests alone (the judgment never enters it
+    // unless no test is scored), so it is computed even when the judge
+    // returned no number at all: before 2026-10-06 (second pass) a failed
+    // judge threw the four tests away and a strong and a weak lead both
+    // scored 56.
     let finalScore: number | null = newScore;
-    const inferredFamily = inferJobFamily(job?.title || null, job?.description || null);
-    
-    // If we have phase performance data, calculate a weighted score
-    if (newScore !== null) {
-      const familyAwareWeights: Record<string, Array<{ label: string; value: number | null | undefined; weight: number }>> = {
-        support: [
-          { label: "resume", value: newScore, weight: 0.28 },
-          { label: "quiz", value: quizScore, weight: 0.16 },
-          { label: "typing", value: typingTest?.score, weight: 0.12 },
-          { label: "chat_simulation", value: chatSimulationScore, weight: 0.22 },
-          { label: "chat_interview", value: chatInterviewScore, weight: 0.12 },
-          { label: "voice", value: voiceResult?.overall_score, weight: 0.10 },
-        ],
-        sales: [
-          { label: "resume", value: newScore, weight: 0.28 },
-          { label: "quiz", value: quizScore, weight: 0.10 },
-          { label: "sales_simulation", value: salesSimulationScore, weight: 0.24 },
-          { label: "chat_interview", value: chatInterviewScore, weight: 0.14 },
-          { label: "voice", value: voiceResult?.overall_score, weight: 0.14 },
-          { label: "portfolio", value: portfolioScore, weight: 0.10 },
-        ],
-        operations_admin: [
-          { label: "resume", value: newScore, weight: 0.30 },
-          { label: "quiz", value: quizScore, weight: 0.14 },
-          { label: "typing", value: typingTest?.score, weight: 0.24 },
-          { label: "chat_interview", value: chatInterviewScore, weight: 0.12 },
-          { label: "voice", value: voiceResult?.overall_score, weight: 0.10 },
-          { label: "chat_simulation", value: chatSimulationScore, weight: 0.10 },
-        ],
-        technical: [
-          { label: "resume", value: newScore, weight: 0.34 },
-          { label: "quiz", value: quizScore, weight: 0.26 },
-          { label: "portfolio", value: portfolioScore, weight: 0.14 },
-          { label: "chat_interview", value: chatInterviewScore, weight: 0.14 },
-          { label: "voice", value: voiceResult?.overall_score, weight: 0.12 },
-        ],
-        creative: [
-          { label: "resume", value: newScore, weight: 0.26 },
-          { label: "portfolio", value: portfolioScore, weight: 0.24 },
-          { label: "chat_interview", value: chatInterviewScore, weight: 0.18 },
-          { label: "voice", value: voiceResult?.overall_score, weight: 0.16 },
-          { label: "quiz", value: quizScore, weight: 0.16 },
-        ],
-        general: [
-          { label: "resume", value: newScore, weight: 0.32 },
-          { label: "quiz", value: quizScore, weight: 0.18 },
-          { label: "typing", value: typingTest?.score, weight: 0.10 },
-          { label: "chat_interview", value: chatInterviewScore, weight: 0.15 },
-          { label: "chat_simulation", value: chatSimulationScore, weight: 0.10 },
-          { label: "sales_simulation", value: salesSimulationScore, weight: 0.10 },
-          { label: "voice", value: voiceResult?.overall_score, weight: 0.15 },
-        ],
+    if (newScore !== null || teamLead) {
+      const blendInputs = {
+        family: inferredFamily,
+        judgmentScore: newScore ?? computeJudgmentScore({ jobFamily: inferredFamily }),
+        quizScore,
+        typingTest,
+        chatSimulationScore,
+        salesSimulationScore,
+        chatInterviewScore,
+        voiceScore,
+        portfolioScore,
       };
-
-      const weightedComponents = familyAwareWeights[inferredFamily] || familyAwareWeights.general;
-      finalScore = Math.round(weightedAverage(weightedComponents, newScore) * 100) / 100;
+      finalScore = phaseBlendScore(blendInputs);
       console.log(
         "[trigger-ava-analysis] Weighted score calculated:",
         finalScore,
         "family:",
         inferredFamily,
         "components:",
-        weightedComponents
+        familyPhaseWeights(blendInputs)
           .filter((component) => typeof component.value === "number")
           .map((component) => `${component.label}:${component.value}`),
       );
-      
-      // MINIMUM SCORE FLOORS based on quiz performance
-      // A candidate who aced the quiz should NOT get a failing overall score
-      if (quizScore !== null && typeof quizScore === 'number') {
-        if (quizScore === 100 && finalScore !== null && finalScore < 60) {
-          console.log("[trigger-ava-analysis] Applying floor: 100% quiz -> minimum 60 score");
-          finalScore = 60;
-        } else if (quizScore >= 80 && finalScore !== null && finalScore < 50) {
-          console.log("[trigger-ava-analysis] Applying floor: 80%+ quiz -> minimum 50 score");
-          finalScore = 50;
-        }
-      }
-      
-      // Typing test bonus (if excellent performance)
-      if (typingTest && typingTest.wpm >= 60 && typingTest.accuracy >= 95) {
-        if (finalScore !== null && finalScore < 55) {
-          console.log("[trigger-ava-analysis] Applying floor: excellent typing -> minimum 55 score");
-          finalScore = 55;
-        }
-      }
     }
-    
+
     console.log("[trigger-ava-analysis] Final score after weighting and floors:", finalScore, "(AI raw score was:", newScore, ")");
     const passingScore = (job?.passing_score as number) || 60;
-    const quizConfigured = Array.isArray(job?.quiz_questions) && job.quiz_questions.length > 0;
     const scorecard = buildAvaScorecard({
       finalScore,
       passingScore,
       quizScore,
       quizConfigured,
       typingTest,
+      requiredWpm: typingRequiredWpmForFlag,
       equipmentCheck,
-      voiceScore: voiceResult?.overall_score || null,
+      voiceScore,
       portfolioScore,
       chatSimulationScore,
       salesSimulationScore,
@@ -1295,8 +1439,35 @@ ${interviewType} Interview with AVA Results:
       attentionToDetailScore: structuredScore?.attentionToDetailScore ?? null,
       authenticityScore: structuredScore?.authenticityScore ?? null,
       specificityScore: structuredScore?.specificityScore ?? null,
-      hardRequirementConflicts: structuredScore?.hardRequirementConflicts ?? [],
+      leadershipEvidenceScore: structuredScore?.leadershipEvidenceScore ?? null,
+      adaptabilityEvidenceScore: structuredScore?.adaptabilityEvidenceScore ?? null,
+      hardRequirementConflicts: sourcedConflictNotes(structuredScore),
       transferableEvidence: structuredScore?.transferableEvidence ?? [],
+      formDealBreakers,
+      quizCorrect: quizReading?.correct ?? null,
+      quizTotal: quizReading?.total ?? null,
+      quizMissedAreas: quizAreas.missed,
+      quizMustPassMissed: quizAreas.mustPassMissed,
+      interviewCredibility: chatInterview?.credibilityRating ?? null,
+      ungradedPhases,
+      formReviewFlags,
+      // No sub-scores came back: the judge's narrative number (if any) is the
+      // judgment, not a rebuild from all-default sub-scores.
+      judgmentScoreOverride: structuredScore ? null : newScore,
+      judgeFailed: !structuredScore && newScore === null,
+      resumeRequested: job?.require_resume === true || !!detectedResumeUrl,
+      // The tests' own findings: shown, and a reason for "review", never a decline.
+      chatNewPromiseQuote: chatSimulation?.newPromiseMade ? chatSimulation.newPromiseQuote : null,
+      chatDisrespectQuote: chatSimulation?.disrespectMade ? chatSimulation.disrespectQuote : null,
+      chatNeedsReview: chatSimulation?.needsReview ?? false,
+      chatReviewReasons: chatSimulation?.reviewReasons ?? [],
+      interviewIncomplete: chatInterview?.incomplete ?? false,
+      interviewMustCoverMissing: chatInterview?.mustCoverMissing ?? [],
+      // The interview's own lead marks: a review signal, never the number.
+      interviewLeadership: chatInterview?.leadership ?? null,
+      interviewAdaptability: chatInterview?.adaptability ?? null,
+      interviewWorkingLead: chatInterview?.workingLead ?? null,
+      browserTranscriptPhases,
       evidenceFingerprint,
     });
     const analysisMeta = {
@@ -1311,9 +1482,14 @@ ${interviewType} Interview with AVA Results:
       evidenceFingerprint,
       structuredScoring: {
         enabled: !!structuredScore,
+        jobFamily: inferredFamily,
+        analyzeType,
         directMatchScore: structuredScore?.directMatchScore ?? null,
         transferableFitScore: structuredScore?.transferableFitScore ?? null,
         learningSignalScore: structuredScore?.learningSignalScore ?? null,
+        leadershipEvidenceScore: structuredScore?.leadershipEvidenceScore ?? null,
+        adaptabilityEvidenceScore: structuredScore?.adaptabilityEvidenceScore ?? null,
+        hardRequirementConflictSources: structuredScore?.hardRequirementConflictSources ?? null,
         confidence: structuredScore?.confidence ?? null,
         summary: structuredScore?.summary ?? null,
       },
@@ -1731,7 +1907,7 @@ serve(async (req) => {
       .from("applications")
       .select(`
         *,
-        jobs(title, description, requirements, skills_required, experience_level, job_type, workflow_steps, passing_score, processing_mode, quiz_questions, employer_id)
+        jobs(title, description, requirements, responsibilities, skills_required, experience_level, job_type, workflow_steps, passing_score, processing_mode, quiz_questions, application_questions, require_resume, required_wpm, employer_id)
       `)
       .eq("id", applicationId)
       .single();

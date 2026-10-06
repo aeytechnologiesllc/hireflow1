@@ -109,7 +109,25 @@ interface StructuredScore {
   attentionToDetailScore: number;
   authenticityScore: number;
   specificityScore: number;
+  /**
+   * Team-lead jobs only (context.job_family === "team_lead"): whether the
+   * applicant has actually led a team, and has handled a sudden change.
+   * Absent for every other job, and null when the model left one out, so
+   * computeJudgmentScore uses its neutral default rather than a fake 0.
+   */
+  leadershipEvidenceScore?: number | null;
+  adaptabilityEvidenceScore?: number | null;
   hardRequirementConflicts: string[];
+  /**
+   * Where each conflict came from, index for index with
+   * hardRequirementConflicts (2026-10-06, second pass): "application",
+   * "resume", "interview" (something the candidate wrote or said), or
+   * "test:<name>" for a test's own measured result, which the scorer never
+   * counts as a conflict (it already is that test's score). null when the
+   * model gave no usable source. Built here, by the sanitizer, so the two
+   * arrays always line up.
+   */
+  hardRequirementConflictSources?: Array<string | null>;
   transferableEvidence: string[];
   writingIssues: string[];
   personalityTraits: string[];
@@ -137,10 +155,71 @@ function sanitizeStringArray(value: unknown) {
     .slice(0, 6);
 }
 
-function sanitizeStructuredScore(value: StructuredScore | null | undefined): StructuredScore | null {
+const CONFLICT_SOURCE_TAG = /^\[\s*(application|resume|interview|test(?:\s*:\s*[\w -]+)?)\s*\]\s*/i;
+
+/** "application" | "resume" | "interview" | "test:<name>", or null. */
+function normalizeConflictSource(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const source = value.trim().toLowerCase();
+  if (source === "application" || source === "resume" || source === "interview") return source;
+  if (/^test\b/.test(source)) {
+    const name = source.replace(/^test\s*:?\s*/, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    return name ? `test:${name}` : "test";
+  }
+  return null;
+}
+
+/**
+ * The judge's conflicts as text plus where each came from. It is asked for
+ * { "text", "source" } objects; a plain string (an older reply) is kept as
+ * text with no source, and a leading "[source]" tag on a string is read as
+ * its source. At most 6, like every other list here.
+ */
+function sanitizeConflicts(value: unknown): { texts: string[]; sources: Array<string | null> } {
+  const texts: string[] = [];
+  const sources: Array<string | null> = [];
+  if (!Array.isArray(value)) return { texts, sources };
+  for (const entry of value) {
+    let text = "";
+    let source: string | null = null;
+    if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+      const record = entry as Record<string, unknown>;
+      text = String(record.text ?? record.conflict ?? "").trim();
+      source = normalizeConflictSource(record.source);
+    } else {
+      text = String(entry || "").trim();
+      const tag = CONFLICT_SOURCE_TAG.exec(text);
+      if (tag) {
+        source = normalizeConflictSource(tag[1]);
+        text = text.slice(tag[0].length).trim();
+      }
+    }
+    if (!text || texts.includes(text)) continue;
+    texts.push(text);
+    sources.push(source);
+    if (texts.length >= 6) break;
+  }
+  return { texts, sources };
+}
+
+/** 0-100 when the model returned a number, else null (never a fake 0). */
+function optionalScore(value: unknown): number | null {
+  const numeric = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
+  if (!Number.isFinite(numeric)) return null;
+  return Math.max(0, Math.min(100, Math.round(numeric)));
+}
+
+function sanitizeStructuredScore(value: StructuredScore | null | undefined, options: { teamLead?: boolean } = {}): StructuredScore | null {
   if (!value) return null;
+  const conflicts = sanitizeConflicts((value as { hardRequirementConflicts?: unknown }).hardRequirementConflicts);
 
   return {
+    ...(options.teamLead
+      ? {
+          leadershipEvidenceScore: optionalScore(value.leadershipEvidenceScore),
+          adaptabilityEvidenceScore: optionalScore(value.adaptabilityEvidenceScore),
+        }
+      : {}),
     overallScore: clampScore(value.overallScore, 0),
     directMatchScore: clampScore(value.directMatchScore, 0),
     transferableFitScore: clampScore(value.transferableFitScore, 0),
@@ -149,7 +228,8 @@ function sanitizeStructuredScore(value: StructuredScore | null | undefined): Str
     attentionToDetailScore: clampScore(value.attentionToDetailScore, 70),
     authenticityScore: clampScore(value.authenticityScore, 80),
     specificityScore: clampScore(value.specificityScore, 50),
-    hardRequirementConflicts: sanitizeStringArray(value.hardRequirementConflicts),
+    hardRequirementConflicts: conflicts.texts,
+    hardRequirementConflictSources: conflicts.sources,
     transferableEvidence: sanitizeStringArray(value.transferableEvidence),
     writingIssues: sanitizeStringArray(value.writingIssues),
     personalityTraits: sanitizeStringArray(value.personalityTraits),
@@ -159,10 +239,27 @@ function sanitizeStructuredScore(value: StructuredScore | null | undefined): Str
   };
 }
 
-function getStructuredResponseInstruction(type: AnalyzeRequest["type"]) {
+/**
+ * The two sub-scores a team-lead job adds (trigger-ava-analysis sends
+ * context.job_family = "team_lead"). No other job is asked for them, and no
+ * other job's score reads them (computeJudgmentScore weighs them for
+ * team_lead only).
+ */
+const TEAM_LEAD_SCORE_RULES = `
+- TEAM-LEAD JOB: every structuredScore sub-score rates the APPLICATION FORM and any resume only. The tests (skills check, typing test, chat practice, written or voice interview) are scored separately by the system: no test result may raise or lower any sub-score here, or the same result is counted twice. Describe the tests in the narrative's PHASE PERFORMANCE SUMMARY only.
+- leadershipEvidenceScore (team-lead role): how well the application and any resume show the person has ACTUALLY led, coached or trained a team. Read their answer about a team they led together with the resume. High needs all three: how many people, for how long, and one concrete problem they fixed as the lead (with what they did and what changed). Never led, coached or trained a team = below 30, however well written. A vague claim with no team size, no time span or no example ("I have led many teams", "I always improved every metric") = below 50. Buddy-training or covering for a lead with specifics = 40-60. Picked answers such as "More than 2 years" of leading or "9 or more people" are claims: they count only as far as the written answer about the team they led backs them with a team size, a time span and an example.
+- adaptabilityEvidenceScore (team-lead role): how well the application shows the person handled a sudden change in rules, tools or way of working. Read their answer about a time things changed suddenly. High needs: what changed, what they did themselves (learned it first, wrote the new answer, practised), and how they got others to switch (a huddle, a guide, checking the next chats, pairing someone). Generic statements ("I always adapt quickly", "I keep a positive attitude") with no event = below 40. No answer about a change = below 30.`;
+
+function getStructuredResponseInstruction(type: AnalyzeRequest["type"], options: { teamLead?: boolean } = {}) {
   if (type !== "resume" && type !== "application") {
     return null;
   }
+
+  const teamLeadFields = options.teamLead
+    ? `
+    "leadershipEvidenceScore": 0,
+    "adaptabilityEvidenceScore": 0,`
+    : "";
 
   return `Return ONLY valid JSON with this exact shape:
 {
@@ -175,8 +272,8 @@ function getStructuredResponseInstruction(type: AnalyzeRequest["type"]) {
     "writingQualityScore": 0,
     "attentionToDetailScore": 0,
     "authenticityScore": 0,
-    "specificityScore": 0,
-    "hardRequirementConflicts": ["..."],
+    "specificityScore": 0,${teamLeadFields}
+    "hardRequirementConflicts": [{ "text": "...", "source": "application" }],
     "transferableEvidence": ["..."],
     "writingIssues": ["..."],
     "personalityTraits": ["..."],
@@ -198,10 +295,31 @@ Rules for structuredScore (every sub-score is 0-100):
 - personalityTraits: 2-5 JOB-RELEVANT work-style traits inferred WITH evidence (e.g. "customer-empathetic", "detail-oriented", "proactive", "resilient under pressure"). NEVER infer or use age, gender, race, nationality, religion, health, or any protected/demographic attribute.
 - personalitySummary: 1-2 evidence-based sentences on work style and fit for THIS role.
 - overallScore is your holistic 0-100 fit judgment for THIS role and MUST reflect the sub-scores: low writingQuality/attentionToDetail, and ESPECIALLY low authenticity or low specificity, must pull it down materially. A polished-but-fabricated resume is a reject; a strong resume riddled with misspellings is NOT a top candidate. It must match the final score in the narrative report.
-- hardRequirementConflicts must only list explicit conflicts with what THIS job's own text requires (quote the job's own words for the requirement, e.g. 'The job asks for "at least 45 words a minute"; the candidate typed 38 WPM.'), wrong-resume/authenticity issues, missing legal/licensing blockers, or schedule/work-eligibility blockers the candidate's own answers state. Describe a requirement in the job's own words only: never call one "non-negotiable", a "deal-breaker" or "mandatory" unless the job's text uses that word. A workflow phase that has not happened yet (a pending quiz, typing test, simulation or interview), or a skill such a phase will measure, is NOT a conflict: missing evidence is never a conflict, so leave it out of this list. The computer and connection check is evidence for the hiring team, never a conflict, pending or done: never list its figures, a connection below the job's bar, a "not the computer they will use" answer or a phone/tablet run here, even when the job asks for a reliable connection; they go under Phase Concerns
+- hardRequirementConflicts must only list explicit conflicts with what THIS job's own text requires (quote the job's own words for the requirement, e.g. 'The job asks for "at least 2 years of customer support experience"; the candidate has about 1 year.'), wrong-resume/authenticity issues, missing legal/licensing blockers, or schedule/work-eligibility blockers the candidate's own answers state. Describe a requirement in the job's own words only: never call one "non-negotiable", a "deal-breaker" or "mandatory" unless the job's text uses that word. A workflow phase that has not happened yet (a pending quiz, typing test, simulation or interview), or a skill such a phase will measure, is NOT a conflict: missing evidence is never a conflict, so leave it out of this list. The computer and connection check is evidence for the hiring team, never a conflict, pending or done: never list its figures, a connection below the job's bar, a "not the computer they will use" answer or a phone/tablet run here, even when the job asks for a reliable connection; they go under Phase Concerns. A finished test's own result (skills check, typing test, chat practice, written interview) is never a conflict either: it already counts as that test's score, so listing it would count the same shortfall twice; describe it under Phase Concerns. Each conflict is an object: "text" is the conflict as described above, and "source" says where the evidence for it came from: "application" (the form answers), "resume", "interview" (something the candidate SAID in a written or voice interview, such as never having led a team), or "test:<name>" (for example "test:typing", "test:quiz", "test:chat_practice") ONLY when the conflict is a test's own measured result (a score, a typing speed, wrong answers, how they did in the practice chat). One requirement per conflict${options.teamLead ? TEAM_LEAD_SCORE_RULES : ""}
 - transferableEvidence must contain 2-6 short evidence phrases when adjacent fit exists; otherwise use an empty array
 - confidence must reflect evidence coverage and stability, not closeness to the passing threshold
 - summary must be 1-2 sentences and should mention direct fit vs transferable fit when relevant`;
+}
+
+/**
+ * A team-lead job's scoring prompt, without the phase bonuses, penalties,
+ * caps and floors (2026-10-06, second pass). The scorer weighs a team lead's
+ * tests itself at 0.65 of the number (_shared/autopilot.ts), so a judge that
+ * also adds +20 for a perfect quiz or caps the score for a weak chat practice
+ * counted the same result twice. Every other job keeps the prompt unchanged.
+ */
+const PHASE_SCORING_START = "**CRITICAL - PHASE PERFORMANCE BONUSES (APPLY FIRST):**";
+const PHASE_SCORING_END = "**MAJOR RED FLAGS";
+const TEAM_LEAD_PHASE_NOTE = `**PHASE RESULTS (TEAM-LEAD JOB):**
+The system scores every test (skills check, typing test, chat practice, written or voice interview) separately. Do not add or subtract points for them, and do not cap or floor the score on them. Your score is your read of the application and any resume. Describe the tests in the PHASE PERFORMANCE SUMMARY only.`;
+
+function systemPromptFor(type: string, teamLead: boolean): string | undefined {
+  const prompt = systemPrompts[type];
+  if (!prompt || !teamLead || (type !== "resume" && type !== "application")) return prompt;
+  const start = prompt.indexOf(PHASE_SCORING_START);
+  const end = start >= 0 ? prompt.indexOf(PHASE_SCORING_END, start) : -1;
+  if (start < 0 || end < 0) return prompt;
+  return `${prompt.slice(0, start)}${TEAM_LEAD_PHASE_NOTE}\n\n${prompt.slice(end)}`;
 }
 
 const systemPrompts: Record<string, string> = {
@@ -1136,7 +1254,9 @@ serve(async (req) => {
       );
     }
 
-    const systemPrompt = systemPrompts[type];
+    // A team-lead job (trigger-ava-analysis says so in context.job_family)
+    // is judged on the application only: see systemPromptFor.
+    const systemPrompt = systemPromptFor(type, context?.job_family === "team_lead");
     if (!systemPrompt) {
       return new Response(
         JSON.stringify({ error: `Invalid analysis type: ${type}` }),
@@ -1272,7 +1392,10 @@ Your skill match analysis should be based on what the candidate stated in their 
       ];
     }
 
-    const structuredResponseInstruction = getStructuredResponseInstruction(type);
+    // A team-lead job (trigger-ava-analysis says so in context.job_family)
+    // also gets the leadership and adaptability evidence sub-scores.
+    const teamLead = context?.job_family === "team_lead";
+    const structuredResponseInstruction = getStructuredResponseInstruction(type, { teamLead });
     const usedImages = hasResumeVisuals && (type === "resume" || type === "application");
 
     // Text-only fallback (no images) so screening NEVER dies on an unreadable/invalid resume
@@ -1335,7 +1458,7 @@ Your skill match analysis should be based on what the candidate stated in their 
           });
           return {
             analysis: structured.analysis ?? "",
-            structuredScore: sanitizeStructuredScore(structured.structuredScore),
+            structuredScore: sanitizeStructuredScore(structured.structuredScore, { teamLead }),
           };
         } catch (structuredError) {
           console.warn(`[ai-analyze] Structured response failed for ${type}, falling back to narrative output:`, structuredError);

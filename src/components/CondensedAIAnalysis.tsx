@@ -99,7 +99,9 @@ interface ApplicationNotes {
   portfolioResult?: { score: number; feedback?: string; analysis?: string; portfolioUrls?: string[] };
   typingTestResult?: { wpm: number; accuracy: number; passed?: boolean; requiredWpm?: number };
   chatSimulationResult?: { 
-    score?: number; 
+    // null (with graded: false) when nobody marked it: the grader failed.
+    score?: number | null; 
+    graded?: boolean;
     passed?: boolean; 
     evaluation?: string; 
     scenario?: string;
@@ -120,7 +122,11 @@ interface ApplicationNotes {
     };
   };
   chatInterviewResult?: { 
-    score?: number; 
+    // null (with graded: false) when nobody marked it; the auto-end shape
+    // keeps its score under .evaluation.
+    score?: number | null; 
+    graded?: boolean;
+    evaluation?: { score?: number | null; graded?: boolean };
     passed?: boolean; 
     summary?: string;
     overallScore?: number;
@@ -136,7 +142,9 @@ interface ApplicationNotes {
     overallFeedback?: string;
   };
   salesSimulationResult?: { 
-    score?: number; 
+    // Absent (with graded: false) when nobody marked it.
+    score?: number | null; 
+    graded?: boolean;
     passed?: boolean; 
     evaluation?: string;
     rapport?: number;
@@ -546,17 +554,21 @@ function getPhaseResultsFromNotes(notes: ApplicationNotes | undefined): PhaseRes
     const score = notes.chatSimulationResult.score;
     results.push({
       phase: 'Chat Simulation',
-      score: score !== undefined ? `${score}/100` : 'Completed',
+      // A result nobody marked (graded: false) is never a number, even a stored placeholder.
+      score: notes.chatSimulationResult.graded === false ? 'Not graded' : score == null ? 'Completed' : `${score}/100`,
       details: notes.chatSimulationResult.passed ? 'Passed' : 'Completed'
     });
   }
   
   // Chat interview results
   if (notes.chatInterviewResult) {
-    const score = notes.chatInterviewResult.score;
+    // Both result shapes: flat (End button) or nested under .evaluation (auto-end).
+    const result = notes.chatInterviewResult;
+    const score = result.score ?? result.evaluation?.score;
+    const notGraded = result.graded === false || result.evaluation?.graded === false;
     results.push({
       phase: 'Chat Interview',
-      score: score !== undefined ? `${score}/100` : 'Completed',
+      score: notGraded ? 'Not graded' : score == null ? 'Completed' : `${score}/100`,
       details: 'Completed'
     });
   }
@@ -566,7 +578,7 @@ function getPhaseResultsFromNotes(notes: ApplicationNotes | undefined): PhaseRes
     const score = notes.salesSimulationResult.score;
     results.push({
       phase: 'Sales Simulation',
-      score: score !== undefined ? `${score}/100` : 'Completed',
+      score: notes.salesSimulationResult.graded === false ? 'Not graded' : score == null ? 'Completed' : `${score}/100`,
       details: 'Completed'
     });
   }

@@ -166,6 +166,20 @@ for (const name of ["api", "assets", "sitemap.xml", "jobs.xml", "adzuna.xml", "j
   check("every vercel.json rewrite's first segment is reserved", looseRewrites.length === 0, looseRewrites.join(", "));
 }
 check("held-back words are reserved too", HELD_BACK.every((w) => RESERVED_SLUGS.has(w)) && SITE_PATHS.every((w) => RESERVED_SLUGS.has(w)));
+{
+  // The crawler's prerender refuses the same names (api/job-prerender.mjs
+  // takes no imports, so it pins a copy): a job saved as "privacy" through the
+  // API must never be what Google sees at hireflownow.com/privacy.
+  const prerender = await readFile(path.join(ROOT, "api/job-prerender.mjs"), "utf8");
+  const block = prerender.slice(prerender.indexOf("const RESERVED_SLUGS = new Set(["), prerender.indexOf("]);", prerender.indexOf("const RESERVED_SLUGS = new Set([")));
+  const pinned = [...block.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  check(
+    "the prerender's pinned reserved names are exactly RESERVED_SLUGS",
+    same([...pinned].sort(), [...RESERVED_SLUGS].sort()),
+    `missing: ${[...RESERVED_SLUGS].filter((n) => !pinned.includes(n)).join(", ")}; extra: ${pinned.filter((n) => !RESERVED_SLUGS.has(n)).join(", ")}`,
+  );
+  check("…and a reserved name is never looked up", /SLUG_RE\.test\(slug\) && !RESERVED_SLUGS\.has\(slug\)/.test(prerender));
+}
 
 // The database checks only the name's shape, so a name written without the
 // editor could be one of the site's own paths. Such a name is no short link.

@@ -237,3 +237,42 @@ You take over a player's chat from one of your agents, the way a team leader doe
   }
 ]
 ```
+
+## How the chat practice is marked (2026-10-06, second pass)
+
+`supabase/functions/ai-chat-simulation` (prompts.ts, grading.ts), tested by
+`scripts/lead_practice_grading.test.mjs`:
+
+- **The case is the server's.** The attempt is pinned to the page's stable
+  pick for the application and step (never the case the request names), and
+  the evaluate grades that case, with the job row's own title. Nothing the
+  request says reaches the reviewer's instructions.
+- **The chat graded is the one saved as it happened.** If the record holds
+  none of the applicant's messages, the evaluate refuses
+  (`chat_not_recorded`) and the page starts the chat again; a transcript in
+  the request is the applicant's writing on both sides.
+- **The rubric follows the case**: a takeover case (rule 7's "A team leader
+  has now taken over" / "What the team leader knows") is marked as the team
+  leader; any other case as a support agent, whatever the job's level.
+- **The reviewer reads numbered lines** ("LEAD 3:", "PLAYER 4:") and names
+  the line of a new promise or of disrespect. The server confirms each flag
+  itself: on a LEAD line, not a negated sentence ("I can't promise …"), not
+  the earlier agent's words from the case. Confirmed: a new promise caps the
+  mark at 40, disrespect at 40, a tone below 40 at tone + 25. Not confirmed,
+  or promise words ("tonight", "bonus", "guaranteed" …) in a lead line the
+  reviewer did not flag: `needsReview` with the reasons, in notes, never a
+  cap.
+- **A promise word counts only as a promise** (2026-10-06, fourth pass). The
+  cases give the lead these words as facts ("the phone check started today",
+  "I understand why the bonus matters"), so a word alone flagged every correct
+  line. Now: a time word (today, tonight, tomorrow, within the hour) only in a
+  sentence that commits to an outcome ("you'll have it by tonight"; not "the
+  rule changed today", not the lead's own next step "I'll look into it
+  today"); bonus or credit only when the sentence gives something ("I'll add
+  a $10 bonus for the trouble"); approved, guaranteed, something extra or
+  front of the line when the case never says it, or in a sentence that
+  commits. Words the lead puts in quotation marks, or a case quote repeated
+  word for word, are someone else's. The scorecard shows this reason as
+  "Chat practice may be worth a read" and does not hold the card for it;
+  only a reviewer flag the server could not confirm, or a confirmed promise
+  or disrespect, keeps the card on "review".

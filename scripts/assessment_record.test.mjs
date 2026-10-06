@@ -691,7 +691,7 @@ const formNow = buildAssessmentRecord(
         step_type: "application",
         last_activity_at: ago(MIN),
         progress: { answered: 3, total: 5, draft_saved_at: ago(MIN) },
-        draft: { q1: "Dana Example", q3: "555 0100", q5: ["Evening", "Weekends"], q9: "", _phoneCountryCodes: { q3: "+1" }, _coverLetter: "Hello" },
+        draft: { q1: "Dana Example", q3: "555 123 0100", q5: ["Evening", "Weekends"], q9: "", _phoneCountryCodes: { q3: "+1" }, _coverLetter: "Hello" },
         // Two trips away from the form (finding a resume, a speed test).
         integrity_summary: { counts: { tab_hidden: 2 }, total: 2, away_ms: 95000, short_away: 0 },
       }),
@@ -702,7 +702,19 @@ const formNow = buildAssessmentRecord(
 const formEntry = formNow.entries[0];
 check("the form row: 'Filling in the form · 3 of 5 answered · active 1 min ago'", formEntry.statusLabel === "Filling in the form · 3 of 5 answered · active 1 min ago", formEntry.statusLabel);
 check("the form opens on the saved draft, in the job's question order", formEntry.openable && formEntry.detail.kind === "application" && formEntry.detail.answers.map((a) => a.id).join(",") === "q1,q3,q5,q9,q11");
-check("the phone answer carries its country code", formEntry.detail.answers[1].answer === "+1 555 0100", formEntry.detail.answers[1].answer);
+check("the phone answer carries its country code, as it will be saved", formEntry.detail.answers[1].answer === "+1 555-123-0100", formEntry.detail.answers[1].answer);
+{
+  // The half-filled form reads the number the way submit will SAVE it
+  // (phoneAnswer): the national 0 off, and never the code twice.
+  const draftPhone = (q3, code) =>
+    buildAssessmentRecord(
+      { id: "app-4b", status: "in_progress", phase: "application", notes: null, jobs: JOB2 },
+      { sessions: [sess({ id: "f2", step_id: "application", step_type: "application", last_activity_at: ago(MIN), draft: { q3, _phoneCountryCodes: code ? { q3: code } : {} } })], now: NOW },
+    ).entries[0].detail.answers[1].answer;
+  check("a Manila draft '0917 123 4567' under +63 reads '+63 917 123 4567' (not '+63 0917 …')", draftPhone("0917 123 4567", "+63") === "+63 917 123 4567", draftPhone("0917 123 4567", "+63"));
+  check("a code still being typed reads '+6391', never '+1 +6391'", draftPhone("+6391", "+1") === "+6391", draftPhone("+6391", "+1"));
+  check("a number with no code picked yet reads as typed", draftPhone("917 123 4567", null) === "917 123 4567", draftPhone("917 123 4567", null));
+}
 check("a pick-several draft is a list", JSON.stringify(formEntry.detail.answers[2].selected) === '["Evening","Weekends"]');
 check("the draft says how far and when it was saved", formEntry.detail.draft.answered === 3 && formEntry.detail.draft.total === 5 && formEntry.detail.coverLetter === "Hello");
 check("the form never raises a flag, even with switches away", formEntry.integrity.total === 0);

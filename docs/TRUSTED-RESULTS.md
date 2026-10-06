@@ -261,13 +261,53 @@ what it actually did, not what seems convenient.
 | `resultKey` (any casing) | notes `type` it pairs with | `legacyStepEntry`? | `extraNotesEntries`? |
 |---|---|---|---|
 | `typingTestResult` | `typing_test` | yes — `notes[stepId]`, TypingTestPhase.tsx:349-361 | no |
-| `chatSimulationResult` | `chat_simulation` | no — ChatSimulationPhase.tsx has no by-id reader | no |
-| `chatInterviewResult` | `chat_interview` | no | no |
+| `chatSimulationResult` | `chat_simulation` | no — ChatSimulationPhase.tsx has no by-id reader | no — optional fields: see "Optional fields on the two chat results" below |
+| `chatInterviewResult` | `chat_interview` | no | no — optional fields: see "Optional fields on the two chat results" below |
 | `salesSimulationResult` | `sales_simulation` | no | no |
 | `portfolioResult` | `portfolio_upload` | yes — `notes[stepId]`, PortfolioUploadPhase.tsx:571 checks `notes[stepId] \|\| notes.portfolioResult` | no |
 | `videoIntroResult` | `video_intro` (or the legacy `video_message` alias) | yes — `notes[stepId]`, matches VideoIntroPhase.tsx's own write shape | **yes, required** — `{ videoIntroUrl: result.videoUrl }`. VideoIntroPhase.tsx:390 writes a fourth, flat key today, `notes.videoIntroUrl`, that `autopilot-batch/index.ts:129` and `usePendingActionsCount.ts:77` read **exclusively** (never `videoIntroResult`) to decide whether a video was submitted. Drop this and those two readers go stale for every candidate who converts. `videoIntroUrl` is folded into the SAME `videoIntroResult` enforcement flag (not a separate `result_key`) — see the migration. |
 | `voiceInterviewResult` | `voice_interview` | no — `CondensedAIAnalysis.tsx:277` reads this notes key as a fallback alongside the real `applications.voice_interview_result` column | no |
 | `equipmentCheckResult` | `equipment_check` | yes — `notes[stepId]` (`{type: "equipment_check", ...result, completedAt}`), for the readers that look a step up by id | no |
+
+### Optional fields on the two chat results (2026-10-06)
+
+Both results keep the shape every existing reader expects (above). The
+fields below are ADDED only when they apply, so an older result simply does
+not carry them. `_shared/autopilot.ts` (`readChatSimulationResult`,
+`readChatInterviewResult`) is the one reader every scorer goes through.
+
+**`notes.chatSimulationResult`** (`ai-chat-simulation/grading.ts`
+`buildChatSimulationResult`):
+
+| field | when | meaning |
+|---|---|---|
+| `graded: false` + `transcript` | the grader failed | no score: `score`, `empathy`, `problemSolving` are null; the conversation is kept for re-grading |
+| `scenarioId` | a configured case was played | which case |
+| `transcriptSource: "browser"` | the record of the attempt was not available (the record system not deployed) | graded from the transcript the page sent: not trusted (the scorecard flags it and keeps the card on "review") |
+| `rubric: "team_lead"` | the case was a takeover of a mishandled chat (the rubric follows the case, not the job) | marked on the escalated (team leader) rubric; the fields below come with it |
+| `ownership`, `correctedAgent`, `accuracy`, `infoAsked`, `nextStep`, `tone` | escalated rubric | each 0-100; `correctedAgent` may be null (no earlier mistake to correct) |
+| `newPromiseMade`, `newPromiseQuote` | escalated rubric | a NEW promise in the lead's own lines, confirmed by the server; the score is already capped at 40 |
+| `newPromiseUnverified` | escalated rubric | a possible promise the server could not confirm (kept for staff, never capped on) |
+| `disrespectMade`, `disrespectQuote` | escalated rubric | disrespect to the player, confirmed the same way |
+| `cappedBy` | escalated rubric | what capped the score: `new_promise`, `disrespect`, `tone` |
+| `evidence` | escalated rubric | the lead's quoted words behind each mark |
+| `needsReview: true` + `reviewReasons` | escalated rubric, a flag the server could not confirm, or promise words the reviewer did not flag | a person should read the chat before its mark is trusted; a reason that is only promise words (`Promise words in the lead's own lines …`) is shown by the scorecard without holding the card (`isPromiseWordsOnlyReason`) |
+
+**`notes.chatInterviewResult`** (`ai-chat-interview/resultShape.ts`
+`buildChatInterviewResult`; flat on the End-button shape, nested under
+`.evaluation` on the auto-end shape, which also says `graded: false` and
+`incomplete: true` flat):
+
+| field | when | meaning |
+|---|---|---|
+| `graded: false` + `messages` | the grader failed | no score and no recommendation; the answers are kept for re-grading |
+| `transcriptSource: "browser"` (flat, both shapes) | the record of the attempt was not available | graded from the answers the page sent: not trusted |
+| `summary`, `credibilityRating`, `inconsistencies` (flat, End-button shape) | the grader gave them (since 2026-10-06; the auto-end shape always had them nested) | the grader's review: a "Low" credibility is a scorecard flag and a reason for "review" on either ending |
+| `leadership`, `adaptability`, `workingLead` | a team lead job (`inferJobFamily` = `team_lead`) | each 0-100 from the lead plan; null for a topic never asked, which counts 0 in the interview's score (ending early never scores more than answering); a mark under 50 is a scorecard flag, a "why down" line and a reason for "review", never a change to the number |
+| `writtenEnglish` | a team lead job | 0-100, always marked on the lead plan |
+| `leadEvidence` | a team lead job | the candidate's own words behind each lead mark (checked against their answers) |
+| `mustCoverMissing` | a team lead job | the MUST COVER topics the interview never reached |
+| `incomplete: true` | a team lead job, a topic missing or too few answers | graded, but flagged: "Interview ended before the lead plan was covered" |
 
 Before converting a phase, read that phase page's current
 `.update({ notes: ... })` call and match its `updatedNotes` shape exactly —

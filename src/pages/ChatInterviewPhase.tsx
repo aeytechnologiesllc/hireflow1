@@ -717,6 +717,27 @@ export default function ChatInterviewPhase() {
           waitForServerCheck(outcome === "on_file", resultBeforeSend);
           return;
         }
+        if (submitResponse.status === 409 && errBody?.code === "too_few_answers") {
+          // A team lead interview the interviewer closed too early: it goes
+          // on. They can answer more, or press End themselves.
+          advance.cancel();
+          setState("interviewing");
+          toast.info(errBody.error || "The interview isn't finished yet. Please answer a few more questions.");
+          return;
+        }
+        if (submitResponse.status === 409 && errBody?.code === "interview_not_recorded") {
+          // None of their answers was saved as it was written, so the
+          // interview cannot be checked: it starts again, saved this time.
+          advance.cancel();
+          clearConversationDraft();
+          setMessages([]);
+          setQuestionCount(0);
+          setAutoEndTriggered(false);
+          setStartTime(null);
+          setState("intro");
+          toast.error(errBody.error || "This interview wasn't saved as you went. Please start it again.");
+          return;
+        }
         throw new Error(errBody.error || "Failed to submit interview");
       }
 
@@ -973,7 +994,7 @@ export default function ChatInterviewPhase() {
 
           <p className="text-sm text-muted-foreground">
             {state === "intro"
-              ? "Take your time — you can't break anything. About 10–15 minutes."
+              ? "Take your time — you can't break anything. About 15–25 minutes."
               : state === "interviewing"
                 ? "Answer naturally, the way you would in person — there's no rush."
                 : "Your answers are saved."}
@@ -993,7 +1014,7 @@ export default function ChatInterviewPhase() {
                 <ul className="space-y-3 text-sm text-muted-foreground">
                   <li className="flex items-start gap-3">
                     <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                    <span>The hiring team has read your application and built questions around it</span>
+                    <span>The questions are built from your application, and a person on the hiring team reads every answer</span>
                   </li>
                   <li className="flex items-start gap-3">
                     <Users className="mt-0.5 h-4 w-4 shrink-0 text-primary" />

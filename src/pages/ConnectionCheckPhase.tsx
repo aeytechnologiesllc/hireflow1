@@ -449,8 +449,8 @@ export default function ConnectionCheckPhase() {
 
       toast.success("Connection check sent", {
         description: serverWords
-          ? `${serverWords} The hiring team will review it and get back to you.`
-          : "Your result is saved. The hiring team will review it and get back to you.",
+          ? `${serverWords} The hiring team opens your next step; your place is kept.`
+          : "Your result is saved. The hiring team opens your next step; your place is kept.",
       });
       // The page moves by itself after a send: replace, so Back from the
       // application page never lands on this sent step (docs/SHORT-JOB-LINKS.md).

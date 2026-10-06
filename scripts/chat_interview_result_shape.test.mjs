@@ -119,7 +119,7 @@ const manualResult = buildChatInterviewResult({
 });
 
 check(
-  "matches the client's old flattened shape exactly",
+  "matches the client's old flattened shape exactly, plus the grader's summary (2026-10-06)",
   deepEqual(manualResult, {
     messageCount: 2,
     duration: 225,
@@ -134,8 +134,29 @@ check(
       tabSwitches: 2,
       copyPasteAttempts: 2,
     },
+    summary: "Solid candidate, matched their claimed experience.",
   }),
   JSON.stringify(manualResult),
+);
+
+// The End button used to drop the grader's review: the same "Low" interview
+// read "review" with a flag from the auto-end shape and "advance" with none
+// from this one, and the judge got no Summary or Inconsistencies lines.
+const reviewed = {
+  ...evaluation,
+  credibilityRating: "Low",
+  inconsistencies: [{ claim: "4 years leading", evidence: "quiz 40%", assessment: "Doubtful" }],
+};
+const manualReviewed = buildChatInterviewResult({ path: "manual", messages, duration: 225, questionCount: 6, violations: [], evaluation: reviewed });
+check(
+  "manual: the grader's credibility, summary and inconsistencies are flat on the result, as the auto_end shape has them nested",
+  manualReviewed.credibilityRating === "Low" &&
+    manualReviewed.summary === reviewed.summary &&
+    deepEqual(manualReviewed.inconsistencies, reviewed.inconsistencies),
+);
+check(
+  "manual: a field the grader did not give is not invented",
+  !("credibilityRating" in manualResult) && !("inconsistencies" in manualResult),
 );
 check(
   "duration stays a number (elapsed seconds) — never coerced to a string, unlike the auto_end path",

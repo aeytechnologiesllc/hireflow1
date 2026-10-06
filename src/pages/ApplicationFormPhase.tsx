@@ -40,7 +40,7 @@ import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { StepAdvanceScreen } from "@/components/candidate/NextStepCard";
 import CountryCodeSelect from "@/components/CountryCodeSelect";
 import { countryCodes } from "@/lib/countryCodes";
-import { browserLocaleHints, cleanPhoneInput, guessDialCode, phoneAnswer, phonePlaceholder, splitStoredPhone } from "@/lib/phoneNumber";
+import { browserLocaleHints, cleanPhoneInput, guessDialCode, phoneAnswer, phoneHint, phonePlaceholder, phoneProblem, splitStoredPhone } from "@/lib/phoneNumber";
 import { convertPdfFileToImages, base64ToBlob } from "@/utils/pdfToImage";
 import {
   isImageResumeUrl,
@@ -256,10 +256,12 @@ export default function ApplicationFormPhase() {
   // render's copy).
   const multiAnswersRef = useRef<Record<string, string[]>>({});
   const [phoneCountryCodes, setPhoneCountryCodes] = useState<Record<string, string>>({});
-  // The code a phone field shows before the applicant picks one: +63 for a
-  // browser in the Philippines (its time zone or language), else +1. It is
-  // the code that is saved, picked or not (src/lib/phoneNumber.ts).
-  const defaultDialCode = useMemo(() => guessDialCode(browserLocaleHints()), []);
+  // The code a phone field shows before the applicant picks one, from where
+  // the browser says they are (a Filipino language, a language region such
+  // as en-NG, the time zone), or none at all when it does not say: then the
+  // applicant picks one, and no code is ever assumed. It is the code that is
+  // saved (src/lib/phoneNumber.ts).
+  const defaultDialCode = useMemo(() => guessDialCode(browserLocaleHints(), countryCodes) ?? "", []);
   const dialCodeFor = (questionId: string) => phoneCountryCodes[questionId] || defaultDialCode;
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [coverLetter, setCoverLetter] = useState("");
@@ -399,7 +401,7 @@ export default function ApplicationFormPhase() {
   // that gets re-broken after being fixed still live-syncs. Before the first
   // Continue press it's false, so a fresh required field still stays quiet
   // until then, exactly like before.
-  const syncQuestionError = (question: ApplicationQuestion, value: string) => {
+  const syncQuestionError = (question: ApplicationQuestion, value: string, phoneCode?: string) => {
     if (!hasAttemptedSubmit) return;
     setValidationErrors((prev) => {
       let message: string | undefined;
@@ -407,6 +409,10 @@ export default function ApplicationFormPhase() {
         message = REQUIRED_FIELD_MESSAGE;
       } else if (normalizeQuestionType(question.type) === "email" && value && !isValidEmail(value)) {
         message = EMAIL_FIELD_MESSAGE;
+      } else if (normalizeQuestionType(question.type) === "phone") {
+        // The number as it would be SAVED: a code picked, and a whole number
+        // for it (ten digits for +1, seven or more after any other code).
+        message = phoneProblem(phoneCode ?? dialCodeFor(question.id), value) ?? undefined;
       }
       if (!message) {
         if (!prev[question.id]) return prev;
@@ -573,6 +579,7 @@ export default function ApplicationFormPhase() {
         // A saved number may carry its code, spaced ("+63 917 …") or not
         // ("+639171234567"): the known codes decide where the code ends.
         const split = splitStoredPhone(profile.phone, defaultDialCode, KNOWN_DIAL_CODES);
+        // A number saved without its code keeps no code until one is known.
         if (/^\s*(\+|00)/.test(profile.phone)) prefilledCountryCodes[q.id] = split.code;
         prefilled[q.id] = split.display || profile.phone;
       }
@@ -657,7 +664,7 @@ export default function ApplicationFormPhase() {
   const draftPhoneCodes = useMemo(() => {
     const codes: Record<string, string> = { ...phoneCountryCodes };
     for (const q of questions) {
-      if (normalizeQuestionType(q.type) === "phone" && answers[q.id]?.trim() && !codes[q.id]) codes[q.id] = defaultDialCode;
+      if (normalizeQuestionType(q.type) === "phone" && answers[q.id]?.trim() && !codes[q.id] && defaultDialCode) codes[q.id] = defaultDialCode;
     }
     return codes;
   }, [questions, answers, phoneCountryCodes, defaultDialCode]);
@@ -936,6 +943,12 @@ export default function ApplicationFormPhase() {
       }
       if (type === "email" && answers[q.id] && !isValidEmail(answers[q.id])) {
         errors[q.id] = EMAIL_FIELD_MESSAGE;
+      }
+      // A phone number is checked as it would be SAVED: "0", "+" or "+6"
+      // used to pass a required question and save "" or "+6".
+      if (type === "phone" && answers[q.id]?.trim()) {
+        const problem = phoneProblem(dialCodeFor(q.id), answers[q.id]);
+        if (problem) errors[q.id] = problem;
       }
     });
 
@@ -1425,11 +1438,13 @@ export default function ApplicationFormPhase() {
                       setPhoneCountryCodes(prev => ({ ...prev, [question.id]: value }));
                       // A number typed before the country was picked is
                       // re-read for that country (+1 dashes, or groups of three).
+                      // Every digit is still there: a number that is not a +1
+                      // number is kept whole under +1 (src/lib/phoneNumber.ts).
                       const typed = answers[question.id];
                       if (typed) {
                         const { display } = cleanPhoneInput(typed, value);
                         setAnswers(prev => ({ ...prev, [question.id]: display }));
-                        syncQuestionError(question, display);
+                        syncQuestionError(question, display, value);
                       }
                     }}
                   />
@@ -1437,7 +1452,10 @@ export default function ApplicationFormPhase() {
                     id={`${fieldId}-phone`}
                     type="tel"
                     inputMode="tel"
-                    autoComplete="tel-national"
+                    /* The whole number, country code included: a filled-in
+                       "+234 803 …" moves the selector to +234 by itself. The
+                       national form threw that code away. */
+                    autoComplete="tel"
                     value={answers[question.id] || ""}
                     onChange={(e) => {
                       // A number pasted from Contacts or a password manager
@@ -1455,7 +1473,7 @@ export default function ApplicationFormPhase() {
                         setPhoneCountryCodes(prev => ({ ...prev, [question.id]: cleaned.code }));
                       }
                       setAnswers(prev => ({ ...prev, [question.id]: cleaned.display }));
-                      syncQuestionError(question, cleaned.display);
+                      syncQuestionError(question, cleaned.display, cleaned.code);
                     }}
                     placeholder={phonePlaceholder(dialCodeFor(question.id))}
                     className={cn(FIELD_CLASS, "flex-1", validationErrors[question.id] && "border-destructive")}
@@ -1464,6 +1482,11 @@ export default function ApplicationFormPhase() {
                        pasted number is normalised the same as a typed one. */
                   />
                 </div>
+              )}
+              {questionType === "phone" && !validationErrors[question.id] && phoneHint(dialCodeFor(question.id), answers[question.id]) && (
+                <p className="text-sm text-muted-foreground" aria-live="polite">
+                  {phoneHint(dialCodeFor(question.id), answers[question.id])}
+                </p>
               )}
 
               {questionType === "date" && (
