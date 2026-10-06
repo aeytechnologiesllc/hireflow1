@@ -53,10 +53,22 @@ import {
   leadEvaluationFrom,
   phaseAiAnalysisFromStoredResult,
   supportEvaluationFrom,
+  reviewLines,
   ungradedEvaluation,
   type AntiCheatViolation,
   type SimulationChatMessage,
 } from "./grading.ts";
+import {
+  DEFAULT_TYPING_BAR,
+  applicantWordCount,
+  buildTypingResult,
+  cleanReplyTyping,
+  replyTypingRows,
+  typosPer100Words,
+  verifiedSpellingMistakes,
+  type ChatTypingResult,
+  type SpellingMistake,
+} from "./typing.ts";
 import {
   EVAL_PROMPT_VERSION,
   buildEvaluatorMessages,
@@ -114,6 +126,12 @@ interface ChatSimulationRequest {
    *  the request's scenario, customerName and scenarioId never reach the
    *  reviewer. */
   scenarioId?: string;
+  /** "respond": the page's keystroke summary for this one reply
+   *  (src/lib/typingMeter.ts: charsTyped, activeMs, corrections, keys,
+   *  pasteLike). Cleaned (typing.ts cleanReplyTyping) and stored on the
+   *  candidate_turn as detail.typing; the speed, the medians and the reply
+   *  times are worked out at grading, never taken from the page. */
+  typing?: unknown;
 }
 
 /** The caller's user id, resolved from their own session JWT — never trust a
@@ -412,7 +430,8 @@ serve(async (req) => {
             gradedMessages,
           ),
           temperature: 0.2,
-          maxCompletionTokens: 2400,
+          // A little more room than before for the spelling list (eval-4).
+          maxCompletionTokens: 2800,
           validator: (value) => requireJsonKeys(value, evaluatorRequiredKeys(rubric)),
           // No made-up mark: null means "not graded" below.
           fallback: (): Record<string, unknown> | null => {
@@ -428,6 +447,23 @@ serve(async (req) => {
         const graded = marked !== null;
         const evaluation = marked ?? ungradedEvaluation(usedFallback ? "model_failed" : "answer_unreadable");
         if (!graded) console.warn("[ai-chat-simulation] chat recorded as not graded:", usedFallback ? "model_failed" : "answer_unreadable");
+
+        // Typing, measured inside the chat (docs/TYPING-IN-CHAT.md): speed
+        // and corrections from each STORED reply's own keystroke summary
+        // (detail.typing), reply time from the server's own timestamps, typos
+        // from the reviewer's list, kept only where the word is in the
+        // applicant's own numbered line. Only from the record: a transcript
+        // the page sent carries no server times, so it gets no typing block.
+        let spellingMistakes: SpellingMistake[] | null = null;
+        let typing: ChatTypingResult | null = null;
+        if (transcript.source === "stored" && storedTurns) {
+          spellingMistakes = graded ? verifiedSpellingMistakes(reviewed, reviewLines(gradedMessages)) : null;
+          typing = buildTypingResult({
+            turns: storedTurns,
+            bar: practiceJob.step?.typingBar ?? { ...DEFAULT_TYPING_BAR },
+            typosPer100Words: typosPer100Words(spellingMistakes ? spellingMistakes.length : null, applicantWordCount(gradedMessages)),
+          });
+        }
 
         // The integrity summary in notes comes from the events the page
         // recorded (record_integrity_events) whenever there are any, else
@@ -457,6 +493,7 @@ serve(async (req) => {
           scenarioId: gradedScenarioId,
           // Only where the record system is not deployed at all.
           transcriptSource: transcript.source === "stored" ? "stored" : "browser",
+          typing,
         });
 
         // recordStepResult only needs the minimal from().select().eq().maybeSingle()
@@ -517,6 +554,12 @@ serve(async (req) => {
                 transcript_source: transcript.source,
                 messages_graded: gradedMessages.length,
                 integrity_source: integrity.source,
+                // Typing per reply (staff only): what the medians in
+                // notes.chatSimulationResult.typing were built from, and the
+                // spelling mistakes the server found in the applicant's lines.
+                ...(typing && storedTurns
+                  ? { typing: { replies: replyTypingRows(storedTurns), spelling_mistakes: spellingMistakes } }
+                  : {}),
                 // An answer that came back but could not be read as a mark, for whoever re-grades it.
                 ...(!graded && !usedFallback ? { unread_answer: reviewed } : {}),
               },
@@ -655,6 +698,8 @@ serve(async (req) => {
           clientMsgId,
           clientAt: cleanClientAt(request.clientAt),
           role: "agent",
+          // The page's keystroke summary for this reply, cleaned; never a total.
+          typing: cleanReplyTyping(request.typing) as Record<string, unknown> | null,
         });
         if (!turn.ok && turn.reason === "turn_not_saved") {
           // Every answer is kept as it is sent: one that could not be stored

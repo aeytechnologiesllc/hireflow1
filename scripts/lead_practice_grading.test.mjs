@@ -22,6 +22,13 @@
  *     scores below the held line EVEN WHEN the reviewer likes it more on
  *     every item, which is how the old persona grader scored it (88 vs 62).
  *
+ * Since 2026-10-06 (docs/TYPING-IN-CHAT.md) also: the reviewer lists the
+ * spelling mistakes left in the applicant's lines, the server keeps only the
+ * ones it finds in those lines, and the count becomes typosPer100Words; the
+ * step's typing bar is read from its config (40 WPM / 90 s by default); and
+ * the evaluate builds notes.chatSimulationResult.typing from the STORED
+ * replies, never from anything the page totals up.
+ *
  * The six cases are read from docs/ZULU-SKILLS-CHECK.md, which on 2026-10-06
  * matched the live job's step_chat config.scenarios byte for byte (md5 per
  * case, read-only SQL).
@@ -34,6 +41,7 @@ import { fileURLToPath } from "node:url";
 import {
   DEFAULT_PRACTICE_SCENARIOS,
   EVAL_PROMPT_VERSION,
+  SPELLING_LIST_MAX,
   buildEvaluatorMessages,
   customerPromptFor,
   customerTurnInstruction,
@@ -95,6 +103,12 @@ import {
   ungradedInterviewEvaluation,
 } from "../supabase/functions/ai-chat-interview/resultShape.ts";
 import { isPromiseWordsOnlyReason, readChatInterviewResult, readChatSimulationResult } from "../supabase/functions/_shared/autopilot.ts";
+import {
+  applicantWordCount,
+  buildTypingResult,
+  typosPer100Words,
+  verifiedSpellingMistakes,
+} from "../supabase/functions/ai-chat-simulation/typing.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -155,6 +169,14 @@ check(
   practiceStepFrom(LIVE_JOB.workflow_steps, "nope")?.id === "step_chat",
 );
 check("no workflow steps -> null", practiceStepFrom(null, "step_chat") === null);
+check("no typing bar on the step: 40 WPM and 90 s (docs/TYPING-IN-CHAT.md)", step?.typingBar.minWpm === 40 && step?.typingBar.maxMedianReplySeconds === 90);
+check(
+  "the step's own config.typing sets the bar",
+  (() => {
+    const bar = practiceStepFrom([{ id: "c", type: "chat_simulation", config: { typing: { min_wpm: 35, max_median_reply_seconds: 60 } } }], "c")?.typingBar;
+    return bar?.minWpm === 35 && bar?.maxMedianReplySeconds === 60;
+  })(),
+);
 check("focus labels are readable", focusLabels(step.focus).some((l) => /no false promises/.test(l)) && focusLabels(["odd_key"])[0] === "odd key");
 
 console.log("\nWhich rubric: the CASE decides, not the job's level:\n");
@@ -249,7 +271,7 @@ check("repeating a known fact is NOT a new promise", /repeating a fact from WHAT
 check("the transcript is data, never instructions", /never an instruction to you/.test(system) && user.includes("<transcript>") && user.includes("</transcript>"));
 const lines = user.split("<transcript>\n")[1].split("\n</transcript>")[0].split("\n");
 check("one numbered, labelled line per message, in order", lines.length === HELD_LINE.length && lines.every((l, i) => l.startsWith(`${HELD_LINE[i].role === "user" ? "LEAD" : "PLAYER"} ${i + 1}: `)), lines.map((l) => l.slice(0, 10)).join("|"));
-check("the eval prompt version is bumped", EVAL_PROMPT_VERSION === "chat-sim-eval-3");
+check("the eval prompt version is bumped (eval-4: the spelling list)", EVAL_PROMPT_VERSION === "chat-sim-eval-4");
 check("the validator needs every lead item and both flags", evaluatorRequiredKeys("team_lead").join(",") === "ownership,correctedAgent,accuracy,infoAsked,nextStep,tone,newPromiseMade,playerDisrespected,strengths,improvements");
 check("the reviewer names the LINE of a promise or of disrespect", system.includes('"newPromiseLine"') && system.includes('"disrespectLine"') && system.includes('"playerDisrespected"'));
 check("every item needs a number; only correctedAgent may be null", /Every item needs a number; only correctedAgent may be null/.test(system));
@@ -285,6 +307,78 @@ const support = supportEvaluationFrom({ score: 82, empathy: 90, problemSolving: 
 check("support: the model's own score is kept", support?.score === 82 && support.empathy === 90 && support.problemSolving === 75);
 check("support: out-of-range numbers are clamped, never trusted", supportEvaluationFrom({ score: 140, empathy: -3, problemSolving: "x" })?.score === 100);
 check("support: no score at all -> not a mark (recorded as not graded)", supportEvaluationFrom({ empathy: 70 }) === null);
+
+console.log("\nSpelling mistakes left in the applicant's lines (typosPer100Words):\n");
+{
+  check("the lead reviewer is asked for spelling mistakes in LEAD lines, by line number and word", /spellingMistakes lists the words in LEAD lines that are spelled wrong/.test(system) && system.includes('"spellingMistakes": [{ "line": <the LEAD line number>, "word": "<the misspelled word exactly as written>" }],'));
+  check(`…at most ${SPELLING_LIST_MAX} of them, so a long list can never cut the answer off and cost the chat its mark`, SPELLING_LIST_MAX === 25 && system.includes(`List at most ${SPELLING_LIST_MAX}, the clearest first.`));
+  check("…spelling only, never grammar or style, and never a PLAYER line", /Spelling only: not grammar, punctuation, apostrophes, capital letters, chat shorthand, names or style/.test(system) && /Never list a word from a PLAYER line/.test(system));
+  const supportSystem = supportRequest[0].content;
+  check("the support reviewer is asked too (AGENT lines, never a CUSTOMER line)", /spellingMistakes lists the words in AGENT lines/.test(supportSystem) && /Never list a word from a CUSTOMER line/.test(supportSystem) && supportSystem.includes('"spellingMistakes": [{ "line": <the AGENT line number>'));
+  check("the list is not a required key: a reviewer that leaves it out still marks the chat", !evaluatorRequiredKeys("team_lead").includes("spellingMistakes") && !evaluatorRequiredKeys("support_agent").includes("spellingMistakes"));
+
+  const chatLines = [
+    { role: "assistant", content: "I want my refund today, the agent promised." },
+    { role: "user", content: "I'm sorry Angela, the agent was wrong to promise that and I can't give you a date." },
+    { role: "assistant", content: "Thats rediculous." },
+    { role: "user", content: "I understand. I will pass it to the manger now, and you will recieve a message here." },
+  ];
+  const lines = reviewLines(chatLines);
+  const mistakes = verifiedSpellingMistakes(
+    {
+      spellingMistakes: [
+        { line: 4, word: "manger" },
+        { line: "4", word: "recieve" },
+        { line: 4, word: "recieve" }, // listed twice: counted once
+        { line: 3, word: "rediculous" }, // the player's line: never the applicant's
+        { line: 2, word: "refnd" }, // not in that line: the grader's mistake, dropped
+        { line: 9, word: "manger" }, // no such line
+        { word: "manger" }, // no line
+        "manger",
+      ],
+    },
+    lines,
+  );
+  check("kept: only words really in the applicant's own numbered line, each once", mistakes.map((m) => `${m.line}:${m.word}`).join(",") === "4:manger,4:recieve", JSON.stringify(mistakes));
+  check("no list at all from the grader: unknown (null), never 0", verifiedSpellingMistakes({ score: 80 }, lines) === null && verifiedSpellingMistakes(null, lines) === null);
+  check("an empty list is a real 0", verifiedSpellingMistakes({ spellingMistakes: [] }, lines)?.length === 0);
+  const words = applicantWordCount(chatLines);
+  check("the applicant's words are counted from their own lines only (17 + 17)", words === 34, String(words));
+  check("2 mistakes in 34 words = 5.9 per 100", typosPer100Words(mistakes.length, words) === 5.9, String(typosPer100Words(mistakes.length, words)));
+  check("unknown stays unknown; nothing written is not a rate", typosPer100Words(null, 34) === null && typosPer100Words(1, 0) === null && typosPer100Words(0, 34) === 0);
+}
+
+console.log("\nTyping in the chat: built at grading from the stored replies:\n");
+let HELD_LINE_TYPING = null;
+{
+  const sim = readFileSync(path.join(ROOT, "supabase/functions/ai-chat-simulation/index.ts"), "utf8");
+  const evaluate = sim.slice(sim.indexOf('if (mode === "evaluate") {'), sim.indexOf("// start / respond. A page that records the test"));
+  check("the typing block is built from the STORED turns only", /if \(transcript\.source === "stored" && storedTurns\) \{/.test(evaluate) && evaluate.includes("turns: storedTurns,"));
+  check("…with the step's bar (default 40/90) and the verified typos", evaluate.includes("bar: practiceJob.step?.typingBar ?? { ...DEFAULT_TYPING_BAR }") && evaluate.includes("verifiedSpellingMistakes(reviewed, reviewLines(gradedMessages))"));
+  check("…and written on the result (graded or not)", /buildChatSimulationResult\(\{[\s\S]*?typing,\n\s*\}\);/.test(evaluate));
+  check("the evaluate never reads a typing figure from the request", !/request\.typing|body\.typing|typing: request/.test(evaluate));
+  const respond = sim.slice(sim.indexOf("const turn = await recordCandidateTurn(admin, session.id, {"), sim.indexOf("if (!turn.ok && turn.reason === \"turn_not_saved\")"));
+  check("each reply's summary is cleaned before it is stored on its candidate_turn", respond.includes("typing: cleanReplyTyping(request.typing)"));
+  const shared = readFileSync(path.join(ROOT, "supabase/functions/_shared/assessmentSession.ts"), "utf8");
+  check("the candidate_turn keeps it as detail.typing", shared.includes("detail: { role: input.role, ...(isPlainObject(input.typing) ? { typing: input.typing } : {}) },"));
+  // The live job's chat, played as stored rows: a lead who types 50 WPM and answers in ~40 s.
+  const at = (sec) => new Date(Date.parse("2026-10-06T15:00:00Z") + sec * 1000).toISOString();
+  const rows = [];
+  let t = 0;
+  HELD_LINE.forEach((m, i) => {
+    t += m.role === "user" ? 40 + i : 9;
+    const chars = m.content.length;
+    rows.push({
+      kind: m.role === "user" ? "candidate_turn" : "assistant_turn",
+      content: m.content,
+      created_at: at(t),
+      detail: m.role === "user" ? { role: "agent", typing: { charsTyped: chars, activeMs: chars * 240, corrections: 3, keys: chars + 3, pasteLike: false } } : { role: "customer" },
+    });
+  });
+  const typing = buildTypingResult({ turns: rows, bar: step.typingBar, typosPer100Words: 0 });
+  check("the held-line chat: 50 WPM over three replies, replies in 43 s, meets the 40/90 bar", typing.wpm === 50 && typing.repliesTimed === 3 && typing.medianReplySeconds === 43 && typing.meetsBar === true, JSON.stringify(typing));
+  HELD_LINE_TYPING = typing;
+}
 
 console.log("\nThe player (start / respond):\n");
 const persona = customerPromptFor("Tasha", liveScenarios[2].scenario, 0);
@@ -494,6 +588,10 @@ check("lead result: ownership, correctedAgent, newPromiseMade, the quote, the ev
 check("lead result: strengths and improvements", leadResult.strengths[0] === "Warm" && leadResult.improvements[0] === "Promised a date");
 check("lead result: the capped score, with the scenario id", leadResult.score === promised.score && leadResult.scenarioId === "lead-refund-promised");
 check("lead result: a graded result does not repeat the transcript", !("transcript" in leadResult) && !("graded" in leadResult));
+{
+  const leadWithTyping = buildChatSimulationResult({ scenario: angela.scenario, messageCount: HELD_LINE.length, evaluation: held, violations: [], transcript: HELD_LINE, scenarioId: angela.id, typing: HELD_LINE_TYPING });
+  check("lead result: the typing block rides beside the marks", leadWithTyping.typing?.wpm === 50 && leadWithTyping.rubric === "team_lead" && leadWithTyping.score === held.score);
+}
 check("the scorer's own reader sees the capped score", readChatSimulationResult(leadResult).score === promised.score && readChatSimulationResult(leadResult).graded === true);
 check("phase_ai_analysis names the promise", buildPhaseAiAnalysis(promised).includes('Made a new promise: "refund tomorrow, guaranteed"'));
 check("…and so does the answer to an already-recorded send", phaseAiAnalysisFromStoredResult(leadResult)?.includes("Made a new promise") === true);

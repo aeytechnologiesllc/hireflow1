@@ -69,6 +69,7 @@ import {
   APP_ZULU_DECLINED_ID,
   APP_ZULU_STRONG_ID,
   APP_ZULU_QUIET_ID,
+  APP_ZULU_CHAT_TYPED_ID,
   INTERVIEW_ZULU_ID,
   ZULU_TYPING_USER_ID,
   ZULU_LEFT_CHAT_USER_ID,
@@ -78,6 +79,7 @@ import {
   ZULU_DECLINED_USER_ID,
   ZULU_STRONG_USER_ID,
   ZULU_QUIET_USER_ID,
+  ZULU_CHAT_TYPED_USER_ID,
 } from "./ids";
 
 // The computer and connection check (docs/EQUIPMENT-CHECK.md); its ids live in
@@ -948,8 +950,50 @@ const zuluProfiles = [
   zuluProfile(ZULU_CONNECTION_USER_ID, "priya.natarajan@example.com", "Priya Natarajan"),
 ];
 
-function makeZuluApplication(overrides: FixtureRow): FixtureRow {
-  return { ...makeApplication({ ...overrides, job_id: JOB_FRESH_ID, resume_url: null }), jobs: zuluJob };
+function makeZuluApplication(overrides: FixtureRow, job: FixtureRow = zuluJob): FixtureRow {
+  return { ...makeApplication({ ...overrides, job_id: JOB_FRESH_ID, resume_url: null }), jobs: job };
+}
+
+/**
+ * The Zulu job as it will be once its typing step is dropped
+ * (docs/TYPING-IN-CHAT.md: typing is measured inside the chat practice).
+ * Only Kwame's application embeds it, so his full profile (which builds the
+ * record from the embedded job) shows the chat's typing as the job's typing
+ * measure: the amber line, under both bars. The shared job row, everyone
+ * else, and the Applicants list (which reads the shared row) keep the typing
+ * test as before.
+ */
+const zuluJobNoTypingStep: FixtureRow = {
+  ...zuluJob,
+  workflow_steps: (zuluJob.workflow_steps as Array<{ type?: string }>).filter((s) => s.type !== "typing_test"),
+};
+
+/** notes.chatSimulationResult.typing in the shape docs/TYPING-IN-CHAT.md fixes (the server writes it at grading). */
+function chatTypingFixture(t: {
+  wpm: number | null;
+  correctionsPct: number | null;
+  medianReplySeconds: number | null;
+  typosPer100Words: number | null;
+  repliesTimed: number;
+  pasteLike?: number;
+}): FixtureRow {
+  const bar = { minWpm: 40, maxMedianReplySeconds: 90 };
+  const below: string[] = [];
+  if (t.wpm != null && t.wpm < bar.minWpm) below.push("speed");
+  if (t.medianReplySeconds != null && t.medianReplySeconds > bar.maxMedianReplySeconds) below.push("reply_time");
+  return {
+    wpm: t.wpm,
+    correctionsPct: t.correctionsPct,
+    medianReplySeconds: t.medianReplySeconds,
+    typosPer100Words: t.typosPer100Words,
+    repliesTimed: t.repliesTimed,
+    pasteLike: t.pasteLike ?? 0,
+    bar,
+    meetsBar: below.length > 0 ? false : t.wpm == null ? null : true,
+    below,
+    notTimed: t.wpm == null ? "too_short" : null,
+    measuredBy: { speed: "page", replyTime: "server", typos: "grader" },
+  };
 }
 
 /** Picks the right answer for every question but the ones listed. */
@@ -1081,6 +1125,9 @@ const zuluDoneNotes = {
     ],
     completed: true,
     antiCheatSummary: { hasViolations: true, violationCount: 3, tabSwitches: 2, copyPasteAttempts: 1 },
+    // Typing measured while writing these replies (docs/TYPING-IN-CHAT.md).
+    // This job still has its typing test, so this is shown for information.
+    typing: chatTypingFixture({ wpm: 35, correctionsPct: 8, medianReplySeconds: 74, typosPer100Words: 2.4, repliesTimed: 5, pasteLike: 1 }),
   },
   chatInterviewResult: {
     messages: [
@@ -2003,7 +2050,8 @@ interface ZuluRun {
   quiz?: { wrong: number[]; at: number };
   connection?: { at: number; deviceKind?: "computer" | "phone"; uploadMbps?: number };
   typing?: { at: number; wpm: number; accuracy: number };
-  chat?: { at: number; score: number };
+  /** `typing`: notes.chatSimulationResult.typing (chatTypingFixture). */
+  chat?: { at: number; score: number; typing?: FixtureRow };
   interview?: { at: number; score: number; recommendation: string };
 }
 
@@ -2054,6 +2102,7 @@ function zuluRunNotes(run: ZuluRun): string {
       improvements: [],
       completed: true,
       antiCheatSummary: { hasViolations: false, violationCount: 0, tabSwitches: 0, copyPasteAttempts: 0 },
+      ...(run.chat.typing ? { typing: run.chat.typing } : {}),
     };
     trusted.step_chat = { stepType: "chat_simulation", completedAt: minutesAgo(run.chat.at) };
   }
@@ -2122,7 +2171,7 @@ const wanjiruRun: ZuluRun = {
   quiz: { wrong: [], at: 26 * 60 - 6 },
   connection: { at: 26 * 60 - 8 },
   typing: { at: 26 * 60 - 11, wpm: 61, accuracy: 98 },
-  chat: { at: 26 * 60 - 19, score: 84 },
+  chat: { at: 26 * 60 - 19, score: 84, typing: chatTypingFixture({ wpm: 57, correctionsPct: 5, medianReplySeconds: 41, typosPer100Words: 0.4, repliesTimed: 7 }) },
   interview: { at: 26 * 60 - 27, score: 80, recommendation: "Hire" },
 };
 const marisolRun: ZuluRun = {
@@ -2180,6 +2229,23 @@ const luisRun: ZuluRun = {
   name: "Luis Ortega",
   place: "Bogotá, Colombia",
   formAt: 118,
+};
+// Applied once the typing test was gone: no typing step, typing timed in the
+// chat practice instead, under the speed bar and slow to reply.
+const kwameRun: ZuluRun = {
+  appId: APP_ZULU_CHAT_TYPED_ID,
+  userId: ZULU_CHAT_TYPED_USER_ID,
+  name: "Kwame Asante",
+  place: "Accra, Ghana",
+  formAt: 4 * 60,
+  quiz: { wrong: [2], at: 4 * 60 - 6 },
+  connection: { at: 4 * 60 - 8 },
+  chat: {
+    at: 4 * 60 - 20,
+    score: 72,
+    typing: chatTypingFixture({ wpm: 32, correctionsPct: 9, medianReplySeconds: 140, typosPer100Words: 1.2, repliesTimed: 6, pasteLike: 1 }),
+  },
+  interview: { at: 4 * 60 - 29, score: 70, recommendation: "Hire" },
 };
 
 const appZuluTyping = makeZuluApplication({
@@ -2274,6 +2340,26 @@ const appZuluStrong = makeZuluApplication({
   ai_analysis: "Summary: Specific, calm answers about money problems; a strong practice chat.",
   ai_scorecard: { overallScore: 78, recommendedAction: "advance", decisionState: "ready_for_decision", riskFlags: [] },
 });
+const appZuluChatTyped = makeZuluApplication(
+  {
+    id: APP_ZULU_CHAT_TYPED_ID,
+    candidate_id: ZULU_CHAT_TYPED_USER_ID,
+    status: "reviewing",
+    phase: "review",
+    created_at: minutesAgo(4 * 60 + 2),
+    updated_at: minutesAgo(4 * 60 - 29),
+    ai_score: 69,
+    notes: zuluRunNotes(kwameRun),
+    ai_analysis: "Summary: Kind and correct in the practice chat, but typed slowly and took over two minutes a reply.",
+    ai_scorecard: {
+      overallScore: 69,
+      recommendedAction: "review",
+      decisionState: "ready_for_decision",
+      riskFlags: ["Typed 32 WPM in the chat practice; the job asks for 40", "Slow replies: median 140 s; the job asks for 90 s"],
+    },
+  },
+  zuluJobNoTypingStep,
+);
 const appZuluQuiet = makeZuluApplication({
   id: APP_ZULU_QUIET_ID,
   candidate_id: ZULU_QUIET_USER_ID,
@@ -2310,7 +2396,7 @@ const chidiChat = zuluSession(sessionId(72), APP_ZULU_LEFT_CHAT_ID, ZULU_LEFT_CH
 });
 
 /** Everyone in the rest of the field, with their attempts. */
-const zuluFieldApps = [appZuluTyping, appZuluLeftChat, appZuluInterview, appZuluOffered, appZuluHired, appZuluDeclined, appZuluStrong, appZuluQuiet];
+const zuluFieldApps = [appZuluTyping, appZuluLeftChat, appZuluInterview, appZuluOffered, appZuluHired, appZuluDeclined, appZuluStrong, appZuluQuiet, appZuluChatTyped];
 const zuluFieldSessions: FixtureRow[] = [
   ...zuluRunSessions(tomasRun, 60),
   tomasTyping,
@@ -2325,6 +2411,7 @@ const zuluFieldSessions: FixtureRow[] = [
   }),
   ...zuluRunSessions(nadiaRun, 97, { step_interview: { counts: { window_blur: 1 }, total: 1, away_ms: 4100, short_away: 0, dropped: 0 } }),
   ...zuluRunSessions(luisRun, 103),
+  ...zuluRunSessions(kwameRun, 110),
 ];
 
 /** Wanjiru's interview, booked for 3 PM the day after tomorrow. */
@@ -2352,6 +2439,7 @@ const zuluFieldProfiles = [
   zuluProfile(ZULU_DECLINED_USER_ID, "ayesha.raza@example.com", "Ayesha Raza"),
   zuluProfile(ZULU_STRONG_USER_ID, "nadia.rahman@example.com", "Nadia Rahman"),
   zuluProfile(ZULU_QUIET_USER_ID, "luis.ortega@example.com", "Luis Ortega"),
+  zuluProfile(ZULU_CHAT_TYPED_USER_ID, "kwame.asante@example.com", "Kwame Asante"),
 ];
 
 // The hand-back behind Jordan's retake (assessment_step_reopens, written by

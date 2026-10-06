@@ -60,7 +60,11 @@ active count, opening a bottom sheet with chip groups and "Show N applicants"):
 - **Where they are**: Any step, each journey step by title, Finished every test.
 - **Score**: Any, 70 and up, 50 and up, Under 50, Not scored yet (each with its count in the sheet).
 - **Flags**: Any, No flags, Left the test window, Tried to copy or paste, Any flag.
-- **Below the job's bar on**: Any, Skills check, Typing speed, Connection, Chat practice, Ran on a phone.
+- **Below the job's bar on**: Any, Skills check, Typing, Connection, Chat practice, Ran on a phone.
+  **Typing** is a typing test under its bar or, on a job with no typing step,
+  the typing measured in the chat practice under its speed bar or over its
+  reply-time bar (docs/TYPING-IN-CHAT.md). **Chat practice** is only the
+  chat's own mark under the pass mark.
 - **Country**: All, then the countries present, most common first, then Unknown.
 - **Applied**: Any time, Today, This week, This month.
 - **Job**: only when the employer has more than one job (`?roleId=` is the same filter).

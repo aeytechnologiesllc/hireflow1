@@ -26,6 +26,10 @@
  * is stored as `graded: false` with no score and its transcript (never the
  * old silent 70), and a support-agent job's result is unchanged by the team
  * leader rubric (scripts/lead_practice_grading.test.mjs covers that one).
+ * And since typing moved into the chat (docs/TYPING-IN-CHAT.md): the result
+ * carries `typing` exactly as typing.ts buildTypingResult built it, on a
+ * graded and an ungraded chat alike, and a result built without it is the
+ * legacy shape byte for byte.
  *
  * Run with: node scripts/chat_simulation_grading.test.mjs
  */
@@ -37,6 +41,7 @@ import {
   supportEvaluationFrom,
   ungradedEvaluation,
 } from "../supabase/functions/ai-chat-simulation/grading.ts";
+import { buildTypingResult } from "../supabase/functions/ai-chat-simulation/typing.ts";
 
 let passed = 0;
 let failed = 0;
@@ -226,6 +231,40 @@ const readBack = supportEvaluationFrom(realisticEvaluation);
 const supportResult = buildChatSimulationResult({ scenario: "Billing dispute - charged twice.", messageCount: 7, evaluation: readBack, violations: [] });
 check("a support-agent job's result is exactly the legacy shape", deepEqual(supportResult, resultNoViolations), JSON.stringify(supportResult));
 check("a support answer with no score is not a mark (recorded as not graded)", supportEvaluationFrom({ empathy: 80, strengths: [] }) === null);
+
+// ============================================================================
+console.log("\nTyping, measured inside the chat (notes.chatSimulationResult.typing):\n");
+{
+  const at = (s) => new Date(Date.parse("2026-10-06T15:00:00Z") + s * 1000).toISOString();
+  const reply = (text, typing, created) => ({ kind: "candidate_turn", content: text, created_at: at(created), detail: { role: "agent", typing } });
+  const player = (created) => ({ kind: "assistant_turn", content: "And?", created_at: at(created), detail: { role: "customer" } });
+  const typed = (chars) => ({ charsTyped: chars, activeMs: chars * 200, corrections: 1, keys: chars + 2, pasteLike: false });
+  const turns = [
+    player(0),
+    reply("Sorry about the double charge, let me look at it.", typed(49), 30),
+    player(40),
+    reply("I can see both charges on your account from Monday.", typed(51), 75),
+    player(85),
+    reply("The second one is being sent back to your card now.", typed(51), 110),
+  ];
+  const typing = buildTypingResult({ turns, typosPer100Words: 0 });
+  const withTyping = buildChatSimulationResult({ scenario: "Billing dispute - charged twice.", messageCount: 7, evaluation: realisticEvaluation, violations: [], typing });
+  check("the result carries the typing block as built (60 WPM, 30 s median, 2% corrections)", deepEqual(withTyping.typing, typing) && typing.wpm === 60 && typing.medianReplySeconds === 30 && typing.correctionsPct === 2, JSON.stringify(typing));
+  const { typing: _dropped, ...rest } = withTyping;
+  check("…and everything else is the legacy shape, unchanged", deepEqual(rest, resultNoViolations));
+  check("built without typing (a page on the previous build, no record): no typing key at all", !("typing" in resultNoViolations));
+  check("a null typing adds nothing", !("typing" in buildChatSimulationResult({ scenario: "x", messageCount: 1, evaluation: realisticEvaluation, violations: [], typing: null })));
+  const ungradedWithTyping = buildChatSimulationResult({
+    scenario: "Billing dispute - charged twice.",
+    messageCount: 6,
+    evaluation: ungradedEvaluation("model_failed"),
+    violations: [],
+    transcript,
+    typing: buildTypingResult({ turns, typosPer100Words: null }),
+  });
+  check("a chat nobody marked keeps its typing (speed and reply time do not need the grader)", ungradedWithTyping.graded === false && ungradedWithTyping.typing.wpm === 60);
+  check("…with the typos unknown (null), never 0", ungradedWithTyping.typing.typosPer100Words === null);
+}
 
 // ============================================================================
 console.log(`\n${passed} passed, ${failed} failed.`);

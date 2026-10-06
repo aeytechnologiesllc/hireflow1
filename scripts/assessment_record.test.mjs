@@ -63,7 +63,16 @@ const {
   integrityCardToast,
   createIntegrityToastGate,
   ordinal,
+  chatTypingOf,
+  chatTypingLine,
+  chatTypingBelowBar,
+  chatTypingNeedsALook,
+  CHAT_TYPING_MIN_TIMED_REPLIES,
+  CHAT_TYPING_DEFAULT_BAR,
 } = await import("../src/cockpit/lib/assessmentRecord.ts");
+// The server's reader of the same block, for the mirror check (docs/TYPING-IN-CHAT.md).
+const { readChatTyping, chatTypingText, CHAT_TYPING_MIN_TIMED_REPLIES: SERVER_MIN_TIMED, CHAT_TYPING_DEFAULT_MIN_WPM, CHAT_TYPING_DEFAULT_MAX_MEDIAN_REPLY_SECONDS } =
+  await import("../supabase/functions/_shared/autopilot.ts");
 
 let passed = 0;
 let failed = 0;
@@ -1473,6 +1482,158 @@ check(
   /equipment\.flags\.map\(\(flag\) =>/.test(listSrc) && /equipment \? "break-words" : "truncate"/.test(listSrc) && /equipment\?\.measuredBy === "server"/.test(listSrc),
 );
 check("the preview's finished applicant carries the recorded result", /equipmentCheckResult: ROBIN_CONNECTION/.test(fixturesSrc) && /"step_connection", "equipment_check"/.test(fixturesSrc));
+check("the preview shows the chat's typing both ways: on the job with its typing test (information) and on the job without it (Kwame, below the bar)",
+  /typing: chatTypingFixture\(\{ wpm: 35,/.test(fixturesSrc) && /filter\(\(s\) => s\.type !== "typing_test"\)/.test(fixturesSrc) &&
+    /typing: chatTypingFixture\(\{ wpm: 32, correctionsPct: 9, medianReplySeconds: 140,/.test(fixturesSrc) && /\n  zuluJobNoTypingStep,\n\);/.test(fixturesSrc));
+
+
+/* ── Typing measured in the chat practice (docs/TYPING-IN-CHAT.md) ──────── */
+
+console.log("\nTyping in the chat practice:\n");
+/** notes.chatSimulationResult.typing, in the doc's shape. */
+function chatTypingBlock({ wpm = 47, correctionsPct = 6, medianReplySeconds = 38, typosPer100Words = 1.2, repliesTimed = 6, pasteLike = 0, bar = { minWpm: 40, maxMedianReplySeconds: 90 }, notTimed } = {}) {
+  const below = [];
+  if (wpm !== null && wpm < bar.minWpm) below.push("speed");
+  if (medianReplySeconds !== null && medianReplySeconds > bar.maxMedianReplySeconds) below.push("reply_time");
+  return {
+    wpm, correctionsPct, medianReplySeconds, typosPer100Words, repliesTimed, pasteLike, bar,
+    meetsBar: below.length > 0 ? false : wpm === null ? null : true, below,
+    // Left out unless given: a block from before notTimed was stored.
+    ...(notTimed !== undefined ? { notTimed } : {}),
+    measuredBy: { speed: "page", replyTime: "server", typos: "grader" },
+  };
+}
+// The live job once step_typing is dropped: six steps, typing measured in the chat.
+const NO_TYPING_JOB = { ...JOB, workflow_steps: ZULU_STEPS.filter((s) => s.type !== "typing_test") };
+/** A finished applicant whose chat scored 80, with this typing block (or none). */
+function typedChatApp(block, { job = NO_TYPING_JOB, score = 80, keepTypingTest = false } = {}) {
+  const base = finishedNotes();
+  const notes = {
+    ...base,
+    chatSimulationResult: { ...base.chatSimulationResult, score, empathy: 82, problemSolving: 78, ...(block ? { typing: block } : {}) },
+  };
+  if (!keepTypingTest) {
+    delete notes.typingTestResult;
+    delete notes.step_typing;
+    notes._trusted = { ...notes._trusted };
+    delete notes._trusted.step_typing;
+  }
+  return finishedApp({ jobs: job, notes: JSON.stringify(notes) });
+}
+const typedChatEntry = (app, opts) => buildAssessmentRecord(app, opts).entries.find((e) => e.key === "step_chat");
+
+const typedOk = typedChatEntry(typedChatApp(chatTypingBlock()));
+check("the chat practice's tile carries the typing line, word for word",
+  typedOk.detail.typing?.line === "Typing 47 WPM · 6% corrections · replies in 38 s (median)", typedOk.detail.typing?.line);
+check("…at or over the bars: the step keeps its mark's tone, the receipt adds the speed",
+  typedOk.tone === "jade" && typedOk.receipt === "80/100 · 47 WPM" && typedOk.detail.typing.jobMeasure === true && typedOk.detail.typing.below.length === 0,
+  `${typedOk.tone} ${typedOk.receipt}`);
+check("…its own mark is kept beside it (score, under the pass mark or not)", typedOk.detail.score === 80 && typedOk.detail.belowPassMark === false);
+
+const typedSlow = typedChatEntry(typedChatApp(chatTypingBlock({ wpm: 32, correctionsPct: 9, medianReplySeconds: 140 })));
+check("under the speed bar and over the reply bar: the step reads below the bar (amber)",
+  typedSlow.tone === "amber" && chatTypingBelowBar(typedSlow.detail.typing) && typedSlow.detail.typing.below.join(",") === "speed,reply_time",
+  `${typedSlow.tone} ${JSON.stringify(typedSlow.detail.typing?.below)}`);
+check("…the receipt stays short enough for a gem on a phone: the mark and the speed", typedSlow.receipt === "80/100 · 32 WPM", typedSlow.receipt);
+check("…while the mark itself is not under the pass mark", typedSlow.detail.belowPassMark === false);
+const typedSlowReplies = typedChatEntry(typedChatApp(chatTypingBlock({ medianReplySeconds: 120 })));
+check("slow replies alone: below the bar, and the receipt says why", typedSlowReplies.tone === "amber" && typedSlowReplies.receipt === "80/100 · slow replies", typedSlowReplies.receipt);
+const ownBars = typedChatEntry(typedChatApp(chatTypingBlock({ wpm: 44, medianReplySeconds: 50, bar: { minWpm: 45, maxMedianReplySeconds: 60 } })));
+check("the chat step's own bars decide (44 under 45)", ownBars.tone === "amber" && ownBars.detail.typing.below.join(",") === "speed" && ownBars.receipt === "80/100 · 44 WPM", ownBars.receipt);
+
+const typedThin = typedChatEntry(typedChatApp(chatTypingBlock({ wpm: null, correctionsPct: null, repliesTimed: 2 })));
+check("fewer than 3 timed replies: 'not enough typing to time', never a fail",
+  typedThin.detail.typing?.line === "Typing: not enough typing to time · replies in 38 s (median)" && typedThin.tone === "jade" && typedThin.receipt === "80/100",
+  `${typedThin.detail.typing?.line} | ${typedThin.tone} | ${typedThin.receipt}`);
+const typedThinWithNumber = chatTypingOf(chatTypingBlock({ wpm: 33, repliesTimed: 2 }));
+check("…even when a number came with it", typedThinWithNumber.wpm === null && !typedThinWithNumber.enoughToTime && typedThinWithNumber.below.length === 0);
+
+const typedTooShort = chatTypingOf(chatTypingBlock({ wpm: null, correctionsPct: null, repliesTimed: 2, notTimed: "too_short" }));
+check("why no speed, in the line: too few long replies", typedTooShort.line === "Typing: not enough typing to time · replies in 38 s (median)" && typedTooShort.notTimed === "too_short");
+const typedNotSent = chatTypingOf(chatTypingBlock({ wpm: null, correctionsPct: null, repliesTimed: 0, notTimed: "not_sent" }));
+check("…the page did not time them (an older page): said as such, not as 'too short'", typedNotSent.line === "Typing: not timed by the page · replies in 38 s (median)" && !typedNotSent.arrivedWithoutTyping, typedNotSent.line);
+const jumps = typedChatEntry(typedChatApp(chatTypingBlock({ wpm: null, correctionsPct: null, repliesTimed: 1, pasteLike: 4, notTimed: "arrived_without_typing" })));
+check("…replies that arrived without typing: said, and worth a look (amber line), but not 'below the bar'",
+  jumps.detail.typing.line === "Typing: replies arrived without typing · replies in 38 s (median)" && jumps.detail.typing.arrivedWithoutTyping &&
+    chatTypingNeedsALook(jumps.detail.typing) && !chatTypingBelowBar(jumps.detail.typing) && jumps.tone === "jade",
+  `${jumps.detail.typing.line} | ${jumps.tone}`);
+check("one reply in jumps beside five timed ones is not worth a look; two are, and so is one beside one timed",
+  !chatTypingOf(chatTypingBlock({ pasteLike: 1, repliesTimed: 5 })).arrivedWithoutTyping &&
+    chatTypingOf(chatTypingBlock({ pasteLike: 2, repliesTimed: 5 })).arrivedWithoutTyping &&
+    chatTypingOf(chatTypingBlock({ wpm: null, pasteLike: 1, repliesTimed: 1 })).arrivedWithoutTyping);
+
+const untyped = typedChatEntry(typedChatApp(null));
+check("an older chat with no typing block reads exactly as before", untyped.detail.typing === null && untyped.receipt === "80/100" && untyped.tone === "jade");
+const typedFailed = typedChatEntry(typedChatApp(chatTypingBlock({ wpm: 32 }), { score: 30 }));
+check("a mark under the pass mark AND typing under the bar: both are said", typedFailed.tone === "amber" && typedFailed.detail.belowPassMark === true && chatTypingBelowBar(typedFailed.detail.typing));
+
+// A job that still has its typing step: the typing test is its measure, so
+// the chat's typing is shown, never judged.
+const withTypingStep = typedChatEntry(typedChatApp(chatTypingBlock({ wpm: 25, medianReplySeconds: 200 }), { job: JOB, keepTypingTest: true }));
+check("a job with a typing step: the chat's typing is shown for information, the step keeps its mark's tone",
+  withTypingStep.detail.typing?.line === "Typing 25 WPM · 6% corrections · replies in 200 s (median)" && withTypingStep.detail.typing.jobMeasure === false &&
+    !chatTypingBelowBar(withTypingStep.detail.typing) && !chatTypingNeedsALook(withTypingStep.detail.typing) && withTypingStep.tone === "jade",
+  `${withTypingStep.tone} ${withTypingStep.receipt}`);
+check("…and its gem shows only the mark: the typing test's gem has the WPM that counts, so one row never shows two", withTypingStep.receipt === "80/100", withTypingStep.receipt);
+
+// One value: the notes' block. The session's grading holds no copy of it
+// (grading.result is the reviewer's evaluation; grading.typing is the
+// per-reply extra), so it is never read from there.
+const gradedTyping = typedChatEntry(typedChatApp(null), {
+  sessions: [sess({ id: "ct1", step_id: "step_chat", step_type: "chat_simulation", status: "completed", grading: { graded_at: ago(5 * MIN), result: { score: 80 }, typing: { replies: [{ reply: 1, chars: 60, replySeconds: 30, typing: null, wpm: null, correctionsPct: null, timed: false, pasteLike: false }], spelling_mistakes: null } } })],
+  now: NOW,
+});
+check("…the typing is read from the notes only, never from the session's grading", gradedTyping.detail.typing === null && gradedTyping.receipt === "80/100" && gradedTyping.tone === "jade", JSON.stringify(gradedTyping.detail.typing));
+check("the live attempt carries no typing until it is graded", (() => {
+  const live = buildAssessmentRecord(
+    finishedApp({ jobs: NO_TYPING_JOB, status: "pending", phase: "step_chat", notes: JSON.stringify(finishedNotes({ chatSimulationResult: undefined, chatInterviewResult: undefined, typingTestResult: undefined, step_typing: undefined, _trusted: { step_connection: { stepType: "equipment_check", completedAt: ago(30 * MIN) } } })) }),
+    { sessions: [sess({ id: "cl1", step_id: "step_chat", step_type: "chat_simulation", status: "active", progress: { candidate_turns: 2 }, last_activity_at: ago(MIN) })], now: NOW },
+  ).entries.find((e) => e.key === "step_chat");
+  return live.status === "in_progress" && live.detail?.kind === "chat_simulation" && live.detail.typing === null;
+})());
+
+// The record and Ava's scorecard read the block by the same rules.
+check("the record's defaults and minimum match the server's", CHAT_TYPING_MIN_TIMED_REPLIES === SERVER_MIN_TIMED &&
+  CHAT_TYPING_DEFAULT_BAR.minWpm === CHAT_TYPING_DEFAULT_MIN_WPM && CHAT_TYPING_DEFAULT_BAR.maxMedianReplySeconds === CHAT_TYPING_DEFAULT_MAX_MEDIAN_REPLY_SECONDS);
+const MIRROR_BLOCKS = [
+  chatTypingBlock(),
+  chatTypingBlock({ wpm: 32, medianReplySeconds: 140 }),
+  chatTypingBlock({ wpm: null, correctionsPct: null, repliesTimed: 1 }),
+  chatTypingBlock({ wpm: 33, repliesTimed: 2 }),
+  chatTypingBlock({ wpm: 44, bar: { minWpm: 45, maxMedianReplySeconds: 60 }, medianReplySeconds: 61 }),
+  { wpm: 41, medianReplySeconds: 95, repliesTimed: 4 },
+  { wpm: 50, repliesTimed: 5, bar: { min_wpm: 55, max_median_reply_seconds: 30 }, medianReplySeconds: 31 },
+  { bar: { minWpm: 40 } },
+  null,
+  "47",
+  chatTypingBlock({ wpm: null, correctionsPct: null, repliesTimed: 0, notTimed: "not_sent" }),
+  chatTypingBlock({ wpm: null, correctionsPct: null, repliesTimed: 1, pasteLike: 3, notTimed: "arrived_without_typing" }),
+  chatTypingBlock({ pasteLike: 2, repliesTimed: 6 }),
+  chatTypingBlock({ wpm: null, correctionsPct: null, repliesTimed: 2, notTimed: "something new" }),
+];
+for (const [i, block] of MIRROR_BLOCKS.entries()) {
+  const mine = chatTypingOf(block);
+  const server = readChatTyping(block);
+  const same = mine === null || server === null
+    ? mine === server
+    : mine.wpm === server.wpm && mine.correctionsPct === server.correctionsPct && mine.medianReplySeconds === server.medianReplySeconds &&
+      mine.typosPer100Words === server.typosPer100Words && mine.repliesTimed === server.repliesTimed && mine.minWpm === server.minWpm &&
+      mine.maxMedianReplySeconds === server.maxMedianReplySeconds && mine.enoughToTime === server.enoughToTime &&
+      mine.below.includes("speed") === server.speedBelow && mine.below.includes("reply_time") === server.replyTimeBelow &&
+      mine.notTimed === server.notTimed && mine.arrivedWithoutTyping === server.arrivedWithoutTyping && mine.pasteLike === server.pasteLike &&
+      mine.line === chatTypingText(server) && mine.line === chatTypingLine(mine);
+  check(`block ${i + 1}: the record and the scorecard read it the same way`, same, JSON.stringify({ mine, server }));
+}
+
+// What the hiring team sees.
+check("the list row draws the typing line under the chat practice, uncut, amber only when it counts",
+  /entry\.detail\?\.kind === "chat_simulation" \? entry\.detail\.typing : null/.test(listSrc) && /chatTypingNeedsALook\(chatTyping\)/.test(listSrc) &&
+    /<span className="break-words">\{chatTyping\.line\}<\/span>/.test(listSrc) && /chatTyping\?\.line \?\? null/.test(listSrc));
+check("the sheet shows it in the chat practice's own section", /\{detail\.typing && <ChatTypingSection typing=\{detail\.typing\} \/>\}/.test(sheet) && /<Section title="Typing in the chat">/.test(sheet) && /\{typing\.line\}/.test(sheet));
+check("…with the bars, 'not enough typing to time' as not a fail, and where each figure was measured",
+  /The job asks for \$\{Math\.round\(typing\.minWpm\)\} WPM or more/.test(sheet) && /That is not a fail\./.test(sheet) && /timed on their computer; reply time by our server/.test(sheet));
+check("…and why no speed was timed, by its real cause (too short, arrived without typing, the page did not time it)",
+  /typing\.notTimed === "arrived_without_typing"/.test(sheet) && /typing\.notTimed === "not_sent"/.test(sheet) && /typing\.notTimed === "too_short"/.test(sheet) && /each pause counts as 1 s at most/.test(sheet));
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

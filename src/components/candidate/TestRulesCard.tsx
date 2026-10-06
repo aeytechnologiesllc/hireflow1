@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { AppWindow, Camera, ClipboardX, PauseCircle, RotateCw, ShieldAlert } from "lucide-react";
+import { AppWindow, Camera, ClipboardX, Keyboard, PauseCircle, RotateCw, ShieldAlert } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,14 +27,20 @@ import { cn } from "@/lib/utils";
  *
  * Wave 1 shipped a one-line `TestRulesNotice` above each Start button; this
  * replaces it (useTestIntegrity is what makes each line true).
+ *
+ * `typingNoted`: the chat practice, where typing is measured on the replies
+ * themselves (docs/TYPING-IN-CHAT.md, typingMeter.ts), adds one line saying
+ * so. The other tests leave it off.
  */
 export function TestRulesCard({
   accepted,
   onAcceptedChange,
+  typingNoted = false,
   className,
 }: {
   accepted: boolean;
   onAcceptedChange: (accepted: boolean) => void;
+  typingNoted?: boolean;
   className?: string;
 }) {
   const headingId = useId();
@@ -79,6 +85,12 @@ export function TestRulesCard({
           <RotateCw className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
           <span>Closing or reloading this page during the test is recorded too.</span>
         </li>
+        {typingNoted && (
+          <li className="flex items-start gap-2.5">
+            <Keyboard className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+            <span>We also note how quickly and accurately you type your replies.</span>
+          </li>
+        )}
       </ul>
 
       <label

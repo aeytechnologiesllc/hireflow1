@@ -23,6 +23,7 @@
  */
 import {
   buildAssessmentRecord,
+  chatTypingBelowBar,
   integritySummary,
   LEFT_AFTER_MS,
   withReopens,
@@ -675,15 +676,30 @@ function listDotState(state: JourneyDotState): DotState {
   return state === "not_reached" ? "todo" : state;
 }
 
-/** The step's bar they came in under, in the filter's terms. */
-function belowFor(e: AssessmentEntry): BelowKind | null {
-  if (e.status !== "done") return null;
+/**
+ * The step's bars they came in under, in the filter's terms.
+ *
+ * The chat practice: "chat-practice" when its mark is under the pass mark,
+ * and "typing" when the typing measured in it (docs/TYPING-IN-CHAT.md) is
+ * under the chat step's bar on speed or reply time, but only on a job with
+ * no typing step (the record's `jobMeasure`; the row also checks the job's
+ * own steps): a job that still has one reads typing from its typing test,
+ * as before.
+ */
+function belowFor(e: AssessmentEntry, jobHasTypingStep: boolean): BelowKind[] {
+  if (e.status !== "done") return [];
   const d = e.detail;
-  if (e.stepType === "quiz" && d?.kind === "quiz") return d.passed === false ? "skills-check" : null;
-  if (e.stepType === "typing_test") return /^Below\b/.test(e.verdict ?? "") ? "typing" : null;
-  if (e.stepType === "equipment_check" && d?.kind === "equipment_check") return d.meetsBars === false ? "connection" : null;
-  if (e.stepType === "chat_simulation") return e.tone === "amber" ? "chat-practice" : null;
-  return null;
+  if (e.stepType === "quiz" && d?.kind === "quiz") return d.passed === false ? ["skills-check"] : [];
+  if (e.stepType === "typing_test") return /^Below\b/.test(e.verdict ?? "") ? ["typing"] : [];
+  if (e.stepType === "equipment_check" && d?.kind === "equipment_check") return d.meetsBars === false ? ["connection"] : [];
+  if (e.stepType === "chat_simulation") {
+    if (d?.kind !== "chat_simulation") return e.tone === "amber" ? ["chat-practice"] : [];
+    const kinds: BelowKind[] = [];
+    if (d.belowPassMark === true) kinds.push("chat-practice");
+    if (!jobHasTypingStep && chatTypingBelowBar(d.typing)) kinds.push("typing");
+    return kinds;
+  }
+  return [];
 }
 
 /** Options for one row. */
@@ -804,9 +820,13 @@ export function listRowFor(
   if (integrity && integrity.copyPaste > 0) kinds.push("copy-paste");
 
   const below: BelowKind[] = [];
+  // The chat practice's typing counts as the job's typing only when the job
+  // has no typing step (its own steps, as the dots read them).
+  const jobHasTypingStep = steps.some((d) => d.type === "typing_test");
   for (const s of steps) {
-    const kind = s.entry ? belowFor(s.entry) : null;
-    if (kind && !below.includes(kind)) below.push(kind);
+    for (const kind of s.entry ? belowFor(s.entry, jobHasTypingStep) : []) {
+      if (!below.includes(kind)) below.push(kind);
+    }
     const d = s.entry?.detail;
     if (d?.kind === "equipment_check" && d.deviceKind === "phone" && !below.includes("phone")) below.push("phone");
   }
@@ -1086,7 +1106,9 @@ export const FLAG_OPTIONS: FilterOption<FlagFilter>[] = [
 export const BELOW_OPTIONS: FilterOption<BelowFilter>[] = [
   { value: "any", label: "Any" },
   { value: "skills-check", label: "Skills check" },
-  { value: "typing", label: "Typing speed" },
+  // A typing test under its bar, or (on a job with no typing step) the
+  // typing measured in the chat practice: its speed or its reply time.
+  { value: "typing", label: "Typing" },
   { value: "connection", label: "Connection" },
   { value: "chat-practice", label: "Chat practice" },
   { value: "phone", label: "Ran on a phone" },

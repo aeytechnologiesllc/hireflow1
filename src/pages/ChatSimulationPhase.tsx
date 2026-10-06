@@ -54,6 +54,7 @@ import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 import { useResultAtFirstLoad, useStepAdvance } from "@/hooks/useStepAdvance";
 import { useShowContinueOnComputer } from "@/components/candidate/continueOnComputerContext";
 import { ComputerRequiredError, isComputerRequired, refusedDeviceKind, throwIfComputerRequired, withDeviceKind } from "@/lib/deviceGate";
+import { createTypingMeter, type TypingSummary } from "@/lib/typingMeter";
 
 interface Message {
   id: string;
@@ -217,6 +218,11 @@ export default function ChatSimulationPhase() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Typing is measured inside the chat (docs/TYPING-IN-CHAT.md): every
+  // keydown on the reply box is timed here, and each reply carries its own
+  // summary to the server. One plain object for the page's life: a keystroke
+  // updates a few numbers, never state, so nothing re-renders for it.
+  const [typingMeter] = useState(() => createTypingMeter());
 
   // Fetch application details - force refetch on mount to handle reconsider workflow
   const { data: application, isLoading, isFetchedAfterMount } = useQuery({
@@ -399,8 +405,21 @@ export default function ChatSimulationPhase() {
 
   // Enter-to-send lives on the textarea itself; copy/paste/shortcut blocking
   // is document-level in useTestIntegrity, so it fires once per keypress.
+  // Every key is timed first (the box's text as the key goes down), with
+  // the event's flags: a held key's repeats, a script's keydown and a
+  // Ctrl/Cmd shortcut are not typing (typingMeter.ts). The Enter that sends
+  // is not timed: the pause before it is a re-read, not typing.
   const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey && state === "chatting") {
+    const sends = e.key === "Enter" && !e.shiftKey && state === "chatting";
+    if (!sends) {
+      const at = Number.isFinite(e.timeStamp) && e.timeStamp > 0 ? e.timeStamp : performance.now();
+      typingMeter.keydown(e.key, at, e.currentTarget.value, {
+        repeat: e.repeat,
+        trusted: e.nativeEvent.isTrusted,
+        shortcut: e.metaKey || (e.ctrlKey && !e.altKey),
+      });
+    }
+    if (sends) {
       e.preventDefault();
       sendMessage();
     }
@@ -424,7 +443,14 @@ export default function ChatSimulationPhase() {
   const streamCustomerReply = async (
     mode: "start" | "respond",
     scenario: ChatScenario,
-    opts: { agentMessage?: string; clientMsgId?: string; history: Message[]; giveBack?: boolean },
+    opts: {
+      agentMessage?: string;
+      clientMsgId?: string;
+      history: Message[];
+      giveBack?: boolean;
+      /** This reply's keystroke summary (typingMeter), stored with it as detail.typing. */
+      typing?: TypingSummary;
+    },
   ) => {
     setIsTyping(true);
 
@@ -448,6 +474,7 @@ export default function ChatSimulationPhase() {
             stepId,
             clientMsgId: opts.clientMsgId,
             clientAt: new Date().toISOString(),
+            typing: opts.typing,
             // The server pins the scenario on the attempt the first time it starts.
             scenarioId: scenario.id,
           })),
@@ -562,6 +589,9 @@ export default function ChatSimulationPhase() {
         const unsentId = opts.clientMsgId;
         setMessages((prev) => prev.filter((m) => m.id !== unsentId));
         setInputValue((current) => restoreUnsentText(current, unsent));
+        // Its keystrokes go back with it, so sending it again is not read
+        // as text that appeared without typing.
+        typingMeter.giveBack(opts.typing, restoreUnsentText(inputRef.current?.value ?? "", unsent));
         toast.error("Your message didn't save — it's back in the box. Send it again.");
         return;
       }
@@ -583,6 +613,7 @@ export default function ChatSimulationPhase() {
   };
 
   const startChat = async () => {
+    typingMeter.reset(inputValue);
     // Use the preselected scenario that the candidate already saw
     setCurrentScenario(preselectedScenario);
     setState("chatting");
@@ -604,6 +635,8 @@ export default function ChatSimulationPhase() {
 
     setMessages(prev => [...prev, agentMessage]);
     const messageToSend = inputValue.trim();
+    // This reply's keystroke summary; the meter starts over for the next one.
+    const typing = typingMeter.take(inputValue);
     setInputValue("");
 
     await streamCustomerReply("respond", currentScenario, {
@@ -611,6 +644,7 @@ export default function ChatSimulationPhase() {
       clientMsgId,
       history: messages,
       giveBack: true,
+      typing,
     });
   };
 
@@ -1105,7 +1139,7 @@ export default function ChatSimulationPhase() {
                 </ul>
               </div>
 
-              <TestRulesCard accepted={rulesAccepted} onAcceptedChange={setRulesAccepted} />
+              <TestRulesCard accepted={rulesAccepted} onAcceptedChange={setRulesAccepted} typingNoted />
 
               <div className="flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-muted-foreground">

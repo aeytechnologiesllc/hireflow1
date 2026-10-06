@@ -2,7 +2,8 @@
  * Pure, deterministic pieces of the chat-simulation "evaluate" write — split
  * out of index.ts so they're testable under plain Node (scripts/
  * chat_simulation_grading.test.mjs) as well as Deno. Its one import is
- * _shared/reviewText.ts, itself import-free: no `https://` URL specifiers,
+ * _shared/reviewText.ts, itself import-free (plus a type from typing.ts,
+ * erased at run time): no `https://` URL specifiers,
  * nothing Deno-only, so this file's exports run unmodified under either
  * runtime (same reasoning as _shared/trustedResults.ts's module comment).
  *
@@ -28,6 +29,8 @@ import {
   textList,
   words,
 } from "../_shared/reviewText.ts";
+
+import type { ChatTypingResult } from "./typing.ts";
 
 // The reviewer-text helpers live in _shared/reviewText.ts (import-free, also
 // read by ai-chat-interview); re-exported here for the callers and tests
@@ -203,6 +206,11 @@ export interface ChatSimulationResult {
    *  record of the attempt was not available (the record system not
    *  deployed). Absent when graded from the stored turns. */
   transcriptSource?: "browser";
+  /** Typing measured inside the chat (docs/TYPING-IN-CHAT.md, typing.ts
+   *  buildTypingResult): speed and corrections from the page's per-reply
+   *  keystroke summaries, reply time from the server's clock, typos from the
+   *  grader. Absent when the chat was not graded from the stored record. */
+  typing?: ChatTypingResult;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -635,6 +643,9 @@ export function buildChatSimulationResult(input: {
   /** "browser" when the transcript graded is the one the page sent (no
    *  record of the attempt to read): said on the result for every reader. */
   transcriptSource?: "stored" | "browser";
+  /** typing.ts buildTypingResult, built from the stored turns; kept on a
+   *  chat nobody marked too (only its typos are then unknown). */
+  typing?: ChatTypingResult | null;
 }): ChatSimulationResult {
   const antiCheatLog = buildAntiCheatLog(input.violations);
   const ungraded = input.evaluation.graded === false;
@@ -656,6 +667,7 @@ export function buildChatSimulationResult(input: {
   };
   if (input.scenarioId) result.scenarioId = input.scenarioId;
   if (input.transcriptSource === "browser") result.transcriptSource = "browser";
+  if (input.typing) result.typing = input.typing;
   if (ungraded) {
     result.graded = false;
     result.transcript = (input.transcript ?? []).map((m) => ({ role: m.role, content: m.content }));

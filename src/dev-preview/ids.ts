@@ -34,6 +34,8 @@ export const ZULU_DECLINED_USER_ID = "10000000-0000-4000-8000-000000000016";
 export const ZULU_STRONG_USER_ID = "10000000-0000-4000-8000-000000000017";
 /** Sent the form two hours ago, not scored yet, skills check not started. */
 export const ZULU_QUIET_USER_ID = "10000000-0000-4000-8000-000000000018";
+/** Finished on the job as it will be once the typing step is dropped: typing timed in the chat practice, under the bar. */
+export const ZULU_CHAT_TYPED_USER_ID = "10000000-0000-4000-8000-000000000019";
 
 export const JOB_BARISTA_ID = "20000000-0000-4000-8000-000000000001";
 export const JOB_SERVER_ID = "20000000-0000-4000-8000-000000000002";
@@ -89,6 +91,8 @@ export const APP_ZULU_HIRED_ID = "30000000-0000-4000-8000-000000000024";
 export const APP_ZULU_DECLINED_ID = "30000000-0000-4000-8000-000000000025";
 export const APP_ZULU_STRONG_ID = "30000000-0000-4000-8000-000000000026";
 export const APP_ZULU_QUIET_ID = "30000000-0000-4000-8000-000000000027";
+/** Kwame Asante: typing measured in the chat practice (docs/TYPING-IN-CHAT.md), no typing test. */
+export const APP_ZULU_CHAT_TYPED_ID = "30000000-0000-4000-8000-000000000028";
 
 export const DOC_PENDING_EMPLOYER_ID = "40000000-0000-4000-8000-000000000001";
 export const DOC_PENDING_CANDIDATE_ID = "40000000-0000-4000-8000-000000000002";

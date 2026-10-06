@@ -6,6 +6,7 @@ import { AlertCircle, Check, CheckCircle2, Circle, ExternalLink, FileText, Image
 import { supabase } from "@/integrations/supabase/client";
 import {
   agoText,
+  chatTypingNeedsALook,
   correctOptionsFor,
   durationText,
   formatCount,
@@ -19,6 +20,7 @@ import {
   type AnswerItem,
   type AssessmentDetail,
   type AssessmentEntry,
+  type ChatTypingFacts,
   type EquipmentBar,
   type EquipmentDeviceRow,
   type IntegrityEvent,
@@ -1204,6 +1206,77 @@ function EquipmentBody({ detail, loading }: { detail: Extract<AssessmentDetail, 
   );
 }
 
+/** "1.2", "3": a figure to one decimal, no trailing ".0". */
+function oneDecimal(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+/** Why no speed was timed, in plain words (ChatTypingFacts.notTimed). */
+function untimedFact(typing: ChatTypingFacts): string {
+  const timed = typing.repliesTimed != null ? ` (${typing.repliesTimed} timed)` : "";
+  if (typing.notTimed === "arrived_without_typing") {
+    return `Speed not timed: most of their longer replies arrived without being typed key by key${timed}.`;
+  }
+  if (typing.notTimed === "not_sent") {
+    return "Speed not timed: the page they used did not time their typing (an older version of it). That is not a fail.";
+  }
+  if (typing.notTimed === "too_short") {
+    return `Not enough typing to time: fewer than 3 replies were long enough${timed}. That is not a fail.`;
+  }
+  return `Not enough typing to time${timed}. That is not a fail.`;
+}
+
+/**
+ * Typing, measured while they wrote their chat replies (docs/TYPING-IN-CHAT.md):
+ * the staff line itself ("Typing 47 WPM · 6% corrections · replies in 38 s
+ * (median)"), amber when it is the job's typing measure and under its bar or
+ * its replies arrived without being typed, then the bars and the facts
+ * behind it, each in plain words.
+ */
+function ChatTypingSection({ typing }: { typing: ChatTypingFacts }) {
+  const needsALook = chatTypingNeedsALook(typing);
+  const missed = typing.jobMeasure
+    ? [
+        ...(typing.below.includes("speed") && typing.wpm != null ? [`Under the speed bar: ${Math.round(typing.wpm)} WPM against ${Math.round(typing.minWpm)}`] : []),
+        ...(typing.below.includes("reply_time") && typing.medianReplySeconds != null
+          ? [`Slow replies: median ${Math.round(typing.medianReplySeconds)} s against ${Math.round(typing.maxMedianReplySeconds)} s`]
+          : []),
+      ]
+    : [];
+  const facts = [
+    typing.jobMeasure
+      ? `The job asks for ${Math.round(typing.minWpm)} WPM or more, and a median reply of ${Math.round(typing.maxMedianReplySeconds)} s or less.`
+      : `The chat practice's own bars: ${Math.round(typing.minWpm)} WPM or more, and a median reply of ${Math.round(typing.maxMedianReplySeconds)} s or less.`,
+    typing.wpm == null
+      ? untimedFact(typing)
+      : typing.repliesTimed != null
+        ? `Speed is over ${typing.repliesTimed} ${typing.repliesTimed === 1 ? "reply" : "replies"} long enough to time, taken together; each pause counts as 1 s at most.`
+        : "Speed is over the replies long enough to time, taken together; each pause counts as 1 s at most.",
+    ...(typing.typosPer100Words != null ? [`${oneDecimal(typing.typosPer100Words)} spelling mistakes left per 100 words.`] : []),
+    "Speed and corrections were timed on their computer; reply time by our server.",
+    ...(!typing.jobMeasure ? ["This job also has a typing test; that test is its typing measure."] : []),
+  ];
+  const pasted = typing.pasteLike != null && typing.pasteLike > 0
+    ? [`${typing.pasteLike} ${typing.pasteLike === 1 ? "reply" : "replies"} arrived without being typed key by key, as pasted or dictated text does (not counted toward speed).`]
+    : [];
+  return (
+    <Section title="Typing in the chat">
+      <p className="ck-num text-[14px] font-semibold leading-[1.45]" style={{ color: needsALook ? "var(--amber-fg)" : "var(--ink)" }}>
+        {typing.line}
+      </p>
+      {(missed.length > 0 || pasted.length > 0) && (
+        <div className="mt-2">
+          <Bullets items={[...missed, ...pasted]} tone="amber" />
+        </div>
+      )}
+      <div className="mt-2">
+        <Bullets items={facts} />
+      </div>
+    </Section>
+  );
+}
+
 function ChatPracticeBody({
   detail,
   candidate,
@@ -1235,6 +1308,7 @@ function ChatPracticeBody({
           <Facts items={detail.scores.map((s) => ({ label: s.label, value: `${Math.round(s.value)} / 100` }))} />
         </Section>
       )}
+      {detail.typing && <ChatTypingSection typing={detail.typing} />}
       {detail.feedback && (
         <Section title="In a line">
           <Prose>{detail.feedback}</Prose>

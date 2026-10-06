@@ -220,7 +220,7 @@ add keys of its own, for example `question_count` for the interview. **Never put
 {
   "graded_at": "2026-10-06T15:57:59Z",
   "model": "gpt-5.6-terra",
-  "prompt_version": "chat-sim-eval-3",
+  "prompt_version": "chat-sim-eval-4",
   "fallback": false,
   "result": { "...": "the grader's full output, unabridged" }
 }
@@ -228,7 +228,7 @@ add keys of its own, for example `question_count` for the interview. **Never put
 
 What `result` holds, by step:
 
-- **Chat practice:** `score, empathy, problemSolving, communication, professionalism, strengths, improvements, overallFeedback`.
+- **Chat practice:** `score, empathy, problemSolving, communication, professionalism, strengths, improvements, overallFeedback` (the lead rubric's own items when the case is a takeover), and since `chat-sim-eval-4` the reviewer's `spellingMistakes`. Beside `result`, the chat practice's own extra `typing: {replies: [{reply, chars, replySeconds, typing, wpm, correctionsPct, timed, pasteLike}], spelling_mistakes: [{line, word}] | null}`: each reply's timing and the spelling mistakes the server found in the applicant's lines, which `notes.chatSimulationResult.typing` was built from (docs/TYPING-IN-CHAT.md). It is not that block: staff read the block from notes only.
 - **Written interview:** `score, recommendation, credibilityRating, strengths, concerns, inconsistencies, summary`. Use the same shape for both the End button and the auto-end.
 - **Typing:** `{wpm, accuracy, score, requiredWpm, passed, formula: "gross WPM × word accuracy", word_errors: [{index, expected, typed}], attempts_before_submit}`.
 - **Quiz**: **not written in this release.** Nothing changes `submit_quiz_attempt` in wave 2, so the quiz session is closed by the trigger when the result lands (2.3) with `grading` NULL. The staff record reads the score from `notes.quizResult`, each pick and its time from the `quiz_answer` events, and the right answers from `get_job_quiz_keys`. When a later migration has `submit_quiz_attempt` write it, the shape is `{score, correct, total, answers: [{question_id, picked, picked_text, correct_answer, is_correct, seconds_on_question}]}`: the only place a right answer may sit next to the pick, never in notes.
@@ -289,7 +289,7 @@ second time, staff change `phase` or `status` again.
 
 | kind | written by | `content` | `detail` (exact keys) | other columns |
 | --- | --- | --- | --- | --- |
-| `candidate_turn` | server (chat functions) | the applicant's message | `{role}`: `"agent"` in chat practice / sales, `"candidate"` in the interview. A transcript a previous-build page sent only at submit is stored with `source: "submitted_transcript"` | `client_msg_id` = the page's id for the message; `"srv:<uuid>"` when the page sent none (no retry safety); `"submit:<position>"` for a submitted transcript. `client_at` = when it was sent |
+| `candidate_turn` | server (chat functions) | the applicant's message | `{role, typing?}`: `role` is `"agent"` in chat practice / sales, `"candidate"` in the interview. `typing` (chat practice only) is the page's keystroke summary for this reply, `{charsTyped, activeMs, corrections, keys, pasteLike}`, cleaned by the server (`ai-chat-simulation/typing.ts` `cleanReplyTyping`: whole numbers in range, corrections never more than keys, `pasteLike` only for a real true; anything else is left out) and read at grading only (docs/TYPING-IN-CHAT.md). A repeat of the same `client_msg_id` inserts nothing, so it keeps the first copy's `typing`. A transcript a previous-build page sent only at submit is stored with `source: "submitted_transcript"` | `client_msg_id` = the page's id for the message; `"srv:<uuid>"` when the page sent none (no retry safety); `"submit:<position>"` for a submitted transcript. `client_at` = when it was sent |
 | `assistant_turn` | server | the full reply text | `{role, model}`. `role` is `"customer"` in chat practice / sales, `"interviewer"` in the interview. Optional extras: `resolved: true`, `closed: true`, `source: "submitted_transcript"` | `client_msg_id`: `"opener"` for the first message, `"reply:<candidate client_msg_id>"` for a reply (so a retried request never stores two replies), `"submit:<position>"` in a submitted transcript |
 | `quiz_shown` | `record_quiz_answer` | – | `{question_id, question_index, client_shown_at?, client_shown_at_raw?}` | `client_msg_id` = `"shown:<question_id>"` (once per question per attempt); `client_at` = the page's shown time when plausible (4.6) |
 | `quiz_answer` | `record_quiz_answer` | – | `{question_id, question_index, answer, seconds_on_question, shown_at, timing_source, changed, client_shown_at?, client_shown_at_raw?}`. `timing_source` is `server`, `client`, `previous_answer` or `attempt_start` | `duration_ms` = time on the question |
@@ -654,8 +654,9 @@ rule.
    none of them and must keep working exactly as before.
 2. **Chat turns** (`ai-chat-simulation`, `ai-chat-interview`, `submit-sales-simulation`):
    - Insert the `candidate_turn`
-     `{session_id, kind, content, client_msg_id, client_at, detail: {role}}`
-     **before** calling OpenAI. Rebuild the history from the stored turns,
+     `{session_id, kind, content, client_msg_id, client_at, detail: {role, typing?}}`
+     **before** calling OpenAI (`typing`: chat practice only, the request's
+     keystroke summary cleaned, section 3). Rebuild the history from the stored turns,
      never from the request body.
    - After the stream completes, insert the `assistant_turn`
      `{session_id, kind, content: <full text>, client_msg_id: "reply:<id>", detail: {role, model}}`.

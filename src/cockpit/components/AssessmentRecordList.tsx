@@ -12,7 +12,7 @@ import {
   Video,
 } from "lucide-react";
 import { GlyphEcho } from "@/components/ava/employerGlyphs";
-import { liveTone, toneColor, type AssessmentEntry, type LiveState } from "../lib/assessmentRecord";
+import { chatTypingNeedsALook, liveTone, toneColor, type AssessmentEntry, type LiveState } from "../lib/assessmentRecord";
 
 /**
  * "What they submitted" — one row per test the job gives this applicant, in
@@ -100,6 +100,12 @@ function RecordRow({ entry, onOpen }: { entry: AssessmentEntry; onOpen: (entry: 
   // their own line under the verdict, never cut, and the row says who timed
   // it. A flag the owner asked to see must not sit behind an ellipsis.
   const equipment = done && entry.detail?.kind === "equipment_check" ? entry.detail : null;
+  // The chat practice's typing (docs/TYPING-IN-CHAT.md): "Typing 47 WPM ·
+  // 6% corrections · replies in 38 s (median)", its own line under the row,
+  // never cut, amber when it is the job's typing measure and under its bar
+  // or its replies arrived without being typed.
+  const chatTyping = done && entry.detail?.kind === "chat_simulation" ? entry.detail.typing : null;
+  const chatTypingBelow = chatTypingNeedsALook(chatTyping);
 
   const main = (
     <>
@@ -185,6 +191,17 @@ function RecordRow({ entry, onOpen }: { entry: AssessmentEntry; onOpen: (entry: 
           ))}
         </span>
       </span>
+    ) : chatTyping ? (
+      <span className="flex w-full min-w-0 flex-col gap-1.5">
+        <span className="flex w-full min-w-0 items-center gap-3">{main}</span>
+        <span
+          className="flex items-start gap-1.5 pl-[42px] text-[11.5px] leading-[1.3]"
+          style={{ color: chatTypingBelow ? "var(--amber-fg)" : "var(--ink-3)" }}
+        >
+          <Keyboard aria-hidden className="mt-[1.5px] h-3 w-3 shrink-0" strokeWidth={2.2} />
+          <span className="break-words">{chatTyping.line}</span>
+        </span>
+      </span>
     ) : (
       main
     );
@@ -210,7 +227,7 @@ function RecordRow({ entry, onOpen }: { entry: AssessmentEntry; onOpen: (entry: 
     <button
       type="button"
       onClick={() => onOpen(entry)}
-      aria-label={`${entry.title}: ${[done ? entry.headline : null, line, ...(equipment?.flags ?? [])].filter(Boolean).join(", ")}. ${done ? "Open what they submitted." : "Open what they have done so far."}`}
+      aria-label={`${entry.title}: ${[done ? entry.headline : null, line, ...(equipment?.flags ?? []), chatTyping?.line ?? null].filter(Boolean).join(", ")}. ${done ? "Open what they submitted." : "Open what they have done so far."}`}
       className={`${shape} ck-lift group transition-transform duration-150 hover:border-[var(--hair)] active:scale-[0.98]`}
       style={{ borderColor: "var(--line-soft)", background: "var(--surface)", boxShadow: "var(--hf-shadow-soft)", cursor: "pointer" }}
     >

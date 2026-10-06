@@ -657,6 +657,64 @@ console.log("\n4. Filters, search and sort");
   check("…all of them once shown passes the total", page3.shown.length === 60 && !page3.hasMore);
 }
 
+/* ── 4b. Typing measured in the chat practice (docs/TYPING-IN-CHAT.md) ──── */
+
+console.log("\n4b. Typing measured in the chat practice");
+{
+  // The live job once step_typing is dropped: typing is measured while they
+  // write their chat replies (notes.chatSimulationResult.typing).
+  const JOB_T = { ...JOB, id: "0c000000-0000-4000-8000-000000000003", workflow_steps: JOB.workflow_steps.filter((st) => st.type !== "typing_test") };
+  const typingBlock = ({ wpm = 47, correctionsPct = 6, medianReplySeconds = 38, repliesTimed = 6, bar = { minWpm: 40, maxMedianReplySeconds: 90 } } = {}) => {
+    const below = [];
+    if (wpm !== null && wpm < bar.minWpm) below.push("speed");
+    if (medianReplySeconds !== null && medianReplySeconds > bar.maxMedianReplySeconds) below.push("reply_time");
+    return { wpm, correctionsPct, medianReplySeconds, typosPer100Words: 1.2, repliesTimed, pasteLike: 0, bar, meetsBar: below.length ? false : wpm === null ? null : true, below, measuredBy: { speed: "page", replyTime: "server", typos: "grader" } };
+  };
+  const finishedOn = (job, name, chat, typing, extra = {}) =>
+    app(name, {
+      job_id: job.id,
+      phase: "review",
+      created_at: ago(9 * HR),
+      notes: notesWith(name, "Accra, Ghana", {
+        equipmentCheckResult: CONNECTION_OK,
+        chatSimulationResult: { score: chat, empathy: chat, problemSolving: chat, completed: true, ...(typing ? { typing } : {}) },
+        chatInterviewResult: { score: 80, recommendation: "Hire" },
+        ...extra,
+      }),
+      ...final(75, "review"),
+    });
+  const TOM = finishedOn(JOB_T, "Tom Slow", 82, typingBlock({ wpm: 32, medianReplySeconds: 140 }));
+  const UMA = finishedOn(JOB_T, "Uma Quick", 82, typingBlock({ wpm: 50, medianReplySeconds: 40 }));
+  const VIC = finishedOn(JOB_T, "Vic Weakchat", 40, typingBlock({ wpm: 55, medianReplySeconds: 30 }));
+  const WES = finishedOn(JOB_T, "Wes Waits", 82, typingBlock({ wpm: 47, medianReplySeconds: 150 }));
+  const XIA = finishedOn(JOB_T, "Xia Brief", 82, typingBlock({ wpm: null, correctionsPct: null, repliesTimed: 2 }));
+  const YUL = finishedOn(JOB_T, "Yul Older", 82, null);
+  // The same slow chat typing on the job that still has its typing step,
+  // with a typing test over its bar: nothing about that job changes.
+  const ZED = finishedOn(JOB, "Zed Typist", 82, typingBlock({ wpm: 25, medianReplySeconds: 200 }), { typingTestResult: PASSING.typingTestResult });
+  const tApps = [TOM, UMA, VIC, WES, XIA, YUL, ZED];
+  const tRows = L.createApplicantRowBuilder()({ apps: tApps, sessions: [], reopens: [], jobs: [JOB, JOB_T], interviews: [], now: NOW });
+  const tBy = Object.fromEntries(tRows.map((r) => [r.name, r]));
+  const chatDot = (r) => r.dots.find((d) => d.stepType === "chat_simulation")?.state;
+
+  check("a job with no typing step: the chat's typing under the bar is 'below the bar on typing', not on chat practice",
+    eq(tBy["Tom Slow"].below, ["typing"]) && chatDot(tBy["Tom Slow"]) === "below", `${show(tBy["Tom Slow"].below)} ${chatDot(tBy["Tom Slow"])}`);
+  check("…slow replies alone count too", eq(tBy["Wes Waits"].below, ["typing"]) && chatDot(tBy["Wes Waits"]) === "below", show(tBy["Wes Waits"].below));
+  check("…at or over both bars: nothing, and the chat's dot is done", eq(tBy["Uma Quick"].below, []) && chatDot(tBy["Uma Quick"]) === "done");
+  check("…a chat mark under the pass mark is still 'chat practice', and good typing is not 'typing'", eq(tBy["Vic Weakchat"].below, ["chat-practice"]), show(tBy["Vic Weakchat"].below));
+  check("…not enough typing to time is never below the bar", eq(tBy["Xia Brief"].below, []) && chatDot(tBy["Xia Brief"]) === "done");
+  check("…a chat graded before the typing was measured reads as before", eq(tBy["Yul Older"].below, []) && chatDot(tBy["Yul Older"]) === "done");
+  check("a job with a typing step reads typing from its test: the chat's slow typing changes nothing",
+    eq(tBy["Zed Typist"].below, []) && chatDot(tBy["Zed Typist"]) === "done", `${show(tBy["Zed Typist"].below)} ${chatDot(tBy["Zed Typist"])}`);
+
+  const S = (over) => ({ ...L.DEFAULT_LIST_STATE, ...over });
+  const tGot = (over) => names(L.applyListState(tRows, S(over), NOW).matched);
+  check("the Typing filter finds them", eq(tGot({ below: "typing" }), ["Tom Slow", "Wes Waits"]), show(tGot({ below: "typing" })));
+  check("the Chat practice filter keeps to the mark", eq(tGot({ below: "chat-practice" }), ["Vic Weakchat"]));
+  check("the filter is called Typing (a typing test, or the typing measured in the chat)", L.BELOW_OPTIONS.find((o) => o.value === "typing")?.label === "Typing");
+  check("…and its words say so", eq(L.filterWords(S({ below: "typing" }), () => null), ["below the bar on typing"]), show(L.filterWords(S({ below: "typing" }), () => null)));
+}
+
 /* ── 5. Country (contract §3) ──────────────────────────────────────────── */
 
 console.log("\n5. Country");

@@ -418,6 +418,258 @@ export function readChatInterviewResult(result: unknown): ChatInterviewReading |
   };
 }
 
+/**
+ * Typing, measured inside the chat practice while they wrote their real
+ * replies (docs/TYPING-IN-CHAT.md): `notes.chatSimulationResult.typing`,
+ * written by the server when the chat is graded. Speed and corrections come
+ * from the page's keystroke timing, the reply time from the server's own
+ * clock, typos from the grader.
+ */
+export interface ChatTypingReading {
+  /**
+   * Active-typing WPM over the replies that count, taken together. null when fewer
+   * than CHAT_TYPING_MIN_TIMED_REPLIES were timed: "not enough typing to
+   * time", shown, never a fail and never a 0.
+   */
+  wpm: number | null;
+  /** Backspace + Delete over all keys of those replies, as a percent. */
+  correctionsPct: number | null;
+  /** Server-measured: the player's message stored → the applicant's reply stored. */
+  medianReplySeconds: number | null;
+  typosPer100Words: number | null;
+  repliesTimed: number | null;
+  /** Replies that did not arrive key by key (more than 15 characters came without a key each, or the server's checks of the summary failed). */
+  pasteLike: number | null;
+  /**
+   * Why there is no speed (typing.ts TypingNotTimed): "too_short",
+   * "arrived_without_typing" or "not_sent" (the page sent no timing: an
+   * older page). null when timed, or a block from before this was stored.
+   */
+  notTimed: ChatTypingNotTimed | null;
+  /** The chat step's bars (config.typing), defaulting to 40 WPM and 90 s. */
+  minWpm: number;
+  maxMedianReplySeconds: number;
+  /** At least CHAT_TYPING_MIN_TIMED_REPLIES replies were timed. */
+  enoughToTime: boolean;
+  /** A measured speed under the bar. Never true when the speed is not measured. */
+  speedBelow: boolean;
+  /** A measured median reply time over the bar. */
+  replyTimeBelow: boolean;
+  /**
+   * Replies arrived without being typed key by key often enough to look at
+   * (chatTypingArrivedWithoutTyping: 2 or more, or as many as were timed).
+   * Never a fail: a reason for a person to read the chat.
+   */
+  arrivedWithoutTyping: boolean;
+}
+
+export type ChatTypingNotTimed = "too_short" | "arrived_without_typing" | "not_sent";
+const CHAT_TYPING_NOT_TIMED: ReadonlySet<string> = new Set<ChatTypingNotTimed>(["too_short", "arrived_without_typing", "not_sent"]);
+
+/**
+ * Replies that did not arrive key by key are worth a person's look when
+ * there are 2 or more, or when they are at least half of the replies that
+ * had a usable timing (as many as were timed). One in a long chat is not.
+ * The same rule as the staff record's chatTypingOf.
+ */
+export function chatTypingArrivedWithoutTyping(pasteLike: number | null, repliesTimed: number | null): boolean {
+  const jumps = typeof pasteLike === "number" && Number.isFinite(pasteLike) ? pasteLike : 0;
+  const timed = typeof repliesTimed === "number" && Number.isFinite(repliesTimed) ? repliesTimed : 0;
+  return jumps >= 2 || (jumps >= 1 && jumps >= timed);
+}
+
+export const CHAT_TYPING_DEFAULT_MIN_WPM = 40;
+export const CHAT_TYPING_DEFAULT_MAX_MEDIAN_REPLY_SECONDS = 90;
+/** Fewer timed replies than this is "not enough typing to time". */
+export const CHAT_TYPING_MIN_TIMED_REPLIES = 3;
+
+function positiveOr(value: number | null, fallback: number) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function nonNegativeOrNull(value: number | null) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+/**
+ * The typing block, read the one way every reader reads it. The figures are
+ * the server's; the "below" calls are made here from the figures and the
+ * bars (the stored `below` / `meetsBar` say the same thing; a figure is what
+ * the owner is shown, so the figure decides). null when there is no block or
+ * it holds no measure at all.
+ */
+export function readChatTyping(value: unknown): ChatTypingReading | null {
+  const record = asRecord(value);
+  if (!record) return null;
+  const bar = asRecord(record.bar) ?? {};
+  const repliesTimed = nonNegativeOrNull(firstFiniteNumber(record.repliesTimed));
+  const rawWpm = nonNegativeOrNull(firstFiniteNumber(record.wpm));
+  // Too few timed replies is not a speed, whatever number came with it.
+  const enoughToTime = repliesTimed === null ? rawWpm !== null : repliesTimed >= CHAT_TYPING_MIN_TIMED_REPLIES;
+  const wpm = enoughToTime ? rawWpm : null;
+  const correctionsPct = nonNegativeOrNull(firstFiniteNumber(record.correctionsPct));
+  const medianReplySeconds = nonNegativeOrNull(firstFiniteNumber(record.medianReplySeconds));
+  const typosPer100Words = nonNegativeOrNull(firstFiniteNumber(record.typosPer100Words));
+  const pasteLike = nonNegativeOrNull(firstFiniteNumber(record.pasteLike));
+  if (wpm === null && correctionsPct === null && medianReplySeconds === null && typosPer100Words === null && repliesTimed === null) {
+    return null;
+  }
+  const notTimed = wpm !== null
+    ? null
+    : typeof record.notTimed === "string" && CHAT_TYPING_NOT_TIMED.has(record.notTimed)
+      ? (record.notTimed as ChatTypingNotTimed)
+      : null;
+  const minWpm = positiveOr(firstFiniteNumber(bar.minWpm, bar.min_wpm), CHAT_TYPING_DEFAULT_MIN_WPM);
+  const maxMedianReplySeconds = positiveOr(
+    firstFiniteNumber(bar.maxMedianReplySeconds, bar.max_median_reply_seconds),
+    CHAT_TYPING_DEFAULT_MAX_MEDIAN_REPLY_SECONDS,
+  );
+  return {
+    wpm,
+    correctionsPct,
+    medianReplySeconds,
+    typosPer100Words,
+    repliesTimed,
+    pasteLike,
+    notTimed,
+    minWpm,
+    maxMedianReplySeconds,
+    enoughToTime,
+    speedBelow: wpm !== null && wpm < minWpm,
+    replyTimeBelow: medianReplySeconds !== null && medianReplySeconds > maxMedianReplySeconds,
+    arrivedWithoutTyping: chatTypingArrivedWithoutTyping(pasteLike, repliesTimed),
+  };
+}
+
+/** The chat typing score's parts (chatTypingScore): speed against the bar, and the reply time. */
+export const CHAT_TYPING_SPEED_WEIGHT = 0.8;
+export const CHAT_TYPING_REPLY_WEIGHT = 0.2;
+
+/**
+ * The chat's typing as a 0-100 score, for a team lead's tests blend
+ * (the typing weight, 0.10) when the job has no typing step:
+ *
+ *   speed  = min(100, wpm ÷ the bar's WPM × 100)
+ *   reply  = 100 at or under the reply-time bar, else bar ÷ median × 100
+ *            (twice the bar is 50, three times is 33)
+ *   score  = round(0.8 × speed + 0.2 × reply)
+ *
+ * With no reply time the score is the speed alone. With no speed (fewer than
+ * three timed replies, or none) there is no score: null, never a 0, and the
+ * blend leaves typing out (a missing measure is not a 0). Corrections and
+ * typos are shown, never scored.
+ */
+export function chatTypingScore(typing: ChatTypingReading | null | undefined): number | null {
+  if (!typing || typing.wpm === null) return null;
+  const speed = Math.min(100, (typing.wpm / typing.minWpm) * 100);
+  if (typing.medianReplySeconds === null) return clampPercent(speed);
+  const reply = typing.medianReplySeconds <= typing.maxMedianReplySeconds
+    ? 100
+    : Math.max(0, Math.min(100, (typing.maxMedianReplySeconds / Math.max(typing.medianReplySeconds, 1)) * 100));
+  return clampPercent(CHAT_TYPING_SPEED_WEIGHT * speed + CHAT_TYPING_REPLY_WEIGHT * reply);
+}
+
+function workflowHasType(workflowSteps: ReadonlyArray<{ type?: unknown }> | null | undefined, type: string) {
+  return Array.isArray(workflowSteps) && workflowSteps.some((step) => String(step?.type || "").toLowerCase() === type);
+}
+
+/**
+ * The chat's typing when it IS the job's typing measure: the job has no
+ * typing step. A job that still has one keeps using it and reads none of
+ * this (null), so nothing about it changes.
+ */
+export function chatTypingForJob(
+  workflowSteps: ReadonlyArray<{ type?: unknown }> | null | undefined,
+  typing: ChatTypingReading | null | undefined,
+): ChatTypingReading | null {
+  if (!typing) return null;
+  return workflowHasType(workflowSteps, "typing_test") ? null : typing;
+}
+
+/**
+ * The score a team lead's tests blend takes for typing from the chat
+ * (chatTypingScore), or null: any other family, a job with a typing step, or
+ * no speed measured. trigger-ava-analysis's phase blend and the scorecard's
+ * tests share both ask this one function, so they always agree.
+ */
+export function chatTypingBlendScore(input: {
+  family: string;
+  workflowSteps: ReadonlyArray<{ type?: unknown }> | null | undefined;
+  typing: ChatTypingReading | null | undefined;
+}): number | null {
+  if (input.family !== "team_lead") return null;
+  return chatTypingScore(chatTypingForJob(input.workflowSteps, input.typing));
+}
+
+/** The staff line's start when no speed was timed, by the reason (the same words as the staff record's chatTypingLine). */
+export function chatTypingUntimedText(notTimed: ChatTypingNotTimed | null): string {
+  if (notTimed === "arrived_without_typing") return "Typing: replies arrived without typing";
+  if (notTimed === "not_sent") return "Typing: not timed by the page";
+  return "Typing: not enough typing to time";
+}
+
+/** "Typing 47 WPM · 6% corrections · replies in 38 s (median)", the staff line. */
+export function chatTypingText(typing: ChatTypingReading): string {
+  const parts = [
+    typing.wpm !== null ? `Typing ${Math.round(typing.wpm)} WPM` : chatTypingUntimedText(typing.notTimed),
+    ...(typing.correctionsPct !== null ? [`${Math.round(typing.correctionsPct)}% corrections`] : []),
+    ...(typing.medianReplySeconds !== null ? [`replies in ${Math.round(typing.medianReplySeconds)} s (median)`] : []),
+  ];
+  return parts.join(" · ");
+}
+
+/**
+ * The typing line in the judge's chat block (trigger-ava-analysis): the
+ * figures, the job's bars and which side of each they fell on. Only on a job
+ * with no typing step (chatTypingForJob): a job that has one is judged on
+ * its typing test. A speed that was not timed is said to be not counted
+ * either way, as a chat the grader could not mark is; why it was not timed
+ * is for a person (the flags), not for the judge.
+ */
+export function chatTypingEvidenceLine(typing: ChatTypingReading): string {
+  const speed = typing.wpm !== null
+    ? `${Math.round(typing.wpm)} WPM while writing their replies (the job asks for ${Math.round(typing.minWpm)}: ${typing.speedBelow ? "below it" : "meets it"})`
+    : "typing speed was not timed in this chat, so it is unknown: do not count typing speed either way";
+  const parts = [
+    speed,
+    ...(typing.correctionsPct !== null ? [`${Math.round(typing.correctionsPct)}% of keys were corrections`] : []),
+    ...(typing.medianReplySeconds !== null
+      ? [`median reply ${Math.round(typing.medianReplySeconds)} s (the job asks for ${Math.round(typing.maxMedianReplySeconds)} s or less: ${typing.replyTimeBelow ? "slower" : "meets it"})`]
+      : []),
+    ...(typing.typosPer100Words !== null ? [`${formatOneDecimal(typing.typosPer100Words)} typos left per 100 words`] : []),
+  ];
+  return `Typing in the chat: ${parts.join("; ")}`;
+}
+
+function formatOneDecimal(value: number) {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+/** The owner's flag for a speed under the bar ("Typed 32 WPM in the chat practice; the job asks for 40"). */
+export function chatTypingSpeedFlag(typing: ChatTypingReading | null | undefined): string | null {
+  if (!typing?.speedBelow || typing.wpm === null) return null;
+  return `Typed ${Math.round(typing.wpm)} WPM in the chat practice; the job asks for ${Math.round(typing.minWpm)}`;
+}
+
+/** The owner's flag for a median reply time over the bar ("Slow replies: median 140 s; the job asks for 90 s"). */
+export function chatReplyTimeFlag(typing: ChatTypingReading | null | undefined): string | null {
+  if (!typing?.replyTimeBelow || typing.medianReplySeconds === null) return null;
+  return `Slow replies: median ${Math.round(typing.medianReplySeconds)} s; the job asks for ${Math.round(typing.maxMedianReplySeconds)} s`;
+}
+
+/**
+ * The owner's flag for chat replies that arrived without being typed key by
+ * key (chatTypingArrivedWithoutTyping): "3 chat practice replies arrived
+ * without being typed (as pasted or dictated text does); their speed was not
+ * counted". A reason for review, never a decline.
+ */
+export function chatTypingArrivedFlag(typing: ChatTypingReading | null | undefined): string | null {
+  if (!typing?.arrivedWithoutTyping) return null;
+  const n = typing.pasteLike ?? 0;
+  return `${n} chat practice ${n === 1 ? "reply" : "replies"} arrived without being typed (as pasted or dictated text does); ${n === 1 ? "its" : "their"} speed was not counted`;
+}
+
 /** Why a lead's escalated chat score was capped (ai-chat-simulation/grading.ts LeadCap). */
 export type ChatSimulationCap = "new_promise" | "disrespect" | "tone";
 const CHAT_SIMULATION_CAPS: ReadonlySet<string> = new Set<ChatSimulationCap>(["new_promise", "disrespect", "tone"]);
@@ -463,6 +715,12 @@ export interface ChatSimulationReading {
    * "advance". null when graded from the stored turns.
    */
   transcriptSource: "browser" | null;
+  /**
+   * Typing measured while they wrote their replies (readChatTyping), or null
+   * (an older result, or nothing measured). Read whether or not the grader
+   * marked the chat: speed and reply time never came from the grader.
+   */
+  typing: ChatTypingReading | null;
 }
 
 /**
@@ -500,6 +758,7 @@ export function readChatSimulationResult(result: unknown): ChatSimulationReading
     needsReview: graded && record.needsReview === true,
     reviewReasons: graded && record.needsReview === true ? reviewReasons : [],
     transcriptSource: record.transcriptSource === "browser" ? "browser" : null,
+    typing: readChatTyping(record.typing),
   };
 }
 
@@ -751,6 +1010,9 @@ const RESULT_OF_TEST = new RegExp(
   ].join("|"),
   "i",
 );
+
+/** A note that quotes a typing speed ("typed 35 WPM", "38 words per minute"). */
+const WPM_FIGURE = /\b\d+(?:\.\d+)?\s*(?:wpm\b|words? (?:a|per) minute\b)/i;
 
 /**
  * Tests whose every note is about the measurement itself, so any note on
@@ -1157,6 +1419,12 @@ export interface HighSignalProgress {
   evidence: string[];
   /** Topics a judge conflict may not be about at all yet: tests still ahead, and evidence. */
   pendingTopicPhases: string[];
+  /**
+   * Topics already measured, for the conflict screen's `takenPhases`: the
+   * completed tests, plus "typing test" once the chat practice is done on a
+   * job with no typing step (typing is measured there, docs/TYPING-IN-CHAT.md).
+   */
+  takenTopicPhases: string[];
 }
 
 /**
@@ -1202,11 +1470,21 @@ export function highSignalProgress(input: HighSignalInputs): HighSignalProgress 
   const evidence: string[] = [];
   if (workflowTypes.includes("equipment_check")) evidence.push("connection check");
 
+  // On a job with no typing step, typing is measured inside the chat
+  // practice (docs/TYPING-IN-CHAT.md). It is not a test of its own (never
+  // pending, completed or counted), but its TOPIC belongs to the chat: a
+  // judge note about typing speed is still owed while the chat is ahead, and
+  // is the chat's own result once it is done, timed or not (an untimed speed
+  // is unknown, never a conflict that costs the judgment points).
+  const typingInChat = !workflowTypes.includes("typing_test") && workflowTypes.includes("chat_simulation");
+  const chatDone = completed.includes("chat simulation");
+
   return {
     pending,
     completed,
     evidence,
-    pendingTopicPhases: [...pending, ...evidence],
+    pendingTopicPhases: [...pending, ...(typingInChat && !chatDone ? ["typing test"] : []), ...evidence],
+    takenTopicPhases: [...completed, ...(typingInChat && chatDone ? ["typing test"] : [])],
   };
 }
 
@@ -1222,6 +1500,13 @@ export interface PhaseBlendInputs {
   chatInterviewScore: number | null;
   voiceScore: number | null;
   portfolioScore: number | null;
+  /**
+   * team_lead only: the chat practice's typing score (chatTypingBlendScore,
+   * which is null for any other family and for a job with a typing step).
+   * When it is a number it is the blend's typing; otherwise the typing
+   * test's score is, as before. Every other family ignores it.
+   */
+  chatTypingScore?: number | null;
 }
 
 /**
@@ -1237,15 +1522,23 @@ export interface PhaseBlendInputs {
  * never a weight. A voice interview, sales practice or portfolio on a lead
  * job counts at the listed weight only when the job has that step, so the
  * four above keep exactly their proportions on a job without them.
+ *
+ * A lead job with no typing step (docs/TYPING-IN-CHAT.md) takes typing's
+ * 0.10 from the chat practice, where the typing is measured now
+ * (`chatTypingScore`); a job that still has a typing step uses the typing
+ * test as before. No speed measured: typing is left out, never a 0.
  */
 export function familyPhaseWeights(input: PhaseBlendInputs): Array<{ label: string; value: number | null | undefined; weight: number }> {
   const { judgmentScore, quizScore, typingTest, chatSimulationScore, salesSimulationScore, chatInterviewScore, voiceScore, portfolioScore } = input;
+  const leadTyping = typeof input.chatTypingScore === "number" && Number.isFinite(input.chatTypingScore)
+    ? input.chatTypingScore
+    : typingTest?.score;
   const familyAwareWeights: Record<string, Array<{ label: string; value: number | null | undefined; weight: number }>> = {
     team_lead: [
       { label: "chat_simulation", value: chatSimulationScore, weight: 0.35 },
       { label: "quiz", value: quizScore, weight: 0.30 },
       { label: "chat_interview", value: chatInterviewScore, weight: 0.25 },
-      { label: "typing", value: typingTest?.score, weight: 0.10 },
+      { label: "typing", value: leadTyping, weight: 0.10 },
       { label: "voice", value: voiceScore, weight: 0.25 },
       { label: "sales_simulation", value: salesSimulationScore, weight: 0.35 },
       { label: "portfolio", value: portfolioScore, weight: 0.10 },
@@ -1488,6 +1781,17 @@ export function buildAvaScorecard(params: {
    * pendingHighSignalPhases uses them.
    */
   browserTranscriptPhases?: string[] | null;
+  /**
+   * Typing measured inside the chat practice (readChatSimulationResult(...)
+   * .typing; docs/TYPING-IN-CHAT.md). Read only when the job has no typing
+   * step (chatTypingForJob): a job that still has one is unchanged. Then a
+   * speed under the bar and a median reply time over it are each a flag, a
+   * "why down" line and a reason for "review" (never a decline, never a
+   * penalty on the number); for a team lead the score is typing's 0.10 of
+   * the tests (chatTypingBlendScore). Optional so every existing caller is
+   * unchanged.
+   */
+  chatTyping?: ChatTypingReading | null;
   evidenceFingerprint: string;
 }) {
   const {
@@ -1550,10 +1854,16 @@ export function buildAvaScorecard(params: {
     interviewAdaptability,
     interviewWorkingLead,
     browserTranscriptPhases,
+    chatTyping,
     evidenceFingerprint,
   } = params;
   // A resume nobody asked for and nobody sent is not a missing resume.
   const resumeMissing = resumeUnavailable && resumeRequested !== false;
+
+  // The chat practice's typing, when it is this job's typing measure (no
+  // typing step). null for a job that still has a typing step: unchanged.
+  const chatTypingInUse = chatTypingForJob(workflowSteps, chatTyping ?? null);
+  const chatTypingSpeedKnown = typeof chatTypingInUse?.wpm === "number";
 
   // Which tests are done and which are still ahead decide what counts as a
   // conflict yet (realHardConflicts), so they come first.
@@ -1573,6 +1883,9 @@ export function buildAvaScorecard(params: {
   const pendingHighSignalPhases = progress.pending;
   const completedHighSignalPhases = progress.completed;
   const pendingTopicPhases = progress.pendingTopicPhases;
+  // What is already measured, for the conflict screen: the completed tests,
+  // and typing once the chat practice is done on a job with no typing step.
+  const takenTopicPhases = progress.takenTopicPhases;
   const family = inferJobFamily(jobTitle, jobDescription);
   const teamLead = family === "team_lead";
   // Team leads read like the support role they lead in every derived
@@ -1602,7 +1915,7 @@ export function buildAvaScorecard(params: {
         jobFamily: family,
         hardRequirementConflicts,
         pendingPhases: pendingTopicPhases,
-        takenPhases: completedHighSignalPhases,
+        takenPhases: takenTopicPhases,
       });
 
   // The final number. For every family but team_lead this is unchanged: the
@@ -1619,10 +1932,16 @@ export function buildAvaScorecard(params: {
   // share in proportion (leadTestsCoverage): a typing-only "Shift Lead" job
   // used to let one typing test decide 65% of the number, so nearly everyone
   // who reached the bar scored in the 90s on the tests half.
+  //
+  // A lead job with no typing step takes typing's 0.10 from the chat practice
+  // (chatTypingBlendScore, the same number the caller's phase blend used), so
+  // a job with the three other tests is back to full coverage once the chat
+  // timed the typing, and stays at 0.90 when it did not.
   const testsDone = pendingHighSignalPhases.length === 0 && completedHighSignalPhases.length > 0;
   const leadTestsWeighting = teamLead && testsDone;
+  const chatTypingForBlend = chatTypingBlendScore({ family, workflowSteps, typing: chatTyping ?? null });
   const leadTestsShare = leadTestsWeighting
-    ? 0.65 * leadTestsCoverage({ quizScore, typingScore: typingTest?.score, chatSimulationScore, chatInterviewScore, voiceScore, salesSimulationScore, portfolioScore })
+    ? 0.65 * leadTestsCoverage({ quizScore, typingScore: typingTest?.score, chatTypingScore: chatTypingForBlend, chatSimulationScore, chatInterviewScore, voiceScore, salesSimulationScore, portfolioScore })
     : 0.3;
   const safeScore = clampPercent(
     weightedAverage(
@@ -1637,7 +1956,7 @@ export function buildAvaScorecard(params: {
   const riskFlags: string[] = [];
   const evidenceRefs: string[] = [];
   const normalizedTransferableEvidence = sanitizeList(transferableEvidence, 4);
-  const normalizedHardRequirementConflicts = realHardConflicts(hardRequirementConflicts, 4, pendingTopicPhases, completedHighSignalPhases);
+  const normalizedHardRequirementConflicts = realHardConflicts(hardRequirementConflicts, 4, pendingTopicPhases, takenTopicPhases);
 
   // The typing bar, measured by our own server: the result's requiredWpm
   // first (it is what the candidate was tested against), else the job's.
@@ -1645,6 +1964,13 @@ export function buildAvaScorecard(params: {
   const typedWpm = firstFiniteNumber(typingTest?.wpm);
   const typingBelowBar = typeof typingBar === "number" && typingBar > 0 && typeof typedWpm === "number" && typedWpm < typingBar;
   const typingFlag = typingBelowBar ? `Typed ${Math.round(typedWpm!)} WPM; the job asks for ${Math.round(typingBar!)}` : null;
+  // The same, measured in the chat practice on a job with no typing step:
+  // the speed against the chat step's bar, and the median reply time.
+  const chatSpeedFlag = chatTypingSpeedFlag(chatTypingInUse);
+  const chatReplyFlag = chatReplyTimeFlag(chatTypingInUse);
+  // Replies that did not arrive key by key: their speed was left out, which
+  // must not be a way around the bar (a reason for review, never a decline).
+  const chatArrivedFlag = chatTypingArrivedFlag(chatTypingInUse);
 
   // The judge's notes about a test that is ALREADY taken are not conflicts
   // (that would count the same shortfall twice: once as the test's score and
@@ -1652,10 +1978,15 @@ export function buildAvaScorecard(params: {
   // become the decline reason). They are shown to the owner as risk flags,
   // never a penalty and never a reason. A note on the typing topic is
   // dropped when the code knows the bar: typingFlag above states the fact in
-  // numbers. Notes about a test still ahead are dropped (that test's job) and
+  // numbers, and so does the chat practice's typing block when it is the
+  // job's typing measure (its figures and flags, or "not enough typing to
+  // time" on the record); when the chat timed a speed, a chat-practice note
+  // that quotes a WPM goes too.
+  // Notes about a test still ahead are dropped (that test's job) and
   // connection notes are dropped (the check's own flags say it).
-  const measuredNotes = testResultConflicts(hardRequirementConflicts, pendingTopicPhases, completedHighSignalPhases)
-    .filter(({ phase }) => !(phase === "typing test" && typeof typingBar === "number" && typingBar > 0))
+  const measuredNotes = testResultConflicts(hardRequirementConflicts, pendingTopicPhases, takenTopicPhases)
+    .filter(({ phase }) => !(phase === "typing test" && ((typeof typingBar === "number" && typingBar > 0) || chatTypingInUse !== null)))
+    .filter(({ phase, text }) => !(phase === "chat simulation" && chatTypingSpeedKnown && WPM_FIGURE.test(normalizeQuotes(text))))
     .map(({ text }) => text);
 
   if (!resumeUnavailable) {
@@ -1667,6 +1998,13 @@ export function buildAvaScorecard(params: {
   if (coverLetterProvided) evidenceRefs.push("cover_letter");
   if (typeof quizScore === "number") evidenceRefs.push(`quiz:${quizScore}`);
   if (typingTest?.wpm) evidenceRefs.push(`typing:${typingTest.wpm}wpm`);
+  if (chatTypingInUse && (chatTypingInUse.wpm !== null || chatTypingInUse.medianReplySeconds !== null)) {
+    const parts = [
+      ...(chatTypingInUse.wpm !== null ? [`${Math.round(chatTypingInUse.wpm)}wpm`] : []),
+      ...(chatTypingInUse.medianReplySeconds !== null ? [`${Math.round(chatTypingInUse.medianReplySeconds)}s`] : []),
+    ];
+    evidenceRefs.push(`chat_typing:${parts.join("/")}`);
+  }
   if (typeof voiceScore === "number") evidenceRefs.push(`voice:${voiceScore}`);
   if (typeof portfolioScore === "number") evidenceRefs.push(`portfolio:${portfolioScore}`);
   if (typeof chatSimulationScore === "number") evidenceRefs.push(`chat_simulation:${chatSimulationScore}`);
@@ -1742,6 +2080,9 @@ export function buildAvaScorecard(params: {
   riskFlags.push(...normalizedFormReviewFlags);
   riskFlags.push(...ungradedFlags);
   if (typingFlag) riskFlags.push(typingFlag);
+  if (chatSpeedFlag) riskFlags.push(chatSpeedFlag);
+  if (chatReplyFlag) riskFlags.push(chatReplyFlag);
+  if (chatArrivedFlag) riskFlags.push(chatArrivedFlag);
   riskFlags.push(...mustPassFlags);
   riskFlags.push(...testFindingFlags);
   riskFlags.push(...interviewLeadLows);
@@ -2014,6 +2355,10 @@ export function buildAvaScorecard(params: {
   const scoredTests = [quizScore, typingTest?.score, chatSimulationScore, salesSimulationScore, chatInterviewScore, voiceScore, portfolioScore, videoIntroScore];
   const reviewShortfalls = {
     typing: typingBelowBar,
+    // The chat practice's typing on a job with no typing step: the speed
+    // under the chat step's bar, the median reply time over it, or replies
+    // that arrived without being typed (their speed could not be counted).
+    chatTyping: !!chatSpeedFlag || !!chatReplyFlag || !!chatArrivedFlag,
     mustPass: normalizedMustPassMissed.length > 0,
     leadChat: teamLead && typeof chatSimulationScore === "number" && chatSimulationScore < 50,
     veryLowTest: scoredTests.some((score) => typeof score === "number" && Number.isFinite(score) && score < 30),
@@ -2092,6 +2437,7 @@ export function buildAvaScorecard(params: {
     voiceScore,
     typedWpm,
     typingBar,
+    chatTyping: chatTypingInUse,
     formDealBreakers: normalizedFormDealBreakers,
     formReviewFlags: normalizedFormReviewFlags,
     verdictFlags,
@@ -2203,6 +2549,8 @@ export function ungradedFlag(phase: string, teamLead = false) {
 export function leadTestsCoverage(scores: {
   quizScore?: number | null;
   typingScore?: number | null;
+  /** The chat practice's typing score (chatTypingBlendScore): counts as typing's 0.10. */
+  chatTypingScore?: number | null;
   chatSimulationScore?: number | null;
   chatInterviewScore?: number | null;
   voiceScore?: number | null;
@@ -2213,6 +2561,7 @@ export function leadTestsCoverage(scores: {
     family: "team_lead",
     judgmentScore: 0,
     quizScore: scores.quizScore ?? null,
+    chatTypingScore: scores.chatTypingScore ?? null,
     typingTest: { score: scores.typingScore ?? null },
     chatSimulationScore: scores.chatSimulationScore ?? null,
     salesSimulationScore: scores.salesSimulationScore ?? null,
@@ -2278,6 +2627,8 @@ function buildWhyLines(input: {
   voiceScore: number | null;
   typedWpm: number | null;
   typingBar: number | null;
+  /** The chat practice's typing, only when the job has no typing step (chatTypingForJob). */
+  chatTyping?: ChatTypingReading | null;
   formDealBreakers: string[];
   formReviewFlags?: string[];
   verdictFlags: string[];
@@ -2319,6 +2670,10 @@ function buildWhyLines(input: {
   if (typingKnown && input.typedWpm! >= input.typingBar!) {
     up.push(`Typed ${Math.round(input.typedWpm!)} WPM (bar ${Math.round(input.typingBar!)})`);
   }
+  const chatTyping = input.chatTyping ?? null;
+  if (chatTyping && chatTyping.wpm !== null && !chatTyping.speedBelow) {
+    up.push(`Typed ${Math.round(chatTyping.wpm)} WPM in the chat practice (bar ${Math.round(chatTyping.minWpm)})`);
+  }
 
   // Down: the owner's own deal-breakers and verdicts first.
   down.push(...input.formDealBreakers);
@@ -2343,6 +2698,10 @@ function buildWhyLines(input: {
   if (typingKnown && input.typedWpm! < input.typingBar!) {
     down.push(`Typed ${Math.round(input.typedWpm!)} WPM; the job asks for ${Math.round(input.typingBar!)}`);
   }
+  const chatSpeedDown = chatTypingSpeedFlag(chatTyping);
+  const chatReplyDown = chatReplyTimeFlag(chatTyping);
+  if (chatSpeedDown) down.push(chatSpeedDown);
+  if (chatReplyDown) down.push(chatReplyDown);
   for (const phase of input.ungraded) down.push(`${testName(phase, input.teamLead)} was not graded (the grader failed)`);
   if (input.equipmentCheck && !input.equipmentCheck.meetsBars) {
     down.push(`Connection below the job's bar (${input.equipmentCheck.below.join(", ") || "measured"})`);

@@ -754,11 +754,22 @@ export type CandidateTurnRecording =
  * together; the seq the insert got decides which stored turns came first. A
  * failed insert is tried again (three tries in all) unless the error is one
  * no retry can fix.
+ *
+ * `typing`: the chat practice's keystroke summary for this reply
+ * (docs/TYPING-IN-CHAT.md), already cleaned by the caller
+ * (ai-chat-simulation typing.ts cleanReplyTyping); stored as `detail.typing`.
+ * A repeat of the same message keeps the first copy's.
  */
 export async function recordCandidateTurn(
   admin: AssessmentAdmin,
   sessionId: string,
-  input: { content: string; clientMsgId: string; clientAt: string | null; role: "agent" | "candidate" },
+  input: {
+    content: string;
+    clientMsgId: string;
+    clientAt: string | null;
+    role: "agent" | "candidate";
+    typing?: Record<string, unknown> | null;
+  },
   options: { retryDelaysMs?: readonly number[] } = {},
 ): Promise<CandidateTurnRecording> {
   const content = clampContent(input.content);
@@ -768,7 +779,7 @@ export async function recordCandidateTurn(
     content,
     clientMsgId: input.clientMsgId,
     clientAt: input.clientAt,
-    detail: { role: input.role },
+    detail: { role: input.role, ...(isPlainObject(input.typing) ? { typing: input.typing } : {}) },
   };
   let [inserted, turns] = await Promise.all([insertEvent(admin, row), loadTurns(admin, sessionId)]);
   const delays = options.retryDelaysMs ?? TURN_RETRY_DELAYS_MS;

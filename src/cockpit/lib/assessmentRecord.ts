@@ -245,6 +245,57 @@ export interface Inconsistency {
   assessment: string;
 }
 
+/** A chat-practice typing bar they came in under: the speed under the
+ *  step's WPM, or the median reply time over its seconds. */
+export type ChatTypingBar = "speed" | "reply_time";
+
+/** Why the chat practice timed no typing speed (ai-chat-simulation typing.ts TypingNotTimed). */
+export type ChatTypingNotTimed = "too_short" | "arrived_without_typing" | "not_sent";
+const CHAT_TYPING_NOT_TIMED: ReadonlySet<string> = new Set<ChatTypingNotTimed>(["too_short", "arrived_without_typing", "not_sent"]);
+
+/**
+ * Typing, measured inside the chat practice while they wrote their real
+ * replies (docs/TYPING-IN-CHAT.md): `notes.chatSimulationResult.typing`,
+ * written by the server when the chat is graded. Read by `chatTypingOf`, the
+ * same rules as the server's `readChatTyping` (supabase/functions/_shared/
+ * autopilot.ts), so the record and Ava's scorecard never disagree.
+ */
+export interface ChatTypingFacts {
+  /** Active-typing WPM over the timed replies taken together; null when fewer than 3 replies were timed
+   *  ("not enough typing to time": shown, never a fail). */
+  wpm: number | null;
+  /** Backspace + Delete over all keys, as a percent. */
+  correctionsPct: number | null;
+  /** Server-measured, the player's message stored → the reply stored. */
+  medianReplySeconds: number | null;
+  typosPer100Words: number | null;
+  repliesTimed: number | null;
+  /** Replies that did not arrive key by key (more than 15 characters came
+   *  without a key each, or the server's checks of the summary failed). */
+  pasteLike: number | null;
+  /** Why there is no speed: "too_short", "arrived_without_typing", or
+   *  "not_sent" (the page sent no timing: an older page). null when timed,
+   *  or a block from before this was stored. */
+  notTimed: ChatTypingNotTimed | null;
+  /** The chat step's bars (config.typing), defaulting to 40 WPM and 90 s. */
+  minWpm: number;
+  maxMedianReplySeconds: number;
+  enoughToTime: boolean;
+  /** The bars they came in under, speed first. */
+  below: ChatTypingBar[];
+  /** Replies arrived without being typed often enough to look at: 2 or
+   *  more, or as many as were timed (the server's
+   *  chatTypingArrivedWithoutTyping). A reason to read the chat, never a fail. */
+  arrivedWithoutTyping: boolean;
+  /** This is the job's typing measure: the job has no typing step. Only then
+   *  does a missed bar make the chat practice read below the bar; a job that
+   *  still has a typing step reads typing from that test, and this line is
+   *  shown as information. */
+  jobMeasure: boolean;
+  /** "Typing 47 WPM · 6% corrections · replies in 38 s (median)". */
+  line: string;
+}
+
 export type AssessmentDetail =
   | {
       kind: "application";
@@ -338,12 +389,20 @@ export type AssessmentDetail =
       kind: "chat_simulation";
       scenario: string | null;
       customerName: string | null;
+      /** The chat's own mark, 0-100, or null (not graded, or not sent yet). */
+      score: number | null;
+      /** The mark is under the job's pass mark. Apart from the typing: the
+       *  entry's tone is amber for either, this says which. */
+      belowPassMark: boolean | null;
       scores: Array<{ label: string; value: number }>;
       strengths: string[];
       improvements: string[];
       feedback: string | null;
       messageCount: number | null;
       transcript: RecordTurn[] | null;
+      /** Typing measured while they wrote their replies, or null (an older
+       *  result, or the chat not graded yet). */
+      typing: ChatTypingFacts | null;
       /** The conversation is still going. */
       live: boolean;
     }
@@ -476,6 +535,112 @@ function str(value: unknown): string | null {
 
 function strList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string" && v.trim().length > 0) : [];
+}
+
+/* ── Typing in the chat practice ───────────────────────────────────────── */
+// docs/TYPING-IN-CHAT.md. The same rules as readChatTyping in
+// supabase/functions/_shared/autopilot.ts (scripts/assessment_record.test.mjs
+// runs both over the same blocks): fewer than 3 timed replies is no speed,
+// the bars default to 40 WPM and 90 s, and the figures decide "below".
+
+export const CHAT_TYPING_MIN_TIMED_REPLIES = 3;
+export const CHAT_TYPING_DEFAULT_BAR = { minWpm: 40, maxMedianReplySeconds: 90 } as const;
+
+function measure(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function barValue(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+/** The line's start when no speed was timed, by the reason (the server's chatTypingUntimedText). */
+function untimedText(notTimed: ChatTypingNotTimed | null | undefined): string {
+  if (notTimed === "arrived_without_typing") return "Typing: replies arrived without typing";
+  if (notTimed === "not_sent") return "Typing: not timed by the page";
+  return "Typing: not enough typing to time";
+}
+
+/** Replies that did not arrive key by key are worth a look at 2 or more, or
+ *  at least as many as were timed (the server's chatTypingArrivedWithoutTyping). */
+function arrivedWithoutTyping(pasteLike: number | null, repliesTimed: number | null): boolean {
+  const jumps = pasteLike ?? 0;
+  const timed = repliesTimed ?? 0;
+  return jumps >= 2 || (jumps >= 1 && jumps >= timed);
+}
+
+/** "Typing 47 WPM · 6% corrections · replies in 38 s (median)". */
+export function chatTypingLine(t: Pick<ChatTypingFacts, "wpm" | "correctionsPct" | "medianReplySeconds"> & { notTimed?: ChatTypingNotTimed | null }): string {
+  return [
+    t.wpm != null ? `Typing ${Math.round(t.wpm)} WPM` : untimedText(t.notTimed),
+    ...(t.correctionsPct != null ? [`${Math.round(t.correctionsPct)}% corrections`] : []),
+    ...(t.medianReplySeconds != null ? [`replies in ${Math.round(t.medianReplySeconds)} s (median)`] : []),
+  ].join(" · ");
+}
+
+/** The chat practice's typing block, or null when there is none or it holds
+ *  no measure. `jobMeasure`: the job has no typing step (see ChatTypingFacts). */
+export function chatTypingOf(value: unknown, jobMeasure = true): ChatTypingFacts | null {
+  const r = obj(value);
+  if (!r) return null;
+  const bar = obj(r.bar) ?? {};
+  const repliesTimed = measure(r.repliesTimed);
+  const rawWpm = measure(r.wpm);
+  const enoughToTime = repliesTimed == null ? rawWpm != null : repliesTimed >= CHAT_TYPING_MIN_TIMED_REPLIES;
+  const wpm = enoughToTime ? rawWpm : null;
+  const correctionsPct = measure(r.correctionsPct);
+  const medianReplySeconds = measure(r.medianReplySeconds);
+  const typosPer100Words = measure(r.typosPer100Words);
+  if (wpm == null && correctionsPct == null && medianReplySeconds == null && typosPer100Words == null && repliesTimed == null) return null;
+  const notTimed = wpm != null ? null : typeof r.notTimed === "string" && CHAT_TYPING_NOT_TIMED.has(r.notTimed) ? (r.notTimed as ChatTypingNotTimed) : null;
+  const pasteLike = measure(r.pasteLike);
+  const minWpm = barValue(bar.minWpm ?? bar.min_wpm, CHAT_TYPING_DEFAULT_BAR.minWpm);
+  const maxMedianReplySeconds = barValue(bar.maxMedianReplySeconds ?? bar.max_median_reply_seconds, CHAT_TYPING_DEFAULT_BAR.maxMedianReplySeconds);
+  const below: ChatTypingBar[] = [];
+  if (wpm != null && wpm < minWpm) below.push("speed");
+  if (medianReplySeconds != null && medianReplySeconds > maxMedianReplySeconds) below.push("reply_time");
+  return {
+    wpm,
+    correctionsPct,
+    medianReplySeconds,
+    typosPer100Words,
+    repliesTimed,
+    pasteLike,
+    notTimed,
+    minWpm,
+    maxMedianReplySeconds,
+    enoughToTime,
+    below,
+    arrivedWithoutTyping: arrivedWithoutTyping(pasteLike, repliesTimed),
+    jobMeasure,
+    line: chatTypingLine({ wpm, correctionsPct, medianReplySeconds, notTimed }),
+  };
+}
+
+/** The chat's typing missed a bar that counts: it is the job's typing
+ *  measure and it came in under the step's speed or reply-time bar. */
+export function chatTypingBelowBar(t: ChatTypingFacts | null | undefined): boolean {
+  return !!t && t.jobMeasure && t.below.length > 0;
+}
+
+/** The chat's typing is worth a look: under a bar that counts, or (as the
+ *  job's typing measure) replies that arrived without being typed. The row's
+ *  typing line is amber for either; only a missed bar is "below the bar". */
+export function chatTypingNeedsALook(t: ChatTypingFacts | null | undefined): boolean {
+  return chatTypingBelowBar(t) || (!!t && t.jobMeasure && t.arrivedWithoutTyping);
+}
+
+/** The gem's short words for the chat's typing, only when the chat is the
+ *  job's typing measure (a job with a typing step shows that test's WPM on
+ *  its own gem, and one row with two WPM figures reads as a contradiction):
+ *  the speed ("47 WPM"), or "slow replies" when the speed is fine (or not
+ *  timed) and the replies are what missed the bar. Short, because it sits
+ *  under a gem on a phone: the gem's colour says it is below the bar, the
+ *  row and the sheet say by how much. */
+function chatTypingReceipt(t: ChatTypingFacts): string | null {
+  if (!t.jobMeasure) return null;
+  if (t.below.includes("reply_time") && !t.below.includes("speed")) return "slow replies";
+  return t.wpm != null ? `${Math.round(t.wpm)} WPM` : null;
 }
 
 /** 9.5 stays 9.5 (a pick-several earns half), 10 stays 10. */
@@ -1878,24 +2043,37 @@ function buildChatSimulation(ctx: BuildContext, step: CandidateJourneyStep): Bui
   }
   const transcript = turnsOf(r?.messages ?? r?.transcript ?? r?.conversation);
   const headline = score != null ? `${Math.round(score)} / 100` : null;
+  // Typing, measured while they wrote these replies (docs/TYPING-IN-CHAT.md).
+  // On a job with no typing step it is the job's typing measure: under the
+  // chat step's bar on speed or reply time, the step reads below the bar, as
+  // a typing test under its WPM does. A job that still has a typing step is
+  // unchanged: the line is shown, the step's tone is its mark's.
+  const jobHasTypingStep = ctx.rawSteps.some((s) => s.type === "typing_test");
+  const typing = chatTypingOf(r?.typing, !jobHasTypingStep);
+  const typingBelow = chatTypingBelowBar(typing);
+  const typingReceipt = typing ? chatTypingReceipt(typing) : null;
+  const scoreReceipt = score != null ? `${Math.round(score)}/100` : null;
   return {
     headline,
-    tone: scoreTone(score, ctx.passing),
+    tone: typingBelow ? "amber" : scoreTone(score, ctx.passing),
     verdict: null,
     subline: scores.slice(0, 2).map((s) => `${s.label} ${Math.round(s.value)}`).join(" · ") || null,
-    receipt: score != null ? `${Math.round(score)}/100` : null,
+    receipt: [scoreReceipt, typingReceipt].filter(Boolean).join(" · ") || null,
     completedAt: completedAtFor(ctx, step.id, r),
     integrity: integrityOf(r),
     detail: {
       kind: "chat_simulation",
       scenario,
       customerName,
+      score,
+      belowPassMark: score != null ? score < ctx.passing : null,
       scores,
       strengths: strList(r?.strengths),
       improvements: strList(r?.improvements),
       feedback: str(r?.overallFeedback) ?? str(r?.feedback),
       messageCount: num(r?.messageCount) ?? transcript?.length ?? null,
       transcript,
+      typing,
       live: false,
     },
   };
@@ -2111,6 +2289,11 @@ function enrichFromSession(detail: AssessmentDetail | null, session: AssessmentS
         strengths: detail.strengths.length > 0 ? detail.strengths : strList(g.strengths),
         improvements: detail.improvements.length > 0 ? detail.improvements : strList(g.improvements),
         feedback: detail.feedback ?? str(g.overallFeedback),
+        // The typing block is read from the notes only (buildChatSimulation),
+        // so the step's tone, its receipt and this detail come from one value.
+        // The session's grading holds no copy of it: grading.result is the
+        // reviewer's evaluation, and grading.typing is the per-reply staff
+        // extra ({replies, spelling_mistakes}), not the block.
       };
     }
     case "chat_interview": {
@@ -2336,12 +2519,15 @@ function liveDetail(ctx: BuildContext, step: CandidateJourneyStep, session: Asse
         kind: "chat_simulation",
         scenario: str(c.scenario),
         customerName: str(c.customer_name),
+        score: null,
+        belowPassMark: null,
         scores: [],
         strengths: [],
         improvements: [],
         feedback: null,
         messageCount: turns || null,
         transcript: null,
+        typing: null,
         live: true,
       };
     case "chat_interview":

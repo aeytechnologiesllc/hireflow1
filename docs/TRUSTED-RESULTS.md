@@ -292,6 +292,7 @@ not carry them. `_shared/autopilot.ts` (`readChatSimulationResult`,
 | `cappedBy` | escalated rubric | what capped the score: `new_promise`, `disrespect`, `tone` |
 | `evidence` | escalated rubric | the lead's quoted words behind each mark |
 | `needsReview: true` + `reviewReasons` | escalated rubric, a flag the server could not confirm, or promise words the reviewer did not flag | a person should read the chat before its mark is trusted; a reason that is only promise words (`Promise words in the lead's own lines …`) is shown by the scorecard without holding the card (`isPromiseWordsOnlyReason`) |
+| `typing` | graded from the stored record (since 2026-10-06), graded or not | typing measured while they wrote their replies: speed and corrections from the page's per-reply keystroke summaries checked against the stored replies, reply time from the server's clock, typos from the grader (`ai-chat-simulation/typing.ts` `buildTypingResult`; the shape and the rules are in docs/TYPING-IN-CHAT.md). Read by `readChatTyping` (scorer) and `chatTypingOf` (staff record); it counts only on a job with no typing step |
 
 **`notes.chatInterviewResult`** (`ai-chat-interview/resultShape.ts`
 `buildChatInterviewResult`; flat on the End-button shape, nested under

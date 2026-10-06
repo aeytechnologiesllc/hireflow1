@@ -11,6 +11,9 @@ import {
 import {
   buildAvaScorecard,
   buildEvidenceFingerprint,
+  chatTypingBlendScore,
+  chatTypingEvidenceLine,
+  chatTypingForJob,
   computeJudgmentScore,
   familyPhaseWeights,
   formatQuizAreas,
@@ -73,7 +76,16 @@ import { connectionEvidenceLine, recordedEquipmentCheck } from "../_shared/conne
 // short and the topics it never asked) reach the judge, the fingerprint and
 // the scorecard's flags; a test graded from the page's own transcript
 // (transcriptSource "browser") is flagged as not trusted.
-const ANALYSIS_VERSION = 8;
+// 9 (2026-10-06, typing in the chat): typing is measured while they write
+// their chat practice replies (notes.chatSimulationResult.typing,
+// docs/TYPING-IN-CHAT.md). On a job with no typing step the chat block
+// prints the typing line and the fingerprint carries it; a speed under the
+// chat step's bar, a median reply time over it, or replies that arrived
+// without being typed is a flag and a reason for "review" (the first two
+// also a "why down" line), and a team lead's tests take typing's 0.10 from
+// it (chatTypingBlendScore). A job with a typing step is unchanged: the
+// judge never sees the chat's typing there.
+const ANALYSIS_VERSION = 9;
 
 /** What capped a lead's escalated chat score, in words (readChatSimulationResult.cappedBy). */
 const CHAT_CAP_LABELS: Record<string, string> = {
@@ -723,6 +735,11 @@ Purpose: This is a supplementary document for the above question. It is NOT a re
     const quizReading = readQuizResult(parsedNotes);
     const quizAreas = quizAreaBreakdown(quizReading?.answers, job?.quiz_questions);
     const chatSimulation = readChatSimulationResult(parsedNotes.chatSimulationResult);
+    // Typing measured in the chat practice (docs/TYPING-IN-CHAT.md), only when
+    // it is this job's typing measure: the job has no typing step. A job that
+    // still has one is judged, fingerprinted and scored on its typing test
+    // alone, exactly as before (the judge is never shown a second figure).
+    const chatTypingInUse = chatTypingForJob(workflowSteps, chatSimulation?.typing ?? null);
     const salesSimulation = readChatSimulationResult(parsedNotes.salesSimulationResult);
     const chatInterview = readChatInterviewResult(parsedNotes.chatInterviewResult);
     // The owner's own deal-breaker answers on the form (questions with
@@ -798,6 +815,10 @@ Purpose: This is a supplementary document for the above question. It is NOT a re
             needsReview: chatSimulation.needsReview,
             reviewReasons: chatSimulation.reviewReasons,
             transcriptSource: chatSimulation.transcriptSource,
+            // Typing measured in the chat (speed, corrections, reply time,
+            // typos, the bars), on a job with no typing step only: it changes
+            // the judge's line, the flags and, for a lead, the tests blend.
+            typing: chatTypingInUse,
           }
         : null,
       formDealBreakers,
@@ -1067,6 +1088,12 @@ ${leadChatLines}${chatSimulation.improvements.length > 0 ? `- To improve: ${chat
 ${chatLabel}:
 - Not graded: the grader failed, so there is no score yet. Do not count it either way.
 `;
+      // Typing, measured while they wrote these replies (docs/TYPING-IN-CHAT.md),
+      // on a job with no typing step only. Its own line whether or not the
+      // grader marked the chat: speed and reply time never came from the grader.
+      if (chatTypingInUse) {
+        content += `- ${chatTypingEvidenceLine(chatTypingInUse)}\n`;
+      }
     }
 
     // Add Chat Interview results if available (either result shape)
@@ -1259,9 +1286,21 @@ ${interviewType} Interview with AVA Results:
       }
     }
 
+    // Typing measured in the chat practice, when it is this job's typing
+    // measure (chatTypingInUse, above). A team lead's tests take typing's
+    // 0.10 from it (chatTypingBlendScore), the same number buildAvaScorecard
+    // reads.
+    const chatTypingScoreForBlend = chatTypingBlendScore({
+      family: inferredFamily,
+      workflowSteps,
+      typing: chatSimulation?.typing ?? null,
+    });
+
     // Tests done, tests ahead and the connection check: a judge conflict about
     // anything they measure is not counted against the judgment, here or in
-    // buildAvaScorecard (one helper, so both agree).
+    // buildAvaScorecard (one helper, so both agree). On a job with no typing
+    // step, typing is the chat practice's topic (owed while it is ahead, its
+    // result once it is done, timed or not).
     const progress = highSignalProgress({
       quizScore,
       quizConfigured,
@@ -1296,7 +1335,7 @@ ${interviewType} Interview with AVA Results:
         jobFamily: inferredFamily,
         hardRequirementConflicts: sourcedConflictNotes(structuredScore),
         pendingPhases: progress.pendingTopicPhases,
-        takenPhases: progress.completed,
+        takenPhases: progress.takenTopicPhases,
       });
       console.log(
         "[trigger-ava-analysis] Score computed via computeJudgmentScore (sub-scores only, LLM overallScore ignored):",
@@ -1383,6 +1422,7 @@ ${interviewType} Interview with AVA Results:
         judgmentScore: newScore ?? computeJudgmentScore({ jobFamily: inferredFamily }),
         quizScore,
         typingTest,
+        chatTypingScore: chatTypingScoreForBlend,
         chatSimulationScore,
         salesSimulationScore,
         chatInterviewScore,
@@ -1468,6 +1508,9 @@ ${interviewType} Interview with AVA Results:
       interviewAdaptability: chatInterview?.adaptability ?? null,
       interviewWorkingLead: chatInterview?.workingLead ?? null,
       browserTranscriptPhases,
+      // Typing measured in the chat practice; the scorecard reads it only
+      // when the job has no typing step.
+      chatTyping: chatSimulation?.typing ?? null,
       evidenceFingerprint,
     });
     const analysisMeta = {
@@ -1514,6 +1557,7 @@ ${interviewType} Interview with AVA Results:
         coverLetter: !!application.cover_letter,
         quiz: typeof quizScore === "number",
         typingTest: !!typingTest,
+        chatTyping: !!chatTypingInUse,
         equipmentCheck: !!equipmentCheck,
         chatSimulation: typeof chatSimulationScore === "number",
         salesSimulation: typeof salesSimulationScore === "number",

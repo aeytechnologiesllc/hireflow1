@@ -116,10 +116,17 @@ Direct URLs are of the form:
 
 ### Applicants list and full profile (Zulu role)
 
-The `zulu` scenario holds fourteen invented applicants, one in every state the
+The `zulu` scenario holds fifteen invented applicants, one in every state the
 list draws (docs/APPLICANTS-LIST.md): finished and waiting on a decision, live
 on a test, left part-way, on the form, below a bar, a step the job added later
-(skipped), moved to interview with one booked, offered, hired and declined. It
+(skipped), moved to interview with one booked, offered, hired and declined, and
+one (Kwame) whose full profile shows the job as it will be once its typing
+step is dropped, his typing measured in the chat practice and under both bars
+(docs/TYPING-IN-CHAT.md). Only his application embeds that version of the job,
+and only the full profile reads the embedded job: the list reads the shared job
+row, which keeps the typing test, so there he shows a typing step with no
+result and his chat's typing as information (the list's "Typing" filter for
+the chat is covered by `scripts/applicant_list.test.mjs`). It
 also has an active `team_members` row, so `__previewRole=team_member` sees the
 same list inside the team member's own shell. The `applying` scenario still
 holds only the one person on the form.
@@ -134,6 +141,8 @@ holds only the one person on the form.
 | Full profile: moved to interview, one booked (Wanjiru) | `/applicants/30000000-0000-4000-8000-000000000022?__preview=1&__previewRole=employer&__previewScenario=zulu` |
 | Full profile: on the typing test now, checked on a phone (Tomás) | `/applicants/30000000-0000-4000-8000-000000000020?__preview=1&__previewRole=employer&__previewScenario=zulu` |
 | Full profile: what they submitted (Robin) | `/applicants/30000000-0000-4000-8000-000000000013?__preview=1&__previewRole=employer&__previewScenario=zulu` |
+| Full profile: typing measured in the chat practice, under the bar, no typing test (Kwame) | `/applicants/30000000-0000-4000-8000-000000000028?__preview=1&__previewRole=employer&__previewScenario=zulu` |
+| Record sheet: the chat practice with its typing section (Kwame) | `/applicants/30000000-0000-4000-8000-000000000028?__preview=1&__previewRole=employer&__previewScenario=zulu&record=step_chat` |
 | Only someone on the form | `/applicants?__preview=1&__previewRole=employer&__previewScenario=applying` |
 
 Every list URL also takes the list's own state (`tab`, `where`, `score`,
