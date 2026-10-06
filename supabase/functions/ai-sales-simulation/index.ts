@@ -3,6 +3,9 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { type OpenAIMessage } from "../_shared/openai.ts";
 import { streamOpenAIChatCompletion } from "../_shared/openaiStreaming.ts";
 import { guardPublicAiCall } from "../_shared/rateLimit.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { computerRequiredBody, deviceKindOfRequest, needsComputer } from "../_shared/deviceKind.ts";
+import { computerOnlyGate, recordingTargetFrom, type AssessmentAdmin } from "../_shared/assessmentSession.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -34,6 +37,36 @@ interface SalesSimulationRequest {
   messages?: ChatMessage[];
   salesRepMessage?: string;
   messageCount?: number;
+  /** The page's own device reading (docs/COMPUTER-ONLY-TESTS.md). */
+  deviceKind?: string;
+  /** The application and step this practice is for. Optional, and read
+   *  only to let a phone or tablet practise a step the rule does not put on
+   *  a computer (the caller's own application, with their session JWT). */
+  applicationId?: string;
+  stepId?: string;
+}
+
+/** The signed-in caller's id, from their own session JWT, or null. */
+async function resolveCallerId(req: Request): Promise<string | null> {
+  const authHeader = req.headers.get("Authorization");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const url = Deno.env.get("SUPABASE_URL");
+  if (!authHeader || !anonKey || !url) return null;
+  try {
+    const supabaseUser = createClient(url, anonKey, { global: { headers: { Authorization: authHeader } } });
+    const { data: { user } } = await supabaseUser.auth.getUser();
+    return user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** A read-only service-role client for the computer-only gate, or null. */
+function gateClient(): AssessmentAdmin | null {
+  const url = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !serviceKey) return null;
+  return createClient(url, serviceKey) as unknown as AssessmentAdmin;
 }
 
 serve(async (req) => {
@@ -50,6 +83,27 @@ serve(async (req) => {
     const { mode, scenario, prospectName, prospectCompany, productService, jobTitle, candidateName = "the sales representative", messages = [], salesRepMessage, messageCount = 0 } = request;
 
     console.log("Sales simulation request:", { mode, scenario, prospectName, candidateName, messageCount });
+
+    // The sales practice is taken on a computer (docs/COMPUTER-ONLY-TESTS.md),
+    // from the request's headers AND the page's own reading in its body (a
+    // phone asking for the desktop site sends a computer's headers). Nothing
+    // here records an attempt, so nothing marks a practice a computer began:
+    // a phone or tablet is refused every start AND every reply (otherwise it
+    // could hold the whole practice with bare replies and submit it), unless
+    // the signed-in candidate's own step is one the rule does not put on a
+    // computer (a sales practice placed before the job's connection check).
+    const requestDevice = deviceKindOfRequest(req, request);
+    if (needsComputer(requestDevice)) {
+      const target = recordingTargetFrom(request);
+      const userId = target ? await resolveCallerId(req) : null;
+      const gate = await computerOnlyGate(target && userId ? gateClient() : null, requestDevice, target ? { ...target, userId, purpose: "turns", continuable: false } : null);
+      if (gate === "refuse") {
+        return new Response(JSON.stringify(computerRequiredBody(requestDevice)), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
 
     if (!OPENAI_API_KEY) {
       console.error("OPENAI_API_KEY is not configured");

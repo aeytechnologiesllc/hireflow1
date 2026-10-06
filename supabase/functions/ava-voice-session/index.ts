@@ -5,6 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { extractText } from "https://esm.sh/unpdf@0.12.1";
 import { hasSubscriptionBypassForUser } from "../_shared/subscriptionBypass.ts";
 import { computeSessionTimeLimitMinutes, HARD_CAP_MINUTES } from "../_shared/voiceSessionCharge.ts";
+import { computerRequiredBody, deviceKindOfRequest, needsComputer, stepNeedsComputer } from "../_shared/deviceKind.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -317,6 +318,10 @@ interface VoiceSessionRequest {
   // Google Calendar integration
   googleCalendarConnected?: boolean;
   googleRefreshToken?: string;
+  // The page's own device reading (docs/COMPUTER-ONLY-TESTS.md), interview mode.
+  deviceKind?: string;
+  // The voice step being taken, interview mode; the job's first voice step when absent.
+  stepId?: string;
 }
 
 serve(async (req) => {
@@ -347,7 +352,8 @@ serve(async (req) => {
       throw new Error("User not authenticated");
     }
 
-    const { mode, applicationId, jobId, language = 'en', duration = 10, subscriptionPlan, subscriptionStatus, countryCode, voiceMinutesRemaining, isFirstUse, currentRoute, googleCalendarConnected, googleRefreshToken } = await req.json() as VoiceSessionRequest;
+    const voiceRequest = await req.json() as VoiceSessionRequest;
+    const { mode, applicationId, jobId, language = 'en', duration = 10, subscriptionPlan, subscriptionStatus, countryCode, voiceMinutesRemaining, isFirstUse, currentRoute, googleCalendarConnected, googleRefreshToken } = voiceRequest;
     console.log("Voice session request:", { mode, applicationId, jobId, language, duration, userId: user.id, subscriptionPlan, countryCode, isFirstUse, currentRoute, hasGoogleCal: !!googleCalendarConnected });
 
     // Resolve who owns the voice entitlement for this session.
@@ -413,6 +419,25 @@ serve(async (req) => {
           JSON.stringify({ error: "This interview isn't ready to start yet — there are earlier steps to finish first." }),
           { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
+      }
+
+      // The voice interview is taken on a computer when the rule puts it
+      // there (docs/COMPUTER-ONLY-TESTS.md: the job's connection check and
+      // every step after it, or with no check its first test that matters
+      // and every step after it). Each mint is a new session, so a phone or
+      // tablet (the request's headers AND the page's own reading) is refused
+      // here, BEFORE any OpenAI session is minted.
+      const voiceDevice = deviceKindOfRequest(req, voiceRequest);
+      if (needsComputer(voiceDevice)) {
+        const voiceStepId = typeof voiceRequest.stepId === "string" && voiceRequest.stepId.trim()
+          ? voiceRequest.stepId.trim()
+          : (interviewWorkflowSteps.find((s) => s?.type === "voice_interview")?.id ?? "");
+        if (stepNeedsComputer(interviewWorkflowSteps, voiceStepId) !== false) {
+          return new Response(
+            JSON.stringify(computerRequiredBody(voiceDevice)),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
       }
 
       voiceOwnerUserId = (interviewApplication.jobs as { employer_id?: string } | null)?.employer_id || user.id;

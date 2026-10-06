@@ -1,8 +1,19 @@
-import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 import { buildCandidateJourney, resolveGatedStep, type WorkflowStepLike } from "@/lib/candidateJourney";
+import { stepIsDone } from "@/lib/journeyProgress";
+import { kindNeedsComputer, readThisDevice, stepNeedsComputer } from "@/lib/deviceGate";
+import type { DeviceKind } from "@/lib/connectionTest";
+import { parseApplicationNotes } from "@/utils/applicationNotes";
+import { ContinueOnComputer } from "@/components/candidate/ContinueOnComputer";
+import {
+  ComputerHandoverContext,
+  ContinueOnComputerContext,
+  type ShowContinueOnComputer,
+} from "@/components/candidate/continueOnComputerContext";
+import { NextStepCard } from "@/components/candidate/NextStepCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Clock, ArrowLeft, AlertTriangle } from "lucide-react";
@@ -10,6 +21,7 @@ import { Loader2, Clock, ArrowLeft, AlertTriangle } from "lucide-react";
 interface GateJob {
   workflow_steps?: unknown;
   quiz_questions?: unknown;
+  title?: string | null;
 }
 
 /**
@@ -60,6 +72,42 @@ export default function CandidateStepGate({
   const [job, setJob] = useState<GateJob | null>(null);
   const [appPhase, setAppPhase] = useState<string | null>(null);
   const [appStatus, setAppStatus] = useState<string | null>(null);
+  const [appNotes, setAppNotes] = useState<unknown>(null);
+  const [voiceResult, setVoiceResult] = useState<unknown>(null);
+  // This device, by the connection check's own reading (deviceGate.ts):
+  // null until read. Read for every step, so a step page's requests can
+  // carry it (withDeviceKind); only a gated step waits for it.
+  const [deviceKind, setDeviceKind] = useState<DeviceKind | null>(null);
+  // The server refused one of this step's calls with computer_required: the
+  // step it refused, and the device it named.
+  const [refused, setRefused] = useState<{ stepId: string | undefined; kind: "phone" | "tablet" | null } | null>(null);
+  // Set the moment the server's refusal swaps the step page out, before it
+  // unmounts: the page's integrity monitor reads it and does not record
+  // "left the test page" for a move the person did not make
+  // (useTestIntegrity). A new step in the URL is a new page.
+  const handoverRef = useRef(false);
+  useEffect(() => {
+    handoverRef.current = false;
+  }, [stepId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void readThisDevice().then((reading) => {
+      if (!cancelled) setDeviceKind(reading.kind);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const showContinueOnComputer = useCallback<ShowContinueOnComputer>(
+    (kind) => {
+      handoverRef.current = true;
+      setRefused({ stepId, kind: kind === "phone" || kind === "tablet" ? kind : null });
+      return true;
+    },
+    [stepId],
+  );
 
   useEffect(() => {
     if (!applicationId) {
@@ -76,7 +124,7 @@ export default function CandidateStepGate({
     const load = async () => {
       const { data: app, error } = await supabase
         .from("applications")
-        .select("phase, status, jobs:job_id ( workflow_steps, quiz_questions )")
+        .select("phase, status, notes, voice_interview_result, jobs:job_id ( workflow_steps, quiz_questions, title )")
         .eq("id", applicationId)
         .maybeSingle();
 
@@ -92,12 +140,16 @@ export default function CandidateStepGate({
       }
 
       setNotFound(false);
+      const gateJob = app.jobs as GateJob | null;
       setJob({
-        workflow_steps: (app.jobs as GateJob | null)?.workflow_steps ?? [],
-        quiz_questions: (app.jobs as GateJob | null)?.quiz_questions ?? [],
+        workflow_steps: gateJob?.workflow_steps ?? [],
+        quiz_questions: gateJob?.quiz_questions ?? [],
+        title: gateJob?.title ?? null,
       });
       setAppPhase(app.phase ?? null);
       setAppStatus(app.status ?? null);
+      setAppNotes(app.notes ?? null);
+      setVoiceResult(app.voice_interview_result ?? null);
       setLoading(false);
     };
 
@@ -144,6 +196,28 @@ export default function CandidateStepGate({
 
   const hasReachedThisStep = resolution.matched && actualPosition.index >= resolution.index;
 
+  // The computer-only rule (docs/COMPUTER-ONLY-TESTS.md): is this step one
+  // the rule puts on a computer, and is it still theirs to take (not behind
+  // them, and its result not on file unless the hiring team handed it back)?
+  // A closed application (rejected or hired) has nothing left to take: its
+  // `phase` stays where the decision found it, so the step it was waiting
+  // on still reads as reached, but it is never "continue on your computer".
+  const thisStep = resolution.matched ? steps[resolution.index] : null;
+  const needsComputer = !!thisStep && stepNeedsComputer(steps, thisStep.id);
+  const closed = appStatus === "rejected" || appStatus === "hired";
+  const stepBehind =
+    !!thisStep &&
+    (closed ||
+      actualPosition.index > resolution.index ||
+      stepIsDone(
+        { phase: appPhase, status: appStatus, notes: parseApplicationNotes(appNotes), voiceInterviewResult: voiceResult },
+        thisStep,
+      ));
+
+  // Both refusals below send the person on with `replace`: a step URL that is
+  // refused is not a page worth coming Back to, so Back from where they land
+  // goes to where they were before it (docs/SHORT-JOB-LINKS.md §2).
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -166,7 +240,7 @@ export default function CandidateStepGate({
                 We couldn't find this application, or you don't have access to it.
               </p>
             </div>
-            <Button onClick={() => navigate("/applications")} className="w-full gap-2">
+            <Button onClick={() => navigate("/applications", { replace: true })} className="w-full gap-2">
               <ArrowLeft className="h-4 w-4" />
               Back to your applications
             </Button>
@@ -191,7 +265,7 @@ export default function CandidateStepGate({
                 application to pick up where you left off.
               </p>
             </div>
-            <Button onClick={() => navigate(`/applications/${applicationId}`)} className="w-full gap-2">
+            <Button onClick={() => navigate(`/applications/${applicationId}`, { replace: true })} className="w-full gap-2">
               <ArrowLeft className="h-4 w-4" />
               Back to your application
             </Button>
@@ -201,5 +275,39 @@ export default function CandidateStepGate({
     );
   }
 
-  return <>{children}</>;
+  // A gated step waits for the device reading, so a phone never mounts the step page.
+  if (needsComputer && deviceKind === null) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const refusedHere = refused && refused.stepId === stepId ? refused : null;
+  if (thisStep && ((needsComputer && kindNeedsComputer(deviceKind)) || refusedHere)) {
+    // Behind them already (sent, moved past, or the application is closed):
+    // the card the step page shows for a finished step, never "continue" for
+    // something left to do. A closed application wins even over a refusal.
+    if (closed || (stepBehind && !refusedHere)) {
+      return <NextStepCard applicationId={applicationId!} completedTitle={thisStep.title} />;
+    }
+    return (
+      <ContinueOnComputer
+        applicationId={applicationId!}
+        step={thisStep}
+        index={resolution.index}
+        total={steps.length}
+        jobTitle={job?.title}
+        deviceKind={refusedHere?.kind ?? (kindNeedsComputer(deviceKind) ? deviceKind : null)}
+        startedHere={!!refusedHere}
+      />
+    );
+  }
+
+  return (
+    <ComputerHandoverContext.Provider value={handoverRef}>
+      <ContinueOnComputerContext.Provider value={showContinueOnComputer}>{children}</ContinueOnComputerContext.Provider>
+    </ComputerHandoverContext.Provider>
+  );
 }

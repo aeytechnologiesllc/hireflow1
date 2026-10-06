@@ -39,10 +39,6 @@ const {
   buildAssessmentRecord,
   correctOptionsFor,
   quizKeyMap,
-  applicantBucket,
-  applicantTab,
-  applicantTabParam,
-  defaultApplicantBucket,
   integrityOf,
   weighedPhrase,
   QUIZ_QUESTIONS_KEY_STEP,
@@ -521,44 +517,28 @@ check("quiz antiCheatViolations are read as events", integrityOf({ antiCheatViol
 check("an empty record has no flags", integrityOf({}).total === 0 && integrityOf(null).total === 0);
 
 /* ── 8. The Applicants page's tabs ─────────────────────────────────────── */
-
-check("someone filling in the form is on the started tab", applicantBucket({ stage: "Application", analyzed: false, fillingInForm: true }) === "started");
-check("a scored person is sealed", applicantBucket({ stage: "Shortlist", analyzed: true }) === "sealed");
-check("a passed person stays passed even mid-form", applicantBucket({ stage: "Rejected", analyzed: false, fillingInForm: true }) === "passed");
-check("a lone applicant who pressed Apply opens their own tab", defaultApplicantBucket({ sealed: 0, reading: 0, started: 1, passed: 0 }) === "started");
-check("anyone sealed opens Sealed", defaultApplicantBucket({ sealed: 2, reading: 1, started: 1, passed: 0 }) === "sealed");
-check("nobody at all opens Sealed", defaultApplicantBucket({ sealed: 0, reading: 0, started: 0, passed: 0 }) === "sealed");
-
-// The tab the page shows, with someone on screen. A reviewer found the page
-// followed the owner's own Pass onto "Didn't make it"; triage stays put.
-const counts = (sealed, reading, started, passed) => ({ sealed, reading, started, passed });
+// The list's own rule (src/cockpit/lib/applicantList.ts, docs/APPLICANTS-LIST.md
+// §1), replacing the four old buckets (Sealed / Still reading / Applying /
+// Didn't make it) and their helpers, which are deleted with the right-hand
+// panel. Nothing is "followed" any more: there is no selected person on the
+// list, a row opens the profile. The full partition is in
+// scripts/applicant_list.test.mjs; these pin the cases the old checks covered.
+const AL = await import("../src/cockpit/lib/applicantList.ts");
 check(
-  "the form is sent: the page follows them from Applying to Still reading",
-  applicantTab({ counts: counts(1, 1, 0, 0), chosen: "started", onScreen: "reading" }) === "reading",
+  "someone filling in the form is on Taking tests now while live, Part-way once quiet",
+  AL.tabFor({ status: "in_progress", finished: false, liveState: "doing" }) === "taking-tests" &&
+    AL.tabFor({ status: "in_progress", finished: false, liveState: null }) === "part-way" &&
+    AL.tabFor({ status: "in_progress", finished: false, liveState: "left" }) === "part-way",
 );
+check("a declined person stays Declined even mid-form", AL.tabFor({ status: "rejected", finished: false, liveState: "doing" }) === "declined");
+check("finished every test and undecided waits on the team: Needs review", AL.tabFor({ status: "reviewing", finished: true, liveState: null }) === "needs-review");
 check(
-  "Ava seals them: the page follows them to Sealed",
-  applicantTab({ counts: counts(2, 0, 0, 0), chosen: null, onScreen: "sealed" }) === "sealed",
+  "interview, offer and hired share the Interview tab, live or not",
+  ["interview", "offered", "hired"].every((status) => AL.tabFor({ status, finished: true, liveState: "doing" }) === "interview"),
 );
-check(
-  "a Pass is not followed: the owner stays on Sealed",
-  applicantTab({ counts: counts(1, 0, 0, 1), chosen: "sealed", onScreen: "passed" }) === "sealed",
-);
-check(
-  "a teammate's Pass on a data-picked tab is not followed either",
-  applicantTab({ counts: counts(1, 2, 0, 1), chosen: null, onScreen: "passed" }) === "sealed",
-);
-check(
-  "on Didn't make it, someone there stays on screen",
-  applicantTab({ counts: counts(1, 0, 0, 2), chosen: "passed", onScreen: "passed" }) === "passed",
-);
-check(
-  "with nobody on screen the owner's tab wins, then the data",
-  applicantTab({ counts: counts(3, 0, 1, 0), chosen: "started", onScreen: null }) === "started" &&
-    applicantTab({ counts: counts(0, 0, 1, 0), chosen: null, onScreen: null }) === "started",
-);
-check("?tab=applying opens the Applying tab", applicantTabParam("applying") === "started" && applicantTabParam("passed") === "passed");
-check("an unknown ?tab= is ignored", applicantTabParam("everyone") === null && applicantTabParam(null) === null);
+check("?tab=applying (an old link) opens Part-way, ?tab=passed Declined", AL.tabFromParam("applying") === "part-way" && AL.tabFromParam("passed") === "declined");
+check("an unknown or missing ?tab= opens All", AL.tabFromParam("everyone") === "all" && AL.tabFromParam(null) === "all" && AL.tabFromParam("sealed") === "all");
+check("…and the page parses ?tab= with that rule", AL.parseListState("?tab=applying").tab === "part-way" && AL.parseListState("?tab=part-way").tab === "part-way");
 
 /* ── 8b. A quiz whose options were edited after it was taken ───────────── */
 // The stored index points at the options as they were. Reordered since, the
@@ -1356,40 +1336,57 @@ gate.seed([c3]);
 check("after a mark-as-read, the same write unread again is not a new flag", gate.consider("UPDATE", { ...c3, is_read: true }) === null && gate.consider("UPDATE", { ...c3 }) === null);
 
 /* ── 9. Where it is mounted (source checks) ────────────────────────────── */
-// The panel's old tiles were two viewport-specific copies split at 1160px;
-// replacing only one left the other width on the old tiles. And the full
-// profile once fell back to applications[0], putting someone else's record
-// behind this person's name.
+// Since 2026-10-06 the Applicants page is a list and nothing else
+// (docs/APPLICANTS-LIST.md): no right-hand panel, no "What they submitted",
+// no live strip. Each row opens the full profile, which holds the record list
+// and its sheet. The full profile once fell back to applications[0], putting
+// someone else's record behind this person's name.
 const { readFile } = await import("node:fs/promises");
 const src = (rel) => readFile(new URL(`../${rel}`, import.meta.url), "utf8");
 const applicantsPage = await src("src/cockpit/pages/Applicants.tsx");
-const lists = applicantsPage.match(/<AssessmentRecordList[\s\S]*?\/>/g) ?? [];
-check("the Applicants panel mounts the record list at both widths", lists.length === 2 && lists.some((m) => /min-\[1160px\]:block/.test(m)) && lists.some((m) => /min-\[1160px\]:hidden/.test(m)), `${lists.length} mounts`);
-check("the old EvidenceTiles are gone", !/EvidenceTiles/.test(applicantsPage));
-check("the Applicants panel opens the record sheet", /<AssessmentRecordSheet/.test(applicantsPage));
+const applicantRow = await src("src/cockpit/components/ApplicantRow.tsx");
+const listLib = await src("src/cockpit/lib/applicantList.ts");
+const applicantListHook = await src("src/cockpit/hooks/useApplicantList.ts");
 const detailPage = await src("src/cockpit/pages/CandidateDetail.tsx");
+check(
+  "the Applicants page is a list: no record list on it, every row opens /applicants/:id",
+  !/<AssessmentRecordList/.test(applicantsPage) && (applicantRow.match(/to=\{`\/applicants\/\$\{row\.id\}`\}/g) ?? []).length === 2,
+);
+check("the old EvidenceTiles are gone", !/EvidenceTiles/.test(applicantsPage));
+check("the record sheet opens on the full profile, not on the list", !/<AssessmentRecordSheet/.test(applicantsPage) && /<AssessmentRecordSheet/.test(detailPage));
 check("the full profile lists what they submitted", /<AssessmentRecordList/.test(detailPage) && /What they submitted/.test(detailPage));
 check("the full profile no longer shows a Quiz/Voice grid", !/label: "Voice", v: c\.voice/.test(detailPage));
 check("the full profile looks again before saying it cannot find someone", /stillLooking/.test(detailPage) && /refetch\(\)/.test(detailPage));
-// Selection on the Applicants page: paging shows that page's first person (an
-// auto-held selection used to pin the panel to page 1), a Pass fixes the tab,
-// and the tab choice belongs to the job it was made on.
-check("the page buttons turn to that page's first person", (applicantsPage.match(/goToPage\(pageClamped [-+] 1\)/g) ?? []).length === 2 && !/setPage\(\(p\) =>/.test(applicantsPage));
-check("a Pass keeps the owner on his tab", /const confirmReject[\s\S]{0,600}setBucketChoice\(\{ roleId: roleIdFilter, bucket \}\)/.test(applicantsPage));
-check("the tab choice is kept per job", /bucketChoice\.roleId === roleIdFilter/.test(applicantsPage) && /applicantTab\(\{/.test(applicantsPage));
-check("someone on the form is named while another tab is open", /bucket !== "started" && applyingNow\.length > 0/.test(applicantsPage));
+// The list's state: 25 at a time, and the tab, filters, sort, search and
+// how many are shown live in the URL (replace, not push), so Back from a
+// profile lands on the same view. Decisions (Pass, Move, Hire) are made on the
+// profile, which pages through the list's own order.
+check("the list draws 25 at a time and Show 25 more adds the next 25", /export const PAGE_SIZE = 25;/.test(listLib) && /update\(\{ shown: state\.shown \+ PAGE_SIZE \}\)/.test(applicantsPage));
+check(
+  "the list's state is written to the URL with replace, from the URL it was read",
+  /setSearchParams\(\s*\(current\) => serializeListState\(\{ \.\.\.parseListState\(current\), shown: PAGE_SIZE, \.\.\.patch \}, current\),\s*\{ replace: true \},?\s*\)/.test(applicantsPage),
+);
+check("the job filter IS ?roleId=", /set\("roleId", state\.job, ""\)/.test(listLib) && /job: str\(p\.get\("roleId"\)\)/.test(listLib) && /update\(\{ job: value \|\| null \}\)/.test(applicantsPage));
+check("the profile's pager gets the order on screen; Back restores the scroll", /writeApplicantOrder\(ids\)/.test(applicantsPage) && /navigationType !== "POP"/.test(applicantsPage) && /readScroll\(location\.search\)/.test(applicantsPage));
+check("an old ?applicationId= link opens that person's profile", /const redirect = profileRedirectFor\(searchParams\);\s*if \(redirect\) return <Navigate to=\{redirect\} replace \/>/.test(applicantsPage));
 const dashboardPage = await src("src/cockpit/pages/Dashboard.tsx");
 check(
-  "the Dashboard names someone applying even when others are sealed",
-  /applying > 0 && \(sealed\.length > 0 \|\| stillReading > 0\)/.test(dashboardPage) && /\/applicants\?tab=applying/.test(dashboardPage),
+  "the Dashboard names someone applying even when others are sealed, and opens the list on the form's step",
+  /applying > 0 && \(sealed\.length > 0 \|\| stillReading > 0\)/.test(dashboardPage) &&
+    (dashboardPage.match(/navigate\("\/applicants\?where=application"\)/g) ?? []).length === 2 &&
+    !/\/applicants\?tab=applying/.test(dashboardPage),
 );
 const hooks = await src("src/cockpit/hooks/useCockpitData.ts");
 check("useCockpitCandidate never falls back to someone else's row", !/applications\[0\]/.test(hooks));
 // Wave 2: both staff pages build the record WITH the server's attempts, the
 // sheet loads an attempt's events only while open, and the alert link opens
 // the right test.
-check("the Applicants panel reads the attempts of the person on screen", /useApplicationSessions\(selected\?\.id/.test(applicantsPage) && /buildAssessmentRecord\(selectedApp, \{ sessions: selectedSessions, now \}\)/.test(applicantsPage));
-check("the Applicants list reads everyone's open attempts", /useOpenSessions\(/.test(applicantsPage) && /live=\{/.test(applicantsPage));
+check(
+  "the Applicants list reads EVERY attempt of its jobs, not only open ones (flag counts and last active)",
+  /useApplicantList\(\)/.test(applicantsPage) && !/useOpenSessions\(/.test(applicantsPage) &&
+    /\.from\("assessment_sessions"\)\s*\.select\(LIST_SESSION_COLUMNS\)\s*\.in\("job_id", ids\)\s*\.order/.test(applicantListHook),
+);
+check("…and builds each row with the profile's own reader, hand-backs included", /buildAssessmentRecord\(\{ \.\.\.app, notes: app\.notes \?\? null, jobs: job \}, \{ sessions: withReopens\(sessions, reopens\), now: input\.now \}\)/.test(listLib));
 check("the full profile reads the attempts and opens ?record=", /useApplicationSessions\(id/.test(detailPage) && /searchParams\.get\("record"\)/.test(detailPage));
 const sheet = await src("src/cockpit/components/AssessmentRecordSheet.tsx");
 check("the sheet folds in the attempt's events", /useSessionEvents\(/.test(sheet) && /withSessionEvents\(/.test(sheet) && /useApplicationIntegrityEvents\(/.test(sheet));
@@ -1401,11 +1398,22 @@ check("the bell has an icon for integrity cards", /integrity:\s*ShieldAlert/.tes
 // Review fixes: the phone sees live lines, links outlive five minutes, the
 // open list is bounded, and transcript flags sit on the server's clock.
 check(
-  "on a phone the list names who is in a test now (the chips have no room)",
-  /data-ck-live-strip className="[^"]*min-\[1160px\]:hidden/.test(applicantsPage) && /liveInList\.slice\(0, LIVE_STRIP_ROWS\)/.test(applicantsPage),
+  "on a phone every card says where they are and who is live (no separate strip)",
+  /export function ApplicantCard\(/.test(applicantRow) && /<JourneyDots dots=\{row\.dots\} size=\{17\} \/>/.test(applicantRow) &&
+    /<CardLine row=\{row\} \/>/.test(applicantRow) && /row\.liveNow &&/.test(applicantRow) && !/data-ck-live-strip/.test(applicantsPage),
 );
 check("file links are re-minted while on screen and on return", /refetchInterval: FILE_LINK_REFRESH_MS/.test(sessionsHook) && /useApplicantFileUrl[\s\S]{0,900}refetchOnWindowFocus: true/.test(sessionsHook));
-check("the open-attempts list is newest first and bounded", /\.order\("last_activity_at", \{ ascending: false \}\)\s*\.limit\(OPEN_SESSION_LIMIT\)/.test(sessionsHook));
+// The open-only list (newest 200) is gone: the list loads every attempt,
+// paged past PostgREST's 1,000-row cap, without the heavy columns.
+check(
+  "the list's attempts are paged past 1,000 rows, without grading, context or draft",
+  /\.select\(LIST_SESSION_COLUMNS\)[\s\S]{0,200}\.range\(from, to\)/.test(applicantListHook) &&
+    !/grading|context|draft/.test(/LIST_SESSION_COLUMNS =\s*"([^"]*)"/.exec(applicantListHook)?.[1] ?? "grading") &&
+    !/useOpenSessions|OPEN_SESSION_LIMIT/.test(sessionsHook),
+);
+// Someone on the form is no longer named on other tabs (docs/APPLICANTS-LIST.md
+// §1 says why); the header counts them instead.
+check("the header counts who is still on the form", /\{onForm > 0 && ` · \$\{onForm\} on the form`\}/.test(applicantsPage));
 check("the timeline's times are on the same clock as its markers", /when\(item\.serverAt \?\? item\.at, "h:mm:ss a"\)/.test(sheet));
 check("transcript flags use the server's clock, offsets count from the first turn", /at: t\.serverAt \?\? t\.at/.test(sheet) && /const origin = start \?\? flagStart/.test(sheet));
 check("an old list marks a right-click as recorded only", /function FlagList/.test(sheet) && /e\.recordedOnly && <span[^>]*> · recorded only/.test(sheet));
@@ -1425,7 +1433,13 @@ const notificationsHook = await src("src/hooks/useNotifications.ts");
 const listHook = notificationsHook.slice(notificationsHook.indexOf("export function useNotifications"), notificationsHook.indexOf("export function useUnreadCount"));
 check("the bell's list refetches on a card's UPDATE too", /event: "\*"/.test(listHook) && !/event: "INSERT"/.test(listHook));
 check("a quiz still being answered never loads or shows the answer key", /enabled: enabled && !!jobId && sent,/.test(sheet) && /const keysReady = sent &&/.test(sheet) && /const correct = !sent\s*\?\s*null/.test(sheet));
-check("the record reads the staff hand-backs for the person and for the list", (sessionsHook.match(/\.from\("assessment_step_reopens"\)/g) ?? []).length === 2 && /withReopens\(query\.data, reopens\.data\)/.test(sessionsHook) && /withReopens\(list, marks\.get\(appId\)/.test(sessionsHook));
+// The person's hand-backs in useApplicationSessions; the list's own in
+// useApplicantList (every hand-back of its jobs, folded in per row).
+check(
+  "the record reads the staff hand-backs for the person and for the list",
+  (sessionsHook.match(/\.from\("assessment_step_reopens"\)/g) ?? []).length === 1 && /withReopens\(query\.data, reopens\.data\)/.test(sessionsHook) &&
+    /\.from\("assessment_step_reopens"\)/.test(applicantListHook) && /withReopens\(sessions, reopens\)/.test(listLib),
+);
 check("…under the applications keys the live sync refetches on a hand-back", /reopens: \(applicationId[^)]*\) => \["applications", "step-reopens"/.test(sessionsHook));
 const fixturesSrc = await src("src/dev-preview/fixtures.ts");
 check("the preview's reopened applicant carries a staff marker", /assessment_step_reopens: onlyApplying \? \[\] : \[\{ \.\.\.jordanChatReopen \}\]/.test(fixturesSrc));
@@ -1437,7 +1451,11 @@ check("…says a plain 'No' in words, never 'Not answered yet'", /detail\.usingT
 check("…and shows where the test ran and where it was sent from", /label: "Test ran from"/.test(sheet) && /label: "Sent from"/.test(sheet) && /counted by their page/.test(sheet));
 check("…and draws no integrity block under it (contract rule 5)", /shown\.kind !== "integrity" && shown\.kind !== "equipment_check" && !notesFlagsInline/.test(sheet));
 const listSrc = await src("src/cockpit/components/AssessmentRecordList.tsx");
-check("the row and the gem wear the step's own mark", /equipment_check: GlyphEcho/.test(listSrc) && /equipment_check: GlyphEcho/.test(applicantsPage));
+const journeyRail = await src("src/cockpit/components/ApplicantJourneyRail.tsx");
+check(
+  "the row and the profile's gem wear the step's own mark",
+  /equipment_check: GlyphEcho/.test(listSrc) && /import \{ EntryIcon \} from "\.\/AssessmentRecordList";/.test(journeyRail) && /<EntryIcon entry=\{\{ stepType \}\}/.test(journeyRail),
+);
 check(
   "the record list draws each connection flag on its own line, uncut, and says who timed it (§6)",
   /equipment\.flags\.map\(\(flag\) =>/.test(listSrc) && /equipment \? "break-words" : "truncate"/.test(listSrc) && /equipment\?\.measuredBy === "server"/.test(listSrc),

@@ -1,7 +1,7 @@
 /**
  * gemRail.ts — the curated jade → mint → teal → gold spectrum shared by every
- * gem-rail rendering in the cockpit: the single-candidate JourneyStrip on the
- * Applicants panel (`ck-rail-*`), and the aggregate "Pipeline at a glance"
+ * gem-rail rendering in the cockpit: the single-candidate journey rail on the
+ * applicant profile (ApplicantJourneyRail, `ck-rail-*`), and the aggregate "Pipeline at a glance"
  * miniature on the Dashboard (`ck-mini-rail-*`). One interpolation, used by
  * both, so a step at the same relative position always reads the same color
  * regardless of which screen is drawing it.

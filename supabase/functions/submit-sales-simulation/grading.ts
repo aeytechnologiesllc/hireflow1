@@ -186,15 +186,25 @@ export interface SalesSimulationResult {
   scenario: string;
   prospectCompany: string;
   messageCount: number;
-  score: number;
-  discovery: number;
-  objectionHandling: number;
-  valueProposition: number;
-  closingSkills: number;
-  wouldBuy: string;
+  /** Absent only when the practice was not graded (`graded: false`). */
+  score?: number;
+  discovery?: number;
+  objectionHandling?: number;
+  valueProposition?: number;
+  closingSkills?: number;
+  wouldBuy?: string;
   strengths: string[];
   improvements: string[];
   completed: true;
+  /**
+   * Present (false) only when the grader failed (2026-10-06): the model could
+   * not be reached or read, so nobody marked this practice. Before, its fixed
+   * fallback (70 across the board, "maybe") was stored as if it were a grade
+   * and the ranking treated it as real. The scorer reads graded:false as no
+   * score at all (autopilot.ts readChatSimulationResult); the transcript is on
+   * the attempt (assessment_sessions) for the hiring team to read.
+   */
+  graded?: false;
   antiCheatSummary: AntiCheatSummary;
 }
 
@@ -210,8 +220,23 @@ export function buildSalesSimulationResult(params: {
   messageCount: number;
   evaluation: SalesEvaluation;
   violations: AntiCheatViolation[];
+  /** false when `evaluation` is one of the fixed fallbacks: no grade is stored. */
+  graded?: boolean;
 }): SalesSimulationResult {
   const { scenario, prospectCompany, messageCount, evaluation, violations } = params;
+  if (params.graded === false) {
+    // No number, no "would buy": nothing a reader could mistake for a grade.
+    return {
+      scenario,
+      prospectCompany,
+      messageCount,
+      strengths: [],
+      improvements: [],
+      completed: true,
+      graded: false,
+      antiCheatSummary: computeAntiCheatSummary(violations),
+    };
+  }
   return {
     scenario,
     prospectCompany,
@@ -231,6 +256,7 @@ export function buildSalesSimulationResult(params: {
 
 // SalesSimulationPhase.tsx's own (former) client-side write of
 // phase_ai_analysis, unchanged — see index.ts's best-effort follow-up write.
-export function buildPhaseAiAnalysis(evaluation: SalesEvaluation): string {
+export function buildPhaseAiAnalysis(evaluation: SalesEvaluation, graded = true): string {
+  if (!graded) return "Sales simulation: sent, not graded (the grader failed). The conversation is kept on the attempt for the hiring team.";
   return `Sales simulation: ${evaluation.score}%. Discovery: ${evaluation.discovery}%, Objection handling: ${evaluation.objectionHandling}%. Would buy: ${evaluation.wouldBuy}.`;
 }

@@ -44,6 +44,8 @@ import {
   chatSimulationEndReason,
   chooseIntegrity,
   chooseTranscript,
+  computerOnlyGate,
+  recordStartDevice,
   failSession,
   finishGrading,
   gateGrading,
@@ -58,6 +60,7 @@ import {
   type AssessmentAdmin,
 } from "../_shared/assessmentSession.ts";
 import { scheduleStepMoveOn } from "../_shared/stepMoveOn.ts";
+import { computerRequiredBody, deviceKindOfRequest, needsComputer } from "../_shared/deviceKind.ts";
 import {
   buildApiMessages,
   buildEvaluationPrompt,
@@ -231,6 +234,19 @@ Deno.serve(async (req) => {
     );
     const record = admin as unknown as AssessmentAdmin;
 
+    // The sales practice is taken on a computer (docs/COMPUTER-ONLY-TESTS.md),
+    // from the request's headers AND the page's own reading in its body. A
+    // phone or tablet is refused BEFORE anything is opened or spent: an
+    // attempt the page's mount opened records no start device, so only a
+    // retried submit of one a computer sent (it records the device below), a
+    // finished step (the result on file is answered back) or a step the rule
+    // does not put on a computer goes on.
+    const requestDevice = deviceKindOfRequest(req, body);
+    if (needsComputer(requestDevice)) {
+      const gate = await computerOnlyGate(record, requestDevice, { applicationId, stepId, userId: callerId, purpose: "submit" });
+      if (gate === "refuse") return jsonResponse(computerRequiredBody(requestDevice), 400);
+    }
+
     // The attempt's record, best effort: with none (the migration not
     // applied, a finished or closed step) this grades the request's
     // transcript exactly as before.
@@ -243,6 +259,9 @@ Deno.serve(async (req) => {
     });
     const session = resolved.ok ? resolved.session : null;
     if (!resolved.ok) console.log("[submit-sales-simulation] submit without a record:", resolved.reason, resolved.detail ?? "");
+    // The practice leaves no record until this submit, so this is where the
+    // device it was taken on is recorded (once; a retry never overwrites it).
+    if (session) await recordStartDevice(record, session, requestDevice);
 
     // ONE request grades an attempt, and a result already on file is never
     // graded again from a request body (a retried or replayed submit gets
@@ -302,6 +321,9 @@ Deno.serve(async (req) => {
       messageCount: gradedMessages.length,
       evaluation,
       violations: integrity.violations as AntiCheatViolation[],
+      // A fallback is not a grade (2026-10-06): stored as graded:false with
+      // no score, never as the fallback's 70.
+      graded: !usedFallback,
     });
 
     // The real supabase-js client's query builder is a thenable, not a
@@ -371,7 +393,7 @@ Deno.serve(async (req) => {
     // moments later in the normal auto-mode flow anyway.
     const { error: analysisError } = await admin
       .from("applications")
-      .update({ phase_ai_analysis: buildPhaseAiAnalysis(evaluation) })
+      .update({ phase_ai_analysis: buildPhaseAiAnalysis(evaluation, !usedFallback) })
       .eq("id", applicationId);
     if (analysisError) {
       console.error("[submit-sales-simulation] Failed to write phase_ai_analysis (non-fatal):", analysisError);

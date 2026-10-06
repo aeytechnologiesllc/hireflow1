@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect, useRef } from "react";
+import { useParams, useNavigate, useLocation, useSearchParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,11 +14,12 @@ import {
   Users,
   CheckCircle2,
   ArrowLeft,
+  ArrowRight,
   XCircle,
   Loader2,
   AlertTriangle
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { format, isPast } from "date-fns";
 // This page is the front door — the one a stranger opens from a shared link.
 // It was carrying a stock lucide Briefcase as the job's identity mark and in
@@ -29,20 +30,31 @@ import { toast } from "sonner";
 import { detectSchemaMode } from "@/cockpit/data/showcaseSource";
 import { fetchRoleById } from "@/lib/showcaseApply";
 import { JobPageHead } from "@/components/seo/JobPageHead";
+import { isStaffHost } from "@/lib/hosts";
+import { jobPagePath, shortLinkFor, slugFromParam, withApplyAsk } from "@/lib/jobSlug";
+import { jobLevelLabel, jobTypeLabel } from "@/lib/jobLabels";
 
 export default function JobDetails() {
-  const { id } = useParams<{ id: string }>();
+  // Three doors to this one page (docs/SHORT-JOB-LINKS.md): the short link
+  // hireflownow.com/<slug>, and the old /candidate/job/:id and /job/:id.
+  const { id, slug: slugParam } = useParams<{ id?: string; slug?: string }>();
+  const lookupSlug = id ? null : slugFromParam(slugParam);
+  const lookupKey = id ?? (lookupSlug ? `slug:${lookupSlug}` : null);
   const navigate = useNavigate();
-  const { role, user, signOut } = useAuth();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+  const { role, user, signOut, loading: authLoading } = useAuth();
   const [isStartingApplication, setIsStartingApplication] = useState(false);
 
   const isEmployer = role === "employer";
   const applyEntryRoute = role === "candidate" ? "/apply" : "/candidate/apply";
-  // Where to send someone whose link led nowhere. Both apply routes ask for a
-  // job code; a stranger who followed a shared link has never had one, so that
-  // was a dead end dressed up as a way out. Signed-out visitors get the
-  // candidate portal instead, which is an actual starting point.
-  const strandedRoute = user ? applyEntryRoute : "/";
+  // Where to send someone whose link led nowhere: the open roles. Both apply
+  // routes ask for a job code, and a person who followed a shared link has
+  // never had one, so the code box was a dead end dressed up as a way out
+  // (for a signed-in candidate too). With one open role the careers page
+  // opens it.
+  const strandedRoute = "/";
   // This page IS the candidate's view, so it always reads the candidate's
   // source: published_jobs_public. It used to be
   //   !user || role === "candidate"
@@ -70,39 +82,33 @@ export default function JobDetails() {
   });
 
   const { data: job, isLoading: hireflowLoading, error: hireflowError, refetch: refetchJob, isFetching: isFetchingJob } = useQuery({
-    queryKey: ["job-details", id, shouldRestrictToPublished],
+    queryKey: ["job-details", lookupKey, shouldRestrictToPublished],
     queryFn: async () => {
       // maybeSingle, not single: `.single()` raises PGRST116 when there is no
       // row, so a job that doesn't exist and a request that failed arrived as
       // the same error — and the page then told a stranger the job was gone
       // when in truth their connection dropped. `data === null` now means
       // "no such job (or not published)"; a thrown error means "we failed".
-      const { data, error } = await supabase
-        .from("published_jobs_public")
-        .select("*")
-        .eq("id", id!)
-        .maybeSingle();
+      const base = supabase.from("published_jobs_public").select("*");
+      const { data, error } = await (id ? base.eq("id", id) : base.eq("slug", lookupSlug!)).maybeSingle();
 
       if (error) throw error;
       return data;
     },
-    enabled: !!id && !isShowcase,
+    enabled: !!lookupKey && !isShowcase,
   });
   
   // Only asked when the public view came back empty AND the viewer is an
   // employer: "this is yours but candidates cannot see it" is a different
   // message from "this link goes nowhere", and only the owner is owed it.
   const { data: ownedButUnpublished } = useQuery({
-    queryKey: ["job-owned-unpublished", id, user?.id],
+    queryKey: ["job-owned-unpublished", lookupKey, user?.id],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("jobs")
-        .select("id, status")
-        .eq("id", id!)
-        .maybeSingle();
+      const base = supabase.from("jobs").select("id, status");
+      const { data } = await (id ? base.eq("id", id) : base.eq("slug", lookupSlug!)).maybeSingle();
       return data;
     },
-    enabled: !!id && !isShowcase && isEmployer && !hireflowLoading && !job,
+    enabled: !!lookupKey && !isShowcase && isEmployer && !hireflowLoading && !job,
   });
 
   // Employer company name/logo (for JobPosting structured data hiringOrganization).
@@ -128,21 +134,56 @@ export default function JobDetails() {
   // Check if application deadline has passed
   const isDeadlinePassed = job?.application_deadline && isPast(new Date(job.application_deadline));
 
+  // An old link (/candidate/job/:id, /job/:id) or a short link typed another
+  // way (/Team-Lead/) moves to the job's short link. `replace`, so Back never
+  // lands on a page that sends the person forward again. Not on the staff
+  // host: the short link lives on the candidates' site, and the team's own
+  // preview there stays where it is.
+  // shortLinkFor ignores a name the site cannot open (one of its own paths),
+  // so such a job stays on the link it has instead of being sent away.
+  const shortPath = shortLinkFor(job);
+  const forwardTo = shortPath && !isStaffHost() && location.pathname !== shortPath ? shortPath : null;
+  useEffect(() => {
+    if (!forwardTo || !job) return;
+    // The short link's page reads the same row: hand it over, so it opens
+    // without a second request or a loading flash.
+    queryClient.setQueryData(["job-details", `slug:${job.slug}`, shouldRestrictToPublished], job);
+    navigate(`${forwardTo}${location.search}${location.hash}`, { replace: true });
+  }, [forwardTo, job, location.search, location.hash, navigate, queryClient, shouldRestrictToPublished]);
+
+  // Apply → sign in → straight into the form (docs/SHORT-JOB-LINKS.md §2).
+  // The sign-in screen brings the person back here with ?apply=1, and the
+  // application starts by itself, replacing this entry: Back from the form is
+  // the job page, never the sign-in screen and never a page that bounces.
+  const wantsToApply = searchParams.get("apply") === "1";
+  const autoStartedRef = useRef(false);
+  const startingByItselfRef = useRef(false);
+
   // published_jobs_public now selects jobs.benefits (see
   // supabase/migrations/20260916200000_published_jobs_public_benefits.sql),
   // so this reads straight off the real, regenerated column type.
   const jobBenefits = job ? job.benefits : null;
 
 
-  const formatSalary = (min?: number | null, max?: number | null, currency?: string | null) => {
+  const formatSalary = (min?: number | null, max?: number | null, currency?: string | null, period?: string | null) => {
     if (!min && !max) return "Competitive Salary";
     const curr = currency || "USD";
-    if (min && max) return `${curr} ${min.toLocaleString()} - ${max.toLocaleString()}`;
-    if (min) return `${curr} ${min.toLocaleString()}+`;
-    return `Up to ${curr} ${max?.toLocaleString()}`;
+    // "a month", not a bare number: a monthly 500 read as a yearly figure is
+    // the difference between applying and scrolling past.
+    const per = ({ HOUR: " an hour", DAY: " a day", WEEK: " a week", MONTH: " a month", YEAR: " a year" } as Record<string, string>)[(period || "").toUpperCase()] ?? "";
+    if (min && max && min === max) return `${curr} ${min.toLocaleString()}${per}`;
+    if (min && max) return `${curr} ${min.toLocaleString()} to ${max.toLocaleString()}${per}`;
+    if (min) return `${curr} ${min.toLocaleString()}+${per}`;
+    return `Up to ${curr} ${max?.toLocaleString()}${per}`;
   };
 
   const handleStartApplication = async () => {
+    // Started by itself (the ?apply=1 return from sign-in): every move
+    // replaces this history entry. Pressed by the person: a normal step.
+    const automatic = startingByItselfRef.current;
+    startingByItselfRef.current = false;
+    const go = (to: string) => navigate(to, automatic ? { replace: true } : undefined);
+
     if (isShowcase && showcaseRole) {
       navigate(`/candidate/apply/${showcaseRole.id}/form`);
       return;
@@ -164,9 +205,10 @@ export default function JobDetails() {
     // A stranger arriving from a shared link is not "the wrong kind of account" —
     // they have no account yet. Send them to the candidate door with a way back
     // here, before any role check can mistake them for a signed-in non-candidate.
+    // The sign-in screen opens on Sign Up: someone who followed a job's link
+    // almost always has no account yet (Sign In is one tap away).
     if (!user) {
-      const back = `/candidate/job/${job.id}`;
-      navigate(`/candidate/auth?redirect=${encodeURIComponent(back)}`);
+      navigate(`/candidate/auth?redirect=${encodeURIComponent(withApplyAsk(jobPagePath(job)))}&tab=signup`);
       return;
     }
 
@@ -193,18 +235,9 @@ export default function JobDetails() {
           .maybeSingle();
 
         if (existingApp) {
-          navigate(`/applications/${existingApp.id}`);
+          go(`/applications/${existingApp.id}`);
           return;
         }
-      }
-
-      // Accountless hireflow1 path: the full phase engine still requires auth.
-      // Send them to candidate auth with a return path back to this job, rather
-      // than a dead route. After signing in they land here and apply for real.
-      if (!user) {
-        const back = `/candidate/job/${job.id}`;
-        navigate(`/candidate/auth?redirect=${encodeURIComponent(back)}`);
-        return;
       }
 
       const { data: newApp, error: createError } = await supabase
@@ -226,14 +259,58 @@ export default function JobDetails() {
       // duplicate the stage, so it's filtered out there). Use the same
       // canonical id here so CandidateStepGate's strict resolveGatedStep
       // check finds it.
-      navigate(`/applications/${newApp.id}/application/application`);
+      go(`/applications/${newApp.id}/application/application`);
     } catch (err) {
       console.error("Error starting application:", err);
       toast.error("Failed to start application. Please try again.");
+      // Leave the page as a plain job page: the Apply button is the retry.
+      if (automatic) navigate(location.pathname, { replace: true });
     } finally {
       setIsStartingApplication(false);
     }
   };
+
+  // The ask carried back from sign-in, answered once: only on the job's own
+  // page (an old link moves first, and the moved page answers it), only for a
+  // signed-in candidate, and only while the role is open. Anyone else just
+  // sees the job, with the ask taken off the address.
+  useEffect(() => {
+    if (!wantsToApply || autoStartedRef.current || authLoading || !job || forwardTo) return;
+    if (user && role === null) return; // the role is still being read
+    autoStartedRef.current = true;
+    if (user && role === "candidate" && !isDeadlinePassed) {
+      startingByItselfRef.current = true;
+      void handleStartApplication();
+      return;
+    }
+    if (user) navigate(location.pathname, { replace: true });
+    // handleStartApplication is recreated every render; the ref above makes
+    // this run once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantsToApply, authLoading, job, forwardTo, user, role, isDeadlinePassed, navigate, location.pathname]);
+
+  // The short link and /candidate/job/:id stand alone; /job/:id sits inside
+  // the app's own shell, which brings its padding. Alone, the page keeps its
+  // cards off the screen's edges.
+  const standalone = !location.pathname.startsWith("/job/");
+  const pagePad = standalone ? "px-4 py-6 sm:px-6 sm:py-10" : "";
+
+  // On a phone the one Apply card sits under the job's header. Once it has
+  // scrolled up out of sight, the same Apply rises in a slim bar at the
+  // bottom, so whoever reads to the end of a long description has it in reach
+  // (and it leaves again when the card is back on screen).
+  const reduceMotion = useReducedMotion();
+  const mobileApplyRef = useRef<HTMLDivElement>(null);
+  const [applyScrolledAway, setApplyScrolledAway] = useState(false);
+  useEffect(() => {
+    const el = mobileApplyRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(([entry]) => {
+      setApplyScrolledAway(!entry.isIntersecting && entry.boundingClientRect.bottom <= 0);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [job?.id, isDeadlinePassed]);
 
   const isLoading = isShowcase ? showcaseLoading : hireflowLoading;
   const loadError = isShowcase ? showcaseError : hireflowError;
@@ -249,8 +326,11 @@ export default function JobDetails() {
 
   if (isLoading) {
     return (
-      <div className="max-w-4xl mx-auto space-y-6">
-        <Skeleton className="h-8 w-32" />
+      <div className={`max-w-4xl mx-auto space-y-6 ${pagePad}`}>
+        {/* The bar stands for the Back button, which only a signed-in
+            candidate or employer gets; a stranger's page starts with the
+            job's header, so a bar here made everything jump up on load. */}
+        {(isEmployer || role === "candidate") && <Skeleton className="h-8 w-32" />}
         <Skeleton className="h-64 w-full" />
         <Skeleton className="h-48 w-full" />
       </div>
@@ -272,7 +352,7 @@ export default function JobDetails() {
               <p className="mt-2 font-mono text-sm text-primary">Code: {showcaseRole.role_code}</p>
             )}
           </div>
-          <CardContent className="p-8 space-y-6">
+          <CardContent className="p-8 space-y-6 sm:p-8">
             {showcaseRole.description && (
               <p className="text-muted-foreground whitespace-pre-wrap">{showcaseRole.description}</p>
             )}
@@ -304,9 +384,9 @@ export default function JobDetails() {
   // never actually ran.
   if (loadError) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className={`flex min-h-[70vh] items-center justify-center ${pagePad}`}>
         <Card className="bg-card border-border max-w-md">
-          <CardContent className="space-y-4 p-8 text-center">
+          <CardContent className="space-y-4 p-8 text-center sm:p-8">
             <GlyphJobPost size={48} className="mx-auto opacity-60" style={{ color: "var(--hf-text-muted)" }} />
             <h2 className="text-xl font-semibold text-foreground">We couldn&apos;t load this role</h2>
             <p className="text-muted-foreground">
@@ -317,7 +397,7 @@ export default function JobDetails() {
                 {isFetchingJob ? "Trying again" : "Try again"}
               </Button>
               <Button variant="ghost" onClick={() => navigate(strandedRoute)}>
-                {user ? "Back to Apply" : "See open roles"}
+                See open roles
               </Button>
             </div>
           </CardContent>
@@ -328,23 +408,32 @@ export default function JobDetails() {
 
   if (!activeRole) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className={`flex min-h-[70vh] items-center justify-center ${pagePad}`}>
         <Card className="bg-card border-border max-w-md">
-          <CardContent className="p-8 text-center">
+          <CardContent className="p-8 text-center sm:p-8">
             <GlyphJobPost size={48} className="mx-auto mb-4 opacity-60" style={{ color: "var(--hf-text-muted)" }} />
             <h2 className="text-xl font-semibold text-foreground mb-2">
-              {ownedButUnpublished ? "Candidates can\u2019t see this yet" : "This role isn\u2019t available"}
+              {ownedButUnpublished ? "Candidates can\u2019t see this yet" : "This role isn\u2019t open"}
             </h2>
             <p className="text-muted-foreground mb-4">
               {ownedButUnpublished
                 ? `This posting is ${ownedButUnpublished.status ?? "not published"}, so it has no candidate view yet. Publish it and this link goes live.`
-                : user
-                ? "This job may no longer be available or the link is invalid."
                 : "It may have closed, or the link may be incomplete. You can still see the roles that are open."}
             </p>
+            {/* "See open roles" moves forward (the careers page, or the one
+                open role), so its arrow points forward. */}
             <Button onClick={() => navigate(ownedButUnpublished ? "/jobs" : strandedRoute)}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              {ownedButUnpublished ? "Back to Jobs" : user ? "Back to Apply" : "See open roles"}
+              {ownedButUnpublished ? (
+                <>
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back to Jobs
+                </>
+              ) : (
+                <>
+                  See open roles
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </>
+              )}
             </Button>
           </CardContent>
         </Card>
@@ -352,20 +441,107 @@ export default function JobDetails() {
     );
   }
 
+  // The Apply card. On a phone it sits right under the job's header, so the
+  // one Apply button is on the first screen instead of after the whole
+  // description; on a wide screen it heads the sidebar. Only one of the two
+  // places is ever shown.
+  const applyPanel = (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.2 }}
+    >
+      <Card className={`bg-card overflow-hidden ${isDeadlinePassed ? 'border-destructive/50' : 'border-primary/50'}`}>
+        <CardContent className="p-6 space-y-4 sm:p-6">
+          {isDeadlinePassed ? (
+            <>
+              <div className="text-center">
+                <XCircle className="h-8 w-8 text-destructive mx-auto mb-2" />
+                <h3 className="text-lg font-semibold text-foreground">Applications Closed</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  The application deadline for this position has passed
+                </p>
+              </div>
+              
+              <Button
+                disabled
+                size="lg"
+                variant="outline"
+                className="w-full h-14 text-lg font-semibold"
+              >
+                <XCircle className="h-5 w-5 mr-2" />
+                Deadline Passed
+              </Button>
+
+              <p className="text-xs text-center text-muted-foreground">
+                This job is no longer accepting applications
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="text-center">
+                <h3 className="text-lg font-semibold text-foreground">
+                  {isEmployer ? "This is where candidates apply" : "Ready to Apply?"}
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {isEmployer
+                    ? "Sign out above to try it the way an applicant would."
+                    : "Start your application and take the first step"}
+                </p>
+              </div>
+
+              {/* One solid action. The shimmer gradient ran through --accent,
+                  which is a pale tint in the light theme, so the label used to
+                  disappear across the middle of the button. */}
+              <Button
+                onClick={handleStartApplication}
+                disabled={isStartingApplication}
+                size="lg"
+                className="w-full h-14 text-lg font-semibold"
+              >
+                {isStartingApplication ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Starting...
+                  </span>
+                ) : (
+                  "Apply Now"
+                )}
+              </Button>
+
+              <p className="text-xs text-center text-muted-foreground">
+                Your application will be reviewed by the hiring team
+              </p>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+
+  // The phone's Apply bar is for whoever can apply on this page.
+  const stickyApply = standalone && !isEmployer && !isDeadlinePassed;
+
   return (
     <>
       {job && <JobPageHead job={job} company={employerProfile?.company_name} />}
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Back Button — "Back to Apply" is meaningless to an employer, who
-            came from their own postings list. */}
-        <Button
-          variant="ghost"
-          onClick={() => navigate(isEmployer ? "/jobs" : applyEntryRoute)}
-          className="text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          {isEmployer ? "Back to Jobs" : "Back to Apply"}
-        </Button>
+      <div className={`max-w-4xl mx-auto space-y-6 ${pagePad}`}>
+        {/* The page a shared link opens: one job and one Apply button
+            (docs/SHORT-JOB-LINKS.md). A stranger gets no back button: the
+            browser's Back takes them where they came from, which is right.
+            It used to say "Back to Apply" and open the job-code box, which a
+            person holding a link has never needed. A signed-in candidate gets
+            their own applications; an employer, their postings. */}
+        {(isEmployer || role === "candidate") && (
+          <Button
+            variant="ghost"
+            onClick={() => navigate(isEmployer ? "/jobs" : "/applications")}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            {isEmployer ? "Back to Jobs" : "Your applications"}
+          </Button>
+        )}
 
         {/* Say plainly whose view this is, and give a real way through. Without
             this an employer either believes they are seeing what a candidate
@@ -391,7 +567,7 @@ export default function JobDetails() {
                   // Sign out, then land straight back on this posting as a
                   // stranger would see it — the check worth running right after
                   // publishing.
-                  const back = `/candidate/job/${id}`;
+                  const back = location.pathname;
                   await signOut();
                   navigate(back, { replace: true });
                 }}
@@ -445,20 +621,21 @@ export default function JobDetails() {
                       <MapPin className="h-3 w-3" />
                       {job.location || "Remote"}
                     </Badge>
-                    {/* No icon: "Full-Time" says it already, and the stock
+                    {/* No icon: "Full time" says it already, and the stock
                         briefcase that used to sit here is on the kit's banned
-                        list. An icon that adds nothing is not worth a rule. */}
+                        list. An icon that adds nothing is not worth a rule.
+                        In words, not the stored "full-time" (jobLabels.ts). */}
                     <Badge variant="secondary">
-                      {job.job_type || "Full-Time"}
+                      {jobTypeLabel(job.job_type) ?? "Full time"}
                     </Badge>
                     <Badge variant="secondary" className="gap-1">
                       <DollarSign className="h-3 w-3" />
-                      {formatSalary(job.salary_min, job.salary_max, job.salary_currency)}
+                      {formatSalary(job.salary_min, job.salary_max, job.salary_currency, job.salary_period)}
                     </Badge>
                     {job.experience_level && (
                       <Badge variant="secondary" className="gap-1">
                         <Users className="h-3 w-3" />
-                        {job.experience_level}
+                        {jobLevelLabel(job.experience_level)}
                       </Badge>
                     )}
                   </div>
@@ -475,6 +652,8 @@ export default function JobDetails() {
           </Card>
         </motion.div>
 
+        <div className="lg:hidden" ref={mobileApplyRef}>{applyPanel}</div>
+
         {/* Job Content */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Content */}
@@ -485,7 +664,7 @@ export default function JobDetails() {
               transition={{ delay: 0.1 }}
             >
               <Card className="bg-card border-border">
-                <CardContent className="p-6 space-y-6">
+                <CardContent className="p-6 space-y-6 sm:p-6">
                   {/* Description */}
                   <div>
                     <h3 className="text-lg font-semibold text-foreground mb-3">About This Role</h3>
@@ -514,78 +693,9 @@ export default function JobDetails() {
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {/* Apply CTA */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              <Card className={`bg-card overflow-hidden ${isDeadlinePassed ? 'border-destructive/50' : 'border-primary/50'}`}>
-                <CardContent className="p-6 space-y-4">
-                  {isDeadlinePassed ? (
-                    <>
-                      <div className="text-center">
-                        <XCircle className="h-8 w-8 text-destructive mx-auto mb-2" />
-                        <h3 className="text-lg font-semibold text-foreground">Applications Closed</h3>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          The application deadline for this position has passed
-                        </p>
-                      </div>
-                      
-                      <Button
-                        disabled
-                        size="lg"
-                        variant="outline"
-                        className="w-full h-14 text-lg font-semibold"
-                      >
-                        <XCircle className="h-5 w-5 mr-2" />
-                        Deadline Passed
-                      </Button>
-
-                      <p className="text-xs text-center text-muted-foreground">
-                        This job is no longer accepting applications
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <div className="text-center">
-                        <h3 className="text-lg font-semibold text-foreground">
-                          {isEmployer ? "This is where candidates apply" : "Ready to Apply?"}
-                        </h3>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {isEmployer
-                            ? "Sign out above to try it the way an applicant would."
-                            : "Start your application and take the first step"}
-                        </p>
-                      </div>
-
-                      {/* One solid action. The shimmer gradient ran through --accent,
-                          which is a pale tint in the light theme, so the label used to
-                          disappear across the middle of the button. */}
-                      <Button
-                        onClick={handleStartApplication}
-                        disabled={isStartingApplication}
-                        size="lg"
-                        className="w-full h-14 text-lg font-semibold"
-                      >
-                        {isStartingApplication ? (
-                          <span className="flex items-center gap-2">
-                            <Loader2 className="h-5 w-5 animate-spin" />
-                            Starting...
-                          </span>
-                        ) : (
-                          "Apply Now"
-                        )}
-                      </Button>
-
-                      <p className="text-xs text-center text-muted-foreground">
-                        Your application will be reviewed by the hiring team
-                      </p>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.div>
+            {/* Apply: here on a wide screen, under the job's header on a phone
+                (one visible at a time, see applyPanel). */}
+            <div className="hidden lg:block">{applyPanel}</div>
 
             {/* Skills */}
             {job.skills_required && job.skills_required.length > 0 && (
@@ -595,7 +705,7 @@ export default function JobDetails() {
                 transition={{ delay: 0.3 }}
               >
                 <Card className="bg-card border-border">
-                  <CardContent className="p-6">
+                  <CardContent className="p-6 sm:p-6">
                     <h3 className="text-lg font-semibold text-foreground mb-3">Required Skills</h3>
                     <div className="flex flex-wrap gap-2">
                       {job.skills_required.map((skill, index) => (
@@ -618,7 +728,7 @@ export default function JobDetails() {
                 transition={{ delay: 0.4 }}
               >
                 <Card className="bg-card border-border">
-                  <CardContent className="p-6">
+                  <CardContent className="p-6 sm:p-6">
                     <h3 className="text-lg font-semibold text-foreground mb-3">Benefits</h3>
                     <ul className="space-y-2">
                       {jobBenefits.map((benefit, index) => (
@@ -640,14 +750,16 @@ export default function JobDetails() {
               transition={{ delay: 0.5 }}
             >
               <Card className="bg-card border-border">
-                <CardContent className="p-6">
+                <CardContent className="p-6 sm:p-6">
                   <h3 className="text-lg font-semibold text-foreground mb-3">Job Details</h3>
                   <div className="space-y-3 text-sm">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Posted</span>
                       <span className="text-foreground">{format(new Date(job.created_at), "MMM d, yyyy")}</span>
                     </div>
-                    {job.job_code && (
+                    {/* The code is the team's reference; an applicant never
+                        needs one (the job's own link opens it). */}
+                    {isEmployer && job.job_code && (
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Job Code</span>
                         <span className="font-mono text-primary">{job.job_code}</span>
@@ -659,8 +771,52 @@ export default function JobDetails() {
             </motion.div>
           </div>
         </div>
+
+        {/* Room under the last card, so the bar below never covers it. */}
+        {stickyApply && <div aria-hidden="true" className="h-20 lg:hidden" />}
       </div>
 
+      {/* The phone's Apply bar (see mobileApplyRef). Phones only, only on the
+          stand-alone job page (inside the app's shell its own bar is there),
+          and only while the role takes applications. */}
+      <AnimatePresence>
+        {stickyApply && applyScrolledAway && (
+          <motion.div
+            key="sticky-apply"
+            data-testid="sticky-apply"
+            initial={reduceMotion ? { opacity: 0 } : { y: "100%" }}
+            animate={reduceMotion ? { opacity: 1 } : { y: 0 }}
+            exit={reduceMotion ? { opacity: 0 } : { y: "100%" }}
+            transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+            className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card px-4 pt-3 shadow-[0_-8px_20px_-14px_rgba(0,0,0,0.3)] lg:hidden"
+            style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+          >
+            <div className="mx-auto flex max-w-4xl items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-foreground">{job.title}</p>
+                {employerProfile?.company_name && (
+                  <p className="truncate text-xs text-muted-foreground">{employerProfile.company_name}</p>
+                )}
+              </div>
+              <Button
+                onClick={handleStartApplication}
+                disabled={isStartingApplication}
+                size="lg"
+                className="h-12 shrink-0 px-6 text-base font-semibold"
+              >
+                {isStartingApplication ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Starting...
+                  </span>
+                ) : (
+                  "Apply Now"
+                )}
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

@@ -158,9 +158,11 @@ export type InvokeLike = (
 ) => Promise<{ data: unknown; error: unknown }>;
 
 /** The body of a refused request, when the function wrote one (`{ error, code }`). */
-async function refusalOf(error: unknown): Promise<{ status: number | null; code: string | null; message: string | null }> {
+async function refusalOf(
+  error: unknown,
+): Promise<{ status: number | null; code: string | null; message: string | null; body: Record<string, unknown> }> {
   const context = error && typeof error === "object" ? (error as { context?: unknown }).context : null;
-  if (!context || typeof context !== "object") return { status: null, code: null, message: null };
+  if (!context || typeof context !== "object") return { status: null, code: null, message: null, body: {} };
   const response = context as { status?: unknown; clone?: () => { json: () => Promise<unknown> }; json?: () => Promise<unknown> };
   const status = typeof response.status === "number" ? response.status : null;
   let body: unknown = null;
@@ -174,6 +176,7 @@ async function refusalOf(error: unknown): Promise<{ status: number | null; code:
     status,
     code: typeof b.code === "string" ? b.code : null,
     message: typeof b.error === "string" ? b.error : null,
+    body: b,
   };
 }
 
@@ -768,7 +771,17 @@ export interface DeviceKindInput {
   /** The screen's short side, CSS px. */
   shortSide: number | null;
   os: string | null;
+  /** The main pointer is a mouse or a trackpad (`(pointer: fine)` or
+   *  `(hover: hover)` matches). Null or absent when unknown. */
+  finePointer?: boolean | null;
+  /** The processor is ARM (`navigator.platform` "Linux aarch64" / "armv8l" /
+   *  "armv81", or the high-entropy `architecture` "arm"): on Linux with
+   *  touch, an Android device. Null or absent when unknown. */
+  arm?: boolean | null;
 }
+
+/** Below this short side a Mac with touch is an iPhone (every iPhone is 440 or less, every iPad 744 or more). */
+const IPHONE_SHORT_SIDE_BELOW = 600;
 
 /**
  * Pure: phone, tablet or computer (docs/EQUIPMENT-CHECK.md §3: a phone or
@@ -776,15 +789,35 @@ export interface DeviceKindInput {
  * ChromeOS that do not say `mobile` are computers whatever their screen: a
  * 2-in-1 with a 1920×1080 panel at the default 150% scaling reports a
  * 1280×720 screen and ten touch points, and is exactly the computer the
- * applicant works from. The short-side rule stays for every other OS (an
- * Android phone asking for the desktop site reports Linux and mobile:
- * false). An iPad that calls itself a Mac is a Mac with touch.
+ * applicant works from.
+ *
+ * Linux with touch is decided here in full, never left to the rules below:
+ * Chrome (and Samsung Internet, Firefox, Silk) on an Android phone or
+ * tablet asking for the desktop site — the default on Android tablets of 10
+ * inches or more — reports Linux, mobile: false and a screen like 1280×800,
+ * which no rule below would catch. So a Linux touch device is a computer
+ * only when its main pointer is a mouse or a trackpad (`finePointer`, a
+ * touch laptop) and it is not an ARM device (an Android tablet with a
+ * trackpad keyboard cover reports a fine pointer too). Anything else is a
+ * phone (short side under 768) or a tablet.
+ *
+ * A Mac with touch is an iPad or an iPhone on the desktop site (no Mac has
+ * a touch screen), so the pointer test is not applied to macOS: a tablet
+ * even with a trackpad attached, a phone when the screen is iPhone-sized
+ * (docs/COMPUTER-ONLY-TESTS.md: tablets take the tests on a computer). The
+ * short-side rule stays for every other device.
  */
 export function deviceKindOf(input: DeviceKindInput): DeviceKind {
   if (input.mobile === true) return "phone";
   if (input.os === "Windows" || input.os === "ChromeOS") return "computer";
   if (input.tablet) return "tablet";
-  if (input.touch && input.os === "macOS") return "tablet";
+  if (input.touch && input.os === "Linux") {
+    if (input.finePointer === true && input.arm !== true) return "computer";
+    return input.shortSide !== null && input.shortSide < 768 ? "phone" : "tablet";
+  }
+  if (input.touch && input.os === "macOS") {
+    return input.shortSide !== null && input.shortSide < IPHONE_SHORT_SIDE_BELOW ? "phone" : "tablet";
+  }
   if (input.touch && input.shortSide !== null && input.shortSide < 768) return "phone";
   if (input.touch && (input.os === "iOS" || input.os === "iPadOS" || input.os === "Android")) return "tablet";
   return "computer";
@@ -803,6 +836,10 @@ export interface DeviceSources {
   screenHeight?: number;
   devicePixelRatio?: number;
   timezone?: string;
+  /** `matchMedia("(pointer: fine)")` or `("(hover: hover)")` matched. */
+  finePointer?: boolean;
+  /** `navigator.platform` ("Win32", "MacIntel", "Linux x86_64", "Linux aarch64"…). */
+  platform?: string;
 }
 
 export interface DeviceReading {
@@ -822,6 +859,13 @@ function browserSources(): DeviceSources {
   } catch {
     timezone = undefined;
   }
+  let finePointer: boolean | undefined;
+  try {
+    const matchMedia = (globalThis as { matchMedia?: (query: string) => { matches: boolean } }).matchMedia;
+    finePointer = typeof matchMedia === "function" ? matchMedia("(pointer: fine)").matches || matchMedia("(hover: hover)").matches : undefined;
+  } catch {
+    finePointer = undefined;
+  }
   return {
     userAgent: typeof nav.userAgent === "string" ? nav.userAgent : "",
     userAgentData: (nav.userAgentData as UserAgentDataLike | undefined) ?? null,
@@ -834,7 +878,19 @@ function browserSources(): DeviceSources {
     screenHeight: typeof scr.height === "number" ? scr.height : undefined,
     devicePixelRatio: typeof win.devicePixelRatio === "number" ? win.devicePixelRatio : undefined,
     timezone,
+    finePointer,
+    platform: typeof nav.platform === "string" ? nav.platform : undefined,
   };
+}
+
+/** Pure: an ARM processor, from `navigator.platform` or the high-entropy `architecture`. Null when neither says. */
+export function isArmDevice(platform: string | null | undefined, architecture: string | null | undefined): boolean | null {
+  const arch = typeof architecture === "string" ? architecture.trim().toLowerCase() : "";
+  if (arch === "arm") return true;
+  const plat = typeof platform === "string" ? platform.trim() : "";
+  if (/\b(aarch64|arm64|armv\d+\w*)\b/i.test(plat)) return true;
+  if (arch || plat) return false;
+  return null;
 }
 
 /**
@@ -868,6 +924,7 @@ export async function readDevice(sources: DeviceSources = browserSources()): Pro
   const uaData = sources.userAgentData ?? null;
   let device: DeviceFacts;
   let mobile: boolean | null;
+  let architecture: string | null = null;
   const parsed = parseUserAgent(ua);
   if (uaData && (Array.isArray(uaData.brands) || typeof uaData.platform === "string")) {
     let high: HighEntropyValues | null = null;
@@ -880,6 +937,7 @@ export async function readDevice(sources: DeviceSources = browserSources()): Pro
     }
     device = deviceFromUserAgentData(uaData, high, extras, ua);
     mobile = typeof uaData.mobile === "boolean" ? uaData.mobile : parsed.mobile;
+    architecture = typeof high?.architecture === "string" ? high.architecture : null;
   } else {
     device = deviceFromUserAgent(ua, extras);
     mobile = parsed.mobile;
@@ -887,7 +945,9 @@ export async function readDevice(sources: DeviceSources = browserSources()): Pro
   const w = extras.screenWidth ?? null;
   const h = extras.screenHeight ?? null;
   const shortSide = typeof w === "number" && typeof h === "number" && w > 0 && h > 0 ? Math.min(w, h) : null;
-  const kind = deviceKindOf({ mobile, tablet: parsed.tablet, touch: device.touch, shortSide, os: device.os });
+  const finePointer = typeof sources.finePointer === "boolean" ? sources.finePointer : null;
+  const arm = isArmDevice(sources.platform, architecture);
+  const kind = deviceKindOf({ mobile, tablet: parsed.tablet, touch: device.touch, shortSide, os: device.os, finePointer, arm });
   return { device, kind, network };
 }
 
@@ -987,6 +1047,27 @@ export interface MarkerSender {
   finishRun(input: { run: number; estimate: RunningEstimate; stamps: readonly string[]; key: string; timeoutMs?: number }): Promise<ServerRunFigures | null>;
 }
 
+/** A marker the server refused with a reason written for the page (a 4xx carrying a `code`). */
+export interface MarkerRefusal {
+  status: number | null;
+  code: string;
+  message: string | null;
+  body: Record<string, unknown>;
+}
+
+export interface MarkerSenderOptions {
+  functionName?: string;
+  /**
+   * The page's own device reading, sent as `deviceKind` with every marker
+   * (docs/COMPUTER-ONLY-TESTS.md: the server refuses op=event from a phone or
+   * a tablet, and only the page sees the touch screen and its size). Read at
+   * send time; nothing is added while it is unknown.
+   */
+  deviceKind?: () => string | null | undefined;
+  /** The server refused a marker for a reason it wrote for the page (`computer_required`, a stale step). Never throws into the page. */
+  onRefused?: (refusal: MarkerRefusal) => void;
+}
+
 /**
  * The page's markers through `connection-test?op=event`, with the same
  * invoke the chain uses (the session's JWT travels with it, and the dev
@@ -995,20 +1076,46 @@ export interface MarkerSender {
 export function createMarkerSender(
   invoke: InvokeLike,
   target: { applicationId: string; stepId: string },
-  functionName = "connection-test",
+  functionNameOrOptions: string | MarkerSenderOptions = "connection-test",
 ): MarkerSender {
+  const options: MarkerSenderOptions =
+    typeof functionNameOrOptions === "string" ? { functionName: functionNameOrOptions } : functionNameOrOptions;
+  const functionName = options.functionName ?? "connection-test";
+  const deviceField = (): Record<string, unknown> => {
+    let kind: string | null | undefined = null;
+    try {
+      kind = options.deviceKind?.();
+    } catch {
+      kind = null;
+    }
+    return typeof kind === "string" && kind ? { deviceKind: kind } : {};
+  };
   const send = (what: MarkerName, detail: Record<string, unknown>, key: string, extra: Record<string, unknown> = {}, signal?: AbortSignal) =>
     invoke(`${functionName}?op=event`, {
       method: "POST",
-      body: { application_id: target.applicationId, step_id: target.stepId, what, detail, client_msg_id: key, ...extra },
+      body: { application_id: target.applicationId, step_id: target.stepId, what, detail, client_msg_id: key, ...deviceField(), ...extra },
       signal,
     });
+  /** Hands a refusal the server wrote for the page to `onRefused`; anything else stays a console line. */
+  const reportRefusal = async (error: unknown) => {
+    if (!options.onRefused) return;
+    try {
+      const refusal = await refusalOf(error);
+      if (refusal.code && refusal.status !== null && refusal.status >= 400 && refusal.status < 500) {
+        options.onRefused({ status: refusal.status, code: refusal.code, message: refusal.message, body: refusal.body });
+      }
+    } catch {
+      /* a refusal that cannot be read is only a lost marker */
+    }
+  };
 
   return {
     mark(what, detail, key) {
       void send(what, detail, key).then(
         ({ error }) => {
-          if (error) console.warn(`[connectionTest] the ${what} marker was not recorded`);
+          if (!error) return;
+          console.warn(`[connectionTest] the ${what} marker was not recorded`);
+          void reportRefusal(error);
         },
         () => console.warn(`[connectionTest] the ${what} marker was not recorded`),
       );
@@ -1024,7 +1131,11 @@ export function createMarkerSender(
           { stamps: [...stamps] },
           controller.signal,
         );
-        return error ? null : serverFiguresFromReply(data);
+        if (error) {
+          void reportRefusal(error);
+          return null;
+        }
+        return serverFiguresFromReply(data);
       } catch {
         return null;
       } finally {

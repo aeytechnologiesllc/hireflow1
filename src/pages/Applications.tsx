@@ -16,7 +16,7 @@ import type { LucideIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { EmptyStateCard } from "@/components/EmptyStateCard";
 import { supabase } from "@/integrations/supabase/client";
 import type { ApplicationWithJob } from "@/hooks/useApplications";
@@ -54,6 +54,9 @@ import {
 import { phaseDurationEstimates } from "@/lib/phaseDurations";
 import { GlyphJourney, GlyphLetter } from "@/components/candidate/glyphs";
 import { buildCandidateJourney, positionFor } from "@/lib/candidateJourney";
+import { stepRoute } from "@/lib/journeyProgress";
+import { thisDeviceKind } from "@/lib/deviceGate";
+import { isFreshArrival, stepWaitingOnComputer } from "@/lib/resumeOnComputer";
 
 /* The brand glyph kit's components render plain SVGs, not lucide's
    ForwardRefExoticComponent shape — EmptyStateCard's props type them as
@@ -183,7 +186,6 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmWithdrawOpen, setConfirmWithdrawOpen] = useState(false);
   const job = application.jobs;
-  const phase = application.phase || "application";
 
   // Use shared display state utility - SINGLE SOURCE OF TRUTH
   const displayState = getApplicationDisplayState(application);
@@ -244,22 +246,15 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
 
   const handleActionClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // The phase page resolves "Step X of N" by matching this route param
-    // against a real workflow step id (see candidateJourney.positionFor,
-    // checked before it ever falls back to `phase`). `application.phase`
-    // itself defaults to the literal "application" until the backend
-    // advances it, so using it here sent candidates deep into their
-    // journey to a URL matching the very first step — hence "Step 1 of 3 —
-    // Application" heading a voice-interview screen. journeyForCard already
-    // resolves the candidate's true current step via phase + status; use
-    // its real id instead.
-    const stepId = journeySteps[stepIndex]?.id || phase;
-    const route = displayState.actionRoute;
-    if (["application", "quiz", "video-intro", "chat-simulation", "chat-interview", "sales-simulation", "voice-interview", "portfolio"].includes(route)) {
-      navigate(`/applications/${application.id}/${route}/${stepId}`);
-    } else {
-      navigate(`/applications/${application.id}/${route}`);
-    }
+    // The candidate's true current step (journeyForCard: phase + status),
+    // opened through the one step-to-route map every step page and the
+    // overview use (journeyProgress.stepRoute), so every step type App.tsx
+    // routes is covered. A hand-kept list of route segments used to sit
+    // here and missed the connection check and the typing test: their
+    // buttons went to /applications/<id>/connection with no step, a 404.
+    const step = journeySteps[stepIndex];
+    const route = step ? stepRoute(application.id, step) : null;
+    navigate(route ?? `/applications/${application.id}`);
   };
 
   return (
@@ -328,6 +323,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
           <button
             type="button"
             onClick={handleActionClick}
+            data-testid="application-action"
             className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[10px] px-5 text-sm font-semibold transition-[filter] hover:brightness-110 active:scale-[0.98]"
             style={{ background: "var(--jade)", color: "var(--btn-fg)" }}
           >
@@ -432,6 +428,7 @@ export default function Applications() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { data: applications, isLoading, isError, refetch } = useCandidateApplications();
+  const location = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter] = useState<string | null>(null);
   const [showBlueprintDialog, setShowBlueprintDialog] = useState(false);
@@ -441,6 +438,39 @@ export default function Applications() {
     jobTitle?: string | null;
     companyName?: string | null;
   } | null>(null);
+
+  // "Continue on your computer" promises: on the computer, go to
+  // <site>/applications, sign in, and you are taken straight to the step
+  // (docs/COMPUTER-ONLY-TESTS.md). So a FRESH arrival here (opened by its
+  // address, or straight from signing in) on a computer, with exactly one
+  // step waiting for a computer, opens that step. Arriving from inside the
+  // app is the list, so nobody is bounced off a page they asked for.
+  // Decided once per visit: a realtime refetch never forwards later.
+  const freshArrival = isFreshArrival(location);
+  const [forwardDecided, setForwardDecided] = useState(false);
+  const waitingOnComputer = useMemo(
+    () => (freshArrival && !forwardDecided && !isEmployer ? stepWaitingOnComputer(applications) : null),
+    [freshArrival, forwardDecided, isEmployer, applications],
+  );
+  useEffect(() => {
+    if (forwardDecided || !applications) return;
+    if (!waitingOnComputer) {
+      setForwardDecided(true);
+      return;
+    }
+    let cancelled = false;
+    void thisDeviceKind().then((kind) => {
+      if (cancelled) return;
+      if (kind === "computer") navigate(waitingOnComputer.route, { replace: true });
+      setForwardDecided(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [forwardDecided, applications, waitingOnComputer, navigate]);
+  // While that is being decided the list waits under its skeleton, so a
+  // computer does not see it flash before the step opens.
+  const deciding = !!waitingOnComputer;
 
   const handleDeleteApplication = (id: string) => {
     queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
@@ -602,7 +632,7 @@ export default function Applications() {
 
       {/* Application List */}
       <div className="space-y-3">
-        {isLoading ? (
+        {isLoading || deciding ? (
           <>
             <Skeleton className="h-40 w-full rounded-[14px]" />
             <Skeleton className="h-40 w-full rounded-[14px]" />
@@ -638,13 +668,16 @@ export default function Applications() {
           <EmptyStateCard
             icon={JourneyIdentityGlyph}
             title="Ready to Start Your Job Search?"
-            description="To apply for a role with the Zulu Support Team, open the careers page, or use the job code our team gave you."
+            description="See the roles the Zulu Support Team has open. Each one has its own page with an Apply button."
             action={{
-              label: "Enter Job Code",
-              onClick: () => navigate("/apply"),
+              // The open roles, not the job-code box: nobody who came from a
+              // job's link has a code (docs/SHORT-JOB-LINKS.md). With one open
+              // role, the careers page opens it.
+              label: "See open roles",
+              onClick: () => navigate("/"),
               icon: LetterIdentityGlyph,
             }}
-            tip="Job codes are typically shared by employers via email, job postings, or during initial contact. Ask the employer if you haven't received one yet."
+            tip="Got a job code from our team? It still works: choose Enter Job Code in the menu."
           />
         )}
       </div>

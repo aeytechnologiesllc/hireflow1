@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useComputerHandover } from "@/components/candidate/continueOnComputerContext";
 import {
   classifyRecordingError,
   keepaliveRpc,
@@ -877,6 +878,11 @@ export function useTestIntegrity({
   const monitorRef = useRef<IntegrityMonitor | null>(null);
   const onEventRef = useRef(onEvent);
   onEventRef.current = onEvent;
+  // Set by the step gate when the server's computer_required refusal swaps
+  // this page out (docs/COMPUTER-ONLY-TESTS.md): not the person leaving.
+  const handover = useComputerHandover();
+  const handoverRef = useRef(handover);
+  handoverRef.current = handover;
 
   useEffect(() => {
     if (!applicationId || !stepId) return;
@@ -948,9 +954,13 @@ export function useTestIntegrity({
       if (monitorRef.current === monitor) monitorRef.current = null;
       // Leaving the page mid-test inside the app (the back arrow) is
       // recorded like closing it — unless a monitor for the same test is
-      // back a moment later (React's development double-mount).
+      // back a moment later (React's development double-mount), or the
+      // step gate took the page away for "Continue on your computer" (the
+      // server refused this device): that ends the test quietly, as a
+      // finished one does, with no "left the test page".
       window.setTimeout(() => {
-        if ((mountedMonitors.get(monitorKey) ?? 0) === 0) monitor.leftPage();
+        if (handoverRef.current?.current) monitor.setActive(false);
+        else if ((mountedMonitors.get(monitorKey) ?? 0) === 0) monitor.leftPage();
         void monitor.flush().finally(() => monitor.dispose());
       }, 0);
     };

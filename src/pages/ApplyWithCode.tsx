@@ -27,9 +27,12 @@ import { buildCandidateJourney } from "@/lib/candidateJourney";
 import { CandidateShell } from "@/components/candidate/CandidateShell";
 import { fetchRoleByCode, type ShowcaseRole } from "@/lib/showcaseApply";
 import { detectSchemaMode } from "@/cockpit/data/showcaseSource";
+import { shortLinkFor } from "@/lib/jobSlug";
 
 interface JobPreview {
   id: string;
+  /** The short link name; a job that has one is opened there instead. */
+  slug: string | null;
   title: string;
   description: string;
   location: string | null;
@@ -131,12 +134,22 @@ export default function ApplyWithCode() {
   const [previewJob, setPreviewJob] = useState<JobPreview | null>(null);
   const [showcaseRole, setShowcaseRole] = useState<ShowcaseRole | null>(null);
   const autoLoadedCodeRef = useRef<string | null>(null);
+  // An old link's code is being looked up: show a quiet wait, not the code
+  // box, because the person is most likely about to be taken to the job.
+  const [openingLink, setOpeningLink] = useState(() => !!initialCode.trim());
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const isEmployer = role === "employer";
   const candidateJobPath = (jobId: string) => (role === "candidate" ? `/job/${jobId}` : `/candidate/job/${jobId}`);
 
-  const handleSearch = useCallback(async (rawCode?: string) => {
+  /**
+   * `fromLink`: the code came in the address (an old shared link,
+   * /candidate/apply?code=X), not typed into the box. Either way a code whose
+   * job has a short link goes to that job's page (docs/SHORT-JOB-LINKS.md):
+   * from a link it REPLACES this entry, so Back never lands on the code box;
+   * typed, it is an ordinary step and Back returns to the box they used.
+   */
+  const handleSearch = useCallback(async (rawCode?: string, fromLink = false) => {
     const normalizedCode = (rawCode ?? jobCode).trim().toUpperCase();
 
     if (!normalizedCode) {
@@ -164,7 +177,7 @@ export default function ApplyWithCode() {
 
       const { data, error: fetchError } = await supabase
         .from("published_jobs_public")
-        .select("id, title, description, location, job_type, experience_level, department, benefits, application_questions, quiz_questions, workflow_steps, require_resume, application_deadline, employer_id")
+        .select("id, slug, title, description, location, job_type, experience_level, department, benefits, application_questions, quiz_questions, workflow_steps, require_resume, application_deadline, employer_id")
         .eq("job_code", normalizedCode)
         .maybeSingle();
 
@@ -187,6 +200,14 @@ export default function ApplyWithCode() {
         return;
       }
 
+      const shortLink = shortLinkFor(data);
+      if (shortLink) {
+        // The job's own page says whether it is still open, so this goes
+        // before the deadline check.
+        navigate(shortLink, fromLink ? { replace: true } : undefined);
+        return;
+      }
+
       if (data.application_deadline && isPast(new Date(data.application_deadline))) {
         setError("This role isn't taking new applications anymore.");
         setPreviewJob(null);
@@ -199,8 +220,9 @@ export default function ApplyWithCode() {
       setPreviewJob(null);
     } finally {
       setIsSearching(false);
+      if (fromLink) setOpeningLink(false);
     }
-  }, [jobCode]);
+  }, [jobCode, navigate]);
 
   useEffect(() => {
     const normalizedInitialCode = initialCode.trim().toUpperCase();
@@ -215,7 +237,7 @@ export default function ApplyWithCode() {
     }
 
     autoLoadedCodeRef.current = normalizedInitialCode;
-    void handleSearch(normalizedInitialCode);
+    void handleSearch(normalizedInitialCode, true);
   }, [handleSearch, initialCode]);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -244,6 +266,14 @@ export default function ApplyWithCode() {
   // button, which does not exist on a freshly scanned QR code. They could never
   // test the one link they distribute. Show them the code entry, say whose view
   // it is, and give them a real way through.
+  if (openingLink) {
+    return (
+      <CandidateShell className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-10">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" aria-label="Opening the role" />
+      </CandidateShell>
+    );
+  }
+
   if (isEmployer) {
     return (
       <CandidateShell className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-10">
@@ -547,7 +577,7 @@ export default function ApplyWithCode() {
                   </AnimatePresence>
 
                   <p className="text-center text-sm text-muted-foreground">
-                    Takes about a minute once we find your role — no account needed yet.
+                    Enter the code to open the role. You will make a free account to apply.
                   </p>
                 </div>
               </CardContent>

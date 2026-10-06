@@ -5,7 +5,6 @@ import { Check, Copy, Mic } from "lucide-react";
 import { toast } from "sonner";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { clearDraft } from "@/lib/avaEngine/draft";
-import { candidateApplyUrl } from "@/lib/showcaseApply";
 import { useDeleteJob, useUpdateJob } from "@/hooks/useJobs";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { SearchInput, FilterSelect } from "../components/controls";
@@ -15,6 +14,8 @@ import { CockpitErrorCard } from "../components/ErrorCard";
 import { useCockpitJobsData, useSchemaMode } from "../hooks/useCockpitData";
 import type { JobRow, JobStatus } from "../data";
 import { candidateOrigin } from "@/lib/hosts";
+import { jobShareUrl } from "@/lib/jobLinks";
+import { shortLinkFor } from "@/lib/jobSlug";
 
 /**
  * Your jobs.
@@ -366,12 +367,18 @@ function shortName(full: string) {
 
 const SHOW_CLOSED_KEY = "hf-jobs-show-closed";
 
-/** The one sentence that has to land before a delete: the applications go too. */
+/** The one sentence that has to land before a delete: the applications go too.
+ *  A role with a short link also loses it: every link, QR code and flyer
+ *  already handed out stops opening the role, and the name is free for
+ *  another job to take (closing keeps it). */
 function describeDelete(job: JobRow) {
   const n = job.applicants;
-  if (n === 0) return "This removes the role for good. No one has applied yet, so nothing else goes with it. There is no undo.";
+  const link = shortLinkFor(job)
+    ? ` Its link, ${jobShareUrl(job).replace(/^https?:\/\//, "")}, stops working too, including links and flyers you already shared.`
+    : "";
+  if (n === 0) return `This removes the role for good. No one has applied yet, so nothing else goes with it.${link} There is no undo.`;
   const apps = n === 1 ? "the 1 application to it" : `all ${n} applications to it`;
-  return `This removes the role for good, and ${apps} — every answer, score and interview. There is no undo. If you only want it off the boards, close it instead; a closed role keeps its applicants.`;
+  return `This removes the role for good, and ${apps} — every answer, score and interview.${link} There is no undo. If you only want it off the boards, close it instead; a closed role keeps its applicants.`;
 }
 
 export default function CockpitJobs() {
@@ -553,7 +560,7 @@ export default function CockpitJobs() {
       const q = query.trim().toLowerCase();
       if (place !== "all" && j.location !== place) return false;
       if (!q) return true;
-      return `${j.title} ${j.location} ${j.pay} ${j.roleCode ?? ""}`.toLowerCase().includes(q);
+      return `${j.title} ${j.location} ${j.pay} ${j.roleCode ?? ""} ${j.slug ?? ""}`.toLowerCase().includes(q);
     },
     [query, place],
   );
@@ -801,13 +808,7 @@ export default function CockpitJobs() {
       <ShareKitDialog
         open={!!kitJob}
         job={kitJob}
-        applyUrl={
-          kitJob
-            ? kitJob.roleCode
-              ? candidateApplyUrl(kitJob.roleCode)
-              : `${candidateOrigin()}/candidate/job/${kitJob.id}`
-            : ""
-        }
+        applyUrl={kitJob ? jobShareUrl(kitJob) : ""}
         onClose={() => setKitJob(null)}
       />
 

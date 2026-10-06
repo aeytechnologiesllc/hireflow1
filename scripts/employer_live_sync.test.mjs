@@ -24,7 +24,10 @@
  *    channel, so a missing or failing table can never stall the applicant
  *    list; an attempt's UPDATE lands in every cached session list at once
  *    (without widening a narrow list), and refetches only that attempt's
- *    events; its SUBSCRIBED catch-up refetches every events query on screen.
+ *    events; its SUBSCRIBED catch-up refetches every events query on screen;
+ *  - wave 4: one applicant's own attempts (the open profile's) refetch only
+ *    for THEIR attempts, never for another applicant's heartbeat; booked
+ *    interviews have a third per-instance channel that refreshes ["interviews"].
  *
  * The hook file imports "@/..." aliases, so it is bundled with esbuild (a Vite
  * dependency) with those three modules stubbed; nothing else is mocked.
@@ -33,9 +36,11 @@
  */
 
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+// Decoded, so a checkout whose path has a space in it works too.
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const STUBS = {
   "@/integrations/supabase/client": "export const supabase = {};",
@@ -48,7 +53,7 @@ const bundle = await build({
   stdin: {
     contents:
       'export * from "./src/cockpit/hooks/useEmployerLiveSync.ts";\n' +
-      'export { QueryClient } from "@tanstack/react-query";\n',
+      'export { QueryClient, QueryObserver } from "@tanstack/react-query";\n',
     resolveDir: ROOT,
     loader: "ts",
   },
@@ -76,6 +81,7 @@ const mod = await import(
 );
 const {
   QueryClient,
+  QueryObserver,
   LIVE_SYNC_QUERY_KEYS,
   LIVE_SYNC_SESSION_KEYS,
   LIVE_SYNC_COALESCE_MS,
@@ -228,11 +234,19 @@ console.log("one channel per mounted instance, bound before subscribe");
   const all = [...client.channels.keys()];
   const topics = all.filter((t) => t.startsWith(`employer-live-${USER}-`));
   const sessionTopics = all.filter((t) => t.startsWith(`employer-sessions-${USER}-`));
+  const interviewTopics = all.filter((t) => t.startsWith(`employer-interviews-${USER}-`));
   assert(topics.length === 2, `two mounts open two applications channels (got ${topics.length}: ${topics.join(", ")})`);
-  assert(sessionTopics.length === 2 && all.length === 4, `…and two test-record channels of their own (got ${all.join(", ")})`);
+  assert(sessionTopics.length === 2, `…two test-record channels of their own (got ${all.join(", ")})`);
+  assert(interviewTopics.length === 2 && all.length === 6, `…and two interview channels of their own (got ${all.join(", ")})`);
   assert(
-    [...topics, ...sessionTopics].every((t) => t.endsWith(":r1:") || t.endsWith(":r7:")),
+    [...topics, ...sessionTopics, ...interviewTopics].every((t) => t.endsWith(":r1:") || t.endsWith(":r7:")),
     "every topic carries its instance id",
+  );
+  const ia = client.channels.get(interviewTopics[0]);
+  const iff = ia.bindings[0]?.filter ?? {};
+  assert(
+    !ia.boundAfterSubscribe && ia.bindings.length === 1 && ia.bindings[0].type === "postgres_changes" && iff.event === "*" && iff.schema === "public" && iff.table === "interviews" && iff.filter === undefined,
+    "the interview channel listens to every change on public.interviews, bound before subscribe() (RLS scopes delivery)",
   );
   const [a, b] = topics.map((t) => client.channels.get(t));
   const [sa, sb] = sessionTopics.map((t) => client.channels.get(t));
@@ -257,7 +271,7 @@ console.log("one channel per mounted instance, bound before subscribe");
   stopA();
   stopB();
   await settle();
-  assert(client.removed.length === 4 && client.channels.size === 0, "cleanup removes all four channels");
+  assert(client.removed.length === 6 && client.channels.size === 0, "cleanup removes all six channels");
 }
 
 console.log("\nSUBSCRIBED runs a catch-up round that never cancels a fetch in flight");
@@ -373,7 +387,7 @@ console.log("\ncleanup stops everything");
   chan.status("SUBSCRIBED");
   await timers.fire();
   assert(calls.length === 0, "nothing refetches after cleanup");
-  assert(client.removed.length === 2, "both channels are removed");
+  assert(client.removed.length === 3, "all three channels are removed");
 }
 
 console.log("\nthe test record: an attempt's change lands at once and refetches only its own events");
@@ -428,6 +442,90 @@ console.log("\nthe test record: an attempt's change lands at once and refetches 
   stop();
   sessions.emit({ eventType: "UPDATE", schema: "public", table: "assessment_sessions", errors: null, new: next, old: { id: "s1" } });
   assert(timers.count === 0, "nothing is armed after cleanup");
+}
+
+console.log("\nan open profile refetches its attempts only for its own applicant");
+{
+  const client = fakeClient();
+  const { queryClient, calls } = spyClient();
+  const timers = fakeTimers();
+  // A real observer on the profile's key, counting how often it downloads.
+  let fetches = 0;
+  const profileKey = ["assessment-sessions", "application", "app-mine"];
+  const mine = { id: "s-mine", application_id: "app-mine", step_id: "quiz", status: "active", progress: {}, context: { big: true }, updated_at: "2026-10-06T15:50:00Z" };
+  queryClient.setQueryData(profileKey, [mine]);
+  const observer = new QueryObserver(queryClient, {
+    queryKey: profileKey,
+    queryFn: async () => {
+      fetches += 1;
+      return queryClient.getQueryData(profileKey);
+    },
+    staleTime: Infinity,
+  });
+  const unsubscribe = observer.subscribe(() => {});
+  const stop = startEmployerLiveSync({ client, queryClient, userId: USER, instanceId: ":r1:", timers });
+  const sessions = [...client.channels.values()].find((c) => c.topic.startsWith("employer-sessions-"));
+  const heartbeat = (id, appId, minute) => ({
+    eventType: "UPDATE",
+    schema: "public",
+    table: "assessment_sessions",
+    errors: null,
+    new: { id, application_id: appId, step_id: "quiz", status: "active", last_activity_at: `2026-10-06T15:5${minute}:00Z`, updated_at: `2026-10-06T15:5${minute}:00Z` },
+    old: { id },
+  });
+  for (let i = 1; i <= 5; i += 1) {
+    sessions.emit(heartbeat("s-other", "app-other", i));
+    await timers.fire();
+    await settle();
+  }
+  const before = fetches;
+  assert(fetches === 0, `five rounds of another applicant's heartbeats download the open profile ${fetches} times (want 0)`);
+  sessions.emit(heartbeat("s-mine", "app-mine", 6));
+  await timers.fire();
+  await settle();
+  assert(fetches === before + 1, "one of THEIR attempts refetches it once");
+  assert(queryClient.getQueryData(profileKey)[0].updated_at === "2026-10-06T15:56:00Z", "…and the change is in it at once (merged before the refetch)");
+  sessions.emit({ eventType: "DELETE", schema: "public", table: "assessment_sessions", errors: null, new: {}, old: { id: "s-nobody" } });
+  await timers.fire();
+  await settle();
+  assert(fetches === before + 1, "a DELETE of an attempt nobody on screen holds refetches nothing");
+  sessions.emit({ eventType: "DELETE", schema: "public", table: "assessment_sessions", errors: null, new: {}, old: { id: "s-mine" } });
+  await timers.fire();
+  await settle();
+  assert(queryClient.getQueryData(profileKey).length === 0 && (fetches === before + 2), "a DELETE of one of theirs drops it and refetches the profile");
+  calls.length = 0;
+  sessions.status("SUBSCRIBED");
+  await timers.fire();
+  assert(calls.some((c) => c.key === '["assessment-sessions"]'), "the catch-up still refreshes every session list, the profile's included");
+  stop();
+  unsubscribe();
+}
+
+console.log("\nbooked interviews stay live");
+{
+  const client = fakeClient();
+  const { queryClient, calls } = spyClient();
+  const timers = fakeTimers();
+  const stop = startEmployerLiveSync({ client, queryClient, userId: USER, instanceId: ":r1:", timers });
+  const interviews = [...client.channels.values()].find((c) => c.topic.startsWith("employer-interviews-"));
+  for (let i = 0; i < 3; i += 1) {
+    interviews.emit({ eventType: "UPDATE", schema: "public", table: "interviews", errors: null, new: { id: "i1", application_id: "a1", scheduled_at: "2026-10-08T15:00:00Z" }, old: { id: "i1" } });
+  }
+  await timers.fire();
+  const keys = calls.map((c) => c.key);
+  assert(keys.length === 1 && keys[0] === '["interviews"]', `a burst of interview changes refreshes ["interviews"] once (got ${keys.join(" ")})`);
+  assert(calls[0].cancelRefetch === true, "…as a real change");
+  calls.length = 0;
+  interviews.status("SUBSCRIBED");
+  await timers.fire();
+  assert(calls.length === 1 && calls[0].key === '["interviews"]' && calls[0].cancelRefetch === false, "a (re)join catches up the interviews");
+  calls.length = 0;
+  interviews.status("CHANNEL_ERROR");
+  const apps = [...client.channels.values()].find((c) => c.topic.startsWith("employer-live-"));
+  apps.emit(update({ id: "a1", phase: "step_chat" }));
+  await timers.fire();
+  assert(calls.length === LIVE_SYNC_QUERY_KEYS.length && !calls.some((c) => c.key === '["interviews"]'), "a failing interview channel never stalls the applicant list");
+  stop();
 }
 
 console.log("\napplySessionChange");

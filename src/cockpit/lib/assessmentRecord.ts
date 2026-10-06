@@ -43,6 +43,7 @@ import { buildCandidateJourney, positionFor, titleFor, DECISION_STAGE_ID } from 
 import type { CandidateJourneyStep, WorkflowStepLike } from "@/lib/candidateJourney";
 import { isRetakeOpen, stepHasResult } from "@/lib/journeyProgress";
 import { parseApplicationNotes } from "@/lib/applicationNotes";
+import { stepNeedsComputer } from "@/lib/deviceGate";
 
 /* ── Shapes ────────────────────────────────────────────────────────────── */
 
@@ -420,6 +421,10 @@ export interface AssessmentEntry {
   /** Earlier attempts of this step that raised flags (a retake, a replaced
    *  attempt): their own tallies, never added into this attempt's. */
   earlierIntegrity?: EarlierAttemptFlags[];
+  /** Opened on a phone or a tablet, at the "Continue on your computer"
+   *  screen, and nothing has happened on the step since
+   *  (notes.waiting_on_computer, read by waitingOnComputerOf). */
+  waiting?: { at: string; deviceKind: "phone" | "tablet" } | null;
 }
 
 export interface EarlierAttemptFlags {
@@ -689,11 +694,14 @@ function lastedText(ms: number): string {
   return `${days} ${days === 1 ? "day" : "days"}`;
 }
 
-export type LiveState = "doing" | "away" | "left" | "checking" | "finished" | "failed";
+/** `waiting`: at the "Continue on your computer" screen on a phone or a
+ *  tablet, with no attempt since (waitingOnComputerOf). */
+export type LiveState = "doing" | "away" | "left" | "checking" | "finished" | "failed" | "waiting";
 
-/** The colour of a live line: amber once they have gone from the test. */
+/** The colour of a live line: amber once they have gone from the test, or
+ *  are waiting to continue it on a computer. */
 export function liveTone(state: LiveState | null | undefined): string {
-  return state === "left" || state === "away" ? "var(--amber-fg)" : state === "failed" ? "var(--crit)" : "var(--ink-3)";
+  return state === "left" || state === "away" || state === "waiting" ? "var(--amber-fg)" : state === "failed" ? "var(--crit)" : "var(--ink-3)";
 }
 
 /** Where an attempt stands, in the owner's words. */
@@ -829,6 +837,55 @@ export function sessionLiveStatus(session: AssessmentSessionRow, now: number, ti
       return null;
   }
 }
+
+/* ── Waiting to continue on a computer (docs/COMPUTER-ONLY-TESTS.md) ───── */
+
+/** The stamp public.mark_waiting_on_computer writes when the "Continue on
+ *  your computer" screen shows on a phone or a tablet
+ *  (supabase/migrations/20261006200000_waiting_on_computer.sql). */
+export interface WaitingOnComputer {
+  stepId: string;
+  /** When they first reached the screen for this step (ISO). */
+  at: string;
+  deviceKind: "phone" | "tablet";
+}
+
+/** notes.waiting_on_computer = {step_id, at, device_kind}, or null unless
+ *  every part is there and sound. The applicant can write this key
+ *  themselves; it only ever describes them, and the builder still checks its
+ *  step against the job (stepNeedsComputer) and the attempts. */
+export function waitingOnComputerOf(notes: unknown): WaitingOnComputer | null {
+  const w = obj(obj(notes)?.waiting_on_computer);
+  const stepId = str(w?.step_id);
+  const at = str(w?.at);
+  const kind = w?.device_kind;
+  const ms = at != null ? Date.parse(at) : NaN;
+  if (!stepId || !Number.isFinite(ms) || (kind !== "phone" && kind !== "tablet")) return null;
+  return { stepId, at: new Date(ms).toISOString(), deviceKind: kind };
+}
+
+/** The live label for a waiting stamp, in the owner's words: "Waiting to
+ *  continue on a computer · opened on a phone 2 h ago". */
+export function waitingLiveStatus(
+  w: WaitingOnComputer,
+  step: { id: string; type: string; title: string },
+  now: number,
+): LiveStatus {
+  const text = `Waiting to continue on a computer · opened on a ${w.deviceKind} ${agoText(Math.max(0, now - Date.parse(w.at)))}`;
+  return {
+    state: "waiting",
+    text,
+    summary: `${step.title}: ${lowerFirst(text)}`,
+    receipt: "Needs a computer",
+    stepId: step.id,
+    stepType: step.type === "video_message" ? "video_intro" : step.type,
+    lastActivityAt: w.at,
+  };
+}
+
+/** The states in which an attempt is being taken right now: nothing a phone
+ *  does elsewhere outranks them. */
+const TAKING_NOW: ReadonlySet<LiveState> = new Set<LiveState>(["doing", "away", "checking"]);
 
 const LIVE_STATUSES = new Set(["active", "grading"]);
 
@@ -1281,66 +1338,14 @@ export function correctOptionsFor(item: QuizItem, key: Obj | null | undefined): 
   return null;
 }
 
-/* ── Applicant triage (the Applicants page's tabs) ─────────────────────── */
-
-export type ApplicantBucket = "sealed" | "reading" | "started" | "passed";
+/* ── Applicant triage ──────────────────────────────────────────────────── */
+// The Applicants page's tabs are src/cockpit/lib/applicantList.ts (tabFor,
+// tabFromParam), from the record itself; the old four buckets are gone.
 
 /** Still on the application form: the row exists (Apply Now inserts it as
  *  `in_progress`) but nothing has been sent. */
 export function isFillingInForm(status: string | null | undefined): boolean {
   return status === "in_progress";
-}
-
-/** Which tab a person sits on. Someone still filling in the form is never
- *  "being read": Ava has nothing of theirs yet. */
-export function applicantBucket(c: { stage: string; analyzed: boolean; fillingInForm?: boolean }): ApplicantBucket {
-  if (c.stage === "Rejected") return "passed";
-  if (c.fillingInForm) return "started";
-  return c.analyzed ? "sealed" : "reading";
-}
-
-/** The tab to open on until the owner picks one: the first that has anyone
- *  on it, so a lone applicant who has just pressed Apply is on screen, not
- *  behind an empty "Sealed · 0". */
-export function defaultApplicantBucket(counts: Record<ApplicantBucket, number>): ApplicantBucket {
-  const order: ApplicantBucket[] = ["sealed", "reading", "started", "passed"];
-  return order.find((b) => counts[b] > 0) ?? "sealed";
-}
-
-/** The tab the Applicants page shows.
- *
- *  `chosen` is the tab the owner picked for this job (or a link asked for),
- *  else the data picks one. `onScreen` is the tab of the person on screen, if
- *  they are still listed. That person leads when they move forward — the form
- *  is sent, Ava seals them — so a live move never swaps them for a stranger.
- *  A Pass is not followed (the owner's or a teammate's): the tab stays where
- *  it is and the next person shows, so triage is never pulled onto
- *  "Didn't make it". */
-export function applicantTab(input: {
-  counts: Record<ApplicantBucket, number>;
-  chosen: ApplicantBucket | null;
-  onScreen: ApplicantBucket | null;
-}): ApplicantBucket {
-  const base = input.chosen ?? defaultApplicantBucket(input.counts);
-  if (input.onScreen == null) return base;
-  if (input.onScreen === "passed" && base !== "passed") return base;
-  return input.onScreen;
-}
-
-/** `?tab=` on /applicants: the Dashboard's "see who is applying" lands on the
- *  Applying tab instead of wherever the data would open. */
-export function applicantTabParam(value: string | null | undefined): ApplicantBucket | null {
-  switch (value) {
-    case "applying":
-    case "started":
-      return "started";
-    case "sealed":
-    case "reading":
-    case "passed":
-      return value;
-    default:
-      return null;
-  }
 }
 
 /* ── The builder ───────────────────────────────────────────────────────── */
@@ -1946,7 +1951,10 @@ function buildVoice(ctx: BuildContext, step: CandidateJourneyStep): Built {
     verdict: str(r?.recommendation),
     subline: minutes != null && score != null ? `${minutes} min` : transcript ? "Transcript kept" : null,
     receipt: minutes != null ? `${minutes} min · transcript ready` : score != null ? `${Math.round(score)}/100` : null,
-    completedAt: completedAtFor(ctx, step.id, r),
+    // The voice tools write no completedAt (ava-voice-tools end_interview):
+    // the transcript's last turn is when it ended, so the profile's timeline
+    // keeps its "Voice interview" moment.
+    completedAt: completedAtFor(ctx, step.id, r) ?? ((last ?? first) != null ? new Date((last ?? first)!).toISOString() : null),
     integrity: integrityOf(r),
     detail: {
       kind: "voice_interview",
@@ -2408,6 +2416,9 @@ export function buildAssessmentRecord(app: AssessmentAppInput | null | undefined
 
   const entries: AssessmentEntry[] = [];
   const earlierGroups: Array<{ key: string; title: string; tally: IntegrityTally; sessionId: string; attempt: number }> = [];
+  // At the "Continue on your computer" screen on a phone or a tablet.
+  const waiting = waitingOnComputerOf(notes);
+  const waitingLives: LiveStatus[] = [];
   journey.forEach((step, i) => {
     let resultOnFile: boolean;
     if (step.type === "application") {
@@ -2439,6 +2450,22 @@ export function buildAssessmentRecord(app: AssessmentAppInput | null | undefined
     // decision, ends it whatever the attempt row says.
     const live = session && !done && !decided && !retakeWaiting ? sessionLiveStatus(session, now, step.title) : null;
     const inProgress = !done && !decided && (live != null || retakeOpen || (step.type === "application" ? fillingInForm : i === position.index));
+    // Waiting to continue on a computer: the stamp names this step, the step
+    // is theirs now and the computer-only rule covers it, and the stamp is
+    // the newest thing that happened on it. A result on file, a decision, an
+    // attempt being taken, or any attempt that moved since (they went to the
+    // computer) ends it, whatever the stamp says.
+    const waitingMs = waiting && waiting.stepId === step.id ? Date.parse(waiting.at) : NaN;
+    const waitingHere =
+      Number.isFinite(waitingMs) &&
+      inProgress &&
+      (i === position.index || retakeOpen) &&
+      stepNeedsComputer(journey, step.id) &&
+      !(live && TAKING_NOW.has(live.state)) &&
+      attempts.all.every((a) => (toMillis(a.last_activity_at) ?? toMillis(a.started_at) ?? 0) < waitingMs)
+        ? waitingLiveStatus(waiting!, step, now)
+        : null;
+    if (waitingHere) waitingLives.push(waitingHere);
     const status: AssessmentStatus = done ? "done" : inProgress ? "in_progress" : "not_started";
     const built = done || retakeWaiting ? buildStep(ctx, step) : null;
     let detail: AssessmentDetail | null = built?.detail ?? null;
@@ -2475,6 +2502,8 @@ export function buildAssessmentRecord(app: AssessmentAppInput | null | undefined
         ? step.type === "application"
           ? "Sent"
           : "Done"
+        : waitingHere
+          ? waitingHere.text
         : retakeWaiting
           ? "Reopened for a retake"
         : inProgress
@@ -2490,7 +2519,7 @@ export function buildAssessmentRecord(app: AssessmentAppInput | null | undefined
       tone: done ? built!.tone : "muted",
       verdict: built?.verdict ?? null,
       subline: built?.subline ?? null,
-      receipt: done ? built?.receipt ?? null : live?.receipt ?? null,
+      receipt: done ? built?.receipt ?? null : waitingHere?.receipt ?? live?.receipt ?? null,
       completedAt: built?.completedAt ?? (done ? session?.ended_at ?? null : null),
       integrity,
       openable: detail != null && (done || retakeWaiting || (inProgress && session != null)),
@@ -2508,6 +2537,7 @@ export function buildAssessmentRecord(app: AssessmentAppInput | null | undefined
       retake: retakeWaiting ? "open" : null,
       reopen: marker ? { at: marker.reopened_at ?? null, count: num(marker.reopen_count) } : null,
       earlierIntegrity: earlierIntegrity.length > 0 ? earlierIntegrity : undefined,
+      waiting: waitingHere && waiting ? { at: waiting.at, deviceKind: waiting.deviceKind } : null,
     });
 
     // The resume sits with the application it came in on.
@@ -2615,12 +2645,16 @@ export function buildAssessmentRecord(app: AssessmentAppInput | null | undefined
     });
   }
 
-  // What they are doing right now: the unfinished attempt they touched last.
+  // What they are doing right now: the unfinished attempt they touched last,
+  // or the step they are waiting to continue on a computer when that is the
+  // newer move.
   const live =
-    entries
-      .filter((e) => e.status === "in_progress" && e.session?.live && e.session.live.state !== "finished")
-      .map((e) => e.session!.live!)
-      .sort((a, b) => (toMillis(b.lastActivityAt) ?? 0) - (toMillis(a.lastActivityAt) ?? 0))[0] ?? null;
+    [
+      ...entries
+        .filter((e) => e.status === "in_progress" && e.session?.live && e.session.live.state !== "finished")
+        .map((e) => e.session!.live!),
+      ...waitingLives,
+    ].sort((a, b) => (toMillis(b.lastActivityAt) ?? 0) - (toMillis(a.lastActivityAt) ?? 0))[0] ?? null;
 
   return { entries, riskFlags, fillingInForm, integrityTotal, jobId: str(app.jobs?.id) ?? null, live };
 }

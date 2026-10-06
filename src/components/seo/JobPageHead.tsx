@@ -62,6 +62,12 @@ function setCanonical(href: string) {
 
 export function JobPageHead({ job, company }: { job: JobPageHeadJob; company?: string | null }) {
   useEffect(() => {
+    // The canonical stays /candidate/job/:id even for a job with a short link
+    // (docs/SHORT-JOB-LINKS.md §7). That address is the one the server
+    // prerenders with the job's own title and preview card; the short link is
+    // served the plain app shell, whose canonical and og:url are the homepage,
+    // so pointing search and link previews at it would send them home. Move
+    // this to the short link only together with a by-slug prerender.
     const url = `${CANONICAL_ORIGIN}/candidate/job/${job.id}`;
     const title = company ? `${job.title} at ${company}` : `${job.title} | Zulu Support Team`;
     const description = textSummary(job, company);

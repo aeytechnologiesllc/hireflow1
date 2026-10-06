@@ -152,9 +152,11 @@ export default function VideoIntroPhase() {
     }).catch(err => console.error("[VideoIntroPhase] AVA analysis trigger failed:", err));
 
     toast.success("Video sent", {
-      description: "Your recording is saved. The hiring team will get back to you — everyone hears back.",
+      description: "Your recording is saved. Everyone who finishes every step gets a yes or no by email.",
     });
-    navigate(`/applications/${id}`);
+    // The page moves by itself after a send: replace, so Back from the
+    // application page never lands on this sent step (docs/SHORT-JOB-LINKS.md).
+    navigate(`/applications/${id}`, { replace: true });
   };
 
 

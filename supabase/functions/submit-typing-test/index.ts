@@ -99,9 +99,11 @@ import {
   typingWordErrors,
   updateContext,
   type AssessmentAdmin,
+  computerOnlyGate,
   type SessionResolution,
   type SessionRow,
 } from "../_shared/assessmentSession.ts";
+import { computerRequiredBody, deviceKindOfRequest, needsComputer } from "../_shared/deviceKind.ts";
 import { scheduleStepMoveOn } from "../_shared/stepMoveOn.ts";
 import { calculateTypingResults, isImplausiblyFast, pickTypingPassage, resolveElapsedMs, TYPING_FORMULA } from "./calculateResults.ts";
 
@@ -270,7 +272,21 @@ Deno.serve(async (req) => {
     };
     const requiredWpm = job.required_wpm || 40;
 
+    // The typing test is taken on a computer (docs/COMPUTER-ONLY-TESTS.md):
+    // the request's headers AND the page's own reading in its body (a phone
+    // asking for the desktop site sends a computer's headers). Computers and
+    // unknown devices are never asked anything here.
+    const requestDevice = deviceKindOfRequest(req, payload);
+    const phoneRefused = async (continuable: boolean): Promise<boolean> =>
+      needsComputer(requestDevice) &&
+      (await computerOnlyGate(record, requestDevice, { applicationId, stepId, userId: user.id, purpose: "submit", steps, continuable })) === "refuse";
+
     if (payload.action === "start") {
+      // Every start is a new run with its own clock, so a phone or tablet
+      // never starts one on a step the rule puts on a computer: refused
+      // before the attempt is resolved (which would open it) and before the
+      // start row is touched.
+      if (await phoneRefused(false)) return jsonResponse(computerRequiredBody(requestDevice as "phone" | "tablet"), 400);
       // A new run only where one can still be graded. A finished step (its
       // result is on file and staff did not hand it back) and an attempt
       // being checked right now refuse it BEFORE the start row is reset:
@@ -314,7 +330,12 @@ Deno.serve(async (req) => {
       // is the next run of the same attempt.
       if (session) {
         const next = nextTypingContext(session.context, { targetText, requiredWpm, startedAt });
-        await updateContext(record, session, next.context);
+        // The device the attempt started on (once): a phone may later
+        // finish only a run a computer started.
+        const startedOn = typeof session.context.started_device_kind === "string" && session.context.started_device_kind
+          ? {}
+          : { started_device_kind: requestDevice };
+        await updateContext(record, session, { ...next.context, ...startedOn });
       }
       return jsonResponse({ targetText });
     }
@@ -333,6 +354,9 @@ Deno.serve(async (req) => {
       const runElapsedMs = runStartedAt ? Date.now() - new Date(runStartedAt).getTime() : NaN;
       const key = typed !== null && runRow && !runRow.ended_at ? typingProgressKey(runStartedAt, runElapsedMs) : null;
       if (!key) return jsonResponse({ ok: true, recorded: false });
+      // A phone or tablet never opens the attempt with a snapshot; one a
+      // computer started still takes them (docs/COMPUTER-ONLY-TESTS.md).
+      if (await phoneRefused(true)) return jsonResponse({ ok: true, recorded: false });
       const session = await openRecord();
       if (!session) return jsonResponse({ ok: true, recorded: false });
       const saved = await insertEvent(record, {
@@ -353,6 +377,11 @@ Deno.serve(async (req) => {
     }
 
     if (payload.action === "complete") {
+      // A phone or tablet finishes only a run a computer started: never one
+      // whose start row is left over from an earlier attempt (staff reopened
+      // the step), which would open the next attempt from a phone
+      // (docs/COMPUTER-ONLY-TESTS.md). Refused before ended_at is stamped.
+      if (await phoneRefused(true)) return jsonResponse(computerRequiredBody(requestDevice as "phone" | "tablet"), 400);
       // Freezes elapsed time the instant typing actually stops — see
       // resolveElapsedMs in calculateResults.ts. Idempotent: only stamps
       // ended_at when it isn't already set, so a duplicate call (e.g. a
@@ -415,6 +444,10 @@ Deno.serve(async (req) => {
     }
 
     if (payload.action === "submit") {
+      // The same for the submit: a run a computer started goes on (and a
+      // finished step answers its result back); a phone never grades a
+      // left-over start row into a new attempt (docs/COMPUTER-ONLY-TESTS.md).
+      if (await phoneRefused(true)) return jsonResponse(computerRequiredBody(requestDevice as "phone" | "tablet"), 400);
       const requestViolations = Array.isArray(payload.violations) ? payload.violations : [];
 
       const { data: startRow, error: startError } = await admin

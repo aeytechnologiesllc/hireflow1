@@ -2,10 +2,19 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AudioRecorder, encodeAudioForAPI, AudioQueue, createWavFromPCM, resetAudioQueue } from '@/utils/RealtimeAudio';
 import { useToast } from '@/hooks/use-toast';
+import { functionErrorReply } from '@/hooks/useAssessmentSession';
+import { ComputerRequiredError, throwIfComputerRequired, withDeviceKind } from '@/lib/deviceGate';
 
 interface UseAvaVoiceOptions {
   mode: 'assistant' | 'interview' | 'intake';
   applicationId?: string;
+  /** Interview mode: the voice_interview step being taken (ava-voice-session
+   *  falls back to the job's first one without it). */
+  stepId?: string;
+  /** Interview mode: the server answered `computer_required` (a phone or a
+   *  tablet on a step the computer-only rule covers). Return true when the
+   *  page showed "Continue on your computer"; the hook then stays quiet. */
+  onComputerRequired?: (deviceKind: 'phone' | 'tablet' | null) => boolean;
   jobId?: string;
   language?: string;
   duration?: number; // Interview duration in minutes (default 10)
@@ -412,27 +421,39 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
     }
 
-    // Get session token from edge function
+    // Get session token from edge function. An interview carries its step
+    // and the page's own device reading (docs/COMPUTER-ONLY-TESTS.md: the
+    // server refuses a phone or a tablet on a gated step, and only the page
+    // sees one asking for the desktop site).
+    const inInterviewMode = optionsRef.current.mode === 'interview';
+    const sessionBody = {
+      mode: optionsRef.current.mode,
+      applicationId: optionsRef.current.applicationId,
+      ...(inInterviewMode && optionsRef.current.stepId ? { stepId: optionsRef.current.stepId } : {}),
+      jobId: optionsRef.current.jobId,
+      language: optionsRef.current.language || 'en',
+      duration: optionsRef.current.duration || 10,
+      // Pass user context for personalized responses
+      subscriptionPlan: optionsRef.current.subscriptionPlan,
+      subscriptionStatus: optionsRef.current.subscriptionStatus,
+      countryCode: optionsRef.current.countryCode,
+      voiceMinutesRemaining: optionsRef.current.voiceMinutesRemaining,
+      isFirstUse: optionsRef.current.isFirstUse,
+      // Current route for context-aware responses
+      currentRoute: optionsRef.current.currentRoute,
+      // Google Calendar integration
+      googleCalendarConnected: optionsRef.current.googleCalendarConnected,
+      googleRefreshToken: optionsRef.current.googleRefreshToken,
+    };
     const response = await supabase.functions.invoke('ava-voice-session', {
-      body: {
-        mode: optionsRef.current.mode,
-        applicationId: optionsRef.current.applicationId,
-        jobId: optionsRef.current.jobId,
-        language: optionsRef.current.language || 'en',
-        duration: optionsRef.current.duration || 10,
-        // Pass user context for personalized responses
-        subscriptionPlan: optionsRef.current.subscriptionPlan,
-        subscriptionStatus: optionsRef.current.subscriptionStatus,
-        countryCode: optionsRef.current.countryCode,
-        voiceMinutesRemaining: optionsRef.current.voiceMinutesRemaining,
-        isFirstUse: optionsRef.current.isFirstUse,
-        // Current route for context-aware responses
-        currentRoute: optionsRef.current.currentRoute,
-        // Google Calendar integration
-        googleCalendarConnected: optionsRef.current.googleCalendarConnected,
-        googleRefreshToken: optionsRef.current.googleRefreshToken,
-      },
+      body: inInterviewMode ? withDeviceKind(sessionBody) : sessionBody,
     });
+
+    if (inInterviewMode && response.error) {
+      // 400 computer_required: "Continue on your computer", never an error.
+      const refused = await functionErrorReply(response.error);
+      throwIfComputerRequired(refused?.status, refused?.body);
+    }
 
     // Handle edge function errors - extract the message from the response
     // When edge function returns non-2xx, error contains FunctionsHttpError
@@ -1002,6 +1023,12 @@ export function useAvaVoice(options: UseAvaVoiceOptions) {
       // the error state was set and nothing was released — so each retry
       // stacked another set on top of the last.
       cleanupConnection();
+      // The server says this part needs a computer: the page shows
+      // "Continue on your computer" instead of an error.
+      if (err instanceof ComputerRequiredError && optionsRef.current.onComputerRequired?.(err.deviceKind)) {
+        setState(s => ({ ...s, isConnecting: false, error: null }));
+        return;
+      }
       const rawMessage = err instanceof Error ? err.message : 'Failed to connect';
 
       // Interview mode is candidate-facing. The raw message is a server string

@@ -24,7 +24,16 @@
  *    assessment_sessions binding moves onto the applications channel (a
  *    missing or failing table would then stall the applicant list too), loses
  *    its per-instance topic, or its query keys; or a record hook opens a
- *    channel of its own (one per mounted panel would duplicate the shell's).
+ *    channel of its own (one per mounted panel would duplicate the shell's);
+ *  - (wave 3, 2026-10-06) the Applicants list (useApplicantList.ts) opens a
+ *    channel, stops building its keys from LIVE_SYNC_LIST_KEYS, or the live
+ *    sync stops merging those lists in place (mergeIntoList on both channels,
+ *    `lists || !isMergedListKey(` in both coalescers) and goes back to
+ *    re-downloading every applicant and attempt on each heartbeat;
+ *  - (wave 4, 2026-10-06) booked interviews stop being live: the
+ *    public.interviews binding disappears, loses its own per-instance channel
+ *    (it must never share the applications channel), or one open profile goes
+ *    back to refetching its attempts on every OTHER applicant's heartbeat.
  */
 
 const HOOK = "src/cockpit/hooks/useEmployerLiveSync.ts";
@@ -33,6 +42,7 @@ const SHELL = "src/cockpit/Shell.tsx";
 const APPLICATIONS = "src/hooks/useApplications.ts";
 const TOASTS = "src/components/GlobalNotificationToasts.tsx";
 const RECORD_HOOKS = "src/cockpit/hooks/useAssessmentSessions.ts";
+const LIST_HOOK = "src/cockpit/hooks/useApplicantList.ts";
 
 /** Shell-level realtime listeners that must never share a topic between mounts. */
 const SHELL_REALTIME_FILES = [
@@ -103,7 +113,7 @@ export default [
   {
     id: "cockpit-live-applicants",
     why:
-      "The staff Applicants list, panel, Dashboard and full profile only stay live through ONE " +
+      "The staff Applicants list, Dashboard and full profile only stay live through ONE " +
       "shell-level realtime listener (useEmployerLiveSync) with a per-instance topic. Losing it, " +
       "mounting it where the shell renders twice, or sharing a topic puts the owner back on " +
       "'Nobody has applied yet.' until he reloads.",
@@ -122,11 +132,12 @@ export default [
       if (!/startEmployerLiveSync\(\{[^}]*\binstanceId\b/.test(hookBody)) {
         detail.push(`${HOOK}: useEmployerLiveSync no longer passes its useId() value to startEmployerLiveSync`);
       }
-      // Two channels, never one: applications, and the test record on its own
-      // (binding a table that is missing or failing fails the channel it is on).
+      // Three channels, never fewer: applications, the test record and booked
+      // interviews, each on its own (binding a table that is missing or failing
+      // fails the channel it is on, and the applicant list must not stall).
       const topics = channelTopics(hook);
-      if (topics.length !== 2) {
-        detail.push(`${HOOK}: expected exactly two .channel( calls (applications + the test record), found ${topics.length}`);
+      if (topics.length !== 3) {
+        detail.push(`${HOOK}: expected exactly three .channel( calls (applications, the test record, interviews), found ${topics.length}`);
       }
       /** The text from a channel's .channel( to its own .subscribe(. */
       const chainFor = (prefix) => {
@@ -134,7 +145,8 @@ export default [
         const sub = at === -1 ? -1 : hook.indexOf(".subscribe(", at);
         return at === -1 || sub === -1 ? "" : hook.slice(at, sub);
       };
-      for (const [prefix, table] of [["employer-live-", "applications"], ["employer-sessions-", "assessment_sessions"]]) {
+      const TABLES = ["applications", "assessment_sessions", "interviews"];
+      for (const [prefix, table] of [["employer-live-", "applications"], ["employer-sessions-", "assessment_sessions"], ["employer-interviews-", "interviews"]]) {
         const t = topics.find((x) => x.quote === "`" && x.topic.startsWith(prefix));
         if (!t) {
           detail.push(`${HOOK}: no channel topic starts \`${prefix}\``);
@@ -147,9 +159,9 @@ export default [
         if (!new RegExp(`\\.on\\(\\s*["']postgres_changes["'][\\s\\S]*?table:\\s*["']${table}["']`).test(chain)) {
           detail.push(`${HOOK}: no postgres_changes binding on public.${table} before the \`${prefix}\` channel's .subscribe(`);
         }
-        const others = table === "applications" ? /table:\s*["']assessment_sessions["']/ : /table:\s*["']applications["']/;
-        if (others.test(chain)) {
-          detail.push(`${HOOK}: the \`${prefix}\` channel binds the other table too — each table needs its own channel`);
+        const others = TABLES.filter((t) => t !== table).filter((t) => new RegExp(`table:\\s*["']${t}["']`).test(chain));
+        if (others.length > 0) {
+          detail.push(`${HOOK}: the \`${prefix}\` channel binds ${others.join(", ")} too — each table needs its own channel`);
         }
       }
       if (!/LIVE_SYNC_SESSION_KEYS[^=]*=\s*\[\s*\[\s*["']assessment-sessions["']\s*\]/.test(hook)) {
@@ -214,6 +226,44 @@ export default [
         detail.push(`${RECORD_HOOKS} is missing — the staff record cannot read the server's attempts`);
       } else if (/\.channel\(/.test(recordHooks)) {
         detail.push(`${RECORD_HOOKS} opens a realtime channel — the shell's useEmployerLiveSync already listens to assessment_sessions`);
+      }
+
+      // 3c. (wave 3, 2026-10-06) The Applicants list holds every applicant and
+      // every attempt of the employer's jobs. It rides on the shell's channel,
+      // its keys are the ones the live sync merges, and the sync merges them in
+      // place: a later edit must not quietly go back to re-downloading the
+      // whole list on every heartbeat of a live applicant.
+      const listHook = await read(LIST_HOOK);
+      if (listHook == null) {
+        detail.push(`${LIST_HOOK} is missing — the Applicants list has no data hook`);
+      } else {
+        if (/\.channel\(/.test(listHook)) {
+          detail.push(`${LIST_HOOK} opens a realtime channel — the shell's useEmployerLiveSync already keeps the list live`);
+        }
+        for (const list of ["applications", "sessions"]) {
+          if (!new RegExp(`\\[\\.\\.\\.LIVE_SYNC_LIST_KEYS\\.${list},`).test(listHook)) {
+            detail.push(`${LIST_HOOK}: the ${list} key is no longer built from LIVE_SYNC_LIST_KEYS.${list} — the live sync would stop merging into it`);
+          }
+        }
+      }
+      if (!/export const LIVE_SYNC_LIST_KEYS\s*=/.test(hook)) {
+        detail.push(`${HOOK}: LIVE_SYNC_LIST_KEYS is gone — the Applicants list is no longer merged in place`);
+      }
+      if ((hook.match(/\bmergeIntoList\s*[<(]/g) ?? []).length < 3) {
+        detail.push(`${HOOK}: mergeIntoList must be defined and applied on BOTH channels (applications and the test record)`);
+      }
+      if (!/isApplicationSessionsKey\(query\.queryKey\)\s*\?\s*everything \|\| applicationIds\.includes\(/.test(hook)) {
+        detail.push(
+          `${HOOK}: one applicant's attempts (["assessment-sessions", "application", id]) must refetch only for THEIR attempts or the catch-up — ` +
+            "otherwise an open profile re-downloads its full attempts on every other applicant's heartbeat",
+        );
+      }
+      const predicates = (hook.match(/lists \|\| !isMergedListKey\(/g) ?? []).length;
+      if (predicates < 2) {
+        detail.push(
+          `${HOOK}: both coalescers must skip the merged lists unless a change marked them stale (\`lists || !isMergedListKey(\`, found ${predicates}) — ` +
+            "otherwise every heartbeat re-downloads every applicant and attempt",
+        );
       }
 
       // 4. The applicant queries heal on their own too.

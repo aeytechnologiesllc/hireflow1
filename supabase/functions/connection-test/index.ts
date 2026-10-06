@@ -71,6 +71,9 @@ import { buildCandidateJourney, type WorkflowStepLike } from "../_shared/candida
 import { hasReachedStep, recordStepResult, type MinimalSupabaseAdmin } from "../_shared/trustedResults.ts";
 import {
   cleanClientMsgId,
+  computerOnlyGate,
+  recordStartDevice,
+  stepAccessFor,
   failSession,
   finishGrading,
   gateGrading,
@@ -85,6 +88,7 @@ import {
   type SessionRow,
 } from "../_shared/assessmentSession.ts";
 import { jwtClaims, scheduleStepMoveOn } from "../_shared/stepMoveOn.ts";
+import { combinedDeviceKind, computerRequiredBody, deviceKindOfRequest, needsComputer, requestDeviceKind } from "../_shared/deviceKind.ts";
 import { bestEffortIp } from "../_shared/bestEffortIp.ts";
 import {
   barsBelow,
@@ -564,6 +568,16 @@ Deno.serve(async (req) => {
       if (!marker) {
         return jsonResponse({ error: "Unknown marker", code: "invalid_request" }, 400);
       }
+      // A phone or tablet never opens this step's attempt and never starts
+      // the check on one the page's mount opened (docs/COMPUTER-ONLY-TESTS.md):
+      // the request's headers AND the page's own reading (`device_kind`).
+      // An attempt a computer started (its first marker records the device,
+      // below) still takes its markers.
+      const eventDevice = deviceKindOfRequest(req, payload);
+      if (needsComputer(eventDevice)) {
+        const gate = await computerOnlyGate(record, eventDevice, { applicationId, stepId, userId: user.id, steps: workflowSteps, purpose: "turns" });
+        if (gate === "refuse") return jsonResponse(computerRequiredBody(eventDevice), 400);
+      }
       const resolved = await resolveSession(record, {
         applicationId,
         stepId,
@@ -578,6 +592,10 @@ Deno.serve(async (req) => {
       const runBars = connectionBars(stepConfig(workflowSteps, stepId));
       let written = false;
       if (session) {
+        // The device the check started on, once (the first marker is the
+        // start): a phone may later add markers only to a check a computer
+        // started.
+        await recordStartDevice(record, session, eventDevice);
         // The job's bars as they stood when the attempt began, pinned once in
         // the step config's own shape (staff read them while the check is
         // still being taken; the recorded result carries its own copy).
@@ -650,6 +668,23 @@ Deno.serve(async (req) => {
         { error: "using_this_computer and device_kind are required", code: "invalid_request" },
         400,
       );
+    }
+    // The check is taken on the computer they will work from
+    // (docs/COMPUTER-ONLY-TESTS.md): a run the page itself read as a phone or
+    // tablet, or sent from one, is refused before anything is opened or
+    // claimed (the page's reading is what catches an iPad and a phone asking
+    // for the desktop site). A finished step answers its result back first,
+    // so a retried record after a lost reply never reads "use your
+    // computer". The byte ops above stay open so a page can still show a
+    // reading; only the record is refused.
+    const recordDevice = combinedDeviceKind(requestDeviceKind(req), deviceKind);
+    if (needsComputer(recordDevice)) {
+      const access = await stepAccessFor(record, { applicationId, stepId, userId: user.id });
+      if (access?.finished) {
+        const onFile = await readStepOnFile(record, applicationId, stepId, "equipmentCheckResult");
+        if (onFile?.result) return jsonResponse({ results: onFile.result, next: onFile.next, alreadyRecorded: true });
+      }
+      return jsonResponse(computerRequiredBody(recordDevice), 400);
     }
     const device = cleanDevice(payload.device);
     // How many runs they had finished when they sent this one (the sent one

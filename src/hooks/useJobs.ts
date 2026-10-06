@@ -106,6 +106,8 @@ export function useJob(id: string | undefined) {
           salary_max: null,
           employer_id: data.employer_id ?? SHOWCASE_EMPLOYER_ID,
           job_code: data.role_code,
+          // Showcase roles have no short link; they keep the code link.
+          slug: null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         } as Job;
@@ -214,6 +216,7 @@ export function useCreateJob() {
         return {
           ...created,
           job_code: created.role_code,
+          slug: null,
           job_type: job.job_type,
         } as unknown as Job;
       }
@@ -264,6 +267,7 @@ export function useUpdateJob() {
           location: updated.location,
           status: updated.status === "draft" ? "draft" : "published",
           job_code: updated.role_code,
+          slug: null,
         } as unknown as Job;
       }
 

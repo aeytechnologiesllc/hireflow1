@@ -39,6 +39,8 @@ import { NextStepCard, StepAdvanceScreen } from "@/components/candidate/NextStep
 import { TestPausedOverlay, TestRulesCard, TestRulesReminder } from "@/components/candidate/TestRulesCard";
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 import { useResultAtFirstLoad, useStepAdvance } from "@/hooks/useStepAdvance";
+import { useShowContinueOnComputer } from "@/components/candidate/continueOnComputerContext";
+import { isComputerRequired, refusedDeviceKind, withDeviceKind } from "@/lib/deviceGate";
 
 // The candidate passage is now chosen server-side by submit-typing-test's
 // "start" action (supabase/functions/submit-typing-test/calculateResults.ts)
@@ -111,10 +113,17 @@ export default function TypingTestPhase() {
   // no Start (see the resume decision below).
   const [finishedOnServer, setFinishedOnServer] = useState(false);
   // What a "start" refused with 409 leads to; set further down, once the
-  // waiting screen and the advance exist.
-  const startRefusedRef = useRef<{ finished: () => void; checking: () => void }>({
+  // waiting screen and the advance exist. A 400 computer_required hands the
+  // step to "Continue on your computer" (CandidateStepGate).
+  const showContinueOnComputer = useShowContinueOnComputer();
+  const startRefusedRef = useRef<{
+    finished: () => void;
+    checking: () => void;
+    computer: (kind: "phone" | "tablet" | null) => boolean;
+  }>({
     finished: () => {},
     checking: () => {},
+    computer: () => false,
   });
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -249,13 +258,13 @@ export default function TypingTestPhase() {
     if (!id || !stepId) return;
     try {
       const { error } = await supabase.functions.invoke("submit-typing-test", {
-        body: {
+        body: withDeviceKind({
           action: "complete",
           applicationId: id,
           stepId,
           typedText: typedTextRef.current,
           reason: endReasonRef.current,
-        },
+        }),
       });
       if (error) throw error;
     } catch (err) {
@@ -319,7 +328,7 @@ export default function TypingTestPhase() {
     const path = "/functions/v1/submit-typing-test";
     let lastSent: string | null = null;
     let snapshotsOff = false;
-    const snapshotBody = () => ({ action: "snapshot", applicationId: id, stepId, typedText: typedTextRef.current });
+    const snapshotBody = () => withDeviceKind({ action: "snapshot", applicationId: id, stepId, typedText: typedTextRef.current });
     const sendSnapshot = (viaKeepalive: boolean) => {
       const text = typedTextRef.current;
       if (snapshotsOff || text === lastSent || text.length === 0) return;
@@ -350,12 +359,12 @@ export default function TypingTestPhase() {
         sendSnapshot(true);
         return;
       }
-      keepalivePost(path, {
+      keepalivePost(path, withDeviceKind({
         action: "complete",
         applicationId: id,
         stepId,
         typedText: typedTextRef.current,
-      });
+      }));
     };
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pagehide", onPageHide);
@@ -378,7 +387,7 @@ export default function TypingTestPhase() {
     setIsStarting(true);
     try {
       const { data, error } = await supabase.functions.invoke("submit-typing-test", {
-        body: { action: "start", applicationId: id, stepId },
+        body: withDeviceKind({ action: "start", applicationId: id, stepId }),
       });
       if (error) {
         // 409: the server already has this test, so a new run would only be
@@ -386,6 +395,12 @@ export default function TypingTestPhase() {
         // (step_finished), or a send is being checked right now
         // (already_checking).
         const refused = await functionErrorReply(error);
+        // 400 computer_required: the server reads this device as a phone or
+        // a tablet (the page's own gate is the main line, this the backstop):
+        // "Continue on your computer", never an error.
+        if (isComputerRequired(refused?.status, refused?.body) && startRefusedRef.current.computer(refusedDeviceKind(refused?.body))) {
+          return;
+        }
         const code = refused?.status === 409 ? (refused.body as { code?: unknown } | null)?.code : null;
         if (code === "step_finished") {
           startRefusedRef.current.finished();
@@ -448,7 +463,9 @@ export default function TypingTestPhase() {
       toast.success("Typing test sent", {
         description: "Your result is saved. The hiring team will review it and get back to you.",
       });
-      navigate(`/applications/${id}`);
+      // The page moves by itself after a send: replace, so Back from the
+      // application page never lands on this sent step (docs/SHORT-JOB-LINKS.md).
+      navigate(`/applications/${id}`, { replace: true });
     }
   };
   const afterTypingSavedRef = useRef(afterTypingSaved);
@@ -485,7 +502,7 @@ export default function TypingTestPhase() {
       // notes[stepId] / phase via recordStepResult — this page no longer
       // touches `applications` directly for this step at all.
       const { data: submitData, error: submitError } = await supabase.functions.invoke("submit-typing-test", {
-        body: {
+        body: withDeviceKind({
           action: "submit",
           applicationId: id,
           stepId,
@@ -493,7 +510,7 @@ export default function TypingTestPhase() {
           // The old-shape list, for a server that does not read the live
           // record yet; the record itself was sent as it happened.
           violations: integrity.violations,
-        },
+        }),
       });
 
       if (submitError) {
@@ -501,6 +518,11 @@ export default function TypingTestPhase() {
         // "We have your answers": wait for the result and the next step,
         // never an error and never a second send.
         const reply = await functionErrorReply(submitError);
+        // 400 computer_required: "Continue on your computer", never an error.
+        if (isComputerRequired(reply?.status, reply?.body)) {
+          advance.cancel();
+          if (showContinueOnComputer(refusedDeviceKind(reply?.body))) return;
+        }
         const outcome = reply ? gradingReplyOutcome(reply.status, reply.body) : "error";
         if (outcome === "on_file") {
           await afterTypingSaved(isAutoMode);
@@ -636,7 +658,7 @@ export default function TypingTestPhase() {
     // No baseline: the result as this page first read it (loadResultKey).
     serverCheck.begin();
   };
-  startRefusedRef.current = { finished: showFinishedOnServer, checking: waitForCheckFromBefore };
+  startRefusedRef.current = { finished: showFinishedOnServer, checking: waitForCheckFromBefore, computer: showContinueOnComputer };
 
   // What the server already says about this step, decided once, when the
   // record answers (start_assessment_session). The page's own rule (status
@@ -813,7 +835,7 @@ export default function TypingTestPhase() {
                   <li className="flex items-start gap-2.5">
                     <Target className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     <span>
-                      We're looking for around <strong className="text-foreground">{application.jobs?.required_wpm || 40} words a minute</strong>.
+                      We're looking for at least <strong className="text-foreground">{application.jobs?.required_wpm || 40} words a minute</strong>, with very few mistakes.
                     </span>
                   </li>
                   <li className="flex items-start gap-2.5">

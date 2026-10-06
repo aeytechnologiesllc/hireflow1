@@ -113,6 +113,9 @@ import {
 } from "@/components/ui/command";
 import { subscribeToAvaFormCommands, AvaFormCommand } from "@/utils/avaFormEvents";
 import { JobPublishedDialog } from "@/components/JobPublishedDialog";
+import { SLUG_MESSAGES, slugCandidates, slugProblem, slugSaveProblem, suggestJobSlug, tidySlugInput } from "@/lib/jobSlug";
+import { firstFreeSlug, takenSlugs } from "@/lib/jobSlugAvailability";
+import { candidateOrigin } from "@/lib/hosts";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import AvaWorkflowGenerationOverlay, {
   type OverlayGenerationStage,
@@ -603,6 +606,7 @@ const JOB_EDIT_FIELD_COLUMNS: Readonly<Record<string, ReadonlyArray<string>>> = 
   benefits: ["benefits"],
   application_deadline: ["application_deadline"],
   status: ["status"],
+  slug: ["slug"],
   application_questions: ["application_questions"],
   quiz_questions: ["quiz_questions"],
   workflow_steps: ["workflow_steps"],
@@ -873,6 +877,36 @@ export default function CreateJob() {
   const [phaseWarningDismissed, setPhaseWarningDismissed] = useState(false);
   
   const [currentStep, setCurrentStep] = useState(0);
+
+  // Short link: hireflownow.com/<slug> (docs/SHORT-JOB-LINKS.md §4). On a new
+  // job it follows the title until the person types in it; on an edit it is
+  // the job's own and changes only when they change it. Empty = no short link
+  // (the job keeps its old link).
+  const [slug, setSlug] = useState("");
+  const [slugFollowsTitle, setSlugFollowsTitle] = useState(!isEditMode);
+  // The name the check below last said another job holds.
+  const [slugTaken, setSlugTaken] = useState<string | null>(null);
+  // Names the DATABASE refused at save. The check below reads only what this
+  // person can see, so it cannot see the job that holds them (another
+  // company's, a closed one, one a team member is not assigned to) and must
+  // never clear them: the field kept showing the name as fine and the next
+  // save failed the same way.
+  const [refusedSlugs, setRefusedSlugs] = useState<ReadonlySet<string>>(() => new Set());
+  const loadedSlug = existingJob?.slug ?? "";
+  const slugLocalProblem = slugProblem(slug);
+  const slugError = slugLocalProblem
+    ? SLUG_MESSAGES[slugLocalProblem]
+    : slug && (slugTaken === slug || refusedSlugs.has(slug))
+      ? SLUG_MESSAGES.taken
+      : null;
+  // An edit that renames or removes the job's live short link. Nothing keeps
+  // the old name working, so every link, QR code and flyer already handed out
+  // would stop opening the job: the field says so, and Save asks first.
+  const slugLeaving = isEditMode && !!loadedSlug && slug !== loadedSlug;
+  const [pendingSlugChange, setPendingSlugChange] = useState<{ status: "draft" | "published"; companyNameOverride?: string } | null>(null);
+  const slugChangeAcceptedRef = useRef<string | null>(null);
+  const linkHost = candidateOrigin().replace(/^https?:\/\//, "");
+
   const [formData, setFormData] = useState<AvaJobFormData>({
     title: "",
     description: "",
@@ -942,6 +976,7 @@ export default function CreateJob() {
     location?: string | null;
     job_type?: string | null;
     job_code?: string | null;
+    slug?: string | null;
   } | null>(null);
   const [showPublishedDialog, setShowPublishedDialog] = useState(false);
   // Publishing with no business name on file is what silently drops a job
@@ -1006,9 +1041,12 @@ export default function CreateJob() {
         setWorkflowGenerated(true);
       }
 
+      setSlug(existingJob.slug ?? "");
+      setSlugFollowsTitle(false);
+
       // What Save compares against, so an edit sends only what changed (see
       // changedJobEditColumns).
-      loadedEditFieldsRef.current = { ...loadedForm, ...loadedWorkflow, status: existingJob.status };
+      loadedEditFieldsRef.current = { ...loadedForm, ...loadedWorkflow, status: existingJob.status, slug: existingJob.slug ?? "" };
     }
   }, [isEditMode, existingJob]);
 
@@ -1191,6 +1229,46 @@ export default function CreateJob() {
   const handleChange = (field: string, value: string | boolean | Date | null) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
+
+  // A new job's short link is suggested from its title until the person types
+  // their own.
+  useEffect(() => {
+    if (slugFollowsTitle) setSlug(suggestJobSlug(formData.title));
+  }, [slugFollowsTitle, formData.title]);
+
+  // Is the name free? Asked a moment after typing stops. A suggestion that is
+  // taken moves on to the next free one (team-lead-2); a name the person typed
+  // is theirs, so it is only flagged. The save asks the database again either way.
+  useEffect(() => {
+    if (!slug || slugProblem(slug) || (isEditMode && slug === loadedSlug)) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        if (slugFollowsTitle) {
+          if (refusedSlugs.has(slug)) {
+            // The database already said no to this one: the next free name.
+            const names = slugCandidates(slug, 8).filter((name) => !refusedSlugs.has(name));
+            const taken = await takenSlugs(names, id);
+            const free = names.find((name) => !taken.has(name));
+            if (!cancelled && free) setSlug(free);
+            return;
+          }
+          const free = await firstFreeSlug(slug, id);
+          if (!cancelled && free && free !== slug && !refusedSlugs.has(free)) setSlug(free);
+        } else {
+          const taken = await takenSlugs([slug], id);
+          if (!cancelled) setSlugTaken(taken.has(slug) ? slug : null);
+        }
+      } catch (error) {
+        // Not knowing is not a problem: the save still checks.
+        console.warn("Short link check failed:", error);
+      }
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [slug, slugFollowsTitle, id, isEditMode, loadedSlug, refusedSlugs]);
 
   const handleGuidedSetupChange = <K extends keyof GuidedJobSetup>(field: K, value: GuidedJobSetup[K]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -1491,6 +1569,20 @@ export default function CreateJob() {
       return;
     }
 
+    // The short link has to be one the site can serve (docs/SHORT-JOB-LINKS.md).
+    if (slugError) {
+      setCurrentStep(0);
+      toast.error(`Short link: ${slugError}`);
+      return;
+    }
+
+    // Renaming or removing a live short link breaks every link already handed
+    // out (nothing forwards the old name): ask first, once per new name.
+    if (slugLeaving && slugChangeAcceptedRef.current !== slug) {
+      setPendingSlugChange({ status, companyNameOverride });
+      return;
+    }
+
     // A "Pick one" / "Pick several" question with fewer than two real choices
     // gives the applicant nothing to pick, and the form falls back to a text box.
     const questionsProblem = applicationQuestionsProblem(applicationQuestions);
@@ -1539,6 +1631,8 @@ export default function CreateJob() {
       }
     }
 
+    // Names the database refuses during this save, kept for the field.
+    const refusedThisSave: string[] = [];
     setIsSubmitting(true);
     try {
       const locationText = formData.location.trim();
@@ -1557,6 +1651,7 @@ export default function CreateJob() {
         ? changedJobEditColumns(loadedEditFields, {
             ...formData,
             status,
+            slug,
             application_questions: applicationQuestions,
             quiz_questions: quizQuestions,
             workflow_steps: workflowSteps,
@@ -1601,6 +1696,7 @@ export default function CreateJob() {
         benefits: parseCommaSeparatedList(formData.benefits, existingJob?.benefits ?? []),
         application_deadline: formData.application_deadline ? formData.application_deadline.toISOString() : null,
         status,
+        slug: slug || null,
         // Workflow data - cast to Json type as Supabase expects
         application_questions: applicationQuestions as unknown as null,
         quiz_questions: quizQuestions as unknown as null,
@@ -1624,7 +1720,24 @@ export default function CreateJob() {
         toast.success(status === "published" ? "Job updated and published!" : "Job updated");
         navigate("/jobs");
       } else {
-        const createdJob = await createJob.mutateAsync(jobData);
+        // A suggested name (one the person never typed) that the database
+        // refuses moves on to the next one by itself: team-lead, then
+        // team-lead-2 … A name they typed is theirs, so it is only flagged.
+        const names = slugFollowsTitle && slug
+          ? [slug, ...slugCandidates(suggestJobSlug(formData.title), 8).filter((name) => name !== slug && !refusedSlugs.has(name))]
+          : [slug];
+        let createdJob: Awaited<ReturnType<typeof createJob.mutateAsync>> | null = null;
+        for (const [index, name] of names.entries()) {
+          try {
+            createdJob = await createJob.mutateAsync({ ...jobData, slug: name || null });
+            if (name !== slug) setSlug(name);
+            break;
+          } catch (error) {
+            if (name && slugSaveProblem(error) === "taken") refusedThisSave.push(name);
+            if (index < names.length - 1 && name && slugSaveProblem(error) === "taken") continue;
+            throw error;
+          }
+        }
         
         if (status === "published" && createdJob) {
           // Show the published dialog with job details
@@ -1634,6 +1747,7 @@ export default function CreateJob() {
             location: createdJob.location,
             job_type: createdJob.job_type,
             job_code: createdJob.job_code,
+            slug: createdJob.slug,
           });
           setShowPublishedDialog(true);
         } else {
@@ -1643,6 +1757,18 @@ export default function CreateJob() {
       }
     } catch (error) {
       console.error("Error saving job:", error);
+      // The database refused the short link (another job holds it, often a
+      // draft this account cannot see): say so on the field, in its words.
+      const slugIssue = slugSaveProblem(error);
+      if (slugIssue) {
+        if (slugIssue === "taken") {
+          setSlugFollowsTitle(false);
+          setRefusedSlugs((prev) => new Set([...prev, ...refusedThisSave, slug]));
+        }
+        setCurrentStep(0);
+        toast.error(`Short link: ${SLUG_MESSAGES[slugIssue]}`);
+        return;
+      }
       toast.error(isEditMode ? "Failed to update job" : "Failed to create job");
     } finally {
       setIsSubmitting(false);
@@ -2345,6 +2471,62 @@ export default function CreateJob() {
                       value={formData.title}
                       onChange={(e) => handleChange("title", e.target.value)}
                     />
+                  </div>
+
+                  {/* The link applicants open: hireflownow.com/<name>
+                      (docs/SHORT-JOB-LINKS.md §4). */}
+                  <div className="space-y-2" data-testid="short-link-field">
+                    <Label htmlFor="slug">Short link</Label>
+                    <div
+                      className={cn(
+                        "flex h-10 w-full min-w-0 items-center overflow-hidden rounded-md border bg-background text-sm focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-background",
+                        slugError ? "border-destructive focus-within:ring-destructive" : "border-input focus-within:ring-ring",
+                      )}
+                    >
+                      <span className="shrink-0 select-none pl-3 text-muted-foreground" aria-hidden="true">
+                        {linkHost}/
+                      </span>
+                      {/* The placeholder is plainly an example (faint, italic,
+                          a made-up name): in the prefix's own grey it read as
+                          a link already set. */}
+                      <input
+                        id="slug"
+                        className="h-full min-w-0 flex-1 bg-transparent pr-3 text-base text-foreground outline-none placeholder:italic placeholder:text-muted-foreground/50 sm:text-sm"
+                        value={slug}
+                        placeholder="your-job-name"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        maxLength={60}
+                        aria-invalid={slugError ? true : undefined}
+                        aria-describedby="slug-help"
+                        onChange={(e) => {
+                          setSlugFollowsTitle(false);
+                          setSlug(tidySlugInput(e.target.value));
+                        }}
+                      />
+                    </div>
+                    {slugError ? (
+                      <p id="slug-help" role="alert" className="text-sm text-destructive">
+                        {slugError}
+                      </p>
+                    ) : slugLeaving ? (
+                      <p id="slug-help" role="status" className="flex items-start gap-1.5 text-xs text-foreground [overflow-wrap:anywhere]">
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" />
+                        <span>
+                          {linkHost}/{loadedSlug} will stop working. Links, QR codes and flyers you already shared will say
+                          this role isn&apos;t open.
+                        </span>
+                      </p>
+                    ) : (
+                      <p id="slug-help" className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
+                        {/* The whole link, so a long name cut off in the box
+                            on a phone is still readable in full. */}
+                        {slug
+                          ? <>The link you share: <span className="font-medium text-foreground">{linkHost}/{slug}</span>. It opens this job and its Apply button.</>
+                          : "No short link: the job keeps its longer link. Type a name to give it one."}
+                      </p>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -4083,6 +4265,34 @@ export default function CreateJob() {
               }}
             >
               Delete question
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit screen: renaming or removing a short link breaks the old one */}
+      <AlertDialog open={!!pendingSlugChange} onOpenChange={(open) => !open && setPendingSlugChange(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{slug ? "Change the job's link?" : "Remove the job's short link?"}</AlertDialogTitle>
+            <AlertDialogDescription className="break-words [overflow-wrap:anywhere]">
+              {linkHost}/{loadedSlug} will stop working. Anyone who opens a link, QR code or flyer you already
+              shared will be told this role isn&apos;t open, and another job could take the name.
+              {slug ? ` From now on the job's link is ${linkHost}/${slug}.` : " The job keeps its longer link."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-0">
+            <AlertDialogCancel className="mt-0">Keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const pending = pendingSlugChange;
+                setPendingSlugChange(null);
+                if (!pending) return;
+                slugChangeAcceptedRef.current = slug;
+                void handleSubmit(pending.status, pending.companyNameOverride);
+              }}
+            >
+              {slug ? "Change it and save" : "Remove it and save"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

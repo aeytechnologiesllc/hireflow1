@@ -280,5 +280,21 @@ check(
     `Sales simulation: ${realisticEvaluation.score}%. Discovery: ${realisticEvaluation.discovery}%, Objection handling: ${realisticEvaluation.objectionHandling}%. Would buy: ${realisticEvaluation.wouldBuy}.`,
 );
 
+console.log("\n6. A fallback is not a grade (2026-10-06):\n");
+
+// index.ts passes graded:false when the evaluation is one of the two fixed
+// fallbacks. The stored result then carries no number at all, so nothing
+// downstream (the scorer, the cards) can read the fallback's 70 as a grade.
+for (const [label, fallback] of [["parse", parseFallbackEvaluation()], ["fetch", fetchFallbackEvaluation()]]) {
+  const ungraded = buildSalesSimulationResult({ scenario: "s", prospectCompany: "p", messageCount: 4, evaluation: fallback, violations: [], graded: false });
+  check(`${label} fallback: stored as graded:false`, ungraded.graded === false);
+  check(`${label} fallback: no score, no sub-scores, no "would buy"`,
+    !("score" in ungraded) && !("discovery" in ungraded) && !("wouldBuy" in ungraded) && ungraded.strengths.length === 0 && ungraded.improvements.length === 0,
+    JSON.stringify(ungraded));
+}
+const gradedAsBefore = buildSalesSimulationResult({ scenario: "s", prospectCompany: "p", messageCount: 4, evaluation: realisticEvaluation, violations: [], graded: true });
+check("a real grade is stored exactly as before (no graded key)", !("graded" in gradedAsBefore) && gradedAsBefore.score === realisticEvaluation.score);
+check("phase_ai_analysis says it was not graded", /not graded/.test(buildPhaseAiAnalysis(parseFallbackEvaluation(), false)));
+
 console.log(`\n${passed} passed, ${failed} failed.`);
 if (failed > 0) process.exitCode = 1;

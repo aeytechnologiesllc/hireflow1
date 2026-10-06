@@ -93,9 +93,13 @@ const guards = [
       // ^.*$ and match every destination, which would make this guard pass
       // unconditionally — and the catch-all is precisely what renders the 404
       // this guard exists to prevent.
+      // The short-job-link route (`/:slug`, docs/SHORT-JOB-LINKS.md) is left out
+      // for the same reason: it answers every single-segment path with the job
+      // page's "this role isn't open", so counting it would let a typo'd link
+      // such as /candidat pass this guard.
       const routes = [...app.matchAll(/path="([^"]+)"/g)]
         .map((m) => m[1])
-        .filter((r) => r !== "*" && r !== "/*");
+        .filter((r) => r !== "*" && r !== "/*" && r !== "/:slug");
       const matchers = routes.map((r) =>
         new RegExp("^" + r.replace(/:[^/]+/g, "[^/]+") + "$")
       );
@@ -640,7 +644,8 @@ const guards = [
     id: "create-flow-uses-the-gemline-rail",
     why:
       "The create-job flow's progress rail is the same Gemline rail as the landing hero " +
-      "and the Applicants JourneyStrip — one visual, three places, sharing ck-rail-* in " +
+      "and the applicant profile's journey rail (ApplicantJourneyRail, /applicants/:id) — one " +
+      "visual, three places, sharing ck-rail-* in " +
       "cockpit.css and gemPosition() in lib/gemRail.ts. It replaced both a plain pill " +
       "stepper and the orb above it, so the chrome the screen already needed carries the " +
       "brand moment. If StepRail stops using GemRail, that convergence has been undone.",
@@ -964,9 +969,23 @@ const guards = [
         }
       }
 
+      // Since 2026-10-06 the field's rules live in src/lib/phoneNumber.ts
+      // (scripts/phone_number.test.mjs runs them): the code shown is the code
+      // saved, a typed or pasted copy of it comes off, +1 keeps 10 digits and
+      // every other code up to 15 in all. A Manila number was saved as
+      // "091-712-3456" when the field kept 10 digits for every country.
       const phone = blockFor("phone");
-      if (phone && !/raw\.startsWith\(dial\)/.test(phone)) {
-        bad.push('the phone field no longer strips a pasted country code — "+1 555-123-4567" is stored as "+1 155-512-3456" and the employer cannot call back');
+      const phoneLib = (await read("src/lib/phoneNumber.ts")) ?? "";
+      if (
+        phone &&
+        !(
+          /cleanPhoneInput\(e\.target\.value, dialCodeFor\(question\.id\), KNOWN_DIAL_CODES\)/.test(phone) &&
+          /export function cleanPhoneInput\(/.test(phoneLib) &&
+          /knownCodeAtStart\(digits, \[\.\.\.\(knownCodes \?\? \[\]\), shown\]\)/.test(phoneLib) &&
+          /phoneAnswer\(dialCodeFor\(q\.id\), answers\[q\.id\]\)/.test(form)
+        )
+      ) {
+        bad.push('the phone field no longer strips a pasted country code or saves the code it shows — "+1 555-123-4567" is stored as "+1 155-512-3456", "0917 123 4567" as "091-712-3456", and the employer cannot call back');
       }
       return bad.length ? { ok: false, detail: bad } : { ok: true };
     },

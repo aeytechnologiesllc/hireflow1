@@ -61,6 +61,23 @@ import {
   ZULU_LEFT_USER_ID,
   ZULU_RETAKE_USER_ID,
   ZULU_CONNECTION_USER_ID,
+  APP_ZULU_TYPING_ID,
+  APP_ZULU_LEFT_CHAT_ID,
+  APP_ZULU_INTERVIEW_ID,
+  APP_ZULU_OFFERED_ID,
+  APP_ZULU_HIRED_ID,
+  APP_ZULU_DECLINED_ID,
+  APP_ZULU_STRONG_ID,
+  APP_ZULU_QUIET_ID,
+  INTERVIEW_ZULU_ID,
+  ZULU_TYPING_USER_ID,
+  ZULU_LEFT_CHAT_USER_ID,
+  ZULU_INTERVIEW_USER_ID,
+  ZULU_OFFERED_USER_ID,
+  ZULU_HIRED_USER_ID,
+  ZULU_DECLINED_USER_ID,
+  ZULU_STRONG_USER_ID,
+  ZULU_QUIET_USER_ID,
 } from "./ids";
 
 // The computer and connection check (docs/EQUIPMENT-CHECK.md); its ids live in
@@ -1969,6 +1986,374 @@ const priyaConnectionEvents = zuluEvents(priyaConnection, [
   { kind: "system", at: minutesAgo(0.3), detail: { what: "test_started", run: 1 } },
 ]);
 
+// ── The rest of the field: one person per state on the Applicants list ───
+// docs/APPLICANTS-LIST.md §5: the list is looked at with someone in every
+// state it can show. Lighter than the six above (no events: each attempt is a
+// row, each result is in notes), and each answers the location question in
+// its own messy way, so the country column is exercised too.
+
+interface ZuluRun {
+  appId: string;
+  userId: string;
+  name: string;
+  /** The free-text answer to "Country and city you will work from". */
+  place: string;
+  /** Minutes ago the form was sent. */
+  formAt: number;
+  quiz?: { wrong: number[]; at: number };
+  connection?: { at: number; deviceKind?: "computer" | "phone"; uploadMbps?: number };
+  typing?: { at: number; wpm: number; accuracy: number };
+  chat?: { at: number; score: number };
+  interview?: { at: number; score: number; recommendation: string };
+}
+
+/** The notes a run leaves behind, shaped like Robin's above. */
+function zuluRunNotes(run: ZuluRun): string {
+  const notes: FixtureRow = {
+    applicationAnswers: [
+      { type: "text", answer: run.name, question: "Full name", questionId: "q1" },
+      { type: "email", answer: `${run.name.toLowerCase().replace(/[^a-z]+/g, ".")}@example.com`, question: "Email address", questionId: "q2" },
+      { type: "text", answer: run.place, question: "Country and city you will work from", questionId: "q4" },
+      { type: "select", answer: "40 or more", question: "How many hours a week can you work?", questionId: "q6" },
+    ],
+  };
+  const trusted: FixtureRow = {};
+  if (run.quiz) Object.assign(notes, zuluQuizRecord(run.quiz.wrong, minutesAgo(run.quiz.at)));
+  if (run.connection) {
+    const phone = run.connection.deviceKind === "phone";
+    const upload = run.connection.uploadMbps ?? 9.4;
+    const result = {
+      ...ROBIN_CONNECTION,
+      uploadMbps: upload,
+      deviceKind: phone ? "phone" : "computer",
+      device: phone
+        ? { ...ROBIN_CONNECTION.device, os: "Android", osVersion: "14", screen: "412×915", dpr: 2.6, touch: true, connectionType: "wifi" }
+        : ROBIN_CONNECTION.device,
+      meetsBars: upload >= 3,
+      below: upload >= 3 ? [] : ["upload"],
+      measuredAt: minutesAgo(run.connection.at),
+    };
+    notes.equipmentCheckResult = result;
+    notes.step_connection = { type: "equipment_check", ...result, completedAt: minutesAgo(run.connection.at) };
+    trusted.step_connection = { stepType: "equipment_check", completedAt: minutesAgo(run.connection.at) };
+  }
+  if (run.typing) {
+    const typing = { wpm: run.typing.wpm, accuracy: run.typing.accuracy, score: Math.round(run.typing.wpm * 1.6), passed: false, requiredWpm: 45, tabSwitches: 0, violations: [] };
+    notes.typingTestResult = typing;
+    notes.step_typing = { type: "typing_test", ...typing, completedAt: minutesAgo(run.typing.at) };
+    trusted.step_typing = { stepType: "typing_test", completedAt: minutesAgo(run.typing.at) };
+  }
+  if (run.chat) {
+    notes.chatSimulationResult = {
+      scenario: ZULU_CHAT_SCENARIO,
+      messageCount: 10,
+      score: run.chat.score,
+      empathy: run.chat.score,
+      problemSolving: run.chat.score,
+      strengths: [],
+      improvements: [],
+      completed: true,
+      antiCheatSummary: { hasViolations: false, violationCount: 0, tabSwitches: 0, copyPasteAttempts: 0 },
+    };
+    trusted.step_chat = { stepType: "chat_simulation", completedAt: minutesAgo(run.chat.at) };
+  }
+  if (run.interview) {
+    notes.chatInterviewResult = {
+      messages: [],
+      duration: "6:10",
+      questionCount: 4,
+      violations: [],
+      evaluation: { score: run.interview.score, strengths: [], concerns: [], recommendation: run.interview.recommendation, summary: "" },
+    };
+    trusted.step_interview = { stepType: "chat_interview", completedAt: minutesAgo(run.interview.at) };
+  }
+  notes._trusted = trusted;
+  return JSON.stringify(notes);
+}
+
+/** One finished attempt per result on file, ending when the result landed;
+ *  `flags` puts a tally on the attempts named. */
+function zuluRunSessions(run: ZuluRun, first: number, flags: Record<string, FixtureRow> = {}): FixtureRow[] {
+  const steps: Array<[string, string, number | undefined]> = [
+    ["application", "application", run.formAt],
+    ["quiz", "quiz", run.quiz?.at],
+    ["step_connection", "equipment_check", run.connection?.at],
+    ["step_typing", "typing_test", run.typing?.at],
+    ["step_chat", "chat_simulation", run.chat?.at],
+    ["step_interview", "chat_interview", run.interview?.at],
+  ];
+  return steps
+    .filter((s): s is [string, string, number] => s[2] != null)
+    .map(([stepId, stepType, endedAgo], i) =>
+      zuluSession(sessionId(first + i), run.appId, run.userId, stepId, stepType, {
+        started_at: minutesAgo(endedAgo + 4),
+        last_activity_at: minutesAgo(endedAgo),
+        ended_at: minutesAgo(endedAgo),
+        integrity_summary: flags[stepId] ?? {},
+      }),
+    );
+}
+
+const tomasRun: ZuluRun = {
+  appId: APP_ZULU_TYPING_ID,
+  userId: ZULU_TYPING_USER_ID,
+  name: "Tomás Herrera",
+  place: "guadalajara, mexico",
+  formAt: 46,
+  quiz: { wrong: [3], at: 40 },
+  connection: { at: 37, deviceKind: "phone" },
+};
+const chidiRun: ZuluRun = {
+  appId: APP_ZULU_LEFT_CHAT_ID,
+  userId: ZULU_LEFT_CHAT_USER_ID,
+  name: "Chidi Nwosu",
+  place: "Lagos, NIGERIA",
+  formAt: 296,
+  quiz: { wrong: [4, 8], at: 290 },
+  connection: { at: 288 },
+  typing: { at: 285, wpm: 40, accuracy: 96 },
+};
+const wanjiruRun: ZuluRun = {
+  appId: APP_ZULU_INTERVIEW_ID,
+  userId: ZULU_INTERVIEW_USER_ID,
+  name: "Wanjiru Kamau",
+  place: "Nairobi, Kenya",
+  formAt: 26 * 60,
+  quiz: { wrong: [], at: 26 * 60 - 6 },
+  connection: { at: 26 * 60 - 8 },
+  typing: { at: 26 * 60 - 11, wpm: 61, accuracy: 98 },
+  chat: { at: 26 * 60 - 19, score: 84 },
+  interview: { at: 26 * 60 - 27, score: 80, recommendation: "Hire" },
+};
+const marisolRun: ZuluRun = {
+  appId: APP_ZULU_OFFERED_ID,
+  userId: ZULU_OFFERED_USER_ID,
+  name: "Marisol Cruz",
+  place: "Cebu, Phillipines",
+  formAt: 3 * 24 * 60,
+  quiz: { wrong: [6], at: 3 * 24 * 60 - 5 },
+  connection: { at: 3 * 24 * 60 - 7 },
+  typing: { at: 3 * 24 * 60 - 10, wpm: 55, accuracy: 97 },
+  chat: { at: 3 * 24 * 60 - 18, score: 77 },
+  interview: { at: 3 * 24 * 60 - 26, score: 74, recommendation: "Hire" },
+};
+const ibrahimRun: ZuluRun = {
+  appId: APP_ZULU_HIRED_ID,
+  userId: ZULU_HIRED_USER_ID,
+  name: "Ibrahim Haddad",
+  place: "Casablanca / Morocco",
+  formAt: 9 * 24 * 60,
+  quiz: { wrong: [], at: 9 * 24 * 60 - 5 },
+  connection: { at: 9 * 24 * 60 - 7 },
+  typing: { at: 9 * 24 * 60 - 10, wpm: 68, accuracy: 99 },
+  chat: { at: 9 * 24 * 60 - 18, score: 90 },
+  interview: { at: 9 * 24 * 60 - 26, score: 86, recommendation: "Strong Hire" },
+};
+const ayeshaRun: ZuluRun = {
+  appId: APP_ZULU_DECLINED_ID,
+  userId: ZULU_DECLINED_USER_ID,
+  name: "Ayesha Raza",
+  place: "Karachi, PK",
+  formAt: 2 * 24 * 60 + 90,
+  quiz: { wrong: [1, 5, 7], at: 2 * 24 * 60 + 84 },
+  connection: { at: 2 * 24 * 60 + 82 },
+  typing: { at: 2 * 24 * 60 + 79, wpm: 36, accuracy: 91 },
+  chat: { at: 2 * 24 * 60 + 70, score: 44 },
+  interview: { at: 2 * 24 * 60 + 62, score: 52, recommendation: "Maybe" },
+};
+// The job gained its connection check after Nadia had passed that point, so
+// the record says "No result on file" there: a skipped dot, never "Completed".
+const nadiaRun: ZuluRun = {
+  appId: APP_ZULU_STRONG_ID,
+  userId: ZULU_STRONG_USER_ID,
+  name: "Nadia Rahman",
+  place: "Dhaka, bangladesh",
+  formAt: 6 * 60,
+  quiz: { wrong: [9], at: 6 * 60 - 5 },
+  typing: { at: 6 * 60 - 9, wpm: 58, accuracy: 97 },
+  chat: { at: 6 * 60 - 17, score: 79 },
+  interview: { at: 6 * 60 - 25, score: 76, recommendation: "Hire" },
+};
+const luisRun: ZuluRun = {
+  appId: APP_ZULU_QUIET_ID,
+  userId: ZULU_QUIET_USER_ID,
+  name: "Luis Ortega",
+  place: "Bogotá, Colombia",
+  formAt: 118,
+};
+
+const appZuluTyping = makeZuluApplication({
+  id: APP_ZULU_TYPING_ID,
+  candidate_id: ZULU_TYPING_USER_ID,
+  status: "reviewing",
+  phase: "step_typing",
+  created_at: minutesAgo(50),
+  updated_at: minutesAgo(37),
+  ai_score: 64,
+  notes: zuluRunNotes(tomasRun),
+  ai_analysis: "Summary: Quick through the rules; ran the connection check on a phone, so the team will want the computer they will work from.",
+  ai_scorecard: { overallScore: 64, recommendedAction: "review", decisionState: "needs_more_evidence", riskFlags: [] },
+});
+const appZuluLeftChat = makeZuluApplication({
+  id: APP_ZULU_LEFT_CHAT_ID,
+  candidate_id: ZULU_LEFT_CHAT_USER_ID,
+  status: "reviewing",
+  phase: "step_chat",
+  created_at: minutesAgo(300),
+  updated_at: minutesAgo(285),
+  ai_score: 58,
+  notes: zuluRunNotes(chidiRun),
+  ai_analysis: "Summary: Strong on the rules; typing came in at 40 WPM against the 45 the job asks for.",
+  ai_scorecard: { overallScore: 58, recommendedAction: "review", decisionState: "needs_more_evidence", riskFlags: ["Typing test result of 40 WPM is below the job's 45 WPM minimum."] },
+});
+const appZuluInterview = makeZuluApplication({
+  id: APP_ZULU_INTERVIEW_ID,
+  candidate_id: ZULU_INTERVIEW_USER_ID,
+  status: "interview",
+  phase: "review",
+  created_at: minutesAgo(26 * 60 + 2),
+  updated_at: minutesAgo(20 * 60),
+  ai_score: 82,
+  notes: zuluRunNotes(wanjiruRun),
+  ai_analysis: "Summary: Clear, kind and specific in the practice chat and the written interview.",
+  ai_scorecard: { overallScore: 82, recommendedAction: "advance", decisionState: "ready_for_decision", riskFlags: [] },
+});
+const appZuluOffered = makeZuluApplication({
+  id: APP_ZULU_OFFERED_ID,
+  candidate_id: ZULU_OFFERED_USER_ID,
+  status: "offered",
+  phase: "review",
+  created_at: minutesAgo(3 * 24 * 60 + 2),
+  updated_at: daysAgo(1),
+  ai_score: 79,
+  notes: zuluRunNotes(marisolRun),
+  ai_analysis: "Summary: Steady across every test; the overnight shift is covered.",
+  ai_scorecard: { overallScore: 79, recommendedAction: "advance", decisionState: "ready_for_decision", riskFlags: [] },
+});
+const appZuluHired = makeZuluApplication({
+  id: APP_ZULU_HIRED_ID,
+  candidate_id: ZULU_HIRED_USER_ID,
+  status: "hired",
+  phase: "review",
+  created_at: minutesAgo(9 * 24 * 60 + 2),
+  updated_at: daysAgo(5),
+  ai_score: 88,
+  notes: zuluRunNotes(ibrahimRun),
+  ai_analysis: "Summary: The strongest practice chat on the role so far.",
+  ai_scorecard: { overallScore: 88, recommendedAction: "advance", decisionState: "ready_for_decision", riskFlags: [] },
+});
+const appZuluDeclined = makeZuluApplication({
+  id: APP_ZULU_DECLINED_ID,
+  candidate_id: ZULU_DECLINED_USER_ID,
+  status: "rejected",
+  phase: "review",
+  rejected_by: EMPLOYER_USER_ID,
+  rejected_by_type: "employer",
+  created_at: minutesAgo(2 * 24 * 60 + 92),
+  updated_at: minutesAgo(2 * 24 * 60),
+  ai_score: 41,
+  notes: zuluRunNotes(ayeshaRun),
+  ai_analysis: "Summary: Typing and the practice chat both came in under the job's bar.",
+  ai_scorecard: {
+    overallScore: 41,
+    recommendedAction: "reject",
+    decisionState: "ready_for_decision",
+    hardRejectReason: "Typing test result of 36 WPM is below the job's 45 WPM minimum.",
+    riskFlags: ["Typing test result of 36 WPM is below the job's 45 WPM minimum."],
+  },
+});
+const appZuluStrong = makeZuluApplication({
+  id: APP_ZULU_STRONG_ID,
+  candidate_id: ZULU_STRONG_USER_ID,
+  status: "reviewing",
+  phase: "step_interview",
+  created_at: minutesAgo(6 * 60 + 2),
+  updated_at: minutesAgo(6 * 60 - 26),
+  ai_score: 78,
+  notes: zuluRunNotes(nadiaRun),
+  ai_analysis: "Summary: Specific, calm answers about money problems; a strong practice chat.",
+  ai_scorecard: { overallScore: 78, recommendedAction: "advance", decisionState: "ready_for_decision", riskFlags: [] },
+});
+const appZuluQuiet = makeZuluApplication({
+  id: APP_ZULU_QUIET_ID,
+  candidate_id: ZULU_QUIET_USER_ID,
+  status: "pending",
+  phase: "quiz",
+  created_at: minutesAgo(124),
+  updated_at: minutesAgo(118),
+  notes: zuluRunNotes(luisRun),
+});
+
+// On the typing test right now: the passage half typed, a snapshot seconds ago.
+const tomasTyping = zuluSession(sessionId(66), APP_ZULU_TYPING_ID, ZULU_TYPING_USER_ID, "step_typing", "typing_test", {
+  status: "active",
+  end_reason: null,
+  started_at: minutesAgo(1.5),
+  last_activity_at: minutesAgo(0.2),
+  last_heartbeat_at: minutesAgo(0.2),
+  ended_at: null,
+  context: { target_text: ZULU_PASSAGE, required_wpm: 45 },
+  progress: { typed_chars: 104, elapsed_ms: 38000 },
+});
+// Left chat practice at reply 3, forty minutes ago: still "active" on the
+// server (nothing sweeps it), "Left" by the ten-minute rule.
+const chidiChat = zuluSession(sessionId(72), APP_ZULU_LEFT_CHAT_ID, ZULU_LEFT_CHAT_USER_ID, "step_chat", "chat_simulation", {
+  status: "active",
+  end_reason: null,
+  started_at: minutesAgo(52),
+  last_activity_at: minutesAgo(40),
+  last_heartbeat_at: minutesAgo(40),
+  ended_at: null,
+  context: { scenario: ZULU_CHAT_SCENARIO, customer_name: "Devin" },
+  progress: { candidate_turns: 3, assistant_turns: 4 },
+  integrity_summary: { counts: { tab_hidden: 2, paste: 1 }, total: 3, away_ms: 96000, short_away: 0, dropped: 0 },
+});
+
+/** Everyone in the rest of the field, with their attempts. */
+const zuluFieldApps = [appZuluTyping, appZuluLeftChat, appZuluInterview, appZuluOffered, appZuluHired, appZuluDeclined, appZuluStrong, appZuluQuiet];
+const zuluFieldSessions: FixtureRow[] = [
+  ...zuluRunSessions(tomasRun, 60),
+  tomasTyping,
+  ...zuluRunSessions(chidiRun, 67),
+  chidiChat,
+  ...zuluRunSessions(wanjiruRun, 73),
+  ...zuluRunSessions(marisolRun, 79, { quiz: { counts: { tab_hidden: 1 }, total: 1, away_ms: 14000, short_away: 0, dropped: 0 } }),
+  ...zuluRunSessions(ibrahimRun, 85),
+  ...zuluRunSessions(ayeshaRun, 91, {
+    step_typing: { counts: { copy: 1 }, total: 1, away_ms: 0, short_away: 0, dropped: 0 },
+    step_chat: { counts: { tab_hidden: 3 }, total: 3, away_ms: 131000, short_away: 0, dropped: 0 },
+  }),
+  ...zuluRunSessions(nadiaRun, 97, { step_interview: { counts: { window_blur: 1 }, total: 1, away_ms: 4100, short_away: 0, dropped: 0 } }),
+  ...zuluRunSessions(luisRun, 103),
+];
+
+/** Wanjiru's interview, booked for 3 PM the day after tomorrow. */
+const zuluInterview: FixtureRow = (() => {
+  const when = new Date(now + 2 * DAY);
+  when.setHours(15, 0, 0, 0);
+  return {
+    ...interviews[0],
+    id: INTERVIEW_ZULU_ID,
+    application_id: APP_ZULU_INTERVIEW_ID,
+    scheduled_at: when.toISOString(),
+    status: "scheduled",
+    meeting_room_name: "preview-room-zulu",
+    created_at: minutesAgo(19 * 60),
+    updated_at: minutesAgo(19 * 60),
+  };
+})();
+
+const zuluFieldProfiles = [
+  zuluProfile(ZULU_TYPING_USER_ID, "tomas.herrera@example.com", "Tomás Herrera"),
+  zuluProfile(ZULU_LEFT_CHAT_USER_ID, "chidi.nwosu@example.com", "Chidi Nwosu"),
+  zuluProfile(ZULU_INTERVIEW_USER_ID, "wanjiru.kamau@example.com", "Wanjiru Kamau"),
+  zuluProfile(ZULU_OFFERED_USER_ID, "marisol.cruz@example.com", "Marisol Cruz"),
+  zuluProfile(ZULU_HIRED_USER_ID, "ibrahim.haddad@example.com", "Ibrahim Haddad"),
+  zuluProfile(ZULU_DECLINED_USER_ID, "ayesha.raza@example.com", "Ayesha Raza"),
+  zuluProfile(ZULU_STRONG_USER_ID, "nadia.rahman@example.com", "Nadia Rahman"),
+  zuluProfile(ZULU_QUIET_USER_ID, "luis.ortega@example.com", "Luis Ortega"),
+];
+
 // The hand-back behind Jordan's retake (assessment_step_reopens, written by
 // the server's trigger when staff put him back on the step). Without it the
 // record would read his chat practice as done: status and phase alone are
@@ -2010,6 +2395,7 @@ function zuluSessions(onlyApplying: boolean): { sessions: FixtureRow[]; events: 
       priyaDone(50, "application", "application", 12, 9.5),
       priyaDone(51, "quiz", "quiz", 9, 3.5),
       priyaConnection,
+      ...zuluFieldSessions,
     ],
     events: [
       ...robinFormEvents,
@@ -2059,13 +2445,19 @@ const zuluQuizKeys = zuluQuizQuestions.map((q, i) => ({
 }));
 
 function buildZuluTables(onlyApplying: boolean): FixtureTables {
-  const apps = onlyApplying ? [appZuluForm] : [appZuluDone, appZuluTesting, appZuluLeft, appZuluRetake, appZuluForm, appZuluConnection];
+  const apps = onlyApplying
+    ? [appZuluForm]
+    : [appZuluDone, appZuluTesting, appZuluLeft, appZuluRetake, appZuluForm, appZuluConnection, ...zuluFieldApps];
   const record = zuluSessions(onlyApplying);
   return {
     ...buildFreshTables(),
-    profiles: [freshEmployerProfile, teamMemberProfile, ...zuluProfiles].map((r) => ({ ...r })),
+    profiles: [freshEmployerProfile, teamMemberProfile, ...zuluProfiles, ...zuluFieldProfiles].map((r) => ({ ...r })),
     jobs: [{ ...zuluJob }],
     applications: apps.map((r) => ({ ...r })),
+    interviews: onlyApplying ? [] : [{ ...zuluInterview }],
+    // Diego works the role too, so the list can be looked at inside the team
+    // member's own shell (__previewRole=team_member).
+    team_members: onlyApplying ? [] : teamMembers.map((r) => ({ ...r, department: "Support" })),
     published_jobs_public: [{ ...zuluJob }],
     assessment_sessions: record.sessions.map((r) => ({ ...r })),
     assessment_events: record.events.map((r) => ({ ...r })),
@@ -2086,8 +2478,8 @@ function buildZuluTables(onlyApplying: boolean): FixtureTables {
 // --------------------------------------------------------------- exports
 
 /** `cafe` is the default. `fresh`: one live role, nobody yet. `zulu`: the Zulu
- *  role with three applicants at three points. `applying`: the Zulu role with
- *  only the applicant still on the form. */
+ *  role with fourteen applicants, someone in every state the Applicants list
+ *  shows. `applying`: the Zulu role with only the applicant still on the form. */
 export type FixtureScenario = "cafe" | "fresh" | "zulu" | "applying";
 
 export const FIXTURE_SCENARIOS: readonly FixtureScenario[] = ["cafe", "fresh", "zulu", "applying"];

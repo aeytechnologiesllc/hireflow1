@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { useAvaVoice } from "@/hooks/useAvaVoice";
+import { useShowContinueOnComputer } from "@/components/candidate/continueOnComputerContext";
 import { useVideoInterviewRecorder } from "@/hooks/useVideoInterviewRecorder";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,6 +41,7 @@ interface JobDetails {
 export default function VoiceInterviewPhase() {
   const { id: applicationId, stepId } = useParams();
   const navigate = useNavigate();
+  const showContinueOnComputer = useShowContinueOnComputer();
   const [loading, setLoading] = useState(true);
   const [job, setJob] = useState<JobDetails | null>(null);
   const [appPhase, setAppPhase] = useState<string | null>(null);
@@ -380,6 +382,11 @@ export default function VoiceInterviewPhase() {
   } = useAvaVoice({
     mode: "interview",
     applicationId,
+    stepId,
+    // ava-voice-session's 400 computer_required (a phone or a tablet on a
+    // step the computer-only rule covers): "Continue on your computer"
+    // (CandidateStepGate), never the "couldn't start the call" error.
+    onComputerRequired: showContinueOnComputer,
     language,
     duration,
     // Pass the shared mic stream so both WebRTC and video recorder use the same stream

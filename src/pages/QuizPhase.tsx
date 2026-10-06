@@ -368,7 +368,7 @@ export default function QuizPhase() {
           setQuizStarted(true);
           setRulesAccepted(true);
 
-          toast.info("Quiz progress restored", {
+          toast.info("We kept your place in the skills check", {
             description: `Continuing from question ${progress.currentQuestionIndex + 1}`,
           });
         } catch (e) {
@@ -390,7 +390,7 @@ export default function QuizPhase() {
         setRulesAccepted(true);
         serverBaselineRef.current = true;
 
-        toast.info("Quiz progress restored", {
+        toast.info("We kept your place in the skills check", {
           description: `Continuing from question ${index + 1}`,
         });
       } else {
@@ -768,7 +768,9 @@ export default function QuizPhase() {
         toast.success("Skills check sent", {
           description: "Your answers are saved. The hiring team will review them and get back to you.",
         });
-        navigate(`/applications/${id}`);
+        // The page moves by itself after a send: replace, so Back from the
+        // application page never lands on this sent step (docs/SHORT-JOB-LINKS.md).
+        navigate(`/applications/${id}`, { replace: true });
       }
     } catch (error) {
       console.error("Error submitting quiz:", error);
@@ -1119,7 +1121,7 @@ export default function QuizPhase() {
                 <GlyphCheckSeal size={44} className="ck-seal-press text-[var(--brass)]" />
                 <div className="space-y-1.5">
                   <h2 className="font-display ck-ink text-2xl text-foreground sm:text-3xl">
-                    That's the quiz
+                    That's the skills check
                   </h2>
                   <p className="text-sm text-muted-foreground">
                     {isAutoPilotJob

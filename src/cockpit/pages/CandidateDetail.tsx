@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   MessageSquare,
+  ChevronUp,
   UserRound,
   MessageCircle,
   Target,
@@ -15,11 +16,13 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import AvaSeal from "@/components/ava/AvaSeal";
+import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
 import { CandidateMark } from "../components/CandidateMark";
-import { ActionDialog } from "../components/ActionDialog";
 import { CockpitErrorCard } from "../components/ErrorCard";
 import { HiringDocumentPromptDialog } from "@/components/HiringDocumentPromptDialog";
-import { useCockpitCandidate, useCockpitActions, useCockpitAccount, nextAdvanceStatus, advanceTargetLabel, avaAdvanceRec } from "../hooks/useCockpitData";
+import { useAuth } from "@/hooks/useAuth";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useCockpitCandidate, useCockpitActions, nextAdvanceStatus, advanceTargetLabel } from "../hooks/useCockpitData";
 import { getInitials } from "../lib/mappers";
 import { ResumeViewerDialog } from "../components/ResumeViewerDialog";
 import { buildCandidateJourney, nextJourneyStep, positionFor, type WorkflowStepLike } from "@/lib/candidateJourney";
@@ -27,61 +30,254 @@ import { stepHasResult } from "@/lib/journeyProgress";
 import { parseApplicationNotes } from "@/lib/applicationNotes";
 import { AssessmentRecordList, LiveDot } from "../components/AssessmentRecordList";
 import { AssessmentRecordSheet } from "../components/AssessmentRecordSheet";
+import { ApplicantJourneyRail } from "../components/ApplicantJourneyRail";
+import { AvasRead, type AvasReadApp } from "../components/AvasRead";
+import { ApplicantTimeline, type TimelineApp } from "../components/ApplicantTimeline";
+import { InterviewMoment } from "../components/InterviewMoment";
+import { ApplicantDecisionDialogs, type ApplicantDecision } from "../components/ApplicantDecisionDialogs";
 import { useApplicationSessions, useNow } from "../hooks/useAssessmentSessions";
 import { buildAssessmentRecord, liveTone, type AssessmentAppInput, type AssessmentEntry } from "../lib/assessmentRecord";
+import {
+  applicantChip,
+  applicantScore,
+  finishedEveryTest,
+  journeyDots,
+  pagerFor,
+  readApplicantOrder,
+  scoreColor,
+  splitActionBar,
+  type ApplicantChip,
+} from "../lib/applicantProfile";
 
 const STRENGTH_ICONS = [UserRound, MessageCircle, Target, BookOpen];
 
 /**
- * Ava's full resume report is a structured document built for the scoring
- * engine — bold section headers, then mostly machine-readable "Label: Value"
- * diagnostic lines ("Status: VALID_RESUME", "Confidence: 100%"…). Only two
- * passages are actually written as prose — the "Summary:" line and the
- * "SCORE EXPLANATION" section — so prefer those when present. Anything else
- * (a short decline note, a phase blurb) is already plain prose and just
- * needs markdown stripped. Display only — the stored record is untouched.
+ * The full profile, /applicants/:id — everything one applicant submitted and
+ * every decision about them. Since the Applicants page became a list
+ * (docs/APPLICANTS-LIST.md §4) this page carries what that page's side panel
+ * used to: where they are on the job's journey (the same dot rule as the
+ * list's), Ava's read with their own words, the timeline, Set up interview,
+ * and "3 of 64 ‹ ›" through the list they came from.
  */
-function extractLabeledLine(raw: string, label: string): string {
-  const m = raw.match(new RegExp(`^${label}\\s*:\\s*(.+)$`, "im"));
-  return m ? m[1].replace(/\*\*/g, "").trim() : "";
+
+/** The chip's colours: the list row's and the profile's are one chip. */
+function chipStyle(tone: ApplicantChip["tone"]) {
+  return tone === "amber"
+    ? { color: "var(--amber-fg)", background: "var(--amber-bg)", borderColor: "var(--brass-line)" }
+    : tone === "crit"
+      ? { color: "var(--crit)", background: "var(--crit-bg)" }
+      : { color: "var(--jade-soft-fg)", background: "var(--jade-soft)" };
 }
 
-function extractReportSection(raw: string, header: string): string {
-  const m = raw.match(new RegExp(`\\*\\*${header}\\*\\*[^\\n]*\\n([\\s\\S]*?)(?:\\n\\*\\*|\\n---|$)`, "i"));
-  if (!m) return "";
-  return m[1]
-    .split(/\n+/)
-    .map((l) => l.replace(/\*\*/g, "").trim())
-    .filter(Boolean)
-    .join(" ")
-    .trim();
+/** The element that scrolls this page — the cockpit's <main class="ck-scroll">
+ *  or the team member shell's <main> — or null when the window does. */
+function scrollerOf(el: HTMLElement | null, scrolling = false): HTMLElement | null {
+  let node = el?.parentElement ?? null;
+  while (node) {
+    const overflowY = getComputedStyle(node).overflowY;
+    if ((overflowY === "auto" || overflowY === "scroll") && (!scrolling || node.scrollHeight > node.clientHeight)) return node;
+    node = node.parentElement;
+  }
+  return null;
 }
 
-function avaProse(raw: string | null | undefined): string {
-  if (!raw) return "";
-
-  const summary = extractLabeledLine(raw, "Summary");
-  const explanation = extractReportSection(raw, "SCORE EXPLANATION");
-  const structuredProse = [summary, explanation].filter(Boolean).join(" ").trim();
-  if (structuredProse) return structuredProse;
-
-  return raw
-    .split(/\n+/)
-    .map((line) => line.replace(/\*\*/g, "").replace(/^[-–—•*]+\s*/, "").trim())
-    .filter((line) => line.length > 2 && !/^[A-Z0-9 ,/&'()-]+:?$/.test(line))
-    .join(" ")
-    .trim();
+/** Back to the top: a new person starts at their name, not halfway down the
+ *  last one. */
+function scrollToTopOf(el: HTMLElement | null) {
+  const scroller = scrollerOf(el, true);
+  if (scroller) scroller.scrollTop = 0;
+  else if (typeof window !== "undefined") window.scrollTo(0, 0);
 }
 
 export default function CockpitCandidateDetail() {
-  const navigate = useNavigate();
   const { id } = useParams();
+  const top = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    scrollToTopOf(top.current);
+  }, [id]);
+  // One person per mount. The pager moves between people on this same route,
+  // and the team member's shell does not remount the page on a new id the way
+  // the cockpit's does — so an open sheet or dialog never follows to the next.
+  return (
+    <div ref={top}>
+      <CandidateProfile key={id ?? ""} id={id} />
+    </div>
+  );
+}
+
+/** One button on the decision bar. */
+interface BarAction {
+  key: "continue" | "advance" | "setup" | "pass" | "message" | "hire" | "takeBack";
+  text: string;
+  icon?: ReactNode;
+  variant: "primary" | "outline" | "danger";
+  onClick: () => void;
+  disabled?: boolean;
+  pulse?: boolean;
+}
+
+function barClass(variant: BarAction["variant"]) {
+  return variant === "primary" ? "ck-btn ck-btn-primary" : "ck-btn ck-btn-outline";
+}
+
+const DANGER_STYLE = { color: "var(--hf-danger)", borderColor: "color-mix(in srgb, var(--hf-danger) 50%, transparent)" };
+
+/**
+ * "More" on the phone's decision bar: whatever does not fit in three buttons.
+ * The menu is portalled to <body>: the page's entrance animation leaves a
+ * transform on an ancestor for a moment, and a transformed ancestor traps a
+ * fixed child (and its z-index) inside itself.
+ */
+function MoreMenu({ items, pulse }: { items: BarAction[]; pulse: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ right: number; bottom: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  const place = useCallback(() => {
+    const r = buttonRef.current?.getBoundingClientRect();
+    if (r) setPos({ right: Math.max(8, window.innerWidth - r.right), bottom: window.innerHeight - r.top + 8 });
+  }, []);
+  useLayoutEffect(() => {
+    if (open) place();
+  }, [open, place]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (menuRef.current?.contains(t) || buttonRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        buttonRef.current?.focus();
+        return;
+      }
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+      const buttons = [...(menuRef.current?.querySelectorAll<HTMLButtonElement>("[role=menuitem]:not(:disabled)") ?? [])];
+      if (buttons.length === 0) return;
+      e.preventDefault();
+      const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
+      const next = e.key === "ArrowDown" ? (at + 1) % buttons.length : (at - 1 + buttons.length) % buttons.length;
+      buttons[next].focus();
+    };
+    // A rotated phone or a resized window moves the button: close rather than float.
+    const onResize = () => setOpen(false);
+    document.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (open && pos) menuRef.current?.querySelector<HTMLButtonElement>("[role=menuitem]:not(:disabled)")?.focus();
+  }, [open, pos]);
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        // ! on the display utility: .ck-btn's own display comes later in the
+        // cascade and would otherwise keep "More" on the desktop bar.
+        className={`ck-btn ck-btn-outline min-h-[44px] flex-none md:!hidden${pulse ? " ck-node-pulse" : ""}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        // The tab bar right under it has a "More" of its own (the app's other
+        // pages): this one names what it holds, and its chevron opens upward.
+        aria-label="More actions"
+        onClick={() => setOpen((o) => !o)}
+      >
+        More
+        <ChevronUp className="h-4 w-4" />
+      </button>
+      {open &&
+        pos &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            aria-label="More actions"
+            className="fixed z-[55] flex min-w-[220px] max-w-[calc(100vw-16px)] flex-col gap-0.5 rounded-[12px] border p-1.5"
+            style={{
+              right: pos.right,
+              bottom: pos.bottom,
+              background: "var(--hf-surface)",
+              borderColor: "var(--hf-border-strong)",
+              boxShadow: "var(--hf-shadow-raised)",
+            }}
+          >
+            {items.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                role="menuitem"
+                disabled={item.disabled}
+                className="ck-btn ck-btn-ghost min-h-[44px] w-full !justify-start"
+                style={item.variant === "danger" ? { color: "var(--hf-danger)" } : { color: "var(--hf-text)" }}
+                onClick={() => {
+                  setOpen(false);
+                  item.onClick();
+                }}
+              >
+                {/* Every label starts on the same line, icon or not. */}
+                {item.icon ?? <span aria-hidden className="h-4 w-4 shrink-0" />}
+                {item.text}
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+
+/** "3 of 64 ‹ ›" through the list the owner came from (its tab, filters and
+ *  sort, as the list wrote it to sessionStorage). Each turn replaces this
+ *  profile in history, so Back still lands on the list. */
+function Pager({ position, total, prevId, nextId }: { position: number; total: number; prevId: string | null; nextId: string | null }) {
+  const navigate = useNavigate();
+  const go = (target: string | null) => {
+    if (target) navigate(`/applicants/${target}`, { replace: true });
+  };
+  const arrow =
+    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border disabled:opacity-30 md:h-7 md:w-7";
+  const arrowStyle = { borderColor: "var(--line)", background: "var(--surface)", color: "var(--ink-2)" };
+  return (
+    <span className="ml-auto flex shrink-0 items-center gap-1.5 text-[12px] tabular-nums" style={{ color: "var(--ink-3)" }}>
+      <button type="button" data-size="icon" aria-label="Previous applicant" disabled={!prevId} onClick={() => go(prevId)} className={arrow} style={arrowStyle}>
+        <ChevronLeft className="h-4 w-4 md:h-3.5 md:w-3.5" />
+      </button>
+      <span aria-live="polite">
+        {position} of {total}
+      </span>
+      <button type="button" data-size="icon" aria-label="Next applicant" disabled={!nextId} onClick={() => go(nextId)} className={arrow} style={arrowStyle}>
+        <ChevronRight className="h-4 w-4 md:h-3.5 md:w-3.5" />
+      </button>
+    </span>
+  );
+}
+
+function CandidateProfile({ id }: { id: string | undefined }) {
+  const navigate = useNavigate();
+  const { isTeamMember } = useAuth();
   const { candidate: c, application, isLoading, isError, refetch } = useCockpitCandidate(id);
   const { advance, hire, reject, letContinue, isUpdating } = useCockpitActions();
-  const { account } = useCockpitAccount();
-  const [dialog, setDialog] = useState<null | "hire" | "reject" | "advance" | "continue">(null);
+  const [dialog, setDialog] = useState<ApplicantDecision | null>(null);
   const [hirePrompt, setHirePrompt] = useState(false);
   const [resumeOpen, setResumeOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  // The guided moment after a move to Interview — "want to propose times now?"
+  const [interviewMoment, setInterviewMoment] = useState(false);
+  // A brief pulse on "Set up interview" after "Later" — the visible hint for
+  // where scheduling lives, without forcing the wizard on anyone.
+  const [scheduleHint, setScheduleHint] = useState(false);
   const [recordKey, setRecordKey] = useState<string | null>(null);
   // An integrity alert opens on that test's timeline (see Notifications).
   const [recordFocus, setRecordFocus] = useState<"integrity" | null>(null);
@@ -89,6 +285,30 @@ export default function CockpitCandidateDetail() {
   const now = useNow(30_000);
   // The server's record of every attempt (live through useEmployerLiveSync).
   const { data: sessions } = useApplicationSessions(id ?? null);
+  // The list's order, read once: this page remounts for every person it shows.
+  const [order] = useState(() => readApplicantOrder());
+  const pager = pagerFor(order, id);
+  // The decision bar. On a phone it is fixed to the foot of the screen and
+  // portalled to <body>: a transformed ancestor (the cockpit's entrance
+  // animations leave one behind) turns `fixed` into "fixed to the page
+  // column" (it sat at the end of the profile, off screen). On a wider
+  // screen it is sticky at the foot of the 640px column, inside whatever
+  // scrolls the page; sticky measures from inside the scroller's padding, so
+  // the offset takes that padding back off.
+  const isMobile = useIsMobile();
+  const [barEl, setBarEl] = useState<HTMLDivElement | null>(null);
+  const [stickyBottom, setStickyBottom] = useState(16);
+  useLayoutEffect(() => {
+    if (isMobile || !barEl) return;
+    const measure = () => {
+      const scroller = scrollerOf(barEl);
+      const pad = scroller ? parseFloat(getComputedStyle(scroller).paddingBottom) || 0 : 0;
+      setStickyBottom(16 - pad);
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [isMobile, barEl]);
 
   // A "New application" alert can be tapped before the list it opens has heard
   // of the person, so a missing id gets one fresh fetch before the page says
@@ -103,11 +323,14 @@ export default function CockpitCandidateDetail() {
   }, [missing, id, refetch]);
   const stillLooking = missing && recheckDoneFor !== id;
 
-  // What they submitted, test by test — the same record the Applicants panel lists.
+  // What they submitted, test by test — the one record the rail, the list's
+  // row and "What they submitted" all read.
   const record = useMemo(
     () => (application ? buildAssessmentRecord(application as unknown as AssessmentAppInput, { sessions, now }) : null),
     [application, sessions, now],
   );
+  const status = application?.status;
+  const dots = useMemo(() => journeyDots(record, status), [record, status]);
   const openEntry = recordKey ? record?.entries.find((e) => e.key === recordKey) ?? null : null;
   const openRecord = (entry: AssessmentEntry) => {
     setRecordFocus(null);
@@ -131,8 +354,16 @@ export default function CockpitCandidateDetail() {
     setSearchParams(next, { replace: true });
   }, [recordParam, record, searchParams, setSearchParams]);
 
-  // Go back to where they came from (the applicants list, with its filter +
-  // selection intact); fall back to the list if this was a deep link.
+  // The hint pulse is a moment, not a standing state — it fades on its own.
+  useEffect(() => {
+    if (!scheduleHint) return;
+    const t = setTimeout(() => setScheduleHint(false), 5600);
+    return () => clearTimeout(t);
+  }, [scheduleHint]);
+
+  // Go back to where they came from (the applicants list, which keeps its
+  // tab, filters and scroll in its URL); fall back to the list if this was a
+  // deep link.
   const goBack = () => {
     if (window.history.length > 1) navigate(-1);
     else navigate("/applicants");
@@ -183,18 +414,17 @@ export default function CockpitCandidateDetail() {
     );
   }
 
-  const status = application?.status;
   const isHired = status === "hired";
   const isRejected = status === "rejected";
   const isOffered = status === "offered";
   const isTerminal = isHired || isRejected;
   const canAdvance = !!nextAdvanceStatus(status);
   // The step "Let them take the next test" would open — same journey the
-  // applicants panel and the candidate's own screens build (candidateJourney.ts).
-  // Only while the application is in the team's hands (submitted or held).
-  // Only while the candidate is parked: the step they stand on is done (its
-  // result is on file) and a real step comes next. Never while a step is still
-  // theirs to take, never once the application is decided.
+  // candidate's own screens build (candidateJourney.ts). Only while the
+  // candidate is parked: the application is in the team's hands (submitted or
+  // held), the step they stand on is done (its result is on file) and a real
+  // step comes next. Never while a step is still theirs to take, never once
+  // the application is decided.
   const appRow = application as
     | { phase?: string | null; notes?: string | null; voice_interview_result?: unknown; jobs?: { workflow_steps?: unknown; quiz_questions?: unknown } | null }
     | null;
@@ -212,22 +442,32 @@ export default function CockpitCandidateDetail() {
   // real result and has to read as one, not fall back to looking unscored.
   const analyzed = c.analyzed;
   const advanceLabel = advanceTargetLabel(status);
-  const rec = avaAdvanceRec(c.overall ?? 0, analyzed, c.recommendedAction, c.hardRejectReason);
+  // The number the list shows: Ava's overall score (ai_score), "so far" while
+  // she waits on tests, "—" until she has scored them. Never a quiz
+  // percentage standing in for it.
+  const score = applicantScore(application as { ai_score?: unknown; ai_scorecard?: unknown } | null);
   const resumeUrl = (application as { resume_url?: string | null } | null)?.resume_url ?? null;
-  // Ava's own recommendation, not the score, decides how loud this page gets:
-  // a decline recommendation must never sit under a shortlist badge, a green
-  // "all clear" shield, or a primary green Advance button — the human still
-  // decides, but the page can't be arguing against Ava's own warning while
-  // she's making it.
+  // Ava's own recommendation, not the score, decides how loud the buttons get:
+  // a decline recommendation must never sit under a primary green Advance —
+  // the human still decides, but the page can't be arguing against Ava's own
+  // warning while she's making it.
   const declineRecommended = c.recommendedAction === "reject";
-  // Ava's flags beyond the one the risk line already states.
-  const riskFlags = (record?.riskFlags ?? c.riskFlags).filter((f) => f !== c.risk.note);
+  // The chip beside the name, the list row's chip: Needs review (finished
+  // every test, not decided), Interview, Offer, Hired or Declined.
+  const chip = applicantChip(status, finishedEveryTest(dots));
+  // Ava's flags are listed on her read once she has scored them; this card
+  // keeps its own list only before that.
+  const riskFlags = analyzed ? [] : (record?.riskFlags ?? c.riskFlags).filter((f) => f !== c.risk.note);
   const riskIconColor =
     c.risk.level === "High" || c.risk.level === "Medium" ? "var(--amber-fg)" : c.risk.level === "Low" ? "var(--hf-green)" : "var(--hf-text-muted)";
 
   const doAdvance = async () => {
+    // Read the target before advancing — status flips the moment the
+    // mutation lands, so this is the last point it's still knowable.
+    const movingToInterview = advanceLabel === "Interview";
     if (application) await advance(c.id, application.status);
     setDialog(null);
+    if (movingToInterview) setInterviewMoment(true);
   };
   const doContinue = async () => {
     if (nextStep) await letContinue(c.id, nextStep.id, nextStep.title);
@@ -242,18 +482,120 @@ export default function CockpitCandidateDetail() {
     await reject(c.id, reason);
     setDialog(null);
   };
+  const message = () => navigate(`/messages?candidate=${c.avatar}`);
+
+  // The decision bar, in the order it reads. On a phone the first buttons
+  // stay and the rest go behind "More" (at most three on screen); from md up
+  // every one is on the bar.
+  const messageAction: BarAction = { key: "message", text: "Message", icon: <MessageSquare className="h-4 w-4" />, variant: "outline", onClick: message };
+  let actions: BarAction[];
+  if (isOffered) {
+    actions = [
+      { key: "hire", text: "Hire", icon: <CheckCircle2 className="h-4 w-4" />, variant: "primary", onClick: () => setDialog("hire"), disabled: isUpdating },
+      // Same words as the dialog it opens, so the decision reads the same twice.
+      { key: "takeBack", text: "Take back offer", variant: "danger", onClick: () => setDialog("reject"), disabled: isUpdating },
+      messageAction,
+    ];
+  } else if (isTerminal) {
+    actions = [messageAction];
+  } else {
+    const advanceAction: BarAction | null = canAdvance
+      ? { key: "advance", text: advanceLabel ? `Move to ${advanceLabel}` : "Move forward", variant: "outline", onClick: () => setDialog("advance"), disabled: isUpdating }
+      : null;
+    const setupAction: BarAction = { key: "setup", text: "Set up interview", variant: "outline", onClick: () => setScheduleOpen(true), pulse: scheduleHint };
+    // Once they are in the interview stage, booking the time is the next
+    // thing; before that, moving them on is. The human still decides — both
+    // stay live, never disabled or hidden — but when Ava recommends declining
+    // neither is filled, so the page is not nudging toward what she warned against.
+    const [lead, other]: [BarAction, BarAction | null] =
+      status === "interview" || !advanceAction ? [setupAction, advanceAction] : [advanceAction, setupAction];
+    if (!declineRecommended) lead.variant = "primary";
+    actions = [
+      // Opens their next STEP (quiz, typing test, chat practice…), which Ava
+      // holds back when she recommends declining. "Move to …" only moves the
+      // pipeline stage.
+      ...(nextStep ? [{ key: "continue", text: "Let them take the next test", variant: "outline", onClick: () => setDialog("continue"), disabled: isUpdating } as BarAction] : []),
+      lead,
+      { key: "pass", text: "Pass", variant: "outline", onClick: () => setDialog("reject"), disabled: isUpdating },
+      ...(other ? [other] : []),
+      messageAction,
+    ];
+  }
+  const split = splitActionBar(actions, 3);
+
+  const barNode = (
+    <div
+      ref={setBarEl}
+      // Phone: full width, above the cockpit's tab bar (the team member's
+      // shell has none). Wider: the 640px column of the cards it acts on.
+      className={
+        // Phone: every button as tall as the tallest, so a label that wraps
+        // ("Move to / Interview") does not leave the bar ragged.
+        isMobile
+          ? "fixed inset-x-0 z-30 flex items-stretch gap-2 px-4 py-3"
+          : "sticky z-30 mt-3 flex flex-wrap items-center gap-2 rounded-2xl px-4 py-3"
+      }
+      style={{
+        bottom: isMobile ? `calc(env(safe-area-inset-bottom, 0px) + ${isTeamMember ? 0 : 64}px)` : stickyBottom,
+        // Solid: the cards scroll under it, and must not read through it.
+        background: "var(--hf-bg)",
+        borderTop: "1px solid var(--hf-surface-raised)",
+      }}
+    >
+      {isTerminal && (
+        <div
+          className="flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-[10px] px-3 py-2.5 text-[14px] font-semibold"
+          style={
+            isHired
+              ? { background: "color-mix(in srgb, var(--hf-green) 16%, transparent)", color: "var(--hf-text-soft)", border: "1px solid color-mix(in srgb, var(--hf-green) 30%, transparent)" }
+              : { background: "color-mix(in srgb, var(--hf-danger) 12%, transparent)", color: "var(--hf-danger)", border: "1px solid color-mix(in srgb, var(--hf-danger) 25%, transparent)" }
+          }
+        >
+          {isHired ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+          {isHired ? "Hired" : "Not moving forward"}
+        </div>
+      )}
+      {actions.map((a, i) => {
+        const onPhone = i < split.shown.length;
+        return (
+          <button
+            key={a.key}
+            type="button"
+            className={[
+              barClass(a.variant),
+              // Phone: the bar's width shared out, the lead button (the one
+              // decision on screen) with the larger share; a long label wraps
+              // rather than pushing the bar off the screen.
+              "min-h-[44px] min-w-0 flex-1 !whitespace-normal text-center !leading-[1.2]",
+              i === 0 ? "max-md:flex-[1.4]" : "",
+              // Desktop: every button, at its own width, on one line, and one
+              // height (filled, outlined and with an icon used to be 34, 36, 38).
+              "md:h-9 md:min-h-0 md:flex-auto md:!whitespace-nowrap",
+              // ! because .ck-btn's display comes later in the cascade.
+              onPhone ? "" : "max-md:!hidden",
+              a.pulse ? "ck-node-pulse" : "",
+            ].join(" ")}
+            style={a.variant === "danger" ? DANGER_STYLE : undefined}
+            onClick={a.onClick}
+            disabled={a.disabled}
+          >
+            {a.icon}
+            {a.text}
+          </button>
+        );
+      })}
+      {split.more.length > 0 && <MoreMenu items={split.more} pulse={split.more.some((a) => a.pulse)} />}
+    </div>
+  );
 
   return (
-    // pb-36 on a phone: the action bar is `fixed`, but the shell's .ck-page
-    // keeps a transform from its entrance animation, which makes it the bar's
-    // containing block — so today the bar sits at the foot of this column, over
-    // its last 128px, not at the foot of the screen. The padding keeps the last
-    // card clear either way.
-    <div className="mx-auto max-w-[640px] pb-36 md:pb-20">
+    // pb-36 on a phone keeps the last card clear of the fixed decision bar.
+    <div className="mx-auto max-w-[640px] pb-36 md:pb-6">
       {/* Sticky back — stays pinned to the top of the profile while scrolling, so
-          there's always a clear way back to the list (it used to scroll away). */}
+          there's always a clear way back to the list (it used to scroll away).
+          The pager sits at its other end when the list sent its order. */}
       <div
-        className="sticky top-0 z-20 mb-3 py-2.5"
+        className="sticky top-0 z-20 mb-3 flex items-center gap-3 py-2.5"
         style={{ background: "hsl(var(--ck-bg) / 0.85)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
       >
         {/* desktop */}
@@ -265,49 +607,39 @@ export default function CockpitCandidateDetail() {
           <ArrowLeft className="h-4 w-4" /> Back to applicants
         </button>
         {/* mobile */}
-        <div className="flex items-center gap-3 md:hidden">
-          <button onClick={goBack} aria-label="Back to applicants" style={{ color: "var(--hf-text)" }}><ChevronLeft className="h-6 w-6" /></button>
-          <span className="min-w-0 flex-1 truncate font-display text-[18px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>{c.name}</span>
-          <button
-            className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5"
-            style={{ background: "color-mix(in srgb, var(--hf-surface-raised) 80%, transparent)", border: "1px solid color-mix(in srgb, var(--hf-border-strong) 90%, transparent)", color: "var(--hf-text)" }}
-          >
-            <span className="text-[13px] font-medium">{account.name}</span>
-            <ChevronDown className="h-3.5 w-3.5" style={{ color: "var(--hf-text-muted)" }} />
-          </button>
-        </div>
+        <button onClick={goBack} aria-label="Back to applicants" className="md:hidden" style={{ color: "var(--hf-text)" }}>
+          <ChevronLeft className="h-6 w-6" />
+        </button>
+        <span className="min-w-0 flex-1 truncate font-display text-[18px] md:hidden" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
+          {c.name}
+        </span>
+        {pager && <Pager {...pager} />}
       </div>
 
       <div className="space-y-3">
         <div className="ck-card flex items-center gap-4 p-4">
           {/* No score yet → no arc. The ring must not draw a 0 as a verdict. */}
-          <CandidateMark who={c.avatar} initials={getInitials(c.name)} size={72} score={analyzed ? c.overall : undefined} rich variant="signal" />
+          <CandidateMark who={c.avatar} initials={getInitials(c.name)} size={72} score={score.value ?? undefined} rich variant="signal" />
           <div className="min-w-0 flex-1">
             <div className="font-display text-[24px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>{c.name}</div>
             <div className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>{c.role} · {c.appliedAgo}</div>
-            <div className="mt-1.5">
-              {/* A decline recommendation overrides the stage badge — "Shortlist"
-                  above a High risk factor reads as the product disagreeing with
-                  itself. Same amber treatment as the risk callouts elsewhere. */}
-              {declineRecommended ? (
-                <span
-                  className="ck-pill"
-                  style={{ color: "var(--amber-fg)", background: "var(--amber-bg)", borderColor: "var(--brass-line)" }}
-                >
-                  Needs review
+            {chip ? (
+              <div className="mt-1.5">
+                <span className="ck-pill" style={chipStyle(chip.tone)}>
+                  {chip.label}
                 </span>
-              ) : record?.live?.stepType === "application" ? null : c.fillingInForm && !isRejected ? (
-                // Pressed Apply, still on the form: live, not "Application".
-                // (Once the form saves as they type, the live line below says
-                // it with the count: "Filling in the form · 6 of 11 answered".)
+              </div>
+            ) : record?.live?.stepType !== "application" && c.fillingInForm ? (
+              // Pressed Apply, still on the form: live, not "Application".
+              // (Once the form saves as they type, the live line below says
+              // it with the count: "Filling in the form · 6 of 11 answered".)
+              <div className="mt-1.5">
                 <span className="ck-pill ck-pill-stage-neutral">
                   <span className="ck-dot ck-dot-live" aria-hidden />
                   Filling in the form
                 </span>
-              ) : (
-                <span className="ck-pill ck-pill-stage">{c.stage}</span>
-              )}
-            </div>
+              </div>
+            ) : null}
             {/* Part-way through a test right now, or gone from it. */}
             {record?.live && !isTerminal && (
               <div
@@ -319,33 +651,58 @@ export default function CockpitCandidateDetail() {
               </div>
             )}
           </div>
-          {/* The record carries the score once, in jade, the way .read-sc does
-              in the design. Unscored is "—", not "0%" — a 0 would be a claim. */}
+          {/* The score once, in the list's colours: jade at 70 and up, brass
+              50–69, ink under. Unscored is "—", not "0" — a 0 would be a claim. */}
           <div className="text-right">
-            <div className="ck-num" style={{ fontSize: 38, fontWeight: 600, lineHeight: 0.85, color: analyzed ? "var(--jade)" : "var(--ink-3)" }}>
-              {analyzed ? c.overall : "—"}
-              {analyzed && <span className="text-[13px]" style={{ color: "var(--ink-3)" }}>/100</span>}
+            <div className="ck-num" style={{ fontSize: 38, fontWeight: 600, lineHeight: 0.85, color: scoreColor(score.band) }}>
+              {score.value ?? "—"}
+              {score.value != null && <span className="text-[13px]" style={{ color: "var(--ink-3)" }}>/100</span>}
             </div>
             <div className="mt-1.5 text-[12px]" style={{ color: "var(--hf-text-muted)" }}>
-              {analyzed ? "match" : "not scored yet"}
+              {score.value == null ? "not scored yet" : score.soFar ? "so far" : "match"}
             </div>
           </div>
         </div>
 
-        <div className="ck-card flex items-start gap-3 p-4">
-          <AvaSeal size={34} />
-          <div className="min-w-0">
-            <div className="font-display text-[16px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>Ava's read</div>
-            <p className="mt-1 text-[13px] leading-snug" style={{ color: "var(--hf-text-soft)" }}>
-              {analyzed
-                ? avaProse(c.readFull) || c.read
-                : c.fillingInForm
-                  ? record?.entries.some((e) => e.detail?.kind === "application" && !!e.detail.draft)
-                    ? "They're filling in the application form right now. Their answers save as they type — open the Application row below to read them so far. The moment they send it, I read it."
-                    : "They're filling in the application form right now. Nothing is sent until they submit it — the moment they do, I read it and their answers land below."
-                  : "I'm still reading this one — the score and my working land here the moment screening finishes."}
-            </p>
-          </div>
+        {/* The guided next step after a move to Interview. */}
+        {interviewMoment && (
+          <InterviewMoment
+            name={c.name}
+            onPropose={() => {
+              setScheduleOpen(true);
+              setInterviewMoment(false);
+            }}
+            onLater={() => {
+              setInterviewMoment(false);
+              setScheduleHint(true);
+            }}
+          />
+        )}
+
+        {/* Where they are: one gem per step of THEIR job, each decided by
+            their record, never by position. */}
+        {dots.length > 0 && (
+          <section className="ck-card px-4 pb-1 pt-3.5" aria-labelledby="ck-journey-label">
+            <span
+              id="ck-journey-label"
+              className="block text-[10px] font-bold uppercase leading-[1.2] tracking-[0.1em]"
+              style={{ color: "var(--ink-3)" }}
+            >
+              Where they are
+            </span>
+            <ApplicantJourneyRail
+              dots={dots}
+              status={status}
+              name={c.name}
+              liveStepId={record?.live?.stepId ?? null}
+              line={{ live: record?.live ?? null, sessions, recommendedAction: c.recommendedAction, now }}
+            />
+          </section>
+        )}
+
+        <div>
+          <AvasRead candidate={c} app={application as AvasReadApp | null} record={record} showScore={false} />
+          <ApplicantTimeline app={application as TimelineApp | null} record={record} />
         </div>
 
         {/* What they submitted — every test the job gives them, in order, each
@@ -402,8 +759,6 @@ export default function CockpitCandidateDetail() {
           <div className="min-w-0 flex-1">
             <div className="text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>Risk factors</div>
             <div className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>{c.risk.level} — {c.risk.note}</div>
-            {/* Everything else Ava flagged, in her words — for you to weigh,
-                never a stop on its own. The line above already says one. */}
             {riskFlags.length > 0 && (
               <ul className="mt-2.5 flex flex-col gap-1.5">
                 {riskFlags.map((flag) => (
@@ -416,122 +771,21 @@ export default function CockpitCandidateDetail() {
             )}
           </div>
         </div>
-
       </div>
 
-      <div
-        // Mobile: pinned above the tab bar. Desktop: there is no tab bar, and
-        // absolute here resolves against the Shell wrapper — so pin it to the
-        // same 640px column as the cards it acts on instead of the full width.
-        className="fixed inset-x-0 z-30 flex items-center gap-2 px-4 py-3 md:absolute md:left-1/2 md:right-auto md:w-[640px] md:-translate-x-1/2 md:!bottom-4 md:rounded-2xl"
-        style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 64px)", background: "color-mix(in srgb, var(--hf-bg) 96%, transparent)", borderTop: "1px solid var(--hf-surface-raised)" }}
-      >
-        {isTerminal ? (
-          <>
-            <div
-              className="flex flex-1 items-center justify-center gap-2 rounded-[10px] px-3 py-2.5 text-[14px] font-semibold"
-              style={
-                isHired
-                  ? { background: "color-mix(in srgb, var(--hf-green) 16%, transparent)", color: "var(--hf-text-soft)", border: "1px solid color-mix(in srgb, var(--hf-green) 30%, transparent)" }
-                  : { background: "color-mix(in srgb, var(--hf-danger) 12%, transparent)", color: "var(--hf-danger)", border: "1px solid color-mix(in srgb, var(--hf-danger) 25%, transparent)" }
-              }
-            >
-              {isHired ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-              {isHired ? "Hired" : "Not moving forward"}
-            </div>
-            <button className="ck-btn ck-btn-outline flex-1" onClick={() => navigate(`/messages?candidate=${c.avatar}`)}><MessageSquare className="h-4 w-4" />Message</button>
-          </>
-        ) : isOffered ? (
-          <>
-            <button className="ck-btn ck-btn-primary flex-1" onClick={() => setDialog("hire")}><CheckCircle2 className="h-4 w-4" />Hire</button>
-            <button
-              className="ck-btn ck-btn-outline flex-1"
-              style={{ color: "var(--hf-danger)", borderColor: "color-mix(in srgb, var(--hf-danger) 50%, transparent)" }}
-              onClick={() => setDialog("reject")}
-            >
-              Decline Offer
-            </button>
-            <button className="ck-btn ck-btn-outline flex-1" onClick={() => navigate(`/messages?candidate=${c.avatar}`)}><MessageSquare className="h-4 w-4" />Message</button>
-          </>
-        ) : (
-          <>
-            {nextStep && (
-              // Opens their next STEP (quiz, typing test, chat practice…), which
-              // Ava holds back when she recommends declining. Advance below only
-              // moves the pipeline stage.
-              <button className="ck-btn ck-btn-outline flex-1" onClick={() => setDialog("continue")} disabled={isUpdating}>
-                Let them take the next test
-              </button>
-            )}
-            {canAdvance && (
-              // The human still decides — Advance stays fully live, never disabled
-              // or hidden. But when Ava is recommending against advancing, it drops
-              // from the filled primary button to the same outline weight as Pass,
-              // so the page isn't nudging toward the one thing it just warned against.
-              <button
-                className={`ck-btn ${declineRecommended ? "ck-btn-outline" : "ck-btn-primary"} flex-1`}
-                onClick={() => setDialog("advance")}
-                disabled={isUpdating}
-              >
-                Advance<ChevronRight className="h-4 w-4" />
-              </button>
-            )}
-            <button className="ck-btn ck-btn-outline flex-1" onClick={() => setDialog("reject")}>Pass</button>
-            <button className="ck-btn ck-btn-outline flex-1" onClick={() => navigate(`/messages?candidate=${c.avatar}`)}><MessageSquare className="h-4 w-4" />Message</button>
-          </>
-        )}
-      </div>
+      {isMobile ? createPortal(barNode, document.body) : barNode}
 
-      <ActionDialog
-        open={dialog === "continue"}
-        title={nextStep ? `Let ${c.name} take the ${nextStep.title}?` : `Let ${c.name} continue?`}
-        description={
-          nextStep
-            ? `I'll open the ${nextStep.title} for ${c.name} and let them know. Nothing else changes — their score so far and your other options stay as they are.`
-            : ""
-        }
-        confirmLabel={nextStep ? `Open the ${nextStep.title}` : "Close"}
-        tone="brass"
+      <ApplicantDecisionDialogs
+        open={dialog}
+        candidate={c}
+        status={status}
+        nextStep={nextStep}
         busy={isUpdating}
-        onConfirm={() => void doContinue()}
         onClose={() => setDialog(null)}
-      />
-      <ActionDialog
-        open={dialog === "advance"}
-        title={`Advance ${c.name}?`}
-        description={advanceLabel ? `This moves ${c.name} into your ${advanceLabel} stage and notifies them of the progress.` : `This moves ${c.name} forward in your pipeline.`}
-        confirmLabel={advanceLabel ? `Move to ${advanceLabel}` : "Advance"}
-        tone="brass"
-        busy={isUpdating}
-        note={rec.text}
-        noteTone={rec.tone}
-        onConfirm={() => void doAdvance()}
-        onClose={() => setDialog(null)}
-      />
-      <ActionDialog
-        open={dialog === "hire"}
-        title={`Hire ${c.name}?`}
-        description={`This marks ${c.name} as hired for ${c.role} and lets them know. You can send an offer letter next.`}
-        confirmLabel="Confirm hire"
-        tone="brass"
-        busy={isUpdating}
-        onConfirm={() => void doHire()}
-        onClose={() => setDialog(null)}
-      />
-      <ActionDialog
-        open={dialog === "reject"}
-        title={isOffered ? `Decline offer to ${c.name}?` : `Pass on ${c.name}?`}
-        description={isOffered
-          ? "This withdraws the offer and notifies the candidate. Add a short note for your records (optional)."
-          : "This removes the candidate from your active pipeline and notifies them. Add a short note for your records (optional)."}
-        confirmLabel={isOffered ? "Decline offer" : "Pass candidate"}
-        tone="danger"
-        busy={isUpdating}
-        withReason
-        reasonLabel="Reason (optional, private to you)"
-        reasonPlaceholder="e.g. Strong, but went with someone with more weekend availability."
-        onConfirm={(reason) => void doReject(reason)}
-        onClose={() => setDialog(null)}
+        onAdvance={() => void doAdvance()}
+        onContinue={() => void doContinue()}
+        onHire={() => void doHire()}
+        onReject={(reason) => void doReject(reason)}
       />
 
       <HiringDocumentPromptDialog
@@ -542,6 +796,19 @@ export default function CockpitCandidateDetail() {
         applicationId={c.id}
         onSkip={() => setHirePrompt(false)}
       />
+
+      {scheduleOpen && (
+        <InterviewSchedulingWizard
+          open={scheduleOpen}
+          onOpenChange={(o) => {
+            if (!o) setScheduleOpen(false);
+          }}
+          applicationId={c.id}
+          candidateName={c.name}
+          candidateEmail={c.email ?? undefined}
+          jobTitle={c.role}
+        />
+      )}
 
       <AssessmentRecordSheet
         open={!!openEntry}
@@ -561,13 +828,18 @@ export default function CockpitCandidateDetail() {
         }}
       />
 
-      <ResumeViewerDialog
-        open={resumeOpen}
-        url={resumeUrl}
-        candidateName={c.name}
-        avaRead={analyzed ? c.read : undefined}
-        onClose={() => setResumeOpen(false)}
-      />
+      {/* A plain fixed overlay: portalled, so the page's leftover transform
+          cannot pin it to the page column instead of the screen. */}
+      {createPortal(
+        <ResumeViewerDialog
+          open={resumeOpen}
+          url={resumeUrl}
+          candidateName={c.name}
+          avaRead={analyzed ? c.read : undefined}
+          onClose={() => setResumeOpen(false)}
+        />,
+        document.body,
+      )}
     </div>
   );
 }

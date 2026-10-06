@@ -1716,8 +1716,11 @@ serve(async (req) => {
 
         if (jobError || !job) throw new Error("Job not found");
 
-        // Create duplicate with "(Copy)" suffix
-        const { id, created_at, updated_at, job_code, ...jobData } = job;
+        // Create duplicate with "(Copy)" suffix. The short link (slug) stays
+        // with the original: it is unique (jobs_slug_unique), so copying it
+        // made every duplicate of a job with a short link fail. The copy is a
+        // draft with no short link; the job editor can give it one.
+        const { id, created_at, updated_at, job_code, slug: _slug, ...jobData } = job;
         const { data: newJob, error: insertError } = await supabaseClient
           .from("jobs")
           .insert({

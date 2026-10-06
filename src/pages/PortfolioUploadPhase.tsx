@@ -403,7 +403,9 @@ export default function PortfolioUploadPhase() {
         toast.success("Portfolio sent", {
           description: "Your work is saved. The hiring team will review it and get back to you.",
         });
-        navigate(`/applications/${id}`);
+        // The page moves by itself after a send: replace, so Back from the
+        // application page never lands on this sent step (docs/SHORT-JOB-LINKS.md).
+        navigate(`/applications/${id}`, { replace: true });
       }
     } catch (error) {
       console.error("Error submitting portfolio:", error);

@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, CheckCircle, Loader2, Monitor, RotateCcw, Send, Smartphone } from "lucide-react";
+import { useShowContinueOnComputer } from "@/components/candidate/continueOnComputerContext";
 import { GlyphEcho } from "@/components/ava/employerGlyphs";
 import { toast } from "sonner";
 import { parseApplicationNotes } from "@/utils/applicationNotes";
@@ -33,7 +34,6 @@ import {
   createMarkerSender,
   describeDevice,
   MAX_RUNS,
-  readDevice,
   runConnectionChain,
   type BarName,
   type ChainProgress,
@@ -46,10 +46,19 @@ import {
   type ServerRunFigures,
   type StepKind,
 } from "@/lib/connectionTest";
+import {
+  COMPUTER_REQUIRED_CODE,
+  isComputerRequired,
+  kindNeedsComputer,
+  knownDeviceKind,
+  readThisDevice,
+  refusedDeviceKind,
+} from "@/lib/deviceGate";
 
 // The computer and connection check (docs/EQUIPMENT-CHECK.md §3): three
-// screens in one card. Which computer (with phone detection and the "run it
-// here anyway" escape hatch), the test (one chain of requests against the
+// screens in one card. Which computer (a "No" gets "open this step on that
+// computer", with the "run it here anyway" escape hatch for a computer that is
+// not their work one, flagged to staff), the test (one chain of requests against the
 // connection-test function, every response's stamp handed back with the
 // next request, so the server times every step on its own clock), and the
 // result ("Send this result" / "Run it again", up to three runs). Every
@@ -62,6 +71,12 @@ import {
 // are written on the record as they happen, so staff see every run and how
 // far a closed tab got. No copy/paste or screen-switch rules here (rule 5):
 // nothing to cheat by copying.
+//
+// A phone or a tablet never reaches the question (docs/COMPUTER-ONLY-TESTS.md):
+// CandidateStepGate shows "Continue on your computer" before this page mounts,
+// and there is no "run it here anyway" for them. Should one get here anyway
+// (outside the gate), or the server refuse a marker or the send with
+// `computer_required`, the page hands over to that same screen.
 
 interface WorkflowStep {
   id: string;
@@ -209,8 +224,32 @@ export default function ConnectionCheckPhase() {
   // The page's moments, written on the record as they happen
   // (connection-test?op=event). Each marker's key is unique to this page
   // load, so a retry writes nothing twice and a reload starts afresh.
+  // The server's computer_required refusal (of a marker or the send) hands
+  // this step over to "Continue on your computer" (CandidateStepGate).
+  const showContinueOnComputer = useShowContinueOnComputer();
+  const showContinueOnComputerRef = useRef(showContinueOnComputer);
+  showContinueOnComputerRef.current = showContinueOnComputer;
+  const readingRef = useRef<DeviceReading | null>(null);
+  readingRef.current = reading;
   const markers = useMemo(
-    () => (id && stepId ? createMarkerSender(invokeConnectionTest, { applicationId: id, stepId }) : null),
+    () =>
+      id && stepId
+        ? createMarkerSender(
+          invokeConnectionTest,
+          { applicationId: id, stepId },
+          {
+            // The page's own reading on every marker: the server refuses
+            // op=event from a phone or tablet, and only the page sees one
+            // asking for the desktop site.
+            deviceKind: () => readingRef.current?.kind ?? knownDeviceKind(),
+            onRefused: (refusal) => {
+              if (refusal.code !== COMPUTER_REQUIRED_CODE) return;
+              abortRef.current?.abort();
+              showContinueOnComputerRef.current(refusedDeviceKind(refusal.body));
+            },
+          },
+        )
+        : null,
     [id, stepId],
   );
   const markersRef = useRef(markers);
@@ -292,10 +331,12 @@ export default function ConnectionCheckPhase() {
   );
 
   // The device, read once: userAgentData with the high-entropy values when
-  // granted, the UA string otherwise (src/lib/connectionTest.ts).
+  // granted, the UA string otherwise (src/lib/connectionTest.ts). The same
+  // reading CandidateStepGate made before this page mounted (deviceGate.ts),
+  // so the two never disagree about what this device is.
   useEffect(() => {
     let cancelled = false;
-    readDevice()
+    readThisDevice()
       .then((result) => {
         if (!cancelled) setReading(result);
       })
@@ -318,7 +359,13 @@ export default function ConnectionCheckPhase() {
   }, []);
 
   const deviceKind: DeviceKind = reading?.kind ?? "computer";
-  const looksLikePhone = deviceKind !== "computer";
+  const looksLikePhone = kindNeedsComputer(deviceKind);
+
+  // A phone or a tablet that got here outside the gate: the same screen the
+  // gate shows, never the question (and never "run it here anyway").
+  useEffect(() => {
+    if (reading && kindNeedsComputer(reading.kind)) showContinueOnComputer(reading.kind);
+  }, [reading, showContinueOnComputer]);
 
   /** One chain, in order; a finished one becomes a run on the result screen. */
   const startChain = useCallback(async () => {
@@ -405,7 +452,9 @@ export default function ConnectionCheckPhase() {
           ? `${serverWords} The hiring team will review it and get back to you.`
           : "Your result is saved. The hiring team will review it and get back to you.",
       });
-      navigate(`/applications/${id}`);
+      // The page moves by itself after a send: replace, so Back from the
+      // application page never lands on this sent step (docs/SHORT-JOB-LINKS.md).
+      navigate(`/applications/${id}`, { replace: true });
     }
   };
   const afterCheckSavedRef = useRef(afterCheckSaved);
@@ -492,6 +541,14 @@ export default function ConnectionCheckPhase() {
           serverCheck.begin(resultBeforeSend);
           return;
         }
+        // 400 computer_required: the server reads this device as a phone or
+        // a tablet (iPadOS Safari reads as a Mac to it, so the page's own
+        // gate is the main line and this is the backstop): the step goes to
+        // "Continue on your computer", never an error.
+        if (isComputerRequired(reply?.status, reply?.body)) {
+          advance.cancel();
+          if (showContinueOnComputer(refusedDeviceKind(reply?.body))) return;
+        }
         // 400 with a code: the chain did not add up (stale, broken, too
         // few steps). The server wrote the reason in plain words for this
         // screen; a fresh run is the way on.
@@ -558,7 +615,9 @@ export default function ConnectionCheckPhase() {
   const session = useAssessmentSession({
     applicationId: id,
     stepId,
-    enabled: resultAtFirstLoad === false,
+    // Never opened from a phone or a tablet (docs/COMPUTER-ONLY-TESTS.md):
+    // the record waits for the device reading and opens only on a computer.
+    enabled: resultAtFirstLoad === false && !!reading && !kindNeedsComputer(reading.kind),
     live: !advance.view || serverCheckWaiting,
     clientProgress: {
       screen,
@@ -704,7 +763,10 @@ export default function ConnectionCheckPhase() {
     setSaidNo(false);
     answerYes();
   };
+  // For a computer that is not their work one (flagged to staff). Never on a
+  // phone or a tablet: those go to "Continue on your computer".
   const runHereAnyway = () => {
+    if (looksLikePhone) return;
     setUsingThisComputer("ran_here_anyway");
     markAnswer("ran_here_anyway");
     void startChain();
@@ -899,25 +961,16 @@ export default function ConnectionCheckPhase() {
 
               {looksLikePhone ? (
                 <div className="space-y-4">
-                  <h3 className="font-display text-lg text-foreground">
-                    This looks like a {deviceKind === "tablet" ? "tablet" : "phone"}.
-                  </h3>
+                  <h3 className="font-display text-lg text-foreground">Continue on your computer</h3>
                   <p className="text-sm text-muted-foreground">
-                    The job is done on a computer. Sign in on that computer and open this step there; the test
-                    runs there. This step stays open until a test is sent.
+                    This part needs the computer you will work on. On that computer, go to hireflownow.com/applications
+                    and sign in with the same email: you will be taken straight to this step. Your answers so far are
+                    saved.
                   </p>
                   <div className="flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
                     <Button variant="outline" onClick={() => navigate(`/applications/${id}`)} className="w-full sm:w-auto">
                       Back to my application
                     </Button>
-                    <button
-                      type="button"
-                      onClick={runHereAnyway}
-                      disabled={!resumeDecided || !reading}
-                      className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-60"
-                    >
-                      I can't right now, run it here anyway.
-                    </button>
                   </div>
                 </div>
               ) : saidNo ? (

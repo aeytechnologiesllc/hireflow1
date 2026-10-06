@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { resolvePostAuthDestination } from "@/lib/authRouting";
+import { AFTER_SIGN_IN_STATE } from "@/lib/resumeOnComputer";
 
 /**
  * Supabase reports a failed link in the URL, not as an exception:
@@ -49,7 +50,12 @@ export default function AuthCallback() {
   const { refreshRole } = useAuth();
   const roleFromUrl = searchParams.get("role");
   const portalRole = roleFromUrl === "candidate" ? "candidate" : "employer";
-  const signInPath = portalRole === "candidate" ? "/candidate/auth" : "/auth";
+  // A failed link goes back to sign-in carrying where they were headed (a
+  // job's Apply, for instance), so trying again still lands there.
+  const requestedOnLoad = portalRole === "candidate" ? safeRedirect(searchParams.get("redirect")) : null;
+  const signInPath = portalRole === "candidate"
+    ? `/candidate/auth${requestedOnLoad ? `?redirect=${encodeURIComponent(requestedOnLoad)}` : ""}`
+    : "/auth";
 
   // Read once, synchronously, so a failed link is answered on first paint —
   // not after a spinner that was never going to resolve.
@@ -75,7 +81,9 @@ export default function AuthCallback() {
         await refreshRole();
 
         const requested = safeRedirect(searchParams.get("redirect"));
-        navigate(requested && role === portalRole ? requested : route, { replace: true });
+        // AFTER_SIGN_IN_STATE: the applications page may open the one step
+        // waiting for a computer (src/lib/resumeOnComputer.ts).
+        navigate(requested && role === portalRole ? requested : route, { replace: true, state: AFTER_SIGN_IN_STATE });
       } catch (err) {
         console.error("Error in auth callback routing:", err);
         setError("We couldn't finish signing you in. Please try again.");

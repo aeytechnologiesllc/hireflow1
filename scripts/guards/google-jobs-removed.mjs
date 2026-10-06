@@ -52,6 +52,11 @@ export default [
         if (rel.startsWith("src/") && /Google (for )?Jobs/.test(body)) {
           bad.push(`${rel} mentions Google Jobs on screen or in a message`);
         }
+        // The Share Kit kept saying "Google has already been told" after the
+        // pings were removed: no screen may claim they still happen.
+        if (rel.startsWith("src/") && /Google (has|was|is) (already )?(been )?(told|notified|pinged)/i.test(body)) {
+          bad.push(`${rel} claims Google is told about a job`);
+        }
         if (/so Google can place the job|For Google Jobs, add/.test(body)) {
           bad.push(`${rel} blocks publishing for Google Jobs`);
         }

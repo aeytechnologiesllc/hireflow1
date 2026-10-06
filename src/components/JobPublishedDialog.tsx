@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { candidateOrigin } from "@/lib/hosts";
+import { jobPageUrl } from "@/lib/jobLinks";
 
 interface JobPublishedDialogProps {
   open: boolean;
@@ -33,6 +33,8 @@ interface JobPublishedDialogProps {
     location?: string | null;
     job_type?: string | null;
     job_code?: string | null;
+    /** The short link name: hireflownow.com/<slug> (docs/SHORT-JOB-LINKS.md). */
+    slug?: string | null;
   } | null;
 }
 
@@ -42,11 +44,8 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  const publicJobLink = job ? `${candidateOrigin()}/candidate/job/${job.id}` : "";
-  const directApplyLink = job?.job_code
-    ? `${candidateOrigin()}/candidate/apply?code=${job.job_code}` 
-    : publicJobLink;
-  const shareLink = publicJobLink || directApplyLink;
+  // The job's page: its short link (hireflownow.com/<slug>) when it has one.
+  const shareLink = job ? jobPageUrl(job) : "";
 
   const copyToClipboard = async (text: string, type: "code" | "link") => {
     try {

@@ -501,7 +501,7 @@ function FirstApplicantMoment({
 
 /**
  * "Pipeline at a glance" — a compact, aggregate miniature of the applicant
- * journey rail (see JourneyStrip in Applicants.tsx): every real phase from
+ * journey rail (see ApplicantJourneyRail on the profile): every real phase from
  * `buildJourneyPipeline`, in order, each a small gem node holding its real
  * count. An occupied phase (count > 0) lights up at its position on the
  * jade→mint→teal→gold spectrum; an empty one stays hollow and quiet — still
@@ -1110,7 +1110,9 @@ export default function CockpitDashboard() {
                   until they submit it — the moment they do, I read it and they land here.
                 </p>
                 <div className="mt-5 flex flex-wrap gap-2">
-                  <button className="ck-btn ck-btn-outline" onClick={() => navigate("/applicants?tab=applying")}>
+                  {/* The list's "Where they are: Application": everyone still on the
+                      form, live or quiet (docs/APPLICANTS-LIST.md §1). */}
+                  <button className="ck-btn ck-btn-outline" onClick={() => navigate("/applicants?where=application")}>
                     See who is applying
                     <ChevronRight className="h-4 w-4" />
                   </button>
@@ -1155,7 +1157,7 @@ export default function CockpitDashboard() {
               <button
                 className="text-[13px]"
                 style={{ color: "var(--hf-gold)" }}
-                onClick={() => navigate("/applicants?tab=applying")}
+                onClick={() => navigate("/applicants?where=application")}
               >
                 See where they are →
               </button>

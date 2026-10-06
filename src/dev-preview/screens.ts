@@ -25,6 +25,9 @@ import {
   APP_ZULU_RETAKE_ID,
   APP_ZULU_CONNECTION_ID,
   APP_ZULU_TESTING_ID,
+  APP_ZULU_STRONG_ID,
+  APP_ZULU_INTERVIEW_ID,
+  APP_ZULU_TYPING_ID,
   CANDIDATE_USER_ID,
   JOB_FRESH_ID,
   STEP_CHAT_INTERVIEW,
@@ -68,7 +71,14 @@ export const PREVIEW_SCREENS: PreviewScreen[] = [
   { id: "fresh-analytics", group: "New account (1 live role, 0 applicants)", label: "Analytics", role: "employer", path: "/analytics?__previewScenario=fresh" },
 
   // ---------------- employer cockpit: what each applicant submitted (Zulu role)
-  { id: "zulu-applicants", group: "Applicant record (Zulu role)", label: "Applicants — every test, tappable", role: "employer", path: "/applicants?__previewScenario=zulu" },
+  // The list (docs/APPLICANTS-LIST.md): fourteen people, one in every state it shows.
+  { id: "zulu-applicants", group: "Applicant record (Zulu role)", label: "Applicants — the list, someone in every state", role: "employer", path: "/applicants?__previewScenario=zulu" },
+  { id: "zulu-applicants-review", group: "Applicant record (Zulu role)", label: "Applicants — Needs review tab", role: "employer", path: "/applicants?__previewScenario=zulu&tab=needs-review" },
+  { id: "zulu-applicants-filtered", group: "Applicant record (Zulu role)", label: "Applicants — score 50 and up, with flags", role: "employer", path: "/applicants?__previewScenario=zulu&score=50-up&flags=any-flag" },
+  { id: "zulu-applicants-team", group: "Applicant record (Zulu role)", label: "Applicants — as a team member, in their own shell", role: "team_member", path: "/applicants?__previewScenario=zulu" },
+  { id: "zulu-applicant-skipped", group: "Applicant record (Zulu role)", label: "Full profile — finished, a step the job added later skipped", role: "employer", path: `/applicants/${APP_ZULU_STRONG_ID}?__previewScenario=zulu` },
+  { id: "zulu-applicant-interview", group: "Applicant record (Zulu role)", label: "Full profile — moved to interview, one booked", role: "employer", path: `/applicants/${APP_ZULU_INTERVIEW_ID}?__previewScenario=zulu` },
+  { id: "zulu-applicant-typing", group: "Applicant record (Zulu role)", label: "Full profile — on the typing test now, checked on a phone", role: "employer", path: `/applicants/${APP_ZULU_TYPING_ID}?__previewScenario=zulu` },
   { id: "zulu-applicant-detail", group: "Applicant record (Zulu role)", label: "Full profile — What they submitted", role: "employer", path: `/applicants/${APP_ZULU_DONE_ID}?__previewScenario=zulu` },
   { id: "zulu-applicant-form", group: "Applicant record (Zulu role)", label: "Full profile — still filling in the form", role: "employer", path: `/applicants/${APP_ZULU_FORM_ID}?__previewScenario=zulu` },
   { id: "zulu-applicant-live", group: "Applicant record (Zulu role)", label: "Full profile — in the written interview now", role: "employer", path: `/applicants/${APP_ZULU_TESTING_ID}?__previewScenario=zulu` },

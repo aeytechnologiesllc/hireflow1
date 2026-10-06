@@ -12,6 +12,7 @@ import {
   buildCandidateJourney,
   positionFor,
   DECISION_STAGE_ID,
+  hasComputerSteps,
   type WorkflowStepLike,
 } from "@/lib/candidateJourney";
 import { listingEligibility } from "./listingEligibility";
@@ -98,6 +99,8 @@ export function mapJobRow(
     status,
     applicants: job.application_count,
     roleCode: job.job_code ?? null,
+    slug: job.slug ?? null,
+    onComputer: hasComputerSteps(job.workflow_steps),
     dateLabel,
     date,
     stats: { voice, shortlist, interview, hired },

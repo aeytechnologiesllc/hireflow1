@@ -543,12 +543,21 @@ export default function CandidateApplicationDetail() {
   const showCta = !isRejected && !isHired && standing.kind === "take";
   const progressPercentage = isFinished ? 100 : ((focusIndex + 1) / phases.length) * 100;
 
-  let guidanceMessage = "The hiring team will get back to you — everyone hears back.";
+  // What is true: a reply comes once every step is done (a form sent and
+  // left there gets no promise of one).
+  let guidanceMessage = "Everyone who finishes every step gets a yes or no by email.";
   let guidanceIcon: "clock" | null = null;
   if (standing.kind === "take") {
     const duration = phaseDurationEstimates[currentPhase.type];
     if (duration?.isCandidateAction) {
-      guidanceMessage = `About ${duration.label.replace(/ min$/, " minutes")}.`;
+      // From the numbers, not the label: the connection check's "Under 1 min"
+      // read "About Under 1 minutes." here.
+      guidanceMessage =
+        duration.max <= 1
+          ? "Less than a minute."
+          : duration.min === duration.max
+            ? `About ${duration.max} minutes.`
+            : `About ${duration.min}–${duration.max} minutes.`;
       guidanceIcon = "clock";
     } else {
       guidanceMessage = "Take your time — you can't break anything.";

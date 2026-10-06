@@ -21,8 +21,10 @@ This document describes the **final** candidate UX for the showcase Supabase pat
 | `/candidate/job/:id` | Role detail (showcase) — Start application without auth |
 | `/candidate/auth` | Optional sign-in / signup (not required to apply) |
 
-Apply link format (employer share):  
-`https://<host>/candidate/apply?code=ROLE-XXXXXX`
+Apply link format (employer share): the job's short link,
+`https://hireflownow.com/<slug>` (docs/SHORT-JOB-LINKS.md). A job without one
+keeps `https://<host>/candidate/apply?code=ROLE-XXXXXX`, and that old link
+forwards to the short link once the job has one.
 
 ## Flow A — New application
 

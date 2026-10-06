@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,12 +12,14 @@ import { motion, useReducedMotion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { resolvePostAuthDestination } from "@/lib/authRouting";
+import { AFTER_SIGN_IN_STATE } from "@/lib/resumeOnComputer";
 import { getPasswordErrorMessage } from "@/lib/authErrorMessages";
 import { HeroBackground } from "@/components/ava/HeroBackground";
 import { Wordmark } from "@/cockpit/components/Wordmark";
 import { GlyphLetter } from "@/components/candidate/glyphs";
 import { GOOGLE_AUTH_ENABLED } from "@/lib/googleAuth";
 import { staffSignInHref } from "@/lib/hosts";
+import { jobPageFromRedirect, jobRefFromPagePath } from "@/lib/jobSlug";
 
 // Google OAuth isn't enabled on the Supabase backend yet (authorize endpoint
 // returns 400) — keep the UI hidden until credentials exist. Flip
@@ -40,6 +43,41 @@ const isWebView = () => {
 const emailSchema = z.string().email("Please enter a valid email address");
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
 const nameSchema = z.string().min(2, "Name must be at least 2 characters");
+
+/**
+ * Where the person was going (a job's Apply), kept across a password reset.
+ * The reset link carries it too (?redirect=), but the email can open in a
+ * different browser tab or app that drops the query; this copy covers the
+ * same browser. Two hours: the reset link itself lasts one.
+ */
+const RESET_REDIRECT_KEY = "hf-candidate-reset-redirect";
+const RESET_REDIRECT_TTL_MS = 2 * 60 * 60 * 1000;
+
+function isSafeInAppPath(path: unknown): path is string {
+  return typeof path === "string" && path.startsWith("/") && !path.startsWith("//");
+}
+
+function stashResetRedirect(target: string | null) {
+  try {
+    if (target) localStorage.setItem(RESET_REDIRECT_KEY, JSON.stringify({ target, at: Date.now() }));
+    else localStorage.removeItem(RESET_REDIRECT_KEY);
+  } catch {
+    // Storage blocked: the link's own ?redirect= still carries it.
+  }
+}
+
+function takeResetRedirect(): string | null {
+  try {
+    const raw = localStorage.getItem(RESET_REDIRECT_KEY);
+    localStorage.removeItem(RESET_REDIRECT_KEY);
+    if (!raw) return null;
+    const { target, at } = JSON.parse(raw) as { target?: unknown; at?: unknown };
+    if (typeof at !== "number" || Date.now() - at > RESET_REDIRECT_TTL_MS) return null;
+    return isSafeInAppPath(target) ? target : null;
+  } catch {
+    return null;
+  }
+}
 
 // Real-time password requirements component
 const PasswordRequirements = ({ password }: { password: string }) => {
@@ -71,6 +109,7 @@ const PasswordRequirements = ({ password }: { password: string }) => {
 
 export default function CandidateAuth() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const { signIn, signUp, signInWithGoogle, user, loading: authLoading } = useAuth();
   const { toast } = useToast();
@@ -109,6 +148,28 @@ export default function CandidateAuth() {
     redirectTarget && redirectTarget.startsWith("/") && !redirectTarget.startsWith("//")
       ? redirectTarget
       : null;
+  // Came here from a job's Apply button: the way back is that job, not the
+  // portal landing (whose first button asks for a job code).
+  const backToJob = jobPageFromRedirect(safeRedirectTarget);
+  // ...and the screen says which job, instead of "Candidate Portal". The job
+  // page that sent them here has usually read the row already.
+  const applyingFor = jobRefFromPagePath(backToJob);
+  const applyingForKey = applyingFor ? ("slug" in applyingFor ? `slug:${applyingFor.slug}` : applyingFor.id) : null;
+  const { data: applyingForTitle } = useQuery({
+    queryKey: ["candidate-auth-applying-for", applyingForKey],
+    queryFn: async (): Promise<string | null> => {
+      if (!applyingFor) return null;
+      const base = supabase.from("published_jobs_public").select("title");
+      const { data, error } = await ("slug" in applyingFor ? base.eq("slug", applyingFor.slug) : base.eq("id", applyingFor.id)).maybeSingle();
+      if (error) throw error;
+      return data?.title ?? null;
+    },
+    initialData: () =>
+      queryClient.getQueryData<{ title?: string | null } | null>(["job-details", applyingForKey, true])?.title ?? undefined,
+    enabled: !!applyingFor,
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
 
   // Sign In state
   const [signInEmail, setSignInEmail] = useState("");
@@ -154,7 +215,9 @@ export default function CandidateAuth() {
       const nextRoute = role === "candidate" && safeRedirectTarget ? safeRedirectTarget : route;
 
       navigated = true;
-      navigate(nextRoute, { replace: true });
+      // AFTER_SIGN_IN_STATE: the applications page may open the one step
+      // waiting for a computer (src/lib/resumeOnComputer.ts).
+      navigate(nextRoute, { replace: true, state: AFTER_SIGN_IN_STATE });
     } catch (error) {
       console.error("Error resolving candidate auth destination:", error);
       toast({
@@ -265,7 +328,18 @@ export default function CandidateAuth() {
 
     setIsResettingPassword(false);
     toast({ title: "Password changed", description: "You're signed in." });
-    navigate(redirectTarget || "/candidate");
+    // Back to where they were going: the job they pressed Apply on, carried
+    // by the reset link or kept in this browser when they asked for it.
+    // replace: Back must not return to the reset form while signed in.
+    const stashed = takeResetRedirect();
+    const target = safeRedirectTarget ?? stashed;
+    if (target) {
+      navigate(target, { replace: true });
+      return;
+    }
+    // Nowhere in particular: their own home (a candidate's applications),
+    // never the portal landing, whose ways forward all end at the job-code box.
+    await routeAuthenticatedUser();
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -360,8 +434,13 @@ export default function CandidateAuth() {
 
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
-    // Role is passed via /auth/callback route; redirect URL is handled there
-    const { error } = await signInWithGoogle(undefined, "candidate");
+    // Role is passed via /auth/callback route; redirect URL is handled there.
+    // The page that sent them here travels too, so a job's Apply comes back
+    // to that job (AuthCallback honours ?redirect=, replacing its own entry).
+    const callback = safeRedirectTarget
+      ? `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(safeRedirectTarget)}`
+      : undefined;
+    const { error } = await signInWithGoogle(callback, "candidate");
 
     if (error) {
       toast({
@@ -395,7 +474,13 @@ export default function CandidateAuth() {
     // enumeration tool — anyone could test a list of emails against us. The reply
     // below is identical whether or not the account exists.
 
-    const redirectUrl = `${window.location.origin}/candidate/auth?reset=true`;
+    // The job they were applying for travels with the reset, both in the
+    // link and in this browser (see stashResetRedirect), so the new password
+    // brings them back to it instead of to a page that asks for a job code.
+    stashResetRedirect(safeRedirectTarget);
+    const redirectUrl = `${window.location.origin}/candidate/auth?reset=true${
+      safeRedirectTarget ? `&redirect=${encodeURIComponent(safeRedirectTarget)}` : ""
+    }`;
 
     const { error } = await supabase.auth.resetPasswordForEmail(forgotPasswordEmail, {
       redirectTo: redirectUrl,
@@ -446,11 +531,11 @@ export default function CandidateAuth() {
 
       <div className="relative z-10 min-h-[100dvh] flex flex-col px-6 py-6 sm:py-8">
         <Link
-          to="/candidate"
+          to={backToJob ?? "/candidate"}
           className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors self-start"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to Candidate Portal
+          {backToJob ? "Back to the job" : "Back to Candidate Portal"}
         </Link>
 
         <div className="flex-1 grid items-center gap-10 lg:grid-cols-2 lg:gap-16 max-w-6xl w-full mx-auto py-8 lg:py-0">
@@ -474,11 +559,19 @@ export default function CandidateAuth() {
                 className="h-1.5 w-1.5 rounded-full"
                 style={{ background: "var(--hf-green)" }}
               />
-              Candidate Portal
+              {backToJob ? (applyingForTitle ? "Applying for" : "Your application") : "Candidate Portal"}
             </span>
-            <h1 className="mt-4 text-3xl lg:text-[2.6rem] leading-[1.08] text-center lg:text-left">
-              Every application, one home.
-            </h1>
+            {/* Sent here by a job's Apply: the heading is that job, so the
+                person knows they are on the right path (not a "portal"). */}
+            {backToJob && applyingForTitle ? (
+              <h1 className="mt-4 max-w-xl break-words text-2xl leading-[1.15] text-center lg:text-left lg:text-[2.2rem] [overflow-wrap:anywhere]">
+                {applyingForTitle}
+              </h1>
+            ) : (
+              <h1 className="mt-4 text-3xl lg:text-[2.6rem] leading-[1.08] text-center lg:text-left">
+                Every application, one home.
+              </h1>
+            )}
             <p className="mt-3 text-sm text-muted-foreground hidden sm:block text-center lg:text-left">
               Zulu staff?{" "}
               <a href={staffSignInHref()} className="text-primary hover:underline">
@@ -871,7 +964,7 @@ export default function CandidateAuth() {
                       set off from the form by a hairline like a signature block. */}
                   <div className="mt-6 pt-4 border-t border-[var(--hf-border)] text-center space-y-2">
                     <p className="text-xs" style={{ color: "var(--hf-text-muted)" }}>
-                      One home for every application — and everyone hears back.
+                      One home for every application. Everyone who finishes every step gets a yes or no by email.
                     </p>
                     <p className="text-sm text-muted-foreground">
                       Zulu staff?{" "}

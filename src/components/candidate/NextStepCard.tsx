@@ -85,6 +85,11 @@ interface NextStepCardProps {
  * mounted across an in-app navigation, judging the next step from the phase
  * it last read; this card may have seen the move through its own poll or
  * refetch, which the gate never does.
+ *
+ * It REPLACES the finished step in the history (docs/SHORT-JOB-LINKS.md §2):
+ * one step follows the next, so Back from any step reaches the page the
+ * person started from (their application, or the job), never the step they
+ * already sent.
  */
 export function NextStepCard({ applicationId, completedTitle, doneStepId }: NextStepCardProps) {
   const navigate = useNavigate();
@@ -150,7 +155,7 @@ export function NextStepCard({ applicationId, completedTitle, doneStepId }: Next
     if (route) {
       primary = {
         label: `Start ${standing.step.title}`,
-        onClick: () => window.location.assign(route),
+        onClick: () => window.location.replace(route),
       };
     }
   } else if (standing?.kind === "waiting") {
@@ -268,9 +273,11 @@ export function StepAdvanceScreen({ advance, applicationId, jobTitle, completedT
     if (!nextRoute) return;
     // In-app only when CandidateStepGate (still mounted around the next page)
     // is known to have the new phase and the next step is a different page;
-    // otherwise load it fresh (see StepAdvance.nextNeedsFullLoad).
-    if (advance.nextNeedsFullLoad) window.location.assign(nextRoute);
-    else navigate(nextRoute);
+    // otherwise load it fresh (see StepAdvance.nextNeedsFullLoad). Either way
+    // the next step takes the sent step's place in the history, so Back goes
+    // to where the person started, not to a step that is already done.
+    if (advance.nextNeedsFullLoad) window.location.replace(nextRoute);
+    else navigate(nextRoute, { replace: true });
   };
   return (
     <EvaluationScreen

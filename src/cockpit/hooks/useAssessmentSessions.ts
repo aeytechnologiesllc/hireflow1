@@ -27,7 +27,6 @@ import { withReopens, type AssessmentEventRow, type AssessmentSessionRow, type S
 export const assessmentKeys = {
   sessions: ["assessment-sessions"] as const,
   application: (applicationId: string | null | undefined) => ["assessment-sessions", "application", applicationId ?? null] as const,
-  jobs: (jobIds: readonly string[]) => ["assessment-sessions", "jobs", [...jobIds].sort().join(",")] as const,
   events: ["assessment-events"] as const,
   sessionEvents: (sessionId: string | null | undefined) => ["assessment-events", sessionId ?? null] as const,
   integrity: (applicationId: string | null | undefined) => ["assessment-events", "integrity", applicationId ?? null] as const,
@@ -36,21 +35,15 @@ export const assessmentKeys = {
   // its marker is written by that same write's trigger, so the live sync's
   // refetch of every ["applications"] query is what brings it in.
   reopens: (applicationId: string | null | undefined) => ["applications", "step-reopens", applicationId ?? null] as const,
-  jobReopens: (jobIds: readonly string[]) => ["applications", "step-reopens", "jobs", [...jobIds].sort().join(",")] as const,
 };
 
 /** The documented selects (contract §5.3). */
 export const SESSION_COLUMNS =
   "id, application_id, job_id, step_id, step_type, attempt, status, end_reason, started_at, last_activity_at, last_heartbeat_at, hidden_at, ended_at, progress, context, grading, draft, integrity_summary, updated_at";
-export const LIVE_SESSION_COLUMNS =
-  "id, application_id, job_id, step_id, step_type, attempt, status, last_activity_at, hidden_at, ended_at, progress, integrity_summary, updated_at";
 export const EVENT_COLUMNS = "session_id, seq, kind, content, detail, duration_ms, client_at, created_at";
 export const REOPEN_COLUMNS = "application_id, step_id, job_id, reopened_at, reopened_by, reopen_count";
-
-/** The statuses the list asks for: everyone who has not finished. */
-export const OPEN_SESSION_STATUSES = ["active", "grading", "abandoned"] as const;
-/** At most this many open attempts on the list, most recently active first. */
-export const OPEN_SESSION_LIMIT = 200;
+// The Applicants list loads every attempt of the employer's jobs itself
+// (useApplicantList.ts, LIST_SESSION_COLUMNS); there is no open-only list.
 
 type PostgrestLikeError = { code?: string | null; message?: string | null } | null | undefined;
 
@@ -123,76 +116,6 @@ export function useApplicationSessions(applicationId: string | null | undefined)
     [query.data, reopens.data],
   );
   return { ...query, data };
-}
-
-/** Everyone part-way through a test on these jobs: the open attempts only
- *  (active, being checked, or marked left), for the list's live lines. */
-export function useOpenSessions(jobIds: readonly string[]) {
-  const ids = useMemo(() => [...new Set(jobIds.filter(Boolean))].sort(), [jobIds]);
-  const enabled = useRecordEnabled() && ids.length > 0;
-  const query = useQuery({
-    queryKey: assessmentKeys.jobs(ids),
-    queryFn: async (): Promise<AssessmentSessionRow[]> => {
-      // Newest first, and bounded: attempts nobody closes (a quiz sent before
-      // the server closed quiz attempts, a form left for good) stay open, and
-      // this list refetches on every heartbeat of anyone live. Someone live
-      // now is always at the top; past the cap is long-gone history, which
-      // the person's own panel still reads in full.
-      const { data, error } = await supabase
-        .from("assessment_sessions")
-        .select(LIVE_SESSION_COLUMNS)
-        .in("job_id", ids)
-        .in("status", [...OPEN_SESSION_STATUSES])
-        .order("last_activity_at", { ascending: false })
-        .limit(OPEN_SESSION_LIMIT);
-      if (error) {
-        if (isRecordNotDeployed(error)) return [];
-        throw error;
-      }
-      return (data ?? []) as unknown as AssessmentSessionRow[];
-    },
-    enabled,
-    ...FRESHNESS,
-  });
-  // The jobs' staff hand-backs: an open attempt on a step handed back for a
-  // retake reads live only with its marker (contract §2.8).
-  const reopens = useQuery({
-    queryKey: assessmentKeys.jobReopens(ids),
-    queryFn: async (): Promise<StepReopenRow[]> => {
-      const { data, error } = await supabase
-        .from("assessment_step_reopens")
-        .select(REOPEN_COLUMNS)
-        .in("job_id", ids)
-        .order("reopened_at", { ascending: false })
-        .limit(OPEN_SESSION_LIMIT);
-      if (error) {
-        if (isRecordNotDeployed(error)) return [];
-        throw error;
-      }
-      return (data ?? []) as unknown as StepReopenRow[];
-    },
-    enabled,
-    ...FRESHNESS,
-  });
-  // By application, for the rows, each with its own markers.
-  const byApplication = useMemo(() => {
-    const rows = new Map<string, AssessmentSessionRow[]>();
-    for (const row of query.data ?? []) {
-      if (!row.application_id) continue;
-      const list = rows.get(row.application_id) ?? [];
-      list.push(row);
-      rows.set(row.application_id, list);
-    }
-    const marks = new Map<string, StepReopenRow[]>();
-    for (const r of reopens.data ?? []) {
-      if (!r?.application_id) continue;
-      marks.set(r.application_id, [...(marks.get(r.application_id) ?? []), r]);
-    }
-    const map = new Map<string, SessionList>();
-    for (const [appId, list] of rows) map.set(appId, withReopens(list, marks.get(appId) ?? [])!);
-    return map;
-  }, [query.data, reopens.data]);
-  return { ...query, byApplication };
 }
 
 /** One attempt's whole timeline, in order — fetched only while its sheet is open. */

@@ -52,6 +52,8 @@ import {
   useResultKeyAtFirstLoad,
 } from "@/hooks/useAssessmentSession";
 import { useResultAtFirstLoad, useStepAdvance } from "@/hooks/useStepAdvance";
+import { useShowContinueOnComputer } from "@/components/candidate/continueOnComputerContext";
+import { ComputerRequiredError, isComputerRequired, refusedDeviceKind, throwIfComputerRequired, withDeviceKind } from "@/lib/deviceGate";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import { parseApplicationNotes } from "@/utils/applicationNotes";
 import { AvaSeal } from "@/components/ava/AvaSeal";
@@ -79,6 +81,8 @@ interface ApplicationDetails {
     skills_required: string[] | null;
     location: string | null;
     job_type: string | null;
+    experience_level: string | null;
+    required_wpm: number | null;
     processing_mode: string | null;
     passing_score: number | null;
     workflow_steps: unknown[] | null;
@@ -138,7 +142,7 @@ export default function ChatInterviewPhase() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("applications")
-        .select("*, jobs(title, description, requirements, responsibilities, benefits, skills_required, location, job_type, processing_mode, passing_score, workflow_steps, quiz_questions)")
+        .select("*, jobs(title, description, requirements, responsibilities, benefits, skills_required, location, job_type, experience_level, required_wpm, processing_mode, passing_score, workflow_steps, quiz_questions)")
         .eq("id", id!)
         .single();
 
@@ -190,6 +194,9 @@ export default function ChatInterviewPhase() {
   // visibilitychange) and could not say how long anyone was away — the
   // owner's three "Window lost focus" flags on 2026-10-05 could not be judged.
   const integrity = useTestIntegrity({ applicationId: id, stepId, active: state === "interviewing" });
+  // A 400 computer_required from ai-chat-interview hands the step to
+  // "Continue on your computer" (CandidateStepGate), never an error toast.
+  const showContinueOnComputer = useShowContinueOnComputer();
 
   // Format elapsed time for display
   const getDuration = useCallback(() => {
@@ -245,11 +252,19 @@ export default function ChatInterviewPhase() {
       context.completedPhases.push('Typing Test');
     }
 
-    // Extract chat simulation results
+    // Extract chat simulation results. The chat practice stores what to
+    // improve, not a recommendation (that field never existed, so this
+    // always read "Completed"). The server builds its own copy of all of
+    // this from the record and ignores this one; it is sent only for a
+    // server on the previous build.
     if (notes.chatSimulationResult) {
+      const improvements = (notes.chatSimulationResult as { improvements?: unknown }).improvements;
+      const improvementText = Array.isArray(improvements)
+        ? improvements.filter((item): item is string => typeof item === "string" && item.trim().length > 0).join("; ")
+        : "";
       context.chatSimulationResult = {
         score: notes.chatSimulationResult.score,
-        summary: notes.chatSimulationResult.recommendation || 'Completed',
+        summary: improvementText || 'Completed',
       };
       context.completedPhases.push('Chat Simulation');
     }
@@ -370,6 +385,10 @@ export default function ChatInterviewPhase() {
       skills: application.jobs.skills_required || undefined,
       location: application.jobs.location || undefined,
       jobType: application.jobs.job_type || undefined,
+      // So a lead role is interviewed as one, and typing is judged against
+      // this job's own bar. The server reads the job itself when it can.
+      experienceLevel: application.jobs.experience_level || undefined,
+      requiredWpm: typeof application.jobs.required_wpm === "number" ? application.jobs.required_wpm : undefined,
     };
     
     try {
@@ -377,7 +396,7 @@ export default function ChatInterviewPhase() {
         fetch(CHAT_URL, {
           method: "POST",
           headers: await assessmentRequestHeaders(),
-          body: JSON.stringify({
+          body: JSON.stringify(withDeviceKind({
             mode,
             jobTitle: job.title,
             jobDescription: job.description || "",
@@ -390,12 +409,13 @@ export default function ChatInterviewPhase() {
             stepId,
             clientMsgId,
             clientAt: new Date().toISOString(),
-          }),
+          })),
         });
 
       let response = await request();
       for (let resent = false; !response.ok; resent = true) {
         const errorData = await response.json().catch(() => null);
+        throwIfComputerRequired(response.status, errorData);
         if (!isTurnNotSaved(response.status, errorData)) {
           throw new Error(errorData?.error || "Failed to get interview response");
         }
@@ -499,6 +519,7 @@ export default function ChatInterviewPhase() {
       }
 
     } catch (error) {
+      if (error instanceof ComputerRequiredError && showContinueOnComputer(error.deviceKind)) return;
       if (error instanceof TurnNotSavedError && mode === "respond" && giveBack && clientMsgId && userMessage) {
         // The server has not got this answer and will not reply to it: take
         // the bubble back off and give the text back to send again.
@@ -663,7 +684,7 @@ export default function ChatInterviewPhase() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({
+        body: JSON.stringify(withDeviceKind({
           mode: "submit",
           applicationId: id,
           stepId,
@@ -678,11 +699,15 @@ export default function ChatInterviewPhase() {
           // The old-shape list, for a server that does not read the live
           // record yet; the record itself was sent as it happened.
           violations: integrity.violations,
-        }),
+        })),
       });
 
       if (!submitResponse.ok) {
         const errBody = await submitResponse.json().catch(() => ({}));
+        if (isComputerRequired(submitResponse.status, errBody)) {
+          advance.cancel();
+          if (showContinueOnComputer(refusedDeviceKind(errBody))) return;
+        }
         const outcome = gradingReplyOutcome(submitResponse.status, errBody);
         if (outcome === "checking" || outcome === "on_file") {
           // We have the interview: it is being checked (another tab, a retry

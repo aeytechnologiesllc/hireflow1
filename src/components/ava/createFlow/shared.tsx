@@ -42,7 +42,7 @@ export { glyphForKind };
 /**
  * StepRail — the create-job flow's progress rail.
  *
- * The same Gemline rail as the landing hero and the Applicants JourneyStrip,
+ * The same Gemline rail as the landing hero and the applicant profile's journey rail,
  * through the one shared <GemRail>: same gems, same glyphs, same jade → mint →
  * teal → gold spectrum, same traveler chip, same walk. It replaced both a plain
  * pill stepper and the 248px orb that used to sit above it, so the progress

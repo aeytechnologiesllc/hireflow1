@@ -1209,6 +1209,7 @@ export type Database = {
           salary_min: number | null
           salary_period: string | null
           skills_required: string[] | null
+          slug: string | null
           status: Database["public"]["Enums"]["job_status"]
           title: string
           updated_at: string
@@ -1251,6 +1252,7 @@ export type Database = {
           salary_min?: number | null
           salary_period?: string | null
           skills_required?: string[] | null
+          slug?: string | null
           status?: Database["public"]["Enums"]["job_status"]
           title: string
           updated_at?: string
@@ -1293,6 +1295,7 @@ export type Database = {
           salary_min?: number | null
           salary_period?: string | null
           skills_required?: string[] | null
+          slug?: string | null
           status?: Database["public"]["Enums"]["job_status"]
           title?: string
           updated_at?: string
@@ -2158,6 +2161,7 @@ export type Database = {
           salary_min: number | null
           salary_period: string | null
           skills_required: string[] | null
+          slug: string | null
           title: string | null
           workflow_steps: Json | null
         }
@@ -2192,6 +2196,7 @@ export type Database = {
           salary_min?: number | null
           salary_period?: string | null
           skills_required?: string[] | null
+          slug?: string | null
           title?: string | null
           workflow_steps?: never
         }
@@ -2226,6 +2231,7 @@ export type Database = {
           salary_min?: number | null
           salary_period?: string | null
           skills_required?: string[] | null
+          slug?: string | null
           title?: string | null
           workflow_steps?: never
         }
@@ -2439,6 +2445,14 @@ export type Database = {
       mark_stale_assessment_sessions: {
         Args: { p_idle_minutes?: number }
         Returns: number
+      }
+      mark_waiting_on_computer: {
+        Args: {
+          p_application_id: string
+          p_device_kind: string
+          p_step_id: string
+        }
+        Returns: Json
       }
       open_assessment_session: {
         Args: {

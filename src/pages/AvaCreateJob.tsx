@@ -66,6 +66,8 @@ import { geocodePlace, formatPlace } from "@/lib/geocode";
 import TalkToAva from "@/components/ava/createFlow/TalkToAva";
 import type { LucideIcon } from "lucide-react";
 import { candidateOrigin } from "@/lib/hosts";
+import { jobPageUrl, jobShareUrl } from "@/lib/jobLinks";
+import { claimSuggestedSlug } from "@/lib/jobSlugAvailability";
 
 const KIND_ICON: Record<string, { icon: LucideIcon; accent: ReviewPhaseCard["accent"] }> = {
   application: { icon: FileText, accent: "jade" },
@@ -179,6 +181,8 @@ export default function AvaCreateJob() {
   const [publishing, setPublishing] = useState(false);
   const [publishedCode, setPublishedCode] = useState<string | null>(null);
   const [publishedRoleId, setPublishedRoleId] = useState<string | null>(null);
+  // The new job's short link name (hireflownow.com/<slug>), when one was free.
+  const [publishedSlug, setPublishedSlug] = useState<string | null>(null);
   // Publishing with no business name on file is what a job silently drops out
   // of the aggregator feed for and shows "Confidential" to candidates. Catch
   // it right here rather than losing the plan the employer just built.
@@ -325,6 +329,10 @@ export default function AvaCreateJob() {
       sessionStorage.removeItem(DRAFT_SESSION_KEY);
       setPublishedCode(created.job_code);
       setPublishedRoleId(created.id);
+      // The link to share is the short one (docs/SHORT-JOB-LINKS.md): name the
+      // job after its title, the editor's own suggestion. Never in the way of
+      // publishing; without one the job keeps its longer link.
+      setPublishedSlug(await claimSuggestedSlug(created.id, created.title).catch(() => null));
       await queryClient.invalidateQueries({ queryKey: ["jobs"] });
       await queryClient.invalidateQueries({ queryKey: ["showcase-jobs"] });
       await queryClient.invalidateQueries({ queryKey: ["showcase-dashboard"] });
@@ -478,9 +486,11 @@ export default function AvaCreateJob() {
   }
 
   const applyLink = publishedCode
-    ? publishedRoleId && typeof window !== "undefined"
-      ? `${candidateOrigin()}/candidate/job/${publishedRoleId}`
-      : candidateApplyUrl(publishedCode)
+    ? publishedSlug && publishedRoleId
+      ? jobShareUrl({ id: publishedRoleId, slug: publishedSlug })
+      : publishedRoleId && typeof window !== "undefined"
+        ? `${candidateOrigin()}/candidate/job/${publishedRoleId}`
+        : candidateApplyUrl(publishedCode)
     : "";
 
   return (
@@ -740,7 +750,7 @@ export default function AvaCreateJob() {
                   <div className="mt-4 flex w-full flex-col gap-2.5">
                     {publishedRoleId && (
                       <a
-                        href={`${typeof window !== "undefined" ? candidateOrigin() : ""}/candidate/job/${publishedRoleId}`}
+                        href={jobPageUrl({ id: publishedRoleId, slug: publishedSlug })}
                         target="_blank"
                         rel="noreferrer"
                         className="ck-btn ck-btn-primary w-full !text-[13px]"
@@ -750,7 +760,7 @@ export default function AvaCreateJob() {
                     )}
                   </div>
                   <p className="mt-5 text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>
-                    <CountUp value={reviewCards.length} /> screening steps · applicants can apply at <code className="text-[11px]">/candidate/apply?code={publishedCode}</code>
+                    <CountUp value={reviewCards.length} /> screening steps · applicants apply at <code className="text-[11px]">{applyLink.replace(/^https?:\/\//, "")}</code>
                   </p>
                   {publishedRoleId && (
                     <Link to="/jobs" className="mt-4 text-sm font-medium" style={{ color: "hsl(var(--ck-brass))" }}>View in Jobs →</Link>

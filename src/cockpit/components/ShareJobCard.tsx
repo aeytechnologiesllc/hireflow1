@@ -2,8 +2,7 @@ import { useCallback, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { toast } from "sonner";
 import AvaSeal from "@/components/ava/AvaSeal";
-import { candidateApplyUrl } from "@/lib/showcaseApply";
-import { candidateOrigin } from "@/lib/hosts";
+import { jobPageUrl, jobShareUrl } from "@/lib/jobLinks";
 
 /**
  * The one way a live role's link is shown and shared, on every staff page
@@ -16,11 +15,14 @@ export interface ShareableJob {
   id: string;
   title: string;
   roleCode?: string | null;
+  /** The short link name: hireflownow.com/<slug> (docs/SHORT-JOB-LINKS.md). */
+  slug?: string | null;
 }
 
-/** The link a candidate applies through: the role code when there is one. */
+/** The link a candidate applies through: the short link (hireflownow.com/<slug>)
+ *  when the job has one, otherwise the code link or the job page. */
 export function applyLinkFor(job: ShareableJob): string {
-  return job.roleCode ? candidateApplyUrl(job.roleCode) : `${candidateOrigin()}/candidate/job/${job.id}`;
+  return jobShareUrl(job);
 }
 
 /**
@@ -29,7 +31,7 @@ export function applyLinkFor(job: ShareableJob): string {
  * visit as the team's own, so it is not counted as candidate traffic.
  */
 export function openAsCandidate(job: ShareableJob) {
-  window.open(`${candidateOrigin()}/candidate/job/${job.id}`, "_blank", "noopener");
+  window.open(jobPageUrl(job), "_blank", "noopener");
 }
 
 function useCopy(text: string) {

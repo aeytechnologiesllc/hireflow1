@@ -25,6 +25,23 @@
       "destination": "/api/job-prerender?id=:id"
     },
     {
+      "source": "/:slug",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|WhatsApp|Twitterbot|LinkedInBot|TelegramBot|Slackbot|Discordbot|Viber|SkypeUriPreview|Googlebot|bingbot|Applebot|Pinterestbot|redditbot).*"
+        }
+      ],
+      "missing": [
+        {
+          "type": "host",
+          "value": "staff.hireflownow.com"
+        }
+      ],
+      "destination": "/api/job-prerender?slug=:slug"
+    },
+    {
       "source": "/:path+",
       "destination": "/index.html"
     }

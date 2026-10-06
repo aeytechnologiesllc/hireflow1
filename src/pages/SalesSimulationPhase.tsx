@@ -50,6 +50,8 @@ import {
   useResultKeyAtFirstLoad,
 } from "@/hooks/useAssessmentSession";
 import { useResultAtFirstLoad, useStepAdvance } from "@/hooks/useStepAdvance";
+import { useShowContinueOnComputer } from "@/components/candidate/continueOnComputerContext";
+import { ComputerRequiredError, isComputerRequired, refusedDeviceKind, throwIfComputerRequired, withDeviceKind } from "@/lib/deviceGate";
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import { PhaseContextCard } from "@/components/PhaseContextCard";
 import { parseApplicationNotes } from "@/lib/applicationNotes";
@@ -342,6 +344,10 @@ export default function SalesSimulationPhase() {
   // (useTestIntegrity), live to the server while the meeting runs. This page's
   // own copy logged one switch twice (window blur AND visibilitychange).
   const integrity = useTestIntegrity({ applicationId: id, stepId, active: state === "selling" });
+  // A 400 computer_required from ai-sales-simulation or
+  // submit-sales-simulation hands the step to "Continue on your computer"
+  // (CandidateStepGate), never an error toast.
+  const showContinueOnComputer = useShowContinueOnComputer();
 
   const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey && state === "selling") {
@@ -378,7 +384,7 @@ export default function SalesSimulationPhase() {
         fetch(SALES_URL, {
           method: "POST",
           headers: await assessmentRequestHeaders(),
-          body: JSON.stringify({
+          body: JSON.stringify(withDeviceKind({
             mode,
             scenario: scenario.scenario,
             prospectName: scenario.prospectName,
@@ -396,12 +402,13 @@ export default function SalesSimulationPhase() {
             stepId,
             clientMsgId: opts.clientMsgId,
             clientAt: new Date().toISOString(),
-          }),
+          })),
         });
 
       let response = await request();
       for (let resent = false; !response.ok; resent = true) {
         const errorData = await response.json().catch(() => null);
+        throwIfComputerRequired(response.status, errorData);
         if (!isTurnNotSaved(response.status, errorData)) {
           throw new Error(errorData?.error || "Failed to get prospect response");
         }
@@ -479,6 +486,7 @@ export default function SalesSimulationPhase() {
       ));
 
     } catch (error) {
+      if (error instanceof ComputerRequiredError && showContinueOnComputer(error.deviceKind)) return;
       if (error instanceof TurnNotSavedError && mode === "respond" && opts.giveBack && opts.clientMsgId && opts.salesRepMessage) {
         // The server has not got this message and will not answer it: take
         // the bubble back off and give the text back to send again.
@@ -639,7 +647,7 @@ export default function SalesSimulationPhase() {
           apikey: SUPABASE_PUBLISHABLE_KEY,
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({
+        body: JSON.stringify(withDeviceKind({
           applicationId: id,
           stepId,
           scenario: currentScenario.scenario,
@@ -654,11 +662,15 @@ export default function SalesSimulationPhase() {
           // The old-shape list, for a server that does not read the live
           // record yet; the record itself was sent as it happened.
           violations: integrity.violations,
-        }),
+        })),
       });
 
       const submitBody = await submitResponse.json().catch(() => null);
       if (!submitResponse.ok) {
+        if (isComputerRequired(submitResponse.status, submitBody)) {
+          advance.cancel();
+          if (showContinueOnComputer(refusedDeviceKind(submitBody))) return;
+        }
         const outcome = gradingReplyOutcome(submitResponse.status, submitBody);
         if (outcome === "checking" || outcome === "on_file") {
           // We have the meeting: it is being checked (another tab, a retry

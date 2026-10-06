@@ -112,7 +112,9 @@ export default function CandidateContinue() {
 
                 <p className="text-center text-xs text-muted-foreground">
                   New here?{" "}
-                  <Link to="/candidate/apply" className="text-primary hover:underline">Enter a job code</Link>
+                  {/* The open roles, not the job-code box: nobody holding a
+                      job's link has a code (docs/SHORT-JOB-LINKS.md). */}
+                  <Link to="/" className="text-primary hover:underline">See open roles</Link>
                 </p>
               </CardContent>
             </Card>

@@ -6,6 +6,7 @@ import { showcaseDb } from "@/lib/showcaseSchema";
 import { rigorToDb } from "@/lib/avaEngine/rigor";
 import type { Rigor } from "@/lib/avaEngine/types";
 import { candidateOrigin } from "@/lib/hosts";
+import { applyWithCodePath } from "@/lib/jobSlug";
 
 export const SHOWCASE_EMPLOYER_ID = "emp_marias_cafe";
 
@@ -58,9 +59,13 @@ export function isRoleAcceptingApplications(status: string): boolean {
   return LIVE_STATUSES.has(status) || status === "published";
 }
 
+/** The old code link. Kept for jobs without a short link, and still honoured
+ *  for links already shared: /candidate/apply forwards a code whose job has a
+ *  short link to it (docs/SHORT-JOB-LINKS.md). To SHARE a job, use
+ *  jobShareUrl (src/lib/jobLinks.ts), which prefers the short link. */
 export function candidateApplyUrl(roleCode: string): string {
   const origin = typeof window !== "undefined" ? candidateOrigin() : "";
-  return `${origin}/candidate/apply?code=${encodeURIComponent(roleCode)}`;
+  return `${origin}${applyWithCodePath(roleCode)}`;
 }
 
 export function phaseLabel(phase: string): string {

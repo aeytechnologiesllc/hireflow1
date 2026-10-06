@@ -51,6 +51,29 @@ import type { ApplicationWithCandidate } from "@/hooks/useApplications";
  *    follows a chat or a quiz as it happens (events are not in the realtime
  *    publication; every event insert also updates its session row).
  *  - Same coalescing and SUBSCRIBED catch-up as the applications channel.
+ *
+ * Wave 3 (2026-10-06, docs/APPLICANTS-LIST.md §3): the Applicants list holds
+ * EVERY applicant and EVERY attempt of the employer's jobs (the keys in
+ * LIVE_SYNC_LIST_KEYS, src/cockpit/hooks/useApplicantList.ts). A live
+ * applicant's attempt row changes every 5–30 s; refetching those lists on
+ * each change would download them almost continuously. So:
+ *  - An UPDATE is merged into them in place, column by column (only the
+ *    columns the list selected: an applications payload is the whole row,
+ *    and the list must not grow its heavy text columns).
+ *  - They are refetched only for an INSERT, a DELETE, an UPDATE for a row
+ *    they do not hold (on one of their jobs), a payload the server cut short,
+ *    and the SUBSCRIBED catch-up. Every other key refetches exactly as before.
+ *  - One person's attempts (["assessment-sessions", "application", id], the
+ *    full profile's, with context, grading and draft) refetch only when an
+ *    attempt of THAT application changed, or on the catch-up: with a profile
+ *    open, someone else's heartbeat must not re-download it every second.
+ *
+ * Wave 4 (2026-10-06): `interviews` on a third channel of its own (same
+ * per-instance rule, same reason as the test record's: a failing binding must
+ * not stall the applicant list). A time booked, moved or cancelled by the
+ * candidate, a teammate or the server reaches every open screen: the list's
+ * "Interview Thu 3 PM", the Interviews page and the profile all read keys
+ * under ["interviews"].
  */
 
 /** Coalescing window for a burst of row changes. */
@@ -84,6 +107,68 @@ export const LIVE_SYNC_QUERY_KEYS: readonly QueryKey[] = [
 export const LIVE_SYNC_SESSION_KEYS: readonly QueryKey[] = [["assessment-sessions"]];
 /** Prefix of every events query; refetched per changed attempt. */
 export const LIVE_SYNC_EVENTS_KEY: QueryKey = ["assessment-events"];
+/** One applicant's attempts (useApplicationSessions): ["assessment-sessions",
+ *  "application", <application id>]. Refetched per changed application. */
+export const LIVE_SYNC_APPLICATION_SESSIONS_KEY = ["assessment-sessions", "application"] as const;
+/** Every cached query a change to public.interviews can make stale. */
+export const LIVE_SYNC_INTERVIEW_KEYS: readonly QueryKey[] = [["interviews"]];
+
+/**
+ * The lists that are merged in place and refetched only on a structural
+ * change (wave 3 above). Their full keys are `[...prefix, "<job ids>"]`: the
+ * sorted job ids they cover, comma-joined, so an event on another job can be
+ * told apart from a row the list is missing.
+ */
+export const LIVE_SYNC_LIST_KEYS = {
+  applications: ["applications", "list"] as const,
+  sessions: ["assessment-sessions", "list"] as const,
+};
+
+function hasPrefix(key: QueryKey, prefix: readonly unknown[]): boolean {
+  return prefix.every((part, i) => key[i] === part);
+}
+
+/** True for a key under one of LIVE_SYNC_LIST_KEYS. */
+export function isMergedListKey(key: QueryKey): boolean {
+  return hasPrefix(key, LIVE_SYNC_LIST_KEYS.applications) || hasPrefix(key, LIVE_SYNC_LIST_KEYS.sessions);
+}
+
+/** True for one applicant's attempts (the full profile's). */
+function isApplicationSessionsKey(key: QueryKey): boolean {
+  return hasPrefix(key, LIVE_SYNC_APPLICATION_SESSIONS_KEY);
+}
+
+/** Whether a merged list covers a job; unknown either way counts as yes. */
+function listCoversJob(key: QueryKey, jobId: unknown): boolean {
+  const jobs = key[2];
+  if (typeof jobId !== "string" || typeof jobs !== "string") return true;
+  return jobs.split(",").includes(jobId);
+}
+
+/**
+ * Applies one realtime change to a merged list (LIVE_SYNC_LIST_KEYS) and says
+ * whether the list must be refetched. An UPDATE to a row it holds is merged
+ * (only the columns it selected; never rolled back by an older event) and
+ * needs nothing more; an INSERT, a DELETE, a row it lacks or a payload the
+ * server cut short does.
+ */
+export function mergeIntoList<T extends SessionRowLike>(
+  rows: T[] | undefined,
+  payload: ApplicationChange,
+  queryKey: QueryKey,
+): { rows: T[] | undefined; refetch: boolean } {
+  const row = (payload.eventType === "DELETE" ? payload.old : payload.new) as { id?: unknown; job_id?: unknown } | null;
+  const covered = listCoversJob(queryKey, row?.job_id);
+  if (Array.isArray(payload.errors) && payload.errors.length > 0) return { rows, refetch: covered };
+  if (payload.eventType === "DELETE") {
+    const next = applySessionChange(rows, payload);
+    return { rows: next, refetch: next !== rows };
+  }
+  if (payload.eventType !== "UPDATE") return { rows, refetch: covered };
+  const held = Array.isArray(rows) && typeof row?.id === "string" && rows.some((r) => r.id === row.id);
+  if (!held) return { rows, refetch: covered };
+  return { rows: applySessionChange(rows, payload), refetch: false };
+}
 
 type LiveSyncClient = Pick<typeof supabase, "channel" | "removeChannel">;
 type ApplicationChange = RealtimePostgresChangesPayload<Record<string, unknown>>;
@@ -254,13 +339,22 @@ export function startEmployerLiveSync({
   delayMs?: number;
   timers?: Timers;
 }) {
+  // Set by a change the merged lists cannot take in place, or a catch-up;
+  // read and cleared by the round that refetches them.
+  let applicationListsStale = false;
   const coalescer = createLiveSyncCoalescer(
-    (force) =>
-      Promise.all(
+    (force) => {
+      const lists = applicationListsStale;
+      applicationListsStale = false;
+      return Promise.all(
         LIVE_SYNC_QUERY_KEYS.map((queryKey) =>
-          queryClient.invalidateQueries({ queryKey }, { cancelRefetch: force }),
+          queryClient.invalidateQueries(
+            { queryKey, predicate: (query) => lists || !isMergedListKey(query.queryKey) },
+            { cancelRefetch: force },
+          ),
         ),
-      ),
+      );
+    },
     delayMs,
     timers,
   );
@@ -278,11 +372,20 @@ export function startEmployerLiveSync({
         const rows = queryClient.getQueryData<ApplicationWithCandidate[]>(listKey);
         const next = applyApplicationChange(rows, payload);
         if (next !== rows) queryClient.setQueryData(listKey, next);
+        // The Applicants list: merged in place, refetched only when it must be.
+        for (const [queryKey, held] of queryClient.getQueriesData<SessionRowLike[]>({ queryKey: LIVE_SYNC_LIST_KEYS.applications })) {
+          const merged = mergeIntoList(held, payload, queryKey);
+          if (merged.rows !== held) queryClient.setQueryData(queryKey, merged.rows);
+          if (merged.refetch) applicationListsStale = true;
+        }
         coalescer.schedule(true);
       },
     )
     .subscribe((status) => {
-      if (status === "SUBSCRIBED") coalescer.schedule(false);
+      if (status === "SUBSCRIBED") {
+        applicationListsStale = true;
+        coalescer.schedule(false);
+      }
     });
 
   // ── The test record (assessment_sessions), on a channel of its own. ──
@@ -291,16 +394,31 @@ export function startEmployerLiveSync({
   const touchedSessions = new Set<string>();
   const touchedApplications = new Set<string>();
   let catchUp = false;
+  let sessionListsStale = false;
   const sessionCoalescer = createLiveSyncCoalescer(
     (force) => {
       const sessionIds = [...touchedSessions];
       const applicationIds = [...touchedApplications];
       const everything = catchUp;
+      const lists = everything || sessionListsStale;
       touchedSessions.clear();
       touchedApplications.clear();
       catchUp = false;
+      sessionListsStale = false;
       return Promise.all([
-        ...LIVE_SYNC_SESSION_KEYS.map((queryKey) => queryClient.invalidateQueries({ queryKey }, { cancelRefetch: force })),
+        ...LIVE_SYNC_SESSION_KEYS.map((queryKey) =>
+          queryClient.invalidateQueries(
+            {
+              queryKey,
+              // A profile's own attempts only when one of THEIR attempts changed.
+              predicate: (query) =>
+                isApplicationSessionsKey(query.queryKey)
+                  ? everything || applicationIds.includes(query.queryKey[2] as string)
+                  : lists || !isMergedListKey(query.queryKey),
+            },
+            { cancelRefetch: force },
+          ),
+        ),
         ...(everything
           ? [queryClient.invalidateQueries({ queryKey: LIVE_SYNC_EVENTS_KEY }, { cancelRefetch: false })]
           : [
@@ -327,9 +445,22 @@ export function startEmployerLiveSync({
         if (typeof row?.id === "string") touchedSessions.add(row.id);
         if (typeof row?.application_id === "string") touchedApplications.add(row.application_id);
         // Merge into every cached list now; write only the ones that changed.
+        // The Applicants list's attempts are refetched only when the merge
+        // cannot take the change in place (wave 3).
         for (const [queryKey, rows] of queryClient.getQueriesData<SessionRowLike[]>({ queryKey: LIVE_SYNC_SESSION_KEYS[0] })) {
+          if (isMergedListKey(queryKey)) {
+            const merged = mergeIntoList(rows, payload, queryKey);
+            if (merged.rows !== rows) queryClient.setQueryData(queryKey, merged.rows);
+            if (merged.refetch) sessionListsStale = true;
+            continue;
+          }
           const next = applySessionChange(rows, payload);
-          if (next !== rows) queryClient.setQueryData(queryKey, next);
+          if (next !== rows) {
+            queryClient.setQueryData(queryKey, next);
+            // A DELETE names only the attempt's id: the profile that held it
+            // is the one to refresh.
+            if (isApplicationSessionsKey(queryKey) && typeof queryKey[2] === "string") touchedApplications.add(queryKey[2]);
+          }
         }
         sessionCoalescer.schedule(true);
       },
@@ -341,11 +472,28 @@ export function startEmployerLiveSync({
       }
     });
 
+  // ── Booked interviews (public.interviews), on a channel of their own. ──
+  // Small queries, keyed under ["interviews"]: refetch the ones on screen.
+  const interviewCoalescer = createLiveSyncCoalescer(
+    (force) =>
+      Promise.all(LIVE_SYNC_INTERVIEW_KEYS.map((queryKey) => queryClient.invalidateQueries({ queryKey }, { cancelRefetch: force }))),
+    delayMs,
+    timers,
+  );
+  const interviewChannel = client
+    .channel(`employer-interviews-${userId}-${instanceId}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "interviews" }, () => interviewCoalescer.schedule(true))
+    .subscribe((status) => {
+      if (status === "SUBSCRIBED") interviewCoalescer.schedule(false);
+    });
+
   return () => {
     coalescer.dispose();
     sessionCoalescer.dispose();
+    interviewCoalescer.dispose();
     void client.removeChannel(channel);
     void client.removeChannel(sessionChannel);
+    void client.removeChannel(interviewChannel);
   };
 }
 

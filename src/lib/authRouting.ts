@@ -65,8 +65,12 @@ export function getPostAuthRoute(role: AppRole, redirectTo?: string | null): str
     return "/developer";
   }
 
+  // A candidate's home is their applications. It used to be /apply, the
+  // job-code box: everyone who signs in from a job's short link has no code
+  // (docs/SHORT-JOB-LINKS.md), and a candidate with no applications yet is
+  // pointed from there to the open roles.
   if (role === "candidate") {
-    return "/apply";
+    return "/applications";
   }
 
   if (role === "employer" && redirectTo === "createJob") {

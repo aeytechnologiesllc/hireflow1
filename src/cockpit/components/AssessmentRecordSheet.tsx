@@ -57,12 +57,12 @@ import { EntryIcon, LiveDot } from "./AssessmentRecordList";
  * Same letterhead as DocumentPreviewDialog (brass rule, ck-scroll body on the
  * ground colour, Escape and an X to close, z-[70] above the phone tab bar).
  * On a phone it takes the whole screen; from 768px it is a sheet down the
- * right side, so the applicant panel stays in view behind it.
+ * right side, so the profile stays in view behind it.
  *
  * Rendered into document.body: the page it opens from sits inside the shell's
- * `.ck-page` (whose entrance animation leaves a transform behind) and a
- * z-[1] layer, and either one traps a `fixed` child — inset from the page
- * edge and painted under the phone's tab bar.
+ * z-[1] layer and under entrance animations that leave a transform behind
+ * (ck-rise, ck-reveal), and either one traps a `fixed` child — inset from the
+ * page edge and painted under the phone's tab bar.
  *
  * What the record never kept is said once, plainly — "The conversation itself
  * was not kept for this attempt" — never reconstructed.

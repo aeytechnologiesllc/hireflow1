@@ -51,6 +51,12 @@ export interface JobRow {
   date: string;
   /** Public candidate-facing application code (showcase roles.role_code). */
   roleCode?: string | null;
+  /** The short link name: hireflownow.com/<slug> (jobs.slug). What every
+   *  share surface hands out when set (docs/SHORT-JOB-LINKS.md). */
+  slug?: string | null;
+  /** The job has steps done at a computer (docs/COMPUTER-ONLY-TESTS.md); the
+   *  Share Kit says "on your computer" only then. */
+  onComputer?: boolean;
   stats: { voice: number; shortlist: number; interview: number; hired: number };
   /**
    * Whether this LIVE job actually clears the real job-board gate

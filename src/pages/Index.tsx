@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, useInView, useReducedMotion, type Variants } from "framer-motion";
-import { ArrowDown, ArrowRight, Check } from "lucide-react";
+import { ArrowDown, ArrowRight, Check, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
@@ -10,6 +10,8 @@ import { GemRail, type GemRailNode } from "@/components/rail/GemRail";
 import { glyphForKind } from "@/components/glyphForKind";
 import { ChatDemo } from "@/components/careers/ChatDemo";
 import { isStaffHost, isStaffRole, staffSignInHref } from "@/lib/hosts";
+import { jobPagePath, rootDestination, usableSlug } from "@/lib/jobSlug";
+import { jobLevelLabel, jobTypeLabel } from "@/lib/jobLabels";
 import "@/styles/careers.css";
 
 /**
@@ -26,6 +28,11 @@ import "@/styles/careers.css";
  * view the job page reads); Apply goes to the public job page, so no job code
  * is needed (/candidate/apply still takes one).
  *
+ * With exactly one open role this page steps aside: hireflownow.com/ opens
+ * that role's page (its short link, hireflownow.com/<slug>), replacing this
+ * entry so Back does not bounce. Owner, 2026-10-06: applicants "could hit the
+ * back button or get confused easily" (docs/SHORT-JOB-LINKS.md).
+ *
  * On staff.hireflownow.com this route is only a doorway: HostGate sends the
  * hiring team to sign-in or their dashboard (src/lib/hosts.ts).
  */
@@ -34,6 +41,7 @@ const EASE_OUT: [number, number, number, number] = [0.2, 0.7, 0.3, 1];
 
 interface OpenRole {
   id: string;
+  slug: string | null;
   title: string;
   location: string | null;
   job_type: string | null;
@@ -45,7 +53,8 @@ interface OpenRole {
 
 const STEPS = [
   { kind: "application", title: "Apply", copy: "A few questions about you and the hours you can work. A resume is welcome, not required.", time: "5–10 min" },
-  { kind: "quiz", title: "Skills check", copy: "Quick questions on real player situations: payments, cash-outs, upset players.", time: "5–15 min" },
+  { kind: "quiz", title: "Skills check", copy: "Ten questions on real situations from the job.", time: "5–15 min" },
+  { kind: "connection", title: "Computer check", copy: "A 20-second speed test on the computer you will work from.", time: "Under 1 min" },
   { kind: "typing", title: "Typing test", copy: "One timed minute. We look at speed and accuracy, because that is the job.", time: "2–5 min" },
   { kind: "chat", title: "Chat practice", copy: "A practice player writes in. Answer the way you would on a real shift.", time: "10–20 min" },
   { kind: "interview", title: "Written interview", copy: "A short back-and-forth about how you work. No video, no phone call.", time: "15–25 min" },
@@ -53,10 +62,9 @@ const STEPS = [
 
 const RAIL_NODES: GemRailNode[] = [
   ...STEPS.map((s) => ({ id: s.kind, label: s.title, icon: glyphForKind(s.kind), receipt: s.time })),
-  { id: "decision", label: "Decision", icon: glyphForKind("decision"), receipt: "We reply to all", sealed: true },
+  { id: "decision", label: "Decision", icon: glyphForKind("decision"), receipt: "Yes or no by email", sealed: true },
 ];
 
-const LEVELS: Record<string, string> = { entry: "Entry level", junior: "Junior", mid: "Mid level", senior: "Senior", lead: "Lead" };
 
 function excerpt(text: string | null, max = 220): string {
   if (!text) return "";
@@ -185,9 +193,11 @@ export default function Index() {
   const { data: roles, isLoading, isError } = useQuery({
     queryKey: ["careers-open-roles"],
     queryFn: async (): Promise<OpenRole[]> => {
+      // The whole row (the same select the job page makes), so the one-role
+      // hop below can hand it over and the job opens without a second load.
       const { data, error } = await supabase
         .from("published_jobs_public")
-        .select("id, title, location, job_type, experience_level, is_remote, description, created_at")
+        .select("*")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as OpenRole[];
@@ -195,6 +205,20 @@ export default function Index() {
     enabled: !staffHost,
     staleTime: 60_000,
   });
+
+  // One open role: go straight to it. Waits for sign-in to settle, so the
+  // role-less account above still reaches /auth/callback first.
+  const singleRole = !staffHost && !loading && !(session && role === null) ? rootDestination(roles) : null;
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!singleRole || !roles?.[0]) return;
+    // The job page reads this very row (published_jobs_public, select *):
+    // seed its cache so it opens on the job, not on a loading skeleton.
+    const only = roles[0];
+    const slug = usableSlug(only.slug);
+    queryClient.setQueryData(["job-details", slug ? `slug:${slug}` : only.id, true], only);
+    navigate(singleRole, { replace: true });
+  }, [singleRole, roles, queryClient, navigate]);
 
   const account = useMemo(() => {
     if (role === "candidate") return { to: "/applications", label: "My applications" };
@@ -204,6 +228,20 @@ export default function Index() {
 
   // On the staff host this route is only a doorway (HostGate moves them on).
   if (staffHost) return <AuthLoadingScreen variant="employer" />;
+
+  // Until the open roles are known the page cannot say whether it is the
+  // careers page or a step on the way to the one role, so it shows a plain
+  // ground rather than flashing a page that is about to leave. The app's own
+  // theme-aware ground (not the careers page's always-Night one): with one
+  // role what follows is the job page, which follows the theme, so Day no
+  // longer flashes dark first.
+  if (singleRole || ((isLoading || loading) && !isError)) {
+    return (
+      <div className="grid min-h-[100dvh] place-items-center bg-background" aria-busy="true">
+        <Loader2 className="h-7 w-7 animate-spin text-primary" aria-label="Loading open roles" />
+      </div>
+    );
+  }
 
   const jump = (id: string) => (e: MouseEvent<HTMLAnchorElement>) => {
     const target = document.getElementById(id);
@@ -307,7 +345,7 @@ export default function Index() {
                 <ul className="cr-trust">
                   <li><Check aria-hidden="true" />Apply in your browser</li>
                   <li><Check aria-hidden="true" />No phone calls, ever</li>
-                  <li><Check aria-hidden="true" />Everyone hears back</li>
+                  <li><Check aria-hidden="true" />A yes or no once you finish every step</li>
                 </ul>
               </Reveal>
             </div>
@@ -389,15 +427,15 @@ export default function Index() {
             ) : (
               roles.map((job, i) => {
                 const { main, sub } = splitTitle(job.title);
-                const level = job.experience_level ? LEVELS[job.experience_level] ?? job.experience_level : null;
-                const type = job.job_type ? job.job_type.replace(/[-_]/g, " ") : null;
+                const level = jobLevelLabel(job.experience_level);
+                const type = jobTypeLabel(job.job_type);
                 return (
                   <Reveal key={job.id} delay={i * 0.08}>
-                    <Link to={`/candidate/job/${job.id}`} className="cr-role" aria-label={`Apply for ${job.title}`}>
+                    <Link to={jobPagePath(job)} className="cr-role" aria-label={`Apply for ${job.title}`}>
                       <div>
                         <div className="cr-chips">
                           {job.is_remote !== false && <span className="cr-chip cr-chip--jade">Remote</span>}
-                          {type && <span className="cr-chip" style={{ textTransform: "capitalize" }}>{type}</span>}
+                          {type && <span className="cr-chip">{type}</span>}
                           {level && <span className="cr-chip">{level}</span>}
                         </div>
                         <h3 className="cr-role__title">
@@ -429,10 +467,10 @@ export default function Index() {
           <Reveal>
             <span className="cr-label">How hiring works</span>
             <h2 id="cr-how-title" className="cr-h2">
-              Five steps. <em>All online.</em>
+              Six steps. <em>All online.</em>
             </h2>
             <p className="cr-sub">
-              Your progress saves after every step, so you can stop and come back. We reply to everyone, yes or no.
+              Your progress saves after every step, so you can stop and come back. Everyone who finishes every step gets a yes or no by email.
             </p>
           </Reveal>
           <Reveal className="cr-railbox" delay={0.1}>
@@ -446,7 +484,7 @@ export default function Index() {
                 </li>
               ))}
             </ol>
-            <p className="cr-railbox__note">Every applicant rides the same track, and every applicant hears back.</p>
+            <p className="cr-railbox__note">Every applicant rides the same track, in the same order.</p>
           </Reveal>
         </section>
 
@@ -457,7 +495,7 @@ export default function Index() {
             <h2 id="cr-close-title" className="cr-h2">
               Your next shift starts <em>with one chat.</em>
             </h2>
-            <p className="cr-sub">Applying starts in your browser and takes a few minutes. Everyone hears back, yes or no.</p>
+            <p className="cr-sub">Applying is all online and takes about an hour; you can stop and come back.</p>
             <div className="cr-close__actions">
               <a href="#roles" onClick={jump("roles")} className="cr-btn cr-btn--cream">
                 See open roles

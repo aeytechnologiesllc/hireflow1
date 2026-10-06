@@ -63,6 +63,29 @@ export interface BuildCandidateJourneyOptions {
   hasQuiz?: boolean;
 }
 
+/**
+ * The step types done at a computer (docs/COMPUTER-ONLY-TESTS.md: the
+ * connection check and the tests that matter). A job with any of them is
+ * applied to "online, on your computer"; one without them is not, and the
+ * Share Kit says so only when it is true.
+ */
+export const COMPUTER_STEP_TYPES: ReadonlySet<string> = new Set([
+  "equipment_check",
+  "typing_test",
+  "chat_simulation",
+  "sales_simulation",
+  "chat_interview",
+  "voice_interview",
+]);
+
+/** Does this job's own workflow include a step done at a computer? */
+export function hasComputerSteps(workflowSteps: unknown): boolean {
+  if (!Array.isArray(workflowSteps)) return false;
+  return workflowSteps.some(
+    (step) => !!step && typeof step === "object" && COMPUTER_STEP_TYPES.has(String((step as { type?: unknown }).type)),
+  );
+}
+
 /** The id (and type) of the trailing synthetic stage every journey ends on. */
 export const DECISION_STAGE_ID = "decision";
 

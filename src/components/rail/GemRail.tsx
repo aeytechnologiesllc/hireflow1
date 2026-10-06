@@ -2,7 +2,7 @@
  * GemRail — THE Gemline rail. One renderer, every caller.
  *
  * The visual existed three times before this: the landing hero's hand-written
- * copy in public/landing.html, the cockpit's JourneyStrip on Applicants, and
+ * copy in public/landing.html, the cockpit's applicant journey rail, and
  * (briefly, and wrongly) a stripped third version behind the create-job flow
  * that drew bare numbers instead of gems. This is the single presentational
  * component all the React callers now share — same `ck-rail-*` rules in
@@ -11,8 +11,9 @@
  *
  * It is deliberately dumb: it knows nothing about candidates, jobs or steps. A
  * caller computes what each gem means — its glyph, its receipt, whether it is
- * the sealed decision — and hands the list over. JourneyStrip keeps every bit
- * of its candidate logic; it just stopped drawing its own rail.
+ * the sealed decision — and hands the list over. A caller that knows each
+ * gem's state from a record (the full profile's ApplicantJourneyRail) passes
+ * it as `state`, and the gem shows that instead of its position.
  *
  * The walk. `current` is the truth. `visualIndex` is the animated read of it:
  * on mount it starts at the first gem and races forward, lighting each gem in
@@ -51,6 +52,19 @@ export interface GemRailNode {
   sealTilt?: number;
   /** Overrides the spectrum for this gem (the decision gem reads brass, not gold). */
   color?: string;
+  /** Overrides the glyph ink that goes with `color`. */
+  ink?: string;
+  /** What this gem IS, when the caller knows it from a record rather than
+   *  from where the traveller stands. Without it a gem behind the traveller
+   *  is cleared and one ahead of it is not — right for a form's steps, wrong
+   *  for an applicant, where a step the job gained after they passed it was
+   *  never taken (`skipped`), and a retake can sit behind a finished step.
+   *  - done / below: cleared, with the check (below: the caller's colour says so)
+   *  - now: the traveller's gem, with its halo
+   *  - left: theirs, but they have gone from it: a quiet ring, no halo
+   *  - skipped: hollow, dashed
+   *  - upcoming: hollow */
+  state?: "done" | "below" | "now" | "left" | "skipped" | "upcoming";
   /** Hover / keyboard tooltip. Also becomes the node's accessible name. */
   tooltip?: string;
 }
@@ -89,8 +103,14 @@ export function GemRail({ nodes, current, traveler, summary, ariaLabel = "Progre
   const measure = () => {
     const zone = zoneRef.current;
     if (!zone) return;
+    // The gem list is rebuilt on every render and refilled at commit; a
+    // measure that lands in between (a re-measure after a render React has
+    // not committed yet) would read an empty list and leave the traveller
+    // with nowhere to stand. Keep the last good points instead.
+    const els = dotRefs.current;
+    if (els.length === 0 || els.some((el) => !el)) return;
     const zoneRect = zone.getBoundingClientRect();
-    pointsRef.current = dotRefs.current.map((el) => {
+    pointsRef.current = els.map((el) => {
       if (!el) return { x: 0, y: 0 };
       const r = el.getBoundingClientRect();
       return { x: r.left + r.width / 2 - zoneRect.left, y: r.top + r.height / 2 - zoneRect.top };
@@ -161,6 +181,12 @@ export function GemRail({ nodes, current, traveler, summary, ariaLabel = "Progre
     }
 
     applyVisual(start, true); // rest at the starting gem before the glide
+    // …and say so, in the state and the ref alike. The state starts at the
+    // target, so without this a one-gem walk (0 → 1) set the state to the
+    // value it already held, nothing re-applied the visual, and the first
+    // re-measure put the traveller back on gem 0 for good.
+    visualIndexRef.current = start;
+    setVisualIndex(start);
 
     const hops = Math.abs(target - start);
     const duration = Math.min(950, Math.max(520, 420 + hops * 140));
@@ -229,26 +255,37 @@ export function GemRail({ nodes, current, traveler, summary, ariaLabel = "Progre
             const gem = gemPosition(i, nodes.length);
             // Gems light in step with the traveller, not all at once — but the
             // receipt is real truth, so it shows only once actually reached.
-            const cleared = i < visualIndex;
-            const isCurrent = i === visualIndex;
+            // A gem with a `state` shows that state once the walk has passed
+            // it (or arrived): never a check its record does not have.
+            const stated = node.state != null;
+            const reached = i <= visualIndex || visualIndex === target;
+            const cleared = stated ? reached && (node.state === "done" || node.state === "below") : i < visualIndex;
+            const isCurrent = stated ? i === visualIndex && node.state === "now" : i === visualIndex;
+            const dotStyle: CSSProperties | undefined = !stated || !reached
+              ? undefined
+              : node.state === "skipped"
+                ? { borderStyle: "dashed", borderColor: "var(--ink-3)" }
+                : node.state === "left"
+                  ? { borderWidth: 2, borderColor: "var(--ink-3)" }
+                  : undefined;
             const Icon = node.icon;
-            const receipt = i <= visualIndex ? node.receipt : null;
+            const receipt = (stated ? reached : i <= visualIndex) ? node.receipt : null;
             return (
               <div
                 key={node.id}
                 role="listitem"
                 tabIndex={focusable ? 0 : undefined}
                 aria-label={node.tooltip}
-                aria-current={isCurrent ? "step" : undefined}
+                aria-current={(stated ? i === target && reached : isCurrent) ? "step" : undefined}
                 className={cn(
                   "ck-rail-node group",
                   cleared && "is-cleared",
                   isCurrent && "is-current",
                   node.decision && "is-decision"
                 )}
-                style={{ "--node-color": node.color ?? gem.color, "--node-ink": gem.ink } as CSSProperties}
+                style={{ "--node-color": node.color ?? gem.color, "--node-ink": node.ink ?? gem.ink } as CSSProperties}
               >
-                <div className="ck-rail-dot" ref={(el) => { dotRefs.current[i] = el; }}>
+                <div className="ck-rail-dot" style={dotStyle} ref={(el) => { dotRefs.current[i] = el; }}>
                   {node.decision ? (
                     <span key={`seal-${sealBeat}`} className="ck-seal ck-seal-press">
                       <AvaSeal size={28} tilt={node.sealTilt ?? 0} />

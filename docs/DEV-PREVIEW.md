@@ -114,6 +114,33 @@ Direct URLs are of the form:
 | Voice interview | `/applications/30000000-0000-4000-8000-000000000008/voice-interview/wf-voice?__preview=1&__previewRole=candidate` |
 | Portfolio upload | `/applications/30000000-0000-4000-8000-000000000009/portfolio/wf-portfolio?__preview=1&__previewRole=candidate` |
 
+### Applicants list and full profile (Zulu role)
+
+The `zulu` scenario holds fourteen invented applicants, one in every state the
+list draws (docs/APPLICANTS-LIST.md): finished and waiting on a decision, live
+on a test, left part-way, on the form, below a bar, a step the job added later
+(skipped), moved to interview with one booked, offered, hired and declined. It
+also has an active `team_members` row, so `__previewRole=team_member` sees the
+same list inside the team member's own shell. The `applying` scenario still
+holds only the one person on the form.
+
+| Screen | URL |
+|---|---|
+| The list, someone in every state | `/applicants?__preview=1&__previewRole=employer&__previewScenario=zulu` |
+| Needs review tab | `/applicants?__preview=1&__previewRole=employer&__previewScenario=zulu&tab=needs-review` |
+| Score 50 and up, with flags | `/applicants?__preview=1&__previewRole=employer&__previewScenario=zulu&score=50-up&flags=any-flag` |
+| As a team member, in their own shell | `/applicants?__preview=1&__previewRole=team_member&__previewScenario=zulu` |
+| Full profile: finished, a step the job added later skipped (Nadia) | `/applicants/30000000-0000-4000-8000-000000000026?__preview=1&__previewRole=employer&__previewScenario=zulu` |
+| Full profile: moved to interview, one booked (Wanjiru) | `/applicants/30000000-0000-4000-8000-000000000022?__preview=1&__previewRole=employer&__previewScenario=zulu` |
+| Full profile: on the typing test now, checked on a phone (Tomás) | `/applicants/30000000-0000-4000-8000-000000000020?__preview=1&__previewRole=employer&__previewScenario=zulu` |
+| Full profile: what they submitted (Robin) | `/applicants/30000000-0000-4000-8000-000000000013?__preview=1&__previewRole=employer&__previewScenario=zulu` |
+| Only someone on the form | `/applicants?__preview=1&__previewRole=employer&__previewScenario=applying` |
+
+Every list URL also takes the list's own state (`tab`, `where`, `score`,
+`flags`, `below`, `country`, `applied`, `sort`, `q`, `shown`, `roleId`), so a
+filtered view can be opened directly. "Show 25 more" needs more than 25 rows,
+which no scenario has; its logic is covered by `scripts/applicant_list.test.mjs`.
+
 ### Applicant record: the computer and connection check (Zulu role)
 
 | Screen | URL |

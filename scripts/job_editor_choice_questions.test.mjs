@@ -348,7 +348,9 @@ if (saveStart < 0 || saveEnd < saveStart) {
   assert(/needsGeocode \? await geocodePlace/.test(submit) && /editedColumns\.has\("location_city"\)/.test(submit),
     "an unchanged location is never geocoded again");
   assert(/parseCommaSeparatedList\(formData\.skills_required, existingJob\?\.skills_required/.test(submit), "skills keep the job's own items whole");
-  assert(/loadedEditFieldsRef\.current = \{ \.\.\.loadedForm, \.\.\.loadedWorkflow, status: existingJob\.status \}/.test(outsideSave),
+  // slug: the Short link field (docs/SHORT-JOB-LINKS.md §4) is its own state,
+  // not part of the form, so it joins the snapshot here.
+  assert(/loadedEditFieldsRef\.current = \{ \.\.\.loadedForm, \.\.\.loadedWorkflow, status: existingJob\.status, slug: existingJob\.slug \?\? "" \}/.test(outsideSave),
     "the load effect keeps the snapshot it filled the form from");
   assert(/salary_period: fromGoogleSalaryPeriod\(existingJob\.salary_period\)/.test(outsideSave), "the edit form loads the stored pay period");
   assert(/existingJob\?\.status === "published" \? setConfirmUnpublishOpen\(true\)/.test(outsideSave),

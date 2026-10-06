@@ -52,6 +52,8 @@ import { AvaSeal } from "@/components/ava/AvaSeal";
 
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 import { useResultAtFirstLoad, useStepAdvance } from "@/hooks/useStepAdvance";
+import { useShowContinueOnComputer } from "@/components/candidate/continueOnComputerContext";
+import { ComputerRequiredError, isComputerRequired, refusedDeviceKind, throwIfComputerRequired, withDeviceKind } from "@/lib/deviceGate";
 
 interface Message {
   id: string;
@@ -104,11 +106,41 @@ interface ApplicationDetails {
     title: string;
     processing_mode: string | null;
     passing_score: number | null;
-    workflow_steps: Array<{ id: string; type: string; config?: { minMessages?: number; scenarios?: unknown } }> | null;
+    workflow_steps: Array<{
+      id: string;
+      type: string;
+      title?: string | null;
+      description?: string | null;
+      config?: { minMessages?: number; scenarios?: unknown };
+    }> | null;
     /** Lives on its own column, not in workflow_steps — the journey builder
      *  needs it to count the quiz as the stage the candidate actually does. */
     quiz_questions: unknown[] | null;
   } | null;
+}
+
+/**
+ * An escalated case: the applicant is the team leader taking over a chat one
+ * of their agents handled badly. These cases are written for two readers
+ * (docs/ZULU-SKILLS-CHECK.md rule 7), so they say it in the third person:
+ * "A team leader has now taken over the chat", then "What the team leader
+ * knows:". The page tells the applicant plainly that this is them.
+ */
+function isTakeoverScenario(scenario: string | null | undefined): boolean {
+  return !!scenario && /team leader has (now )?taken over|what the team leader knows\s*:/i.test(scenario);
+}
+
+/** The case split for reading: what happened, and what the team leader knows. */
+function splitScenarioBrief(scenario: string): { situation: string; youKnow: string | null } {
+  const match = /\n?\s*What the team leader knows\s*:\s*/i.exec(scenario);
+  if (!match) return { situation: scenario, youKnow: null };
+  const known = scenario.slice(match.index + match[0].length).trim();
+  return {
+    situation: scenario.slice(0, match.index).trim(),
+    // It follows a colon in the case ("…knows: agents and…"); under its own
+    // heading it starts a sentence.
+    youKnow: known ? known.charAt(0).toUpperCase() + known.slice(1) : null,
+  };
 }
 
 /** Same seed, same index, every time (31-hash, unsigned). */
@@ -228,10 +260,15 @@ export default function ChatSimulationPhase() {
   // Get chat config
   const chatConfig = useMemo(() => {
     const workflowSteps = application?.jobs?.workflow_steps;
-    const chatStep = workflowSteps?.find(s => s.id === stepId || s.type === "chat_simulation");
+    const chatStep = workflowSteps?.find(s => s.id === stepId) ?? workflowSteps?.find(s => s.type === "chat_simulation");
     return {
       minMessages: chatStep?.config?.minMessages || 5,
       scenarios: normalizeChatScenarios(chatStep?.config?.scenarios),
+      // The step's own name and description, as the employer wrote them
+      // ("Escalated chat practice"; "You take over a player's chat from one
+      // of your agents…"), so the page says what this step really is.
+      title: typeof chatStep?.title === "string" && chatStep.title.trim() ? chatStep.title.trim() : null,
+      description: typeof chatStep?.description === "string" && chatStep.description.trim() ? chatStep.description.trim() : null,
     };
   }, [application?.jobs?.workflow_steps, stepId]);
 
@@ -356,6 +393,9 @@ export default function ChatSimulationPhase() {
   // replaced this page's own copy, which logged one tab switch twice (window
   // blur AND visibilitychange) and never said how long anyone was away.
   const integrity = useTestIntegrity({ applicationId: id, stepId, active: state === "chatting" });
+  // A 400 computer_required from ai-chat-simulation hands the step to
+  // "Continue on your computer" (CandidateStepGate), never an error toast.
+  const showContinueOnComputer = useShowContinueOnComputer();
 
   // Enter-to-send lives on the textarea itself; copy/paste/shortcut blocking
   // is document-level in useTestIntegrity, so it fires once per keypress.
@@ -393,7 +433,7 @@ export default function ChatSimulationPhase() {
         fetch(CHAT_URL, {
           method: "POST",
           headers: await assessmentRequestHeaders(),
-          body: JSON.stringify({
+          body: JSON.stringify(withDeviceKind({
             mode,
             scenario: scenario.scenario,
             customerName: scenario.customerName,
@@ -410,12 +450,13 @@ export default function ChatSimulationPhase() {
             clientAt: new Date().toISOString(),
             // The server pins the scenario on the attempt the first time it starts.
             scenarioId: scenario.id,
-          }),
+          })),
         });
 
       let response = await request();
       for (let resent = false; !response.ok; resent = true) {
         const errorData = await response.json().catch(() => null);
+        throwIfComputerRequired(response.status, errorData);
         if (!isTurnNotSaved(response.status, errorData)) {
           throw new Error(errorData?.error || "Failed to get customer response");
         }
@@ -513,6 +554,7 @@ export default function ChatSimulationPhase() {
       if (customerContent) setCustomerUnavailable(false);
 
     } catch (error) {
+      if (error instanceof ComputerRequiredError && showContinueOnComputer(error.deviceKind)) return;
       if (error instanceof TurnNotSavedError && mode === "respond" && opts.giveBack && opts.clientMsgId && opts.agentMessage) {
         // The server has not got this message and will not answer it: take
         // the bubble back off and give the text back to send again.
@@ -682,7 +724,7 @@ export default function ChatSimulationPhase() {
           apikey: SUPABASE_PUBLISHABLE_KEY,
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({
+        body: JSON.stringify(withDeviceKind({
           mode: "evaluate",
           applicationId: id,
           stepId,
@@ -696,11 +738,15 @@ export default function ChatSimulationPhase() {
           // The old-shape list, for a server that does not read the live
           // record yet; the record itself was sent as it happened.
           violations: integrity.violations,
-        }),
+        })),
       });
 
       if (!evalResponse.ok) {
         const errorData = await evalResponse.json().catch(() => null);
+        if (isComputerRequired(evalResponse.status, errorData)) {
+          advance.cancel();
+          if (showContinueOnComputer(refusedDeviceKind(errorData))) return;
+        }
         const outcome = gradingReplyOutcome(evalResponse.status, errorData);
         if (outcome === "checking" || outcome === "on_file") {
           // We have the conversation: it is being checked (another tab, a
@@ -914,10 +960,13 @@ export default function ChatSimulationPhase() {
   // The context a nervous candidate needs to keep reading while they reply —
   // lives in the header so it never disappears once the conversation starts.
   const headerScenario = currentScenario ?? preselectedScenario;
+  // The applicant is the team leader taking this chat over from an agent.
+  const takeover = isTakeoverScenario(headerScenario?.scenario);
+  const brief = headerScenario ? splitScenarioBrief(headerScenario.scenario) : null;
 
   const headerGuidance =
     state === "intro"
-      ? "Take a breath — you can't get this wrong by being yourself."
+      ? "Take a breath. Answer the way you would on a real shift."
       : state === "chatting"
         ? "Reply the way you would on the job. Wrap up whenever it feels resolved."
         : state === "evaluating"
@@ -962,8 +1011,12 @@ export default function ChatSimulationPhase() {
 
         <div className="space-y-2.5">
           <h1 className="font-display ck-ink text-2xl text-foreground sm:text-3xl">
-            Customer support chat
+            {chatConfig.title ?? "Chat practice"}
           </h1>
+
+          {chatConfig.description && (
+            <p className="text-sm text-muted-foreground">{chatConfig.description}</p>
+          )}
 
           <span className="block text-xs font-medium text-muted-foreground">
             Step <span className="ck-num">{journeyStep.index + 1}</span> of{" "}
@@ -975,14 +1028,26 @@ export default function ChatSimulationPhase() {
           <p className="text-sm text-muted-foreground">{headerGuidance}</p>
         </div>
 
-        {(state === "intro" || state === "chatting") && headerScenario && (
-          <div className="space-y-1.5 rounded-lg border border-border bg-muted/30 p-4 sm:p-5">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {headerScenario.customerName}'s situation
-            </p>
-            <p className="text-sm leading-relaxed text-foreground">
-              {headerScenario.scenario}
-            </p>
+        {(state === "intro" || state === "chatting") && headerScenario && brief && (
+          <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-4 sm:p-5">
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {headerScenario.customerName}'s situation
+              </p>
+              <p className="whitespace-pre-line text-sm leading-relaxed text-foreground">
+                {brief.situation}
+              </p>
+            </div>
+            {brief.youKnow && (
+              <div className="space-y-1.5 border-t border-border pt-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  What you know, as the team leader
+                </p>
+                <p className="whitespace-pre-line text-sm leading-relaxed text-foreground">
+                  {brief.youKnow}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -999,9 +1064,17 @@ export default function ChatSimulationPhase() {
                 <ul className="space-y-3 text-sm text-muted-foreground">
                   <li className="flex items-start gap-2.5">
                     <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                    <span>
-                      <strong className="text-foreground">{preselectedScenario.customerName}</strong> messages you first — reply the way you'd want a real customer treated.
-                    </span>
+                    {takeover ? (
+                      <span>
+                        <strong className="text-foreground">You are the team leader.</strong>{" "}
+                        {preselectedScenario.customerName}'s chat was handled badly by one of your agents, and you are taking it
+                        over now. Read the situation and what you know, then reply.
+                      </span>
+                    ) : (
+                      <span>
+                        <strong className="text-foreground">{preselectedScenario.customerName}</strong> messages you first — reply the way you'd want a real customer treated.
+                      </span>
+                    )}
                   </li>
                   <li className="flex items-start gap-2.5">
                     <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
@@ -1022,7 +1095,7 @@ export default function ChatSimulationPhase() {
 
               <div className="flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-muted-foreground">
-                  {rulesAccepted ? "You can't get this wrong by being yourself." : "Tick the box above to start."}
+                  {rulesAccepted ? "Answer the way you would on a real shift." : "Tick the box above to start."}
                 </p>
                 <Button
                   onClick={startChat}
@@ -1167,7 +1240,7 @@ export default function ChatSimulationPhase() {
                     <div className="space-y-2 text-center pt-2">
                       {endingShort && (
                         <p className="text-sm text-muted-foreground">
-                          The customer isn't responding right now. You can keep trying, or send what you have — it still counts.
+                          {currentScenario.customerName} isn't responding right now. You can keep trying, or send what you have — it still counts.
                         </p>
                       )}
                       <Button

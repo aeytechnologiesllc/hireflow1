@@ -62,6 +62,7 @@
 
 import { buildCandidateJourney, type WorkflowStepLike } from "./candidateJourney.ts";
 import { computeNextStepDecision, nextStepForCandidate, parseNotesObject } from "./trustedResults.ts";
+import { needsComputer, startedOnComputer, stepNeedsComputer } from "./deviceKind.ts";
 
 // ============================================================================
 // The client slice this module uses
@@ -373,6 +374,130 @@ export async function resolveSession(
     return { ok: false, reason: "session_busy", detail: `opened attempt is ${session.status}` };
   }
   return { ok: true, session, access, how: "opened" };
+}
+
+/**
+ * The step as the database sees it for THIS caller (assessment_step_access):
+ * its type, and whether it is finished or reopened. Null when it refused
+ * (not their application, closed, unknown or not reached) or could not be
+ * read. Reads only; never opens anything.
+ */
+export async function stepAccessFor(
+  admin: AssessmentAdmin,
+  input: { applicationId: string; stepId: string; userId: string },
+): Promise<StepAccess | null> {
+  const res = await settle(() => admin.rpc("assessment_step_access", {
+    p_application_id: input.applicationId,
+    p_step_id: input.stepId,
+    p_caller: input.userId,
+  }));
+  if (res.error || !isPlainObject(res.data)) return null;
+  const raw = res.data;
+  return {
+    step_type: typeof raw.step_type === "string" ? raw.step_type : "",
+    step_title: typeof raw.step_title === "string" ? raw.step_title : null,
+    finished: raw.finished === true,
+    reopened: raw.reopened === true,
+  };
+}
+
+/** The job's own steps, in order, for the caller's OWN application. Null
+ *  when it cannot be read or the application is not theirs. */
+async function ownJourneySteps(admin: AssessmentAdmin, applicationId: string, userId: string): Promise<WorkflowStepLike[] | null> {
+  const res = await settle(() =>
+    admin.from("applications").select("candidate_id, jobs:job_id ( workflow_steps )").eq("id", applicationId).maybeSingle(),
+  );
+  if (res.error || !isPlainObject(res.data)) return null;
+  if (res.data.candidate_id !== userId) return null;
+  const steps = asObject(res.data.jobs).workflow_steps;
+  return buildCandidateJourney((Array.isArray(steps) ? steps : []) as WorkflowStepLike[]);
+}
+
+/**
+ * Pure: may a phone or tablet send this write on a step the rule puts on a
+ * computer, given the step's latest attempt? Only when nothing new would be
+ * opened for it: the attempt was STARTED on a computer (its context records
+ * started_device_kind, written by every real start) and resolveSession would
+ * use it, wait on it or revive that same attempt; or, for a submit, the
+ * step is finished, so the result on file is answered back. An attempt the
+ * page's mount opened (start_assessment_session, before any test began)
+ * records no start device, so a phone can never start the test on it.
+ */
+export function computerGateForAttempt(
+  latest: { status: string; context: Record<string, unknown> } | null,
+  access: { finished: boolean; reopened: boolean },
+  purpose: SessionPurpose,
+): "go" | "refuse" {
+  if (access.finished) return purpose === "submit" ? "go" : "refuse";
+  if (!latest || !startedOnComputer(latest.context.started_device_kind)) return "refuse";
+  if (latest.status === "active" || latest.status === "grading" || latest.status === "abandoned") return "go";
+  // A failed grading is the same attempt again, unless staff reopened the step (then a new one opens).
+  if (latest.status === "failed") return access.reopened ? "refuse" : "go";
+  return "refuse";
+}
+
+export interface ComputerGateRequest {
+  applicationId: string;
+  stepId: string;
+  purpose: SessionPurpose;
+  /** The caller, verified from their JWT. A phone or tablet with none is refused. */
+  userId: string | null;
+  /** The journey, when the caller already loaded it for an application it
+   *  verified is theirs; otherwise read here (and the ownership checked). */
+  steps?: readonly WorkflowStepLike[] | null;
+  /** false for a request that begins a new run or has no attempt to
+   *  continue (the typing start, the sales chat): refused on a gated step
+   *  whatever the attempt. Default true. */
+  continuable?: boolean;
+}
+
+/**
+ * The computer-only gate (docs/COMPUTER-ONLY-TESTS.md), decided BEFORE
+ * anything is opened. Computers and unknown devices always go on, without a
+ * read. A phone or tablet goes on only on a step the rule does not put on a
+ * computer, or (see computerGateForAttempt) to continue an attempt a
+ * computer started. Everything that cannot be verified (no signed-in
+ * caller, someone else's application, a read that failed) answers the same
+ * refusal, so the gate tells a stranger nothing about anyone's attempt.
+ */
+export async function computerOnlyGate(
+  admin: AssessmentAdmin | null,
+  kind: string,
+  request: ComputerGateRequest | null,
+): Promise<"go" | "refuse"> {
+  if (!needsComputer(kind)) return "go";
+  if (!admin || !request || !request.userId) return "refuse";
+  let steps = request.steps;
+  if (steps === undefined) {
+    steps = await ownJourneySteps(admin, request.applicationId, request.userId);
+    if (!steps) return "refuse";
+  }
+  if (stepNeedsComputer(steps, request.stepId) === false) return "go";
+  if (request.continuable === false) return "refuse";
+
+  const access = await stepAccessFor(admin, { applicationId: request.applicationId, stepId: request.stepId, userId: request.userId });
+  if (!access) return "refuse";
+  if (access.finished) return computerGateForAttempt(null, access, request.purpose);
+  const latest = await settle(() =>
+    admin
+      .from("assessment_sessions")
+      .select("status, context")
+      .eq("application_id", request.applicationId)
+      .eq("step_id", request.stepId)
+      .order("attempt", { ascending: false })
+      .limit(1),
+  );
+  if (latest.error) return "refuse";
+  const row = Array.isArray(latest.data) ? asObject(latest.data[0]) : {};
+  const attempt = typeof row.status === "string" ? { status: row.status, context: asObject(row.context) } : null;
+  return computerGateForAttempt(attempt, access, request.purpose);
+}
+
+/** Records the device an attempt started on, once (the first real start
+ *  writes it; later starts and other devices never overwrite it). */
+export async function recordStartDevice(admin: AssessmentAdmin, session: SessionRow, kind: string): Promise<void> {
+  if (typeof session.context.started_device_kind === "string" && session.context.started_device_kind) return;
+  await updateContext(admin, session, { started_device_kind: kind });
 }
 
 /** Merges `patch` into the session's server-only context. Returns the new context. */

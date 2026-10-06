@@ -6,18 +6,18 @@ export default function CandidatePortalLanding() {
   const features = [
     {
       icon: ClipboardCheck,
-      title: "Apply in minutes",
+      title: "Apply online",
       description: "Enter the job code or open the link the employer gave you",
     },
     {
       icon: UserRound,
       title: "One free account",
-      description: "Sign in with Google or email — your progress is saved as you go",
+      description: "Sign in with email — your progress is saved as you go",
     },
     {
       icon: MessageSquare,
       title: "Stay in the loop",
-      description: "Track your status and hear back from the hiring team",
+      description: "See where your application stands, step by step",
     },
   ];
 
@@ -75,9 +75,9 @@ export default function CandidatePortalLanding() {
           <div className="mt-6 space-y-4">
             {[
               { step: 1, icon: KeyRound, title: "Get a job code", desc: "The employer shares a code or an apply link for the role" },
-              { step: 2, icon: UserRound, title: "Create a free account", desc: "Google or email — it takes a moment and keeps your progress safe" },
+              { step: 2, icon: UserRound, title: "Create a free account", desc: "With your email — it takes a moment and keeps your progress safe" },
               { step: 3, icon: ClipboardCheck, title: "Apply", desc: "A few questions, your resume, and any steps the employer added" },
-              { step: 4, icon: MessageSquare, title: "Hear back", desc: "Sign in anytime to see where things stand — everyone hears back" },
+              { step: 4, icon: MessageSquare, title: "Get a yes or no", desc: "Sign in anytime to see where things stand. Everyone who finishes every step gets a yes or no by email." },
             ].map(({ step, icon: Icon, title, desc }) => (
               <div key={step} className="flex items-start gap-4 border-t pt-4 first:border-t-0 first:pt-0" style={{ borderColor: "var(--hf-border-strong)" }}>
                 <span

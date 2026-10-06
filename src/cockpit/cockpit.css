@@ -600,12 +600,15 @@
 /* Every route change is a small page turn, not a hard swap. */
 @keyframes ck-page-in {
   from { opacity: 0; transform: translateY(7px); }
-  /* none, not translateY(0): with fill-mode both a kept transform makes
-     .ck-page the containing block for every position:fixed child (sheets,
-     the mobile action bar), so they sat against the page, not the screen. */
   to   { opacity: 1; transform: none; }
 }
-.ck-page { animation: ck-page-in 230ms cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+/* backwards, not both: a kept end keyframe makes .ck-page the containing
+   block for every position:fixed child (sheets, dialogs, the mobile action
+   bar), so they sat against the page, not the screen. `transform: none` in
+   the keyframe was not enough: Chromium interpolates it and keeps
+   matrix(1, 0, 0, 1, 0, 0) (measured 2026-10-06), which still counts. Once
+   the 230 ms are up the page has no animated style left at all. */
+.ck-page { animation: ck-page-in 230ms cubic-bezier(0.2, 0.7, 0.3, 1) backwards; }
 
 /* The greeting inks in — blur settles like ink drying on the page. */
 @keyframes ck-ink-in {
@@ -663,7 +666,8 @@
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   GEMLINE JOURNEY RAIL — Applicants panel, JourneyStrip.
+   GEMLINE JOURNEY RAIL — the applicant profile's ApplicantJourneyRail
+   (/applicants/:id; the Applicants panel's JourneyStrip until 2026-10-06).
    2026-08-29. Reskinned from the founder's original Constellation pick to
    Gemline (direction 01 of the mockup gallery): the applicant's real
    workflow steps as gems strung on one continuous, flowing track — no
@@ -853,12 +857,16 @@
   color: var(--ink-3);
   line-height: 1.25;
   transition: color 0.4s ease;
+  /* The profile's labels carry soft hyphens for a phone's narrow columns
+     (softHyphenate); with room to spare they wrap between words only. */
+  hyphens: none;
 }
 .ck-rail-node.is-cleared .ck-rail-label,
 .ck-rail-node.is-current .ck-rail-label { color: var(--ink); }
 
 /* the receipt under a cleared gem — score, wpm, minutes, whatever's on file */
 .ck-rail-receipt {
+  hyphens: none;
   margin-top: 3px;
   min-height: 13px;
   font-size: 10px;
@@ -944,8 +952,13 @@
   .ck-rail-node { width: auto; flex: 1 1 0; min-width: 0; }
   .ck-rail-dot { width: 32px; height: 32px; }
   .ck-rail-glyph { width: 15px; height: 15px; }
-  .ck-rail-label { font-size: 9px; margin-top: 7px; }
-  .ck-rail-receipt { font-size: 9px; }
+  /* A one-word label ("connection") wider than its 42px column used to run
+     into the next one ("connectionaccuracy"): it breaks inside its own
+     column instead, at a hyphen where the language has one ("connec-tion"),
+     and only where it has none at any letter (break-word, not anywhere,
+     which cut "Applicat|ion" with no hyphen at all). */
+  .ck-rail-label { font-size: 9px; margin-top: 7px; max-width: 100%; padding: 0 1px; overflow-wrap: break-word; hyphens: auto; }
+  .ck-rail-receipt { font-size: 9px; max-width: 100%; padding: 0 1px; overflow-wrap: break-word; hyphens: auto; }
   .ck-rail-chip { width: 25px; height: 25px; }
   .ck-rail-chip-core { width: 25px; height: 25px; font-size: 8.5px; }
 }

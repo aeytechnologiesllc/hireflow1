@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { HostGate } from "@/components/HostGate";
+import { isStaffHost } from "@/lib/hosts";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/hooks/useAuth";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -268,6 +269,16 @@ const App = () => (
                   <Route path="/privacy" element={<Privacy />} />
                   <Route path="/terms" element={<Terms />} />
                   
+                  {/* Short job links: hireflownow.com/<slug> opens that job's page
+                      (docs/SHORT-JOB-LINKS.md). On the candidates' site only: on
+                      staff.hireflownow.com an unknown path stays NotFound. React
+                      Router ranks every static path above a :param one, so /auth,
+                      /jobs and every route above always win; only a single segment
+                      nothing else claims reaches the job page, which says "this
+                      role isn't open" for a name no job has. The job editor refuses
+                      every top-level path above as a name (src/lib/jobSlug.ts). */}
+                  {!isStaffHost() && <Route path="/:slug" element={<JobDetails />} />}
+
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={<NotFound />} />
                 </Routes>

@@ -19,6 +19,21 @@ export const ZULU_LEFT_USER_ID = "10000000-0000-4000-8000-000000000008";
 export const ZULU_RETAKE_USER_ID = "10000000-0000-4000-8000-000000000009";
 // The Zulu applicant running the speed test right now (docs/EQUIPMENT-CHECK.md).
 export const ZULU_CONNECTION_USER_ID = "10000000-0000-4000-8000-000000000010";
+// The rest of the Zulu field (docs/APPLICANTS-LIST.md §5: every state the
+// list shows has someone in it). Invented people, as above.
+/** On the typing test right now; ran the connection check on a phone. */
+export const ZULU_TYPING_USER_ID = "10000000-0000-4000-8000-000000000011";
+/** Left chat practice at reply 3, forty minutes ago. */
+export const ZULU_LEFT_CHAT_USER_ID = "10000000-0000-4000-8000-000000000012";
+/** Moved to interview, one booked. */
+export const ZULU_INTERVIEW_USER_ID = "10000000-0000-4000-8000-000000000013";
+export const ZULU_OFFERED_USER_ID = "10000000-0000-4000-8000-000000000014";
+export const ZULU_HIRED_USER_ID = "10000000-0000-4000-8000-000000000015";
+export const ZULU_DECLINED_USER_ID = "10000000-0000-4000-8000-000000000016";
+/** Finished every test; the connection check was added after they passed it. */
+export const ZULU_STRONG_USER_ID = "10000000-0000-4000-8000-000000000017";
+/** Sent the form two hours ago, not scored yet, skills check not started. */
+export const ZULU_QUIET_USER_ID = "10000000-0000-4000-8000-000000000018";
 
 export const JOB_BARISTA_ID = "20000000-0000-4000-8000-000000000001";
 export const JOB_SERVER_ID = "20000000-0000-4000-8000-000000000002";
@@ -65,6 +80,15 @@ export const APP_ZULU_RETAKE_ID = "30000000-0000-4000-8000-000000000017";
 export const APP_CONNECTION_ID = "30000000-0000-4000-8000-000000000018";
 /** Priya Natarajan, running the speed test on the Zulu role right now. */
 export const APP_ZULU_CONNECTION_ID = "30000000-0000-4000-8000-000000000019";
+// The rest of the Zulu field, one per state on the Applicants list.
+export const APP_ZULU_TYPING_ID = "30000000-0000-4000-8000-000000000020";
+export const APP_ZULU_LEFT_CHAT_ID = "30000000-0000-4000-8000-000000000021";
+export const APP_ZULU_INTERVIEW_ID = "30000000-0000-4000-8000-000000000022";
+export const APP_ZULU_OFFERED_ID = "30000000-0000-4000-8000-000000000023";
+export const APP_ZULU_HIRED_ID = "30000000-0000-4000-8000-000000000024";
+export const APP_ZULU_DECLINED_ID = "30000000-0000-4000-8000-000000000025";
+export const APP_ZULU_STRONG_ID = "30000000-0000-4000-8000-000000000026";
+export const APP_ZULU_QUIET_ID = "30000000-0000-4000-8000-000000000027";
 
 export const DOC_PENDING_EMPLOYER_ID = "40000000-0000-4000-8000-000000000001";
 export const DOC_PENDING_CANDIDATE_ID = "40000000-0000-4000-8000-000000000002";
@@ -73,3 +97,5 @@ export const DOC_DECLINED_ID = "40000000-0000-4000-8000-000000000004";
 
 export const INTERVIEW_UPCOMING_ID = "50000000-0000-4000-8000-000000000001";
 export const INTERVIEW_COMPLETED_ID = "50000000-0000-4000-8000-000000000002";
+/** The Zulu field's booked interview ("Interview Thu 3 PM" on the list). */
+export const INTERVIEW_ZULU_ID = "50000000-0000-4000-8000-000000000003";

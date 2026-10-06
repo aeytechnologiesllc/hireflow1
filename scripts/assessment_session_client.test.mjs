@@ -84,6 +84,9 @@ const bundle = await build({
           if (args.path === "@/integrations/supabase/types") return { path: args.path, namespace: "stub" };
           if (args.path === "sonner") return { path: args.path, namespace: "stub" };
           if (args.path === "@/hooks/useAssessmentSession") return { path: path.join(ROOT, "src/hooks/useAssessmentSession.ts") };
+          if (args.path === "@/components/candidate/continueOnComputerContext") {
+            return { path: path.join(ROOT, "src/components/candidate/continueOnComputerContext.ts") };
+          }
           throw new Error(`no stub for ${args.path}`);
         });
         b.onLoad({ filter: /.*/, namespace: "stub" }, (args) => ({

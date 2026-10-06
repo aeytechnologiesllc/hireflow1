@@ -39,6 +39,8 @@ import { formatMultiSelectAnswer } from "@/utils/applicationNotes";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { StepAdvanceScreen } from "@/components/candidate/NextStepCard";
 import CountryCodeSelect from "@/components/CountryCodeSelect";
+import { countryCodes } from "@/lib/countryCodes";
+import { browserLocaleHints, cleanPhoneInput, guessDialCode, phoneAnswer, phonePlaceholder, splitStoredPhone } from "@/lib/phoneNumber";
 import { convertPdfFileToImages, base64ToBlob } from "@/utils/pdfToImage";
 import {
   isImageResumeUrl,
@@ -156,13 +158,9 @@ const isValidEmail = (email: string) => {
   return emailRegex.test(email);
 };
 
-// Format phone number with dashes
-const formatPhoneNumber = (value: string) => {
-  const numbers = value.replace(/\D/g, "");
-  if (numbers.length <= 3) return numbers;
-  if (numbers.length <= 6) return `${numbers.slice(0, 3)}-${numbers.slice(3)}`;
-  return `${numbers.slice(0, 3)}-${numbers.slice(3, 6)}-${numbers.slice(6, 10)}`;
-};
+// Every dial code the selector offers: a pasted international number for
+// another country moves the selector to it (src/lib/phoneNumber.ts).
+const KNOWN_DIAL_CODES: readonly string[] = [...new Set(countryCodes.map((c) => c.code))];
 
 // Helper to detect resume-related file questions
 const isResumeQuestion = (question: { id: string; question: string; type: string }) => {
@@ -258,6 +256,11 @@ export default function ApplicationFormPhase() {
   // render's copy).
   const multiAnswersRef = useRef<Record<string, string[]>>({});
   const [phoneCountryCodes, setPhoneCountryCodes] = useState<Record<string, string>>({});
+  // The code a phone field shows before the applicant picks one: +63 for a
+  // browser in the Philippines (its time zone or language), else +1. It is
+  // the code that is saved, picked or not (src/lib/phoneNumber.ts).
+  const defaultDialCode = useMemo(() => guessDialCode(browserLocaleHints()), []);
+  const dialCodeFor = (questionId: string) => phoneCountryCodes[questionId] || defaultDialCode;
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [coverLetter, setCoverLetter] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -567,14 +570,11 @@ export default function ApplicationFormPhase() {
       
       // Phone
       if ((normalizeQuestionType(q.type) === "phone" || questionLower.includes("phone")) && profile.phone) {
-        // Parse existing phone (might include country code)
-        const phoneMatch = profile.phone.match(/^(\+\d+)?\s*(.*)$/);
-        if (phoneMatch) {
-          if (phoneMatch[1]) prefilledCountryCodes[q.id] = phoneMatch[1];
-          prefilled[q.id] = phoneMatch[2] || profile.phone;
-        } else {
-          prefilled[q.id] = profile.phone;
-        }
+        // A saved number may carry its code, spaced ("+63 917 …") or not
+        // ("+639171234567"): the known codes decide where the code ends.
+        const split = splitStoredPhone(profile.phone, defaultDialCode, KNOWN_DIAL_CODES);
+        if (/^\s*(\+|00)/.test(profile.phone)) prefilledCountryCodes[q.id] = split.code;
+        prefilled[q.id] = split.display || profile.phone;
       }
       
       // Job Title / Current Position
@@ -619,7 +619,7 @@ export default function ApplicationFormPhase() {
       }
       setHasPrefilledFromProfile(true);
     }
-  }, [profile, questions, hasPrefilledFromProfile, alreadySubmitted, application?.resume_url, resumeFile, questionFileUrls]);
+  }, [profile, questions, hasPrefilledFromProfile, alreadySubmitted, application?.resume_url, resumeFile, questionFileUrls, defaultDialCode]);
 
   // Bring back a saved draft (a reload, a closed tab, another device). The
   // draft wins over the profile prefill — it is what the applicant typed —
@@ -652,9 +652,18 @@ export default function ApplicationFormPhase() {
   // (and at once when the page is hidden or closed — useAssessmentSession),
   // so the hiring team sees how far they got even if they never press
   // Continue.
+  // The draft carries the code each phone number is shown with, picked or
+  // not, so the hiring team's view of a half-filled form reads "+63 917 …".
+  const draftPhoneCodes = useMemo(() => {
+    const codes: Record<string, string> = { ...phoneCountryCodes };
+    for (const q of questions) {
+      if (normalizeQuestionType(q.type) === "phone" && answers[q.id]?.trim() && !codes[q.id]) codes[q.id] = defaultDialCode;
+    }
+    return codes;
+  }, [questions, answers, phoneCountryCodes, defaultDialCode]);
   const draftPayload = useMemo(
-    () => formStateToDraft({ answers, multiAnswers, phoneCountryCodes, questionFileUrls, coverLetter }),
-    [answers, multiAnswers, phoneCountryCodes, questionFileUrls, coverLetter],
+    () => formStateToDraft({ answers, multiAnswers, phoneCountryCodes: draftPhoneCodes, questionFileUrls, coverLetter }),
+    [answers, multiAnswers, draftPhoneCodes, questionFileUrls, coverLetter],
   );
   const lastSavedDraftRef = useRef<string | null>(null);
   useEffect(() => {
@@ -1051,9 +1060,9 @@ export default function ApplicationFormPhase() {
         return {
           questionId: q.id,
           question: q.question,
-          answer: type === "phone" && phoneCountryCodes[q.id]
-            ? `${phoneCountryCodes[q.id]} ${answers[q.id] || ""}`
-            : answers[q.id] || "",
+          // A phone number is saved with the code that was shown beside
+          // it, picked or not, and without a national 0: "+63 917 123 4567".
+          answer: type === "phone" ? phoneAnswer(dialCodeFor(q.id), answers[q.id]) : answers[q.id] || "",
           type,
         };
       });
@@ -1119,13 +1128,17 @@ export default function ApplicationFormPhase() {
         });
 
         toast.success("Application sent", {
-          description: "Your answers are saved. The hiring team will get back to you — everyone hears back.",
+          // What is true (owner review, 2026-10-06): a reply comes once
+          // every step is done, not to everyone who sends a form.
+          description: "Your answers are saved. Everyone who finishes every step gets a yes or no by email.",
         });
 
         queryClient.invalidateQueries({ queryKey: ["application", id] });
         queryClient.invalidateQueries({ queryKey: ["applications"] });
         queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
-        navigate(`/applications/${id}`);
+        // The page moves by itself after a send: replace, so Back from the
+        // application page never lands on this sent step (docs/SHORT-JOB-LINKS.md).
+        navigate(`/applications/${id}`, { replace: true });
       }
     } catch (error) {
       console.error("Error submitting application:", error);
@@ -1407,32 +1420,47 @@ export default function ApplicationFormPhase() {
               {questionType === "phone" && (
                 <div className="flex gap-2" data-allow-paste="">
                   <CountryCodeSelect
-                    value={phoneCountryCodes[question.id] || "+1"}
-                    onValueChange={(value) => setPhoneCountryCodes(prev => ({ ...prev, [question.id]: value }))}
+                    value={dialCodeFor(question.id)}
+                    onValueChange={(value) => {
+                      setPhoneCountryCodes(prev => ({ ...prev, [question.id]: value }));
+                      // A number typed before the country was picked is
+                      // re-read for that country (+1 dashes, or groups of three).
+                      const typed = answers[question.id];
+                      if (typed) {
+                        const { display } = cleanPhoneInput(typed, value);
+                        setAnswers(prev => ({ ...prev, [question.id]: display }));
+                        syncQuestionError(question, display);
+                      }
+                    }}
                   />
                   <Input
                     id={`${fieldId}-phone`}
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel-national"
                     value={answers[question.id] || ""}
                     onChange={(e) => {
                       // A number pasted from Contacts or a password manager
-                      // carries its country code ("+1 555-123-4567"). The
-                      // selector beside this field already holds that, and it
-                      // is prepended again at submit — while formatPhoneNumber
-                      // keeps only the first ten digits, so the leading code
-                      // shifts every digit one place left. "+1 555-123-4567"
-                      // became "+1 155-512-3456": a wrong number with the code
-                      // duplicated, and no way for the employer to call back.
-                      const dial = (phoneCountryCodes[question.id] || "+1").replace(/\D/g, "");
-                      let raw = e.target.value.replace(/\D/g, "");
-                      if (dial && raw.length > 10 && raw.startsWith(dial)) raw = raw.slice(dial.length);
-                      const formatted = formatPhoneNumber(raw);
-                      setAnswers(prev => ({ ...prev, [question.id]: formatted }));
-                      syncQuestionError(question, formatted);
+                      // carries its country code ("+63 917 123 4567"). The
+                      // selector beside this field holds the code, and it is
+                      // put in front again when the answer is saved, so the
+                      // typed copy comes off here; a pasted number for another
+                      // country moves the selector to that country. +1 keeps
+                      // its ten digits; every other code up to 15 in all
+                      // (src/lib/phoneNumber.ts). Before this, the field kept
+                      // ten digits for every country: "0917 123 4567" was
+                      // saved as "091-712-3456".
+                      const cleaned = cleanPhoneInput(e.target.value, dialCodeFor(question.id), KNOWN_DIAL_CODES);
+                      if (cleaned.code !== dialCodeFor(question.id)) {
+                        setPhoneCountryCodes(prev => ({ ...prev, [question.id]: cleaned.code }));
+                      }
+                      setAnswers(prev => ({ ...prev, [question.id]: cleaned.display }));
+                      syncQuestionError(question, cleaned.display);
                     }}
-                    placeholder="123-456-7890"
+                    placeholder={phonePlaceholder(dialCodeFor(question.id))}
                     className={cn(FIELD_CLASS, "flex-1", validationErrors[question.id] && "border-destructive")}
                     /* Same as email: a phone number is contact data, not an
-                       answer. onChange still runs formatPhoneNumber, so a
+                       answer. onChange still runs cleanPhoneInput, so a
                        pasted number is normalised the same as a typed one. */
                   />
                 </div>

@@ -1,5 +1,6 @@
 /**
- * Server-side prerender for public job pages (/candidate/job/:id).
+ * Server-side prerender for public job pages (/candidate/job/:id), and for a
+ * job's short link (hireflownow.com/<slug>) when a link-preview crawler asks.
  *
  * WHY: the app is a client-rendered SPA, so the raw HTML a link preview (WhatsApp,
  * Facebook, X, iMessage) or a search engine first receives has no job title. This
@@ -18,6 +19,16 @@
  * (FUNCTION_INVOCATION_FAILED — "type":"module" ESM resolution), which 500'd the
  * live job pages. Keep this file dependency-free.
  *
+ * THE SHORT LINK (docs/SHORT-JOB-LINKS.md §6-7): vercel.json sends a crawler's
+ * request for /<slug> (Facebook, Messenger, WhatsApp, X, LinkedIn, Telegram,
+ * Slack, Discord, Viber, Google, Bing, Apple) here as ?slug=, so a shared
+ * hireflownow.com/team-lead previews as the job ("Chat Support Team Leader
+ * …"), not as the careers site's generic card. People are never sent here
+ * for /<slug>: they get the app, which opens the job itself. A name that is
+ * no open job (a page of the app such as /applications, a closed job, a
+ * typo) answers the plain shell with 200, exactly what a person gets, never
+ * a 404: only an id link can say for certain that a listing is gone.
+ *
  * SAFETY: fetches the current build's shell from "/" (never itself → no loop);
  * on ANY error serves the plain shell so a visitor's page never breaks.
  */
@@ -27,6 +38,9 @@ const SUPABASE_KEY = "sb_publishable_oUcY5Ih_vL5DYIV74AMsug_4Qg4gZRu";
 const ORIGIN = "https://hireflownow.com";
 const JOB_FIELDS =
   "id,title,description,responsibilities,requirements,location,job_type,salary_min,salary_max,salary_currency,salary_period,created_at,application_deadline,job_code,location_city,location_region,location_country,location_country_code,latitude,longitude,is_remote,locations,employer_id,benefits";
+
+/** A short link's name: the database's own CHECK (jobs_slug_format). */
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
 
 function esc(s) {
   return String(s ?? "")
@@ -65,6 +79,9 @@ function sb(path) {
 
 export default async function handler(req, res) {
   const id = String((req.query && req.query.id) || "").trim();
+  // A short link, when the request came in as /<slug> (vercel.json). An id
+  // wins if both are somehow given.
+  const slug = id ? "" : String((req.query && req.query.slug) || "").trim().toLowerCase();
   const origin = ORIGIN;
 
   let shell = "";
@@ -79,12 +96,38 @@ export default async function handler(req, res) {
     }
 
     let job = null;
+    if (slug) {
+      // The short link: the same public view, looked up by its name.
+      let lookupFailed = false;
+      if (SLUG_RE.test(slug)) {
+        const jr = await sb(`published_jobs_public?slug=eq.${encodeURIComponent(slug)}&select=${JOB_FIELDS}&limit=1`);
+        lookupFailed = !jr.ok;
+        if (jr.ok) {
+          const rows = await jr.json();
+          job = Array.isArray(rows) && rows[0] ? rows[0] : null;
+          if (job?.application_deadline && new Date(job.application_deadline).getTime() < Date.now()) {
+            job = null;
+          }
+        }
+      }
+      if (!job) {
+        // Not an open job's name (a page of the app, a closed job, a typo),
+        // or the lookup failed: the plain shell, as a person gets it.
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        // A failed lookup is never kept: the next crawl may find the job.
+        res.setHeader("Cache-Control", lookupFailed ? "no-store" : "public, s-maxage=60, stale-while-revalidate=60");
+        res.end(shell);
+        return;
+      }
+    }
+
     // `gone` means we KNOW there is no live listing: a malformed id, no row in
     // published_jobs_public (closed, deleted, never existed), or past its
     // deadline. A Supabase error is deliberately not "gone" — a hiccup must
     // never tell Google that a real, open job was removed.
-    let gone = !(id && /^[0-9a-f][0-9a-f-]{10,40}$/i.test(id));
-    if (!gone) {
+    let gone = !job && !(id && /^[0-9a-f][0-9a-f-]{10,40}$/i.test(id));
+    if (!job && !gone) {
       const jr = await sb(`published_jobs_public?id=eq.${encodeURIComponent(id)}&select=${JOB_FIELDS}&limit=1`);
       if (jr.ok) {
         const rows = await jr.json();
@@ -130,6 +173,13 @@ export default async function handler(req, res) {
 
     const title = jobPageTitle(job, company);
     const desc = jobMetaDescription(job);
+    // One address for the job everywhere, also when this page was asked for
+    // by its short link (docs/SHORT-JOB-LINKS.md §7): the sitemap and the
+    // page's own head (JobPageHead.tsx) still name /candidate/job/:id, which
+    // is prerendered for every visitor, while /<slug> is prerendered only for
+    // crawlers and is the plain shell (canonical = the homepage) for anyone
+    // else. Pointing here at /<slug> would give search two canonicals for one
+    // job. All three move to the short link together, in one change.
     const url = `${origin}/candidate/job/${job.id}`;
 
     const injected =

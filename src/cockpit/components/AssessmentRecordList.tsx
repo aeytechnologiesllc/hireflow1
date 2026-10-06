@@ -37,7 +37,7 @@ import { liveTone, toneColor, type AssessmentEntry, type LiveState } from "../li
 export function LiveDot({ state, className = "" }: { state: LiveState | null | undefined; className?: string }) {
   if (!state || state === "doing") return <span className={`ck-dot ck-dot-live shrink-0 ${className}`} aria-hidden />;
   const color =
-    state === "left" || state === "away" ? "var(--amber-fg)" : state === "failed" ? "var(--crit)" : state === "finished" ? "var(--jade)" : "var(--brass)";
+    state === "left" || state === "away" || state === "waiting" ? "var(--amber-fg)" : state === "failed" ? "var(--crit)" : state === "finished" ? "var(--jade)" : "var(--brass)";
   return (
     <span
       aria-hidden

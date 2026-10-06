@@ -436,7 +436,10 @@ for (const rel of PHASE_PAGES) {
 }
 {
   const card = await read("src/components/candidate/NextStepCard.tsx");
-  check("NextStepCard: 'Start <step>' always loads the page fresh", /onClick: \(\) => window\.location\.assign\(route\)/.test(card) && !/navigate\(route\)/.test(card));
+  // A full load, and it takes the sent step's place in the history
+  // (docs/SHORT-JOB-LINKS.md §2): Back from the next step never lands on a
+  // step that is already done.
+  check("NextStepCard: 'Start <step>' always loads the page fresh, replacing the sent step", /onClick: \(\) => window\.location\.replace\(route\)/.test(card) && !/navigate\(route\)/.test(card) && !/location\.assign\(/.test(card));
   check(
     "NextStepCard: the waiting copy does not promise the step opens by itself",
     !/as soon as it's ready/.test(card) && /the hiring team will open it/.test(card),

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect, mem
 import { useQueryClient } from "@tanstack/react-query";
 import { useCreateInterview } from "@/hooks/useInterviews";
 import { useUpdateApplication } from "@/hooks/useApplications";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -745,7 +745,9 @@ export default function InterviewSchedulingWizard({
         .iwz-scrollbar-none::-webkit-scrollbar { display: none; width: 0; height: 0; }
       `}</style>
       <Dialog open={open} onOpenChange={showSuccess ? handleSuccessClose : onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden p-0">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden p-0" aria-describedby={undefined}>
+        {/* A name for screen readers; every step draws its own visible heading. */}
+        <DialogTitle className="sr-only">Set up an interview with {candidateName}</DialogTitle>
         {/* Success View */}
         {showSuccess ? (
           <motion.div
