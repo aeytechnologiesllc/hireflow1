@@ -907,7 +907,18 @@ const zuluJob: FixtureRow = {
       options: ["Daytime, 8am to 4pm Eastern", "Evening, 4pm to midnight Eastern", "Overnight, midnight to 8am Eastern", "Weekends (Saturday and Sunday)"],
       required: true,
     },
-    { id: "q6", type: "select", question: "How many hours a week can you work?", options: ["Under 20", "20 to 30", "30 to 40", "40 or more"], required: true },
+    {
+      id: "q6",
+      type: "select",
+      question: "How many hours a week can you work?",
+      options: ["Under 20", "20 to 30", "30 to 40", "40 or more"],
+      required: true,
+      // The owner's review flag (formFlagsFrom): the profile's "At a glance"
+      // draws a flagged pick in amber.
+      flag_options: ["Under 20", "20 to 30"],
+      flag_label: "Can work fewer than 30 hours a week",
+      flag_severity: "review",
+    },
     { id: "q9", type: "textarea", question: "Describe any customer support or chat support experience you have.", required: true },
     { id: "q10", type: "textarea", question: "Why do you want this job, and what makes you good with upset people?", required: true },
     { id: "q11", type: "file", question: "Screenshot of a speed test (fast.com or speedtest.net)", required: false },
@@ -1199,6 +1210,12 @@ const appZuluDone = makeZuluApplication({
     decisionState: "ready_for_decision",
     hardRejectReason: "Typing test result of 38 WPM is below the job's 45 WPM minimum.",
     transferableEvidence: ["States two years of chat support for a mobile carrier.", "Perfect score on the rules quiz."],
+    whyUp: ["Perfect score on the rules quiz", "Two years of chat support for a mobile carrier"],
+    whyDown: [
+      "Typing 38 WPM, under the 45 the job asks for",
+      "Practice chat 18: steered an upset player to a break instead of an answer",
+      "Written interview: no step-by-step way of fixing a cash-out",
+    ],
     riskFlags: [
       "Resume could not be analyzed",
       "Overall score is below the passing threshold",
@@ -2053,6 +2070,13 @@ interface ZuluRun {
   /** `typing`: notes.chatSimulationResult.typing (chatTypingFixture). */
   chat?: { at: number; score: number; typing?: FixtureRow };
   interview?: { at: number; score: number; recommendation: string };
+  /** The form's other answers, when the profile should show them: the phone,
+   *  the shifts picked, the hours ("40 or more" when left out), and the two
+   *  written answers (q9, q10). */
+  phone?: string;
+  shifts?: string[];
+  hours?: string;
+  words?: [string, string];
 }
 
 /** The notes a run leaves behind, shaped like Robin's above. */
@@ -2061,8 +2085,18 @@ function zuluRunNotes(run: ZuluRun): string {
     applicationAnswers: [
       { type: "text", answer: run.name, question: "Full name", questionId: "q1" },
       { type: "email", answer: `${run.name.toLowerCase().replace(/[^a-z]+/g, ".")}@example.com`, question: "Email address", questionId: "q2" },
+      ...(run.phone ? [{ type: "tel", answer: run.phone, question: "Phone number (WhatsApp if you have it)", questionId: "q3" }] : []),
       { type: "text", answer: run.place, question: "Country and city you will work from", questionId: "q4" },
-      { type: "select", answer: "40 or more", question: "How many hours a week can you work?", questionId: "q6" },
+      ...(run.shifts
+        ? [{ type: "multi_select", answer: run.shifts.join("; "), selected: run.shifts, question: "Which shifts can you cover, in US Eastern time? Pick every one that works.", questionId: "q5" }]
+        : []),
+      { type: "select", answer: run.hours ?? "40 or more", question: "How many hours a week can you work?", questionId: "q6" },
+      ...(run.words
+        ? [
+            { type: "textarea", answer: run.words[0], question: "Describe any customer support or chat support experience you have.", questionId: "q9" },
+            { type: "textarea", answer: run.words[1], question: "Why do you want this job, and what makes you good with upset people?", questionId: "q10" },
+          ]
+        : []),
     ],
   };
   const trusted: FixtureRow = {};
@@ -2222,6 +2256,12 @@ const nadiaRun: ZuluRun = {
   typing: { at: 6 * 60 - 9, wpm: 58, accuracy: 97 },
   chat: { at: 6 * 60 - 17, score: 79 },
   interview: { at: 6 * 60 - 25, score: 76, recommendation: "Hire" },
+  phone: "+880 1712 345678",
+  shifts: ["Evening, 4pm to midnight Eastern", "Overnight, midnight to 8am Eastern"],
+  words: [
+    "Three years on live chat for a mobile wallet in Dhaka, mostly failed transfers and locked accounts. I handled about 60 chats a shift and trained two new agents on our refund rules.",
+    "When someone is angry about money I say what I can see on their account, what happens next, and when. People calm down when they get a time, not just a sorry.",
+  ],
 };
 const luisRun: ZuluRun = {
   appId: APP_ZULU_QUIET_ID,
@@ -2246,6 +2286,8 @@ const kwameRun: ZuluRun = {
     typing: chatTypingFixture({ wpm: 32, correctionsPct: 9, medianReplySeconds: 140, typosPer100Words: 1.2, repliesTimed: 6, pasteLike: 1 }),
   },
   interview: { at: 4 * 60 - 29, score: 70, recommendation: "Hire" },
+  hours: "20 to 30",
+  shifts: ["Overnight, midnight to 8am Eastern"],
 };
 
 const appZuluTyping = makeZuluApplication({
@@ -2338,7 +2380,19 @@ const appZuluStrong = makeZuluApplication({
   ai_score: 78,
   notes: zuluRunNotes(nadiaRun),
   ai_analysis: "Summary: Specific, calm answers about money problems; a strong practice chat.",
-  ai_scorecard: { overallScore: 78, recommendedAction: "advance", decisionState: "ready_for_decision", riskFlags: [] },
+  ai_scorecard: {
+    overallScore: 78,
+    recommendedAction: "advance",
+    decisionState: "ready_for_decision",
+    hardRequirementStatus: "met",
+    riskFlags: [],
+    whyUp: [
+      "Three years of live chat on money problems",
+      "Practice chat 79: named what support can and cannot see",
+      "Typing 58 WPM, above the 45 the job asks for",
+    ],
+    whyDown: ["Missed one bonuses question on the skills check"],
+  },
 });
 const appZuluChatTyped = makeZuluApplication(
   {
@@ -2355,7 +2409,7 @@ const appZuluChatTyped = makeZuluApplication(
       overallScore: 69,
       recommendedAction: "review",
       decisionState: "ready_for_decision",
-      riskFlags: ["Typed 32 WPM in the chat practice; the job asks for 40", "Slow replies: median 140 s; the job asks for 90 s"],
+      riskFlags: ["Can work fewer than 30 hours a week", "Typed 32 WPM in the chat practice; the job asks for 40", "Slow replies: median 140 s; the job asks for 90 s"],
     },
   },
   zuluJobNoTypingStep,

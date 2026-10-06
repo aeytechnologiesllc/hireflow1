@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Navigate, useLocation, useNavigate, useNavigationType, useSearchParams } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { useAuth } from "@/hooks/useAuth";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile, useMinWidth } from "@/hooks/use-mobile";
 import { useEmployerJobs } from "@/hooks/useJobs";
 import { clearDraft } from "@/lib/avaEngine/draft";
 import { SearchInput } from "../components/controls";
@@ -21,7 +21,7 @@ import {
 } from "../components/ApplicantFilters";
 import { useApplicantList } from "../hooks/useApplicantList";
 import { mapJobRow } from "../lib/mappers";
-import { writeApplicantOrder } from "../lib/applicantProfile";
+import { writeApplicantOrder, writeApplicantTab } from "../lib/applicantProfile";
 import {
   APPLIED_OPTIONS,
   BELOW_OPTIONS,
@@ -87,21 +87,6 @@ function pillsFade(more: { left: boolean; right: boolean }): CSSProperties | und
 
 /** The phone's one word for each sort. */
 const SORT_SHORT: Record<SortKey, string> = { score: "Score", newest: "Newest", "last-active": "Last active" };
-
-/** True from `px` wide up. Read before the first paint, so the table never
- *  flashes in as cards (or the other way round). */
-function useMinWidth(px: number): boolean {
-  const query = `(min-width: ${px}px)`;
-  return useSyncExternalStore(
-    (onChange) => {
-      const mql = window.matchMedia(query);
-      mql.addEventListener("change", onChange);
-      return () => mql.removeEventListener("change", onChange);
-    },
-    () => window.matchMedia(query).matches,
-    () => true,
-  );
-}
 
 /** True when the list itself has room for the table's columns. Measured on
  *  the page, not the window: the team member's shell has a wider sidebar than
@@ -302,6 +287,10 @@ export default function CockpitApplicants() {
     writtenOrder.current = key;
     writeApplicantOrder(ids);
   }, [isLoading, view.matched]);
+  // …and the tab it is on, for the profile's "Back to applicants · Needs review".
+  useEffect(() => {
+    writeApplicantTab(state.tab);
+  }, [state.tab]);
 
   /* ── Scroll: kept on the way out to a profile, put back on the way in ─ */
   const openRow = useCallback(() => saveScroll(rootRef.current, location.search), [location.search]);

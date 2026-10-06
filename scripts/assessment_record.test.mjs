@@ -1376,6 +1376,19 @@ check(
 check("the old EvidenceTiles are gone", !/EvidenceTiles/.test(applicantsPage));
 check("the record sheet opens on the full profile, not on the list", !/<AssessmentRecordSheet/.test(applicantsPage) && /<AssessmentRecordSheet/.test(detailPage));
 check("the full profile lists what they submitted", /<AssessmentRecordList/.test(detailPage) && /What they submitted/.test(detailPage));
+// On a desktop (docs/APPLICANT-PROFILE.md) the same record is drawn as tiles,
+// one per entry but the integrity row (the right column's), and a tile opens
+// the same sheet through the same openRecord as the phone's rows.
+const tilesSrc = await src("src/cockpit/components/ApplicantTestTiles.tsx");
+const integritySrc = await src("src/cockpit/components/ApplicantIntegrityPanel.tsx");
+check(
+  "the desktop profile draws the record as tiles that open the same sheet",
+  /testTiles\(record\.entries,/.test(detailPage) && /<ApplicantTestTiles tiles=\{tiles\} onOpen=\{openRecord\} \/>/.test(detailPage) && /onClick=\{\(\) => onOpen\(tile\.entry\)\}/.test(tilesSrc),
+);
+check(
+  "…and the integrity row becomes the right column's count and words, opening the same sheet",
+  /entries\.find\(\(e\) => e\.kind === "integrity"\)/.test(integritySrc) && /entry\.subline/.test(integritySrc) && /onClick=\{\(\) => onOpen\(entry\)\}/.test(integritySrc) && /<ApplicantIntegrityPanel record=\{record\} onOpen=\{openRecord\} \/>/.test(detailPage),
+);
 check("the full profile no longer shows a Quiz/Voice grid", !/label: "Voice", v: c\.voice/.test(detailPage));
 check("the full profile looks again before saying it cannot find someone", /stillLooking/.test(detailPage) && /refetch\(\)/.test(detailPage));
 // The list's state: 25 at a time, and the tab, filters, sort, search and

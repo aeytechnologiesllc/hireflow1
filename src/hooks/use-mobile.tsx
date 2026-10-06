@@ -24,3 +24,20 @@ export function useIsMobile() {
 
   return isMobile;
 }
+
+/** True from `px` of window width up, by the same media query the rest of the
+ *  app decides its widths with. Read before the first paint (useSyncExternalStore
+ *  reads the query during render), so a layout never flashes in as the other
+ *  one. The Applicants list and the full profile share it. */
+export function useMinWidth(px: number): boolean {
+  const query = `(min-width: ${px}px)`;
+  return React.useSyncExternalStore(
+    (onChange) => {
+      const mql = window.matchMedia(query);
+      mql.addEventListener("change", onChange);
+      return () => mql.removeEventListener("change", onChange);
+    },
+    () => window.matchMedia(query).matches,
+    () => true,
+  );
+}

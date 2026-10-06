@@ -355,6 +355,9 @@ function MobileTabBar() {
   );
 }
 
+/** /applicants/:id, the one page that takes a wider cap. */
+const PROFILE_ROUTE = /^\/applicants\/[^/]+\/?$/;
+
 export function CockpitShell({ children }: { children: ReactNode }) {
   const isMobile = useIsMobile();
   const { pathname } = useLocation();
@@ -385,8 +388,13 @@ export function CockpitShell({ children }: { children: ReactNode }) {
             style={isMobile ? undefined : undefined}
           >
             {/* Keyed on the route so every navigation gets a quiet page-turn
-                instead of a hard content swap. */}
-            <div key={pathname} className="ck-page mx-auto w-full max-w-[1240px]">{children}</div>
+                instead of a hard content swap. One applicant's full profile
+                uses the whole screen (docs/APPLICANT-PROFILE.md): at 1240 it
+                sat centred with a quarter of a 1920 screen empty, and the
+                team member's shell, which has no cap, drew it wider. */}
+            <div key={pathname} className={`ck-page mx-auto w-full ${PROFILE_ROUTE.test(pathname) ? "max-w-[1680px]" : "max-w-[1240px]"}`}>
+              {children}
+            </div>
           </main>
           <MobileTabBar />
         </div>

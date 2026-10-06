@@ -887,7 +887,9 @@
   padding: 2px 8px;
   border-radius: 999px;
   background: var(--brass);
-  color: #1B160F;
+  /* The button ink of each theme: ivory on Day's dark brass (4.6:1; the old
+     #1B160F was 3.4:1 there), deep ink on Night's light brass. */
+  color: var(--btn-fg);
   font-weight: 800;
 }
 
@@ -1050,4 +1052,203 @@
   .ck-mini-rail-track { top: 13px; }
   .ck-mini-rail-dot { width: 26px; height: 26px; font-size: 11px; }
   .ck-mini-rail-label { font-size: 9px; margin-top: 5px; }
+}
+
+/* ── THE APPLICANT PROFILE ON A DESKTOP ─────────────────────────────────────
+   docs/APPLICANT-PROFILE.md (approved 2026-10-06 from
+   docs/mockups/applicant-profile-desktop-*.png). The layout follows the
+   PAGE's own width, not the window's (the team member's shell has a wider
+   sidebar than the cockpit's): from 900px of page the whole screen, a header
+   band with no box, the journey across the full width, then a fluid main
+   column beside a right column; under that the same sections in one
+   full-width column; on a phone (under 768px of window) the phone layout,
+   untouched. Sections are separated by hairlines, not boxes; the only filled
+   surfaces are the test tiles and the decision card. Solid fills only (no
+   translucent panels). */
+
+/* Back to applicants and the pager stay on screen while the page scrolls,
+   as they always have. It covers the scroller's top padding too (the page
+   sets top, margin and padding to it), so nothing shows above it, and its
+   ground is solid. The hairline appears once something passes under it. */
+.ckp-topline {
+  position: sticky;
+  z-index: 20;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s ease;
+}
+/* At rest it is the plain line above the band (no band of ground over the
+   page's light); once the page scrolls under it, solid ground. */
+.ckp-topline[data-stuck] { background: var(--ground); border-bottom-color: var(--line-soft); }
+
+.ckp-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 22px;
+  align-items: center;
+  margin-top: 14px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+/* A narrow page: the suggestion and the score take their own line under the
+   name, so the name and its line keep the width. The score stays at the
+   line's right end even when it is alone (no suggestion). */
+[data-ckp-head="split"] .ckp-head { grid-template-columns: auto minmax(0, 1fr); row-gap: 16px; }
+[data-ckp-head="split"] .ckp-head > :last-child { grid-column: 1 / -1; justify-content: space-between; }
+.ckp-head > :last-child > .ckp-score { margin-left: auto; }
+
+.ckp-journey {
+  padding: 22px 0 6px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.ckp-body {
+  display: grid;
+  /* The right column grows with the page: 375px on a 1440 laptop, 440px on
+     a 1920 screen, never under 316 (room for "Set up interview" and
+     "Message" side by side, each on one line). */
+  grid-template-columns: minmax(0, 1fr) clamp(316px, 32%, 440px);
+  gap: 32px;
+  margin-top: 26px;
+  align-items: start;
+}
+
+/* The right column. When all of it fits on the screen it stays there whole
+   while the main column scrolls (data-fit="whole"). When it does not, only
+   the decision card stays (data-fit="card"): the column runs the full height
+   of the main one, the card sticks under the top line and At a glance,
+   Integrity and the Timeline scroll with the page, so nothing is ever hidden
+   in a box of its own or cut at the end of the page. The page sets
+   --ckp-line (the top line's height) and --ckp-sticky-top. */
+.ckp-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+.ckp-aside[data-fit="whole"] {
+  position: sticky;
+  top: var(--ckp-sticky-top, 48px);
+}
+.ckp-aside[data-fit="card"] { align-self: stretch; }
+.ckp-aside[data-fit="card"] > .ckp-decide-wrap {
+  position: sticky;
+  top: var(--ckp-line, 36px);
+  z-index: 10;
+  /* Solid ground in the gap between the top line and the card (it reads as
+     the top line's own ground), so the panels it rides over never show
+     above it; under it they pass beneath the card's shadow. */
+  padding-top: 12px;
+  margin-top: -12px;
+  background: var(--ground);
+}
+
+/* The panels under the decision card: hairlines between them, no boxes. */
+.ckp-panels {
+  display: flex;
+  flex-direction: column;
+  padding: 0 2px;
+}
+.ckp-panels > * + * {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.ckp-sec {
+  padding-bottom: 26px;
+  margin-bottom: 26px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.ckp-sec:last-child {
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: 0;
+}
+
+/* Your decision: the one filled card on the right. */
+.ckp-decide {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: inset 0 1px 0 rgba(244, 239, 227, 0.06), var(--hf-shadow-soft);
+}
+
+/* A secondary action on the card: a soft fill, no outline. */
+.ckp-btn-soft {
+  background: var(--surface-2);
+  color: var(--ink);
+  border: 1px solid transparent;
+  font-weight: 500;
+}
+.ckp-btn-soft:not(:disabled):hover { border-color: var(--hair); }
+
+/* The test tiles: three across on a wide screen, two on a laptop, never
+   four (a fourth column left empty slots on a wide page). */
+.ckp-tests {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(max(270px, calc((100% - 28px) / 3)), 1fr));
+  gap: 14px;
+}
+/* The tests not taken: one quiet line under the tiles. */
+.ckp-tests-none { grid-column: 1 / -1; padding: 2px 2px 0; }
+.ckp-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid transparent;
+  border-radius: 14px;
+  padding: 16px 16px 14px;
+  box-shadow: inset 0 1px 0 rgba(244, 239, 227, 0.05), var(--hf-shadow-soft);
+  color: inherit;
+}
+button.ckp-tile { cursor: pointer; }
+button.ckp-tile:hover { border-color: var(--hair); }
+button.ckp-tile:focus-visible { outline: 2px solid var(--jade); outline-offset: 2px; }
+/* Not reached, not taken: quiet, an outline only. */
+.ckp-tile[data-state="none"] {
+  /* Its own height, not its row's: a tall empty dashed box reads as missing content. */
+  align-self: start;
+  background: transparent;
+  border: 1px dashed var(--line);
+  box-shadow: none;
+}
+
+/* The journey rail across the full width: every step an equal column,
+   larger gems, the label and its result readable at a glance. */
+.ck-rail-wide { margin-bottom: 8px; }
+.ck-rail-wide .ck-rail-band { padding: 14px 0 4px; }
+.ck-rail-wide .ck-rail-nodes { gap: 0; }
+.ck-rail-wide .ck-rail-node { width: auto; flex: 1 1 0; min-width: 0; }
+.ck-rail-wide .ck-rail-dot { width: 42px; height: 42px; }
+.ck-rail-wide .ck-rail-glyph { width: 18px; height: 18px; }
+/* Between words only: the page draws the wide rail only where every step's
+   column has room for its longest word (narrower, the phone's rail). */
+.ck-rail-wide .ck-rail-label { margin-top: 10px; padding: 0 6px; font-size: 13px; letter-spacing: 0; max-width: 100%; overflow-wrap: normal; hyphens: none; }
+.ck-rail-wide .ck-rail-receipt { margin-top: 2px; padding: 0 6px; font-size: 12.5px; font-weight: 500; letter-spacing: 0; max-width: 100%; overflow-wrap: normal; hyphens: none; }
+.ck-rail-wide .ck-rail-receipt.show.is-sealed { padding: 2px 9px; font-size: 11px; font-weight: 800; }
+/* The end gems' tooltips open inward, so the last one is not cut by the
+   page's edge on a full-width rail (and on the phone's rail where the column
+   layout draws it, in a narrow shell). */
+.ck-rail-wide .ck-rail-node:first-child > .absolute,
+[data-profile-layout] .ck-rail-node:first-child > .absolute { left: 0; --tw-translate-x: 0; }
+.ck-rail-wide .ck-rail-node:last-child > .absolute,
+[data-profile-layout] .ck-rail-node:last-child > .absolute { left: auto; right: 0; --tw-translate-x: 0; }
+
+/* The column layout's sticky foot: the decision card's own buttons, shown
+   only once the card has scrolled out of view, so the two are never on
+   screen together. */
+.ckp-footbar {
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s linear 0.18s;
+}
+.ckp-footbar:not([data-shown]) {
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(8px);
+}
+.ckp-footbar[data-shown] { transition-delay: 0s; }
+@media (prefers-reduced-motion: reduce) {
+  .ckp-footbar { transition: none; }
 }

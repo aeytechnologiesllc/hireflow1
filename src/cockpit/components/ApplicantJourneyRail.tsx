@@ -60,6 +60,8 @@ export function ApplicantJourneyRail({
   name,
   liveStepId,
   line,
+  wide = false,
+  showSummary = true,
 }: {
   dots: JourneyDot[];
   /** applications.status: what the Decision gem says. */
@@ -72,6 +74,11 @@ export function ApplicantJourneyRail({
    *  the attempts, Ava's suggestion): with it, the line under the rail is the
    *  list row's own, word for word. */
   line?: JourneyLineContext;
+  /** Across a desktop's full width (docs/APPLICANT-PROFILE.md): every step an
+   *  equal column, larger gems, the label and the result readable at a glance. */
+  wide?: boolean;
+  /** The line under the rail. Off where the header already says it. */
+  showSummary?: boolean;
 }) {
   if (dots.length === 0) return null;
   const outcome = decisionWord(status);
@@ -82,11 +89,16 @@ export function ApplicantJourneyRail({
     const receipt = isDecision
       ? outcome ??
         (dot.state === "now"
-          ? status === "offered"
-            ? "Hire, or take back the offer"
-            : advanceLabel
-              ? `Pass, or move to ${advanceLabel}`
-              : "Pass, or move forward"
+          ? // Across a desktop the decision card beside it names the actions
+            // ("Move to interview", "Pass on Nadia"); the rail says whose
+            // turn it is, as the approved mockup does.
+            wide
+            ? "Waiting on you"
+            : status === "offered"
+              ? "Hire, or take back the offer"
+              : advanceLabel
+                ? `Pass, or move to ${advanceLabel}`
+                : "Pass, or move forward"
           : null)
       : dotReceipt(dot);
     return {
@@ -116,9 +128,10 @@ export function ApplicantJourneyRail({
       nodes={nodes}
       current={railIndex(dots, liveStepId)}
       traveler={getInitials(name)}
-      summary={journeyLine(dots, status, line) ?? undefined}
+      summary={showSummary ? journeyLine(dots, status, line) ?? undefined : undefined}
       ariaLabel="Where they are in the job's process"
       focusable
+      className={wide ? "ck-rail-wide" : undefined}
     />
   );
 }

@@ -10,6 +10,8 @@
  * the applicant had passed it, while the record beside it said "No result on
  * file". A step like that is Skipped.
  */
+// Through "@/": the Node test runner resolves only that spelling (a value import, unlike the type-only one below).
+import { chatTypingNeedsALook } from "@/cockpit/lib/assessmentRecord";
 import type { AssessmentEntry, AssessmentRecord, AssessmentSessionRow, LiveState, LiveStatus } from "./assessmentRecord";
 import { DECISION_STAGE_ID, titleFor } from "@/lib/candidateJourney";
 
@@ -571,4 +573,580 @@ export function timelineMoments(
     out.push({ key: "decision", label, at: app!.updated_at!, kind: "decision" });
   }
   return out;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   The profile on a desktop (docs/APPLICANT-PROFILE.md): the header band, the
+   test tiles, "In their words", "At a glance". Read off the same record and
+   the same stored answers as everything above; nothing here is inferred.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── The list's tab, for "Back to applicants · Needs review" ───────────── */
+
+/** The list writes the tab it is on beside its order (the tab's key, e.g.
+ *  "needs-review"); the profile says it in words next to Back. */
+export const APPLICANT_TAB_KEY = "applicantList.tab.v1";
+
+export function writeApplicantTab(tab: string, store: WriteStore | null = sessionStore()): void {
+  try {
+    store?.setItem(APPLICANT_TAB_KEY, tab);
+  } catch {
+    // Full or blocked storage: Back simply says "Back to applicants".
+  }
+}
+
+export function readApplicantTab(store: ReadStore | null = sessionStore()): string | null {
+  try {
+    const raw = store?.getItem(APPLICANT_TAB_KEY) ?? null;
+    return raw && /^[a-z-]{1,40}$/.test(raw) ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+/* ── Small readers ─────────────────────────────────────────────────────── */
+
+type Obj = Record<string, unknown>;
+
+function asObj(value: unknown): Obj | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Obj) : null;
+}
+
+function text(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function textList(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(text).filter((v): v is string => !!v) : [];
+}
+
+/** Quotes, spacing and case taken out, the way the server compares form
+ *  answers to flag_options (formFlagsFrom in supabase/functions/_shared/autopilot.ts). */
+function normalizeAnswer(value: string): string {
+  return value.replace(/[‘’‛′]/g, "'").replace(/[“”‟″]/g, '"').trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+/* ── Ava's reasons, as the scorecard keeps them ───────────────────────── */
+
+/** ai_scorecard.whyUp / whyDown (2026-10-06): what pushed the score up and
+ *  what pulled it down, each a short phrase from the evidence. Empty on a
+ *  scorecard written before they existed. */
+export function scorecardWhy(scorecard: unknown): { up: string[]; down: string[] } {
+  const card = asObj(scorecard);
+  const clean = (value: unknown) => [...new Set(textList(value))].slice(0, 6);
+  return { up: clean(card?.whyUp), down: clean(card?.whyDown) };
+}
+
+/** "Ava suggests", in words: jade to move them on, amber to look closer,
+ *  crit to decline. Null once a person has decided, while they are still on
+ *  the form, and before she has a recommendation. */
+export interface AvaSuggestion {
+  tone: "jade" | "amber" | "crit";
+  text: string;
+}
+
+export function avaSuggests(scorecard: unknown, status: string | null | undefined, advanceLabel: string | null | undefined): AvaSuggestion | null {
+  if (isDecided(status) || status === "in_progress") return null;
+  const card = asObj(scorecard);
+  const action = text(card?.recommendedAction);
+  const requirements = text(card?.hardRequirementStatus);
+  if (action === "advance") {
+    const target = advanceLabel ? advanceLabel.toLowerCase() : "the next stage";
+    return { tone: "jade", text: `Move to ${target}.${requirements === "met" ? " Every requirement met." : ""}` };
+  }
+  if (action === "review") {
+    const why = requirements === "mixed" ? " Some requirements are mixed." : requirements === "at_risk" ? " A requirement is at risk." : "";
+    return { tone: "amber", text: `Take a closer look.${why}` };
+  }
+  if (action === "reject") {
+    const reason = text(card?.hardRejectReason);
+    return { tone: "crit", text: reason ? `Decline. ${reason.replace(/\s*$/, "")}` : "Decline." };
+  }
+  return null;
+}
+
+/* ── The header's live line ────────────────────────────────────────────── */
+
+export interface HeaderLine {
+  text: string;
+  tone: "jade" | "amber" | "crit" | "muted";
+}
+
+/**
+ * The one line beside the name, from the list's own row (listRowFor), so the
+ * header and the row it was opened from say the same thing:
+ * - decided: the row's "Decided Mon" (the chip already names the decision)
+ * - a live attempt: the record's own summary ("Written interview: in the
+ *   conversation · 4 replies · active 1 min ago"), amber once they have gone
+ *   from it or are waiting on a computer
+ * - finished every test: "Finished every test 40 min ago"
+ * - otherwise where they are on the journey ("Typing test · step 4 of 7 · not started")
+ */
+export function headerLine(
+  row: {
+    decided: boolean;
+    finished: boolean;
+    liveState: LiveState | null;
+    lastActiveAt: string | null;
+    activeWords: string;
+    lineText: string;
+  },
+  live: Pick<LiveStatus, "summary"> | null | undefined,
+  agoWords: (ms: number | null, now: number) => string,
+  now: number,
+): HeaderLine | null {
+  if (row.decided) return row.activeWords ? { text: row.activeWords, tone: "muted" } : null;
+  if (live && row.liveState) {
+    const tone: HeaderLine["tone"] =
+      row.liveState === "left" || row.liveState === "away" || row.liveState === "waiting" ? "amber" : row.liveState === "failed" ? "crit" : "jade";
+    return { text: live.summary, tone };
+  }
+  if (row.finished) {
+    const at = row.lastActiveAt ? Date.parse(row.lastActiveAt) : NaN;
+    return { text: `Finished every test ${agoWords(Number.isFinite(at) ? at : null, now)}`, tone: "jade" };
+  }
+  return row.lineText ? { text: row.lineText, tone: "muted" } : null;
+}
+
+/* ── The application's questions ───────────────────────────────────────── */
+
+/** Pick-one and pick-several question types, as the form normalises them
+ *  (normalizeQuestionType in src/pages/ApplicationFormPhase.tsx). */
+const PICK_ONE = new Set(["select", "dropdown", "radio"]);
+const PICK_SEVERAL = new Set(["multi_select", "multiselect", "multi-select", "multiple_select", "checkbox", "checkboxes"]);
+const LONG_TEXT = new Set(["textarea", "long_text", "multi_line", "paragraph"]);
+const PHONE_TYPES = new Set(["tel", "phone", "telephone", "mobile"]);
+const NOT_WORDS = new Set([...PICK_ONE, ...PICK_SEVERAL, ...PHONE_TYPES, "email", "file", "file_upload", "upload", "date", "number", "url"]);
+
+interface StoredAnswer {
+  questionId: string | null;
+  question: string | null;
+  type: string | null;
+  answer: string;
+  selected: string[] | null;
+}
+
+function storedAnswers(answers: unknown): StoredAnswer[] {
+  if (!Array.isArray(answers)) return [];
+  const out: StoredAnswer[] = [];
+  for (const raw of answers) {
+    const a = asObj(raw);
+    if (!a) continue;
+    const selected = textList(a.selected).length > 0 ? textList(a.selected) : Array.isArray(a.answer) ? textList(a.answer) : null;
+    const answer = typeof a.answer === "string" ? a.answer.trim() : selected ? selected.join("; ") : "";
+    out.push({ questionId: text(a.questionId), question: text(a.question), type: text(a.type)?.toLowerCase() ?? null, answer, selected });
+  }
+  return out;
+}
+
+function questionList(questions: unknown): Obj[] {
+  return (Array.isArray(questions) ? questions : []).map(asObj).filter((q): q is Obj => !!q);
+}
+
+/** The stored answer to one question: by its id, else (an answer stored
+ *  before ids were kept) by the question's own words. */
+function answerFor(question: Obj, answers: readonly StoredAnswer[]): StoredAnswer | null {
+  const id = text(question.id);
+  const byId = id ? answers.find((a) => a.questionId === id) : undefined;
+  if (byId) return byId;
+  const words = text(question.question);
+  if (!words) return null;
+  const key = normalizeAnswer(words);
+  return answers.find((a) => !a.questionId && a.question && normalizeAnswer(a.question) === key) ?? null;
+}
+
+/** A short name for a question, for a label → value row: the question's own
+ *  `label` when the job gives one, else its words up to the question mark,
+ *  without a trailing note in brackets ("Phone number (WhatsApp if you have
+ *  it)" → "Phone number"). Never rewritten beyond that: a label that guessed
+ *  at the question's meaning could misstate it. */
+export function questionLabel(question: { label?: unknown; short_label?: unknown; shortLabel?: unknown; question?: unknown }): string {
+  const own = text(question.label) ?? text(question.short_label) ?? text(question.shortLabel);
+  if (own) return own;
+  const words = text(question.question) ?? "";
+  const head = (words.split("?")[0] ?? words).replace(/\s*\([^)]*\)\s*$/, "").replace(/[\s.:;,-]+$/, "").trim();
+  return head || words;
+}
+
+function pickType(question: Obj, stored: StoredAnswer | null): "one" | "several" | null {
+  const type = (text(question.type) ?? stored?.type ?? "").toLowerCase();
+  const options = textList(question.options);
+  if (options.length === 0) return null;
+  if (PICK_SEVERAL.has(type)) return "several";
+  if (PICK_ONE.has(type)) return "one";
+  return null;
+}
+
+/* ── "At a glance" ─────────────────────────────────────────────────────── */
+
+export interface GlanceRow {
+  id: string;
+  label: string;
+  /** Each pick on its own: a pick-several answer is never re-joined with
+   *  commas (its options carry commas of their own). */
+  values: Array<{ text: string; flagged: boolean }>;
+  /** The owner's flag_label for a flagged pick, else null. */
+  flag: string | null;
+}
+
+/**
+ * The job's quick-pick questions (select and pick-several, with options) as
+ * label → value rows, in the job's order, each answered one only. A pick the
+ * question lists in `flag_options` is flagged (amber), matched the way the
+ * server matches it, so the row and Ava's flag can never disagree.
+ */
+export function atAGlance(questions: unknown, answers: unknown): GlanceRow[] {
+  const stored = storedAnswers(answers);
+  const rows: GlanceRow[] = [];
+  for (const question of questionList(questions)) {
+    const answer = answerFor(question, stored);
+    const kind = pickType(question, answer);
+    if (!kind || !answer) continue;
+    const picks =
+      answer.selected && answer.selected.length > 0
+        ? answer.selected
+        : kind === "several"
+          ? answer.answer.split(/;\s*/).map((s) => s.trim()).filter(Boolean)
+          : answer.answer
+            ? [answer.answer]
+            : [];
+    if (picks.length === 0) continue;
+    const flagOptions = new Set(textList(question.flag_options).map(normalizeAnswer));
+    const values = picks.map((pick) => ({ text: pick, flagged: flagOptions.has(normalizeAnswer(pick)) }));
+    rows.push({
+      id: text(question.id) ?? `q-${rows.length}`,
+      label: questionLabel(question),
+      values,
+      flag: values.some((v) => v.flagged) ? text(question.flag_label) : null,
+    });
+  }
+  return rows;
+}
+
+/** Their phone and email for "At a glance": the phone from the form (a phone
+ *  question, or one that names a phone or WhatsApp), the email from their
+ *  account, else from the form. Shown with Copy, never as a tel: link. */
+export function contactFacts(answers: unknown, accountEmail: string | null | undefined): { phone: string | null; email: string | null } {
+  const stored = storedAnswers(answers);
+  const phone =
+    stored.find((a) => a.type && PHONE_TYPES.has(a.type) && a.answer)?.answer ??
+    stored.find((a) => (!a.type || a.type === "text") && a.question && /\b(phone|whats\s?app|mobile)\b/i.test(a.question) && /\d{6,}/.test(a.answer.replace(/\D/g, "")))?.answer ??
+    null;
+  const email = text(accountEmail) ?? stored.find((a) => a.type === "email" && /@/.test(a.answer))?.answer ?? null;
+  return { phone, email };
+}
+
+/* ── "In their words" ──────────────────────────────────────────────────── */
+
+export interface WordsPick {
+  id: string;
+  question: string;
+  answer: string;
+}
+
+export interface InTheirWords {
+  /** The two (or one) answers to quote, in the order shown. */
+  picks: WordsPick[];
+  /** The job is a lead's and both of its answers were found. */
+  forLead: boolean;
+  /** Every answer on the form, for "All N answers". */
+  total: number;
+}
+
+/** A job that leads people: "Chat Support Team Leader", "Shift supervisor". */
+export function isLeadJob(title: string | null | undefined): boolean {
+  return !!title && /\b(team lead(er)?|lead|leader|supervisor|manager)\b/i.test(title);
+}
+
+const LED_A_TEAM = /\b(led|lead|leading|coach(ed|ing)?|train(ed|ing)?|manag(ed|ing)|supervis(ed|ing))\b/i;
+const SUDDEN_CHANGE = /\b(sudden(ly)?|chang(e|ed|es|ing)|unexpected(ly)?)\b/i;
+
+/**
+ * The two written answers that matter most (docs/APPLICANT-PROFILE.md): for
+ * a lead, the team they led and the sudden change; otherwise, or when the
+ * form has no such question, the first long answers in the order they were
+ * written. A long answer is a long-text question's (or a free-text one of
+ * 160 characters and more); picks, phone, email and files never are.
+ */
+export function inTheirWords(questions: unknown, answers: unknown, jobTitle: string | null | undefined): InTheirWords {
+  const stored = storedAnswers(answers);
+  const asked = questionList(questions);
+  const typeOf = (a: StoredAnswer) => {
+    const q = a.questionId ? asked.find((x) => text(x.id) === a.questionId) : undefined;
+    return (text(q?.type) ?? a.type ?? "").toLowerCase();
+  };
+  const long = stored
+    .map((a, i) => ({ a, i, type: typeOf(a) }))
+    .filter(({ a, type }) => !!a.answer && !NOT_WORDS.has(type) && (LONG_TEXT.has(type) || a.answer.length >= 160))
+    .map(({ a, i }) => ({ id: a.questionId ?? `answer-${i}`, question: a.question ?? "Their answer", answer: a.answer }));
+  const picks: WordsPick[] = [];
+  let forLead = false;
+  if (isLeadJob(jobTitle)) {
+    const led = long.find((w) => LED_A_TEAM.test(w.question));
+    const change = long.find((w) => w !== led && SUDDEN_CHANGE.test(w.question));
+    if (led) picks.push(led);
+    if (change) picks.push(change);
+    forLead = !!led && !!change;
+  }
+  for (const w of long) {
+    if (picks.length >= 2) break;
+    if (!picks.includes(w)) picks.push(w);
+  }
+  return { picks, forLead, total: stored.length };
+}
+
+/* ── The test tiles ────────────────────────────────────────────────────── */
+
+export interface TestTileRow {
+  label: string;
+  value: string;
+  /** A pick-several answer's picks, each on its own (value is them joined). */
+  values?: string[];
+  tone?: "jade" | "amber" | "ink" | "muted";
+}
+
+export interface TestTile {
+  key: string;
+  entry: AssessmentEntry;
+  /** done: the result; live: being taken, or handed back; none: not taken,
+   *  not started, or gone past with no result on file. */
+  state: "done" | "live" | "none";
+  /** The number that matters, set as a figure with its unit beside it. */
+  big: { value: string; unit: string | null } | null;
+  verdict: { text: string; tone: "jade" | "amber" | "ink" | "muted" } | null;
+  /** Up to two label → value rows. */
+  rows: TestTileRow[];
+  /** Lines that must never be cut: the connection check's flags, the chat
+   *  practice's typing. */
+  notes: Array<{ text: string; tone: "amber" | "muted"; kind: "flag" | "typing" }>;
+  /** Integrity flags on this attempt. */
+  flags: number;
+}
+
+/** The order the tiles read in (the approved mockup): the scored tests
+ *  first, the measured ones next, the form last. */
+const TILE_RANK: Record<string, number> = {
+  quiz: 0,
+  chat_simulation: 1,
+  sales_simulation: 1,
+  chat_interview: 2,
+  voice_interview: 3,
+  typing_test: 4,
+  equipment_check: 5,
+  video_intro: 6,
+  portfolio_upload: 7,
+  other: 8,
+  application: 9,
+  resume: 10,
+};
+
+/** "9 / 10" → 9 and "/10"; "38 WPM" → 38 and "WPM"; "↓ 28 · ↑ 9 Mbps" → "28 · 9" and "Mbps". */
+export function splitHeadline(headline: string | null | undefined): { value: string; unit: string | null } | null {
+  const h = text(headline);
+  if (!h) return null;
+  const mbps = /^↓\s*(\S+)\s*·\s*↑\s*(\S+)\s*Mbps$/.exec(h);
+  if (mbps) return { value: `${mbps[1]} · ${mbps[2]}`, unit: "Mbps" };
+  const ratio = /^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/.exec(h);
+  if (ratio) return { value: ratio[1], unit: `/${ratio[2]}` };
+  const pct = /^(\d+(?:\.\d+)?)%$/.exec(h);
+  if (pct) return { value: pct[1], unit: "%" };
+  const unit = /^(\d+(?:\.\d+)?)\s+(.+)$/.exec(h);
+  if (unit) return { value: unit[1], unit: unit[2] };
+  return { value: h, unit: null };
+}
+
+/** "money_rules" → "Money rules". */
+function areaWords(category: string): string {
+  const words = category.replace(/[_-]+/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** The categories the server treats as must-pass when a question does not
+ *  say (MUST_PASS_QUIZ_CATEGORIES in supabase/functions/_shared/autopilot.ts). */
+const MUST_PASS_AREAS = new Set(["integrity", "money_rules"]);
+
+function quizRows(entry: AssessmentEntry, quizQuestions: unknown): TestTileRow[] {
+  const d = entry.detail;
+  if (d?.kind !== "quiz" || d.items.length === 0) return [];
+  const marked = d.items.filter((i) => i.isCorrect != null);
+  if (marked.length === 0) return [];
+  const areaOf = (i: (typeof marked)[number]) => (i.category ? areaWords(i.category) : `Question ${i.index + 1}`);
+  // A must-pass area (the job's must_pass questions, else integrity and
+  // money rules): right or missed, as the server weighs it.
+  const raw = questionList(quizQuestions);
+  const mustPass = (item: (typeof marked)[number]) => {
+    const q = raw.find((x) => text(x.id) === item.id);
+    return q?.must_pass === true || (q?.must_pass !== false && !!item.category && MUST_PASS_AREAS.has(item.category));
+  };
+  const area = marked.find((i) => mustPass(i) && i.category)?.category ?? null;
+  const areaRight = area ? marked.filter((i) => i.category === area && mustPass(i)).every((i) => i.isCorrect === true) : true;
+  // The area has its own row, so "Missed" does not say it again
+  // ("Missed: Accounts, Security" and "Money rules: Missed", not both).
+  const missed = [...new Set(marked.filter((i) => i.isCorrect === false).map(areaOf))].filter((w) => areaRight || !area || w !== areaWords(area));
+  const rows: TestTileRow[] = [];
+  if (missed.length > 0 || areaRight) rows.push({ label: "Missed", value: missed.length > 0 ? missed.join(", ") : "None", tone: missed.length > 0 ? "amber" : "jade" });
+  if (area) rows.push({ label: areaWords(area), value: areaRight ? "Right" : "Missed", tone: areaRight ? "jade" : "amber" });
+  return rows.slice(0, 2);
+}
+
+function equipmentComputer(entry: AssessmentEntry): TestTileRow[] {
+  const d = entry.detail;
+  if (d?.kind !== "equipment_check") return [];
+  const rows: TestTileRow[] = [];
+  const os = d.device.find((r) => r.label === "Operating system")?.value;
+  const browser = d.device.find((r) => r.label === "Browser")?.value;
+  const parts = [os, browser?.replace(/\s+[\d.]+$/, "")].filter((v): v is string => !!v && v !== "Not reported");
+  if (parts.length > 0) rows.push({ label: d.deviceKind === "computer" || !d.deviceKind ? "Computer" : d.deviceKind === "phone" ? "Phone" : "Tablet", value: parts.join(" · ") });
+  const answer =
+    d.usingThisComputer === "yes"
+      ? "Yes"
+      : d.usingThisComputer === "no_switched"
+        ? "Switched to it"
+        : d.usingThisComputer === "ran_here_anyway"
+          ? "No, ran here anyway"
+          : d.usingThisComputer === "no"
+            ? "Not yet"
+            : null;
+  if (answer) rows.push({ label: "Their work computer", value: answer, tone: d.usingThisComputer === "ran_here_anyway" ? "amber" : undefined });
+  return rows;
+}
+
+function applicationVerdict(entry: AssessmentEntry, questions: unknown): TestTile["verdict"] {
+  const d = entry.detail;
+  if (d?.kind !== "application") return null;
+  // "Cover letter" (the record's subline) is said beside the verdict, as the
+  // phone's row says it.
+  const withSubline = (words: string) => (entry.subline ? `${words} · ${entry.subline}` : words);
+  const required = questionList(questions).filter((q) => q.required === true && text(q.id));
+  if (required.length === 0) return entry.subline ? { text: entry.subline, tone: "muted" } : null;
+  const given = d.answers.filter((a) => a.answer.trim() || a.file);
+  // By the question's id; an answer saved before ids were kept (the record
+  // names it answer-<n>) by the question's own words, the way At a glance
+  // matches it.
+  const answered = (q: Obj) => {
+    const qid = text(q.id)!;
+    if (given.some((a) => a.id === qid)) return true;
+    const words = text(q.question);
+    if (!words) return false;
+    const key = normalizeAnswer(words);
+    return given.some((a) => a.id.startsWith("answer-") && normalizeAnswer(a.question) === key);
+  };
+  const missing = required.filter((q) => !answered(q)).length;
+  return missing === 0
+    ? { text: withSubline("All required answered"), tone: "jade" }
+    : { text: withSubline(`${missing} required ${missing === 1 ? "answer" : "answers"} missing`), tone: "amber" };
+}
+
+/** A row label longer than this is a question's own words, not a label. */
+export const SHORT_LABEL_MAX = 28;
+
+/** Two of the form's quick picks for the Application tile: a flagged one
+ *  first, then single picks (short) before pick-several ones. A pick whose
+ *  label is the whole question (no short `label` on the job) only when it is
+ *  flagged: it does not fit a tile's row, and At a glance beside the tiles
+ *  lists every pick in full. */
+function applicationRows(questions: unknown, answers: unknown): TestTileRow[] {
+  const rows = atAGlance(questions, answers).filter((r) => r.label.length <= SHORT_LABEL_MAX || r.values.some((v) => v.flagged));
+  const rank = (r: GlanceRow) => (r.values.some((v) => v.flagged) ? 0 : r.values.length === 1 ? 1 : 2);
+  return [...rows].sort((a, b) => rank(a) - rank(b)).slice(0, 2).map((r) => ({
+    label: r.label,
+    value: r.values.map((v) => v.text).join("; "),
+    values: r.values.length > 1 ? r.values.map((v) => v.text) : undefined,
+    tone: r.values.some((v) => v.flagged) ? "amber" : undefined,
+  }));
+}
+
+/**
+ * One tile per test on the record (not the integrity row: that is the right
+ * column's), in TILE_RANK order: the figure, the verdict in its tone, up to
+ * two rows, and the lines that must never be cut. A test not finished says
+ * where it stands instead, in the record's own words.
+ */
+export function testTiles(
+  entries: readonly AssessmentEntry[],
+  ctx: { passing?: number | null; questions?: unknown; answers?: unknown; quizQuestions?: unknown } = {},
+): TestTile[] {
+  const passing = ctx.passing ?? 60;
+  const tiles = entries
+    .filter((e) => e.kind !== "integrity")
+    .map((entry, index): TestTile & { index: number } => {
+      const base = { key: entry.key, entry, flags: entry.kind === "application" ? 0 : entry.integrity.total, index };
+      if (entry.status !== "done") {
+        return { ...base, state: entry.status === "in_progress" ? "live" : "none", big: null, verdict: null, rows: [], notes: [] };
+      }
+      const d = entry.detail;
+      const tone = (t: AssessmentEntry["tone"]) => t;
+      let verdict: TestTile["verdict"] = entry.verdict ? { text: entry.verdict, tone: tone(entry.tone) } : null;
+      let rows: TestTileRow[] = [];
+      const notes: TestTile["notes"] = [];
+      switch (d?.kind) {
+        case "quiz":
+          rows = quizRows(entry, ctx.quizQuestions);
+          break;
+        case "typing_test":
+          if (entry.verdict === "Meets the bar" && d.requiredWpm != null) verdict = { text: `Meets the ${d.requiredWpm} WPM bar`, tone: tone(entry.tone) };
+          if (d.accuracy != null) rows.push({ label: "Accuracy", value: `${Math.round(d.accuracy)}%`, tone: d.requiredAccuracy != null && d.accuracy < d.requiredAccuracy ? "amber" : undefined });
+          if (d.runs != null) rows.push({ label: "Runs", value: String(d.runs) });
+          else if (d.seconds != null) rows.push({ label: "Time", value: `${Math.floor(d.seconds / 60)}:${String(d.seconds % 60).padStart(2, "0")}` });
+          break;
+        case "equipment_check":
+          if (verdict && d.measuredBy === "server") verdict = { ...verdict, text: `${verdict.text} · timed by our server` };
+          rows = equipmentComputer(entry);
+          for (const flag of d.flags) notes.push({ text: flag, tone: "amber", kind: "flag" });
+          break;
+        case "chat_simulation":
+          verdict =
+            d.belowPassMark === true
+              ? { text: `Below the ${passing} pass mark`, tone: "amber" }
+              : d.belowPassMark === false
+                ? { text: `Meets the ${passing} pass mark`, tone: "jade" }
+                : null;
+          rows = d.scores.slice(0, 2).map((s) => ({ label: s.label, value: String(Math.round(s.value)) }));
+          if (d.typing) notes.push({ text: d.typing.line, tone: chatTypingNeedsALook(d.typing) ? "amber" : "muted", kind: "typing" });
+          break;
+        case "chat_interview":
+          if (d.credibility) rows.push({ label: "Credibility", value: d.credibility });
+          // The count and the length on one row, so the two-row cap never
+          // drops the length ("4 in 5:28": four questions in five minutes).
+          if (d.questionCount != null && d.duration) rows.push({ label: "Questions", value: `${d.questionCount} in ${d.duration}` });
+          else if (d.questionCount != null) rows.push({ label: "Questions", value: String(d.questionCount) });
+          else if (d.duration) rows.push({ label: "Length", value: d.duration });
+          break;
+        case "voice_interview":
+          if (d.minutes != null) rows.push({ label: "Length", value: `${d.minutes} min` });
+          rows.push({ label: "Transcript", value: d.transcript ? "Kept" : "Not kept" });
+          break;
+        case "application":
+          verdict = applicationVerdict(entry, ctx.questions);
+          rows = applicationRows(ctx.questions, ctx.answers);
+          break;
+        case "generic":
+          rows = d.facts.filter((f) => f.label !== "Score" && f.label !== "Recommendation").map((f) => ({ label: f.label, value: f.value }));
+          break;
+        default:
+          break;
+      }
+      return { ...base, state: "done", big: splitHeadline(entry.headline), verdict, rows: rows.slice(0, 2), notes };
+    });
+  // What was not taken goes last: the page says it in one quiet line under
+  // the tiles (notTakenGroups), not as a box in the middle of the grid.
+  // Those keep the record's (the rail's) order; the tiles take TILE_RANK's.
+  const quiet = (t: TestTile) => (t.state === "none" && !t.entry.openable ? 1 : 0);
+  const rank = (t: TestTile) => (quiet(t) ? 0 : TILE_RANK[t.entry.kind] ?? 8);
+  return tiles
+    .sort((a, b) => quiet(a) - quiet(b) || rank(a) - rank(b) || a.index - b.index)
+    .map(({ index, ...tile }) => tile);
+}
+
+/** The tests not taken, in the rail's own words: "Skipped" for a step they
+ *  went past with no result on file, "Not taken" once the application is
+ *  decided, "Not reached yet" otherwise. One line each, in the record's order. */
+export function notTakenGroups(tiles: readonly TestTile[]): Array<{ words: string; titles: string[] }> {
+  const groups = new Map<string, string[]>();
+  for (const t of tiles) {
+    if (t.state !== "none" || t.entry.openable) continue;
+    const words = t.entry.statusLabel === NO_RESULT_ON_FILE ? "Skipped" : t.entry.statusLabel === "Not taken" ? "Not taken" : "Not reached yet";
+    groups.set(words, [...(groups.get(words) ?? []), t.entry.title]);
+  }
+  return [...groups].map(([words, titles]) => ({ words, titles }));
 }

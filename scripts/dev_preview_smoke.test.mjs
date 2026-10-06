@@ -80,6 +80,17 @@ const ENTRY_MODULES = [
   "/src/pages/VoiceInterviewPhase.tsx",
   "/src/pages/PortfolioUploadPhase.tsx",
   "/src/pages/AvaCreateJob.tsx",
+  // The full applicant profile and the parts of its desktop layout
+  // (docs/APPLICANT-PROFILE.md), named so they are crawled whatever the cap
+  // below leaves out of the rest of the graph.
+  "/src/cockpit/pages/CandidateDetail.tsx",
+  "/src/cockpit/components/ApplicantHeaderBand.tsx",
+  "/src/cockpit/components/ApplicantDecisionCard.tsx",
+  "/src/cockpit/components/ApplicantTestTiles.tsx",
+  "/src/cockpit/components/ApplicantAtAGlance.tsx",
+  "/src/cockpit/components/ApplicantInTheirWords.tsx",
+  "/src/cockpit/components/ApplicantIntegrityPanel.tsx",
+  "/src/cockpit/components/ProfileSection.tsx",
 ];
 
 const JS_LIKE = /\.(ts|tsx|js|jsx|mjs)$/;

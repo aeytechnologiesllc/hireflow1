@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
@@ -21,7 +21,7 @@ import { CandidateMark } from "../components/CandidateMark";
 import { CockpitErrorCard } from "../components/ErrorCard";
 import { HiringDocumentPromptDialog } from "@/components/HiringDocumentPromptDialog";
 import { useAuth } from "@/hooks/useAuth";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile, useMinWidth } from "@/hooks/use-mobile";
 import { useCockpitCandidate, useCockpitActions, nextAdvanceStatus, advanceTargetLabel } from "../hooks/useCockpitData";
 import { getInitials } from "../lib/mappers";
 import { ResumeViewerDialog } from "../components/ResumeViewerDialog";
@@ -35,19 +35,35 @@ import { AvasRead, type AvasReadApp } from "../components/AvasRead";
 import { ApplicantTimeline, type TimelineApp } from "../components/ApplicantTimeline";
 import { InterviewMoment } from "../components/InterviewMoment";
 import { ApplicantDecisionDialogs, type ApplicantDecision } from "../components/ApplicantDecisionDialogs";
+import { ApplicantDecisionCard, type DecisionAction, type DecisionCardActions } from "../components/ApplicantDecisionCard";
+import { ApplicantHeaderBand } from "../components/ApplicantHeaderBand";
+import { ApplicantTestTiles } from "../components/ApplicantTestTiles";
+import { ApplicantAtAGlance } from "../components/ApplicantAtAGlance";
+import { ApplicantInTheirWords } from "../components/ApplicantInTheirWords";
+import { ApplicantIntegrityPanel } from "../components/ApplicantIntegrityPanel";
+import { PanelLabel, ProfileSection } from "../components/ProfileSection";
+import { firstName } from "../lib/avaProse";
 import { useApplicationSessions, useNow } from "../hooks/useAssessmentSessions";
 import { buildAssessmentRecord, liveTone, type AssessmentAppInput, type AssessmentEntry } from "../lib/assessmentRecord";
 import {
   applicantChip,
   applicantScore,
+  atAGlance,
+  avaSuggests,
+  contactFacts,
   finishedEveryTest,
+  headerLine,
+  inTheirWords,
   journeyDots,
   pagerFor,
   readApplicantOrder,
+  readApplicantTab,
   scoreColor,
   splitActionBar,
+  testTiles,
   type ApplicantChip,
 } from "../lib/applicantProfile";
+import { agoWords, listRowFor, TAB_LABELS, UNKNOWN_COUNTRY, type ApplicantListApp, type ApplicantTab } from "../lib/applicantList";
 
 const STRENGTH_ICONS = [UserRound, MessageCircle, Target, BookOpen];
 
@@ -58,7 +74,30 @@ const STRENGTH_ICONS = [UserRound, MessageCircle, Target, BookOpen];
  * used to: where they are on the job's journey (the same dot rule as the
  * list's), Ava's read with their own words, the timeline, Set up interview,
  * and "3 of 64 ‹ ›" through the list they came from.
+ *
+ * Three layouts, one set of state, actions and dialogs (docs/APPLICANT-PROFILE.md):
+ *  - a phone (under 768px of window, useIsMobile): the cards and the fixed
+ *    decision bar, unchanged;
+ *  - a page narrower than DESKTOP_PAGE: the desktop's sections in one
+ *    full-width column, the decision card after the header and, once it has
+ *    scrolled away, the same buttons in a sticky bar at the foot;
+ *  - from DESKTOP_PAGE of the page's OWN width: the whole screen, a header
+ *    band, the journey across the full width, then a main column beside a
+ *    right column. The page's width, not the window's: the team member's
+ *    shell has a wider sidebar than the cockpit's, so the same window leaves
+ *    each a different page.
  */
+
+/** From this much page width, the two columns: a 1200 window in the cockpit
+ *  (its 216px sidebar) and 1220 in the team member's shell (256px). */
+const DESKTOP_PAGE = 900;
+/** Under this, the header's suggestion and score take a line of their own. */
+const HEAD_SPLIT_BELOW = 820;
+/** The journey across the full width needs this much per step for its
+ *  longest words; narrower, the phone's rail. */
+const WIDE_RAIL_PER_STEP = 88;
+/** Under this, the column's decision card stacks as on the desktop. */
+const CARD_ROW_FROM = 600;
 
 /** The chip's colours: the list row's and the profile's are one chip. */
 function chipStyle(tone: ApplicantChip["tone"]) {
@@ -89,9 +128,39 @@ function scrollToTopOf(el: HTMLElement | null) {
   else if (typeof window !== "undefined") window.scrollTo(0, 0);
 }
 
+/** An element's laid-out width (clientWidth: a transform, such as the page's
+ *  entrance, does not change it), kept current as it resizes. Measured before
+ *  the first paint. */
+function useClientWidth(el: HTMLElement | null): number | null {
+  const [width, setWidth] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    if (!el) return;
+    const measure = () => setWidth((prev) => (prev === el.clientWidth ? prev : el.clientWidth));
+    measure();
+    window.addEventListener("resize", measure);
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(measure);
+      observer.observe(el);
+    }
+    return () => {
+      window.removeEventListener("resize", measure);
+      observer?.disconnect();
+    };
+  }, [el]);
+  return width;
+}
+
 export default function CockpitCandidateDetail() {
   const { id } = useParams();
   const top = useRef<HTMLDivElement | null>(null);
+  const [topEl, setTopEl] = useState<HTMLDivElement | null>(null);
+  const setTop = useCallback((el: HTMLDivElement | null) => {
+    top.current = el;
+    setTopEl(el);
+  }, []);
+  // The page's own width decides its layout (see the comment above).
+  const pageWidth = useClientWidth(topEl);
   useEffect(() => {
     scrollToTopOf(top.current);
   }, [id]);
@@ -99,21 +168,97 @@ export default function CockpitCandidateDetail() {
   // and the team member's shell does not remount the page on a new id the way
   // the cockpit's does — so an open sheet or dialog never follows to the next.
   return (
-    <div ref={top}>
-      <CandidateProfile key={id ?? ""} id={id} />
+    <div ref={setTop}>
+      <CandidateProfile key={id ?? ""} id={id} pageWidth={pageWidth} />
     </div>
   );
 }
 
-/** One button on the decision bar. */
-interface BarAction {
-  key: "continue" | "advance" | "setup" | "pass" | "message" | "hire" | "takeBack";
-  text: string;
-  icon?: ReactNode;
-  variant: "primary" | "outline" | "danger";
-  onClick: () => void;
-  disabled?: boolean;
-  pulse?: boolean;
+/** One button on the decision bar, and the same object on the desktop's
+ *  decision card: one set of actions, two ways of drawing them. */
+type BarAction = DecisionAction;
+
+/** The element that scrolls the page: how tall it is, its top and bottom
+ *  padding (sticky offsets are measured inside it), and whether it has been
+ *  scrolled at all. */
+interface ScrollerBox {
+  /** Its top edge on the screen (a shell's header sits above it). */
+  top: number;
+  height: number;
+  padTop: number;
+  padBottom: number;
+}
+function useScroller(el: HTMLElement | null): { box: ScrollerBox | null; scrolled: boolean } {
+  const [box, setBox] = useState<ScrollerBox | null>(null);
+  const [scrolled, setScrolled] = useState(false);
+  useLayoutEffect(() => {
+    if (!el) return;
+    const scroller = scrollerOf(el);
+    const measure = () => {
+      const style = scroller ? getComputedStyle(scroller) : null;
+      const next = {
+        top: scroller ? Math.round(scroller.getBoundingClientRect().top) : 0,
+        height: scroller ? scroller.clientHeight : window.innerHeight,
+        padTop: style ? parseFloat(style.paddingTop) || 0 : 0,
+        padBottom: style ? parseFloat(style.paddingBottom) || 0 : 0,
+      };
+      setBox((prev) =>
+        prev && prev.top === next.top && prev.height === next.height && prev.padTop === next.padTop && prev.padBottom === next.padBottom ? prev : next,
+      );
+    };
+    const onScroll = () => setScrolled((scroller ? scroller.scrollTop : window.scrollY) > 0);
+    measure();
+    onScroll();
+    window.addEventListener("resize", measure);
+    const target: HTMLElement | Window = scroller ?? window;
+    target.addEventListener("scroll", onScroll, { passive: true });
+    let observer: ResizeObserver | null = null;
+    if (scroller && typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(measure);
+      observer.observe(scroller);
+    }
+    return () => {
+      window.removeEventListener("resize", measure);
+      target.removeEventListener("scroll", onScroll);
+      observer?.disconnect();
+    };
+  }, [el]);
+  return { box, scrolled };
+}
+
+/** An element's own height (offsetHeight), kept current as it resizes. */
+function useOffsetHeight(el: HTMLElement | null): number | null {
+  const [height, setHeight] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    if (!el) return;
+    const measure = () => setHeight((prev) => (prev === el.offsetHeight ? prev : el.offsetHeight));
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [el]);
+  return height;
+}
+
+/** True once the element has scrolled up past `cover` pixels from the top of
+ *  the screen (the sticky top line): the column's decision card is out of
+ *  sight, so its buttons may show in the bar at the foot. */
+function useScrolledPast(el: HTMLElement | null, cover: number): boolean {
+  const [past, setPast] = useState(false);
+  useEffect(() => {
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const rootTop = entry.rootBounds?.top ?? 0;
+        setPast(!entry.isIntersecting && entry.boundingClientRect.top < rootTop);
+      },
+      { rootMargin: `-${Math.max(0, Math.round(cover))}px 0px 0px 0px` },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [el, cover]);
+  return past;
 }
 
 function barClass(variant: BarAction["variant"]) {
@@ -264,7 +409,7 @@ function Pager({ position, total, prevId, nextId }: { position: number; total: n
   );
 }
 
-function CandidateProfile({ id }: { id: string | undefined }) {
+function CandidateProfile({ id, pageWidth }: { id: string | undefined; pageWidth: number | null }) {
   const navigate = useNavigate();
   const { isTeamMember } = useAuth();
   const { candidate: c, application, isLoading, isError, refetch } = useCockpitCandidate(id);
@@ -291,11 +436,33 @@ function CandidateProfile({ id }: { id: string | undefined }) {
   // The decision bar. On a phone it is fixed to the foot of the screen and
   // portalled to <body>: a transformed ancestor (the cockpit's entrance
   // animations leave one behind) turns `fixed` into "fixed to the page
-  // column" (it sat at the end of the profile, off screen). On a wider
-  // screen it is sticky at the foot of the 640px column, inside whatever
-  // scrolls the page; sticky measures from inside the scroller's padding, so
-  // the offset takes that padding back off.
+  // column" (it sat at the end of the profile, off screen). In the column
+  // layout the card's own buttons sit in a bar sticky at the foot of the
+  // page, inside whatever scrolls it; sticky measures from inside the
+  // scroller's padding, so the offset takes that padding back off.
   const isMobile = useIsMobile();
+  // The two columns from DESKTOP_PAGE of the page's own width
+  // (docs/APPLICANT-PROFILE.md). Until the page has been measured (the first
+  // render, before anything is painted), the window's 1200px stands in.
+  const windowDesktop = useMinWidth(1200);
+  const width = pageWidth ?? 0;
+  const measured = width > 0;
+  const isDesktop = measured ? width >= DESKTOP_PAGE : windowDesktop;
+  // The list's tab, said beside Back ("Back to applicants · Needs review").
+  const [listTab] = useState(() => readApplicantTab());
+  // The sticky top line, the scroller it sits in, and the right column's
+  // parts: whether the whole column fits on the screen decides what stays.
+  const [lineEl, setLineEl] = useState<HTMLDivElement | null>(null);
+  const { box: scrollerBox, scrolled } = useScroller(isMobile ? null : lineEl);
+  const lineHeight = useOffsetHeight(isMobile ? null : lineEl);
+  const [decideEl, setDecideEl] = useState<HTMLDivElement | null>(null);
+  const [panelsEl, setPanelsEl] = useState<HTMLDivElement | null>(null);
+  const decideHeight = useOffsetHeight(isDesktop && !isMobile ? decideEl : null);
+  const panelsHeight = useOffsetHeight(isDesktop && !isMobile ? panelsEl : null);
+  // The column layout's decision card: once it has scrolled away under the
+  // top line, its buttons show in the bar at the foot (never both at once).
+  const [cardEl, setCardEl] = useState<HTMLDivElement | null>(null);
+  const cardGone = useScrolledPast(!isMobile && !isDesktop ? cardEl : null, (scrollerBox?.top ?? 0) + (scrollerBox?.padTop ?? 0) + (lineHeight ?? 0));
   const [barEl, setBarEl] = useState<HTMLDivElement | null>(null);
   const [stickyBottom, setStickyBottom] = useState(16);
   useLayoutEffect(() => {
@@ -331,6 +498,12 @@ function CandidateProfile({ id }: { id: string | undefined }) {
   );
   const status = application?.status;
   const dots = useMemo(() => journeyDots(record, status), [record, status]);
+  // The list's own row for this person (listRowFor): the country, the live
+  // dot and the line beside the name read exactly as the row they came from.
+  const listRow = useMemo(
+    () => (application && record ? listRowFor(application as unknown as ApplicantListApp, record, null, now, { sessions }) : null),
+    [application, record, now, sessions],
+  );
   const openEntry = recordKey ? record?.entries.find((e) => e.key === recordKey) ?? null : null;
   const openRecord = (entry: AssessmentEntry) => {
     setRecordFocus(null);
@@ -483,24 +656,35 @@ function CandidateProfile({ id }: { id: string | undefined }) {
     setDialog(null);
   };
   const message = () => navigate(`/messages?candidate=${c.avatar}`);
+  const first = firstName(c.name);
 
   // The decision bar, in the order it reads. On a phone the first buttons
   // stay and the rest go behind "More" (at most three on screen); from md up
   // every one is on the bar.
   const messageAction: BarAction = { key: "message", text: "Message", icon: <MessageSquare className="h-4 w-4" />, variant: "outline", onClick: message };
   let actions: BarAction[];
+  // The same actions on the desktop's decision card: the one to press, the
+  // two beside each other, anything else, and the quiet danger-toned one.
+  let cardActions: DecisionCardActions;
   if (isOffered) {
-    actions = [
-      { key: "hire", text: "Hire", icon: <CheckCircle2 className="h-4 w-4" />, variant: "primary", onClick: () => setDialog("hire"), disabled: isUpdating },
-      // Same words as the dialog it opens, so the decision reads the same twice.
-      { key: "takeBack", text: "Take back offer", variant: "danger", onClick: () => setDialog("reject"), disabled: isUpdating },
-      messageAction,
-    ];
+    const hireAction: BarAction = { key: "hire", text: "Hire", icon: <CheckCircle2 className="h-4 w-4" />, variant: "primary", onClick: () => setDialog("hire"), disabled: isUpdating };
+    // Same words as the dialog it opens, so the decision reads the same twice.
+    const takeBack: BarAction = { key: "takeBack", text: "Take back offer", variant: "danger", onClick: () => setDialog("reject"), disabled: isUpdating };
+    actions = [hireAction, takeBack, messageAction];
+    cardActions = { primary: hireAction, pair: [messageAction], extra: [], quiet: takeBack };
   } else if (isTerminal) {
     actions = [messageAction];
+    cardActions = { primary: null, pair: [messageAction], extra: [], quiet: null };
   } else {
     const advanceAction: BarAction | null = canAdvance
-      ? { key: "advance", text: advanceLabel ? `Move to ${advanceLabel}` : "Move forward", variant: "outline", onClick: () => setDialog("advance"), disabled: isUpdating }
+      ? {
+          key: "advance",
+          text: advanceLabel ? `Move to ${advanceLabel}` : "Move forward",
+          cardText: advanceLabel ? `Move to ${advanceLabel.toLowerCase()}` : undefined,
+          variant: "outline",
+          onClick: () => setDialog("advance"),
+          disabled: isUpdating,
+        }
       : null;
     const setupAction: BarAction = { key: "setup", text: "Set up interview", variant: "outline", onClick: () => setScheduleOpen(true), pulse: scheduleHint };
     // Once they are in the interview stage, booking the time is the next
@@ -510,16 +694,20 @@ function CandidateProfile({ id }: { id: string | undefined }) {
     const [lead, other]: [BarAction, BarAction | null] =
       status === "interview" || !advanceAction ? [setupAction, advanceAction] : [advanceAction, setupAction];
     if (!declineRecommended) lead.variant = "primary";
-    actions = [
-      // Opens their next STEP (quiz, typing test, chat practice…), which Ava
-      // holds back when she recommends declining. "Move to …" only moves the
-      // pipeline stage.
-      ...(nextStep ? [{ key: "continue", text: "Let them take the next test", variant: "outline", onClick: () => setDialog("continue"), disabled: isUpdating } as BarAction] : []),
-      lead,
-      { key: "pass", text: "Pass", variant: "outline", onClick: () => setDialog("reject"), disabled: isUpdating },
-      ...(other ? [other] : []),
-      messageAction,
-    ];
+    // Opens their next STEP (quiz, typing test, chat practice…), which Ava
+    // holds back when she recommends declining. "Move to …" only moves the
+    // pipeline stage.
+    const continueAction: BarAction | null = nextStep
+      ? { key: "continue", text: "Let them take the next test", variant: "outline", onClick: () => setDialog("continue"), disabled: isUpdating }
+      : null;
+    const passAction: BarAction = { key: "pass", text: "Pass", cardText: `Pass on ${first}`, variant: "outline", onClick: () => setDialog("reject"), disabled: isUpdating };
+    actions = [...(continueAction ? [continueAction] : []), lead, passAction, ...(other ? [other] : []), messageAction];
+    cardActions = {
+      primary: lead,
+      pair: [...(other ? [other] : []), messageAction],
+      extra: continueAction ? [continueAction] : [],
+      quiet: passAction,
+    };
   }
   const split = splitActionBar(actions, 3);
 
@@ -587,6 +775,332 @@ function CandidateProfile({ id }: { id: string | undefined }) {
       {split.more.length > 0 && <MoreMenu items={split.more} pulse={split.more.some((a) => a.pulse)} />}
     </div>
   );
+
+  const dialogs = (
+    <>
+        <ApplicantDecisionDialogs
+          open={dialog}
+          candidate={c}
+          status={status}
+          nextStep={nextStep}
+          busy={isUpdating}
+          onClose={() => setDialog(null)}
+          onAdvance={() => void doAdvance()}
+          onContinue={() => void doContinue()}
+          onHire={() => void doHire()}
+          onReject={(reason) => void doReject(reason)}
+        />
+
+        <HiringDocumentPromptDialog
+          open={hirePrompt}
+          onOpenChange={setHirePrompt}
+          candidateName={c.name}
+          jobTitle={c.role}
+          applicationId={c.id}
+          onSkip={() => setHirePrompt(false)}
+        />
+
+        {scheduleOpen && (
+          <InterviewSchedulingWizard
+            open={scheduleOpen}
+            onOpenChange={(o) => {
+              if (!o) setScheduleOpen(false);
+            }}
+            applicationId={c.id}
+            candidateName={c.name}
+            candidateEmail={c.email ?? undefined}
+            jobTitle={c.role}
+          />
+        )}
+
+        <AssessmentRecordSheet
+          open={!!openEntry}
+          entry={openEntry}
+          candidateName={c.name}
+          applicationId={c.id}
+          jobId={record?.jobId ?? null}
+          focus={recordFocus}
+          onClose={() => {
+            setRecordKey(null);
+            setRecordFocus(null);
+          }}
+          onOpenResume={() => {
+            // One modal at a time: the resume viewer takes over from the sheet.
+            setRecordKey(null);
+            setResumeOpen(true);
+          }}
+        />
+
+        {/* A plain fixed overlay: portalled, so the page's leftover transform
+            cannot pin it to the page column instead of the screen. */}
+        {createPortal(
+          <ResumeViewerDialog
+            open={resumeOpen}
+            url={resumeUrl}
+            candidateName={c.name}
+            avaRead={analyzed ? c.read : undefined}
+            onClose={() => setResumeOpen(false)}
+          />,
+          document.body,
+        )}
+    </>
+  );
+
+  // ── 768px and up: the desktop's sections (docs/APPLICANT-PROFILE.md) ──
+  if (!isMobile) {
+    const deskApp = application as {
+      notes?: string | null;
+      ai_scorecard?: unknown;
+      jobs?: { title?: string | null; application_questions?: unknown; quiz_questions?: unknown; passing_score?: number | null } | null;
+    } | null;
+    const answers = parseApplicationNotes(deskApp?.notes ?? null).applicationAnswers;
+    const questions = deskApp?.jobs?.application_questions;
+    const tiles = record
+      ? testTiles(record.entries, { passing: deskApp?.jobs?.passing_score ?? null, questions, answers, quizQuestions: deskApp?.jobs?.quiz_questions })
+      : [];
+    const words = inTheirWords(questions, answers, deskApp?.jobs?.title ?? c.role);
+    const glance = atAGlance(questions, answers);
+    const contact = contactFacts(answers, c.email);
+    const applicationEntry = record?.entries.find((e) => e.kind === "application" && e.openable) ?? null;
+    const suggestion = avaSuggests(deskApp?.ai_scorecard, status, advanceLabel);
+    const line = listRow ? headerLine(listRow, record?.live ?? null, agoWords, now) : null;
+    const country = listRow && listRow.country !== UNKNOWN_COUNTRY ? listRow.country : null;
+    const tabWords = pager && listTab && listTab !== "all" && listTab in TAB_LABELS ? TAB_LABELS[listTab as ApplicantTab] : null;
+
+    const chipNode = chip ? (
+      <span className="ck-pill" style={chipStyle(chip.tone)}>
+        {chip.label}
+      </span>
+    ) : record?.live?.stepType !== "application" && c.fillingInForm ? (
+      <span className="ck-pill ck-pill-stage-neutral">
+        <span className="ck-dot ck-dot-live" aria-hidden />
+        Filling in the form
+      </span>
+    ) : null;
+
+    // Back and the pager stay on screen while the page scrolls (as they
+    // always have; the page used to lose them past the first screen). The
+    // line covers the scroller's top padding, so nothing shows above it.
+    const padTop = scrollerBox?.padTop ?? 0;
+    const topLine = (
+      <div className="ckp-topline" data-stuck={scrolled ? "" : undefined} style={{ top: -padTop, marginTop: -padTop, paddingTop: padTop }}>
+        <div ref={setLineEl} className="flex items-center gap-3 py-1.5">
+          <button onClick={goBack} className="inline-flex min-w-0 items-center gap-1.5 text-[13.5px] transition-opacity hover:opacity-80" style={{ color: "var(--ink-2)" }}>
+            <ChevronLeft className="h-4 w-4 shrink-0" />
+            <span className="truncate">
+              Back to applicants
+              {tabWords && <span style={{ color: "var(--ink-3)" }}> · {tabWords}</span>}
+            </span>
+          </button>
+          {pager && <Pager {...pager} />}
+        </div>
+      </div>
+    );
+
+    const header = (
+      <ApplicantHeaderBand
+        name={c.name}
+        initials={getInitials(c.name)}
+        avatarUrl={listRow?.avatarUrl ?? null}
+        liveNow={!!listRow?.liveNow}
+        chip={chipNode}
+        role={c.role}
+        country={country}
+        applied={c.appliedAgo}
+        line={line}
+        suggestion={suggestion}
+        score={score}
+      />
+    );
+
+    // The wide rail only where every step's column has room for its longest
+    // word; narrower (the team member's shell at a tablet's width), the
+    // phone's rail, which hyphenates for its narrow columns.
+    const wideRail = !measured || width >= Math.max(620, dots.length * WIDE_RAIL_PER_STEP);
+    const journeyNode =
+      dots.length > 0 ? (
+        <section className="ckp-journey" aria-label="Where they are">
+          <ApplicantJourneyRail
+            dots={dots}
+            status={status}
+            name={c.name}
+            liveStepId={record?.live?.stepId ?? null}
+            line={{ live: record?.live ?? null, sessions, recommendedAction: c.recommendedAction, now }}
+            wide={wideRail}
+            showSummary={false}
+          />
+        </section>
+      ) : null;
+    const headSplit = measured && width < HEAD_SPLIT_BELOW ? "split" : undefined;
+
+    const outcome = isHired ? "hired" : isRejected ? "rejected" : null;
+
+    // The main column: Ava's read, the tests, their own words, and everything
+    // else the profile has always shown, each its own open section.
+    const main = (
+      <>
+        {interviewMoment && (
+          <div className="ckp-sec">
+            <InterviewMoment
+              name={c.name}
+              onPropose={() => {
+                setScheduleOpen(true);
+                setInterviewMoment(false);
+              }}
+              onLater={() => {
+                setInterviewMoment(false);
+                setScheduleHint(true);
+              }}
+            />
+          </div>
+        )}
+
+        <AvasRead candidate={c} app={application as AvasReadApp | null} record={record} showScore={false} variant="open" />
+
+        {tiles.length > 0 && (
+          <ProfileSection title="Tests" sub="Open any one for every answer, the transcript and the timing">
+            <ApplicantTestTiles tiles={tiles} onOpen={openRecord} />
+            {!resumeUrl && !c.fillingInForm && (
+              <p className="mt-3 text-[12.5px]" style={{ color: "var(--ink-3)" }}>
+                No resume was attached.
+              </p>
+            )}
+          </ProfileSection>
+        )}
+
+        <ApplicantInTheirWords words={words} onAll={applicationEntry ? () => openRecord(applicationEntry) : null} />
+
+        {/* Real strengths only (see extractStrengths in mappers.ts). */}
+        {c.strengths.length > 0 && (
+          <ProfileSection title="Top strengths">
+            <ul className="grid grid-cols-1 gap-x-7 gap-y-1 min-[900px]:grid-cols-2">
+              {c.strengths.map((s, i) => {
+                const Icon = STRENGTH_ICONS[i % STRENGTH_ICONS.length];
+                return (
+                  <li key={s} className="flex items-start gap-2.5 py-1.5 text-[13.5px] leading-[1.45]" style={{ color: "var(--ink-2)" }}>
+                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--hf-green-soft)", color: "var(--hf-green)" }}>
+                      <Icon className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="min-w-0 flex-1">{s}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </ProfileSection>
+        )}
+
+        <ProfileSection title="Risk factors">
+          <div className="flex items-start gap-3">
+            <ShieldCheck className="mt-[1px] h-5 w-5 shrink-0" style={{ color: riskIconColor }} />
+            <div className="min-w-0 flex-1">
+              <p className="text-[13.5px] leading-[1.5]" style={{ color: "var(--ink-2)" }}>
+                <span className="font-semibold" style={{ color: "var(--ink)" }}>
+                  {c.risk.level}
+                </span>{" "}
+                — {c.risk.note}
+              </p>
+              {riskFlags.length > 0 && (
+                <ul className="mt-2.5 flex flex-col gap-1.5">
+                  {riskFlags.map((flag) => (
+                    <li key={flag} className="flex items-start gap-2.5 text-[13px] leading-[1.45]" style={{ color: "var(--ink-2)" }}>
+                      <span aria-hidden className="mt-[7px] block h-[5px] w-[5px] shrink-0 rounded-full" style={{ background: "var(--amber-fg)" }} />
+                      <span>{flag}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </ProfileSection>
+      </>
+    );
+
+    // At a glance, integrity and the timeline: the right column's, under the
+    // decision card; in one column, their own section.
+    const glancePanel = <ApplicantAtAGlance rows={glance} phone={contact.phone} email={contact.email} />;
+    const integrityPanel = <ApplicantIntegrityPanel record={record} onOpen={openRecord} />;
+    const timelinePanel = record && record.entries.length > 0 && (
+      <section aria-label="Timeline">
+        <PanelLabel>Timeline</PanelLabel>
+        <ApplicantTimeline app={application as TimelineApp | null} record={record} layout="list" />
+      </section>
+    );
+
+    if (isDesktop) {
+      // The right column stays whole on screen when it fits between the top
+      // line and the page's foot; otherwise only the decision card stays and
+      // the panels scroll with the page (cockpit.css, .ckp-aside).
+      const line = lineHeight ?? 36;
+      const stickyTop = line + 12;
+      const room = scrollerBox ? scrollerBox.height - scrollerBox.padTop - scrollerBox.padBottom - stickyTop - 8 : null;
+      const columnHeight = decideHeight != null && panelsHeight != null ? decideHeight + 18 + panelsHeight : null;
+      const fit = room != null && columnHeight != null && columnHeight > room ? "card" : "whole";
+      return (
+        <div data-profile-layout="desktop" data-ckp-head={headSplit}>
+          {topLine}
+          {header}
+          {journeyNode}
+          <div className="ckp-body">
+            <div className="min-w-0">{main}</div>
+            <aside
+              className="ckp-aside"
+              data-fit={fit}
+              aria-label="Your decision and the facts"
+              style={{ "--ckp-line": `${line}px`, "--ckp-sticky-top": `${stickyTop}px` } as CSSProperties}
+            >
+              <div className="ckp-decide-wrap">
+                <div ref={setDecideEl}>
+                  <ApplicantDecisionCard actions={cardActions} outcome={outcome} />
+                </div>
+              </div>
+              <div ref={setPanelsEl} className="ckp-panels">
+                {glancePanel}
+                {integrityPanel}
+                {timelinePanel}
+              </div>
+            </aside>
+          </div>
+          {dialogs}
+        </div>
+      );
+    }
+
+    // One full-width column. The decision card right after the header; once
+    // it has scrolled away, the same buttons (the card's own words and
+    // styles) in a bar at the foot.
+    return (
+      <div className="pb-6" data-profile-layout="column" data-ckp-head={headSplit}>
+        {topLine}
+        {header}
+        <div ref={setCardEl} className="mt-5">
+          <ApplicantDecisionCard actions={cardActions} outcome={outcome} layout={!measured || width >= CARD_ROW_FROM ? "row" : "stack"} />
+        </div>
+        {journeyNode}
+        <div className="mt-[26px]">
+          {main}
+          <div className="ckp-sec">
+            <div className={`grid gap-8 ${!measured || width >= 680 ? "grid-cols-2" : "grid-cols-1"}`}>
+              {glancePanel}
+              <div className="ckp-panels">
+                {integrityPanel}
+                {timelinePanel}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          ref={setBarEl}
+          className="ckp-footbar sticky z-30 mt-3 rounded-2xl px-4 py-3"
+          data-shown={cardGone ? "" : undefined}
+          aria-hidden={!cardGone}
+          style={{ bottom: stickyBottom, background: "var(--hf-bg)", borderTop: "1px solid var(--hf-surface-raised)" }}
+        >
+          <ApplicantDecisionCard actions={cardActions} outcome={outcome} layout="bar" />
+        </div>
+        {dialogs}
+      </div>
+    );
+  }
 
   return (
     // pb-36 on a phone keeps the last card clear of the fixed decision bar.
@@ -775,71 +1289,7 @@ function CandidateProfile({ id }: { id: string | undefined }) {
 
       {isMobile ? createPortal(barNode, document.body) : barNode}
 
-      <ApplicantDecisionDialogs
-        open={dialog}
-        candidate={c}
-        status={status}
-        nextStep={nextStep}
-        busy={isUpdating}
-        onClose={() => setDialog(null)}
-        onAdvance={() => void doAdvance()}
-        onContinue={() => void doContinue()}
-        onHire={() => void doHire()}
-        onReject={(reason) => void doReject(reason)}
-      />
-
-      <HiringDocumentPromptDialog
-        open={hirePrompt}
-        onOpenChange={setHirePrompt}
-        candidateName={c.name}
-        jobTitle={c.role}
-        applicationId={c.id}
-        onSkip={() => setHirePrompt(false)}
-      />
-
-      {scheduleOpen && (
-        <InterviewSchedulingWizard
-          open={scheduleOpen}
-          onOpenChange={(o) => {
-            if (!o) setScheduleOpen(false);
-          }}
-          applicationId={c.id}
-          candidateName={c.name}
-          candidateEmail={c.email ?? undefined}
-          jobTitle={c.role}
-        />
-      )}
-
-      <AssessmentRecordSheet
-        open={!!openEntry}
-        entry={openEntry}
-        candidateName={c.name}
-        applicationId={c.id}
-        jobId={record?.jobId ?? null}
-        focus={recordFocus}
-        onClose={() => {
-          setRecordKey(null);
-          setRecordFocus(null);
-        }}
-        onOpenResume={() => {
-          // One modal at a time: the resume viewer takes over from the sheet.
-          setRecordKey(null);
-          setResumeOpen(true);
-        }}
-      />
-
-      {/* A plain fixed overlay: portalled, so the page's leftover transform
-          cannot pin it to the page column instead of the screen. */}
-      {createPortal(
-        <ResumeViewerDialog
-          open={resumeOpen}
-          url={resumeUrl}
-          candidateName={c.name}
-          avaRead={analyzed ? c.read : undefined}
-          onClose={() => setResumeOpen(false)}
-        />,
-        document.body,
-      )}
+      {dialogs}
     </div>
   );
 }
