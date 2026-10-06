@@ -389,6 +389,38 @@ function buildPhaseData(application: any, parsedNotes: any): PhaseData {
     };
   }
 
+  // Computer and connection check (docs/EQUIPMENT-CHECK.md §5). Candidate
+  // voice: the figures against the job's bars, in plain words, never a score.
+  if (parsedNotes?.equipmentCheckResult && typeof parsedNotes.equipmentCheckResult === 'object') {
+    const c = parsedNotes.equipmentCheckResult;
+    const bars = c.bars && typeof c.bars === 'object' ? c.bars : {};
+    const down = Number(c.downloadMbps) || 0;
+    const up = Number(c.uploadMbps) || 0;
+    const latency = Number(c.latencyMs) || 0;
+    const minDown = Number(bars.minDownloadMbps) || 10;
+    const minUp = Number(bars.minUploadMbps) || 3;
+    const maxLatency = Number(bars.maxLatencyMs) || 200;
+    const details = [
+      `Your connection measured ${down} Mbps down and ${up} up; the job asks for ${minDown} and ${minUp}.`,
+      latency > maxLatency
+        ? `Your response time was ${latency} ms; the job asks for ${maxLatency} ms or under.`
+        : `Your response time was ${latency} ms, within the ${maxLatency} ms the job asks for.`,
+      c.usingThisComputer === 'ran_here_anyway'
+        ? 'You ran this on a computer other than the one you would work from, so the hiring team will want to see it from that computer.'
+        : '',
+      c.deviceKind === 'phone' || c.deviceKind === 'tablet'
+        ? `This was run on a ${c.deviceKind}; the job is done on a computer.`
+        : '',
+    ].filter(Boolean);
+
+    phases['Computer and connection'] = {
+      score: `${down} Mbps down, ${up} up, ${latency} ms`,
+      result: c.meetsBars ? 'Meets what the job asks for' : 'Below what the job asks for',
+      details,
+      evidence: [],
+    };
+  }
+
   // Quiz
   if (parsedNotes?.quizResult) {
     const q = parsedNotes.quizResult;

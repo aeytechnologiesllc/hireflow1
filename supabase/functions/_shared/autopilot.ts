@@ -86,6 +86,13 @@ const PHASE_TOPICS: Record<string, RegExp> = {
   "Ava interview": /\b(?:interview\w*|spoken|speaking|verbal)\b/i,
   "portfolio review": /\b(?:portfolio|work samples?)\b/i,
   "video response": /\bvideo\b/i,
+  // The computer and connection check (docs/EQUIPMENT-CHECK.md): evidence, never
+  // a high signal and never a conflict (buildAvaScorecard drops a note on this
+  // topic whenever the job has the check). Network meanings only: a bare
+  // "connection" ("no connection between their retail background and the
+  // CRM skills") or "ping" is about something else and must stay a conflict.
+  "connection check":
+    /\b(?:internet|bandwidth|mbps|speed ?tests?|(?:download|upload) speeds?|latency|wi-?fi|(?:internet|network|broadband|home) connections?|connections? (?:speed|quality|check)|own (?:computer|laptop|device|equipment)|equipment check|home office setup)\b/i,
 };
 
 /**
@@ -370,6 +377,21 @@ export function buildAvaScorecard(params: {
   quizScore: number | null;
   quizConfigured: boolean;
   typingTest?: { wpm?: number; score?: number; accuracy?: number } | null;
+  /**
+   * The computer and connection check's recorded result (notes.equipmentCheckResult,
+   * docs/EQUIPMENT-CHECK.md §5). Evidence and flags only: it is never a score, it
+   * never holds the evidence floor, and it is never a reason to park anyone.
+   * Optional so every existing caller and fixture is unchanged.
+   */
+  equipmentCheck?: {
+    downloadMbps: number;
+    uploadMbps: number;
+    latencyMs: number;
+    meetsBars: boolean;
+    below: string[];
+    usingThisComputer: string;
+    deviceKind: string;
+  } | null;
   voiceScore: number | null;
   portfolioScore: number | null;
   chatSimulationScore: number | null;
@@ -414,6 +436,7 @@ export function buildAvaScorecard(params: {
     quizScore,
     quizConfigured,
     typingTest,
+    equipmentCheck,
     voiceScore,
     portfolioScore,
     chatSimulationScore,
@@ -477,6 +500,18 @@ export function buildAvaScorecard(params: {
     videoIntroSubmitted,
   );
 
+  // Steps that are evidence, not a signal: a note about what they measure is
+  // their job (realHardConflicts), they never hold the evidence floor or the
+  // decision, and, unlike a high-signal test, that stays true AFTER they land:
+  // a connection below the job's bar is a risk flag for the owner (below),
+  // never a hard conflict that lowers the score or becomes hardRejectReason
+  // (docs/EQUIPMENT-CHECK.md rule 3, "nothing here declines anyone"). So the
+  // connection topic is set aside whenever the job has the check, pending or
+  // recorded; a real eligibility blocker still counts (isEligibilityBlocker).
+  const pendingEvidencePhases: string[] = [];
+  if (workflowTypes.includes("equipment_check")) pendingEvidencePhases.push("connection check");
+  const pendingTopicPhases = [...pendingHighSignalPhases, ...pendingEvidencePhases];
+
   // The deterministic aggregate of the judge's sub-scores — NOT the LLM's own
   // holistic overallScore, which never reaches this function and has zero
   // effect on the persisted score. This is the dominant signal; `finalScore`
@@ -493,7 +528,7 @@ export function buildAvaScorecard(params: {
     authenticityScore,
     specificityScore,
     hardRequirementConflicts,
-    pendingPhases: pendingHighSignalPhases,
+    pendingPhases: pendingTopicPhases,
   });
   const safeScore = clampPercent(
     weightedAverage(
@@ -509,7 +544,7 @@ export function buildAvaScorecard(params: {
   const riskFlags: string[] = [];
   const evidenceRefs: string[] = [];
   const normalizedTransferableEvidence = sanitizeList(transferableEvidence, 4);
-  const normalizedHardRequirementConflicts = realHardConflicts(hardRequirementConflicts, 4, pendingHighSignalPhases);
+  const normalizedHardRequirementConflicts = realHardConflicts(hardRequirementConflicts, 4, pendingTopicPhases);
 
   if (!resumeUnavailable) {
     evidenceRefs.push("resume");
@@ -527,6 +562,7 @@ export function buildAvaScorecard(params: {
   if (typeof chatInterviewScore === "number") evidenceRefs.push(`chat_interview:${chatInterviewScore}`);
   if (typeof videoIntroScore === "number") evidenceRefs.push(`video_intro:${videoIntroScore}`);
   else if (videoIntroSubmitted) evidenceRefs.push("video_intro_submitted");
+  if (equipmentCheck) evidenceRefs.push(`connection:${equipmentCheck.downloadMbps}down/${equipmentCheck.uploadMbps}up/${equipmentCheck.latencyMs}ms`);
   if (Array.isArray(workflowSteps) && workflowSteps.length > 0) evidenceRefs.push(`workflow_steps:${workflowSteps.length}`);
   if (normalizedTransferableEvidence.length > 0) {
     evidenceRefs.push(`transferable_fit:${normalizedTransferableEvidence.length}`);
@@ -534,6 +570,17 @@ export function buildAvaScorecard(params: {
 
   if (resumeUnavailable) riskFlags.push("Resume could not be analyzed");
   if (safeScore < passingScore) riskFlags.push("Overall score is below the passing threshold");
+  // The connection check's flags (docs/EQUIPMENT-CHECK.md §6), for the owner's
+  // review only: they never reach hardRejectReason or dealBreakerFlags.
+  if (equipmentCheck) {
+    if (!equipmentCheck.meetsBars) {
+      riskFlags.push(`Connection below the job's bar (${equipmentCheck.below.join(", ") || "measured"})`);
+    }
+    if (equipmentCheck.usingThisComputer === "ran_here_anyway") riskFlags.push("Ran the connection check on a computer they will not work from");
+    if (equipmentCheck.deviceKind === "phone" || equipmentCheck.deviceKind === "tablet") {
+      riskFlags.push(`Ran the connection check on a ${equipmentCheck.deviceKind}`);
+    }
+  }
   if (/WRONG_RESUME/i.test(analysisText)) riskFlags.push("Resume may not belong to this candidate or role");
   if (/INVALID_DOCUMENT/i.test(analysisText)) riskFlags.push("Uploaded file did not behave like a valid resume");
   if (/SUSPICIOUS/i.test(analysisText)) riskFlags.push("Resume details need manual verification");

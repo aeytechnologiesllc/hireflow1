@@ -5,8 +5,9 @@
  *
  * In an auto-mode job a test's result is recorded by the function that
  * grades it (submit-typing-test, ai-chat-simulation "evaluate",
- * ai-chat-interview "submit", submit-sales-simulation; all with
- * recordStepResult's advance: "never"). Moving the applicant on, Ava's score
+ * ai-chat-interview "submit", submit-sales-simulation, connection-test
+ * "record"; all with recordStepResult's advance: "never"). Moving the
+ * applicant on, Ava's score
  * and, before a voice interview, the employer's heads-up all come from ONE
  * place: trigger-ava-analysis's auto path (handleAutoModeStep). Until
  * 2026-10-06 only the applicant's page asked for it, right after its submit

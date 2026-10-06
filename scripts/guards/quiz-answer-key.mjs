@@ -19,6 +19,7 @@ const CANDIDATE_PHASE_FILES = [
   "src/pages/ChatSimulationPhase.tsx",
   "src/pages/ChatInterviewPhase.tsx",
   "src/pages/SalesSimulationPhase.tsx",
+  "src/pages/ConnectionCheckPhase.tsx",
   "src/pages/ApplicationFormPhase.tsx",
   "src/pages/CandidateApplicationDetail.tsx",
 ];

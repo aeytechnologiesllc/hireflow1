@@ -11,7 +11,10 @@
  * scripts/quiz_guard_pglite_check.mjs already uses).
  *
  * Proves:
- *   - trusted_result_enforcement seeds every row enforced = false
+ *   - trusted_result_enforcement seeds every row enforced = false, except
+ *     equipmentCheckResult, which 20261006124409_equipment_check.sql seeds
+ *     ENFORCED: no client ever wrote that key, so there was nothing to wait
+ *     for, and an unenforced key is a result the applicant can write
  *   - WITH EVERY FLAG OFF (today's live default): nothing changes for a
  *     candidate's own write — every notes key this migration COULD protect
  *     (typingTestResult, chatSimulationResult, chatInterviewResult,
@@ -44,11 +47,18 @@
 import { PGlite } from "@electric-sql/pglite";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+// fileURLToPath, not URL.pathname: a checkout under "HireFlow 1" keeps the
+// space as %20 in a pathname and the migration files are then not found.
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const QUIZ_MIGRATION_PATH = path.join(ROOT, "supabase/migrations/20260915110000_quiz_answer_keys_server_side.sql");
 const MIGRATION_PATH = path.join(ROOT, "supabase/migrations/20260915140000_trusted_step_results.sql");
+// The computer and connection check (docs/EQUIPMENT-CHECK.md): one more
+// result_key (equipmentCheckResult, seeded enforced = TRUE: no client ever
+// wrote it) and its mapping.
+const EQUIPMENT_MIGRATION_PATH = path.join(ROOT, "supabase/migrations/20261006124409_equipment_check.sql");
 
 let pass = 0;
 let fail = 0;
@@ -79,6 +89,7 @@ async function main() {
   const db = new PGlite();
   const quizMigrationSql = await readFile(QUIZ_MIGRATION_PATH, "utf8");
   const migrationSql = await readFile(MIGRATION_PATH, "utf8");
+  const equipmentMigrationSql = await readFile(EQUIPMENT_MIGRATION_PATH, "utf8");
 
   // --------------------------------------------------------------------
   // Minimal schema stand-in for the live tables/helpers these migrations
@@ -177,7 +188,13 @@ async function main() {
   // --------------------------------------------------------------------
   await db.exec(quizMigrationSql);
   await db.exec(migrationSql);
-  console.log("Loaded both real migration files OK.\n");
+  // The equipment_check migration's assessment-record half skips here (no
+  // assessment_sessions in this stand-in: ALTER TABLE IF EXISTS); its
+  // forgery-guard half (the mapping and the seeded row) is what this file
+  // proves. Applied twice: re-runnable.
+  await db.exec(equipmentMigrationSql);
+  await db.exec(equipmentMigrationSql);
+  console.log("Loaded the three real migration files OK.\n");
 
   const employerId = randomUUID();
   const teamMemberId = randomUUID();
@@ -262,22 +279,31 @@ async function main() {
 
   // ==========================================================================
   await guardedSection("0. seed", async () => {
-    console.log("== 0. trusted_result_enforcement seeds every row enforced = false ==");
+    console.log("== 0. trusted_result_enforcement seeds every row enforced = false, equipmentCheckResult enforced ==");
     const rows = await db.query(`SELECT result_key, enforced FROM public.trusted_result_enforcement ORDER BY result_key`);
     const expectedKeys = [
       "chatInterviewResult", "chatSimulationResult", "phase", "portfolioResult",
       "salesSimulationResult", "typingTestResult", "videoIntroResult", "voiceInterviewResult",
+      // 20261006124409_equipment_check.sql
+      "equipmentCheckResult",
     ].sort();
-    ok(rows.rows.length === 8, `seeded exactly 8 rows (got ${rows.rows.length})`);
+    ok(rows.rows.length === 9, `seeded exactly 9 rows (got ${rows.rows.length})`);
     ok(
       JSON.stringify(rows.rows.map((r) => r.result_key).sort()) === JSON.stringify(expectedKeys),
-      "seeded exactly the 8 expected result_keys"
+      "seeded exactly the 9 expected result_keys"
     );
-    ok(rows.rows.every((r) => r.enforced === false), "every seeded row is enforced = false");
+    ok(
+      rows.rows.every((r) => r.enforced === (r.result_key === "equipmentCheckResult")),
+      "every seeded row is enforced = false except equipmentCheckResult, seeded enforced = true"
+    );
   });
 
   // ==========================================================================
   console.log("\n== 1. Every flag OFF: nothing changes for a candidate's own write ==");
+  // Sections 1-5 prove the guard with EVERY flag off; equipmentCheckResult is
+  // seeded on (section 0), so it is turned off here and section 6 proves the
+  // seeded state on its own.
+  await setFlag("equipmentCheckResult", false);
   await guardedSection("1. flags off", async () => {
     const resultKeyToNotesKey = {
       typingTestResult: "typingTestResult",
@@ -287,6 +313,7 @@ async function main() {
       portfolioResult: "portfolioResult",
       videoIntroResult: "videoIntroResult",
       voiceInterviewResult: "voiceInterviewResult",
+      equipmentCheckResult: "equipmentCheckResult",
     };
     for (const notesKey of Object.values(resultKeyToNotesKey)) {
       const appId = await newApplication("pending");
@@ -624,6 +651,60 @@ async function main() {
     );
 
     await setFlag("phase", false);
+  });
+
+  // ==========================================================================
+  console.log("\n== 6. equipmentCheckResult (20261006124409_equipment_check.sql): mapped by key and by type, enforced as seeded ==");
+  await guardedSection("6. equipment check", async () => {
+    const mapped = await db.query(
+      `SELECT public.trusted_result_key_for('equipmentCheckResult', NULL) AS by_key,
+              public.trusted_result_key_for('EQUIPMENTCHECKRESULT', NULL) AS by_case,
+              public.trusted_result_key_for('step_connection', 'equipment_check') AS by_type,
+              public.trusted_result_key_for('typingTestResult', NULL) AS typing_still`
+    );
+    const m = mapped.rows[0];
+    ok(
+      m.by_key === "equipmentCheckResult" && m.by_case === "equipmentCheckResult" && m.by_type === "equipmentCheckResult" && m.typing_still === "typingTestResult",
+      `trusted_result_key_for maps the key (any casing) and type 'equipment_check' to equipmentCheckResult, and the old keys as before (got ${JSON.stringify(m)})`
+    );
+
+    // Section 1 turned the row off; running the migration again turns it back
+    // on (ON CONFLICT DO UPDATE), exactly as a first run seeds it.
+    await db.exec(equipmentMigrationSql);
+    const seeded = await db.query(`SELECT enforced FROM public.trusted_result_enforcement WHERE result_key = 'equipmentCheckResult'`);
+    ok(seeded.rows.length === 1 && seeded.rows[0].enforced === true, "the row is enforced as the migration seeds it, and a re-run turns a row left off back on");
+
+    const blankApp = await newApplication("pending");
+    await expectFail(
+      () => updateAsCandidate(blankApp, "notes = $2", [JSON.stringify({ equipmentCheckResult: { downloadMbps: 500, uploadMbps: 200, latencyMs: 5, measuredBy: "server" } })]),
+      "as seeded: the candidate cannot put a result of their own on file (the forged 500/200/5 never lands)"
+    );
+    const offApp = await newApplication("pending", { notes: JSON.stringify({ equipmentCheckResult: { downloadMbps: 28 } }) });
+    await expectFail(
+      () => updateAsCandidate(offApp, "notes = $2", [JSON.stringify({ equipmentCheckResult: { downloadMbps: 9999 } })]),
+      "as seeded: the candidate cannot change a result on file"
+    );
+    await expectFail(
+      () => updateAsCandidate(offApp, "notes = $2", [JSON.stringify({})]),
+      "as seeded: nor delete it (a fresh record would bypass the one-shot rule)"
+    );
+    const typeApp = await newApplication("pending", {
+      notes: JSON.stringify({ step_connection: { type: "equipment_check", downloadMbps: 28 } }),
+    });
+    await expectFail(
+      () => updateAsCandidate(typeApp, "notes = $2", [JSON.stringify({ step_connection: { type: "equipment_check", downloadMbps: 999 } })]),
+      "flag on: the legacyStepEntry (type equipment_check) under the step's own id is protected too"
+    );
+    await expectOk(
+      () => updateAsService(offApp, "notes = $2", [JSON.stringify({ equipmentCheckResult: { downloadMbps: 30 } })]),
+      "flag on: the service role (connection-test, through recordStepResult) still writes it"
+    );
+    await setFlag("typingTestResult", false);
+    const otherApp = await newApplication("pending", { notes: JSON.stringify({ typingTestResult: { wpm: 60 } }) });
+    await expectOk(
+      () => updateAsCandidate(otherApp, "notes = $2", [JSON.stringify({ typingTestResult: { wpm: 999 } })]),
+      "flag on for equipmentCheckResult only: another key stays as its own flag says"
+    );
   });
 
   console.log(`\n${pass} passed, ${fail} failed.`);

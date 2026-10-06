@@ -37,6 +37,7 @@ const CALL_SITES = [
   { file: "supabase/functions/ai-chat-interview/index.ts", stepType: "chat_interview", advance: "never" },
   { file: "supabase/functions/submit-sales-simulation/index.ts", stepType: "sales_simulation", advance: "never" },
   { file: "supabase/functions/ava-voice-tools/index.ts", stepType: "voice_interview", advance: "never" },
+  { file: "supabase/functions/connection-test/index.ts", stepType: "equipment_check", advance: "never" },
   { file: "supabase/functions/ai-analyze-portfolio/index.ts", stepType: "portfolio_upload", advance: "auto_mode" },
   { file: "supabase/functions/complete-video-intro/index.ts", stepType: null, advance: "auto_mode" },
 ];

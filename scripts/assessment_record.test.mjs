@@ -83,7 +83,11 @@ function check(name, condition, detail = "") {
 
 /* ── The live role's shape ─────────────────────────────────────────────── */
 
+/** The live job's bars for the connection check (docs/EQUIPMENT-CHECK.md §2). */
+const CONNECTION_BARS = { min_download_mbps: 10, min_upload_mbps: 3, max_latency_ms: 200 };
 const ZULU_STEPS = [
+  // First of the workflow steps on the live job (docs/EQUIPMENT-CHECK.md §2).
+  { id: "step_connection", type: "equipment_check", title: "Your computer and connection", config: CONNECTION_BARS },
   { id: "step_typing", type: "typing_test", title: "Typing speed and accuracy", config: { min_wpm: 45, min_accuracy_percent: 95 } },
   {
     id: "step_chat",
@@ -110,6 +114,29 @@ const quizAnswers = QUIZ_QUESTIONS.map((q, i) => ({
   selectedAnswer: 1,
   selectedAnswerText: q.options[1],
 }));
+
+/** The contract's own example result (docs/EQUIPMENT-CHECK.md §5), on the
+ *  fixture's clock. Every figure in it was timed by the server. */
+const ROBIN_CONNECTION = {
+  downloadMbps: 28.4,
+  uploadMbps: 9.1,
+  latencyMs: 42,
+  jitterMs: 6,
+  measuredBy: "server",
+  runs: 2,
+  usingThisComputer: "yes",
+  deviceKind: "computer",
+  device: {
+    os: "Windows", osVersion: "11", browser: "Chrome", browserVersion: "131", screen: "1920×1080", dpr: 1, cores: 8, memoryGb: 8,
+    touch: false, language: "en-PH", timezone: "Asia/Manila", connectionType: "wifi", model: null,
+  },
+  bars: { minDownloadMbps: 10, minUploadMbps: 3, maxLatencyMs: 200 },
+  meetsBars: true,
+  below: [],
+  measuredAt: "2026-10-05T15:45:56.000Z",
+  attempt: 1,
+  _trusted: true,
+};
 
 /** Shaped like the owner's run: every key, every nesting, invented words. */
 function finishedNotes(overrides = {}) {
@@ -140,9 +167,13 @@ function finishedNotes(overrides = {}) {
       { type: "select", answer: "40 or more", question: "How many hours a week can you work?", questionId: "q6" },
       { type: "textarea", answer: "Two years of chat support for a phone carrier.", question: "Describe your support experience.", questionId: "q9" },
     ],
+    // The connection check, as connection-test records it (docs/EQUIPMENT-CHECK.md §5).
+    equipmentCheckResult: ROBIN_CONNECTION,
+    step_connection: { type: "equipment_check", ...ROBIN_CONNECTION, completedAt: "2026-10-05T15:45:58.000Z" },
     typingTestResult: { wpm: 38, accuracy: 85, score: 72, passed: false, requiredWpm: 45, tabSwitches: 0, violations: [] },
     step_typing: { type: "typing_test", wpm: 38, accuracy: 85, score: 72, passed: false, requiredWpm: 45, tabSwitches: 0, violations: [], completedAt: "2026-10-05T15:47:40.116Z" },
     _trusted: {
+      step_connection: { stepType: "equipment_check", completedAt: "2026-10-05T15:45:58.031Z" },
       step_typing: { stepType: "typing_test", completedAt: "2026-10-05T15:47:40.146Z" },
       step_chat: { stepType: "chat_simulation", completedAt: "2026-10-05T15:51:46.150Z" },
       step_interview: { stepType: "chat_interview", completedAt: "2026-10-05T15:57:59.597Z" },
@@ -218,7 +249,7 @@ const byKey = Object.fromEntries(rec.entries.map((e) => [e.key, e]));
 
 check(
   "one entry per step the job gives, in journey order, then the integrity row",
-  rec.entries.map((e) => e.key).join(",") === "application,quiz,step_typing,step_chat,step_interview,integrity",
+  rec.entries.map((e) => e.key).join(",") === "application,quiz,step_connection,step_typing,step_chat,step_interview,integrity",
   rec.entries.map((e) => e.key).join(","),
 );
 check("every test reads as done", rec.entries.every((e) => e.status === "done"), rec.entries.map((e) => `${e.key}:${e.status}`).join(","));
@@ -265,7 +296,103 @@ check("interview keeps the timed violation list", byKey.step_interview.integrity
 
 check("integrity row adds every flag across the tests", byKey.integrity.headline === "6 flags" && byKey.integrity.verdict === "in 2 tests", `${byKey.integrity.headline} ${byKey.integrity.verdict}`);
 check("Ava's risk flags come through verbatim", rec.riskFlags.length === 3 && rec.riskFlags[2].startsWith("Typing test result"));
-check("her weighed line counts a full record instead of listing it", weighedPhrase(rec.entries) === "all 5 steps", weighedPhrase(rec.entries));
+check("her weighed line counts a full record instead of listing it", weighedPhrase(rec.entries) === "all 6 steps", weighedPhrase(rec.entries));
+
+/* ── 1b. The computer and connection check (docs/EQUIPMENT-CHECK.md §6) ── */
+// Every figure was timed by the server; the job's bars decide the verdict;
+// the flags are plain words, each its own line; nothing here declines anyone.
+
+const conn = byKey.step_connection;
+check("the connection row reads '↓ 28 · ↑ 9 Mbps'", conn.headline === "↓ 28 · ↑ 9 Mbps", conn.headline);
+check("…and 'Meets the bar', jade", conn.verdict === "Meets the bar" && conn.tone === "jade", `${conn.verdict} ${conn.tone}`);
+check("…with no flags on a clean run (no second line)", conn.subline === null && conn.detail.flags.length === 0, JSON.stringify([conn.subline, conn.detail.flags]));
+check("…its rail receipt is the figures alone when the bar is met", conn.receipt === "↓ 28 · ↑ 9 Mbps", conn.receipt);
+check("…its finished time comes from the trusted record", conn.completedAt === "2026-10-05T15:45:58.031Z", conn.completedAt);
+check("…and it opens on its own detail", conn.openable && conn.detail.kind === "equipment_check" && conn.detail.live === false);
+check("the figures are the server's, with the jitter", conn.detail.download === 28.4 && conn.detail.upload === 9.1 && conn.detail.latencyMs === 42 && conn.detail.jitterMs === 6 && conn.detail.measuredBy === "server");
+check("the bars are the result's own snapshot", JSON.stringify(conn.detail.bars) === JSON.stringify({ minDownload: 10, minUpload: 3, maxLatency: 200 }), JSON.stringify(conn.detail.bars));
+check("nothing is below the bar", conn.detail.below.length === 0 && conn.detail.meetsBars === true);
+const deviceRow = (label) => conn.detail.device.find((r) => r.label === label)?.value;
+check(
+  "the device is a table: OS, browser, screen, cores, memory, touch, language, time zone, connection type",
+  conn.detail.device.map((r) => r.label).join("|") === "Operating system|Browser|Screen|Processor cores|Memory|Touch screen|Language|Time zone|Connection type",
+  conn.detail.device.map((r) => r.label).join("|"),
+);
+check("…with the facts in plain words", deviceRow("Operating system") === "Windows 11" && deviceRow("Browser") === "Chrome 131" && deviceRow("Screen") === "1920×1080" && deviceRow("Memory") === "8 GB" && deviceRow("Touch screen") === "No" && deviceRow("Connection type") === "wifi", JSON.stringify(conn.detail.device));
+check("the answer to the computer question is kept", conn.detail.usingThisComputer === "yes" && conn.detail.deviceKind === "computer" && conn.detail.runs === 2);
+check("the IP is not in notes: it waits for the attempt's grading", conn.detail.ip === null && conn.detail.userAgent === null);
+check("the connection check raises no integrity flags (rule 5)", conn.integrity.total === 0);
+
+// Below one bar, not their computer, three runs (the amber row).
+const JORDAN_CONNECTION = {
+  ...ROBIN_CONNECTION,
+  downloadMbps: 18.6, uploadMbps: 1.2, latencyMs: 74, jitterMs: 21, runs: 3, usingThisComputer: "ran_here_anyway",
+  device: { ...ROBIN_CONNECTION.device, os: "Windows", osVersion: "10", browser: "Edge", browserVersion: "130", screen: "1366×768", cores: 4, memoryGb: 4, connectionType: "cellular" },
+  meetsBars: false, below: ["upload"],
+};
+const connNotes = (result) => JSON.stringify(finishedNotes({ equipmentCheckResult: result, step_connection: { type: "equipment_check", ...result, completedAt: "2026-10-05T15:45:58.000Z" } }));
+const jordan = buildAssessmentRecord(finishedApp({ notes: connNotes(JORDAN_CONNECTION) })).entries.find((e) => e.key === "step_connection");
+check("a result under one bar: '↓ 18 · ↑ 1.2 Mbps', amber (whole Mbps rounded down; the missed figure with its decimal)", jordan.headline === "↓ 18 · ↑ 1.2 Mbps" && jordan.tone === "amber", `${jordan.headline} ${jordan.tone}`);
+check("…says which bar, with the figure: 'Below the bar: upload 1.2 Mbps'", jordan.verdict === "Below the bar: upload 1.2 Mbps", jordan.verdict);
+check(
+  "…flags in plain words, each its own line",
+  JSON.stringify(jordan.detail.flags) === JSON.stringify(["Not the computer they'll work from (ran here anyway)", "Sent after 3 runs"]),
+  JSON.stringify(jordan.detail.flags),
+);
+check("…never joined into one truncated line: the row draws each flag on its own line from detail.flags", jordan.subline === null && jordan.verdict === "Below the bar: upload 1.2 Mbps", JSON.stringify([jordan.subline, jordan.verdict]));
+check("…and the gem says which bar, against what the job asks for", jordan.receipt === "↓ 18 · ↑ 1.2 Mbps · upload under 3", jordan.receipt);
+
+// A figure just under its bar never reads AT the bar, and under 1 Mbps never reads 0.
+const underBar = (over) => buildAssessmentRecord(finishedApp({ notes: connNotes({ ...ROBIN_CONNECTION, ...over, meetsBars: false }) })).entries.find((e) => e.key === "step_connection");
+const up26 = underBar({ uploadMbps: 2.6, below: ["upload"] });
+check("upload 2.6 against a 3 bar: '↑ 2.6', never '↑ 3'", up26.headline === "↓ 28 · ↑ 2.6 Mbps" && up26.receipt === "↓ 28 · ↑ 2.6 Mbps · upload under 3", `${up26.headline} | ${up26.receipt}`);
+const down96 = underBar({ downloadMbps: 9.6, below: ["download"] });
+check("download 9.6 against a 10 bar: '↓ 9.6', never '↓ 10'", down96.headline === "↓ 9.6 · ↑ 9 Mbps" && down96.verdict === "Below the bar: download 9.6 Mbps", `${down96.headline} | ${down96.verdict}`);
+const up04 = underBar({ uploadMbps: 0.4, below: ["upload"] });
+check("upload 0.4: '↑ 0.4', never '↑ 0'", up04.headline === "↓ 28 · ↑ 0.4 Mbps", up04.headline);
+const bigUnder = underBar({ downloadMbps: 24.9, below: ["download"], bars: { minDownloadMbps: 25, minUploadMbps: 3, maxLatencyMs: 200 } });
+check("24.9 against a 25 bar: '↓ 24.9' in the number and the verdict, never '25'", bigUnder.headline === "↓ 24.9 · ↑ 9 Mbps" && bigUnder.verdict === "Below the bar: download 24.9 Mbps", `${bigUnder.headline} | ${bigUnder.verdict}`);
+
+// "Timed by our server" only with the server's own marker: a value with
+// measuredBy "server" in it and no _trusted marker is not the server's word.
+const unmarked = buildAssessmentRecord(finishedApp({ notes: JSON.stringify(finishedNotes({ equipmentCheckResult: ROBIN_CONNECTION, step_connection: undefined, _trusted: undefined })) })).entries.find((e) => e.key === "step_connection");
+check("a result with no server marker is never said to be timed by our server", unmarked.detail.measuredBy === null, JSON.stringify(unmarked.detail.measuredBy));
+
+// Where the test ran against where it was sent from: flags, each its own line.
+const relayed = buildAssessmentRecord(finishedApp({ notes: connNotes({ ...ROBIN_CONNECTION, source: { oneAddress: true, sameAddress: false, sameBrowser: false } }) })).entries.find((e) => e.key === "step_connection");
+check(
+  "a test run from one network and sent from another is flagged, in the server's own words",
+  JSON.stringify(relayed.detail.flags) === JSON.stringify(["Sent from a different network than the test ran on", "Sent from a different browser than the test ran in"]),
+  JSON.stringify(relayed.detail.flags),
+);
+
+// Two bars missed: both named, in the fixed order.
+const twoBars = buildAssessmentRecord(finishedApp({ notes: connNotes({ ...ROBIN_CONNECTION, downloadMbps: 4.2, uploadMbps: 9.1, latencyMs: 310, meetsBars: false, below: ["download", "latency"] }) })).entries.find((e) => e.key === "step_connection");
+check("two bars missed are both named", twoBars.verdict === "Below the bar: download 4.2 Mbps, latency 310 ms", twoBars.verdict);
+
+// The job's bars decide, not the stored verdict: a result that says it meets
+// the bar but does not (the job raised its bar after) reads as under it.
+const raised = buildAssessmentRecord(finishedApp({ notes: connNotes({ ...ROBIN_CONNECTION, uploadMbps: 2.5, bars: undefined }), jobs: { ...JOB, workflow_steps: [{ ...ZULU_STEPS[0], config: { min_download_mbps: 10, min_upload_mbps: 3, max_latency_ms: 200 } }, ...ZULU_STEPS.slice(1)] } })).entries.find((e) => e.key === "step_connection");
+check("without a snapshot the step's config is the bar, and the figures decide over the stored meetsBars", raised.verdict === "Below the bar: upload 2.5 Mbps" && raised.tone === "amber", raised.verdict);
+const noBars = buildAssessmentRecord(finishedApp({ notes: connNotes({ ...ROBIN_CONNECTION, bars: undefined, meetsBars: undefined, below: undefined }), jobs: { ...JOB, workflow_steps: [{ id: "step_connection", type: "equipment_check", title: "Your computer and connection" }, ...ZULU_STEPS.slice(1)] } })).entries.find((e) => e.key === "step_connection");
+check("with no bar anywhere nothing is judged: the number, no verdict, ink", noBars.headline === "↓ 28 · ↑ 9 Mbps" && noBars.verdict === null && noBars.tone === "ink" && noBars.detail.meetsBars === null, `${noBars.verdict} ${noBars.tone}`);
+
+// A phone run that still met the bar: jade number, a flag the team sees.
+const phone = buildAssessmentRecord(finishedApp({ notes: connNotes({ ...ROBIN_CONNECTION, deviceKind: "phone", usingThisComputer: "ran_here_anyway", device: { ...ROBIN_CONNECTION.device, os: "Android", osVersion: "14", touch: true, model: "Pixel 8", memoryGb: null, connectionType: null } }) })).entries.find((e) => e.key === "step_connection");
+check("a phone run keeps its verdict and says so in the flags", phone.verdict === "Meets the bar" && JSON.stringify(phone.detail.flags) === JSON.stringify(["Not the computer they'll work from (ran here anyway)", "Ran on a phone"]), JSON.stringify(phone.detail.flags));
+check("…the device table says what the browser did not report, and the model when it did", phone.detail.device.find((r) => r.label === "Memory").value === "Not reported" && phone.detail.device.find((r) => r.label === "Model").value === "Pixel 8" && phone.detail.device.find((r) => r.label === "Touch screen").value === "Yes");
+const switched = buildAssessmentRecord(finishedApp({ notes: connNotes({ ...ROBIN_CONNECTION, usingThisComputer: "no_switched" }) })).entries.find((e) => e.key === "step_connection");
+check(
+  "a switch to the right computer is said, never as a fault: no flag at all, the answer itself says it",
+  switched.tone === "jade" && switched.detail.flags.length === 0 && switched.detail.usingThisComputer === "no_switched",
+  JSON.stringify(switched.detail.flags),
+);
+
+// Done is decided by the flat result (stepHasResult), never by the legacy entry alone.
+const legacyOnly = buildAssessmentRecord(finishedApp({ notes: JSON.stringify(finishedNotes({ equipmentCheckResult: undefined })) })).entries.find((e) => e.key === "step_connection");
+check("a per-step entry without equipmentCheckResult is not a result: 'No result on file'", legacyOnly.status !== "done" && legacyOnly.statusLabel === "No result on file", `${legacyOnly.status} ${legacyOnly.statusLabel}`);
+const connOrphan = buildAssessmentRecord({ status: "reviewing", notes: connNotes(ROBIN_CONNECTION), jobs: { workflow_steps: [], quiz_questions: [] } });
+check("a result for a job that dropped the step is still shown", connOrphan.entries.some((e) => e.key === "extra-equipment_check" && e.headline === "↓ 28 · ↑ 9 Mbps" && e.title === "Your computer and connection"), connOrphan.entries.map((e) => `${e.key}:${e.title}`).join(","));
 
 /* ── 2. The End-button interview (flat fields, no transcript) ──────────── */
 
@@ -750,6 +877,163 @@ const combined = graded.entries.find((e) => e.key === "integrity");
 const combinedShown = withSessionEvents(combined, chatEvents.map((e) => ({ ...e, session_id: "c1" })));
 check("the integrity sheet gives each test its own timeline", combinedShown.detail.groups.find((g) => g.sessionId === "c1").timeline.length === 7);
 
+/* ── 13b. The connection check's attempt: live words, grading, events ──── */
+// docs/EQUIPMENT-CHECK.md rule 5: the session, heartbeat and live progress
+// still run so staff see "running the speed test · active just now"; §5: the
+// stamps, the IP and the browser's line are staff-only, in the grading.
+
+const connSess = (over = {}) => sess({ id: "k-1", step_id: "step_connection", step_type: "equipment_check", progress: { screen: "test", run: 1 }, context: { bars: CONNECTION_BARS }, ...over });
+live = sessionLiveStatus(connSess(), NOW, "Your computer and connection");
+check("the live row: 'Running the speed test · active 1 min ago'", live?.text === "Running the speed test · active 1 min ago" && live.state === "doing", live?.text);
+check("…its rail receipt", live?.receipt === "Speed test", live?.receipt);
+check("…said about the person, names the step", live?.summary === "Your computer and connection: running the speed test · active 1 min ago", live?.summary);
+check("a second run says so", sessionLiveStatus(connSess({ progress: { screen: "test", run: 2 } }), NOW)?.text === "Running the speed test · run 2 · active 1 min ago" && sessionLiveStatus(connSess({ progress: { screen: "test", run: 2 } }), NOW)?.receipt === "Run 2");
+check("on the first screen: 'Choosing the computer'", sessionLiveStatus(connSess({ progress: { screen: "which" } }), NOW)?.text === "Choosing the computer · active 1 min ago");
+check("on the result screen: 'Looking at the result'", sessionLiveStatus(connSess({ progress: { screen: "result", run: 2 } }), NOW)?.text === "Looking at the result · run 2 · active 1 min ago");
+check("a page that wrote no progress is on the test", sessionLiveStatus(connSess({ progress: {} }), NOW)?.text === "Running the speed test · active 1 min ago");
+check("left: 'Left during the speed test · last active 25 min ago'", sessionLiveStatus(connSess({ last_activity_at: ago(25 * MIN) }), NOW)?.text === "Left during the speed test · last active 25 min ago");
+// The page's hint lives in progress.client (touch_assessment_session puts it
+// there, docs/ASSESSMENT-RECORD.md §2.5): the words are read from there.
+check(
+  "the page's own hint (progress.client) names the screen and the run",
+  sessionLiveStatus(connSess({ progress: { client: { screen: "computer", device_kind: "computer" } } }), NOW)?.text === "Choosing the computer · active 1 min ago" &&
+    sessionLiveStatus(connSess({ progress: { client: { screen: "test", run: 2, step: 7 } } }), NOW)?.text === "Running the speed test · run 2 · active 1 min ago" &&
+    sessionLiveStatus(connSess({ progress: { client: { screen: "result", runs_done: 2 } } }), NOW)?.text === "Looking at the result · run 2 · active 1 min ago",
+  sessionLiveStatus(connSess({ progress: { client: { screen: "result", runs_done: 2 } } }), NOW)?.text,
+);
+
+const connLive = buildAssessmentRecord(
+  { id: "app-5", status: "pending", phase: "step_connection", notes: JSON.stringify({ ...finishedNotes({ equipmentCheckResult: undefined, step_connection: undefined, _trusted: undefined }) }), jobs: JOB },
+  { sessions: [connSess()], now: NOW },
+);
+const connLiveEntry = connLive.entries.find((e) => e.key === "step_connection");
+check("a check being taken reads live on its row", connLiveEntry.status === "in_progress" && connLiveEntry.statusLabel === "Running the speed test · active 1 min ago", connLiveEntry.statusLabel);
+check("…opens on what is there so far, with the bars pinned at the start", connLiveEntry.openable && connLiveEntry.detail.kind === "equipment_check" && connLiveEntry.detail.live === true && connLiveEntry.detail.bars.minDownload === 10 && connLiveEntry.detail.runs === 1 && connLiveEntry.detail.download === null);
+check("…and the record says they are running the speed test", connLive.live?.stepId === "step_connection" && connLive.live.text === connLiveEntry.statusLabel);
+const connHinted = buildAssessmentRecord(
+  { id: "app-5", status: "pending", phase: "step_connection", notes: JSON.stringify({ ...finishedNotes({ equipmentCheckResult: undefined, step_connection: undefined, _trusted: undefined }) }), jobs: JOB },
+  { sessions: [connSess({ progress: { client: { screen: "test", device_kind: "phone", answer: "ran_here_anyway", run: 1 } } })], now: NOW },
+).entries.find((e) => e.key === "step_connection");
+check(
+  "…the page's hint fills the device kind, the answer and their flags before any event loads",
+  connHinted.detail.deviceKind === "phone" && connHinted.detail.usingThisComputer === "ran_here_anyway" && connHinted.detail.runs === 1 &&
+    JSON.stringify(connHinted.detail.flags) === JSON.stringify(["Not the computer they'll work from (ran here anyway)", "Ran on a phone"]),
+  JSON.stringify(connHinted.detail.flags),
+);
+
+const connGraded = buildAssessmentRecord(finishedApp(), {
+  sessions: [
+    connSess({
+      status: "completed",
+      ended_at: "2026-10-05T15:45:58Z",
+      progress: { screen: "result", run: 2 },
+      grading: {
+        graded_at: "2026-10-05T15:45:58Z",
+        stamps: [{ kind: "ping", nonce: "0123456789abcdef", at: 1, bytes: 0, prev_nonce: null, prev_at: 1, candidate: "u1", sig: "x" }],
+        ip: "197.251.144.23",
+        userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131.0.0.0",
+        raw: { downloadMbps: 29.0, uploadMbps: 9.4, latencyMs: 41 },
+      },
+    }),
+  ],
+  now: NOW,
+}).entries.find((e) => e.key === "step_connection");
+check("a finished check adds the IP and the browser's line from the grading (staff-only)", connGraded.detail.ip === "197.251.144.23" && /Chrome\/131/.test(connGraded.detail.userAgent), JSON.stringify([connGraded.detail.ip, connGraded.detail.userAgent]));
+check("…and the figures stay the recorded ones, never the page's estimate", connGraded.detail.download === 28.4 && connGraded.detail.upload === 9.1 && connGraded.headline === "↓ 28 · ↑ 9 Mbps");
+const connPinned = buildAssessmentRecord(
+  finishedApp({ notes: connNotes({ ...ROBIN_CONNECTION, bars: undefined }), jobs: { ...JOB, workflow_steps: [{ id: "step_connection", type: "equipment_check", title: "Your computer and connection" }, ...ZULU_STEPS.slice(1)] } }),
+  { sessions: [connSess({ status: "completed", context: { bars: { min_download_mbps: 25, min_upload_mbps: 10, max_latency_ms: 100 } } })], now: NOW },
+).entries.find((e) => e.key === "step_connection");
+check("a result with no bars of its own gets the ones pinned when the attempt started", connPinned.detail.bars.minDownload === 25 && connPinned.detail.bars.maxLatency === 100, JSON.stringify(connPinned.detail.bars));
+
+seq = 0;
+const connEvents = [
+  ev("system", { session_id: "k-1", detail: { what: "started", attempt: 1 } }),
+  ev("system", { session_id: "k-1", detail: { what: "device_read", device_kind: "computer", os: "Windows 11", browser: "Chrome 131", screen: "1920×1080" } }),
+  ev("system", { session_id: "k-1", detail: { what: "computer_answer", answer: "yes" } }),
+  ev("system", { session_id: "k-1", detail: { what: "test_started", run: 1 } }),
+  ev("system", { session_id: "k-1", detail: { what: "test_finished", run: 1, download_mbps: 24.9, upload_mbps: 8.1, latency_ms: 50 } }),
+  ev("system", { session_id: "k-1", detail: { what: "test_run", run: 1, download_mbps: 24.1, upload_mbps: 7.8, latency_ms: 51, jitter_ms: 9 } }),
+  ev("system", { session_id: "k-1", detail: { what: "test_started", run: 2 } }),
+  ev("system", { session_id: "k-1", detail: { what: "record_refused", reason: "stale", index: 3 } }),
+  ev("system", { session_id: "k-1", detail: { what: "test_finished", run: 2, download_mbps: 29.0, upload_mbps: 9.4, latency_ms: 41 } }),
+  // Production-shaped: the page's test_finished wrote this run's test_run
+  // first (no `sent`), and record's copy on the same key inserted nothing.
+  ev("system", { session_id: "k-1", detail: { what: "test_run", run: 2, download_mbps: 28.4, upload_mbps: 9.1, latency_ms: 42, jitter_ms: 6 } }),
+  ev("system", { session_id: "k-1", detail: { what: "submitted", run: 2 } }),
+];
+const connShown = withSessionEvents(connGraded, connEvents);
+const story = connShown.detail.timeline.map((t) => timelineText(t) + (t.note ? ` [${t.note}]` : ""));
+check(
+  "the sheet's timeline tells the check's story from the attempt's events",
+  story.join("\n") ===
+    [
+      "Opened the check",
+      "Read the computer [Windows 11 · Chrome 131 · 1920×1080]",
+      "Said this is the computer they'll work from",
+      "Run 1 started",
+      "Run 1 finished [the page's estimate: ↓ 24.9 · ↑ 8.1 Mbps · 50 ms]",
+      "Run 1 timed by our server [↓ 24.1 · ↑ 7.8 Mbps · 51 ms ±9]",
+      "Run 2 started",
+      "A sent run was refused [the run was more than 20 minutes old]",
+      "Run 2 finished [the page's estimate: ↓ 29 · ↑ 9.4 Mbps · 41 ms]",
+      "Run 2 timed by our server [↓ 28.4 · ↑ 9.1 Mbps · 42 ms ±6 · the run that was sent]",
+      "Sent run 2",
+    ].join("\n"),
+  story.join(" | "),
+);
+check("…every line is a marker, never a flag", connShown.detail.timeline.every((t) => !t.flag && t.kind.startsWith("system:")));
+check("…and the recorded result keeps its own facts over the events", connShown.detail.runs === 2 && connShown.detail.usingThisComputer === "yes" && connShown.detail.device.length === 9);
+const connLiveShown = withSessionEvents(connLiveEntry, connEvents.slice(0, 4));
+check(
+  "a check still being taken reads the device and the answer from its events",
+  connLiveShown.detail.live === true && connLiveShown.detail.usingThisComputer === "yes" && connLiveShown.detail.deviceKind === "computer" && connLiveShown.detail.device.map((r) => r.value).join("|") === "Windows 11|Chrome 131|1920×1080",
+  JSON.stringify(connLiveShown.detail.device),
+);
+const phoneLive = withSessionEvents(connLiveEntry, [
+  ev("system", { session_id: "k-1", detail: { what: "device_read", device_kind: "phone", os: "Android 14", browser: "Chrome 131", screen: "412×915" } }),
+  ev("system", { session_id: "k-1", detail: { what: "computer_answer", answer: "ran_here_anyway" } }),
+]);
+check("…and a phone running it anyway is flagged before anything is sent", JSON.stringify(phoneLive.detail.flags) === JSON.stringify(["Not the computer they'll work from (ran here anyway)", "Ran on a phone"]) && timelineText(phoneLive.detail.timeline[0]) === "Read the device: looks like a phone", JSON.stringify(phoneLive.detail.flags));
+check("no events: the entry is unchanged", withSessionEvents(connGraded, []) === connGraded);
+
+// "No, go to that computer" (§1 rule 2): the attempt is open, waiting on the
+// right computer. The answer is kept, never dropped to "Not answered yet".
+const saidNoHint = buildAssessmentRecord(
+  { id: "app-5", status: "pending", phase: "step_connection", notes: JSON.stringify({ ...finishedNotes({ equipmentCheckResult: undefined, step_connection: undefined, _trusted: undefined }) }), jobs: JOB },
+  { sessions: [connSess({ progress: { client: { screen: "computer", device_kind: "computer", answer: "no" } }, last_activity_at: ago(25 * MIN) })], now: NOW },
+).entries.find((e) => e.key === "step_connection");
+check("a hint answer of 'no' is kept on the live record, with no flag", saidNoHint.detail.usingThisComputer === "no" && saidNoHint.detail.flags.length === 0, JSON.stringify([saidNoHint.detail.usingThisComputer, saidNoHint.detail.flags]));
+const freshPageAfterNo = buildAssessmentRecord(
+  { id: "app-5", status: "pending", phase: "step_connection", notes: JSON.stringify({ ...finishedNotes({ equipmentCheckResult: undefined, step_connection: undefined, _trusted: undefined }) }), jobs: JOB },
+  { sessions: [connSess({ progress: { client: { screen: "computer", device_kind: "computer" } } })], now: NOW },
+).entries.find((e) => e.key === "step_connection");
+const noEvent = withSessionEvents(freshPageAfterNo, [ev("system", { session_id: "k-1", detail: { what: "computer_answer", answer: "no" } })]);
+check("…and a 'no' event fills it in when the hint carries none", noEvent.detail.usingThisComputer === "no", String(noEvent.detail.usingThisComputer));
+const noThenYes = withSessionEvents(freshPageAfterNo, [
+  ev("system", { session_id: "k-1", detail: { what: "computer_answer", answer: "no" } }),
+  ev("system", { session_id: "k-1", detail: { what: "computer_answer", answer: "no_switched" } }),
+]);
+check("…while a later answer on the right computer reads as that answer", noThenYes.detail.usingThisComputer === "no_switched", String(noThenYes.detail.usingThisComputer));
+
+// The live note follows the screen they are on, the way the row does.
+check("the live detail knows the screen: the computer question", saidNoHint.detail.liveScreen === "computer");
+check("…the speed test", connLiveEntry.detail.liveScreen === "test");
+const resultScreen = buildAssessmentRecord(
+  { id: "app-5", status: "pending", phase: "step_connection", notes: JSON.stringify({ ...finishedNotes({ equipmentCheckResult: undefined, step_connection: undefined, _trusted: undefined }) }), jobs: JOB },
+  { sessions: [connSess({ progress: { client: { screen: "result", runs_done: 1 } } })], now: NOW },
+).entries.find((e) => e.key === "step_connection");
+check("…the result", resultScreen.detail.liveScreen === "result");
+
+// A run that did not finish leaves them on its Try again screen.
+const failedLive = sessionLiveStatus(connSess({ progress: { client: { screen: "test", run: 1, failed: true } } }), NOW);
+check("a failed run: 'The speed test did not finish · run 1', receipt 'Did not finish'", failedLive?.text === "The speed test did not finish · run 1 · active 1 min ago" && failedLive.receipt === "Did not finish", `${failedLive?.text} | ${failedLive?.receipt}`);
+const failedEntry = buildAssessmentRecord(
+  { id: "app-5", status: "pending", phase: "step_connection", notes: JSON.stringify({ ...finishedNotes({ equipmentCheckResult: undefined, step_connection: undefined, _trusted: undefined }) }), jobs: JOB },
+  { sessions: [connSess({ progress: { client: { screen: "test", run: 2, failed: true } } })], now: NOW },
+).entries.find((e) => e.key === "step_connection");
+check("…and the sheet's live note says so", failedEntry.detail.liveScreen === "failed");
+
 /* ── 14. The owner's integrity card ────────────────────────────────────── */
 
 const cardIn = {
@@ -1145,6 +1429,20 @@ check("the record reads the staff hand-backs for the person and for the list", (
 check("…under the applications keys the live sync refetches on a hand-back", /reopens: \(applicationId[^)]*\) => \["applications", "step-reopens"/.test(sessionsHook));
 const fixturesSrc = await src("src/dev-preview/fixtures.ts");
 check("the preview's reopened applicant carries a staff marker", /assessment_step_reopens: onlyApplying \? \[\] : \[\{ \.\.\.jordanChatReopen \}\]/.test(fixturesSrc));
+// The computer and connection check on the staff side (docs/EQUIPMENT-CHECK.md §6).
+check("the sheet renders the connection check's own body", /case "equipment_check":\s*body = <EquipmentBody detail=\{detail\} loading=\{loading\} \/>;/.test(sheet) && /function EquipmentBody\(/.test(sheet));
+check("…says the figures were timed by our server, under them", /Timed by our server\./.test(sheet));
+check("…its live note follows the screen they are on", /detail\.liveScreen === "computer"/.test(sheet) && /Choosing the computer now/.test(sheet) && /Looking at the result now/.test(sheet));
+check("…says a plain 'No' in words, never 'Not answered yet'", /detail\.usingThisComputer === "no"/.test(sheet) && /it has not been run there yet/.test(sheet));
+check("…and shows where the test ran and where it was sent from", /label: "Test ran from"/.test(sheet) && /label: "Sent from"/.test(sheet) && /counted by their page/.test(sheet));
+check("…and draws no integrity block under it (contract rule 5)", /shown\.kind !== "integrity" && shown\.kind !== "equipment_check" && !notesFlagsInline/.test(sheet));
+const listSrc = await src("src/cockpit/components/AssessmentRecordList.tsx");
+check("the row and the gem wear the step's own mark", /equipment_check: GlyphEcho/.test(listSrc) && /equipment_check: GlyphEcho/.test(applicantsPage));
+check(
+  "the record list draws each connection flag on its own line, uncut, and says who timed it (§6)",
+  /equipment\.flags\.map\(\(flag\) =>/.test(listSrc) && /equipment \? "break-words" : "truncate"/.test(listSrc) && /equipment\?\.measuredBy === "server"/.test(listSrc),
+);
+check("the preview's finished applicant carries the recorded result", /equipmentCheckResult: ROBIN_CONNECTION/.test(fixturesSrc) && /"step_connection", "equipment_check"/.test(fixturesSrc));
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

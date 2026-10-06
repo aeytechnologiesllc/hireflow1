@@ -156,6 +156,8 @@ function hasCompletedPhase(
       );
     case "typing_test":
       return !!parsedNotes.typingTestResult;
+    case "equipment_check":
+      return !!parsedNotes.equipmentCheckResult;
     case "quiz":
       return !!parsedNotes.quizResult || !!parsedNotes.quiz;
     case "chat_simulation":

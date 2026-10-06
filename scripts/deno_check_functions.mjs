@@ -12,8 +12,11 @@ import { readFile, readdir } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+// fileURLToPath, not URL.pathname: a checkout under "HireFlow 1" keeps the
+// space as %20 in a pathname and nothing is found.
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const FUNCTIONS_DIR = path.join(ROOT, "supabase/functions");
 const SKIP_FILE = path.join(ROOT, "scripts/deno-check-skip.json");
 

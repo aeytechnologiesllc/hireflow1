@@ -44,6 +44,7 @@ export interface FeatureUsage {
   voiceInterviewCount: number;
   documentSigningRate: number;
   quizPhaseCount: number;
+  equipmentCheckCount: number;
   typingTestCount: number;
   videoIntroCount: number;
   chatSimulationCount: number;
@@ -326,6 +327,7 @@ export function useDeveloperAnalytics() {
         voiceInterviewCount,
         documentSigningRate,
         quizPhaseCount: stepCounts['quiz'] || 0,
+        equipmentCheckCount: stepCounts['equipment_check'] || 0,
         typingTestCount: stepCounts['typing_test'] || 0,
         videoIntroCount: stepCounts['video_intro'] || 0,
         chatSimulationCount: stepCounts['chat_simulation'] || 0,

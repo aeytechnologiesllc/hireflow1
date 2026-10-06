@@ -33,6 +33,7 @@ export interface RigorRecommendation {
 export type PhaseKind =
   | "application"
   | "quiz"
+  | "equipment_check"
   | "simulation"
   | "typing_test"
   | "coding_test"
@@ -82,11 +83,25 @@ export interface SimulationConfig {
   scenarios: { id: string; title: string; prompt: string }[];
 }
 
+/**
+ * The computer and connection check (docs/EQUIPMENT-CHECK.md): a speed test
+ * our server runs on the candidate's own computer, judged against these three
+ * bars. jobFromFlow.ts writes them to the step's config as min_download_mbps /
+ * min_upload_mbps / max_latency_ms, the names the edge function reads.
+ */
+export interface EquipmentCheckConfig {
+  kind: "equipment_check";
+  minDownloadMbps: number;
+  minUploadMbps: number;
+  maxLatencyMs: number;
+}
+
 export type PhaseConfig =
   | QuizConfig
   | VoiceConfig
   | SimulationConfig
-  | { kind: Exclude<PhaseKind, "quiz" | "voice_interview" | "simulation">; [k: string]: unknown };
+  | EquipmentCheckConfig
+  | { kind: Exclude<PhaseKind, "quiz" | "voice_interview" | "simulation" | "equipment_check">; [k: string]: unknown };
 
 export interface PhaseRubric {
   criteria: { id: string; label: string; guidance: string; weightWithinPhase: number }[];

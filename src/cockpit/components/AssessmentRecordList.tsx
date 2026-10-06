@@ -1,3 +1,4 @@
+import type { ComponentType } from "react";
 import {
   AudioLines,
   ChevronRight,
@@ -9,8 +10,8 @@ import {
   RotateCcw,
   ShieldAlert,
   Video,
-  type LucideIcon,
 } from "lucide-react";
+import { GlyphEcho } from "@/components/ava/employerGlyphs";
 import { liveTone, toneColor, type AssessmentEntry, type LiveState } from "../lib/assessmentRecord";
 
 /**
@@ -47,10 +48,16 @@ export function LiveDot({ state, className = "" }: { state: LiveState | null | u
 }
 
 
-const ICONS: Record<string, LucideIcon> = {
+/** Lucide for the utility marks; the connection check wears the brand kit's
+ *  GlyphEcho — the same mark as its journey gem, the candidate's own step
+ *  card and the Screening Plan dialog, so the step is one mark everywhere. */
+type EntryIconType = ComponentType<{ className?: string; strokeWidth?: string | number }>;
+
+const ICONS: Record<string, EntryIconType> = {
   application: Mail,
   resume: FileText,
   quiz: ListChecks,
+  equipment_check: GlyphEcho,
   typing_test: Keyboard,
   chat_simulation: MessageCircle,
   chat_interview: MessageCircle,
@@ -89,8 +96,12 @@ function RecordRow({ entry, onOpen }: { entry: AssessmentEntry; onOpen: (entry: 
   const line = done
     ? [entry.verdict, entry.subline].filter(Boolean).join(" · ") || entry.statusLabel
     : entry.statusLabel;
+  // The connection check (docs/EQUIPMENT-CHECK.md §6): its flags are each
+  // their own line under the verdict, never cut, and the row says who timed
+  // it. A flag the owner asked to see must not sit behind an ellipsis.
+  const equipment = done && entry.detail?.kind === "equipment_check" ? entry.detail : null;
 
-  const body = (
+  const main = (
     <>
       <span
         aria-hidden
@@ -123,7 +134,7 @@ function RecordRow({ entry, onOpen }: { entry: AssessmentEntry; onOpen: (entry: 
             ))}
           {/* A live line carries its time ("· active 1 min ago"): it wraps to
               a second line on a phone rather than losing the end. */}
-          <span className={live ? "line-clamp-2" : "truncate"}>{line}</span>
+          <span className={live ? "line-clamp-2" : equipment ? "break-words" : "truncate"}>{line}</span>
         </span>
       </span>
 
@@ -132,6 +143,11 @@ function RecordRow({ entry, onOpen }: { entry: AssessmentEntry; onOpen: (entry: 
           {done && entry.headline && (
             <span className="ck-num text-[17px] font-semibold leading-[1.1]" style={{ color: toneColor(entry.tone) }}>
               {entry.headline}
+            </span>
+          )}
+          {equipment?.measuredBy === "server" && (
+            <span className="mt-[3px] text-[10.5px] leading-[1.3]" style={{ color: "var(--ink-3)" }}>
+              Timed by our server.
             </span>
           )}
           {flags > 0 && (
@@ -152,6 +168,26 @@ function RecordRow({ entry, onOpen }: { entry: AssessmentEntry; onOpen: (entry: 
       )}
     </>
   );
+
+  // The connection check's flags take the row's full width under it, each
+  // its own line, never cut: beside the figures a phone leaves them a column
+  // too narrow to read.
+  const body =
+    equipment && equipment.flags.length > 0 ? (
+      <span className="flex w-full min-w-0 flex-col gap-1.5">
+        <span className="flex w-full min-w-0 items-center gap-3">{main}</span>
+        <span className="block space-y-[2px] pl-[42px]">
+          {equipment.flags.map((flag) => (
+            <span key={flag} className="flex items-start gap-1.5 text-[11.5px] leading-[1.3]" style={{ color: "var(--amber-fg)" }}>
+              <span aria-hidden className="mt-[5px] block h-[4px] w-[4px] shrink-0 rounded-full" style={{ background: "var(--amber-fg)" }} />
+              <span className="break-words">{flag}</span>
+            </span>
+          ))}
+        </span>
+      </span>
+    ) : (
+      main
+    );
 
   const shape = "flex min-h-[52px] w-full items-center gap-3 rounded-[10px] border px-3 py-2.5 text-left";
 
@@ -174,7 +210,7 @@ function RecordRow({ entry, onOpen }: { entry: AssessmentEntry; onOpen: (entry: 
     <button
       type="button"
       onClick={() => onOpen(entry)}
-      aria-label={`${entry.title}: ${[done ? entry.headline : null, line].filter(Boolean).join(", ")}. ${done ? "Open what they submitted." : "Open what they have done so far."}`}
+      aria-label={`${entry.title}: ${[done ? entry.headline : null, line, ...(equipment?.flags ?? [])].filter(Boolean).join(", ")}. ${done ? "Open what they submitted." : "Open what they have done so far."}`}
       className={`${shape} ck-lift group transition-transform duration-150 hover:border-[var(--hair)] active:scale-[0.98]`}
       style={{ borderColor: "var(--line-soft)", background: "var(--surface)", boxShadow: "var(--hf-shadow-soft)", cursor: "pointer" }}
     >

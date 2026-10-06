@@ -83,6 +83,7 @@ export const PORTFOLIO_PREFERENCE_OPTIONS = [
 ] as const;
 
 const STEP_LABELS: Record<string, string> = {
+  equipment_check: "Computer and connection check",
   typing_test: "Typing test",
   video_message: "Video response",
   chat_simulation: "Support simulation",
@@ -93,6 +94,7 @@ const STEP_LABELS: Record<string, string> = {
 };
 
 const STEP_TIME_MINUTES: Record<string, number> = {
+  equipment_check: 2,
   typing_test: 5,
   video_message: 5,
   chat_simulation: 10,
@@ -112,6 +114,8 @@ const HIGH_FRICTION_STEP_TYPES = new Set([
 ]);
 
 const STEP_REASON_OVERRIDES: Record<string, string> = {
+  equipment_check:
+    "Ava added a computer and connection check because this role is done from the candidate's own computer: a speed test we run on that machine is proof, where a screenshot was not.",
   typing_test: "Ava added a typing check because this role depends on speed, written accuracy, and steady execution under routine pressure.",
   video_message: "Ava added a video step to capture communication style, confidence, and how the candidate presents themselves in a real interaction.",
   chat_simulation: "Ava added a live support simulation because this role needs empathy, written judgment, and calm problem-solving with customers in real time.",
@@ -163,6 +167,10 @@ export function getRequiredMaterials(params: {
 
   for (const step of steps) {
     switch (step.type) {
+      case "equipment_check":
+        materials.add("the computer you'll work from");
+        materials.add("your usual internet connection");
+        break;
       case "video_message":
         materials.add("camera");
         materials.add("quiet space");

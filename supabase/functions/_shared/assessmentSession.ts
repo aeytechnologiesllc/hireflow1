@@ -8,8 +8,8 @@
  * and the full record of each test: both chat transcripts, the typed text
  * against the passage, the full grading and the integrity timeline. The
  * edge functions that run the tests (ai-chat-simulation, ai-chat-interview,
- * submit-typing-test, submit-sales-simulation) write that record through
- * this module, with the service-role client:
+ * submit-typing-test, submit-sales-simulation, connection-test) write that
+ * record through this module, with the service-role client:
  *
  *   - resolveSession: the applicant's live attempt for a step, found or
  *     opened through open_assessment_session (never an INSERT into
@@ -213,7 +213,9 @@ function cleanJson<T>(value: T): T {
 // Sessions
 // ============================================================================
 
-export type RecordedStepType = "typing_test" | "chat_simulation" | "chat_interview" | "sales_simulation";
+/** The step types an edge function records through this module; the database's
+ *  own list (assessment_step_access, the step_type CHECK) must say the same. */
+export type RecordedStepType = "typing_test" | "chat_simulation" | "chat_interview" | "sales_simulation" | "equipment_check";
 
 export interface SessionRow {
   id: string;

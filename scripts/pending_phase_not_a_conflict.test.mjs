@@ -31,6 +31,7 @@ import {
   isPendingPhaseNote,
   proseAffirmsDealBreaker,
   readChatInterviewResult,
+  realHardConflicts,
   resolveAutopilotAction,
   STATED_DEAL_BREAKER_FLAG,
 } from "../supabase/functions/_shared/autopilot.ts";
@@ -49,8 +50,12 @@ function assert(condition, message) {
 const OBSERVED_NOTE =
   "Required typing speed and accuracy have not yet been verified; the typing test is pending.";
 
-// The live role's shape: a 10-question quiz, then typing, chat practice, written interview.
+// The live role's shape: a 10-question quiz, then the computer and connection
+// check, typing, chat practice, written interview. The connection check is
+// evidence, never a score and never a test "still ahead" (docs/EQUIPMENT-CHECK.md
+// rule 3): every assertion below holds with it in the workflow.
 const ZULU_STEPS = [
+  { id: "step_connection", type: "equipment_check" },
   { id: "step_typing", type: "typing_test" },
   { id: "step_chat", type: "chat_simulation" },
   { id: "step_interview", type: "chat_interview" },
@@ -69,6 +74,7 @@ function applicationStage(hardRequirementConflicts, done = {}) {
     quizScore: done.quizScore ?? null,
     quizConfigured: true,
     typingTest: done.typingTest ?? null,
+    equipmentCheck: done.equipmentCheck ?? null,
     voiceScore: null,
     portfolioScore: null,
     chatSimulationScore: done.chatSimulationScore ?? null,
@@ -139,6 +145,10 @@ const none = applicationStage([]);
 assert(
   observed.overallScore === none.overallScore,
   `the note costs no points (${observed.overallScore} with it, ${none.overallScore} without)`,
+);
+assert(
+  !none.pendingHighSignalPhases.some((label) => /connection|equipment|computer/i.test(label)),
+  `the connection check is never a test still to come (pending: ${JSON.stringify(none.pendingHighSignalPhases)})`,
 );
 assert(
   computeJudgmentScore({ hardRequirementConflicts: [OBSERVED_NOTE] }) === computeJudgmentScore({ hardRequirementConflicts: [] }),
@@ -293,6 +303,42 @@ const statedConflict = applicationStage([], {
 });
 assert(statedConflict.riskFlags.includes(STATED_DEAL_BREAKER_FLAG), "a real, affirmed conflict with the job's own non-negotiable is shown to the owner");
 assert(statedConflict.hardRejectReason !== STATED_DEAL_BREAKER_FLAG, "but the prose flag is never promoted to the reason itself");
+
+console.log("\nThe connection check is evidence, never a conflict, before or after it lands:\n");
+
+// A connection note is the check's job only when it is about the NETWORK.
+const NOT_NETWORK = "No demonstrated connection between their retail background and the required CRM skills";
+assert(realHardConflicts([NOT_NETWORK], 4, ["connection check"]).length === 1, "a bare 'connection' about something else stays a conflict while the check is ahead");
+assert(realHardConflicts(["Pinged the team lead twice without an answer"], 4, ["connection check"]).length === 1, "…and so does a bare 'ping'");
+for (const note of [
+  'The job asks for "reliable internet"; the connection check measured upload 1.2 Mbps, below the required 3 Mbps.',
+  "Home internet speed has not been verified yet.",
+  "Wi-Fi connection quality is unknown.",
+]) {
+  assert(realHardConflicts([note], 4, ["connection check"]).length === 0, `a network note is the check's job: "${note}"`);
+}
+
+// Every test done, the check below the upload bar, the job asking for
+// "reliable internet", and the judge listing the shortfall as a conflict
+// anyway: Ava's read is the same as without that conflict (the shortfall is a
+// risk flag for the owner, never the reason she recommends declining).
+const slowLine = { downloadMbps: 28, uploadMbps: 1.2, latencyMs: 60, meetsBars: false, below: ["upload"], usingThisComputer: "yes", deviceKind: "computer" };
+const remoteJob = "Reliable internet connection required\n• Typing speed of at least 45 words a minute with high accuracy";
+const CONNECTION_CONFLICT = 'The job asks for "reliable internet"; the connection check measured upload 1.2 Mbps, below the required 3 Mbps.';
+const strongFinisher = { ...everyTestDone, typingTest: { wpm: 60, score: 90, accuracy: 98 }, chatSimulationScore: 80, chatInterviewScore: 80, equipmentCheck: slowLine, jobRequirements: remoteJob };
+const withConnConflict = applicationStage([CONNECTION_CONFLICT], strongFinisher);
+const withoutConnConflict = applicationStage([], strongFinisher);
+assert(withConnConflict.hardRejectReason === null, `the connection is never the reason to decline (got ${JSON.stringify(withConnConflict.hardRejectReason)})`);
+assert(
+  withConnConflict.recommendedAction === withoutConnConflict.recommendedAction && withConnConflict.autopilotAction === withoutConnConflict.autopilotAction,
+  `Ava's read is the same with and without it (${withConnConflict.recommendedAction}/${withConnConflict.autopilotAction} vs ${withoutConnConflict.recommendedAction}/${withoutConnConflict.autopilotAction})`,
+);
+assert(withConnConflict.overallScore === withoutConnConflict.overallScore, `and it costs no points (${withConnConflict.overallScore} vs ${withoutConnConflict.overallScore})`);
+assert(withConnConflict.riskFlags.some((flag) => /Connection below the job's bar \(upload\)/.test(flag)), "the shortfall is still shown to the owner as a risk");
+const manualConn = applicationStage([CONNECTION_CONFLICT], { ...strongFinisher, mode: "manual" });
+assert(manualConn.hardRejectReason === null, "in a manual job too");
+const visaToo = applicationStage([CONNECTION_CONFLICT, "Work visa is pending."], strongFinisher);
+assert(visaToo.hardRejectReason === "Work visa is pending.", `a real eligibility blocker beside it still counts (got ${JSON.stringify(visaToo.hardRejectReason)})`);
 
 console.log("\nThe written interview counts in both of its shapes:\n");
 

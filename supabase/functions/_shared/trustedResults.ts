@@ -97,7 +97,8 @@ export type StepType =
   | "portfolio_upload"
   | "video_intro"
   | "video_message" // legacy alias for video_intro — candidateJourney.ts treats them as the same step type
-  | "voice_interview";
+  | "voice_interview"
+  | "equipment_check"; // the computer and connection check (docs/EQUIPMENT-CHECK.md), recorded by connection-test
 
 /** The job fields a step-result decision needs. Matches the shape every
  *  phase page already selects `jobs:job_id ( workflow_steps, quiz_questions,
@@ -179,7 +180,14 @@ export interface ApplicationLike {
  *         browser write) writes only `voice_interview_result` +
  *         `phase_ai_analysis`. Neither ever touches `phase`/`status` in
  *         either mode — every advance past the interview waits on a human
- *         or `trigger-ava-analysis`, never a local write. */
+ *         or `trigger-ava-analysis`, never a local write.
+ *       - `equipment_check` (2026-10-06, docs/EQUIPMENT-CHECK.md) — a new
+ *         step with no pre-conversion browser write to reproduce: its page
+ *         never writes `applications` at all, `connection-test`'s `record`
+ *         op writes only `notes` (through this function) and the step
+ *         decides nothing itself (rule 3: "Nothing here declines anyone").
+ *         The auto-mode move is the same road typing takes:
+ *         `scheduleStepMoveOn` → `trigger-ava-analysis` → `advanceAfterStep`. */
 export type StepAdvanceMode = "auto_mode" | "never";
 
 export interface RecordStepResultInput {
@@ -712,6 +720,7 @@ const SERVER_RECORDED_STEP_TYPES = new Set([
   "portfolio_upload",
   "video_intro",
   "video_message",
+  "equipment_check",
 ]);
 
 /**
@@ -729,6 +738,16 @@ const SERVER_RECORDED_STEP_TYPES = new Set([
  * "in_progress", answers saved), the quiz (its own database function writes
  * quizResult) and the voice interview (its own column) have no marker and
  * are read the way trigger-ava-analysis and autopilot-batch read them.
+ *
+ * The computer and connection check has NO legacy fallback at all: it was
+ * server-recorded from day one, so no row of that type predates the marker,
+ * and its key alone is never evidence. A row with no `_trusted` object yet is
+ * exactly the state an applicant is in on that step (the form and the quiz
+ * write no marker, and it is the first workflow step), so a fallback to
+ * notes.equipmentCheckResult there would move on anyone who wrote that key
+ * themselves (docs/EQUIPMENT-CHECK.md rule 1; the database guard refuses that
+ * write since 20261006124409_equipment_check.sql, and this does not lean on
+ * it).
  */
 export function stepResultLanded(step: CandidateJourneyStep, application: AdvanceSnapshot): boolean {
   const notes = parseNotesObject(application.notes);
@@ -738,6 +757,9 @@ export function stepResultLanded(step: CandidateJourneyStep, application: Advanc
     return true;
   }
   if (trustedMarkers && SERVER_RECORDED_STEP_TYPES.has(step.type)) {
+    return false;
+  }
+  if (step.type === "equipment_check") {
     return false;
   }
 

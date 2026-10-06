@@ -38,7 +38,8 @@ const outcome = await recordStepResult(admin /* service-role client */, {
   stepId,              // the real step id (route's :stepId — matches a jobs.workflow_steps[].id)
   stepType,            // "typing_test" | "chat_simulation" | "chat_interview" |
                         // "sales_simulation" | "portfolio_upload" |
-                        // "video_intro" | "video_message" | "voice_interview"
+                        // "video_intro" | "video_message" | "voice_interview" |
+                        // "equipment_check"
   advance,             // REQUIRED — "auto_mode" | "never". Whether this call may write
                         // applications.phase/status at all. See "The advance flag" below —
                         // get this wrong and a candidate can end up one step ahead of a
@@ -247,6 +248,7 @@ navigate straight into the next step's route.
 | `sales_simulation` | `"never"` | SalesSimulationPhase.tsx:658-661, same shape as chat_simulation — `notes` + `phase_ai_analysis` only. |
 | `portfolio_upload` | `"auto_mode"` | PortfolioUploadPhase.tsx:444-450 really did write `phase: isAutoMode ? newPhase : application.phase` (never `status`) in the same `.update()` as `notes`, stopping one step short of `voice_interview`. |
 | `video_intro` / `video_message` | `"auto_mode"` | VideoIntroPhase.tsx:343-360/395-398, identical shape to portfolio_upload. |
+| `equipment_check` | `"never"` | Built server-recorded from day one (`connection-test`, docs/EQUIPMENT-CHECK.md): no page ever wrote its result. Like typing it decides nothing itself; in an auto-mode job the move on is `scheduleStepMoveOn` → `trigger-ava-analysis`. |
 | `voice_interview` | `"never"` | VoiceInterviewPhase.tsx:281-296 wrote only `voice_interview_transcript` + `phase_ai_analysis`; `ava-voice-tools`'s `end_interview` handler (already server-side before this cycle) wrote only `voice_interview_result` + `phase_ai_analysis`. Every advance past the final interview waits on a human or `trigger-ava-analysis`. |
 
 `advance` is a **required** input (no default) precisely so a new phase
@@ -265,6 +267,7 @@ what it actually did, not what seems convenient.
 | `portfolioResult` | `portfolio_upload` | yes — `notes[stepId]`, PortfolioUploadPhase.tsx:571 checks `notes[stepId] \|\| notes.portfolioResult` | no |
 | `videoIntroResult` | `video_intro` (or the legacy `video_message` alias) | yes — `notes[stepId]`, matches VideoIntroPhase.tsx's own write shape | **yes, required** — `{ videoIntroUrl: result.videoUrl }`. VideoIntroPhase.tsx:390 writes a fourth, flat key today, `notes.videoIntroUrl`, that `autopilot-batch/index.ts:129` and `usePendingActionsCount.ts:77` read **exclusively** (never `videoIntroResult`) to decide whether a video was submitted. Drop this and those two readers go stale for every candidate who converts. `videoIntroUrl` is folded into the SAME `videoIntroResult` enforcement flag (not a separate `result_key`) — see the migration. |
 | `voiceInterviewResult` | `voice_interview` | no — `CondensedAIAnalysis.tsx:277` reads this notes key as a fallback alongside the real `applications.voice_interview_result` column | no |
+| `equipmentCheckResult` | `equipment_check` | yes — `notes[stepId]` (`{type: "equipment_check", ...result, completedAt}`), for the readers that look a step up by id | no |
 
 Before converting a phase, read that phase page's current
 `.update({ notes: ... })` call and match its `updatedNotes` shape exactly —
@@ -324,7 +327,21 @@ type. Flipping it while even one phase still writes `phase` from the
 browser breaks that phase outright. Flip `result_key = 'phase'` only in the
 final part-B migration, once `typingTestResult`, `chatSimulationResult`,
 `chatInterviewResult`, `salesSimulationResult`, `portfolioResult`,
-`videoIntroResult`, and `voiceInterviewResult` are ALL already enforced.
+`videoIntroResult` and `voiceInterviewResult` are ALL already enforced. That
+already happened: `20260916180000_enforce_phase_lock.sql` flipped `phase`
+after the seven `enforce_*` migrations, and all eight are live (CLAUDE.md,
+"Security posture").
+
+A result key added after that is seeded ENFORCED in the migration that adds
+it, never `false` with a flip to follow. The wait above existed only because
+those pages used to write their own results; a new step is server-recorded
+from day one, so there is no client write to ship first, and a key left
+unenforced is one the applicant can write themselves (the candidate update
+policy allows a `notes` write). `equipmentCheckResult` is the first such key:
+`20261006124409_equipment_check.sql` seeds it `enforced = true` (`ON CONFLICT
+DO UPDATE`), and `stepResultLanded` (trustedResults.ts) accepts an
+`equipment_check` step only with its `_trusted[step.id]` marker, never on the
+key alone, because no legacy row of that type exists.
 
 `ApplicationFormPhase.tsx`'s own submit write never touches `phase` at all
 (only `status: "pending"`) — the row's `phase: "application"` comes from
@@ -348,8 +365,13 @@ moment the flag flips, because the migration blocks
 ## What NOT to do
 
 - Don't add a new `result_key` without a matching row in
-  `trusted_result_enforcement` (seed it `enforced = false` in your own
-  migration, same pattern as the foundation migration).
+  `trusted_result_enforcement`. For a step whose page used to write its own
+  result, seed it `enforced = false` and flip it once that write is gone
+  (the foundation migration's pattern). For a NEW step that was
+  server-recorded from day one, seed it `enforced = true` in the same
+  migration (`ON CONFLICT DO UPDATE`), as
+  `20261006124409_equipment_check.sql` does: there is no client write to wait
+  for, and an unenforced key is one the applicant can write.
 - Don't write to `notes._trusted` from anywhere except `recordStepResult` —
   it's protected unconditionally (every casing, every phase) from the
   moment the foundation migration ships, not gated behind any flag.

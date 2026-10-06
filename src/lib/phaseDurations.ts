@@ -13,6 +13,8 @@ export interface PhaseDuration {
 export const phaseDurationEstimates: Record<string, PhaseDuration> = {
   application: { min: 5, max: 10, label: "5-10 min", isCandidateAction: true },
   quiz: { min: 5, max: 15, label: "5-15 min", isCandidateAction: true },
+  // One question, then a test of about 20 seconds, up to three runs.
+  equipment_check: { min: 1, max: 1, label: "Under 1 min", isCandidateAction: true },
   typing_test: { min: 2, max: 5, label: "2-5 min", isCandidateAction: true },
   video_intro: { min: 3, max: 10, label: "3-10 min", isCandidateAction: true },
   video_message: { min: 2, max: 5, label: "2-5 min", isCandidateAction: true },

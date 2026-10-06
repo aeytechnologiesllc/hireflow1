@@ -105,6 +105,7 @@ Direct URLs are of the form:
 |---|---|
 | Application form | `/applications/30000000-0000-4000-8000-000000000001/application/application?__preview=1&__previewRole=candidate` |
 | Quiz | `/applications/30000000-0000-4000-8000-000000000002/quiz/quiz?__preview=1&__previewRole=candidate` |
+| Computer and connection check (docs/EQUIPMENT-CHECK.md; a phone-width, touch viewport shows the phone branch, a desktop one the Yes/No question; the chain, the server's figures and the send are answered offline) | `/applications/30000000-0000-4000-8000-000000000018/connection/wf-connection?__preview=1&__previewRole=candidate` |
 | Typing test | `/applications/30000000-0000-4000-8000-000000000003/typing-test/wf-typing?__preview=1&__previewRole=candidate` |
 | Video intro | `/applications/30000000-0000-4000-8000-000000000004/video-intro/wf-video?__preview=1&__previewRole=candidate` |
 | Chat simulation | `/applications/30000000-0000-4000-8000-000000000005/chat-simulation/wf-chatsim?__preview=1&__previewRole=candidate` |
@@ -112,6 +113,14 @@ Direct URLs are of the form:
 | Sales simulation | `/applications/30000000-0000-4000-8000-000000000007/sales-simulation/wf-sales?__preview=1&__previewRole=candidate` |
 | Voice interview | `/applications/30000000-0000-4000-8000-000000000008/voice-interview/wf-voice?__preview=1&__previewRole=candidate` |
 | Portfolio upload | `/applications/30000000-0000-4000-8000-000000000009/portfolio/wf-portfolio?__preview=1&__previewRole=candidate` |
+
+### Applicant record: the computer and connection check (Zulu role)
+
+| Screen | URL |
+|---|---|
+| Record sheet: the check timed by our server, every run, the IP (Robin) | `/applicants/30000000-0000-4000-8000-000000000013?__preview=1&__previewRole=employer&__previewScenario=zulu&record=step_connection` |
+| Record sheet: below the bar on upload, ran here anyway, sent after 3 runs (Jordan) | `/applicants/30000000-0000-4000-8000-000000000017?__preview=1&__previewRole=employer&__previewScenario=zulu&record=step_connection` |
+| Full profile: running the speed test right now (Priya) | `/applicants/30000000-0000-4000-8000-000000000019?__preview=1&__previewRole=employer&__previewScenario=zulu` |
 
 ### Create job
 

@@ -75,6 +75,7 @@ export type AssessmentKind =
   | "application"
   | "resume"
   | "quiz"
+  | "equipment_check"
   | "typing_test"
   | "chat_simulation"
   | "chat_interview"
@@ -221,6 +222,21 @@ export interface TypingWord {
   expected: string | null;
 }
 
+export type EquipmentBar = "download" | "upload" | "latency";
+
+/** The three bars a connection is judged against; null where the job set none. */
+export interface EquipmentBars {
+  minDownload: number | null;
+  minUpload: number | null;
+  maxLatency: number | null;
+}
+
+/** One row of the device table: "Screen" / "1920×1080". */
+export interface EquipmentDeviceRow {
+  label: string;
+  value: string;
+}
+
 export interface Inconsistency {
   claim: string;
   evidence: string;
@@ -271,6 +287,50 @@ export type AssessmentDetail =
       runs: number | null;
       /** Typed so far: the test is not sent yet. */
       live: boolean;
+    }
+  | {
+      /** The computer and connection check (docs/EQUIPMENT-CHECK.md §6):
+       *  every figure was timed by our server, never by the browser. */
+      kind: "equipment_check";
+      download: number | null;
+      upload: number | null;
+      latencyMs: number | null;
+      jitterMs: number | null;
+      /** The job's own numbers (the result's snapshot, else the step's config). */
+      bars: EquipmentBars;
+      /** Which bars the figures miss, in the order download, upload, latency. */
+      below: EquipmentBar[];
+      /** Null until every bar and figure is known. */
+      meetsBars: boolean | null;
+      /** Plain words, each one its own line: "Ran on a phone", "Sent after 3 runs". */
+      flags: string[];
+      /** The answer to the computer question. "no" only while the check is
+       *  still open: they were told to open it on the computer they'll work
+       *  from, and it has not been run there yet. */
+      usingThisComputer: "yes" | "no_switched" | "ran_here_anyway" | "no" | null;
+      deviceKind: "computer" | "phone" | "tablet" | null;
+      /** What the browser reported, as table rows (OS, browser, screen, …). */
+      device: EquipmentDeviceRow[];
+      /** How many runs the page counted when this one was sent (the page's
+       *  own count: the server cannot count runs). */
+      runs: number | null;
+      /** "server" only when the server recorded it (its `_trusted` marker,
+       *  which no candidate write can produce), never from the stored field. */
+      measuredBy: "server" | null;
+      measuredAt: string | null;
+      /** Where the result was sent from. Staff-only: it lives in the
+       *  attempt's grading, which only the job's staff may read. */
+      ip: string | null;
+      /** Every address the test's own requests came from, same place. */
+      testIps: string[] | null;
+      /** The browser's own line, from the same place. */
+      userAgent: string | null;
+      /** What happened, in order, from the attempt's events (withSessionEvents). */
+      timeline: TimelineItem[] | null;
+      /** Still being taken: nothing is timed until a run is sent. */
+      live: boolean;
+      /** While it is being taken: the screen they are on (the page's hint). */
+      liveScreen: "computer" | "test" | "result" | "failed" | null;
     }
   | {
       kind: "chat_simulation";
@@ -652,6 +712,13 @@ export interface LiveStatus {
   lastActivityAt: string | null;
 }
 
+/** The connection check page's own hint: `progress.client`, where
+ *  touch_assessment_session puts it (a flat `progress` is read too). */
+function connectionHint(session: AssessmentSessionRow): Obj {
+  const p = obj(session.progress) ?? {};
+  return obj(p.client) ?? p;
+}
+
 function progressOf(session: AssessmentSessionRow): { answered: number | null; total: number | null; index: number | null; turns: number } {
   const p = obj(session.progress) ?? {};
   return {
@@ -691,6 +758,23 @@ export function sessionLiveStatus(session: AssessmentSessionRow, now: number, ti
     type === "application" || type === "quiz" || !title ? text : `${title}: ${lowerFirst(text)}`;
   const make = (state: LiveState, text: string, receipt: string): LiveStatus => ({ ...base, state, text, summary: named(text), receipt });
 
+  // The connection check's three screens (docs/EQUIPMENT-CHECK.md §3): which
+  // computer, the test, the result. The page's own hint (`progress.client`,
+  // docs/ASSESSMENT-RECORD.md §2.5) names the screen they are on and the run
+  // (`run` while one is under way, `runs_done` on the result); a page that
+  // wrote neither is on the test. A run that did not finish (`failed`) leaves
+  // them on its "Try again" screen, not in a test that is running.
+  const connection = (() => {
+    const p = connectionHint(session);
+    const screen = str(p.screen);
+    const run = num(p.run) ?? num(p.runs_done);
+    const runText = run != null && run > 1 ? ` · run ${run}` : "";
+    if (screen === "which" || screen === "computer" || screen === "device") return { doing: "Choosing the computer", receipt: "Which computer", where: "before the speed test" };
+    if (p.failed === true) return { doing: `The speed test did not finish${run != null ? ` · run ${run}` : ""}`, receipt: "Did not finish", where: "after a speed test that did not finish" };
+    if (screen === "result") return { doing: `Looking at the result${runText}`, receipt: run != null && run > 1 ? `Run ${run} done` : "Result", where: "at the result" };
+    return { doing: `Running the speed test${runText}`, receipt: run != null && run > 1 ? `Run ${run}` : "Speed test", where: "during the speed test" };
+  })();
+
   const doing = (() => {
     if (type === "application") {
       return total != null && total > 0 ? `Filling in the form · ${answered ?? 0} of ${total} answered` : "Filling in the form";
@@ -701,6 +785,7 @@ export function sessionLiveStatus(session: AssessmentSessionRow, now: number, ti
     }
     if (CHAT_STEPS.has(type)) return turns > 0 ? `In the conversation · ${plural(turns, "reply", "replies")}` : "In the conversation";
     if (type === "typing_test") return "Typing";
+    if (type === "equipment_check") return connection.doing;
     return "Taking the test";
   })();
   const doingReceipt = (() => {
@@ -708,6 +793,7 @@ export function sessionLiveStatus(session: AssessmentSessionRow, now: number, ti
     if (type === "quiz") return index == null ? "Started" : `Question ${index + 1}${total != null && total > 0 ? ` of ${total}` : ""}`;
     if (CHAT_STEPS.has(type)) return turns > 0 ? plural(turns, "reply", "replies") : "Started";
     if (type === "typing_test") return "Typing";
+    if (type === "equipment_check") return connection.receipt;
     return "In progress";
   })();
   const where = (() => {
@@ -715,6 +801,7 @@ export function sessionLiveStatus(session: AssessmentSessionRow, now: number, ti
     if (type === "quiz") return index == null ? "at the start" : `at question ${index + 1}`;
     if (CHAT_STEPS.has(type)) return turns > 0 ? `after ${plural(turns, "reply", "replies")}` : "before replying";
     if (type === "typing_test") return "during the typing test";
+    if (type === "equipment_check") return connection.where;
     return "part-way";
   })();
   const left = () => make("left", `Left ${where} · last active ${agoText(quiet)}`, "Left");
@@ -1268,6 +1355,7 @@ function kindFor(type: string): AssessmentKind {
   switch (type) {
     case "application":
     case "quiz":
+    case "equipment_check":
     case "typing_test":
     case "chat_simulation":
     case "chat_interview":
@@ -1553,6 +1641,210 @@ function buildTyping(ctx: BuildContext, step: CandidateJourneyStep): Built {
   };
 }
 
+/* ── The computer and connection check ─────────────────────────────────── */
+// docs/EQUIPMENT-CHECK.md. The result (`notes.equipmentCheckResult`, §5) is
+// written only by the connection-test function: every figure in it was timed
+// by our server from its own clock, which is why the sheet says so under the
+// numbers. The job's bars decide the verdict here, the way buildTyping judges
+// by the job's bars: the stored `meetsBars` is read, never trusted alone.
+
+const EQUIPMENT_BAR_ORDER: EquipmentBar[] = ["download", "upload", "latency"];
+
+/** A figure to one decimal, rounded DOWN (2.69 → "2.6", 1.2 → "1.2", 24 → "24"). */
+function mbpsDecimal(value: number): string {
+  const one = Math.floor(value * 10 + 1e-9) / 10;
+  return Number.isInteger(one) ? String(one) : one.toFixed(1);
+}
+
+/**
+ * A figure as the row's number shows it: whole Mbps, rounded DOWN (28.4 →
+ * "28"), so a figure never reads as reaching a whole-number bar it missed;
+ * one decimal under 1 Mbps (never "0") and for a figure under its bar (2.6
+ * against 3 reads "2.6", never "3").
+ */
+function headlineMbps(value: number, missed: boolean): string {
+  return missed || value < 1 ? mbpsDecimal(value) : String(Math.floor(value));
+}
+
+/** The job's bars: the result's own snapshot first (the job may have been
+ *  edited since), then the step's config `{min_download_mbps, …}`. */
+function equipmentBarsOf(result: Obj | null, config: Obj | null): EquipmentBars {
+  const snap = obj(result?.bars);
+  const positive = (v: unknown) => {
+    const n = num(v);
+    return n != null && n > 0 ? n : null;
+  };
+  return {
+    minDownload: positive(snap?.minDownloadMbps) ?? positive(config?.min_download_mbps),
+    minUpload: positive(snap?.minUploadMbps) ?? positive(config?.min_upload_mbps),
+    maxLatency: positive(snap?.maxLatencyMs) ?? positive(config?.max_latency_ms),
+  };
+}
+
+/** Which bars a set of figures misses; a bar or a figure that is unknown is skipped. */
+function equipmentBelow(f: { download: number | null; upload: number | null; latencyMs: number | null }, bars: EquipmentBars): EquipmentBar[] {
+  const below: EquipmentBar[] = [];
+  if (f.download != null && bars.minDownload != null && f.download < bars.minDownload) below.push("download");
+  if (f.upload != null && bars.minUpload != null && f.upload < bars.minUpload) below.push("upload");
+  if (f.latencyMs != null && bars.maxLatency != null && f.latencyMs > bars.maxLatency) below.push("latency");
+  return below;
+}
+
+function usingThisComputerOf(value: unknown): "yes" | "no_switched" | "ran_here_anyway" | null {
+  return value === "yes" || value === "no_switched" || value === "ran_here_anyway" ? value : null;
+}
+
+/** The same, plus a plain "no" (said on a check that is still open). */
+function computerAnswerOf(value: unknown): "yes" | "no_switched" | "ran_here_anyway" | "no" | null {
+  return value === "no" ? "no" : usingThisComputerOf(value);
+}
+
+/** Where the test ran against where it was sent from (the result's `source`). */
+interface EquipmentSource {
+  oneAddress: boolean | null;
+  sameAddress: boolean | null;
+  sameBrowser: boolean | null;
+}
+
+function equipmentSourceOf(value: unknown): EquipmentSource {
+  const o = obj(value);
+  const flag = (x: unknown) => (typeof x === "boolean" ? x : null);
+  return { oneAddress: flag(o?.oneAddress), sameAddress: flag(o?.sameAddress), sameBrowser: flag(o?.sameBrowser) };
+}
+
+/** Whether the server recorded a connection check here: recordStepResult's
+ *  `_trusted` marker, which no candidate write can produce. */
+function serverRecordedEquipment(notes: Obj): boolean {
+  const markers = obj(notes._trusted);
+  return !!markers && Object.values(markers).some((m) => obj(m)?.stepType === "equipment_check");
+}
+
+function deviceKindOf(value: unknown): "computer" | "phone" | "tablet" | null {
+  return value === "computer" || value === "phone" || value === "tablet" ? value : null;
+}
+
+/** The flags the hiring team sees, in the contract's words (§6) — the same
+ *  lines, in the same order, as connectionFlags in
+ *  supabase/functions/_shared/connectionStamps.ts, so the two never disagree.
+ *  A switch to the right computer is what the page asked for, never a flag:
+ *  the answer says it in neutral words. */
+function equipmentFlags(input: { usingThisComputer: string | null; deviceKind: string | null; runs: number | null; source?: EquipmentSource | null }): string[] {
+  const flags: string[] = [];
+  if (input.usingThisComputer === "ran_here_anyway") flags.push("Not the computer they'll work from (ran here anyway)");
+  if (input.deviceKind === "phone") flags.push("Ran on a phone");
+  else if (input.deviceKind === "tablet") flags.push("Ran on a tablet");
+  if (input.runs != null && input.runs >= 3) flags.push(`Sent after ${input.runs} runs`);
+  if (input.source?.sameAddress === false) flags.push("Sent from a different network than the test ran on");
+  else if (input.source?.oneAddress === false) flags.push("The test ran from more than one network");
+  if (input.source?.sameBrowser === false) flags.push("Sent from a different browser than the test ran in");
+  return flags;
+}
+
+/** The device as table rows, in a fixed order. A fact the browser did not
+ *  report (Safari gives no memory and no connection type) is said so, never
+ *  dropped: the gap is itself something staff should see. */
+function deviceRows(device: Obj | null): EquipmentDeviceRow[] {
+  if (!device) return [];
+  const none = "Not reported";
+  const os = [str(device.os), str(device.osVersion)].filter(Boolean).join(" ");
+  const browser = [str(device.browser), str(device.browserVersion)].filter(Boolean).join(" ");
+  const dpr = num(device.dpr);
+  const screen = str(device.screen);
+  const cores = num(device.cores);
+  const memory = num(device.memoryGb);
+  const rows: EquipmentDeviceRow[] = [
+    { label: "Operating system", value: os || none },
+    { label: "Browser", value: browser || none },
+    { label: "Screen", value: screen ? `${screen}${dpr != null && dpr !== 1 ? ` at ${dpr}×` : ""}` : none },
+    { label: "Processor cores", value: cores != null ? String(cores) : none },
+    { label: "Memory", value: memory != null ? `${memory} GB` : none },
+    { label: "Touch screen", value: typeof device.touch === "boolean" ? (device.touch ? "Yes" : "No") : none },
+    { label: "Language", value: str(device.language) ?? none },
+    { label: "Time zone", value: str(device.timezone) ?? none },
+    { label: "Connection type", value: str(device.connectionType) ?? none },
+  ];
+  const model = str(device.model);
+  if (model) rows.push({ label: "Model", value: model });
+  return rows;
+}
+
+function buildEquipment(ctx: BuildContext, step: CandidateJourneyStep): Built {
+  const r = obj(ctx.notes.equipmentCheckResult) ?? obj(ctx.notes[step.id]);
+  const bars = equipmentBarsOf(r, stepConfig(ctx, step.id));
+  const download = num(r?.downloadMbps);
+  const upload = num(r?.uploadMbps);
+  const latencyMs = num(r?.latencyMs);
+  const jitterMs = num(r?.jitterMs);
+  const runs = num(r?.runs);
+  const usingThisComputer = usingThisComputerOf(r?.usingThisComputer);
+  const deviceKind = deviceKindOf(r?.deviceKind);
+  const flags = equipmentFlags({ usingThisComputer, deviceKind, runs, source: equipmentSourceOf(r?.source) });
+
+  // The job's bars decide, from the figures on file; the stored list only
+  // stands in when a figure is missing. Nothing is judged without a bar.
+  const figures = { download, upload, latencyMs };
+  const judged = download != null && upload != null && latencyMs != null && bars.minDownload != null && bars.minUpload != null && bars.maxLatency != null;
+  const storedBelow = Array.isArray(r?.below) ? (r!.below as unknown[]).filter((b): b is EquipmentBar => b === "download" || b === "upload" || b === "latency") : null;
+  const below = judged ? equipmentBelow(figures, bars) : storedBelow ?? equipmentBelow(figures, bars);
+  const meetsBars = judged ? below.length === 0 : storedBelow ? storedBelow.length === 0 : null;
+
+  // "Below the bar: upload 1.2 Mbps" — the figure that missed, with its
+  // decimals, rounded down so it never reads as the bar it missed.
+  const shortfall = (bar: EquipmentBar) =>
+    bar === "download" ? `download ${mbpsDecimal(download!)} Mbps` : bar === "upload" ? `upload ${mbpsDecimal(upload!)} Mbps` : `latency ${Math.round(latencyMs!)} ms`;
+  const missed = below.filter((b) => (b === "latency" ? latencyMs : b === "download" ? download : upload) != null).map(shortfall);
+  const verdict = meetsBars === true ? "Meets the bar" : meetsBars === false ? (missed.length > 0 ? `Below the bar: ${missed.join(", ")}` : "Below the bar") : null;
+  const headline =
+    download != null && upload != null
+      ? `↓ ${headlineMbps(download, below.includes("download"))} · ↑ ${headlineMbps(upload, below.includes("upload"))} Mbps`
+      : null;
+
+  return {
+    headline,
+    tone: meetsBars === true ? "jade" : meetsBars === false ? "amber" : "ink",
+    verdict,
+    // No joined second line: the flags are each their own line, under the
+    // verdict, from detail.flags (AssessmentRecordList draws them; §6).
+    subline: null,
+    // The gem's receipt, in typing's idiom ("38 WPM · under 45"): the figures,
+    // and which bar was missed, against what the job asks for.
+    receipt: headline
+      ? `${headline}${
+          meetsBars === false && below.length > 0
+            ? ` · ${below.map((b) => (b === "download" ? `download under ${bars.minDownload}` : b === "upload" ? `upload under ${bars.minUpload}` : `latency over ${bars.maxLatency}`)).join(", ")}`
+            : ""
+        }`
+      : null,
+    completedAt: completedAtFor(ctx, step.id, obj(ctx.notes[step.id]) ?? r),
+    integrity: integrityOf(r),
+    detail: {
+      kind: "equipment_check",
+      download,
+      upload,
+      latencyMs,
+      jitterMs,
+      bars,
+      below,
+      meetsBars,
+      flags,
+      usingThisComputer,
+      deviceKind,
+      device: deviceRows(obj(r?.device)),
+      runs,
+      // Never from the stored field alone: only a result with the server's
+      // own marker is said to be timed by our server.
+      measuredBy: r?.measuredBy === "server" && serverRecordedEquipment(ctx.notes) ? "server" : null,
+      measuredAt: str(r?.measuredAt),
+      ip: null,
+      testIps: null,
+      userAgent: null,
+      timeline: null,
+      live: false,
+      liveScreen: null,
+    },
+  };
+}
+
 function buildChatSimulation(ctx: BuildContext, step: CandidateJourneyStep): Built {
   const r = obj(ctx.notes.chatSimulationResult) ?? obj(ctx.notes[step.id]);
   const scenario = str(r?.scenario);
@@ -1731,6 +2023,8 @@ function buildStep(ctx: BuildContext, step: CandidateJourneyStep): Built {
       return buildApplication(ctx);
     case "quiz":
       return buildQuiz(ctx);
+    case "equipment_check":
+      return buildEquipment(ctx, step);
     case "typing_test":
       return buildTyping(ctx, step);
     case "chat_simulation":
@@ -1747,6 +2041,7 @@ function buildStep(ctx: BuildContext, step: CandidateJourneyStep): Built {
 /** Results this application holds for a step type its job no longer lists
  *  (the job was edited after they took it). Still theirs, still shown. */
 const EXTRA_RESULT_KEYS: Array<{ type: string; present: (ctx: BuildContext) => boolean }> = [
+  { type: "equipment_check", present: (c) => !!obj(c.notes.equipmentCheckResult) },
   { type: "typing_test", present: (c) => !!obj(c.notes.typingTestResult) },
   { type: "chat_simulation", present: (c) => !!obj(c.notes.chatSimulationResult) },
   { type: "chat_interview", present: (c) => !!obj(c.notes.chatInterviewResult) },
@@ -1834,6 +2129,24 @@ function enrichFromSession(detail: AssessmentDetail | null, session: AssessmentS
         requiredWpm: detail.requiredWpm ?? num(g.requiredWpm) ?? num(c.required_wpm),
         seconds: detail.seconds ?? (num(top.elapsed_ms) != null ? Math.round(num(top.elapsed_ms)! / 1000) : null),
         words: detail.typed && passage ? typingWords(detail.typed, passage) : detail.words,
+      };
+    }
+    case "equipment_check": {
+      // The attempt's grading is staff-only (docs/EQUIPMENT-CHECK.md §5): the
+      // stamps, the IP the test came from and the browser's own line. The
+      // bars pinned at the start of the attempt fill in for an older result
+      // that kept none.
+      const pinned = equipmentBarsOf(null, obj(c.bars));
+      return {
+        ...detail,
+        bars: {
+          minDownload: detail.bars.minDownload ?? pinned.minDownload,
+          minUpload: detail.bars.minUpload ?? pinned.minUpload,
+          maxLatency: detail.bars.maxLatency ?? pinned.maxLatency,
+        },
+        ip: detail.ip ?? str(top.ip),
+        testIps: detail.testIps ?? (Array.isArray(top.testIps) ? top.testIps.map(str).filter((x): x is string => !!x) : null),
+        userAgent: detail.userAgent ?? str(top.userAgent) ?? str(top.user_agent),
       };
     }
     case "quiz": {
@@ -1956,6 +2269,49 @@ function liveDetail(ctx: BuildContext, step: CandidateJourneyStep, session: Asse
         words: null,
         runs: null,
         live: true,
+      };
+    }
+    case "equipment_check": {
+      // Nothing is timed until a run is sent: the bars the attempt was opened
+      // with, which run they are on, and what the page's hint says about the
+      // device and the answer. The events fill in the rest once the sheet
+      // loads them.
+      const pinned = equipmentBarsOf(null, obj(c.bars) ?? stepConfig(ctx, step.id));
+      const hint = connectionHint(session);
+      const hintKind = deviceKindOf(hint.device_kind);
+      // A plain "no" is kept too: the check is open, waiting on the right computer.
+      const hintAnswer = computerAnswerOf(hint.answer);
+      const hintScreen = str(hint.screen);
+      const liveScreen: "computer" | "test" | "result" | "failed" =
+        hintScreen === "which" || hintScreen === "computer" || hintScreen === "device"
+          ? "computer"
+          : hint.failed === true
+            ? "failed"
+            : hintScreen === "result"
+              ? "result"
+              : "test";
+      return {
+        kind: "equipment_check",
+        download: null,
+        upload: null,
+        latencyMs: null,
+        jitterMs: null,
+        bars: pinned,
+        below: [],
+        meetsBars: null,
+        flags: equipmentFlags({ usingThisComputer: hintAnswer, deviceKind: hintKind, runs: null }),
+        usingThisComputer: hintAnswer,
+        deviceKind: hintKind,
+        device: [],
+        runs: num(hint.run) ?? num(hint.runs_done),
+        measuredBy: null,
+        measuredAt: null,
+        ip: null,
+        testIps: null,
+        userAgent: null,
+        timeline: null,
+        live: true,
+        liveScreen,
       };
     }
     case "chat_simulation":
@@ -2288,6 +2644,177 @@ function pickedFrom(answer: unknown, options: string[]): { picked: number[]; pic
   return { picked, pickedText, text };
 }
 
+/** The words for a refused run, by the server's reason code (connection-test
+ *  `record_refused`; the codes are _shared/connectionStamps.ts's). */
+function refusalWords(reason: string | null): string {
+  switch (reason) {
+    case "stale":
+    case "future":
+      return "the run was more than 20 minutes old";
+    case "foreign":
+      return "the run was made under another sign-in";
+    case "too_few_steps":
+      return "the run did not finish every part";
+    case "unmeasurable":
+      return "the run did not measure every figure";
+    default:
+      return "the record did not add up";
+  }
+}
+
+/** "↓ 24.1 · ↑ 7.8 Mbps · 51 ms" from an event's snake_case figures: the
+ *  figures exactly as recorded, to one decimal, so two runs can be compared. */
+function figuresWords(d: Obj): string | null {
+  const down = num(d.download_mbps);
+  const up = num(d.upload_mbps);
+  const ms = num(d.latency_ms);
+  const jitter = num(d.jitter_ms);
+  if (down == null && up == null && ms == null) return null;
+  const exact = (v: number) => String(Math.round(v * 10) / 10);
+  const parts = [
+    down != null ? `↓ ${exact(down)}` : null,
+    up != null ? `↑ ${exact(up)} Mbps` : null,
+    ms != null ? `${Math.round(ms)} ms${jitter != null ? ` ±${Math.round(jitter)}` : ""}` : null,
+  ].filter(Boolean);
+  return parts.join(" · ");
+}
+
+/**
+ * The connection check's own story, from the attempt's `system` events
+ * (docs/EQUIPMENT-CHECK.md §3): the device read, the answer to the computer
+ * question, every run started and finished with the page's estimate, every
+ * run the server timed, a refused send, and the send itself. While the check
+ * is still being taken, the device and the answer come from here too.
+ */
+function mergeConnectionEvents(detail: Extract<AssessmentDetail, { kind: "equipment_check" }>, events: readonly AssessmentEventRow[]): AssessmentDetail {
+  const timeline: TimelineItem[] = [];
+  let device: EquipmentDeviceRow[] | null = null;
+  let deviceKind = detail.deviceKind;
+  // The last answer the events give (a "No" on one device, then "Yes" on
+  // another, reads as the Yes); the recorded result, or a live page's own
+  // hint, stays the authority when it has one.
+  let lastAnswer: Extract<AssessmentDetail, { kind: "equipment_check" }>["usingThisComputer"] = null;
+  let runs = 0;
+  let sent = false;
+  // Which run was sent: the `submitted` marker names it. The test_run the
+  // page's own test_finished wrote first never carries `sent` (record's copy
+  // is a no-op on the same key), so the run is matched by number.
+  const sentRuns = new Set<number>();
+  for (const e of events) {
+    const d = e.kind === "system" ? obj(e.detail) : null;
+    const run = num(d?.run);
+    if (d && str(d.what) === "submitted" && run != null) sentRuns.add(run);
+  }
+  const marker = (e: AssessmentEventRow, label: string, note: string | null = null, kind = "system:other"): TimelineItem => ({
+    at: e.created_at ?? null,
+    serverAt: e.created_at ?? null,
+    kind,
+    label,
+    awayMs: null,
+    short: false,
+    afterEnd: false,
+    flag: false,
+    note,
+  });
+  for (const e of events) {
+    if (e.kind !== "system") continue;
+    const d = obj(e.detail) ?? {};
+    const what = str(d.what);
+    const run = num(d.run);
+    const runLabel = run != null ? `Run ${run}` : "A run";
+    switch (what) {
+      case "started": {
+        const attempt = num(d.attempt);
+        timeline.push(marker(e, attempt != null && attempt > 1 ? `Opened the check again (attempt ${attempt})` : "Opened the check", null, "system:started"));
+        break;
+      }
+      case "device_read": {
+        const kind = deviceKindOf(d.device_kind);
+        const facts = [str(d.os), str(d.browser), str(d.screen)].filter((x): x is string => !!x);
+        // The recorded result is the authority; the event only fills a gap
+        // (a check still being taken, or an older result that kept less).
+        if (kind && deviceKind == null) deviceKind = kind;
+        if (facts.length > 0 && detail.device.length === 0) {
+          device = [
+            ...(str(d.os) ? [{ label: "Operating system", value: str(d.os)! }] : []),
+            ...(str(d.browser) ? [{ label: "Browser", value: str(d.browser)! }] : []),
+            ...(str(d.screen) ? [{ label: "Screen", value: str(d.screen)! }] : []),
+          ];
+        }
+        timeline.push(marker(e, kind === "phone" ? "Read the device: looks like a phone" : kind === "tablet" ? "Read the device: looks like a tablet" : "Read the computer", facts.join(" · ") || null));
+        break;
+      }
+      case "computer_answer": {
+        const said = str(d.answer);
+        if (said === "yes") {
+          lastAnswer = "yes";
+          timeline.push(marker(e, "Said this is the computer they'll work from"));
+        } else if (said === "ran_here_anyway") {
+          lastAnswer = "ran_here_anyway";
+          timeline.push(marker(e, "Chose to run it here anyway"));
+        } else if (said === "no_switched") {
+          lastAnswer = "no_switched";
+          timeline.push(marker(e, "Came back on the computer they'll work from"));
+        } else if (said === "no") {
+          lastAnswer = "no";
+          timeline.push(marker(e, "Said this is not the computer they'll work from"));
+        } else {
+          timeline.push(marker(e, "Answered the computer question", said));
+        }
+        break;
+      }
+      case "test_started":
+        runs = Math.max(runs, run ?? runs + 1);
+        timeline.push(marker(e, `${runLabel} started`));
+        break;
+      case "test_finished":
+        runs = Math.max(runs, run ?? runs);
+        timeline.push(marker(e, `${runLabel} finished`, figuresWords(d) ? `the page's estimate: ${figuresWords(d)}` : null));
+        break;
+      case "test_run":
+        runs = Math.max(runs, run ?? runs);
+        timeline.push(marker(e, `${runLabel} timed by our server`, [figuresWords(d), run != null && sentRuns.has(run) ? "the run that was sent" : null].filter(Boolean).join(" · ") || null));
+        break;
+      case "record_refused":
+        timeline.push(marker(e, "A sent run was refused", refusalWords(str(d.reason))));
+        break;
+      case "submitted":
+        sent = true;
+        timeline.push(marker(e, run != null ? `Sent run ${run}` : "Sent it", null, "system:submitted"));
+        break;
+      case "reloaded":
+        timeline.push(marker(e, SYSTEM_LABELS.reloaded, null, "system:reloaded"));
+        break;
+      case "came_back": {
+        const item = marker(e, SYSTEM_LABELS.came_back, null, "system:came_back");
+        item.awayMs = num(d.away_ms);
+        timeline.push(item);
+        break;
+      }
+      case "marked_left":
+        timeline.push(marker(e, SYSTEM_LABELS.marked_left, null, "system:marked_left"));
+        break;
+      default:
+        break;
+    }
+  }
+  if (timeline.length === 0) return detail;
+  // A plain "no" only stands while the check is open: a sent result always
+  // carries its own answer.
+  const answer = detail.usingThisComputer ?? (detail.live ? lastAnswer : lastAnswer === "no" ? null : lastAnswer);
+  const flags = detail.live ? equipmentFlags({ usingThisComputer: answer, deviceKind, runs: null }) : detail.flags;
+  return {
+    ...detail,
+    device: device ?? detail.device,
+    deviceKind,
+    usingThisComputer: answer,
+    flags,
+    runs: detail.runs ?? (runs > 0 ? runs : null),
+    timeline,
+    live: detail.live && !sent,
+  };
+}
+
 function mergeEventsIntoDetail(detail: AssessmentDetail, events: readonly AssessmentEventRow[]): AssessmentDetail {
   switch (detail.kind) {
     case "chat_simulation":
@@ -2299,6 +2826,8 @@ function mergeEventsIntoDetail(detail: AssessmentDetail, events: readonly Assess
       const transcript = transcriptFromEvents(events);
       return transcript ? { ...detail, transcript } : detail;
     }
+    case "equipment_check":
+      return mergeConnectionEvents(detail, events);
     case "typing_test": {
       const snaps = events.filter((e) => e.kind === "typing_snapshot");
       if (snaps.length === 0) return detail;

@@ -46,6 +46,7 @@ interface JobPreview {
 }
 
 const STEP_TIME_MAP: Record<string, number> = {
+  equipment_check: 2,
   typing_test: 5,
   video_message: 5,
   chat_simulation: 10,

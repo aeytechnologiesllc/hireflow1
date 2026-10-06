@@ -1,6 +1,7 @@
-import { 
+import {
   FileText, ClipboardList, Keyboard, Video, MessageSquare, Mic
 } from "lucide-react";
+import { GlyphEcho } from "@/components/ava/employerGlyphs";
 import type { ApplicationWithJob } from "@/hooks/useApplications";
 import { parseApplicationNotes } from "@/lib/applicationNotes";
 import { 
@@ -16,6 +17,9 @@ export const statusLabels = applicationStatusLabels;
 export const phaseActionConfig: Record<string, { icon: React.ElementType; label: string; description: string; route: string }> = {
   application: { icon: FileText, label: "Complete Application", description: "Complete your application", route: "application" },
   quiz: { icon: ClipboardList, label: "Take Assessment", description: "Complete your skills assessment", route: "quiz" },
+  // The step's own brand mark, the one glyphForKind resolves everywhere else,
+  // so the connection check wears one mark throughout the product.
+  equipment_check: { icon: GlyphEcho, label: "Check your computer and connection", description: "A short speed test on the computer you will work from", route: "connection" },
   typing_test: { icon: Keyboard, label: "Start Typing Test", description: "Ready for your typing test", route: "typing-test" },
   video_intro: { icon: Video, label: "Record Video", description: "Record your video introduction", route: "video-intro" },
   video_message: { icon: Video, label: "Record Video", description: "Record your video message", route: "video-intro" },
@@ -36,6 +40,7 @@ export function getPhaseType(phase: string, workflowSteps?: Array<{ id?: string;
   }
 
   // Fallback normalization for legacy/non-configured phases
+  if (phase === "equipment_check") return "equipment_check";
   if (phase === "typing_test") return "typing_test";
   if (phase === "video_intro") return "video_intro";
   if (phase === "chat_simulation") return "chat_simulation";
@@ -129,6 +134,8 @@ export function getApplicationDisplayState(application: ApplicationWithJob): App
       return !!(stepData?.completedAt || notes.quizResult || (notes.quiz as PhaseStepData | undefined)?.completedAt);
     }
     if (phaseType === "typing_test") return !!notes.typingTestResult;
+    // Without this the Applications tile keeps offering the step after it is done.
+    if (phaseType === "equipment_check") return !!notes.equipmentCheckResult;
     if (phaseType === "video_intro") return !!notes.videoIntroUrl || !!(notes[phase] as PhaseStepData | undefined)?.videoIntroUrl;
     if (phaseType === "video_message") return !!notes.videoIntroUrl || !!(notes[phase] as PhaseStepData | undefined)?.videoIntroUrl;
     if (phaseType === "chat_simulation") return !!notes.chatSimulationResult;

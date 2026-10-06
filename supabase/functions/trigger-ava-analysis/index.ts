@@ -32,6 +32,7 @@ import {
 } from "../_shared/trustedResults.ts";
 import { hasSubscriptionBypassForUser } from "../_shared/subscriptionBypass.ts";
 import { isScopedTeamMemberFromRpc } from "../_shared/teamMemberRpcAccess.ts";
+import { connectionEvidenceLine, recordedEquipmentCheck } from "../_shared/connectionStamps.ts";
 
 // 5 (2026-10-05): the scorecard's auto-mode rules changed (nobody is stopped
 // part-way; dealBreakerFlags), and the written interview is read in both of
@@ -546,6 +547,7 @@ async function runAvaAnalysis(ctx: AnalysisContext): Promise<AnalysisOutcome> {
       applicationAnswersCount: parsedNotes.applicationAnswers?.length || 0,
       hasCoverLetter: !!application.cover_letter,
       hasTypingTest: !!parsedNotes.typingTestResult,
+      hasEquipmentCheck: !!parsedNotes.equipmentCheckResult,
       hasQuiz: !!(parsedNotes.quizResult || parsedNotes.quiz),
       hasChatSimulation: !!parsedNotes.chatSimulationResult,
       hasChatInterview: !!parsedNotes.chatInterviewResult,
@@ -662,6 +664,17 @@ Purpose: This is a supplementary document for the above question. It is NOT a re
     const candidateName = applicationName || profile?.full_name || "Unknown";
     const candidateEmail = applicationEmail || "Not provided in application";
     const quizData = parsedNotes.quizResult || parsedNotes.quiz;
+    // The computer and connection check (docs/EQUIPMENT-CHECK.md §6): read
+    // here, once, for the fingerprint, the content block, the scorecard's
+    // flags and inputsUsed. It MUST be part of the fingerprint: otherwise the
+    // result landing changes nothing and the frozen analysis is reused. Only
+    // a result the SERVER recorded counts (its _trusted marker on one of this
+    // job's equipment_check steps): a value without one is not "timed by our
+    // server", whatever it says about itself.
+    const equipmentCheck = recordedEquipmentCheck(
+      parsedNotes,
+      workflowSteps.filter((step) => step?.type === "equipment_check").map((step) => String(step.id)),
+    );
     const evidenceFingerprint = buildEvidenceFingerprint({
       currentPhaseId: currentPhaseId || application.phase || "application",
       passingScore: job?.passing_score || 60,
@@ -694,6 +707,17 @@ Purpose: This is a supplementary document for the above question. It is NOT a re
             score: parsedNotes.chatSimulationResult.score || parsedNotes.chatSimulationResult.overallScore || null,
             empathy: parsedNotes.chatSimulationResult.empathy || null,
             problemSolving: parsedNotes.chatSimulationResult.problemSolving || null,
+          }
+        : null,
+      equipmentCheck: equipmentCheck
+        ? {
+            downloadMbps: equipmentCheck.downloadMbps,
+            uploadMbps: equipmentCheck.uploadMbps,
+            latencyMs: equipmentCheck.latencyMs,
+            meetsBars: equipmentCheck.meetsBars,
+            usingThisComputer: equipmentCheck.usingThisComputer,
+            deviceKind: equipmentCheck.deviceKind,
+            measuredAt: equipmentCheck.measuredAt || null,
           }
         : null,
       // Both of the interview's result shapes (flat and nested under
@@ -874,6 +898,16 @@ Typing Test Results:
 - Accuracy: ${parsedNotes.typingTestResult.accuracy}%
 - Score: ${parsedNotes.typingTestResult.score || 'N/A'}
 - Performance: ${meetsRequirement ? 'Meets requirement' : 'Below requirement'}
+`;
+    }
+
+    // The computer and connection check, timed by our server (one line, the
+    // job's own bars inside it: docs/EQUIPMENT-CHECK.md §6). Evidence for the
+    // narrative, never a score.
+    if (equipmentCheck) {
+      content += `
+Computer and connection check (equipment_check):
+- ${connectionEvidenceLine(equipmentCheck)}
 `;
     }
 
@@ -1233,6 +1267,7 @@ ${interviewType} Interview with AVA Results:
       quizScore,
       quizConfigured,
       typingTest,
+      equipmentCheck,
       voiceScore: voiceResult?.overall_score || null,
       portfolioScore,
       chatSimulationScore,
@@ -1303,6 +1338,7 @@ ${interviewType} Interview with AVA Results:
         coverLetter: !!application.cover_letter,
         quiz: typeof quizScore === "number",
         typingTest: !!typingTest,
+        equipmentCheck: !!equipmentCheck,
         chatSimulation: typeof chatSimulationScore === "number",
         salesSimulation: typeof salesSimulationScore === "number",
         chatInterview: typeof chatInterviewScore === "number",

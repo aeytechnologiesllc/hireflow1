@@ -362,3 +362,41 @@ export function GlyphForme(props: GlyphProps) {
     </GlyphBase>
   );
 }
+
+/**
+ * Echo — Computer and connection check — a signal sent out, stamped, and
+ * timed on its way back
+ *
+ * DRAWN for the equipment_check step (docs/EQUIPMENT-CHECK.md), which the
+ * kit had no mark for: "connection" fell through glyphForKind to the
+ * letter, and GlyphForme would have dressed it as a portfolio. The test
+ * that step runs is a chain of round trips the server times on its own
+ * clock, so the mark is one round trip: ONE VALLEY of the wordmark's own
+ * path (M4 18 L9 7 L14 15 L20 6 — the dip between its first peak and its
+ * second), the signal going down to our server and climbing back, with the
+ * pressed dot at the turn where the stamp is put on it, and the short rule
+ * beneath — the floor it turns on. Three elements, the family's two
+ * primitives and nothing else. At 16px it reads as a deep V over a dash
+ * with a dot at the point: distinct from GlyphScenarios (a climb that forks
+ * UPWARD) and from GlyphPlan (the full path on a rule). It is deliberately
+ * NOT the three concentric arcs every stock wifi icon draws, NOT a gauge
+ * with a needle (a speedometer), and NOT lucide Activity's heartbeat — one
+ * valley, not a pulse train. The V is 16 wide by 11.8 tall, twice as deep
+ * as a chevron, so it never reads as "expand"; the vertex sits 4.4 units
+ * above the rule, the same clearance GlyphCallingCard keeps, so nothing
+ * merges at 16px. The dot's r1.6 matches GlyphScenarios' junction — the
+ * family tell. Rendered at 16/20/24/40px in Day and Night before being
+ * accepted. Known ambiguity, the same class GlyphQuoted carries: bare and
+ * small it can read as an underlined V, so it is only ever set beside its
+ * words ("Your computer and connection", the ↓ · ↑ Mbps figures) — never as
+ * a bare rail node or favicon.
+ */
+export function GlyphEcho(props: GlyphProps) {
+  return (
+    <GlyphBase {...props}>
+      <path d="M4 5 L12 16.8 L20 5" />
+      <circle cx="12" cy="16.8" r="1.6" fill="currentColor" stroke="none" />
+      <path d="M8.2 21.2 H15.8" />
+    </GlyphBase>
+  );
+}

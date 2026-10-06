@@ -15,8 +15,11 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+// fileURLToPath, not URL.pathname: a checkout under "HireFlow 1" keeps the
+// space as %20 in a pathname, and the spawn then fails with ENOENT.
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = 5390;
 const BASE = `http://localhost:${PORT}`;
 const VITE_BIN = path.join(ROOT, "node_modules", "vite", "bin", "vite.js");
@@ -68,6 +71,7 @@ const ENTRY_MODULES = [
   "/src/components/candidate/CandidateStepGate.tsx",
   "/src/pages/ApplicationFormPhase.tsx",
   "/src/pages/TypingTestPhase.tsx",
+  "/src/pages/ConnectionCheckPhase.tsx",
   "/src/pages/QuizPhase.tsx",
   "/src/pages/VideoIntroPhase.tsx",
   "/src/pages/ChatSimulationPhase.tsx",

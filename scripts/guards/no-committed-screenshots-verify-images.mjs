@@ -16,6 +16,7 @@
  */
 import { execFileSync } from "node:child_process";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const IMAGE_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"];
 
@@ -27,7 +28,7 @@ export default [
       let tracked;
       try {
         tracked = execFileSync("git", ["ls-files", "screenshots-verify/"], {
-          cwd: path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", ".."),
+          cwd: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".."),
           encoding: "utf8",
         });
       } catch {

@@ -53,6 +53,18 @@ check("after chat → written interview", next?.id === "step_interview", JSON.st
 next = nextJourneyStep(zulu, { phase: "step_interview", status: "reviewing" });
 check("after the last real step → nothing to open", next === null, JSON.stringify(next));
 
+// With the computer and connection check first among the workflow steps
+// (docs/EQUIPMENT-CHECK.md §2): the hold after the quiz opens it, the hold
+// after it opens typing, and an untitled step gets the candidate title.
+const withConnection = buildCandidateJourney([{ id: "step_connection", type: "equipment_check" }, ...ZULU_STEPS], { hasQuiz: true });
+check("connection first: application → quiz → connection → typing → chat → interview → decision",
+  withConnection.map((s) => s.id).join(",") === `application,quiz,step_connection,step_typing,step_chat,step_interview,${DECISION_STAGE_ID}`,
+  withConnection.map((s) => s.id).join(","));
+next = nextJourneyStep(withConnection, { phase: "quiz", status: "reviewing" });
+check("after the quiz → the connection check, titled for the candidate", next?.id === "step_connection" && next.title === "Your computer and connection", JSON.stringify(next));
+next = nextJourneyStep(withConnection, { phase: "step_connection", status: "reviewing" });
+check("after the connection check → typing", next?.id === "step_typing", JSON.stringify(next));
+
 // Legacy / terminal phases resolve to the Decision stage and offer nothing.
 for (const phase of ["review", "interview", "hired", "rejected", DECISION_STAGE_ID]) {
   next = nextJourneyStep(zulu, { phase, status: "reviewing" });
@@ -91,6 +103,9 @@ check("quiz is done once its own record is completed", stepHasResult({ quiz: { c
 check("quiz not taken is not done", stepHasResult({}, null, { id: "quiz", type: "quiz" }) === false);
 check("typing test done", stepHasResult({ typingTestResult: { wpm: 50 } }, null, { id: "s", type: "typing_test" }) === true);
 check("typing test not done", stepHasResult({}, null, { id: "s", type: "typing_test" }) === false);
+check("connection check done once equipmentCheckResult is on file", stepHasResult({ equipmentCheckResult: { downloadMbps: 28.4 } }, null, { id: "step_connection", type: "equipment_check" }) === true);
+check("connection check not done", stepHasResult({}, null, { id: "step_connection", type: "equipment_check" }) === false);
+check("connection check: its legacy entry alone is not a result (an explicit case, not the fallback)", stepHasResult({ step_connection: { type: "equipment_check" } }, null, { id: "step_connection", type: "equipment_check" }) === false);
 check("chat simulation done", stepHasResult({ chatSimulationResult: { score: 80 } }, null, { id: "s", type: "chat_simulation" }) === true);
 check("chat interview done", stepHasResult({ chatInterviewResult: { score: 80 } }, null, { id: "s", type: "chat_interview" }) === true);
 check("voice interview done only via its own column", stepHasResult({}, { score: 1 }, { id: "s", type: "voice_interview" }) === true && stepHasResult({}, null, { id: "s", type: "voice_interview" }) === false);

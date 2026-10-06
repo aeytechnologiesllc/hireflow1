@@ -65,6 +65,9 @@ import { fileURLToPath } from "node:url";
 // pathname keeps the space as %20.
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MIGRATION_PATH = path.join(ROOT, "supabase/migrations/20261005230146_assessment_record.sql");
+// The computer and connection check (docs/EQUIPMENT-CHECK.md): the step type
+// in the CHECK, the title, the completion CASE and the access list.
+const EQUIPMENT_MIGRATION_PATH = path.join(ROOT, "supabase/migrations/20261006124409_equipment_check.sql");
 
 let passed = 0;
 let failed = 0;
@@ -233,7 +236,9 @@ async function main() {
   const db = new PGlite();
   const migrationSql = await readFile(MIGRATION_PATH, "utf8").catch(() => null);
   check("migration file exists on disk", migrationSql != null, MIGRATION_PATH);
-  if (!migrationSql) {
+  const equipmentSql = await readFile(EQUIPMENT_MIGRATION_PATH, "utf8").catch(() => null);
+  check("the equipment_check migration exists on disk", equipmentSql != null, EQUIPMENT_MIGRATION_PATH);
+  if (!migrationSql || !equipmentSql) {
     console.log(`\n${failed} of ${passed + failed} checks failed.`);
     process.exit(1);
   }
@@ -291,6 +296,15 @@ async function main() {
     migrationError = e.message;
   }
   check("the migration applies cleanly, and again (re-runnable)", migrationError === null, migrationError ?? "");
+  let equipmentError = null;
+  try {
+    await db.exec(equipmentSql);
+    await db.exec(equipmentSql);
+  } catch (e) {
+    equipmentError = e.message;
+  }
+  check("the equipment_check migration applies on top, and again (re-runnable)", equipmentError === null, equipmentError ?? "");
+  if (equipmentError) migrationError = equipmentError;
   if (migrationError) {
     console.log(`\n${passed} passed, ${failed} failed.`);
     process.exit(1);
@@ -342,10 +356,13 @@ async function main() {
     );
   }
   async function sessionRow(stepId) {
+    return sessionRowFor(APP, stepId);
+  }
+  async function sessionRowFor(applicationId, stepId) {
     await asOwner();
     return (await db.query(
       `select * from public.assessment_sessions where application_id = $1 and step_id = $2 order by attempt desc limit 1`,
-      [APP, stepId],
+      [applicationId, stepId],
     )).rows[0];
   }
   async function eventsOf(sessionId) {
@@ -1223,6 +1240,90 @@ async function main() {
   w = await q(`select public.assessment_step_access($1, 'step_chat', $2) as r`, [APP, CANDIDATE]);
   await asOwner();
   check("the access rule agrees (finished, not reopened)", w.ok && w.rows[0].r.finished === true && w.rows[0].r.reopened === false, JSON.stringify(w.rows?.[0]?.r ?? w.error));
+
+  // =========================================================================
+  console.log("\nThe computer and connection check (20261006124409_equipment_check.sql):\n");
+  {
+    // Its own job and application: the step is the FIRST workflow step
+    // (docs/EQUIPMENT-CHECK.md §2) and the applicant is on it.
+    const JOB_CONNECTION = "30000000-0000-4000-8000-000000000009";
+    const APP_CONNECTION = "40000000-0000-4000-8000-000000000009";
+    await asOwner();
+    await db.query(
+      `insert into public.jobs (id, employer_id, title, workflow_steps, quiz_questions, application_questions) values ($1, $2, 'Remote chat agent', $3, '[]', '[]')`,
+      [
+        JOB_CONNECTION,
+        EMPLOYER,
+        JSON.stringify([
+          { id: "step_connection", type: "equipment_check", title: "Your computer and connection", config: { min_download_mbps: 10, min_upload_mbps: 3, max_latency_ms: 200 } },
+          { id: "step_typing_2", type: "typing_test", title: "Typing" },
+        ]),
+      ],
+    );
+    await db.query(
+      `insert into public.applications (id, job_id, candidate_id, status, phase, notes) values ($1, $2, $3, 'reviewing', 'step_connection', '{}')`,
+      [APP_CONNECTION, JOB_CONNECTION, CANDIDATE],
+    );
+
+    const stepCheck = (await db.query(`select pg_get_constraintdef(oid) as def from pg_constraint where conname = 'assessment_sessions_step_type_check'`)).rows[0]?.def ?? "";
+    check(
+      "the step_type CHECK names equipment_check, and still every other type",
+      /'equipment_check'/.test(stepCheck) && /'typing_test'/.test(stepCheck) && /'portfolio_upload'/.test(stepCheck) && /'application'/.test(stepCheck),
+      stepCheck,
+    );
+    const journey = (await db.query(`select public.assessment_journey($1::jsonb, false) as j`, [JSON.stringify([{ id: "step_connection", type: "equipment_check" }])])).rows[0].j;
+    check(
+      "assessment_journey titles an untitled equipment_check step as the candidate sees it",
+      journey[1]?.type === "equipment_check" && journey[1]?.title === "Your computer and connection",
+      JSON.stringify(journey),
+    );
+
+    res = await asCandidate("start_assessment_session", { p_application_id: APP_CONNECTION, p_step_id: "step_connection" });
+    check("the applicant opens a session on the step (the access list and the CHECK agree)", res.ok && res.r.finished === false && res.r.status === "active", JSON.stringify(res.r ?? res.error));
+    const connRow = await sessionRowFor(APP_CONNECTION, "step_connection");
+    check("…stored with step_type equipment_check", connRow?.step_type === "equipment_check", JSON.stringify(connRow));
+
+    await db.exec(`set role service_role;`);
+    w = await q(
+      `select public.assessment_step_completion($1, 'step_connection', 'equipment_check', 'reviewing', 'step_connection', $2::jsonb, null) as r`,
+      [APP_CONNECTION, JSON.stringify({ step_connection: { type: "equipment_check", downloadMbps: 28 } })],
+    );
+    await asOwner();
+    check("a legacyStepEntry alone is not a result (the WHEN reads equipmentCheckResult)", w.ok && w.rows[0].r.finished === false, JSON.stringify(w.rows?.[0]?.r ?? w.error));
+    await db.exec(`set role service_role;`);
+    w = await q(
+      `select public.assessment_step_completion($1, 'step_connection', 'equipment_check', 'reviewing', 'step_connection', $2::jsonb, null) as r`,
+      [APP_CONNECTION, JSON.stringify({ equipmentCheckResult: { downloadMbps: 28.4, uploadMbps: 9.1, latencyMs: 42 } })],
+    );
+    await asOwner();
+    check("notes.equipmentCheckResult makes the step finished", w.ok && w.rows[0].r.finished === true, JSON.stringify(w.rows?.[0]?.r ?? w.error));
+
+    // The result lands the way connection-test records it: the key and the
+    // server-only marker, through recordStepResult.
+    await db.query(`update public.applications set notes = $2 where id = $1`, [
+      APP_CONNECTION,
+      JSON.stringify({
+        equipmentCheckResult: { downloadMbps: 28.4, uploadMbps: 9.1, latencyMs: 42, jitterMs: 6, measuredBy: "server", meetsBars: true, below: [] },
+        _trusted: { step_connection: { stepType: "equipment_check", completedAt: new Date().toISOString() } },
+      }),
+    ]);
+    res = await asCandidate("start_assessment_session", { p_application_id: APP_CONNECTION, p_step_id: "step_connection" });
+    check("once recorded, the step is finished", res.ok && res.r.finished === true, JSON.stringify(res.r ?? res.error));
+    const closedRow = await sessionRowFor(APP_CONNECTION, "step_connection");
+    check("…and the open attempt was closed by the self-heal (result_recorded)", closedRow?.status === "completed" && closedRow?.end_reason === "result_recorded", JSON.stringify(closedRow));
+    await db.exec(`set role service_role;`);
+    w = await q(`select public.assessment_step_access($1, 'step_connection', $2) as r`, [APP_CONNECTION, CANDIDATE]);
+    await asOwner();
+    check(
+      "the access rule knows the type and says finished",
+      w.ok && w.rows[0].r.step_type === "equipment_check" && w.rows[0].r.finished === true && w.rows[0].r.step_title === "Your computer and connection",
+      JSON.stringify(w.rows?.[0]?.r ?? w.error),
+    );
+    const mapped = (await db.query(
+      `select public.trusted_result_key_for('equipmentCheckResult', null) as by_key, public.trusted_result_key_for('step_connection', 'equipment_check') as by_type`,
+    )).rows[0];
+    check("trusted_result_key_for maps the key and the type to equipmentCheckResult", mapped.by_key === "equipmentCheckResult" && mapped.by_type === "equipmentCheckResult", JSON.stringify(mapped));
+  }
 
   // =========================================================================
   console.log("\nA closed application:\n");

@@ -24,8 +24,9 @@
  *
  * The candidate's journey is exactly the job's own configured steps — their
  * application, a quiz stage if this job has one, and whatever active steps
- * (typing test, video intro, chat/sales simulation, voice interview,
- * portfolio) the employer configured, in the order they configured them —
+ * (computer and connection check, typing test, video intro, chat/sales
+ * simulation, voice interview, portfolio) the employer configured, in the
+ * order they configured them —
  * plus one honest closing stage: the hiring team deciding. Nothing else is
  * invented. No screen pads the count with steps the candidate never
  * performs — a standalone "Review" leg, an "Interview" leg, a "Hired" leg —
@@ -71,6 +72,8 @@ export const DECISION_STAGE_ID = "decision";
 const FALLBACK_TITLES: Record<string, string> = {
   application: "Application",
   quiz: "Skills check",
+  // docs/EQUIPMENT-CHECK.md: the speed test we run on their own computer.
+  equipment_check: "Your computer and connection",
   typing_test: "Typing test",
   video_intro: "Video intro",
   video_message: "Video intro",

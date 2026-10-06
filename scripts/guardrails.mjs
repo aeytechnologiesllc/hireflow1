@@ -13,8 +13,9 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -145,7 +146,8 @@ const guards = [
         "src/pages/TypingTestPhase.tsx", "src/pages/VideoIntroPhase.tsx",
         "src/pages/PortfolioUploadPhase.tsx", "src/pages/ChatSimulationPhase.tsx",
         "src/pages/ChatInterviewPhase.tsx", "src/pages/SalesSimulationPhase.tsx",
-        "src/pages/VoiceInterviewPhase.tsx", "src/pages/InterviewRoom.tsx",
+        "src/pages/VoiceInterviewPhase.tsx", "src/pages/ConnectionCheckPhase.tsx",
+        "src/pages/InterviewRoom.tsx",
         "src/components/EvaluationScreen.tsx", "src/components/PhaseContextCard.tsx",
         "src/components/candidate/SaveProgressPrompt.tsx",
       ];
@@ -236,7 +238,8 @@ const guards = [
         "src/pages/TypingTestPhase.tsx", "src/pages/VideoIntroPhase.tsx",
         "src/pages/PortfolioUploadPhase.tsx", "src/pages/ChatSimulationPhase.tsx",
         "src/pages/ChatInterviewPhase.tsx", "src/pages/SalesSimulationPhase.tsx",
-        "src/pages/VoiceInterviewPhase.tsx", "src/pages/ApplyWithCode.tsx",
+        "src/pages/VoiceInterviewPhase.tsx", "src/pages/ConnectionCheckPhase.tsx",
+        "src/pages/ApplyWithCode.tsx",
         "src/pages/ShowcaseApplyForm.tsx", "src/pages/CandidateContinue.tsx",
         "src/pages/Applications.tsx", "src/pages/CandidateApplicationDetail.tsx",
       ];
@@ -1058,7 +1061,7 @@ const guards = [
         "src/pages/TypingTestPhase.tsx", "src/pages/VideoIntroPhase.tsx",
         "src/pages/PortfolioUploadPhase.tsx", "src/pages/ChatSimulationPhase.tsx",
         "src/pages/ChatInterviewPhase.tsx", "src/pages/SalesSimulationPhase.tsx",
-        "src/pages/VoiceInterviewPhase.tsx",
+        "src/pages/VoiceInterviewPhase.tsx", "src/pages/ConnectionCheckPhase.tsx",
       ];
       const bad = [];
       if ((await read("src/hooks/useJourneyPosition.ts")) == null) {
@@ -1134,6 +1137,7 @@ const guards = [
         "src/pages/VideoIntroPhase.tsx", "src/pages/PortfolioUploadPhase.tsx",
         "src/pages/ChatSimulationPhase.tsx", "src/pages/ChatInterviewPhase.tsx",
         "src/pages/SalesSimulationPhase.tsx", "src/pages/VoiceInterviewPhase.tsx",
+        "src/pages/ConnectionCheckPhase.tsx",
         "src/pages/ApplicationFormPhase.tsx", "src/pages/Applications.tsx",
         "src/pages/CandidateApplicationDetail.tsx", "src/components/EvaluationScreen.tsx",
       ];

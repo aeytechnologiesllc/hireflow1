@@ -19,6 +19,8 @@ import {
   type AnswerItem,
   type AssessmentDetail,
   type AssessmentEntry,
+  type EquipmentBar,
+  type EquipmentDeviceRow,
   type IntegrityEvent,
   type IntegrityTally,
   type LiveState,
@@ -1058,6 +1060,150 @@ function TypingBody({ detail }: { detail: Extract<AssessmentDetail, { kind: "typ
   );
 }
 
+/** Label / value rows on one card, hairlines between them: the device table. */
+function Rows({ rows }: { rows: EquipmentDeviceRow[] }) {
+  return (
+    <dl className="rounded-[10px] border px-3.5" style={{ borderColor: "var(--line-soft)", background: "var(--surface)" }}>
+      {rows.map((row, i) => (
+        <div
+          key={row.label}
+          className="flex items-baseline justify-between gap-4 py-2 text-[12.5px] leading-[1.45]"
+          style={{ borderTop: i === 0 ? undefined : "1px solid var(--line-soft)" }}
+        >
+          <dt className="shrink-0" style={{ color: "var(--ink-3)" }}>
+            {row.label}
+          </dt>
+          <dd className="min-w-0 break-words text-right" style={{ color: row.value === "Not reported" ? "var(--ink-3)" : "var(--ink)" }}>
+            {row.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** "28.4", "9.1", "1.2": the figure as the server recorded it, to one
+ *  decimal. Never rounded up: 18.6 must not read "19" here while the row
+ *  above says "↓ 18", and a figure under its bar must never read as the bar. */
+function mbpsText(value: number): string {
+  const one = Math.floor(value * 10 + 1e-9) / 10;
+  return Number.isInteger(one) ? String(one) : one.toFixed(1);
+}
+
+/**
+ * The computer and connection check (docs/EQUIPMENT-CHECK.md §6): the three
+ * numbers against the job's bars — every figure timed by our server, which
+ * the line under them says — the flags each on its own line, the device as
+ * a table, the answer to the computer question, what happened from the
+ * attempt's events, and (staff-only) where the test came from. Rule 5 of
+ * the contract: there are no copy/paste or screen-switch rules on this step,
+ * so this body carries the attempt's timeline itself and the sheet draws no
+ * integrity block under it.
+ */
+function EquipmentBody({ detail, loading }: { detail: Extract<AssessmentDetail, { kind: "equipment_check" }>; loading: boolean }) {
+  const under = (bar: EquipmentBar) => detail.below.includes(bar);
+  const tone = (bar: EquipmentBar) => (under(bar) ? "var(--amber-fg)" : "var(--ink)");
+  const facts = [
+    ...(detail.download != null
+      ? [{ label: "Download", value: `${mbpsText(detail.download)} Mbps`, note: detail.bars.minDownload != null ? `The job asks for ${detail.bars.minDownload} or more` : null, tone: tone("download") }]
+      : []),
+    ...(detail.upload != null
+      ? [{ label: "Upload", value: `${mbpsText(detail.upload)} Mbps`, note: detail.bars.minUpload != null ? `The job asks for ${detail.bars.minUpload} or more` : null, tone: tone("upload") }]
+      : []),
+    ...(detail.latencyMs != null
+      ? [{ label: "Latency", value: `${Math.round(detail.latencyMs)} ms`, note: detail.bars.maxLatency != null ? `The job asks for ${detail.bars.maxLatency} or under` : null, tone: tone("latency") }]
+      : []),
+    ...(detail.jitterMs != null ? [{ label: "Jitter", value: `${Math.round(detail.jitterMs)} ms`, note: "How much the latency wobbled" }] : []),
+  ];
+  const kindWord = detail.deviceKind === "phone" ? "A phone" : detail.deviceKind === "tablet" ? "A tablet" : detail.deviceKind === "computer" ? "A computer" : null;
+  const answer =
+    detail.usingThisComputer === "yes"
+      ? { text: "Yes. They said this is the computer they'll work from.", amber: false }
+      : detail.usingThisComputer === "no_switched"
+        ? { text: "They said no at first, then opened the step on the computer they'll work from and ran it there.", amber: false }
+        : detail.usingThisComputer === "ran_here_anyway"
+          ? { text: "No. They said this is not the computer they'll work from, and ran it here anyway.", amber: true }
+          : detail.usingThisComputer === "no"
+            ? { text: "No. They were told to open this step on the computer they'll work from; it has not been run there yet.", amber: false }
+            : null;
+  // Where the test ran (every address its requests came from) and where the
+  // result was sent from: staff-only, from the attempt's grading.
+  const testIps = detail.testIps ?? [];
+  const server: EquipmentDeviceRow[] = [
+    ...(testIps.length > 0 ? [{ label: "Test ran from", value: testIps.join(", ") }] : []),
+    ...(detail.ip ? [{ label: "Sent from", value: detail.ip }] : []),
+    ...(detail.measuredAt && when(detail.measuredAt, "EEE d MMM, h:mm:ss a") ? [{ label: "Measured", value: when(detail.measuredAt, "EEE d MMM, h:mm:ss a")! }] : []),
+    ...(detail.runs != null && !detail.live ? [{ label: "Runs before sending", value: `${detail.runs} (counted by their page)` }] : []),
+    ...(detail.userAgent ? [{ label: "Browser's own line", value: detail.userAgent }] : []),
+  ];
+  // What they are doing right now, in the row's own words (the page's hint).
+  const doing =
+    detail.liveScreen === "computer"
+      ? "Choosing the computer now. Nothing is timed until a run is sent."
+      : detail.liveScreen === "result"
+        ? "Looking at the result now. The figures come from our server once a run is sent."
+        : detail.liveScreen === "failed"
+          ? "A run did not finish; they are on its Try again screen. The figures come from our server once a run is sent."
+          : "Running the speed test now. The figures come from our server once a run is sent.";
+  return (
+    <>
+      {detail.live && <LiveNote doing={doing} left="Never sent. This is how far they got." />}
+      {facts.length > 0 ? (
+        <>
+          <Facts items={facts} />
+          {detail.measuredBy === "server" && (
+            <p className="mt-2 text-[11px]" style={{ color: "var(--ink-3)" }}>
+              Timed by our server.
+            </p>
+          )}
+        </>
+      ) : (
+        <NotKept>{detail.live ? "No run has been sent yet. The figures come from our server when one is." : "The figures were not kept for this attempt."}</NotKept>
+      )}
+      {detail.flags.length > 0 && (
+        <Section title="Flags">
+          <Bullets items={detail.flags} tone="amber" />
+        </Section>
+      )}
+      <Section
+        title="Their computer"
+        aside={kindWord ? <span className="text-[11px] font-semibold" style={{ color: detail.deviceKind === "computer" ? "var(--ink-3)" : "var(--amber-fg)" }}>{kindWord}</span> : undefined}
+      >
+        {detail.device.length > 0 ? (
+          <Rows rows={detail.device} />
+        ) : (
+          <NotKept>{detail.live ? "Nothing read yet." : "What the browser reported was not kept for this attempt."}</NotKept>
+        )}
+      </Section>
+      <Section title="Will they work from this computer?">
+        {answer ? (
+          <p className="text-[13px] leading-[1.55]" style={{ color: answer.amber ? "var(--amber-fg)" : "var(--ink-2)" }}>
+            {answer.text}
+          </p>
+        ) : (
+          <NotKept>{detail.live ? "Not answered yet." : "The answer was not kept for this attempt."}</NotKept>
+        )}
+      </Section>
+      {server.length > 0 && (
+        <Section title="From our server">
+          <Rows rows={server} />
+        </Section>
+      )}
+      <Section title="What happened">
+        {detail.timeline && detail.timeline.length > 0 ? (
+          <Timeline items={detail.timeline} neutral />
+        ) : loading ? (
+          <p className="text-[12px]" style={{ color: "var(--ink-3)" }}>
+            Loading the timeline…
+          </p>
+        ) : (
+          <NotKept>{detail.live ? "Nothing on the record yet." : "No timeline was kept for this attempt."}</NotKept>
+        )}
+      </Section>
+    </>
+  );
+}
+
 function ChatPracticeBody({
   detail,
   candidate,
@@ -1417,6 +1563,9 @@ export function AssessmentRecordSheet({
       case "typing_test":
         body = <TypingBody detail={detail} />;
         break;
+      case "equipment_check":
+        body = <EquipmentBody detail={detail} loading={loading} />;
+        break;
       case "chat_simulation":
         body = <ChatPracticeBody detail={detail} candidate={who} flags={flags} loading={loading} />;
         break;
@@ -1449,7 +1598,11 @@ export function AssessmentRecordSheet({
   // listed twice. The integrity sheet IS the flags.
   const notesFlagsInline =
     detail?.kind === "chat_interview" && !!detail.transcript && !shown.timeline?.length && notesFlags.length > 0 && shown.integrity.total > 0;
-  const showIntegrity = shown.kind !== "integrity" && !notesFlagsInline && (shown.integrity.total > 0 || !!shown.timeline?.length);
+  // The connection check has no copy/paste or screen-switch rules
+  // (docs/EQUIPMENT-CHECK.md rule 5): nothing is ever flagged on it, and its
+  // body tells the attempt's story itself, so no integrity block under it.
+  const showIntegrity =
+    shown.kind !== "integrity" && shown.kind !== "equipment_check" && !notesFlagsInline && (shown.integrity.total > 0 || !!shown.timeline?.length);
   const attempt = shown.session && shown.session.attempt > 1 ? `Attempt ${shown.session.attempt}` : null;
   // When staff handed the step back (assessment_step_reopens), and how often.
   const reopenedAt = shown.reopen?.at ? Date.parse(shown.reopen.at) : NaN;

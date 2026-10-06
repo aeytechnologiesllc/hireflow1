@@ -41,6 +41,11 @@ export function stepHasResult(
     }
     case "typing_test":
       return !!notes.typingTestResult;
+    // Written by connection-test's `record` op alone (docs/EQUIPMENT-CHECK.md
+    // §5). Explicit, not the default branch: the default reads notes[step.id],
+    // which only exists when the server also writes the legacy entry.
+    case "equipment_check":
+      return !!notes.equipmentCheckResult;
     case "chat_simulation":
       return !!notes.chatSimulationResult;
     case "chat_interview":
@@ -71,11 +76,12 @@ export function stepHasResult(
  * handlers in QuizPhase and TypingTestPhase, plus VideoIntroPhase), and the
  * copies disagreed about the synthetic "application" step. App.tsx registers
  * one `/applications/:id/<segment>/:stepId` route per entry;
- * scripts/journey_progress.test.mjs fails if a segment here has no route.
+ * scripts/candidate_next_step.test.mjs fails if a segment here has no route.
  */
 export const STEP_ROUTE_SEGMENTS: Readonly<Record<string, string>> = {
   application: "application",
   quiz: "quiz",
+  equipment_check: "connection",
   typing_test: "typing-test",
   video_intro: "video-intro",
   video_message: "video-intro",

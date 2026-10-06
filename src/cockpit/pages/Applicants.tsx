@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, type ComponentType } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import {
@@ -20,6 +20,7 @@ import {
   FileText,
 } from "lucide-react";
 import AvaSeal from "@/components/ava/AvaSeal";
+import { GlyphEcho } from "@/components/ava/employerGlyphs";
 import CkAvatar from "../components/Avatar";
 import { ActionDialog } from "../components/ActionDialog";
 import { ShareKitDialog } from "../components/ShareKitDialog";
@@ -663,9 +664,14 @@ function Timeline({ candidate, app }: { candidate: Candidate; app?: AppRecord })
    cockpit.css and are never reused elsewhere in the cockpit. Decision
    doesn't get a fill of its own: it's the brass wax seal, and the gold end
    of the gradient hands off into it naturally. */
-const RAIL_ICON_BY_TYPE: Record<string, typeof Mail> = {
+/** The same shape GemRail takes; lucide for most steps, the brand kit's
+ *  GlyphEcho for the connection check (the mark its record row and the
+ *  candidate's step card wear too). */
+type RailIcon = ComponentType<{ className?: string; size?: string | number; strokeWidth?: string | number }>;
+const RAIL_ICON_BY_TYPE: Record<string, RailIcon> = {
   application: Mail,
   quiz: ListChecks,
+  equipment_check: GlyphEcho,
   typing_test: Keyboard,
   portfolio_upload: FileText,
   video_intro: Video,
@@ -675,7 +681,7 @@ const RAIL_ICON_BY_TYPE: Record<string, typeof Mail> = {
   sales_simulation: MessageCircle,
   voice_interview: AudioLines,
 };
-const railIcon = (type: string): typeof Mail => RAIL_ICON_BY_TYPE[type] ?? Mail;
+const railIcon = (type: string): RailIcon => RAIL_ICON_BY_TYPE[type] ?? Mail;
 
 /** The curated jade → mint → teal → gold spectrum every gem node draws its
  *  fill from — shared with the Dashboard's "Pipeline at a glance" miniature.

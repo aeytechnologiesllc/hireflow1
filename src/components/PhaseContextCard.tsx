@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import {
   ClipboardList,
   Clock,
@@ -16,9 +15,11 @@ import {
   Users,
 } from "lucide-react";
 import { GlyphLetter } from "@/components/candidate/glyphs";
+import { GlyphEcho } from "@/components/ava/employerGlyphs";
 
 type PhaseType =
   | "quiz"
+  | "equipment_check"
   | "typing_test"
   | "video_intro"
   | "video_message"
@@ -52,6 +53,20 @@ const phaseInfoMap: Record<PhaseType, PhaseInfo> = {
       "Read each question carefully before answering",
       "You cannot go back to previous questions",
       "Don't worry if you're unsure — answer to the best of your ability",
+    ],
+  },
+  equipment_check: {
+    icon: GlyphEcho,
+    title: "Your computer and connection",
+    // Candidate-facing: never name Ava, never say AI. See rule 1. The speed
+    // test is ours and runs on their machine (docs/EQUIPMENT-CHECK.md).
+    description:
+      "We run a short speed test right here, on this computer, and note what kind of computer it is, so the team knows you can work from it. Nothing to install and nothing to send us.",
+    duration: "Under a minute",
+    tips: [
+      "Use the computer you would work from — on a phone, sign in on that computer instead",
+      "Pause downloads and video calls while it runs",
+      "Be on the internet connection you normally use",
     ],
   },
   typing_test: {
@@ -185,7 +200,9 @@ export function PhaseContextCard({ phaseType, className = "" }: PhaseContextCard
         <CardContent className="p-0">
           {/* Header - always visible */}
           <button
+            type="button"
             onClick={() => setIsExpanded(!isExpanded)}
+            aria-expanded={isExpanded}
             className="w-full flex items-center justify-between p-4 hover:bg-primary/5 transition-colors"
           >
             <div className="flex items-center gap-3">
@@ -199,13 +216,16 @@ export function PhaseContextCard({ phaseType, className = "" }: PhaseContextCard
                 <p className="text-xs text-muted-foreground">{phaseInfo.title}</p>
               </div>
             </div>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
+            {/* A span, not a Button: the whole header is already the button,
+                and a button inside a button is invalid HTML (React warned on
+                every step page). */}
+            <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center text-muted-foreground">
               {isExpanded ? (
                 <ChevronUp className="h-4 w-4" />
               ) : (
                 <ChevronDown className="h-4 w-4" />
               )}
-            </Button>
+            </span>
           </button>
 
           {/* Expandable content */}

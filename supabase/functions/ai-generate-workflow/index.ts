@@ -458,6 +458,9 @@ function buildScreeningPlanSummary(
   if (workflowSteps.some((step) => step.type === "typing_test")) {
     focus.push("validates execution speed and accuracy");
   }
+  if (workflowSteps.some((step) => step.type === "equipment_check")) {
+    focus.push("checks the candidate's computer and connection first");
+  }
   if (workflowSteps.some((step) => step.type === "portfolio_upload")) {
     focus.push("requires work-sample proof");
   }
@@ -681,6 +684,35 @@ function postProcessWorkflowData(
     data.workflow_steps = data.workflow_steps.filter((step) => step.type !== "video_message");
   }
 
+  // The computer and connection check (docs/EQUIPMENT-CHECK.md §2): at most
+  // one, always the FIRST workflow step (switching computers is cheaper before
+  // an hour of tests than after), the candidate title fixed, and its three
+  // bars as positive numbers with the live job's defaults.
+  const connectionChecks = data.workflow_steps.filter((step) => step.type === "equipment_check");
+  if (connectionChecks.length > 0) {
+    const first = connectionChecks[0];
+    const existingConfig: Record<string, unknown> =
+      first.config && typeof first.config === "object" ? first.config as Record<string, unknown> : {};
+    const bar = (value: unknown, fallback: number) =>
+      typeof value === "number" && Number.isFinite(value) && value > 0 ? value : fallback;
+    const connectionStep: WorkflowStep = {
+      ...first,
+      id: first.id || "step_connection",
+      title: "Your computer and connection",
+      description:
+        typeof first.description === "string" && first.description.trim().length > 0
+          ? first.description
+          : "A one-minute check of the computer and internet connection you will work from.",
+      required: true,
+      config: {
+        min_download_mbps: bar(existingConfig.min_download_mbps, 10),
+        min_upload_mbps: bar(existingConfig.min_upload_mbps, 3),
+        max_latency_ms: bar(existingConfig.max_latency_ms, 200),
+      },
+    };
+    data.workflow_steps = [connectionStep, ...data.workflow_steps.filter((step) => step.type !== "equipment_check")];
+  }
+
   const hasFinalInterview = data.workflow_steps.some((step) => step.type === "chat_interview");
   if (!hasFinalInterview) {
     data.workflow_steps.push({
@@ -817,6 +849,7 @@ Quiz question rules:
 - multi_select questions may be used, but only when there are exactly 2 correct answers in correct_answers.
 
 Workflow step rules:
+- equipment_check (title "Your computer and connection") FIRST, before every other step, for remote roles that need a reliable connection and the candidate's own computer: our server runs the speed test on their computer and records the device. config must be {"min_download_mbps": 10, "min_upload_mbps": 3, "max_latency_ms": 200} (adjust the numbers to the role).
 - typing_test for execution-heavy or data-entry style work.
 - video_message only when spoken presence is a decisive signal for the role.
 - chat_simulation for support roles.
@@ -836,6 +869,7 @@ Return ONLY valid JSON with this shape:
     {"id": "quiz1", "type": "multiple_choice", "question": "...", "options": ["A", "B", "C", "D"], "correct_answer": "A", "time_limit_seconds": 20, "category": "technical"}
   ],
   "workflow_steps": [
+    {"id": "step_connection", "type": "equipment_check", "title": "Your computer and connection", "description": "A one-minute check of the computer and internet connection you will work from.", "required": true, "config": {"min_download_mbps": 10, "min_upload_mbps": 3, "max_latency_ms": 200}},
     {"id": "step1", "type": "typing_test", "title": "Typing Speed Test", "description": "...", "required": true, "config": {"min_wpm": 40}},
     {"id": "stepFinal", "type": "chat_interview", "title": "Chat interview", "description": "A short written conversation about the role", "required": true, "config": {"focus": "behavioral"}}
   ]

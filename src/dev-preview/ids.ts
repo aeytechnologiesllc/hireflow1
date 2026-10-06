@@ -17,6 +17,8 @@ export const ZULU_TESTING_USER_ID = "10000000-0000-4000-8000-000000000007";
 export const ZULU_LEFT_USER_ID = "10000000-0000-4000-8000-000000000008";
 /** Chat practice handed back for a retake; taking attempt 2 now. */
 export const ZULU_RETAKE_USER_ID = "10000000-0000-4000-8000-000000000009";
+// The Zulu applicant running the speed test right now (docs/EQUIPMENT-CHECK.md).
+export const ZULU_CONNECTION_USER_ID = "10000000-0000-4000-8000-000000000010";
 
 export const JOB_BARISTA_ID = "20000000-0000-4000-8000-000000000001";
 export const JOB_SERVER_ID = "20000000-0000-4000-8000-000000000002";
@@ -27,6 +29,8 @@ export const JOB_FRESH_ID = "20000000-0000-4000-8000-000000000005";
 
 // Workflow step ids on the Barista job — see buildCandidateJourney(): the
 // journey is [application, quiz, ...these in order, decision].
+/** The computer and connection check, the FIRST workflow step (docs/EQUIPMENT-CHECK.md §2). */
+export const STEP_CONNECTION = "wf-connection";
 export const STEP_TYPING = "wf-typing";
 export const STEP_VIDEO = "wf-video";
 export const STEP_CHAT_SIM = "wf-chatsim";
@@ -57,6 +61,10 @@ export const APP_ZULU_FORM_ID = "30000000-0000-4000-8000-000000000014";
 export const APP_ZULU_TESTING_ID = "30000000-0000-4000-8000-000000000015";
 export const APP_ZULU_LEFT_ID = "30000000-0000-4000-8000-000000000016";
 export const APP_ZULU_RETAKE_ID = "30000000-0000-4000-8000-000000000017";
+/** Jordan Alvarez, standing on the Barista job's connection check, nothing sent yet (café scenario). */
+export const APP_CONNECTION_ID = "30000000-0000-4000-8000-000000000018";
+/** Priya Natarajan, running the speed test on the Zulu role right now. */
+export const APP_ZULU_CONNECTION_ID = "30000000-0000-4000-8000-000000000019";
 
 export const DOC_PENDING_EMPLOYER_ID = "40000000-0000-4000-8000-000000000001";
 export const DOC_PENDING_CANDIDATE_ID = "40000000-0000-4000-8000-000000000002";

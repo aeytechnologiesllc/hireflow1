@@ -96,6 +96,13 @@ verify_jwt = false
 [functions.submit-typing-test]
 verify_jwt = true
 
+[functions.connection-test]
+# The computer and connection check (docs/EQUIPMENT-CHECK.md §4). Every op
+# needs a signed-in candidate's JWT, the raw-byte GETs included (a plain
+# <a href> download is refused by the gateway); `record` also checks the
+# caller is the application's own candidate inside.
+verify_jwt = true
+
 [functions.get-subscription]
 verify_jwt = false
 

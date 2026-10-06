@@ -4,6 +4,7 @@
 // losing the gate wrapper entirely — still fails this guard.
 const EXPECTED_PHASE_BY_SEGMENT = {
   application: "application",
+  connection: "equipment_check",
   "typing-test": "typing_test",
   quiz: "quiz",
   "video-intro": "video_intro",

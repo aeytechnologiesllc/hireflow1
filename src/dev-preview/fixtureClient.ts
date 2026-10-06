@@ -308,7 +308,7 @@ export function createFixtureSupabaseClient(opts: FixtureClientOptions) {
       },
     },
     functions: {
-      async invoke() {
+      async invoke(_name?: string, _options?: { method?: string; headers?: Record<string, string>; body?: unknown; signal?: AbortSignal }) {
         return { data: null, error: null };
       },
     },

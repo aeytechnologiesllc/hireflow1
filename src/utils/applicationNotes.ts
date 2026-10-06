@@ -28,6 +28,51 @@ export interface TypingTestResultSummary {
   accuracy?: number;
 }
 
+/**
+ * The computer and connection check, written only by the connection-test
+ * edge function's `record` op (docs/EQUIPMENT-CHECK.md §5). Every figure is
+ * the server's, from its own clock; the browser's numbers are never stored.
+ * Optional like its neighbours: readers must survive a row written by an
+ * older build.
+ */
+export interface EquipmentCheckDeviceSummary {
+  os?: string | null;
+  osVersion?: string | null;
+  browser?: string | null;
+  browserVersion?: string | null;
+  /** e.g. "1920×1080" */
+  screen?: string | null;
+  dpr?: number | null;
+  cores?: number | null;
+  memoryGb?: number | null;
+  touch?: boolean | null;
+  language?: string | null;
+  timezone?: string | null;
+  connectionType?: string | null;
+  model?: string | null;
+}
+
+export interface EquipmentCheckResultSummary {
+  downloadMbps?: number;
+  uploadMbps?: number;
+  latencyMs?: number;
+  jitterMs?: number;
+  measuredBy?: "server";
+  /** How many runs before this one was sent (up to 3). */
+  runs?: number;
+  usingThisComputer?: "yes" | "no_switched" | "ran_here_anyway";
+  deviceKind?: "computer" | "phone" | "tablet";
+  device?: EquipmentCheckDeviceSummary;
+  /** The job's own numbers, as configured on the step. */
+  bars?: { minDownloadMbps?: number; minUploadMbps?: number; maxLatencyMs?: number };
+  meetsBars?: boolean;
+  /** Which bars were missed, e.g. ["upload"]. */
+  below?: string[];
+  measuredAt?: string;
+  attempt?: number;
+  _trusted?: boolean;
+}
+
 export interface ChatSimulationResultSummary {
   score?: number;
   passed?: boolean;
@@ -87,6 +132,9 @@ export interface ApplicationNotesData {
 
   // Typing test
   typingTestResult?: TypingTestResultSummary;
+
+  // Computer and connection check
+  equipmentCheckResult?: EquipmentCheckResultSummary;
 
   // Video intro
   videoIntroUrl?: string;

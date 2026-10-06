@@ -1,7 +1,7 @@
 /** Deterministic template generator — guaranteed fallback when OpenAI / edge fn unavailable. */
 import { detectFamily } from "./playbook";
 import { bankForFamily } from "./questionBanks";
-import { buildJobFlow, defaultShortlistWeights, emptyRubric, RIGOR_SPEC } from "./assemble";
+import { briefWantsEquipmentCheck, buildJobFlow, defaultShortlistWeights, emptyRubric, equipmentCheckPhase, RIGOR_SPEC } from "./assemble";
 import type { GenerateFlowRequest, GenerateFlowResult, JobPost, ScreeningPhase } from "./types";
 
 function take<T>(arr: T[], n: number): T[] {
@@ -77,6 +77,13 @@ function buildPhases(brief: GenerateFlowRequest["brief"], rigor: GenerateFlowReq
     countLabel: `${spec.quiz} items`,
     durationLabel: `${spec.quizMin} min`,
   });
+
+  // Right after the quiz for a remote role, so it lands as the FIRST workflow
+  // step (docs/EQUIPMENT-CHECK.md §2): switching computers is cheaper before
+  // an hour of tests than after.
+  if (briefWantsEquipmentCheck(brief)) {
+    phases.push(equipmentCheckPhase(brief, order++));
+  }
 
   if (spec.simulation > 0 && bank.simulation.length) {
     phases.push({

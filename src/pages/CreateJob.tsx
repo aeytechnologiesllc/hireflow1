@@ -135,6 +135,7 @@ import {
 } from "@/lib/jobFromFlow";
 import { briefFromForm, generateTemplateFlow, legacyToRigor } from "@/lib/avaEngine";
 import { AvaSeal } from "@/components/ava/AvaSeal";
+import { GlyphEcho } from "@/components/ava/employerGlyphs";
 import { GlyphCheckSeal } from "@/components/candidate/glyphs";
 
 interface ApplicationQuestion {
@@ -194,6 +195,13 @@ import { Mic } from "lucide-react";
  *  so they must never name Ava, AI, or anything machine. Where a step has no
  *  candidate override the label is already safe and is reused. */
 const STEP_TYPE_INFO: Record<string, { icon: React.ElementType; label: string; description: string; hasConfig?: boolean; candidateTitle?: string; candidateDescription?: string }> = {
+  // docs/EQUIPMENT-CHECK.md §2: our own speed test on the applicant's computer,
+  // timed by the server, and what that computer is. Listed first because it
+  // is the first workflow step on the live job (addWorkflowStep puts it first).
+  equipment_check: {
+    icon: GlyphEcho, label: "Computer and connection check", description: "Our own speed test on their computer, timed by our server, and what computer it is", hasConfig: true,
+    candidateTitle: "Your computer and connection", candidateDescription: "A short speed test on the computer you will work from",
+  },
   typing_test: { icon: Keyboard, label: "Typing Test", description: "Test typing speed and accuracy" },
   video_message: { icon: Video, label: "Video Message", description: "Record a video introduction" },
   chat_simulation: { icon: MessageSquare, label: "Chat Simulation", description: "Customer support roleplay" },
@@ -674,6 +682,59 @@ function toGoogleSalaryPeriod(period: string | null | undefined): string | null 
   return null;
 }
 // #endregion job-edit-save
+
+// #region equipment-check-step
+// The computer and connection check's three bars (docs/EQUIPMENT-CHECK.md §2),
+// kept on the step's own config — `{min_download_mbps, min_upload_mbps,
+// max_latency_ms}`, the names connection-test and the staff record read —
+// never on a page-level state like the typing slider's `required_wpm`. No JSX
+// and no imports in this block: scripts/job_editor_equipment_step.test.mjs
+// strips its types and runs it.
+
+/** The live job's own numbers, and what a new step starts with. */
+const EQUIPMENT_CHECK_DEFAULT_CONFIG: Readonly<Record<EquipmentCheckBar, number>> = {
+  min_download_mbps: 10,
+  min_upload_mbps: 3,
+  max_latency_ms: 200,
+};
+
+type EquipmentCheckBar = "min_download_mbps" | "min_upload_mbps" | "max_latency_ms";
+
+/** One field of the editor: the bar, its words, its unit and the range a
+ *  value is kept within. */
+const EQUIPMENT_CHECK_BAR_FIELDS: ReadonlyArray<{ key: EquipmentCheckBar; label: string; unit: string; min: number; max: number; step: number }> = [
+  { key: "min_download_mbps", label: "Download, at least", unit: "Mbps", min: 1, max: 1000, step: 1 },
+  { key: "min_upload_mbps", label: "Upload, at least", unit: "Mbps", min: 1, max: 1000, step: 1 },
+  { key: "max_latency_ms", label: "Latency, at most", unit: "ms", min: 10, max: 2000, step: 10 },
+];
+
+/** A typed value as a bar, or null for anything that is not a number: a
+ *  blank field means "the default", never 0. Kept within the field's range. */
+function cleanEquipmentCheckBar(key: EquipmentCheckBar, raw: unknown): number | null {
+  const field = EQUIPMENT_CHECK_BAR_FIELDS.find((f) => f.key === key);
+  if (!field) return null;
+  const n = typeof raw === "number" ? raw : typeof raw === "string" && raw.trim() !== "" ? Number(raw) : NaN;
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.min(field.max, Math.max(field.min, Math.round(n)));
+}
+
+/** The three bars a step's config holds, each falling back to the default
+ *  when missing or not a positive number — the same reading the server does. */
+function equipmentCheckBars(config: unknown): Record<EquipmentCheckBar, number> {
+  const c = config && typeof config === "object" && !Array.isArray(config) ? (config as Record<string, unknown>) : {};
+  const read = (key: EquipmentCheckBar) => {
+    const n = typeof c[key] === "number" ? (c[key] as number) : typeof c[key] === "string" ? Number(c[key]) : NaN;
+    return Number.isFinite(n) && n > 0 ? n : EQUIPMENT_CHECK_DEFAULT_CONFIG[key];
+  };
+  return { min_download_mbps: read("min_download_mbps"), min_upload_mbps: read("min_upload_mbps"), max_latency_ms: read("max_latency_ms") };
+}
+
+/** What a typed value stores: the cleaned bar, or the default for a cleared
+ *  or meaningless field, so the config always holds a positive number. */
+function equipmentCheckBarToStore(key: EquipmentCheckBar, raw: unknown): number {
+  return cleanEquipmentCheckBar(key, raw) ?? EQUIPMENT_CHECK_DEFAULT_CONFIG[key];
+}
+// #endregion equipment-check-step
 
 const VOICE_INTERVIEW_LANGUAGES = [
   { value: "en", label: "English" },
@@ -1816,10 +1877,13 @@ export default function CreateJob() {
       return;
     }
     
-    // Default config for voice_interview
-    const config: Record<string, unknown> = type === 'voice_interview' 
+    // Default config for voice_interview; the connection check starts on the
+    // live job's bars (10 / 3 / 200), edited in its card below.
+    const config: Record<string, unknown> = type === 'voice_interview'
       ? { language: 'en', language_name: 'English', language_enforcement: 'flexible' }
-      : {};
+      : type === 'equipment_check'
+        ? { ...EQUIPMENT_CHECK_DEFAULT_CONFIG }
+        : {};
     
     const newStep: WorkflowStep = {
       id: `step_${Date.now()}`,
@@ -1848,6 +1912,10 @@ export default function CreateJob() {
         voiceInterview = newStep;
       } else if (type === 'chat_interview') {
         chatInterview = newStep;
+      } else if (type === 'equipment_check') {
+        // First of the workflow steps (docs/EQUIPMENT-CHECK.md §2): switching
+        // computers is cheaper before an hour of tests than after.
+        newRegularSteps.unshift(newStep);
       } else {
         // Regular step - add to regular steps
         newRegularSteps.push(newStep);
@@ -1894,6 +1962,56 @@ export default function CreateJob() {
       }
       return step;
     }));
+  };
+
+  /** The connection check's three bars (docs/EQUIPMENT-CHECK.md §2), on the
+   *  step's own config (updateWorkflowStepConfig), never on page-level state.
+   *  Drawn in the step card while a job is created, and on the edit page,
+   *  where the tests and their order stay locked but these numbers are the
+   *  job's to change. */
+  const renderEquipmentCheckBars = (step: WorkflowStep) => {
+    const bars = equipmentCheckBars(step.config);
+    return (
+      <div className="mt-4 pt-4 border-t border-border/60 space-y-3">
+        <div className="flex items-center gap-2">
+          <Gauge className="h-4 w-4 text-primary" />
+          <Label className="text-sm">The connection we ask for</Label>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {EQUIPMENT_CHECK_BAR_FIELDS.map((field) => (
+            <div key={field.key} className="space-y-1.5">
+              <Label htmlFor={`${step.id}-${field.key}`} className="text-xs text-muted-foreground">
+                {field.label}
+              </Label>
+              <div className="flex items-center gap-2">
+                {/* Uncontrolled on purpose: the field can be emptied while
+                    retyping; the config always holds the cleaned number, and
+                    leaving the field shows what was stored. */}
+                <Input
+                  id={`${step.id}-${field.key}`}
+                  type="number"
+                  inputMode="numeric"
+                  min={field.min}
+                  max={field.max}
+                  step={field.step}
+                  defaultValue={bars[field.key]}
+                  onChange={(e) => updateWorkflowStepConfig(step.id, field.key, equipmentCheckBarToStore(field.key, e.target.value))}
+                  onBlur={(e) => {
+                    const stored = String(equipmentCheckBarToStore(field.key, e.target.value));
+                    if (e.target.value !== stored) e.target.value = stored;
+                  }}
+                  className="h-9"
+                />
+                <span className="text-xs text-muted-foreground shrink-0">{field.unit}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground/80">
+          Timed by our server on the applicant's own computer. A result under a bar is shown to you, never used to decline anyone. Defaults: 10 Mbps down, 3 Mbps up, 200 ms.
+        </p>
+      </div>
+    );
   };
 
   if (authLoading || permissionsLoading || (user && role === null)) {
@@ -2865,7 +2983,8 @@ export default function CreateJob() {
                       Screening Plan (Read Only)
                       </CardTitle>
                     <CardDescription>
-                      The tests and their order cannot be changed after the job is created. You can still edit the application questions below.
+                      The tests and their order cannot be changed after the job is created. You can still edit the application questions below
+                      {workflowSteps.some((step) => step.type === 'equipment_check') ? ", and the connection the computer and connection check asks for." : "."}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -2883,6 +3002,21 @@ export default function CreateJob() {
                     </div>
                   </CardContent>
                 </Card>
+                {/* The connection check's bars stay editable: they are numbers
+                    on the step's config, not the tests or their order. */}
+                {workflowSteps
+                  .filter((step) => step.type === 'equipment_check')
+                  .map((step) => (
+                    <Card key={step.id} className="bg-card border-border">
+                      <CardHeader>
+                        <CardTitle className="text-lg">Computer and connection check</CardTitle>
+                        <CardDescription>
+                          The bars apply to anyone who has not sent the check yet. A result already sent keeps the bars it was measured against.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="pt-0">{renderEquipmentCheckBars(step)}</CardContent>
+                    </Card>
+                  ))}
                 {applicationQuestionsSection}
                 </>
               ) : (
@@ -3475,6 +3609,9 @@ export default function CreateJob() {
                                     </p>
                                   </div>
                                 )}
+
+                                {/* The connection check's bars (renderEquipmentCheckBars). */}
+                                {step.type === 'equipment_check' && renderEquipmentCheckBars(step)}
                               </div>
                             );
                           })}

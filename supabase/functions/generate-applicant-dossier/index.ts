@@ -150,6 +150,21 @@ function extractConcerns(notes: Record<string, any>, voiceResult: Record<string,
   if (notes.typingTestResult && !notes.typingTestResult.passed) {
     concerns.push('Typing proficiency below requirements');
   }
+
+  // Computer and connection check (docs/EQUIPMENT-CHECK.md §5): no `passed`
+  // field exists; the bars, the computer answer and the device are the facts.
+  const connection = notes.equipmentCheckResult;
+  if (connection && typeof connection === 'object') {
+    if (connection.meetsBars === false) {
+      const below = Array.isArray(connection.below) && connection.below.length ? ` (${connection.below.join(', ')})` : '';
+      concerns.push(`Connection below the job's bar${below}`);
+    }
+    if (connection.usingThisComputer === 'ran_here_anyway') {
+      concerns.push('Connection check was not run on the computer they will work from');
+    } else if (connection.deviceKind === 'phone' || connection.deviceKind === 'tablet') {
+      concerns.push(`Connection check was run on a ${connection.deviceKind}`);
+    }
+  }
   
   // Voice interview concerns
   if (voiceResult && voiceResult.concerns && voiceResult.concerns.length > 0) {
@@ -779,6 +794,37 @@ serve(async (req) => {
       if (notes.typingTestResult.passed !== undefined) {
         drawTableRow('Result', notes.typingTestResult.passed ? 'Passed' : 'Did Not Pass');
       }
+      y += 5;
+    }
+
+    // Computer and connection check (timed by our server; docs/EQUIPMENT-CHECK.md §6)
+    if (notes.equipmentCheckResult && typeof notes.equipmentCheckResult === 'object') {
+      const c = notes.equipmentCheckResult;
+      const bars = c.bars && typeof c.bars === 'object' ? c.bars : {};
+      const device = c.device && typeof c.device === 'object' ? c.device : {};
+      checkPageBreak(45);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(COLORS.accent.r, COLORS.accent.g, COLORS.accent.b);
+      doc.text('Computer and Connection', margin, y);
+      y += 8;
+
+      drawTableRow('Metric', 'Result', true);
+      drawTableRow('Download', `${c.downloadMbps ?? '?'} Mbps (asked for ${bars.minDownloadMbps ?? '?'})`);
+      drawTableRow('Upload', `${c.uploadMbps ?? '?'} Mbps (asked for ${bars.minUploadMbps ?? '?'})`);
+      drawTableRow('Latency', `${c.latencyMs ?? '?'} ms (asked for ${bars.maxLatencyMs ?? '?'} or under)`);
+      drawTableRow('Verdict', c.meetsBars ? 'Meets the bar' : `Below the bar${Array.isArray(c.below) && c.below.length ? `: ${c.below.join(', ')}` : ''}`);
+      const os = [device.os, device.osVersion].filter(Boolean).join(' ');
+      const browser = [device.browser, device.browserVersion].filter(Boolean).join(' ');
+      drawTableRow('Device', [os, browser, device.screen].filter(Boolean).join(' / ') || 'Unknown');
+      drawTableRow(
+        'Their computer?',
+        c.usingThisComputer === 'yes' ? 'Yes' : c.usingThisComputer === 'no_switched' ? 'Switched to it first' : 'No (ran here anyway)',
+      );
+      if (c.deviceKind && c.deviceKind !== 'computer') {
+        drawTableRow('Device type', String(c.deviceKind));
+      }
+      drawTableRow('Timed by', 'Our server');
       y += 5;
     }
 

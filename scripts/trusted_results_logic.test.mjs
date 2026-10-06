@@ -505,6 +505,9 @@ const neverAdvanceCases = [
   { stepType: "chat_interview", resultKey: "chatInterviewResult" },
   { stepType: "sales_simulation", resultKey: "salesSimulationResult" },
   { stepType: "voice_interview", resultKey: "voiceInterviewResult" },
+  // The computer and connection check (docs/EQUIPMENT-CHECK.md): recorded by
+  // connection-test, decides nothing itself, moved on by stepMoveOn.
+  { stepType: "equipment_check", resultKey: "equipmentCheckResult" },
 ];
 
 for (const { stepType, resultKey } of neverAdvanceCases) {
@@ -999,6 +1002,53 @@ console.log("\nstepResultLanded reads each step type's own result:\n");
   check("video_message counts as video_intro", stepResultLanded(step("v", "video_intro"), { phase: "v", status: "reviewing", notes: trusted("v", "video_message") }));
   check("voice: the result column", stepResultLanded(step("vo", "voice_interview"), { phase: "vo", status: "reviewing", notes: null, voice_interview_result: { overall_score: 70 } }));
   check("malformed notes read as nothing landed", !stepResultLanded(step("s", "typing_test"), { phase: "s", status: "reviewing", notes: "{oops" }));
+  check(
+    "equipment_check: its own marker lands it",
+    stepResultLanded(step("step_connection", "equipment_check"), { phase: "step_connection", status: "reviewing", notes: trusted("step_connection", "equipment_check") }),
+  );
+  // No legacy row of this type exists (it was server-recorded from day one),
+  // so the key alone is never evidence: on a row with no markers yet (the
+  // form and the quiz write none, and it is the first workflow step) a
+  // forged notes.equipmentCheckResult must not move anyone on.
+  const forged = { equipmentCheckResult: { downloadMbps: 500, uploadMbps: 200, latencyMs: 5, measuredBy: "server", usingThisComputer: "yes", deviceKind: "computer", meetsBars: true, below: [] } };
+  check(
+    "equipment_check: the key alone never lands it, not even on a row with no markers",
+    !stepResultLanded(step("step_connection", "equipment_check"), { phase: "step_connection", status: "reviewing", notes: JSON.stringify(forged) }) &&
+      !stepResultLanded(step("step_connection", "equipment_check"), { phase: "step_connection", status: "reviewing", notes: JSON.stringify({ typingTestResult: {} }) }),
+  );
+  const withConnection = buildCandidateJourney(
+    [
+      { id: "step_connection", type: "equipment_check", title: "Your computer and connection" },
+      { id: "step_typing", type: "typing_test", title: "Typing speed and accuracy" },
+    ],
+    { hasQuiz: true },
+  );
+  const forgedPlan = planAutoAdvance({
+    steps: withConnection,
+    completedStepId: "step_connection",
+    application: { phase: "step_connection", status: "reviewing", notes: JSON.stringify({ applicationAnswers: [], quizResult: { score: 80 }, ...forged }) },
+    processingMode: "auto",
+  });
+  check(
+    "…so an applicant who wrote the key and asked to move on is refused (result_missing), never moved to the typing test",
+    forgedPlan.kind === "refused" && forgedPlan.reason === "result_missing",
+    JSON.stringify(forgedPlan),
+  );
+  const recordedPlan = planAutoAdvance({
+    steps: withConnection,
+    completedStepId: "step_connection",
+    application: { phase: "step_connection", status: "reviewing", notes: JSON.stringify({ ...forged, ...trusted("step_connection", "equipment_check") }) },
+    processingMode: "auto",
+  });
+  check("…while the server's record (its _trusted marker) moves them on", recordedPlan.kind === "advance" && recordedPlan.nextStep.id === "step_typing", JSON.stringify(recordedPlan));
+  check(
+    "equipment_check is server-recorded: beside other markers its own is REQUIRED",
+    !stepResultLanded(step("step_connection", "equipment_check"), {
+      phase: "step_connection",
+      status: "reviewing",
+      notes: JSON.stringify({ equipmentCheckResult: { downloadMbps: 28 }, ...trusted("step_typing", "typing_test") }),
+    }),
+  );
 }
 
 console.log("\nadvanceAfterStep: one compare-and-set write:\n");

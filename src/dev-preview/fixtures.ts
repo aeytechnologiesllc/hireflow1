@@ -30,6 +30,8 @@ import {
   APP_ZULU_TESTING_ID,
   APP_ZULU_LEFT_ID,
   APP_ZULU_RETAKE_ID,
+  APP_CONNECTION_ID,
+  APP_ZULU_CONNECTION_ID,
   CANDIDATE_USER_ID,
   DOC_DECLINED_ID,
   DOC_PENDING_CANDIDATE_ID,
@@ -46,6 +48,7 @@ import {
   REJECTED_CANDIDATE_USER_ID,
   STEP_CHAT_INTERVIEW,
   STEP_CHAT_SIM,
+  STEP_CONNECTION,
   STEP_PORTFOLIO,
   STEP_SALES,
   STEP_TYPING,
@@ -57,7 +60,13 @@ import {
   ZULU_TESTING_USER_ID,
   ZULU_LEFT_USER_ID,
   ZULU_RETAKE_USER_ID,
+  ZULU_CONNECTION_USER_ID,
 } from "./ids";
+
+// The computer and connection check (docs/EQUIPMENT-CHECK.md); its ids live in
+// ./ids beside their siblings.
+/** Job config, the way CreateJob stores it on the step (§2). */
+const CONNECTION_BARS = { min_download_mbps: 10, min_upload_mbps: 3, max_latency_ms: 200 };
 
 const DAY = 24 * 60 * 60 * 1000;
 const now = Date.now();
@@ -152,6 +161,8 @@ const rejectedCandidateProfile: FixtureRow = {
 // -------------------------------------------------------------------- jobs
 
 const workflowSteps = [
+  // First workflow step, as on the live role (docs/EQUIPMENT-CHECK.md §2).
+  { id: STEP_CONNECTION, type: "equipment_check", title: "Your computer and connection", config: CONNECTION_BARS },
   { id: STEP_TYPING, type: "typing_test", title: "Register speed check" },
   { id: STEP_VIDEO, type: "video_intro", title: "Say hello" },
   { id: STEP_CHAT_SIM, type: "chat_simulation", title: "Handle a rush-hour order" },
@@ -312,6 +323,17 @@ const appQuiz = makeApplication({
   resume_score: 81,
 });
 
+// Standing on the connection check, nothing sent yet: the candidate page's
+// first screen ("Are you on the computer you'll use for this job?").
+const appConnection = makeApplication({
+  id: APP_CONNECTION_ID,
+  job_id: JOB_BARISTA_ID,
+  phase: STEP_CONNECTION,
+  status: "reviewing",
+  created_at: daysAgo(5),
+  ai_score: 76,
+});
+
 const appTyping = makeApplication({
   id: APP_TYPING_ID,
   job_id: JOB_BARISTA_ID,
@@ -414,6 +436,7 @@ const appRejected = makeApplication({
 const applications = [
   appNotYet,
   appQuiz,
+  appConnection,
   appTyping,
   appVideo,
   appChatSim,
@@ -772,6 +795,7 @@ const freshJob: FixtureRow = {
   benefits: [],
   job_code: "JOB-C84E85",
   workflow_steps: [
+    { id: "step_connection", type: "equipment_check", title: "Your computer and connection", config: CONNECTION_BARS },
     { id: "step_typing", type: "typing_test", title: "Typing speed and accuracy" },
     { id: "step_chat", type: "chat_simulation", title: "Player chat practice" },
     { id: "step_interview", type: "chat_interview", title: "Written interview" },
@@ -871,6 +895,9 @@ const zuluJob: FixtureRow = {
   ],
   quiz_questions: zuluQuizQuestions,
   workflow_steps: [
+    // The first workflow step (docs/EQUIPMENT-CHECK.md §2); the chat scenario
+    // below is read by index, so it is now [2].
+    { id: "step_connection", type: "equipment_check", title: "Your computer and connection", config: CONNECTION_BARS },
     { id: "step_typing", type: "typing_test", title: "Typing speed and accuracy", config: { min_wpm: 45, min_accuracy_percent: 95 } },
     {
       id: "step_chat",
@@ -901,6 +928,7 @@ const zuluProfiles = [
   zuluProfile(ZULU_TESTING_USER_ID, "sam.osei@example.com", "Sam Osei"),
   zuluProfile(ZULU_LEFT_USER_ID, "lena.park@example.com", "Lena Park"),
   zuluProfile(ZULU_RETAKE_USER_ID, "jordan.reyes@example.com", "Jordan Reyes"),
+  zuluProfile(ZULU_CONNECTION_USER_ID, "priya.natarajan@example.com", "Priya Natarajan"),
 ];
 
 function makeZuluApplication(overrides: FixtureRow): FixtureRow {
@@ -942,8 +970,46 @@ function zuluQuizRecord(wrong: number[], completedAt: string) {
 const zuluStartedAt = now - 26 * 60 * 1000;
 const at = (min: number, sec = 0) => new Date(zuluStartedAt + (min * 60 + sec) * 1000).toISOString();
 
+// Robin's computer and connection check, the shape connection-test's `record`
+// op writes (docs/EQUIPMENT-CHECK.md §5): every figure is the server's. The
+// values are the contract's worked example; only the locale follows her own
+// answer ("Accra, Ghana") and the time follows this fixture's clock.
+const ROBIN_CONNECTION = {
+  downloadMbps: 28.4,
+  uploadMbps: 9.1,
+  latencyMs: 42,
+  jitterMs: 6,
+  measuredBy: "server",
+  runs: 2,
+  usingThisComputer: "yes",
+  deviceKind: "computer",
+  device: {
+    os: "Windows",
+    osVersion: "11",
+    browser: "Chrome",
+    browserVersion: "131",
+    screen: "1920×1080",
+    dpr: 1,
+    cores: 8,
+    memoryGb: 8,
+    touch: false,
+    language: "en-GH",
+    timezone: "Africa/Accra",
+    connectionType: "wifi",
+    model: null,
+  },
+  bars: { minDownloadMbps: 10, minUploadMbps: 3, maxLatencyMs: 200 },
+  meetsBars: true,
+  below: [] as string[],
+  measuredAt: at(6, 36),
+  attempt: 1,
+  // Where it ran against where it was sent from: one network, one browser.
+  source: { oneAddress: true, sameAddress: true, sameBrowser: true },
+  _trusted: true,
+};
+
 const zuluDoneNotes = {
-  ...zuluQuizRecord([], at(6, 24)),
+  ...zuluQuizRecord([], at(5, 48)),
   applicationAnswers: [
     { type: "text", answer: "Robin Okafor", question: "Full name", questionId: "q1" },
     { type: "email", answer: "robin.okafor@example.com", question: "Email address", questionId: "q2" },
@@ -979,6 +1045,8 @@ const zuluDoneNotes = {
   fileUploads: {
     q11: { url: `${ZULU_DONE_USER_ID}/1759678000000_q11.png`, imageUrls: [`${ZULU_DONE_USER_ID}/1759678000000_q11.png`], isResume: false },
   },
+  equipmentCheckResult: ROBIN_CONNECTION,
+  step_connection: { type: "equipment_check", ...ROBIN_CONNECTION, completedAt: at(6, 38) },
   typingTestResult: { wpm: 38, accuracy: 85, score: 72, passed: false, requiredWpm: 45, tabSwitches: 0, violations: [] },
   step_typing: { type: "typing_test", wpm: 38, accuracy: 85, score: 72, passed: false, requiredWpm: 45, tabSwitches: 0, violations: [], completedAt: at(8, 21) },
   chatSimulationResult: {
@@ -1042,6 +1110,7 @@ const zuluDoneNotes = {
     },
   },
   _trusted: {
+    step_connection: { stepType: "equipment_check", completedAt: at(6, 38) },
     step_typing: { stepType: "typing_test", completedAt: at(8, 21) },
     step_chat: { stepType: "chat_simulation", completedAt: at(12, 27) },
     step_interview: { stepType: "chat_interview", completedAt: at(19, 40) },
@@ -1076,6 +1145,42 @@ const appZuluDone = makeZuluApplication({
   },
 });
 
+// Sam's check, one run on a Mac: Safari reports no memory and no connection
+// type, so those read as unknown on the staff sheet (the way they really do).
+const SAM_CONNECTION = {
+  downloadMbps: 46.2,
+  uploadMbps: 12.4,
+  latencyMs: 38,
+  jitterMs: 4,
+  measuredBy: "server",
+  runs: 1,
+  usingThisComputer: "yes",
+  deviceKind: "computer",
+  device: {
+    os: "macOS",
+    osVersion: "14.6",
+    browser: "Safari",
+    browserVersion: "17.6",
+    screen: "1440×900",
+    dpr: 2,
+    cores: 8,
+    memoryGb: null,
+    touch: false,
+    language: "en-US",
+    timezone: "America/New_York",
+    connectionType: null,
+    model: null,
+  },
+  bars: { minDownloadMbps: 10, minUploadMbps: 3, maxLatencyMs: 200 },
+  meetsBars: true,
+  below: [] as string[],
+  measuredAt: minutesAgo(29.9),
+  attempt: 1,
+  // Where it ran against where it was sent from: one network, one browser.
+  source: { oneAddress: true, sameAddress: true, sameBrowser: true },
+  _trusted: true,
+};
+
 const appZuluTesting = makeZuluApplication({
   id: APP_ZULU_TESTING_ID,
   candidate_id: ZULU_TESTING_USER_ID,
@@ -1087,6 +1192,8 @@ const appZuluTesting = makeZuluApplication({
   ai_score: 71,
   notes: JSON.stringify({
     ...zuluQuizRecord([2, 6], minutesAgo(31)),
+    equipmentCheckResult: SAM_CONNECTION,
+    step_connection: { type: "equipment_check", ...SAM_CONNECTION, completedAt: minutesAgo(29.8) },
     applicationAnswers: [
       { type: "text", answer: "Sam Osei", question: "Full name", questionId: "q1" },
       { type: "email", answer: "sam.osei@example.com", question: "Email address", questionId: "q2" },
@@ -1102,7 +1209,7 @@ const appZuluTesting = makeZuluApplication({
     typingTestResult: { wpm: 52, accuracy: 96, score: 96, passed: false, requiredWpm: 45, tabSwitches: 0, violations: [] },
     step_typing: { type: "typing_test", wpm: 52, accuracy: 96, score: 96, passed: false, requiredWpm: 45, tabSwitches: 0, violations: [], completedAt: minutesAgo(26) },
     chatSimulationResult: {
-      scenario: String((zuluJob.workflow_steps as Array<{ config?: { scenarios?: Array<{ scenario: string }> } }>)[1].config!.scenarios![0].scenario),
+      scenario: String((zuluJob.workflow_steps as Array<{ config?: { scenarios?: Array<{ scenario: string }> } }>)[2].config!.scenarios![0].scenario),
       messageCount: 9,
       score: 64,
       empathy: 70,
@@ -1113,6 +1220,7 @@ const appZuluTesting = makeZuluApplication({
       antiCheatSummary: { hasViolations: false, violationCount: 0, tabSwitches: 0, copyPasteAttempts: 0 },
     },
     _trusted: {
+      step_connection: { stepType: "equipment_check", completedAt: minutesAgo(29.8) },
       step_typing: { stepType: "typing_test", completedAt: minutesAgo(26) },
       step_chat: { stepType: "chat_simulation", completedAt: minutesAgo(8) },
     },
@@ -1151,7 +1259,43 @@ const appZuluLeft = makeZuluApplication({
 // Jordan's chat practice was handed back for a retake (status pending, phase
 // on the step): the first attempt's result is still in notes, the second
 // attempt is being taken now.
-const ZULU_CHAT_SCENARIO = String((zuluJob.workflow_steps as Array<{ config?: { scenarios?: Array<{ scenario: string }> } }>)[1].config!.scenarios![0].scenario);
+const ZULU_CHAT_SCENARIO = String((zuluJob.workflow_steps as Array<{ config?: { scenarios?: Array<{ scenario: string }> } }>)[2].config!.scenarios![0].scenario);
+// Jordan ran the check on a borrowed laptop over a phone hotspot ("I can't
+// right now, run it here anyway"), three times; the upload never cleared the
+// bar. The staff row reads below the bar with both flags.
+const JORDAN_CONNECTION = {
+  downloadMbps: 18.6,
+  uploadMbps: 1.2,
+  latencyMs: 74,
+  jitterMs: 21,
+  measuredBy: "server",
+  runs: 3,
+  usingThisComputer: "ran_here_anyway",
+  deviceKind: "computer",
+  device: {
+    os: "Windows",
+    osVersion: "10",
+    browser: "Edge",
+    browserVersion: "130",
+    screen: "1366×768",
+    dpr: 1,
+    cores: 4,
+    memoryGb: 4,
+    touch: false,
+    language: "es-MX",
+    timezone: "America/Mexico_City",
+    connectionType: "cellular",
+    model: null,
+  },
+  bars: { minDownloadMbps: 10, minUploadMbps: 3, maxLatencyMs: 200 },
+  meetsBars: false,
+  below: ["upload"],
+  measuredAt: minutesAgo(2 * 60 + 58.6),
+  attempt: 1,
+  // Where it ran against where it was sent from: one network, one browser.
+  source: { oneAddress: true, sameAddress: true, sameBrowser: true },
+  _trusted: true,
+};
 const appZuluRetake = makeZuluApplication({
   id: APP_ZULU_RETAKE_ID,
   candidate_id: ZULU_RETAKE_USER_ID,
@@ -1162,6 +1306,8 @@ const appZuluRetake = makeZuluApplication({
   ai_score: 49,
   notes: JSON.stringify({
     ...zuluQuizRecord([4], minutesAgo(3 * 60)),
+    equipmentCheckResult: JORDAN_CONNECTION,
+    step_connection: { type: "equipment_check", ...JORDAN_CONNECTION, completedAt: minutesAgo(2 * 60 + 58.4) },
     applicationAnswers: [
       { type: "text", answer: "Jordan Reyes", question: "Full name", questionId: "q1" },
       { type: "email", answer: "jordan.reyes@example.com", question: "Email address", questionId: "q2" },
@@ -1181,6 +1327,7 @@ const appZuluRetake = makeZuluApplication({
       antiCheatSummary: { hasViolations: true, violationCount: 5, tabSwitches: 4, copyPasteAttempts: 1 },
     },
     _trusted: {
+      step_connection: { stepType: "equipment_check", completedAt: minutesAgo(2 * 60 + 58.4) },
       step_typing: { stepType: "typing_test", completedAt: minutesAgo(2 * 60 + 50) },
       step_chat: { stepType: "chat_simulation", completedAt: minutesAgo(2 * 60 + 30) },
     },
@@ -1199,14 +1346,47 @@ const appZuluForm = makeZuluApplication({
   notes: null,
 });
 
+// Priya finished the form and the skills check and is on the connection
+// check right now: answered "yes" to the computer question a minute ago, run
+// 1 of the speed test under way (see the live attempt below). Nothing is
+// recorded for the step until connection-test's `record` op lands.
+const appZuluConnection = makeZuluApplication({
+  id: APP_ZULU_CONNECTION_ID,
+  candidate_id: ZULU_CONNECTION_USER_ID,
+  status: "reviewing",
+  phase: "step_connection",
+  created_at: minutesAgo(12),
+  updated_at: minutesAgo(3.5),
+  ai_score: 69,
+  notes: JSON.stringify({
+    ...zuluQuizRecord([1], minutesAgo(3.5)),
+    applicationAnswers: [
+      { type: "text", answer: "Priya Natarajan", question: "Full name", questionId: "q1" },
+      { type: "email", answer: "priya.natarajan@example.com", question: "Email address", questionId: "q2" },
+      { type: "text", answer: "Chennai, India", question: "Country and city you will work from", questionId: "q4" },
+      {
+        type: "multi_select",
+        answer: "Overnight, midnight to 8am Eastern; Weekends (Saturday and Sunday)",
+        selected: ["Overnight, midnight to 8am Eastern", "Weekends (Saturday and Sunday)"],
+        question: "Which shifts can you cover, in US Eastern time? Pick every one that works.",
+        questionId: "q5",
+      },
+      { type: "select", answer: "40 or more", question: "How many hours a week can you work?", questionId: "q6" },
+    ],
+  }),
+  ai_analysis: "Summary: Covers the overnight shift and did well on the rules; the computer and connection check is running now.",
+  ai_scorecard: { overallScore: 69, recommendedAction: "review", decisionState: "needs_more_evidence", riskFlags: ["Resume could not be analyzed"] },
+});
+
 // --------------------------------------- the test record (wave 2, sessions)
 // What the server keeps of each attempt (docs/ASSESSMENT-RECORD.md): one
 // assessment_sessions row per application × step × attempt, and its
-// append-only assessment_events. Robin's five finished attempts carry the
+// append-only assessment_events. Robin's six finished attempts carry the
 // whole record (both chat transcripts, every quiz pick with its seconds, the
-// typing snapshots against the passage, switches away with how long); Sam is
-// in the written interview right now; Lena left the skills check at question
-// 3 and closed the page; Dana is filling in the form (6 of 9 answered).
+// typing snapshots against the passage, the connection check's stamps and
+// IP, switches away with how long); Sam is in the written interview right
+// now; Lena left the skills check at question 3 and closed the page; Dana is
+// filling in the form (6 of 9 answered); Priya is running the speed test.
 
 const ZULU_PASSAGE =
   "Customer service is about creating positive experiences for every client. Active listening, empathy, and clear communication are essential skills. A great support representative can turn a frustrated customer into a loyal advocate.";
@@ -1273,23 +1453,26 @@ function zuluEvents(session: FixtureRow, list: FixtureEvent[]): FixtureRow[] {
 const shift = (iso: string, secs: number) => new Date(Date.parse(iso) + secs * 1000).toISOString();
 
 // ── Robin Okafor: every step finished ───────────────────────────────────
+// Form 0:00-2:40, skills check 2:56-5:48, connection check 5:52-6:38, then
+// typing at 6:40 — the check sits where the journey puts it, first among
+// the workflow steps.
 const robinForm = zuluSession(sessionId(1), APP_ZULU_DONE_ID, ZULU_DONE_USER_ID, "application", "application", {
   started_at: at(0, 0),
-  last_activity_at: at(2, 55),
-  ended_at: at(3, 0),
-  progress: { answered: 9, total: 9, draft_saved_at: at(2, 55) },
+  last_activity_at: at(2, 35),
+  ended_at: at(2, 40),
+  progress: { answered: 9, total: 9, draft_saved_at: at(2, 35) },
   integrity_summary: { counts: { tab_hidden: 1 }, total: 1, away_ms: 42000, short_away: 0, dropped: 0 },
 });
 const robinFormEvents = zuluEvents(robinForm, [
   { kind: "system", at: at(0, 0), detail: { what: "started", attempt: 1 } },
-  { kind: "integrity", at: at(2, 22), client_at: at(1, 40), duration_ms: 42000, detail: { kind: "tab_hidden", duration_ms: 42000 } },
-  { kind: "system", at: at(3, 0), detail: { what: "submitted" } },
+  { kind: "integrity", at: at(2, 10), client_at: at(1, 28), duration_ms: 42000, detail: { kind: "tab_hidden", duration_ms: 42000 } },
+  { kind: "system", at: at(2, 40), detail: { what: "submitted" } },
 ]);
 
 // Seconds on each of the ten questions; question 3 was changed once.
 const ROBIN_QUIZ_SECS = [12, 9, 31, 7, 14, 10, 22, 6, 11, 18];
-const robinQuizEventsList: FixtureEvent[] = [{ kind: "system", at: at(3, 30), detail: { what: "started", attempt: 1 } }];
-let quizClock = Date.parse(at(3, 32));
+const robinQuizEventsList: FixtureEvent[] = [{ kind: "system", at: at(2, 56), detail: { what: "started", attempt: 1 } }];
+let quizClock = Date.parse(at(2, 58));
 zuluQuizQuestions.forEach((q, i) => {
   const shownAt = new Date(quizClock).toISOString();
   robinQuizEventsList.push({ kind: "quiz_shown", at: shownAt, detail: { question_id: q.id, question_index: i } });
@@ -1319,14 +1502,14 @@ zuluQuizQuestions.forEach((q, i) => {
   });
   quizClock += (secs + 2) * 1000;
 });
-robinQuizEventsList.push({ kind: "system", at: at(6, 24), detail: { what: "submitted" } });
+robinQuizEventsList.push({ kind: "system", at: at(5, 48), detail: { what: "submitted" } });
 const robinQuiz = zuluSession(sessionId(2), APP_ZULU_DONE_ID, ZULU_DONE_USER_ID, "quiz", "quiz", {
-  started_at: at(3, 30),
-  last_activity_at: at(6, 22),
-  ended_at: at(6, 24),
+  started_at: at(2, 56),
+  last_activity_at: at(5, 46),
+  ended_at: at(5, 48),
   progress: { answered: 10, total: 10, current_question_id: "zq10", current_index: 9 },
   grading: {
-    graded_at: at(6, 25),
+    graded_at: at(5, 49),
     result: {
       score: 100,
       correct: 10,
@@ -1343,6 +1526,112 @@ const robinQuiz = zuluSession(sessionId(2), APP_ZULU_DONE_ID, ZULU_DONE_USER_ID,
   },
 });
 const robinQuizEvents = zuluEvents(robinQuiz, robinQuizEventsList);
+
+/**
+ * One run's stamp chain, shaped the way connection-test signs it
+ * (docs/EQUIPMENT-CHECK.md §4): 8 pings, then 3 downloads (512 KB, then
+ * 3 MB, 3 MB), then 4 uploads (64 KB that closes the downloads, then three
+ * of 1.5 MB), every stamp naming the one before it, carrying the server time
+ * this request arrived (`prev_at`) — the number that proves the previous
+ * step was complete — and where it came from (`ip`, the `ua` hash). Nonces,
+ * hashes and signatures are deterministic stand-ins; nothing in the preview
+ * verifies them.
+ */
+function connectionStamps(
+  startIso: string,
+  candidateId: string,
+  figures: { latencyMs: number; downloadMbps: number; uploadMbps: number },
+): FixtureRow[] {
+  const DOWNLOAD_BYTES = 3 * 1024 * 1024;
+  const UPLOAD_BYTES = 1.5 * 1024 * 1024;
+  const downloads = [512 * 1024, DOWNLOAD_BYTES, DOWNLOAD_BYTES];
+  const uploads = [64 * 1024, UPLOAD_BYTES, UPLOAD_BYTES, UPLOAD_BYTES];
+  const hex = (seed: number, len: number) => {
+    let x = (seed * 2654435761 + 97) % 4294967296;
+    let s = "";
+    while (s.length < len) {
+      x = (x * 1103515245 + 12345) % 4294967296;
+      s += x.toString(16).padStart(8, "0");
+    }
+    return s.slice(0, len);
+  };
+  const wobble = [0, 3, -2, 5, -1, 2, -3, 1];
+  const plan: Array<[string, number, number]> = [
+    ...wobble.map((w): [string, number, number] => ["ping", 0, figures.latencyMs + w]),
+    ...downloads.map((bytes): [string, number, number] => ["download", bytes, Math.round((bytes * 8) / (figures.downloadMbps * 1000))]),
+    ...uploads.map((bytes): [string, number, number] => ["upload", bytes, Math.round((bytes * 8) / (figures.uploadMbps * 1000))]),
+  ];
+  let received = Date.parse(startIso);
+  let prevNonce: string | null = null;
+  return plan.map(([kind, bytes, ms], i) => {
+    // ping / download: `at` is when the response left; upload: when the last byte was in.
+    const atMs = kind === "upload" ? received + ms : received + 4;
+    const stamp: FixtureRow = {
+      kind,
+      nonce: hex(i + 1, 24),
+      at: atMs,
+      bytes,
+      prev_nonce: prevNonce,
+      prev_at: prevNonce ? received : null,
+      candidate: candidateId,
+      ...(kind === "upload" ? { timing: "stream" } : {}),
+      ip: "197.251.144.23",
+      ua: hex(77, 16),
+      sig: hex(1000 + i, 64),
+    };
+    prevNonce = stamp.nonce as string;
+    // The next request lands once the round trip / the download is done, plus the page's turnaround.
+    received = kind === "upload" ? atMs + 6 : atMs + ms + 6;
+    return stamp;
+  });
+}
+
+// ── Robin: the connection check, two runs, the second one sent ───────────
+const robinConnection = zuluSession(sessionId(6), APP_ZULU_DONE_ID, ZULU_DONE_USER_ID, "step_connection", "equipment_check", {
+  started_at: at(5, 52),
+  last_activity_at: at(6, 36),
+  ended_at: at(6, 38),
+  context: { bars: CONNECTION_BARS },
+  // The page's own hint, where touch_assessment_session keeps it.
+  progress: { client: { screen: "result", device_kind: "computer", answer: "yes", runs_done: 2 } },
+  // Staff-only (docs/EQUIPMENT-CHECK.md §5): the sent run's stamps, the IP the
+  // test came from, the browser's own line, and the page's running estimate.
+  grading: {
+    graded_at: at(6, 38),
+    stamps: connectionStamps(at(6, 19), ZULU_DONE_USER_ID, { latencyMs: 42, downloadMbps: 28.4, uploadMbps: 9.1 }),
+    ip: "197.251.144.23",
+    // Every address the test's own requests came from (one network here).
+    testIps: ["197.251.144.23"],
+    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    // The page's own body to `record`, minus the stamps (connection-test).
+    raw: {
+      application_id: APP_ZULU_DONE_ID,
+      step_id: "step_connection",
+      device: ROBIN_CONNECTION.device,
+      using_this_computer: "yes",
+      device_kind: "computer",
+      runs: [
+        { run: 1, sent: false, download_mbps: 24.9, upload_mbps: 8.1, latency_ms: 50, server: { downloadMbps: 24.1, uploadMbps: 7.8, latencyMs: 51, jitterMs: 9 }, duration_ms: 18_400, finished_at: at(6, 16) },
+        { run: 2, sent: true, download_mbps: 29.0, upload_mbps: 9.4, latency_ms: 41, server: { downloadMbps: 28.4, uploadMbps: 9.1, latencyMs: 42, jitterMs: 6 }, duration_ms: 17_100, finished_at: at(6, 36) },
+      ],
+      estimate: { run: 2, download_mbps: 29.0, upload_mbps: 9.4, latency_ms: 41, duration_ms: 17_100, finished_at: at(6, 36) },
+      network: { effectiveType: "4g", downlink: 10, rtt: 50, type: "wifi" },
+    },
+  },
+});
+const robinConnectionEvents = zuluEvents(robinConnection, [
+  { kind: "system", at: at(5, 52), detail: { what: "started", attempt: 1 } },
+  { kind: "system", at: at(5, 53), detail: { what: "device_read", device_kind: "computer", os: "Windows 11", browser: "Chrome 131", screen: "1920×1080" } },
+  { kind: "system", at: at(5, 56), detail: { what: "computer_answer", answer: "yes" } },
+  { kind: "system", at: at(5, 58), detail: { what: "test_started", run: 1 } },
+  // The page's own estimate as a run finishes, then the server's figures for it.
+  { kind: "system", at: at(6, 16), detail: { what: "test_finished", run: 1, download_mbps: 24.9, upload_mbps: 8.1, latency_ms: 50 } },
+  { kind: "system", at: at(6, 16), detail: { what: "test_run", run: 1, download_mbps: 24.1, upload_mbps: 7.8, latency_ms: 51, jitter_ms: 9 } },
+  { kind: "system", at: at(6, 19), detail: { what: "test_started", run: 2 } },
+  { kind: "system", at: at(6, 36), detail: { what: "test_finished", run: 2, download_mbps: 29.0, upload_mbps: 9.4, latency_ms: 41 } },
+  { kind: "system", at: at(6, 36), detail: { what: "test_run", run: 2, download_mbps: 28.4, upload_mbps: 9.1, latency_ms: 42, jitter_ms: 6 } },
+  { kind: "system", at: at(6, 38), detail: { what: "submitted", run: 2, runs: 2 } },
+]);
 
 const robinTyping = zuluSession(sessionId(3), APP_ZULU_DONE_ID, ZULU_DONE_USER_ID, "step_typing", "typing_test", {
   started_at: at(6, 40),
@@ -1653,6 +1942,33 @@ const danaFormEvents = zuluEvents(danaForm, [
   { kind: "integrity", at: minutesAgo(2.4), client_at: minutesAgo(3), duration_ms: 38000, detail: { kind: "tab_hidden", duration_ms: 38000 } },
 ]);
 
+// ── Priya Natarajan: running the speed test right now ───────────────────
+// Form and skills check done; the connection check is live with run 1 under
+// way, so the staff list reads "running the speed test · active just now".
+// No integrity events on this step, ever (docs/EQUIPMENT-CHECK.md rule 5).
+const priyaDone = (n: number, stepId: string, stepType: string, from: number, to: number) =>
+  zuluSession(sessionId(n), APP_ZULU_CONNECTION_ID, ZULU_CONNECTION_USER_ID, stepId, stepType, {
+    started_at: minutesAgo(from),
+    last_activity_at: minutesAgo(to),
+    ended_at: minutesAgo(to),
+  });
+const priyaConnection = zuluSession(sessionId(52), APP_ZULU_CONNECTION_ID, ZULU_CONNECTION_USER_ID, "step_connection", "equipment_check", {
+  status: "active",
+  end_reason: null,
+  started_at: minutesAgo(2.5),
+  last_activity_at: minutesAgo(0.2),
+  last_heartbeat_at: minutesAgo(0.3),
+  ended_at: null,
+  context: { bars: CONNECTION_BARS },
+  progress: { client: { screen: "test", device_kind: "computer", answer: "yes", run: 1, step: 6 } },
+});
+const priyaConnectionEvents = zuluEvents(priyaConnection, [
+  { kind: "system", at: minutesAgo(2.5), detail: { what: "started", attempt: 1 } },
+  { kind: "system", at: minutesAgo(2.4), detail: { what: "device_read", device_kind: "computer", os: "Windows 11", browser: "Chrome 131", screen: "1536×864" } },
+  { kind: "system", at: minutesAgo(1.1), detail: { what: "computer_answer", answer: "yes" } },
+  { kind: "system", at: minutesAgo(0.3), detail: { what: "test_started", run: 1 } },
+]);
+
 // The hand-back behind Jordan's retake (assessment_step_reopens, written by
 // the server's trigger when staff put him back on the step). Without it the
 // record would read his chat practice as done: status and phase alone are
@@ -1672,11 +1988,13 @@ function zuluSessions(onlyApplying: boolean): { sessions: FixtureRow[]; events: 
     sessions: [
       robinForm,
       robinQuiz,
+      robinConnection,
       robinTyping,
       robinChat,
       robinInterview,
       samDone(11, "application", "application", 38, 35),
       samDone(12, "quiz", "quiz", 34, 31),
+      samDone(15, "step_connection", "equipment_check", 30.9, 29.8),
       samDone(13, "step_typing", "typing_test", 29, 26),
       samDone(14, "step_chat", "chat_simulation", 14, 8),
       samInterview,
@@ -1684,14 +2002,19 @@ function zuluSessions(onlyApplying: boolean): { sessions: FixtureRow[]; events: 
       lenaQuiz,
       jordanDone(40, "application", "application", 3 * 60 + 10, 3 * 60 + 5),
       jordanDone(41, "quiz", "quiz", 3 * 60 + 4, 3 * 60),
+      jordanDone(45, "step_connection", "equipment_check", 2 * 60 + 59.8, 2 * 60 + 58.4),
       jordanDone(42, "step_typing", "typing_test", 2 * 60 + 58, 2 * 60 + 50),
       jordanChat1,
       jordanChat2,
       danaForm,
+      priyaDone(50, "application", "application", 12, 9.5),
+      priyaDone(51, "quiz", "quiz", 9, 3.5),
+      priyaConnection,
     ],
     events: [
       ...robinFormEvents,
       ...robinQuizEvents,
+      ...robinConnectionEvents,
       ...robinTypingEvents,
       ...robinChatEvents,
       ...robinInterviewEvents,
@@ -1700,6 +2023,7 @@ function zuluSessions(onlyApplying: boolean): { sessions: FixtureRow[]; events: 
       ...jordanChat1Events,
       ...jordanChat2Events,
       ...danaFormEvents,
+      ...priyaConnectionEvents,
     ],
   };
 }
@@ -1735,7 +2059,7 @@ const zuluQuizKeys = zuluQuizQuestions.map((q, i) => ({
 }));
 
 function buildZuluTables(onlyApplying: boolean): FixtureTables {
-  const apps = onlyApplying ? [appZuluForm] : [appZuluDone, appZuluTesting, appZuluLeft, appZuluRetake, appZuluForm];
+  const apps = onlyApplying ? [appZuluForm] : [appZuluDone, appZuluTesting, appZuluLeft, appZuluRetake, appZuluForm, appZuluConnection];
   const record = zuluSessions(onlyApplying);
   return {
     ...buildFreshTables(),

@@ -47,10 +47,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as A from "../supabase/functions/_shared/assessmentSession.ts";
 import * as M from "../supabase/functions/_shared/stepMoveOn.ts";
+import { cleanConnectionMarker } from "../supabase/functions/_shared/connectionStamps.ts";
 import { phaseAiAnalysisFromStoredResult } from "../supabase/functions/ai-chat-simulation/grading.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MIGRATION_PATH = path.join(ROOT, "supabase/migrations/20261005230146_assessment_record.sql");
+// The computer and connection check (docs/EQUIPMENT-CHECK.md): adds the
+// equipment_check step type the connection-test function records through
+// this module.
+const EQUIPMENT_MIGRATION_PATH = path.join(ROOT, "supabase/migrations/20261006124409_equipment_check.sql");
 
 let passed = 0;
 let failed = 0;
@@ -387,9 +392,12 @@ function flaky(client, table, op, times, error) {
 async function main() {
   const db = new PGlite();
   const migrationSql = await readFile(MIGRATION_PATH, "utf8");
+  const equipmentSql = await readFile(EQUIPMENT_MIGRATION_PATH, "utf8");
   await db.exec(SCHEMA_SQL);
 
   const WORKFLOW = [
+    // First, as on the live job (docs/EQUIPMENT-CHECK.md §2).
+    { id: "step_connection", type: "equipment_check", title: "Your computer and connection" },
     { id: "step_typing", type: "typing_test", title: "Typing speed and accuracy" },
     { id: "step_chat", type: "chat_simulation", title: "Player chat practice" },
     { id: "step_interview", type: "chat_interview", title: "Written interview" },
@@ -412,6 +420,7 @@ async function main() {
     [APP, JOB, CANDIDATE, OTHER_APP, OTHER_CANDIDATE],
   );
   await db.exec(migrationSql);
+  await db.exec(equipmentSql);
 
   const service = makeClient(db, "service_role");
   const candidate = makeClient(db, "authenticated", CANDIDATE);
@@ -778,6 +787,83 @@ async function main() {
   check("two failed writes: false, not a throw", !(await A.completeSession(neverDone.client, typing.session.id, { result: {} }, "submitted", ["active"], { retryDelayMs: 5 })) && neverDone.calls() === 2);
   check("with no claim possible (the database refused it), the open attempt is completed",
     await A.finishGrading(service, typing.session.id, { claim: "none" }, { result: { wpm: 40 } }, "time_up") && (await sessionOf(typing.session.id)).status === "completed");
+
+  // =========================================================================
+  console.log("\nThe computer and connection check (connection-test):\n");
+  {
+    const conn = await A.resolveSession(service, { ...base, stepId: "step_connection", stepType: "equipment_check", purpose: "submit" });
+    check(
+      "resolveSession opens an attempt for an equipment_check step (the TS union, the access list and the CHECK agree)",
+      conn.ok && conn.how === "opened" && conn.session.step_type === "equipment_check" && conn.access.step_type === "equipment_check",
+      JSON.stringify(conn),
+    );
+    if (conn.ok) {
+      const asTyping = await A.resolveSession(service, { ...base, stepId: "step_connection", stepType: "typing_test", purpose: "submit" });
+      check("asked for as another type: wrong_step_type", !asTyping.ok && asTyping.reason === "wrong_step_type");
+      const runEvent = await A.insertEvent(service, {
+        sessionId: conn.session.id,
+        kind: "system",
+        clientMsgId: "srv:test_run:aaaaaaaaaaaaaaaa",
+        detail: { what: "test_run", sent: true, run: 1, download_mbps: 28.4, upload_mbps: 9.1, latency_ms: 42 },
+      });
+      check("the server's test_run marker is stored as a system event", runEvent.inserted, JSON.stringify(runEvent.error));
+      const runAgain = await A.insertEvent(service, { sessionId: conn.session.id, kind: "system", clientMsgId: "srv:test_run:aaaaaaaaaaaaaaaa", detail: { what: "test_run" } });
+      check("…once per chain (idempotent on the chain's first nonce)", !runAgain.inserted && !runAgain.error);
+      check("a system marker is not applicant activity", new Date((await sessionOf(conn.session.id)).last_activity_at).getTime() <= Date.parse(conn.session.started_at) + 1000);
+
+      // connection-test?op=event: the page's markers as they happen, on the
+      // live attempt ("turns": only an active one), keyed by the page.
+      const live = await A.resolveSession(service, { ...base, stepId: "step_connection", stepType: "equipment_check", purpose: "turns" });
+      check("a marker finds the live attempt", live.ok && live.how === "existing" && live.session.id === conn.session.id, JSON.stringify(live));
+      if (live.ok) {
+        await A.updateContext(service, live.session, { bars: { min_download_mbps: 10, min_upload_mbps: 3, max_latency_ms: 200 } });
+        check("the job's bars are pinned on the attempt in the step config's shape", (await sessionOf(conn.session.id)).context.bars.min_download_mbps === 10);
+        const marker = cleanConnectionMarker("computer_answer", { answer: "ran_here_anyway" });
+        const key = A.cleanClientMsgId("pg-abc123:answer:ran_here_anyway");
+        const first = await A.insertEvent(service, { sessionId: live.session.id, kind: "system", clientMsgId: key, detail: marker.detail });
+        const again = await A.insertEvent(service, { sessionId: live.session.id, kind: "system", clientMsgId: key, detail: marker.detail });
+        check("the page's marker is stored once under its own key (a retry writes nothing)", first.inserted && !again.inserted && !again.error, JSON.stringify([first, again]));
+        check("…a page key may never take a server id", A.cleanClientMsgId("srv:test_run:aaaaaaaaaaaaaaaa") === null);
+        const stored = (await eventsOf(live.session.id)).filter((e) => e.client_msg_id === key);
+        check("…with the cleaned detail the staff timeline reads", stored.length === 1 && stored[0].detail.what === "computer_answer" && stored[0].detail.answer === "ran_here_anyway", JSON.stringify(stored));
+      }
+      const gateOpen = await A.gateGrading(service, conn.session, null);
+      check("record claims the attempt", gateOpen.go && gateOpen.claim === "claimed");
+      // The result lands the way connection-test records it (recordStepResult:
+      // the key and the server-only marker), merged beside the other steps'.
+      await setApp(`notes = (coalesce(notes, '{}')::jsonb || $1::jsonb)::text`, [
+        JSON.stringify({
+          equipmentCheckResult: { downloadMbps: 28.4, uploadMbps: 9.1, latencyMs: 42, jitterMs: 6, measuredBy: "server", meetsBars: true, below: [] },
+          _trusted: { step_connection: { stepType: "equipment_check", completedAt: new Date().toISOString() } },
+        }),
+      ]);
+      const grading = A.gradingRecord({
+        model: null,
+        promptVersion: "connection-stamps-1",
+        fallback: false,
+        result: { downloadMbps: 28.4, uploadMbps: 9.1, latencyMs: 42, jitterMs: 6 },
+        extra: { stamps: [{ kind: "ping" }], ip: "203.0.113.9", userAgent: "ua", raw: { device_kind: "computer" } },
+      });
+      const done = await A.finishGrading(service, conn.session.id, gateOpen, grading, "submitted");
+      const row = await sessionOf(conn.session.id);
+      check("finishGrading completes it with end_reason submitted", done && row.status === "completed" && row.end_reason === "submitted", `${done} ${row.status} ${row.end_reason}`);
+      check(
+        "session.grading carries the stamps, the ip, the userAgent and the page's raw summary (staff-only)",
+        Array.isArray(row.grading.stamps) && row.grading.ip === "203.0.113.9" && row.grading.userAgent === "ua" && row.grading.raw.device_kind === "computer" && row.grading.prompt_version === "connection-stamps-1",
+        JSON.stringify(row.grading),
+      );
+      const finished = await A.resolveSession(service, { ...base, stepId: "step_connection", stepType: "equipment_check", purpose: "submit" });
+      check("with the result on file the step is finished: a replayed record is never graded again", !finished.ok && finished.reason === "step_finished");
+      const lateMarker = await A.resolveSession(service, { ...base, stepId: "step_connection", stepType: "equipment_check", purpose: "turns" });
+      check("…and a marker after the send opens nothing (step_finished)", !lateMarker.ok && lateMarker.reason === "step_finished");
+      const onFile = await A.readStepOnFile(service, APP, "step_connection", "equipmentCheckResult");
+      check(
+        "readStepOnFile hands back the recorded result and the step after it",
+        onFile?.result?.downloadMbps === 28.4 && onFile.next !== "waiting" && onFile.next.id === "step_typing",
+        JSON.stringify(onFile),
+      );
+    }
+  }
 
   // =========================================================================
   console.log("\nLeft and back:\n");

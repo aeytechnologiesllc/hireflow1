@@ -70,7 +70,7 @@ document and the migration together.
 | `job_id` | uuid | **trigger** (copied from the application; any value a writer sends is overwritten) | read by RLS |
 | `candidate_id` | uuid | **trigger** (copied from the application) | |
 | `step_id` | text | functions | the journey step id (`application`, `quiz`, `step_typing`, …) |
-| `step_type` | text | functions | `application`, `quiz`, `typing_test`, `chat_simulation`, `chat_interview`, `sales_simulation`, `voice_interview`, `video_intro`, `portfolio_upload` (a legacy `video_message` is stored as `video_intro`) |
+| `step_type` | text | functions | `application`, `quiz`, `typing_test`, `chat_simulation`, `chat_interview`, `sales_simulation`, `voice_interview`, `video_intro`, `portfolio_upload`, `equipment_check` (a legacy `video_message` is stored as `video_intro`) |
 | `attempt` | int ≥ 1 | functions | 1, 2, … per application+step |
 | `status` | text | functions / server | see 2.3 |
 | `end_reason` | text ≤ 64 | functions / server | see 2.3 |
@@ -206,7 +206,10 @@ Keys the server owns (the page cannot overwrite them):
 
 The page's own hint (`{screen: "intro"}` and similar) is
 `progress.client`, set through `touch_assessment_session(p_progress)` and
-nowhere else. Each hint **replaces** the previous one whole (send the full
+nowhere else. The computer and connection check has no server-owned keys:
+everything staff read live is in its hint, `{screen: "computer" | "test" |
+"result", device_kind, answer, run, step, runs_done, failed}`
+(docs/EQUIPMENT-CHECK.md §3). Each hint **replaces** the previous one whole (send the full
 hint object each time, at most 4 KB), so it can never grow. The W4 server may
 add keys of its own, for example `question_count` for the interview. **Never put anything secret in
 `progress`: `start_assessment_session` returns it to the applicant.**
@@ -292,7 +295,7 @@ second time, staff change `phase` or `status` again.
 | `quiz_answer` | `record_quiz_answer` | – | `{question_id, question_index, answer, seconds_on_question, shown_at, timing_source, changed, client_shown_at?, client_shown_at_raw?}`. `timing_source` is `server`, `client`, `previous_answer` or `attempt_start` | `duration_ms` = time on the question |
 | `typing_snapshot` | server (`submit-typing-test`) | – | `{typed_text, target_text?, wpm, accuracy, elapsed_ms, final, attempt_run?, ended_by?, text_source?}`. Three kinds, by `client_msg_id`: **while typing** `"snap:<run start ms>:<5 s bucket>"` (`final: false`, `wpm`/`accuracy` may be null, `target_text` may be omitted: it is also in `context.target_text`); **a run's end** `"snap:<run start ms>:end"` (`final: false`, `ended_by: "time_up" \| "finished_early"`: the text as it stood when that run stopped, one per run, including runs later replaced by "Try again"); **the submitted text** `"final"` (`final: true`, **always** with `target_text`, `wpm` and `accuracy`; `text_source: "complete"` when it was taken from the run-end snapshot, `"request"` when a previous-build page sent it only at submit). The graded text is the `final` one. `attempt_run: n` names the run | `client_msg_id` as described |
 | `integrity` | `record_integrity_events` | – | the page's own `detail` (minus the server's keys), plus `{kind, duration_ms?, reported_kind?, after_end?, client_at_raw?}`, which only the server writes: the page's own values for these keys are removed first, even where the server's value is "none" | `duration_ms`, `client_at` (only when plausible, 4.4), `client_msg_id` = the page's event id |
-| `system` | functions / triggers / server | – | `{what, …}`. `what` is `started` (+`attempt`), `reloaded`, `came_back` (+`away_ms`), `submitted`, `marked_left`; from the chat functions also `reply_asked` (the model is being asked again for a reply, or for the opener: the earlier ask failed or is older than 45 s, 5.1.2) / `reply_failed` (an ask produced no stored reply: the model failed, said nothing, or the reply could not be saved; + `reason`), both with `reply_for`: the message id the reply is for, `"opener"` for the first one. Readers skip a `what` they do not know | the opener's first ask has `client_msg_id` `"srv:opener"` (so two starts at once ask for ONE opener); others none |
+| `system` | functions / triggers / server | – | `{what, …}`. `what` is `started` (+`attempt`), `reloaded`, `came_back` (+`away_ms`), `submitted`, `marked_left`; from `connection-test` (docs/EQUIPMENT-CHECK.md §3–§4) the page's markers `device_read` (+`device_kind, os, browser, screen`), `computer_answer` (+`answer`: `yes`, `no`, `no_switched`, `ran_here_anyway`), `test_started` (+`run`), `test_finished` (+`run`, the page's own `download_mbps, upload_mbps, latency_ms`, `estimate: "page"`), and the server's `test_run` (+`run`, the server's figures, `sent: true` when `record` wrote it), `record_refused` (+`reason`), `submitted` (+`run, runs`); from the chat functions also `reply_asked` (the model is being asked again for a reply, or for the opener: the earlier ask failed or is older than 45 s, 5.1.2) / `reply_failed` (an ask produced no stored reply: the model failed, said nothing, or the reply could not be saved; + `reason`), both with `reply_for`: the message id the reply is for, `"opener"` for the first one. Readers skip a `what` they do not know | the opener's first ask has `client_msg_id` `"srv:opener"` (so two starts at once ask for ONE opener); others none |
 
 ### 3.1 Integrity kinds
 
@@ -825,6 +828,23 @@ rule.
      ask comes more than 20 s late, or a voice-interview step whose analysis
      takes longer than 75 s, can still start a second analysis: rare, and
      the later run only overwrites the earlier one.
+10. **The computer and connection check** (`connection-test`; the contract is
+   docs/EQUIPMENT-CHECK.md). `record` grades like a typing submit: one
+   request per attempt (`gateGrading`), **409 `{code: "already_checking"}`**
+   while another holds the claim, **409 `{code: "step_finished"}`** when the
+   step is finished and its result cannot be read back, `{results, next,
+   alreadyRecorded: true}` when it can. It writes `grading = {graded_at,
+   model: null, prompt_version: "connection-stamps-1", fallback: false,
+   result, stamps, ip, userAgent, raw}` (`raw` is the page's request body
+   without the stamps) and `end_reason = 'submitted'`, then the `test_run`
+   (`sent: true`, a no-op when the page's `test_finished` already wrote that
+   run) and `submitted` markers. A refused chain releases the claim and
+   leaves a `record_refused` marker. `op=event` writes the page's markers on
+   the live attempt (`purpose: "turns"`, so a finished step opens nothing),
+   pins the job's bars in `context.bars` once (the step config's
+   snake_case shape), and for a `test_finished` that carries its stamps adds
+   that run's `test_run` with the server's figures. It records with
+   `advance: "never"`; the move on is `scheduleStepMoveOn` (9).
 
 ### 5.2 Candidate pages: W5
 
@@ -985,6 +1005,7 @@ superseded                 → do not show; a newer attempt exists
 | quiz | "Answering question {current_index+1} of {total}" | "at question {current_index+1}" |
 | chat steps | "In the conversation · {candidate_turns} replies" | "after {candidate_turns} replies" |
 | typing | "Typing" | "during the typing test" |
+| computer and connection | "Choosing the computer" (`progress.client.screen` = `computer`), "Running the speed test · run {run}" (`test`, or no hint), "Looking at the result · run {runs_done}" (`result`); the run only from 2 | "before the speed test" / "during the speed test" / "at the result" |
 
 ---
 

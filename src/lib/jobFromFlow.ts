@@ -13,7 +13,8 @@
  *
  * NOTE: application + quiz are synthetic phases in the candidate runtime (derived from
  * application_questions / quiz_questions), so they are deliberately NOT emitted as
- * workflow_steps. Only the "active" steps (simulation, interview, etc.) go into workflow_steps.
+ * workflow_steps. Only the "active" steps (connection check, simulation, interview, etc.)
+ * go into workflow_steps.
  */
 import { supabase } from "@/integrations/supabase/client";
 import { rigorToDb } from "@/lib/avaEngine/rigor";
@@ -28,6 +29,7 @@ import type {
   QuizConfig,
   VoiceConfig,
   SimulationConfig,
+  EquipmentCheckConfig,
 } from "@/lib/avaEngine/types";
 
 /** Matches the QuizQuestion shape read by src/pages/QuizPhase.tsx + written by CreateJob.tsx. */
@@ -260,7 +262,24 @@ export function buildWorkflowSteps(phases: ScreeningPhase[], voiceInterview: boo
   const steps: WorkflowStep[] = [];
 
   for (const phase of phases) {
-    if (phase.kind === "simulation") {
+    if (phase.kind === "equipment_check") {
+      // The computer and connection check (docs/EQUIPMENT-CHECK.md §2): the
+      // three bars go to the step's config under the names connection-test
+      // reads. Title and description are shown to candidates as stored.
+      const cfg = phase.config as EquipmentCheckConfig;
+      steps.push({
+        id: uid("step"),
+        type: "equipment_check",
+        title: phase.title || "Your computer and connection",
+        description: phase.candidateDescription || "A short speed test on the computer you'll work from.",
+        required: true,
+        config: {
+          min_download_mbps: cfg.minDownloadMbps ?? 10,
+          min_upload_mbps: cfg.minUploadMbps ?? 3,
+          max_latency_ms: cfg.maxLatencyMs ?? 200,
+        },
+      });
+    } else if (phase.kind === "simulation") {
       const cfg = phase.config as SimulationConfig;
       const scenarios = (cfg.scenarios ?? []).map((s, i) => ({
         id: s.id || `scenario-${i + 1}`,

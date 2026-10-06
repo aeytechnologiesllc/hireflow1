@@ -198,7 +198,7 @@ Rules for structuredScore (every sub-score is 0-100):
 - personalityTraits: 2-5 JOB-RELEVANT work-style traits inferred WITH evidence (e.g. "customer-empathetic", "detail-oriented", "proactive", "resilient under pressure"). NEVER infer or use age, gender, race, nationality, religion, health, or any protected/demographic attribute.
 - personalitySummary: 1-2 evidence-based sentences on work style and fit for THIS role.
 - overallScore is your holistic 0-100 fit judgment for THIS role and MUST reflect the sub-scores: low writingQuality/attentionToDetail, and ESPECIALLY low authenticity or low specificity, must pull it down materially. A polished-but-fabricated resume is a reject; a strong resume riddled with misspellings is NOT a top candidate. It must match the final score in the narrative report.
-- hardRequirementConflicts must only list explicit conflicts with what THIS job's own text requires (quote the job's own words for the requirement, e.g. 'The job asks for "at least 45 words a minute"; the candidate typed 38 WPM.'), wrong-resume/authenticity issues, missing legal/licensing blockers, or schedule/work-eligibility blockers the candidate's own answers state. Describe a requirement in the job's own words only: never call one "non-negotiable", a "deal-breaker" or "mandatory" unless the job's text uses that word. A workflow phase that has not happened yet (a pending quiz, typing test, simulation or interview), or a skill such a phase will measure, is NOT a conflict: missing evidence is never a conflict, so leave it out of this list
+- hardRequirementConflicts must only list explicit conflicts with what THIS job's own text requires (quote the job's own words for the requirement, e.g. 'The job asks for "at least 45 words a minute"; the candidate typed 38 WPM.'), wrong-resume/authenticity issues, missing legal/licensing blockers, or schedule/work-eligibility blockers the candidate's own answers state. Describe a requirement in the job's own words only: never call one "non-negotiable", a "deal-breaker" or "mandatory" unless the job's text uses that word. A workflow phase that has not happened yet (a pending quiz, typing test, simulation or interview), or a skill such a phase will measure, is NOT a conflict: missing evidence is never a conflict, so leave it out of this list. The computer and connection check is evidence for the hiring team, never a conflict, pending or done: never list its figures, a connection below the job's bar, a "not the computer they will use" answer or a phone/tablet run here, even when the job asks for a reliable connection; they go under Phase Concerns
 - transferableEvidence must contain 2-6 short evidence phrases when adjacent fit exists; otherwise use an empty array
 - confidence must reflect evidence coverage and stability, not closeness to the passing threshold
 - summary must be 1-2 sentences and should mention direct fit vs transferable fit when relevant`;
@@ -260,6 +260,7 @@ CRITICAL RULES:
 - DO NOT say "the uploaded document is not a resume" for custom file uploads
 - ONLY analyze the file specifically marked in the "RESUME" section for resume evaluation
 - Evaluate custom file uploads ONLY based on their stated purpose (e.g., does the internet speed screenshot show adequate speed?)
+- When a "Computer and connection check" line is present, it was timed by our own server on the candidate's computer and outranks any speed-test screenshot: report that line's figures against the job's own bars (they are in the line), and treat "below the bar", "NOT the computer they will use" or a phone/tablet as a concern to note for the hiring team, never as a reason to decline on its own
 
 **WRONG_RESUME Examples (use this status when):**
 - Resume says "John Smith" but applicant name is "Jane Doe" → WRONG_RESUME
@@ -550,6 +551,10 @@ CRITICAL PHASE-EVALUATION RULE:
 - Never say "no completed workflow-phase results yet" when any assessment phase has already been completed.
 - If quiz is completed but later phases are pending, say something like "The candidate completed the quiz at X%; later phases are still pending."
 
+COMPUTER AND CONNECTION CHECK:
+- When a "Computer and connection check" line is present, it was timed by our own server on the candidate's computer and outranks any speed-test screenshot: report that line's figures against the job's own bars (they are in the line).
+- "Below the bar", "NOT the computer they will use", a phone or tablet run, or a test sent from a different network or browser than it ran on is a concern to note for the hiring team under Phase Concerns: never a reason to decline on its own, and never a hard requirement conflict.
+
 ## 1. DOCUMENT VALIDATION
 First, determine if this is actually a resume/CV and if it belongs to the correct person/job:
 - Is this a legitimate resume document or something else (random text, unrelated document, spam)?
@@ -814,6 +819,7 @@ CRITICAL: If any phase is completed, explicitly acknowledge the completed phase 
 For each phase that IS in the workflow, report:
 - If completed: Show the score/result
 - If not completed: Show "Pending" or "Not yet submitted"
+- equipment_check (the computer and connection check): report the "Computer and connection check" line as given (download, upload, latency against the job's bars, the device, whether it is the computer they will use). It is measured by our server, never scored: a shortfall or a "not this computer" answer goes under Phase Concerns, and a pending check is simply "Pending"
 
 Phase Highlights: [List 1-3 standout performances from COMPLETED phases only]
 Phase Concerns: [List any weak phase performances or "None"]

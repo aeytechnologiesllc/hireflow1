@@ -17,6 +17,7 @@ import {
   DollarSign,
   ExternalLink,
   FileText,
+  Gauge,
   Loader2,
   MapPin,
   MessageSquare,
@@ -69,6 +70,8 @@ import { candidateOrigin } from "@/lib/hosts";
 const KIND_ICON: Record<string, { icon: LucideIcon; accent: ReviewPhaseCard["accent"] }> = {
   application: { icon: FileText, accent: "jade" },
   quiz: { icon: Timer, accent: "mint" },
+  // The computer and connection check (docs/EQUIPMENT-CHECK.md), a remote role's first step.
+  equipment_check: { icon: Gauge, accent: "mint" },
   simulation: { icon: MessageSquare, accent: "brass" },
   voice_interview: { icon: Mic, accent: "mint" },
   coding_test: { icon: Code2, accent: "mint" },

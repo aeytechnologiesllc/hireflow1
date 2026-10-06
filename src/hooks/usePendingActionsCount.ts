@@ -67,8 +67,22 @@ export function usePendingActionsCount() {
         
         // Check for phase-specific data
         const hasPhaseData = (() => {
+          // A server-recorded step (typing, the connection check, the chat and
+          // sales simulations, the written interview...) is done the moment
+          // recordStepResult writes notes._trusted[stepId] — the one marker
+          // every such step shares, keyed by the real step id `phase` holds.
+          // Read it first: the legacy guess below reads quizAnswers for ANY
+          // id containing "step", which a finished "step_connection" never has.
+          // Not in the retake state (status "pending" with the phase on the
+          // step, the rule every phase page uses): a staff reopen leaves the
+          // old marker in place, and a step handed back is an action again.
+          const trusted = (notes._trusted as Record<string, unknown> | undefined)?.[phase];
+          if (trusted && typeof trusted === "object" && app.status !== "pending") return true;
           if (phase.includes("quiz") || phase.includes("step")) {
             return !!notes.quizAnswers?.[phase];
+          }
+          if (phase === "equipment_check") {
+            return !!notes.equipmentCheckResult;
           }
           if (phase === "typing_test") {
             return !!notes.typingTestResult;

@@ -75,6 +75,7 @@ const MyDocuments = lazyWithReload(routeImporters["/my-documents"]);
 const CandidateApplicationDetail = lazyWithReload(() => import("./pages/CandidateApplicationDetail"));
 const ApplicationFormPhase = lazyWithReload(() => import("./pages/ApplicationFormPhase"));
 const TypingTestPhase = lazyWithReload(() => import("./pages/TypingTestPhase"));
+const ConnectionCheckPhase = lazyWithReload(() => import("./pages/ConnectionCheckPhase"));
 const QuizPhase = lazyWithReload(() => import("./pages/QuizPhase"));
 const VideoIntroPhase = lazyWithReload(() => import("./pages/VideoIntroPhase"));
 const ChatSimulationPhase = lazyWithReload(() => import("./pages/ChatSimulationPhase"));
@@ -219,6 +220,7 @@ const App = () => (
                     <Route path="/my-documents" element={<MyDocuments />} />
                     <Route path="/applications/:id" element={<CandidateApplicationDetail />} />
                     <Route path="/applications/:id/application/:stepId" element={<CandidateStepGate phase="application"><ApplicationFormPhase /></CandidateStepGate>} />
+                    <Route path="/applications/:id/connection/:stepId" element={<CandidateStepGate phase="equipment_check"><ConnectionCheckPhase /></CandidateStepGate>} />
                     <Route path="/applications/:id/typing-test/:stepId" element={<CandidateStepGate phase="typing_test"><TypingTestPhase /></CandidateStepGate>} />
                     <Route path="/applications/:id/quiz/:stepId" element={<CandidateStepGate phase="quiz"><QuizPhase /></CandidateStepGate>} />
                     <Route path="/applications/:id/video-intro/:stepId" element={<CandidateStepGate phase="video_intro"><VideoIntroPhase /></CandidateStepGate>} />

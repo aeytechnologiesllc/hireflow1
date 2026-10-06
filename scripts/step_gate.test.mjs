@@ -181,6 +181,32 @@ check(
   );
 }
 
+// 11b. The computer and connection check (docs/EQUIPMENT-CHECK.md): its own
+//      route only, first among the workflow steps, reachable from its own
+//      phase and not before.
+{
+  const connectionSteps = buildCandidateJourney(
+    [{ id: "step_connection", type: "equipment_check", title: "Your computer and connection" }, ...workflowSteps],
+    { hasQuiz: true },
+  );
+  // steps: [application, quiz, step_connection, wf-typing, wf-voice, decision]
+  const resolved = resolveGatedStep(connectionSteps, { stepId: "step_connection", expectedType: "equipment_check" });
+  check("an equipment_check step resolves under phase 'equipment_check', at index 2", resolved.matched === true && resolved.index === 2);
+  check(
+    "...and is refused under the typing route",
+    resolveGatedStep(connectionSteps, { stepId: "step_connection", expectedType: "typing_test" }).matched === false,
+  );
+  check(
+    "a candidate on 'quiz' cannot open the connection check yet; on it, they can",
+    hasReachedFor(connectionSteps, { actualPhase: "quiz", actualStatus: "reviewing", urlStepId: "step_connection", expectedType: "equipment_check" }) === false &&
+      hasReachedFor(connectionSteps, { actualPhase: "step_connection", actualStatus: "reviewing", urlStepId: "step_connection", expectedType: "equipment_check" }) === true,
+  );
+  check(
+    "a typing step opened under the connection route is refused",
+    resolveGatedStep(connectionSteps, { stepId: "wf-typing", expectedType: "equipment_check" }).matched === false,
+  );
+}
+
 console.log("\nJobDetails.tsx's own stepId, for a job whose workflow_steps carries an explicit application/quiz entry:\n");
 
 // 12. A round-two review found: some jobs' `workflow_steps` includes an

@@ -221,6 +221,10 @@ check(
   stepRoute("app-1", { id: "application", type: "application" }) === "/applications/app-1/application/application",
 );
 check("the closing Decision stage has no route", stepRoute("app-1", { id: "decision", type: "decision" }) === null);
+check(
+  "computer and connection check route (docs/EQUIPMENT-CHECK.md §3)",
+  stepRoute("app-1", { id: "step_connection", type: "equipment_check" }) === "/applications/app-1/connection/step_connection",
+);
 {
   const appTsx = await read("src/App.tsx");
   const missing = [...new Set(Object.values(STEP_ROUTE_SEGMENTS))].filter(
@@ -236,7 +240,39 @@ check("quiz → quiz opens the same page", opensSameScreen({ type: "quiz" }, { t
 check("chat practice → chat practice opens the same page", opensSameScreen({ type: "chat_simulation" }, { type: "chat_simulation" }));
 check("video intro → video message share one page", opensSameScreen({ type: "video_intro" }, { type: "video_message" }));
 check("typing → chat practice are different pages", !opensSameScreen({ type: "typing_test" }, { type: "chat_simulation" }));
+check("two connection checks open the same page", opensSameScreen({ type: "equipment_check" }, { type: "equipment_check" }));
+check("connection check → typing are different pages", !opensSameScreen({ type: "equipment_check" }, { type: "typing_test" }));
 check("the Decision stage has no page", !opensSameScreen({ type: "decision" }, { type: "decision" }));
+
+/* ------------------------- the computer and connection check, first step */
+console.log("\nwhereCandidateStands — with the connection check first (docs/EQUIPMENT-CHECK.md §2):\n");
+
+{
+  const withConnection = buildCandidateJourney(
+    [{ id: "step_connection", type: "equipment_check", title: "" }, ...ZULU_STEPS],
+    { hasQuiz: true },
+  );
+  check(
+    "journey: application, quiz, connection, typing, chat, interview, decision",
+    withConnection.map((s) => s.id).join(",") === "application,quiz,step_connection,step_typing,step_chat,step_interview,decision",
+    withConnection.map((s) => s.id).join(","),
+  );
+  check("an untitled step falls back to 'Your computer and connection'", withConnection[2].title === "Your computer and connection", withConnection[2].title);
+  const open = whereCandidateStands(withConnection, app("step_connection", "reviewing", { applicationAnswers: ANSWERS }));
+  check("connection check open, nothing sent → take it (Step 3 of 7)", open.kind === "take" && open.step.id === "step_connection" && open.index === 2, JSON.stringify(open));
+  const sent = whereCandidateStands(
+    withConnection,
+    app("step_connection", "reviewing", { applicationAnswers: ANSWERS, equipmentCheckResult: { downloadMbps: 28.4, meetsBars: true } }),
+  );
+  check("result on file, typing not open → waiting, never 'take' again", sent.kind === "waiting" && sent.step.id === "step_connection", JSON.stringify(sent));
+  const legacyOnly = whereCandidateStands(
+    withConnection,
+    app("step_connection", "reviewing", { applicationAnswers: ANSWERS, step_connection: { type: "equipment_check" } }),
+  );
+  check("the legacy entry alone does not count — only equipmentCheckResult does", legacyOnly.kind === "take", JSON.stringify(legacyOnly));
+  const moved = advanceAfterStep(withConnection, "step_connection", { phase: "step_typing", status: "reviewing" });
+  check("sent, phase moved to typing → 'Start Typing speed and accuracy'", moved.kind === "next" && moved.step.id === "step_typing", JSON.stringify(moved));
+}
 
 /* --------------------------------------------- when the server is asked again */
 console.log("\nserverReplyIsFinal — a failed or too-early request is asked again once:\n");
@@ -289,10 +325,20 @@ const PHASE_PAGES = [
   "src/pages/SalesSimulationPhase.tsx",
   "src/pages/VideoIntroPhase.tsx",
   "src/pages/PortfolioUploadPhase.tsx",
+  // The computer and connection check (docs/EQUIPMENT-CHECK.md §3). Listed
+  // the moment its route segment exists: a page that is missing is a FAIL
+  // here, never a silent skip — that is how a page slips past every check.
+  "src/pages/ConnectionCheckPhase.tsx",
 ];
 for (const rel of PHASE_PAGES) {
-  const text = await read(rel);
   const name = rel.split("/").pop();
+  let text;
+  try {
+    text = await read(rel);
+  } catch {
+    check(`${name}: exists (every segment in STEP_ROUTE_SEGMENTS has a page)`, false, rel);
+    continue;
+  }
   // "Already submitted" is decided at first load only.
   const guarded = [...text.matchAll(/<PhaseAlreadySubmitted/g)].every((m) => {
     const before = text.slice(Math.max(0, m.index - 600), m.index);

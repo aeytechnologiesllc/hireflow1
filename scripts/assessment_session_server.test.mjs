@@ -662,13 +662,15 @@ console.log("\nMoving on after a result (stepMoveOn.ts):\n");
   check("answer: 5xx and 429 -> one more try; 4xx -> never", A2(500, {}).retry && A2(503, "x").retry && A2(429, {}).retry && !A2(401, {}).retry && !A2(400, { error: "currentPhaseId is required" }).retry && !A2(403, {}).ok);
   check("the body is the page's own", same(M.moveOnRequestBody(APP, "step_chat"), { applicationId: APP, autopilotDecision: true, currentPhaseId: "step_chat" }));
 
-  // The four grading functions schedule it right after the result is recorded.
+  // The grading functions schedule it right after the result is recorded
+  // (the connection check's `record` the same road as typing).
   const read = (p) => readFileSync(path.join(ROOT, p), "utf8");
   const grading = {
     "submit-typing-test": "supabase/functions/submit-typing-test/index.ts",
     "ai-chat-simulation": "supabase/functions/ai-chat-simulation/index.ts",
     "ai-chat-interview": "supabase/functions/ai-chat-interview/index.ts",
     "submit-sales-simulation": "supabase/functions/submit-sales-simulation/index.ts",
+    "connection-test": "supabase/functions/connection-test/index.ts",
   };
   for (const [name, file] of Object.entries(grading)) {
     const src = read(file);
@@ -678,7 +680,7 @@ console.log("\nMoving on after a result (stepMoveOn.ts):\n");
     const schedule = src.indexOf("scheduleStepMoveOn(", refused);
     const finish = src.indexOf("finishGrading(", refused);
     const call = src.slice(schedule, src.indexOf(");", schedule));
-    check(`${name}: imports the one helper`, src.includes('import { scheduleStepMoveOn } from "../_shared/stepMoveOn.ts";'));
+    check(`${name}: imports the one helper`, /import \{ (?:jwtClaims, )?scheduleStepMoveOn \} from "\.\.\/_shared\/stepMoveOn\.ts";/.test(src));
     check(`${name}: schedules the move once, after the result is recorded and before the attempt is closed`,
       calls === 1 && record > 0 && refused > record && schedule > refused && finish > schedule, `${calls} ${record} ${refused} ${schedule} ${finish}`);
     check(`${name}: with the request's own JWT, never waiting on it`,

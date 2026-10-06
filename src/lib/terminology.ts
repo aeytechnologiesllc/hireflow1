@@ -49,6 +49,7 @@ export const applicationStatusColors: Record<string, string> = {
 export const phaseDisplayNames: Record<string, string> = {
   application: "Application",
   quiz: "Assessment",
+  equipment_check: "Computer and connection check",
   typing_test: "Typing Test",
   video_intro: "Video Introduction",
   video_message: "Video Message",
@@ -69,6 +70,7 @@ export const phaseDisplayNames: Record<string, string> = {
 export const phaseActionMessages: Record<string, { buttonText: string; description: string }> = {
   application: { buttonText: "Complete Application", description: "Fill out your application form" },
   quiz: { buttonText: "Take Assessment", description: "Complete your skills assessment to continue" },
+  equipment_check: { buttonText: "Check your computer and connection", description: "A short speed test on the computer you will work from" },
   typing_test: { buttonText: "Start Typing Test", description: "Ready to test your typing speed and accuracy" },
   video_intro: { buttonText: "Record Video", description: "Record a short video introducing yourself" },
   video_message: { buttonText: "Record Video", description: "Record a 60-second video about yourself" },
@@ -86,6 +88,7 @@ export const phaseActionMessages: Record<string, { buttonText: string; descripti
 export const candidatePhaseDisplayNames: Record<string, string> = {
   application: "Application",
   quiz: "Assessment",
+  equipment_check: "Your computer and connection",
   typing_test: "Typing Test",
   video_intro: "Video Introduction",
   video_message: "Video Message",

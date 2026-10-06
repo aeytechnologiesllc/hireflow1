@@ -950,6 +950,30 @@ console.log("\nThe test functions' answers (503 turn_not_saved, 409):\n");
   check("TypingTestPhase.tsx: a 409 is read from the invoke error", /functionErrorReply\(submitError\)/.test(typing) && /gradingReplyOutcome\(reply\.status, reply\.body\)/.test(typing));
   check("TypingTestPhase.tsx: on file → the usual 'saved' path; checking → wait for the result", /outcome === "on_file"\) \{\s*await afterTypingSaved\(isAutoMode\);/.test(typing) && /serverCheck\.begin\(resultBeforeSend\)/.test(typing) && /useServerCheck\(\{/.test(typing));
   check("TypingTestPhase.tsx: no second send while it is being checked", /disabled=\{isSubmitting \|\| serverCheckWaiting\}/.test(typing));
+
+  // The computer and connection check (docs/EQUIPMENT-CHECK.md): `record` is
+  // graded like a typing submit, so the page follows the same rules.
+  const connection = await read("src/pages/ConnectionCheckPhase.tsx");
+  check(
+    "ConnectionCheckPhase.tsx: reads the server's word before offering Yes (finished → done, checking → wait)",
+    /const where = serverConversationState\(session\.reply, session\.serverStatus\);\s*if \(where === "done"\) showFinishedOnServer\(\);\s*else if \(where === "checking"\) waitForCheckFromBefore\(\);/.test(connection),
+  );
+  check(
+    "ConnectionCheckPhase.tsx: manual mode shows 'saved' with a card that never offers this step again",
+    /if \(finishedOnServer\) \{\s*return <NextStepCard applicationId=\{id!\} completedTitle=\{journeyStep\.title\} doneStepId=\{stepId\} \/>;/.test(connection),
+  );
+  check(
+    "ConnectionCheckPhase.tsx: a check that crashed for a send from before a reload opens the question again (no run of its own to resend)",
+    /onOwed: \(\) => \{\s*setServerCheckWaiting\(false\);\s*if \(!runsRef\.current\.length\) \{[\s\S]{0,400}setScreen\("computer"\);/.test(connection),
+  );
+  check("ConnectionCheckPhase.tsx: a 409 is read from the invoke error", /functionErrorReply\(submitError\)/.test(connection) && /gradingReplyOutcome\(reply\.status, reply\.body\)/.test(connection));
+  check("ConnectionCheckPhase.tsx: on file → the usual 'saved' path; checking → wait for the result", /outcome === "on_file"[^)]*\)\) \{\s*await afterCheckSaved\(isAutoMode\);/.test(connection) && /serverCheck\.begin\(resultBeforeSend\)/.test(connection) && /useServerCheck\(\{/.test(connection));
+  check("ConnectionCheckPhase.tsx: no second send while it is being checked", /disabled=\{isSubmitting \|\| serverCheckWaiting/.test(connection));
+  check(
+    "ConnectionCheckPhase.tsx: a wait it did not start with its own send compares against the result as first read",
+    /const loadResultKey = useResultKeyAtFirstLoad\(isFetchedAfterMount && !!application, storedCheckResult\);/.test(connection)
+      && /useServerCheck\(\{\s*storedResultKey: storedCheckResult,\s*serverStatus: session\.serverStatus,\s*loadResultKey,/.test(connection),
+  );
 }
 
 /* --------------------------------- against the real migration (PGlite) */

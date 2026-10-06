@@ -6,11 +6,14 @@
  * runs completely unmodified against canned data — no network, no auth.
  */
 import { __setPreviewSupabaseClient } from "@/integrations/supabase/client";
+import { STAMP_TAIL_BYTES } from "@/lib/connectionTest";
+import { parseApplicationNotes } from "@/utils/applicationNotes";
 import { createFixtureSupabaseClient, type FixtureAuthUser, type FixtureRow, type FixtureTables } from "./fixtureClient";
 import { buildFixtureRpcHandlers, buildFixtureTables, FIXTURE_SCENARIOS, type FixtureScenario } from "./fixtures";
 import {
   APP_ZULU_RETAKE_ID,
   CANDIDATE_USER_ID,
+  STEP_TYPING,
   EMPLOYER_USER_ID,
   REJECTED_CANDIDATE_USER_ID,
   TEAM_MEMBER_USER_ID,
@@ -41,6 +44,176 @@ function previewFileDataUrl(path: string): string {
   // Percent-encoded, not base64: btoa() writes Latin-1 bytes, which an SVG
   // parser reads as broken UTF-8 the moment a file name has an accent.
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+/* ── connection-test, offline: the computer and connection check's chain ── */
+// The page (src/pages/ConnectionCheckPhase.tsx) runs its chain through
+// supabase.functions.invoke: 8 pings, 3 downloads, 4 uploads, then a
+// `test_finished` marker carrying the run's stamps (`event`), and `record`.
+// Offline, each op answers with a stamp of the real shape (16-hex nonce,
+// prev_nonce chain, a sig nothing checks) after a believable pause, so the
+// gauge moves and the three screens can be looked at; `event` answers a
+// finished run with figures a little under the page's own estimate (the
+// server's clock never flatters a connection) and every other marker with
+// `recorded: true`; `record` answers the sent run's figures, moves the
+// fixture row to the next step and files the result, so the advance screen
+// and the overview read as after a real send. The stamps are not signed:
+// the real server refuses them.
+type InvokeOptions = { method?: string; headers?: Record<string, string>; body?: unknown; signal?: AbortSignal };
+type InvokeReply = { data: unknown; error: unknown };
+
+function previewConnectionTest(tables: FixtureTables): (name: string, options?: InvokeOptions) => Promise<InvokeReply> {
+  let prevNonce: string | null = null;
+  const nonce = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, "0")).join("");
+  const sig = "preview_stamp_not_signed_by_any_server_0000".padEnd(43, "0").slice(0, 43);
+  const stamp = (kind: "ping" | "download" | "upload", bytes: number, extra: Record<string, unknown> = {}) => {
+    const now = Date.now();
+    const s = { kind, nonce: nonce(), at: now, bytes, prev_nonce: prevNonce, prev_at: now, candidate: CANDIDATE_USER_ID, ...extra, sig };
+    prevNonce = s.nonce;
+    return JSON.stringify(s);
+  };
+  const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+  const jitter = (base: number, spread: number) => base + Math.random() * spread;
+  return async (name, options) => {
+    const url = new URL(name, "http://preview.local");
+    const op = url.searchParams.get("op");
+    if (op === "ping") {
+      await wait(jitter(28, 24));
+      return { data: { stamp: stamp("ping", 0) }, error: null };
+    }
+    if (op === "download") {
+      // The stamp's tail is the page's STAMP_TAIL_BYTES (512); the pause
+      // follows the size the page asked for, so its sizing looks real.
+      const tail = STAMP_TAIL_BYTES;
+      const bytes = Math.max(tail, Number(url.searchParams.get("bytes")) || 3 * 1024 * 1024);
+      await wait(jitter(120 + (bytes / (3 * 1024 * 1024)) * 500, 260));
+      const body = new Uint8Array(bytes);
+      body.fill(0x20, bytes - tail);
+      body.set(new TextEncoder().encode(stamp("download", bytes)), bytes - tail);
+      return { data: new Blob([body]), error: null };
+    }
+    if (op === "upload") {
+      const body = options?.body;
+      const bytes = body instanceof ArrayBuffer ? body.byteLength : ArrayBuffer.isView(body) ? body.byteLength : Math.round(1.5 * 1024 * 1024);
+      await wait(jitter(120 + (bytes / (1.5 * 1024 * 1024)) * 780, 300));
+      return { data: { stamp: stamp("upload", bytes, { timing: "stream" }), bytes, timing: "stream" }, error: null };
+    }
+    const num = (v: unknown, fallback: number) => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
+    if (op === "event") {
+      const body = (options?.body ?? {}) as Record<string, unknown>;
+      if (body.what !== "test_finished" || !Array.isArray(body.stamps)) {
+        return { data: { recorded: true }, error: null };
+      }
+      await wait(jitter(260, 180));
+      const detail = (body.detail ?? {}) as Record<string, unknown>;
+      const figures = {
+        downloadMbps: Math.round(num(detail.download_mbps, 29) * 0.97 * 10) / 10,
+        uploadMbps: Math.round(num(detail.upload_mbps, 9.4) * 0.97 * 10) / 10,
+        latencyMs: Math.round(num(detail.latency_ms, 41) + 1),
+        jitterMs: 6,
+      };
+      return { data: { recorded: true, figures }, error: null };
+    }
+    if (op === "record") {
+      await wait(700);
+      const body = (options?.body ?? {}) as Record<string, unknown>;
+      // The sent run's figures: the server's for it when the page had them
+      // (they are what a real `record` recomputes), else its estimate.
+      const sentRun = Array.isArray(body.runs)
+        ? (body.runs.find((r) => (r as { sent?: unknown } | null)?.sent === true) as { server?: Record<string, unknown> | null } | undefined)
+        : undefined;
+      const estimate = (body.estimate ?? {}) as Record<string, unknown>;
+      const server = sentRun?.server ?? null;
+      const results = {
+        downloadMbps: num(server?.downloadMbps, num(estimate.download_mbps, 28.4)),
+        uploadMbps: num(server?.uploadMbps, num(estimate.upload_mbps, 9.1)),
+        latencyMs: num(server?.latencyMs, num(estimate.latency_ms, 42)),
+        jitterMs: num(server?.jitterMs, 6),
+        measuredBy: "server",
+        runs: Array.isArray(body.runs) ? Math.max(1, body.runs.length) : 1,
+        usingThisComputer: body.using_this_computer ?? "yes",
+        deviceKind: body.device_kind ?? "computer",
+        device: body.device ?? {},
+        bars: { minDownloadMbps: 10, minUploadMbps: 3, maxLatencyMs: 200 },
+        meetsBars: true,
+        below: [] as string[],
+        measuredAt: new Date().toISOString(),
+        attempt: 1,
+        source: { oneAddress: true, sameAddress: true, sameBrowser: true },
+        _trusted: true,
+      };
+      results.below = [
+        ...(results.downloadMbps < 10 ? ["download"] : []),
+        ...(results.uploadMbps < 3 ? ["upload"] : []),
+        ...(results.latencyMs > 200 ? ["latency"] : []),
+      ];
+      results.meetsBars = results.below.length === 0;
+      const row = (tables.applications ?? []).find((r) => r.id === body.application_id);
+      if (row) {
+        const notes = parseApplicationNotes(typeof row.notes === "string" ? row.notes : null) as Record<string, unknown>;
+        // recordStepResult's own shape: the result, the entry under the
+        // step's id, and the server-only marker every reader trusts.
+        const trusted = notes._trusted && typeof notes._trusted === "object" ? (notes._trusted as Record<string, unknown>) : {};
+        row.notes = JSON.stringify({
+          ...notes,
+          equipmentCheckResult: results,
+          [String(body.step_id)]: { type: "equipment_check", ...results, completedAt: results.measuredAt },
+          _trusted: { ...trusted, [String(body.step_id)]: { stepType: "equipment_check", completedAt: results.measuredAt } },
+        });
+        row.phase = STEP_TYPING;
+        row.updated_at = new Date().toISOString();
+      }
+      return { data: { results, next: { phase: STEP_TYPING } }, error: null };
+    }
+    return { data: null, error: null };
+  };
+}
+
+/* ── The legacy job editor's generation, offline (/jobs/create-legacy) ─── */
+// CreateJob.tsx reaches its screening-plan editor (the step picker and every
+// step's card, the connection check's three bars among them) only after
+// ai-generate-job-content has written a draft. Offline it answers a short,
+// plain draft; ai-generate-workflow answers a plan whose first step is the
+// computer and connection check, so its card is on screen at once.
+function previewJobGeneration(name: string, options?: InvokeOptions): InvokeReply | null {
+  const body = (options?.body ?? {}) as Record<string, unknown>;
+  const title = typeof body.title === "string" && body.title.trim() ? body.title.trim() : "Remote support agent";
+  if (name === "ai-generate-job-content") {
+    if (body.field !== "full") return { data: { content: `A short ${String(body.field ?? "section")} for ${title}.` }, error: null };
+    return {
+      data: {
+        description: `${title}, working from home on your own computer. You answer players by chat, sort out payments and keep things calm.`,
+        responsibilities: "Answer player chats\nCheck payments and cash-outs\nHand hard cases to a lead",
+        requirements: "A reliable computer and internet connection\nClear written English\nEvenings or weekends",
+        skills: "Typing, Written communication, Patience",
+        benefits: "Paid training\nWork from home",
+        screening_plan_summary: "A connection check, a short skills check, a typing test and a chat practice.",
+      },
+      error: null,
+    };
+  }
+  if (name === "ai-generate-workflow") {
+    return {
+      data: {
+        application_questions: [{ id: "q1", type: "text", question: "Which hours can you work?", required: true }],
+        quiz_questions: [],
+        workflow_steps: [
+          {
+            id: "step_connection",
+            type: "equipment_check",
+            title: "Your computer and connection",
+            description: "A short speed test on the computer you'll work from.",
+            required: true,
+            config: { min_download_mbps: 10, min_upload_mbps: 3, max_latency_ms: 200 },
+          },
+          { id: "step_typing", type: "typing_test", title: "Typing test", description: "One timed minute.", required: true, config: { min_wpm: 40, duration_seconds: 60 } },
+        ],
+        screening_plan_summary: "A connection check, then a typing test.",
+      },
+      error: null,
+    };
+  }
+  return null;
 }
 
 /* ── `?__previewLive=integrity`: the owner's card counting up, live ─────── */
@@ -166,16 +339,23 @@ export function install(params: URLSearchParams): void {
   // The staff record opens applicants' uploads through the applicant-file-url
   // edge function (a short-lived signed link). Offline, it answers with an
   // inline picture, so the record's file previews can be looked at.
+  const connectionTest = previewConnectionTest(tables);
   const client = {
     ...base,
     ...realtime,
     functions: {
-      async invoke(name: string, options?: { body?: unknown }) {
+      async invoke(name: string, options?: InvokeOptions) {
         if (name === "applicant-file-url") {
           const path = String((options?.body as { path?: unknown } | undefined)?.path ?? "");
           return { data: { url: previewFileDataUrl(path), contentType: "image/svg+xml" }, error: null };
         }
-        return base.functions.invoke();
+        // The computer and connection check's chain (name carries `?op=`).
+        if (name === "connection-test" || name.startsWith("connection-test?")) {
+          return connectionTest(name, options);
+        }
+        const generated = previewJobGeneration(name, options);
+        if (generated) return generated;
+        return base.functions.invoke(name, options);
       },
     },
   };

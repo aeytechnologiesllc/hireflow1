@@ -14,6 +14,7 @@ import {
   AlertTriangle
 } from "lucide-react";
 import { AvaSeal } from "@/components/ava/AvaSeal";
+import { GlyphEcho } from "@/components/ava/employerGlyphs";
 import type { Tables } from "@/integrations/supabase/types";
 
 interface ApplicationQuestion {
@@ -50,12 +51,28 @@ interface JobWorkflowDialogProps {
 }
 
 const STEP_ICONS: Record<string, React.ElementType> = {
+  equipment_check: GlyphEcho,
   typing_test: Keyboard,
   video_message: Video,
   chat_simulation: MessageSquare,
   sales_simulation: AvaSeal,
   portfolio_upload: Upload,
 };
+
+/** The three bars a computer and connection check is judged against, read off
+ *  the step's own config (docs/EQUIPMENT-CHECK.md §2); nothing when a step of
+ *  that type carries none, so an older job renders as it did. */
+function connectionBars(step: WorkflowStep): string | null {
+  if (step.type !== "equipment_check") return null;
+  const cfg = step.config ?? {};
+  const num = (key: string) => (typeof cfg[key] === "number" ? (cfg[key] as number) : null);
+  const parts = [
+    num("min_download_mbps") != null ? `Download ≥ ${num("min_download_mbps")} Mbps` : null,
+    num("min_upload_mbps") != null ? `Upload ≥ ${num("min_upload_mbps")} Mbps` : null,
+    num("max_latency_ms") != null ? `Latency ≤ ${num("max_latency_ms")} ms` : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
+}
 
 // Helper to check if a quiz question has a valid correct answer
 const hasValidCorrectAnswer = (q: QuizQuestion): boolean => {
@@ -233,6 +250,9 @@ export default function JobWorkflowDialog({ job, open, onOpenChange }: JobWorkfl
                               <p className="text-xs text-muted-foreground mt-1">
                                 {step.description}
                               </p>
+                              {connectionBars(step) && (
+                                <p className="text-xs text-foreground/80 mt-1">{connectionBars(step)}</p>
+                              )}
                             </div>
                           </div>
                         </div>

@@ -1,6 +1,6 @@
 /** Flow generation — OpenAI via Supabase edge function, with template fallback. */
 import { generateTemplateFlow } from "./templateGenerator";
-import { buildJobFlow, defaultShortlistWeights, emptyRubric, RIGOR_SPEC } from "./assemble";
+import { briefWantsEquipmentCheck, buildJobFlow, defaultShortlistWeights, emptyRubric, equipmentCheckPhase, RIGOR_SPEC } from "./assemble";
 import { rigorToLegacy } from "./rigor";
 import { supabase } from "@/integrations/supabase/client";
 import type {
@@ -96,6 +96,13 @@ function edgePayloadToFlow(req: GenerateFlowRequest, payload: EdgeFlowPayload): 
     countLabel: `${quizItems.length} items`,
     durationLabel: `${spec.quizMin} min`,
   });
+
+  // Same placement as the template flow: first workflow step on a remote role
+  // (docs/EQUIPMENT-CHECK.md §2). The edge payload carries nothing for it and
+  // it consumes no rationale, so the model's rationales stay aligned.
+  if (briefWantsEquipmentCheck(req.brief)) {
+    phases.push(equipmentCheckPhase(req.brief, order++));
+  }
 
   const sims = take(payload.simulation, spec.simulation);
   if (sims.length) {

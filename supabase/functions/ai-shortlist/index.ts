@@ -292,6 +292,18 @@ function buildApplicantSummaries(applications: any[]) {
       summaryParts.push(`- Typing Test: ${notes.typingTestResult.wpm} WPM, ${notes.typingTestResult.accuracy}% accuracy`);
     }
 
+    // The connection check is evidence, not a score (docs/EQUIPMENT-CHECK.md
+    // rule 3): it is listed for the ranking to see a flag, and deliberately
+    // left out of the high-signal counts above (a Mbps figure is not 0-100).
+    if (notes.equipmentCheckResult) {
+      const c = notes.equipmentCheckResult;
+      summaryParts.push(
+        `- Connection: ${c.downloadMbps} down / ${c.uploadMbps} up Mbps, ${c.latencyMs} ms, timed by our server, ` +
+          `${c.meetsBars ? "meets the bar" : `below the bar (${Array.isArray(c.below) ? c.below.join(", ") : "see record"})`}; ` +
+          `own computer: ${c.usingThisComputer === "yes" ? "yes" : c.usingThisComputer === "no_switched" ? "switched to it" : "no (ran here anyway)"}; device: ${c.deviceKind}`,
+      );
+    }
+
     if (notes.chatSimulationResult) {
       summaryParts.push(`- Chat Simulation: ${notes.chatSimulationResult.overallScore}/100`);
     }

@@ -373,6 +373,7 @@ serve(async (req) => {
             resume_analysis: notes.resumeAnalysis,
             quiz_score: notes.quizAnswers?.score,
             typing_test: notes.typingTestResult,
+            equipment_check: notes.equipmentCheckResult,
             chat_simulation: notes.chatSimulationResult,
             sales_simulation: notes.salesSimulationResult,
             chat_interview: notes.chatInterviewResult,
@@ -1629,6 +1630,11 @@ serve(async (req) => {
             skills: profile?.skills,
             status: app.status,
             typing_wpm: notes.typingTestResult?.wpm,
+            // The connection check, timed by our server (docs/EQUIPMENT-CHECK.md §6).
+            connection: notes.equipmentCheckResult
+              ? `${notes.equipmentCheckResult.downloadMbps} down / ${notes.equipmentCheckResult.uploadMbps} up Mbps, ${notes.equipmentCheckResult.latencyMs} ms, ` +
+                `${notes.equipmentCheckResult.meetsBars ? "meets the bar" : "below the bar"}; own computer: ${notes.equipmentCheckResult.usingThisComputer}`
+              : undefined,
             quiz_score: notes.quizScore,
             chat_score: notes.chatSimulationResult?.score,
             sales_score: notes.salesSimulationResult?.overallScore

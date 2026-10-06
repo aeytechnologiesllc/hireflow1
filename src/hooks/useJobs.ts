@@ -285,6 +285,9 @@ export function useUpdateJob() {
       // CRITICAL: Also invalidate all phase-specific application caches
       // This ensures candidates see the updated processing_mode when employer changes it
       queryClient.invalidateQueries({ queryKey: ["typing-test-application"] });
+      // The computer and connection check page (ConnectionCheckPhase, route
+      // segment "connection") keys its row query the same <segment>-application way.
+      queryClient.invalidateQueries({ queryKey: ["connection-application"] });
       queryClient.invalidateQueries({ queryKey: ["quiz-application"] });
       queryClient.invalidateQueries({ queryKey: ["video-intro-application"] });
       queryClient.invalidateQueries({ queryKey: ["portfolio-application"] });

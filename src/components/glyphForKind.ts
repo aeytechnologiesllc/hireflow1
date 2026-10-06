@@ -11,6 +11,7 @@ import {
   GlyphQuoted,
   GlyphForme,
   GlyphRosette,
+  GlyphEcho,
 } from "@/components/ava/employerGlyphs";
 
 /**
@@ -33,6 +34,10 @@ export function glyphForKind(kind: string) {
   const k = kind.toLowerCase();
   if (k.includes("job post") || k.includes("listing")) return GlyphJobPost;
   if (k.includes("application")) return GlyphLetter;
+  // The computer and connection check (type "equipment_check", title "Your
+  // computer and connection", public rail kind "connection"). Tested before
+  // the generic marks so none of its words can land it on another branch.
+  if (k.includes("connection") || k.includes("equipment") || k.includes("computer")) return GlyphEcho;
   if (k.includes("quiz") || k.includes("scenario")) return GlyphScenarios;
   if (k.includes("typing") || k.includes("skills")) return GlyphTyping;
   if (k.includes("video") || k.includes("walkthrough")) return GlyphCallingCard;
