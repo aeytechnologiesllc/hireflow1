@@ -41,6 +41,9 @@ import { fileURLToPath } from "node:url";
 import {
   DEFAULT_PRACTICE_SCENARIOS,
   EVAL_PROMPT_VERSION,
+  PLAYER_EARLIEST_CLOSE,
+  PLAYER_MUST_CLOSE,
+  PLAYER_SHOULD_CLOSE,
   SPELLING_LIST_MAX,
   buildEvaluatorMessages,
   customerPromptFor,
@@ -50,6 +53,8 @@ import {
   focusLabels,
   isTakeoverCase,
   knownPinnedCase,
+  playerClosingInstruction,
+  playerReplyNumber,
   practiceScenarios,
   practiceStepFrom,
   rubricForCase,
@@ -387,6 +392,37 @@ check("holds back what the case says she will not share", persona.includes("unle
 check("knows a team leader has taken over", /the person you are now talking to is that team leader/.test(persona));
 check("the persona no longer carries an evaluation mode", !/EVALUATION MODE/.test(persona));
 check("the opener follows the case's mood", /in the mood your scenario describes/.test(customerTurnInstruction("start", undefined, "Tasha", "x", 0)));
+
+// The player ends the chat by itself (2026-10-07). On the first live day it
+// was told to wrap up "after at least max(5, messageCount) exchanges", a bar
+// that rose with every message, and only when "truly satisfied" in cases
+// where what it asks for cannot be given: 10 chats in 13 ran until the
+// applicant gave up, some to 11 replies.
+console.log("\nThe player ends the chat by itself:\n");
+check("reply n arrives as the 2n - 1 messages before it", [1, 3, 5, 7, 9, 11, 21].map(playerReplyNumber).join() === "1,2,3,4,5,6,11" && playerReplyNumber(0) === 1 && playerReplyNumber(8) === 4 && playerReplyNumber(NaN) === 1);
+check("the window is replies 4 to 6", PLAYER_EARLIEST_CLOSE === 4 && PLAYER_SHOULD_CLOSE === 5 && PLAYER_MUST_CLOSE === 6);
+const personaAt = (reply) => customerPromptFor("Ray", liveScenarios[4].scenario, 2 * reply - 1);
+check("the bar no longer rises with the chat", !/after at least \d+ exchanges/.test(personaAt(3)) && !/after at least \d+ exchanges/.test(personaAt(11)) && personaAt(3).replace("their reply 3.", "") === personaAt(11).replace("their reply 11.", ""));
+check("a fair no with a next step settles it", /do NOT have to get what you first asked for/.test(persona) && /A fair, clear "no" with a real next step is a good outcome/.test(persona));
+check("one demand is asked at most twice, and none is invented late", /at most twice/.test(persona) && /Never ask for it a third time/.test(persona) && /Do not bring in new demands/.test(persona));
+check("the marker closes the chat, happy or not", /\[RESOLVED\] is a hidden marker that closes the chat; it does not mean you are happy/.test(persona));
+const turnAt = (reply) => customerTurnInstruction("respond", "I will look into it.", "Ray", "the case", 2 * reply - 1);
+check("each turn names the reply it answers", /This is their reply 2\./.test(turnAt(2)) && /This is their reply 6\./.test(turnAt(6)) && !/message #/.test(turnAt(6)));
+check("replies 1 to 3: the chat stays open", [1, 2, 3].every((n) => /Do not end the chat in this message/.test(turnAt(n)) && !/\[RESOLVED\]/.test(turnAt(n))));
+check("reply 4: closes when it is settled", /If it is settled for you/.test(turnAt(4)) && /\[RESOLVED\]/.test(turnAt(4)) && /without repeating anything you have already asked for twice/.test(turnAt(4)));
+check("reply 5: closes unless something essential is missing", /unless something essential is still unanswered/.test(turnAt(5)) && /your next message will be your last/.test(turnAt(5)));
+check("reply 6 and every reply after it: the last message", [6, 7, 11, 40].every((n) => /This is your LAST message\. End the chat now/.test(turnAt(n)) && /Ask nothing and demand nothing/.test(turnAt(n))));
+check("the closing instruction is the last thing the model reads", turnAt(6).trimEnd().endsWith(playerClosingInstruction(6)));
+// The second half of an escalated case is the applicant's answer sheet. In a
+// trial of the first wording the player read it back to them ("support cannot
+// add the $20 bonus, correct? ... but don't promise the bonus") and gave the
+// account name, amount and time before the lead asked.
+const rayKnows = splitBrief(liveScenarios[4].scenario).leaderKnows;
+check("the player is shown the staff's knowledge as something it was never told", personaAt(2).includes("YOUR SITUATION (your scenario; this is all you know):") && personaAt(2).includes("BEHIND THE SCENES (staff knowledge. You have NOT been told any of this.") && personaAt(2).indexOf(rayKnows) > personaAt(2).indexOf("BEHIND THE SCENES") && !personaAt(2).includes("What the team leader knows"));
+check("it may not state the rules or say what to promise", /Never state, hint at or confirm any of it, and never tell them what they should or should not promise/.test(persona) && /only when they ask for them/.test(persona));
+const rayTurn = customerTurnInstruction("respond", "I will look into it.", "Ray", liveScenarios[4].scenario, 5);
+check("each turn repeats the player's own situation only", rayTurn.includes(splitBrief(liveScenarios[4].scenario).situation) && !rayTurn.includes(rayKnows) && !rayTurn.includes("What the team leader knows"));
+check("a case with one reader is given whole", customerPromptFor("Sam", "Sam was charged twice for one order.", 3).includes("SCENARIO: Sam was charged twice for one order."));
 
 // ============================================================================
 // From the reviewer's answer to the mark. The answers below are FIXED stand-ins

@@ -223,6 +223,51 @@ You take over a player's chat from one of your agents, the way a team leader doe
   only a reviewer flag the server could not confirm, or a confirmed promise
   or disrespect, keeps the card on "review".
 
+## How the chat practice ends (2026-10-07)
+
+The player ends the chat by itself, between the applicant's 4th and 6th
+reply, satisfied or not (`PLAYER_EARLIEST_CLOSE`, `PLAYER_SHOULD_CLOSE`,
+`PLAYER_MUST_CLOSE` in prompts.ts; the page closes on the player's
+`[RESOLVED]` marker and sends the chat 5 seconds later).
+
+Why: on the first live day the owner watched a chat run to 11 replies with
+the player repeating one demand: "it's going on forever, I thought it was
+supposed to wrap it up on its own early". Of the 13 chats finished after
+that morning's outage, 3 were ended by the player (at reply 4 or 5) and 10
+ran until the applicant sent them (5 to 11 replies, up to 36 minutes). Two
+causes, both in the player's instructions:
+
+- "wrap up after at least max(5, messageCount) exchanges", where
+  messageCount is the running number of messages, so the bar rose with every
+  message;
+- "only when you're truly satisfied", in cases written so that what the
+  player asks for cannot be given.
+
+The rules now:
+
+- **A fair, clear "no" with a next step settles it.** The player does not
+  have to get what it first asked for. It asks for any one thing at most
+  twice and brings in no new demands late (a reference number, written
+  proof, a manager).
+- **Replies 1 to 3**: the chat stays open (the reviewer needs something to
+  mark, and typing is timed over at least 3 replies). **Reply 4**: it closes
+  if it is settled. **Reply 5**: it closes unless something essential is
+  unanswered. **Reply 6**: its last message, whatever was said. A goodbye
+  from the lead closes it from reply 4.
+- **It closes unhappy too** ("Fine. I'll wait to hear back."): `[RESOLVED]`
+  ends the chat, it does not say the player is pleased. The reviewer marks
+  the transcript, never the marker.
+- **The player is not the applicant's answer sheet.** "What the team leader
+  knows" is shown to the player as staff knowledge it was never told, and
+  each turn repeats only its own situation. In a trial of the first wording
+  it read the rule back to the lead ("support cannot add the $20 bonus,
+  correct? ... but don't promise the bonus") and gave the account name,
+  amount and time before being asked.
+
+Checked before going live on a copy of the function (three scripted leads,
+twice): a clear lead, one who only answers "yes I will, thank you", and a
+dismissive one all ended between replies 4 and 6.
+
 ## Retired: the ten it was cut from (zu1 to zu10)
 
 Kept for the record: zv1 to zv5 are zu1, zu2, zu6, zu8 and zu9 word for word.

@@ -472,10 +472,83 @@ Mark it now and return only the JSON.`,
 // The player (modes "start" / "respond")
 // ============================================================================
 
+/**
+ * How long the player keeps the chat open, counted in the applicant's replies.
+ *
+ * Until 2026-10-07 the player was told to wrap up "after at least
+ * max(5, messageCount) exchanges", and messageCount is the running number of
+ * messages, so the bar rose with every message; it was also told to close
+ * only when "truly satisfied", in cases written so that what the player asks
+ * for cannot be given. On the first live day 3 chats in 13 ended by the
+ * player (all at reply 4 or 5) and the rest ran until the applicant gave up,
+ * some to 11 replies and 36 minutes, the player repeating one demand. The
+ * owner: "it's going on forever, I thought it was supposed to wrap it up on
+ * its own early".
+ *
+ * Now the player closes by itself between reply 4 and reply 6, satisfied or
+ * not. Not before 4: the reviewer needs a few replies to mark, and typing is
+ * timed over at least TYPING_MIN_TIMED_REPLIES (3) of them. The page ends the
+ * chat on the player's [RESOLVED] marker (ChatSimulationPhase.tsx).
+ */
+export const PLAYER_EARLIEST_CLOSE = 4;
+/** From this reply the player closes unless something essential is unanswered. */
+export const PLAYER_SHOULD_CLOSE = 5;
+/** The player's last message: it closes on this reply whatever was said. */
+export const PLAYER_MUST_CLOSE = 6;
+
+/**
+ * Which of the applicant's replies the player is answering. The count passed
+ * in is the number of messages BEFORE this reply (the stored turns on a
+ * recorded chat, the page's own history otherwise): the opener, then pairs,
+ * so reply n arrives as 2n - 1.
+ */
+export function playerReplyNumber(messageCount: number): number {
+  const count = Number.isFinite(messageCount) ? Math.max(0, Math.floor(messageCount)) : 0;
+  return Math.max(1, Math.ceil(count / 2));
+}
+
+/** What this one message must do about ending, said last so it is what the model acts on. */
+export function playerClosingInstruction(reply: number): string {
+  if (reply < PLAYER_EARLIEST_CLOSE) {
+    return "Do not end the chat in this message. Answer in 1 to 3 sentences.";
+  }
+  if (reply >= PLAYER_MUST_CLOSE) {
+    return "This is your LAST message. End the chat now: one short closing line that fits how you feel, then [RESOLVED]. Ask nothing and demand nothing.";
+  }
+  if (reply >= PLAYER_SHOULD_CLOSE) {
+    return "End the chat in this message (one short closing line that fits how you feel, then [RESOLVED]) unless something essential is still unanswered. If you do go on, say the one thing that is missing in a sentence or two: your next message will be your last.";
+  }
+  return "If it is settled for you (they took you seriously, told you plainly what they can and cannot do, and told you what happens next), end the chat in this message: one short closing line, then [RESOLVED]. If something is still missing, say what it is in 1 to 3 sentences, without repeating anything you have already asked for twice.";
+}
+
+/**
+ * The case as the player reads it. An escalated case is written for two
+ * readers (splitBrief): the player's own situation, then "What the team
+ * leader knows", which is the applicant's answer sheet. The player is shown
+ * the second part as staff knowledge it was never told, so it does not hand
+ * the applicant the rule ("support can't add bonuses, correct?") or the list
+ * of details the lead is meant to ask for.
+ */
+function playerCaseBlock(scenario: string): string {
+  const brief = splitBrief(scenario);
+  if (!brief.leaderKnows) return `SCENARIO: ${scenario}`;
+  return `YOUR SITUATION (your scenario; this is all you know):
+${brief.situation}
+
+BEHIND THE SCENES (staff knowledge. You have NOT been told any of this. It is here only so your reactions stay realistic):
+${brief.leaderKnows}`;
+}
+
 export function customerPromptFor(customerName: string, scenario: string, messageCount: number): string {
+  const position = messageCount > 0 ? `\n- Right now you are answering their reply ${playerReplyNumber(messageCount)}.` : "";
   return `You are roleplaying as a customer named ${customerName} in a customer support chat simulation.
 
-SCENARIO: ${scenario}
+${playerCaseBlock(scenario)}
+
+WHAT YOU KNOW AND DO NOT KNOW:
+- You know only your own side: what happened to you and what you want.
+- You do not know the company's rules, what staff can or cannot do, what they need from you, or what they are allowed to promise. Never state, hint at or confirm any of it, and never tell them what they should or should not promise. Ask, and let them tell you.
+- Give details about yourself (a name, an amount, a time) only when they ask for them.
 
 YOUR PERSONALITY & BEHAVIOR:
 - You are a real customer with a genuine problem that's frustrating you
@@ -484,7 +557,6 @@ YOUR PERSONALITY & BEHAVIOR:
 - Your frustration level can increase OR decrease based on how the support agent responds
 - If the agent is empathetic and helpful, you can become calmer and more cooperative
 - If the agent is dismissive or unhelpful, you can become more frustrated
-- Sometimes you might send a quick follow-up message expressing impatience
 - Be realistic - real customers make typos, use informal language, and sometimes ramble
 
 REALISTIC BEHAVIORS TO EXHIBIT:
@@ -495,23 +567,33 @@ REALISTIC BEHAVIORS TO EXHIBIT:
 - React authentically to solutions (skeptical, relieved, grateful)
 
 CONVERSATION FLOW:
+- Early in the chat, push for what your scenario says you want. That pressure is real.
 - If the agent apologizes sincerely and offers help, acknowledge it but stay focused on resolution
 - If the agent provides a solution, ask about timeline or confirmation
 - If the agent asks for information, provide it (use realistic fake details), unless your scenario says you will not share it; then hold it back until the agent has clearly earned your trust
-- After ${messageCount >= 5 ? "enough back and forth, if you feel the issue is resolved or being handled well" : "a few more exchanges"}, you can express satisfaction and thank the agent
 
 RESPONSE GUIDELINES:
-- Keep responses 1-3 sentences typically (real customers don't write essays)
+- Keep responses to 1-3 sentences (real customers don't write essays)
 - Occasionally send very short responses ("ok", "and?", "I see")
-- Don't be satisfied too easily - make sure the agent actually addresses your concern
 - CRITICAL: Do NOT greet or use the agent's name. You're the customer - just describe your problem. Real frustrated customers don't say "Hello [agent name]" - they just complain.
 
-NATURAL CONVERSATION ENDING:
-- When you feel the agent has genuinely resolved your issue (after at least ${Math.max(5, messageCount)} exchanges), you should naturally wrap up
-- Express genuine gratitude and satisfaction in a natural way like: "Thank you so much! I really appreciate your help." or "That's great, thanks for sorting this out for me!"
-- When you're satisfied and ready to end the conversation, add [RESOLVED] at the very END of your message (this is a hidden marker, write your natural message first then add [RESOLVED] at the end)
-- Only add [RESOLVED] when you're truly satisfied - the agent must have actually addressed your concern
-- Example: "Perfect, that's exactly what I needed. Thanks so much for your help! [RESOLVED]"
+WHAT SETTLES IT FOR YOU:
+- You do NOT have to get what you first asked for. A real person calms down when they are treated with respect and know plainly where they stand.
+- It is settled for you once the person has done three things: (1) taken seriously how you were treated or how you feel, (2) told you plainly what they can and cannot do, and (3) told you what happens next. A fair, clear "no" with a real next step is a good outcome for you.
+- Ask for any one thing at most twice. If the answer is the same the second time, that is their answer: accept it and move on. Never ask for it a third time.
+- Stay with the problem in your scenario. Do not bring in new demands as the chat goes on (a reference number, written proof, a promise in writing, a manager) to keep it going.
+
+HOW THIS CHAT ENDS:
+- A real support chat is short. This one ends between their reply ${PLAYER_EARLIEST_CLOSE} and their reply ${PLAYER_MUST_CLOSE}, and never runs past reply ${PLAYER_MUST_CLOSE}. Each turn tells you which of their replies you are answering.${position}
+- Before their reply ${PLAYER_EARLIEST_CLOSE}, do not end the chat.
+- From their reply ${PLAYER_EARLIEST_CLOSE}: if it is settled for you, end the chat in that message.
+- At their reply ${PLAYER_SHOULD_CLOSE}: end the chat unless something essential is still unanswered.
+- At their reply ${PLAYER_MUST_CLOSE}: end the chat in that message, whatever was said.
+- From their reply ${PLAYER_EARLIEST_CLOSE}, if they say goodbye or say they are closing the chat, do not argue: end it.
+- To end the chat, write ONE short closing line that fits how you feel, then add [RESOLVED] at the very END of the message. [RESOLVED] is a hidden marker that closes the chat; it does not mean you are happy.
+- Satisfied: "Okay, thank you, that's all I wanted. [RESOLVED]"
+- Not satisfied: "Fine. I'll wait to hear back. [RESOLVED]" or "Not what I hoped for, but ok. [RESOLVED]"
+- A closing message asks nothing and demands nothing.
 `;
 }
 
@@ -525,7 +607,10 @@ export function customerTurnInstruction(
   if (mode === "start") {
     return "Start the conversation as the customer, in the mood your scenario describes. Send your opening message describing your problem.";
   }
+  const reply = playerReplyNumber(messageCount);
   return `The support agent just said: "${agentMessage ?? ""}"
 
-Respond as the customer ${customerName}. Remember your scenario: ${scenario}. This is message #${messageCount} in the conversation.`;
+Respond as the customer ${customerName}. Remember your scenario: ${splitBrief(scenario).situation} This is their reply ${reply}.
+
+${playerClosingInstruction(reply)}`;
 }
