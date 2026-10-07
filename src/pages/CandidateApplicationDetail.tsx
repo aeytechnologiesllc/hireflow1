@@ -80,7 +80,7 @@ export default function CandidateApplicationDetail() {
   
   // Status screen state
   const [statusScreen, setStatusScreen] = useState<"rejected" | "interview_scheduled" | "hired" | "ava_interview_unlocked" | "reconsidered" | "interview_cancelled" | "interview_rescheduled" | null>(null);
-  const [interviewDetails, setInterviewDetails] = useState<{ scheduledAt?: string; meetingLink?: string; durationMinutes?: number } | null>(null);
+  const [interviewDetails, setInterviewDetails] = useState<{ scheduledAt?: string; meetingLink?: string; durationMinutes?: number; candidateResponse?: string | null } | null>(null);
   const previousStatusRef = useRef<string | null>(null);
   const previousPhaseRef = useRef<string | null>(null);
   const previousInterviewRef = useRef<{ scheduled_at: string; status: string } | null>(null);
@@ -164,8 +164,13 @@ export default function CandidateApplicationDetail() {
         scheduledAt: data.scheduled_at,
         meetingLink: data.meeting_link || undefined,
         durationMinutes: data.duration_minutes || undefined,
+        // Whether a time is set or only offered: the pop-up must not present
+        // an offered time as the appointment.
+        candidateResponse: data.candidate_response,
       });
     }
+    // The card under the pop-up reads the same row.
+    refetchInterview();
   };
 
   // Subscribe to real-time updates for this application. The topic carries
@@ -369,6 +374,14 @@ export default function CandidateApplicationDetail() {
     previousStatusRef.current = application.status;
     previousPhaseRef.current = application.phase;
   }, [application]);
+
+  // "Pick your time" on the applications list lands on the interview itself.
+  const interviewOnPage = !!candidateInterview;
+  useEffect(() => {
+    if (!interviewOnPage || window.location.hash !== "#interview") return;
+    const t = window.setTimeout(() => document.getElementById("interview")?.scrollIntoView({ block: "start" }), 60);
+    return () => window.clearTimeout(t);
+  }, [interviewOnPage]);
 
   // Initialize previous interview ref when interview data loads
   useEffect(() => {
@@ -590,7 +603,7 @@ export default function CandidateApplicationDetail() {
         }}
         interviewId={candidateInterview?.id}
         applicationId={id}
-        candidateResponse={candidateInterview?.candidate_response}
+        candidateResponse={candidateInterview?.candidate_response ?? interviewDetails?.candidateResponse}
         onInterviewConfirmed={() => refetchInterview()}
         onRescheduleRequested={() => refetchInterview()}
       />
@@ -605,6 +618,21 @@ export default function CandidateApplicationDetail() {
           <ArrowLeft className="h-4 w-4" />
           Back to Applications
         </Button>
+
+        {/* The interview with the hiring team comes first: it has a date on
+            it, and it is the one thing here someone else is waiting on. It sat
+            under the step panel until 2026-10-07, where an applicant with a
+            test still to take never saw the times they had been offered. */}
+        {candidateInterview && !isRejected && (
+          <div className="ck-reveal">
+            <CandidateInterviewConfirmationCard
+              interview={candidateInterview}
+              applicationId={id!}
+              employerName={employerBranding}
+              jobTitle={job?.title}
+            />
+          </div>
+        )}
 
         {/* The one panel: who you applied to, and exactly where you stand — the letterhead moment */}
         <Card className="relative overflow-hidden bg-card border-border ck-reveal">
@@ -728,18 +756,6 @@ export default function CandidateApplicationDetail() {
             ) : null}
           </CardContent>
         </Card>
-
-        {/* Interview Confirmation Card - for candidate to confirm/reschedule */}
-        {candidateInterview && (
-          <div className="ck-reveal" style={{ ["--ck-i" as string]: 1 }}>
-            <CandidateInterviewConfirmationCard
-              interview={candidateInterview}
-              applicationId={id!}
-              employerName={employerBranding}
-              jobTitle={job?.title}
-            />
-          </div>
-        )}
 
         {/* Document Requests Section for Hired Candidates */}
         {isHired &&

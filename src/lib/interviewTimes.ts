@@ -182,3 +182,23 @@ export function clockGapWords(at: Date, applicantZone: string, teamZone: string)
   ].filter(Boolean).join(" ");
   return `${amount} ${gap > 0 ? "ahead of" : "behind"} you`;
 }
+
+/**
+ * What the owner is told about the invitation email after setting up an
+ * interview. "Sent" only when the mail service took it: until 2026-10-07 a
+ * failed lookup sent nothing and the screen still read as if all was well.
+ */
+export function inviteEmailWords(
+  status: "sent" | "skipped" | "failed" | null | undefined,
+  who: { email?: string | null; firstName: string; exactTime: boolean },
+): string {
+  const name = who.firstName || "them";
+  if (status === "sent") {
+    const to = who.email || name;
+    return who.exactTime ? `Email sent to ${to} with the date and time` : `Email sent to ${to} to pick a time`;
+  }
+  if (status === "skipped") {
+    return `No email went out: ${name} has these emails turned off. They will see it when they open their application. Message them so they know to look.`;
+  }
+  return `The invitation email could not be sent. ${name === "them" ? "They" : name} will see it when they open their application. Message them so they know to look.`;
+}

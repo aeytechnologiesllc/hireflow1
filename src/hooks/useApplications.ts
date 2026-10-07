@@ -25,6 +25,8 @@ export interface InterviewForApplication {
   interview_type: string | null;
   proposed_times: Json | null;
   candidate_note: string | null;
+  /** The times the team offered (src/lib/candidateInterview.ts reads them). */
+  employer_windows?: Json | null;
 }
 
 export interface ApplicationWithJob extends Application {
@@ -85,7 +87,7 @@ export function useCandidateApplications() {
       
       const { data: interviews } = await supabase
         .from("interviews")
-        .select("id, application_id, scheduled_at, status, candidate_response, meeting_link, duration_minutes, interview_type, proposed_times, candidate_note")
+        .select("id, application_id, scheduled_at, status, candidate_response, meeting_link, duration_minutes, interview_type, proposed_times, candidate_note, employer_windows")
         .in("application_id", applicationIds)
         .eq("status", "scheduled")
         .order("scheduled_at", { ascending: false });
@@ -104,6 +106,7 @@ export function useCandidateApplications() {
             interview_type: interview.interview_type,
             proposed_times: interview.proposed_times,
             candidate_note: interview.candidate_note,
+            employer_windows: interview.employer_windows,
           });
         }
       });

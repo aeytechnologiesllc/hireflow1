@@ -352,10 +352,23 @@ export function CandidateStatusScreen({
                   </p>
                 </div>
 
-                {interviewDetails && <InterviewDetailsCard details={interviewDetails} />}
+                {/* Offered times are not an appointment: no date, no link to
+                    join. The times themselves are on the page behind this. */}
+                {interviewDetails && localCandidateResponse !== "awaiting_pick" && <InterviewDetailsCard details={interviewDetails} />}
 
                 {/* Show different UI based on candidate response */}
-                {localCandidateResponse === "confirmed" ? (
+                {localCandidateResponse === "awaiting_pick" ? (
+                  <div className="space-y-3" data-status-interview="pick">
+                    <p className="text-sm text-foreground">
+                      {companyName ? `${companyName} offered` : "They offered"} a few times. Pick the one that works for you, or
+                      suggest your own.
+                    </p>
+                    <Button onClick={onClose} className="w-full gap-2">
+                      See the times
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : localCandidateResponse === "confirmed" ? (
                   <div className="rounded-lg p-4 text-left" style={{ background: "var(--jade-soft)" }}>
                     <div className="mb-1.5 flex items-center gap-2" style={{ color: "var(--jade-soft-fg)" }}>
                       <CheckCircle className="h-4 w-4" />
@@ -407,10 +420,12 @@ export function CandidateStatusScreen({
                   </p>
                 )}
 
-                <Button onClick={onClose} variant="outline" className="gap-2">
-                  {localCandidateResponse ? "Close" : "View application"}
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
+                {localCandidateResponse !== "awaiting_pick" && (
+                  <Button onClick={onClose} variant="outline" className="gap-2">
+                    {localCandidateResponse ? "Close" : "View application"}
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                )}
               </CardContent>
             </Card>
           )}

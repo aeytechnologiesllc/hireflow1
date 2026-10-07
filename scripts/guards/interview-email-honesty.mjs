@@ -13,7 +13,9 @@
  *  - InterviewSchedulingWizard.tsx captures that status from
  *    notifyInterviewScheduled/notifyInterviewPickTime and only shows the
  *    "sent"/"invite sent" copy when the status is 'sent' — otherwise it
- *    falls back to a neutral, still-true line about the in-app notification.
+ *    says plainly that no email went out (inviteEmailWords).
+ *  - the wizard's lookup before the email asks for nothing the database
+ *    cannot join, and a failed lookup is reported as a failed email.
  */
 
 export default [
@@ -73,8 +75,32 @@ export default [
       if (!/candidateEmailStatus === "sent"/.test(wizard)) {
         detail.push('InterviewSchedulingWizard.tsx success screen no longer gates the "sent" copy on candidateEmailStatus === "sent"');
       }
-      if (!/Interview scheduled — they'll see it in HireFlow/.test(wizard)) {
-        detail.push("InterviewSchedulingWizard.tsx lost its neutral fallback line for when the email wasn't actually sent");
+      // The line itself is written by inviteEmailWords (src/lib/interviewTimes.ts)
+      // since 2026-10-07: "sent" only for status "sent", and anything else
+      // says plainly that no email went out.
+      if (!/inviteEmailWords\(candidateEmailStatus,/.test(wizard)) {
+        detail.push("InterviewSchedulingWizard.tsx success screen no longer words the email line through inviteEmailWords(candidateEmailStatus, ...)");
+      }
+      const times = await read("src/lib/interviewTimes.ts");
+      const words = times == null ? null : /export function inviteEmailWords[\s\S]*?\n}\n/.exec(times)?.[0] ?? null;
+      if (words == null) {
+        detail.push("src/lib/interviewTimes.ts lost inviteEmailWords");
+      } else {
+        const sentBranch = /if \(status === "sent"\) \{[\s\S]*?\n  \}/.exec(words)?.[0] ?? "";
+        if (!/Email sent to/.test(sentBranch)) detail.push('inviteEmailWords no longer says "Email sent to" for status "sent"');
+        if (/Email sent to/.test(words.replace(sentBranch, ""))) detail.push('inviteEmailWords says "Email sent to" for a status other than "sent"');
+        if (!/could not be sent/.test(words)) detail.push("inviteEmailWords lost its plain line for an email that did not go out");
+      }
+
+      // The invitation's own lookup. Until 2026-10-07 it asked for the
+      // employer's profile through a relationship the database does not have
+      // (profiles has no foreign keys): PostgREST answered 400, the wizard
+      // skipped the email without a word, and no invitation was ever sent.
+      if (/\.select\([^)]*profiles\s*[:!(]/.test(wizard)) {
+        detail.push("InterviewSchedulingWizard.tsx embeds profiles in a select again: the request is refused and the invitation is never emailed");
+      }
+      if (!/appLookupError \|\| !appData\?\.candidate_id[\s\S]{0,200}setCandidateEmailStatus\("failed"\)/.test(wizard)) {
+        detail.push("InterviewSchedulingWizard.tsx no longer reports a failed lookup as a failed email");
       }
       if (/will be sent to \$\{candidateEmail\}/.test(wizard)) {
         detail.push(

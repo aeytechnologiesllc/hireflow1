@@ -46,7 +46,7 @@ import { hapticLight } from "@/lib/haptics";
 import type { Json } from "@/integrations/supabase/types";
 import type { EmailStatus } from "@/utils/emailNotifications";
 import { candidateOrigin } from "@/lib/hosts";
-import { applicantEmailTime, clockGapWords, localTimeZone, shortTimeIn, zonePlace } from "@/lib/interviewTimes";
+import { applicantEmailTime, clockGapWords, inviteEmailWords, localTimeZone, shortTimeIn, zonePlace } from "@/lib/interviewTimes";
 import { fetchApplicantTimeZone, useApplicantTimeZone } from "@/hooks/useApplicantTimeZone";
 
 interface InterviewSchedulingWizardProps {
@@ -656,9 +656,12 @@ export default function InterviewSchedulingWizard({
         // Windows mode: offer a set of start times, the candidate picks one.
         // scheduled_at is a placeholder (the earliest window) until they do.
         scheduledAt = combineDayAndTime(sortedSelectedWindows[0].day, sortedSelectedWindows[0].time);
+        // `zone` is the clock these were picked on: what the applicant's
+        // answer is written on when the team is told (candidate-interview-response).
         const employerWindows = sortedSelectedWindows.map((w) => ({
           start: combineDayAndTime(w.day, w.time).toISOString(),
           durationMinutes: parseInt(duration),
+          zone: teamZone,
         }));
 
         await createInterview.mutateAsync({
@@ -684,14 +687,21 @@ export default function InterviewSchedulingWizard({
         status: "interview",
       });
 
-      // Send email notification to candidate
-      const { data: appData } = await supabase
+      // Tell the applicant by email. The lookup asks only for what the email
+      // needs. Until 2026-10-07 it also asked for the employer's company name
+      // through a relationship the database does not have: the request was
+      // refused (400), nothing was said, and no invitation was ever emailed.
+      // The owner's own test found it. A lookup that fails now says so.
+      const { data: appData, error: appLookupError } = await supabase
         .from("applications")
-        .select("candidate_id, jobs(title, employer_id, profiles:employer_id(company_name))")
+        .select("candidate_id, jobs(title)")
         .eq("id", applicationId)
         .single();
 
-      if (appData) {
+      if (appLookupError || !appData?.candidate_id) {
+        console.error("[interview] could not look up who to email the invitation to:", appLookupError);
+        setCandidateEmailStatus("failed");
+      } else {
         const resolvedJobTitle = (appData.jobs as { title?: string } | null)?.title || jobTitle || "Position";
         if (exactTimeMode) {
           const { notifyInterviewScheduled } = await import("@/utils/emailNotifications");
@@ -991,14 +1001,19 @@ export default function InterviewSchedulingWizard({
               </div>
             )}
 
-            <div className="flex items-center justify-center gap-2 p-3 rounded-lg bg-muted/50 mb-6">
-              <Mail className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">
-                {candidateEmail && candidateEmailStatus === "sent"
-                  ? exactTimeMode
-                    ? `Email sent to ${candidateEmail} with the date and time`
-                    : `Email sent to ${candidateEmail} to pick a time`
-                  : "Interview scheduled — they'll see it in HireFlow"}
+            {/* What happened to the invitation email, said truthfully: "sent"
+                only when the mail service took it. */}
+            <div
+              data-testid="invite-email-status"
+              data-email-status={candidateEmailStatus ?? "none"}
+              className={cn(
+                "flex items-center justify-center gap-2 p-3 rounded-lg mb-6",
+                candidateEmailStatus === "sent" ? "bg-muted/50" : "border border-[var(--brass-line)] bg-[var(--amber-bg)]",
+              )}
+            >
+              <Mail className={cn("h-4 w-4 shrink-0", candidateEmailStatus === "sent" ? "text-muted-foreground" : "text-[var(--amber-fg)]")} />
+              <span className={cn("text-sm", candidateEmailStatus === "sent" ? "text-muted-foreground" : "text-foreground")}>
+                {inviteEmailWords(candidateEmailStatus, { email: candidateEmail, firstName, exactTime: exactTimeMode })}
               </span>
             </div>
 

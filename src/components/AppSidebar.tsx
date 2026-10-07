@@ -167,8 +167,11 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
   // entirely rather than linking somewhere that only shows an empty employer
   // screen. Documents points at the candidate's own document hub, not the
   // employer cockpit page at /documents.
+  //
+  // No "Enter Job Code" here (removed 2026-10-07, the owner: "there's no such
+  // thing as enter job code anymore"): people apply from a job's own page.
+  // The /apply route still answers an old link that carries a code.
   const candidateNavItems: NavItemProps[] = [
-    { icon: Briefcase, label: "Enter Job Code", to: "/apply" },
     { icon: ClipboardCheck, label: "Applications", to: "/applications", badge: pendingActions || 0, highlight: (pendingActions || 0) > 0 },
     { icon: MessageSquare, label: "Messages", to: "/messages", badge: unreadMessages || 0, highlight: (unreadMessages || 0) > 0 },
     { icon: FileText, label: "Documents", to: "/my-documents", badge: pendingDocuments || 0, highlight: (pendingDocuments || 0) > 0 },

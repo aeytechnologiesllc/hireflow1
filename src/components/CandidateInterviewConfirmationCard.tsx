@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -10,8 +9,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { format, isFuture, differenceInMinutes, differenceInHours } from "date-fns";
-import { Calendar, CalendarPlus, Clock, Video, Check, RefreshCw, Loader2, ExternalLink, Globe } from "lucide-react";
+import { differenceInMinutes, differenceInHours } from "date-fns";
+import { Calendar, CalendarPlus, Check, Clock, ExternalLink, Loader2, RefreshCw, Video } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -19,18 +18,38 @@ import { cn } from "@/lib/utils";
 import { CandidateRescheduleRequestDialog } from "./CandidateRescheduleRequestDialog";
 import { getTimezoneAbbreviation } from "@/lib/timezone";
 import { buildCandidateInterviewIcs, downloadIcsFile, icsFileStem } from "@/lib/calendarInvite";
+import {
+  candidateInterviewStage,
+  interviewKindWords,
+  interviewWhen,
+  offeredWindows,
+  openWindows,
+  type OfferedWindow,
+} from "@/lib/candidateInterview";
 import type { Json } from "@/integrations/supabase/types";
 
-// Candidate can join in-app starting this many minutes before the scheduled start.
-const JOIN_WINDOW_MINUTES = 15;
-// A confirmed windows-pick can be swapped for another proposed window, without
-// waiting on the employer, as long as it's more than this far out.
-const FREE_REPICK_HOURS = 12;
+/**
+ * The applicant's side of an interview with the hiring team: the times they
+ * were offered, the one they chose, and how to join (docs/INTERVIEWS.md,
+ * "What the applicant sees").
+ *
+ * Four stages, read by src/lib/candidateInterview.ts so this card, the
+ * applications list and the pop-up always agree:
+ *  - pick: the team offered times. They choose one, or say none work and
+ *    suggest their own.
+ *  - confirm: the team set one time. They confirm it or ask for another.
+ *  - waiting: they suggested times; the team has not answered. The offered
+ *    times stay pickable.
+ *  - confirmed: the time, how to join, a calendar file, and a way to change.
+ *
+ * Every time here is on the reader's own clock, and says so.
+ */
 
-interface EmployerWindow {
-  start: string;
-  durationMinutes: number;
-}
+// The link to join opens this many minutes before the start.
+const JOIN_WINDOW_MINUTES = 15;
+// A confirmed pick can be swapped for another offered time, without waiting
+// on the team, as long as it is more than this far out.
+const FREE_REPICK_HOURS = 12;
 
 interface Interview {
   id: string;
@@ -57,15 +76,8 @@ interface CandidateInterviewConfirmationCardProps {
   jobTitle?: string | null;
 }
 
-function parseEmployerWindows(raw: unknown): EmployerWindow[] {
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .filter((w): w is Record<string, unknown> => !!w && typeof w === "object" && typeof (w as Record<string, unknown>).start === "string")
-    .map((w) => ({
-      start: w.start as string,
-      durationMinutes: typeof w.durationMinutes === "number" ? (w.durationMinutes as number) : 30,
-    }));
-}
+const dayWords = (at: string) => new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric" }).format(new Date(at));
+const clockWords = (at: string) => new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(at)).replace(/\s+/g, " ");
 
 export function CandidateInterviewConfirmationCard({
   interview,
@@ -77,27 +89,25 @@ export function CandidateInterviewConfirmationCard({
   const queryClient = useQueryClient();
   const [isConfirming, setIsConfirming] = useState(false);
   const [pickingStart, setPickingStart] = useState<string | null>(null);
-  const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
+  const [suggestOpen, setSuggestOpen] = useState(false);
   const [showRepickSheet, setShowRepickSheet] = useState(false);
 
-  // Local state for optimistic UI updates
+  // What the applicant just did, shown at once and dropped when the server's
+  // row catches up.
   const [localCandidateResponse, setLocalCandidateResponse] = useState(interview.candidate_response);
   const [localProposedTimesCount, setLocalProposedTimesCount] = useState<number>(
     Array.isArray(interview.proposed_times) ? interview.proposed_times.length : 0
   );
   const [localCandidateNote, setLocalCandidateNote] = useState<string | null>(interview.candidate_note);
-  // Optimistic override for the window the candidate just picked/re-picked —
-  // cleared once the server row (interview.scheduled_at) catches up.
-  const [localPickedWindow, setLocalPickedWindow] = useState<EmployerWindow | null>(null);
+  const [localPickedWindow, setLocalPickedWindow] = useState<OfferedWindow | null>(null);
 
-  // Ticking clock so the countdown / join-window / free-repick checks stay live.
+  // A ticking clock keeps the countdown, the join window and "passed" honest.
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(t);
   }, []);
 
-  // Sync local state when prop changes
   useEffect(() => {
     setLocalCandidateResponse(interview.candidate_response);
     setLocalProposedTimesCount(Array.isArray(interview.proposed_times) ? interview.proposed_times.length : 0);
@@ -105,88 +115,70 @@ export function CandidateInterviewConfirmationCard({
     setLocalPickedWindow(null);
   }, [interview.candidate_response, interview.proposed_times, interview.candidate_note, interview.scheduled_at]);
 
-  const windows = useMemo(() => parseEmployerWindows(interview.employer_windows), [interview.employer_windows]);
+  const windows = useMemo(() => offeredWindows(interview.employer_windows), [interview.employer_windows]);
   const hasWindows = windows.length > 0;
-  // Only ever offer times that haven't already passed.
-  const futureWindows = useMemo(() => windows.filter((w) => isFuture(new Date(w.start))), [windows]);
-
-  // Use local state for immediate UI feedback
-  const candidateResponse = localCandidateResponse || "pending";
-  const isScheduled = interview.status === "scheduled";
-  const isAwaitingPick = candidateResponse === "awaiting_pick" && hasWindows;
+  const futureWindows = useMemo(() => openWindows(windows, now), [windows, now]);
 
   const effectiveScheduledAt = localPickedWindow?.start ?? interview.scheduled_at;
   const effectiveDurationMinutes = localPickedWindow?.durationMinutes ?? interview.duration_minutes;
   const scheduledDate = new Date(effectiveScheduledAt);
-  const isFutureInterview = isFuture(scheduledDate);
+
+  const stage = candidateInterviewStage(
+    { ...interview, candidate_response: localCandidateResponse, scheduled_at: effectiveScheduledAt },
+    now,
+  );
+
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["candidate-interview", applicationId] });
+    queryClient.invalidateQueries({ queryKey: ["interview", "application", applicationId] });
+    queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
+  };
 
   const handleConfirm = async () => {
     setIsConfirming(true);
     try {
-      // Call edge function for confirmation
       const { data, error } = await supabase.functions.invoke("candidate-interview-response", {
-        body: {
-          action: "confirm",
-          interviewId: interview.id,
-        },
+        body: { action: "confirm", interviewId: interview.id },
       });
-
       if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Failed to confirm interview");
 
-      if (!data?.success) {
-        throw new Error(data?.error || "Failed to confirm interview");
-      }
-
-      // Optimistic update - immediately show confirmed state
       setLocalCandidateResponse("confirmed");
-
-      queryClient.invalidateQueries({ queryKey: ["candidate-interview", applicationId] });
-      queryClient.invalidateQueries({ queryKey: ["interview", "application", applicationId] });
-      toast.success("Interview confirmed!");
+      refresh();
+      toast.success("Interview confirmed");
     } catch (error) {
       console.error("Error confirming interview:", error);
-      toast.error("Failed to confirm interview");
+      toast.error("Couldn't confirm. Please try again.");
     } finally {
       setIsConfirming(false);
     }
   };
 
-  const handlePickSlot = async (window: EmployerWindow, action: "pick_slot" | "repick_slot") => {
+  const handlePickSlot = async (window: OfferedWindow, action: "pick_slot" | "repick_slot") => {
     setPickingStart(window.start);
     const previousResponse = localCandidateResponse;
     const previousPicked = localPickedWindow;
 
-    // Optimistic: lock the UI onto this time right away.
+    // Shown at once; put back if the server says no.
     setLocalCandidateResponse("confirmed");
     setLocalPickedWindow(window);
     if (action === "repick_slot") setShowRepickSheet(false);
 
     try {
       const { data, error } = await supabase.functions.invoke("candidate-interview-response", {
-        body: {
-          action,
-          interviewId: interview.id,
-          slotStart: window.start,
-        },
+        body: { action, interviewId: interview.id, slotStart: window.start },
       });
-
       if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Failed to lock in that time");
 
-      if (!data?.success) {
-        throw new Error(data?.error || "Failed to lock in that time");
-      }
-
-      queryClient.invalidateQueries({ queryKey: ["candidate-interview", applicationId] });
-      queryClient.invalidateQueries({ queryKey: ["interview", "application", applicationId] });
-
+      refresh();
       toast.success(
         action === "repick_slot"
-          ? `Time updated${employerName ? ` — ${employerName} has been notified.` : "."}`
-          : "Time locked in!"
+          ? `Time changed${employerName ? `. ${employerName} has been told.` : "."}`
+          : `You're booked for ${interviewWhen(window.start)}`
       );
     } catch (error) {
       console.error(`Error running ${action}:`, error);
-      // Revert the optimistic guess
       setLocalCandidateResponse(previousResponse);
       setLocalPickedWindow(previousPicked);
       toast.error("Couldn't lock in that time. Please try again.");
@@ -195,77 +187,37 @@ export function CandidateInterviewConfirmationCard({
     }
   };
 
-  const handleRescheduleSuccess = ({ proposedTimesCount, candidateNote }: { proposedTimesCount: number; candidateNote: string | null }) => {
-    // Optimistic update with the actual count
+  const handleSuggested = ({ proposedTimesCount, candidateNote }: { proposedTimesCount: number; candidateNote: string | null }) => {
     setLocalCandidateResponse("reschedule_requested");
     setLocalProposedTimesCount(proposedTimesCount);
     setLocalCandidateNote(candidateNote);
+    queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
   };
 
-  // Determine what to show based on candidate response
-  const getStatusDisplay = () => {
-    switch (candidateResponse) {
-      case "awaiting_pick":
-        return {
-          badge: <Badge className="bg-[var(--amber-bg)] text-[var(--amber-fg)] border-[var(--brass-line)]">Pick a Time</Badge>,
-          message: employerName
-            ? `${employerName} proposed a few times for a conversation. Pick what works:`
-            : "A few times have been proposed for a conversation. Pick what works:",
-        };
-      case "confirmed":
-        return {
-          badge: <Badge className="bg-success/20 text-success border-success/30">Confirmed</Badge>,
-          message: hasWindows
-            ? `Locked in — ${format(scheduledDate, "EEEE, MMMM d 'at' h:mm a")}. You'll join right from here.`
-            : "You've confirmed this interview. See you there!",
-        };
-      case "reschedule_requested":
-        return {
-          badge: <Badge className="bg-[var(--amber-bg)] text-[var(--amber-fg)] border-[var(--brass-line)]">Reschedule Requested</Badge>,
-          message: "Waiting for employer to review your proposed times.",
-        };
-      default:
-        return {
-          badge: <Badge className="bg-primary/20 text-primary border-primary/30">Action Required</Badge>,
-          message: "Please confirm or request to reschedule this interview.",
-        };
-    }
-  };
+  if (!stage) return null;
 
-  const statusDisplay = getStatusDisplay();
+  const team = employerName?.trim() || "The hiring team";
+  const teamLower = employerName?.trim() || "the hiring team";
+  const zone = getTimezoneAbbreviation();
+  const kind = interviewKindWords(interview.interview_type);
+  const facts = [employerName?.trim(), kind, effectiveDurationMinutes ? `${effectiveDurationMinutes} minutes` : null].filter(Boolean).join(" · ");
 
-  // Join / countdown
+  // Joining
   const minutesToStart = differenceInMinutes(scheduledDate, now);
-  const canJoin = candidateResponse === "confirmed" && minutesToStart <= JOIN_WINDOW_MINUTES;
-  const hasDailyRoom = interview.meeting_provider === "daily";
-  const hasLegacyLink = !hasDailyRoom && !!interview.meeting_link;
+  const canJoin = stage === "confirmed" && minutesToStart <= JOIN_WINDOW_MINUTES;
+  const hasBuiltInRoom = interview.meeting_provider === "daily";
+  const ownLink = !hasBuiltInRoom && interview.meeting_link ? interview.meeting_link : null;
 
-  const handleJoin = () => {
-    if (hasDailyRoom) {
-      navigate(`/applications/${applicationId}/interview-room`);
-    }
-  };
-
-  // "Can't make it?" — free re-pick if other windows remain and we're well out.
-  // Compare as epoch millis, not raw strings: Postgres re-serializes timestamptz
-  // with a "+00:00" suffix while employer_windows keeps JS's "...Z" strings, so a
-  // string comparison here would never match the currently-picked window.
-  const effectiveScheduledAtMs = new Date(effectiveScheduledAt).getTime();
-  const otherFutureWindows = windows.filter(
-    (w) => new Date(w.start).getTime() !== effectiveScheduledAtMs && isFuture(new Date(w.start))
-  );
-  const hoursToStart = differenceInHours(scheduledDate, now);
+  // Changing a confirmed time: swap to another offered time while well out,
+  // otherwise ask the team. Compared as instants, never as text: Postgres
+  // writes "+00:00" where the offered times keep JavaScript's "Z".
+  const scheduledMs = scheduledDate.getTime();
+  const otherFutureWindows = futureWindows.filter((w) => new Date(w.start).getTime() !== scheduledMs);
   const canFreeRepick =
-    hasWindows && candidateResponse === "confirmed" && otherFutureWindows.length > 0 && hoursToStart > FREE_REPICK_HOURS;
+    stage === "confirmed" && hasWindows && otherFutureWindows.length > 0 && differenceInHours(scheduledDate, now) > FREE_REPICK_HOURS;
 
-  // A plain .ics download — no Google/Microsoft sign-in on either side. The
-  // in-app room's own URL rides along in LOCATION/DESCRIPTION so it's
-  // clickable straight from the calendar entry. Re-downloading after a
-  // reschedule carries the same UID with a fresher SEQUENCE (derived from
-  // the interview's own updated_at), so calendars update the existing event
-  // instead of adding a second one.
   const handleAddToCalendar = () => {
-    const joinUrl = hasDailyRoom ? `${window.location.origin}/applications/${applicationId}/interview-room` : null;
+    const joinUrl = hasBuiltInRoom ? `${window.location.origin}/applications/${applicationId}/interview-room` : null;
     const ics = buildCandidateInterviewIcs({
       interviewId: interview.id,
       scheduledAt: effectiveScheduledAt,
@@ -273,173 +225,177 @@ export function CandidateInterviewConfirmationCard({
       updatedAt: interview.updated_at ?? new Date().toISOString(),
       interviewType: interview.interview_type,
       joinUrl,
-      externalMeetingLink: hasDailyRoom ? null : interview.meeting_link,
+      externalMeetingLink: hasBuiltInRoom ? null : interview.meeting_link,
       jobTitle: jobTitle || "the role",
       companyName: employerName || "This employer",
     });
     downloadIcsFile(`interview-${icsFileStem(employerName || "hireflow")}`, ics);
   };
 
-  const handleCantMakeIt = () => {
-    if (canFreeRepick) {
-      setShowRepickSheet(true);
-    } else {
-      setShowRescheduleDialog(true);
-    }
-  };
-
-  if (!isScheduled) return null;
-  if (!isAwaitingPick && !isFutureInterview) return null;
-
-  const renderSlotGrid = (action: "pick_slot" | "repick_slot", slots: EmployerWindow[]) => (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+  const slotGrid = (action: "pick_slot" | "repick_slot", slots: OfferedWindow[]) => (
+    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2" data-interview-slots={slots.length}>
       {slots.map((w) => {
-        const isThisPicking = pickingStart === w.start;
-        const isDisabled = pickingStart !== null;
+        const picking = pickingStart === w.start;
+        const disabled = pickingStart !== null;
         return (
           <button
             key={w.start}
             type="button"
-            disabled={isDisabled}
+            disabled={disabled}
             onClick={() => handlePickSlot(w, action)}
+            data-interview-slot={w.start}
             className={cn(
-              "flex flex-col items-start gap-1 rounded-xl border p-4 text-left transition-colors",
-              "border-border bg-card",
-              !isDisabled && "hover:border-[var(--jade)] hover:bg-[var(--jade-soft)]",
-              isThisPicking && "border-[var(--jade)] bg-[var(--jade-soft)]",
-              isDisabled && !isThisPicking && "opacity-50"
+              "flex min-h-[64px] items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3 text-left transition-colors",
+              "border-[var(--hair)]",
+              !disabled && "hover:border-[var(--jade)] hover:bg-[var(--jade-soft)]",
+              picking && "border-[var(--jade)] bg-[var(--jade-soft)]",
+              disabled && !picking && "opacity-50",
             )}
           >
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {format(new Date(w.start), "EEE, MMM d")}
+            <span className="min-w-0">
+              <span className="block text-xs font-medium uppercase tracking-wide text-muted-foreground">{dayWords(w.start)}</span>
+              <span className="ck-num mt-0.5 block text-lg font-semibold leading-tight text-foreground">{clockWords(w.start)}</span>
             </span>
-            <span className="text-base font-semibold text-foreground flex items-center gap-2">
-              {isThisPicking ? (
-                <Loader2 className="h-4 w-4 animate-spin text-[var(--jade)]" />
-              ) : (
-                <Clock className="h-4 w-4 text-[var(--jade)]" />
-              )}
-              {format(new Date(w.start), "h:mm a")}
+            <span className="inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-[var(--jade)]">
+              {picking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+              {picking ? "Booking" : "Pick"}
             </span>
-            <span className="text-xs text-muted-foreground">{w.durationMinutes} min</span>
           </button>
         );
       })}
     </div>
   );
 
+  const ownClockNote = (
+    <p className="mt-2.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+      <Clock className="h-3 w-3 shrink-0" />
+      Times are on your own clock ({zone}).
+    </p>
+  );
+
+  const settled = stage === "confirmed";
+  const title =
+    stage === "confirmed"
+      ? "Your interview is confirmed"
+      : stage === "waiting"
+        ? "You asked for another interview time"
+        : "You're invited to an interview";
+
   return (
     <>
-      <Card className="bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
-        <CardContent className="p-6">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-                <Calendar className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground text-lg">
-                  {isAwaitingPick ? "Pick a Time" : "Interview Scheduled"}
-                </h3>
-                {statusDisplay.badge}
-              </div>
+      <Card
+        id="interview"
+        data-candidate-interview={stage}
+        className="relative scroll-mt-24 overflow-hidden border bg-card"
+        style={{ borderColor: settled ? "var(--hair)" : "var(--brass-line)" }}
+      >
+        <div aria-hidden className="absolute inset-x-0 top-0 h-[3px]" style={{ background: settled ? "var(--jade)" : "var(--brass-line)" }} />
+        <CardContent className="p-5 sm:p-6">
+          <div className="flex items-start gap-3">
+            <span
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+              style={{ background: settled ? "var(--jade-soft)" : "var(--amber-bg)", color: settled ? "var(--jade-soft-fg)" : "var(--amber-fg)" }}
+            >
+              <Calendar className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <h3 className="font-display text-lg font-semibold leading-snug text-foreground sm:text-xl">{title}</h3>
+              {facts && <p className="mt-0.5 break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">{facts}</p>}
             </div>
           </div>
 
-          {!isAwaitingPick && (
-            <>
-              {/* Interview Details */}
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div className="flex items-center gap-2 text-sm">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span>{format(scheduledDate, "EEEE, MMMM d, yyyy")}</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  <span>
-                    {format(scheduledDate, "h:mm a")}{" "}
-                    <span className="text-muted-foreground">({getTimezoneAbbreviation()})</span>
-                  </span>
-                  {effectiveDurationMinutes && (
-                    <span className="text-muted-foreground">• {effectiveDurationMinutes} min</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Timezone Note for Candidates */}
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-4">
-                <Globe className="h-3 w-3" />
-                <span>Times shown in your local timezone</span>
-              </div>
-            </>
-          )}
-
-          <p className="text-sm text-muted-foreground mb-4">{statusDisplay.message}</p>
-
-          {/* Slot picker */}
-          {isAwaitingPick && (
-            <div className="mb-4">
+          {/* ── Pick: the times the team offered ── */}
+          {stage === "pick" && (
+            <div className="mt-4">
               {futureWindows.length > 0 ? (
                 <>
-                  {renderSlotGrid("pick_slot", futureWindows)}
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-3">
-                    <Globe className="h-3 w-3" />
-                    <span>Times shown in your local timezone ({getTimezoneAbbreviation()})</span>
+                  <p className="mb-3 text-sm text-foreground">
+                    {futureWindows.length === 1
+                      ? `${team} offered one time. Take it, or suggest another.`
+                      : `${team} offered ${futureWindows.length} times. Pick the one that works for you.`}
+                  </p>
+                  {slotGrid("pick_slot", futureWindows)}
+                  {ownClockNote}
+                  <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-[var(--hair)] pt-4">
+                    <span className="text-sm text-muted-foreground">{futureWindows.length === 1 ? "Can't make it?" : "None of these work?"}</span>
+                    <Button variant="outline" size="sm" onClick={() => setSuggestOpen(true)} className="gap-2" data-interview-suggest>
+                      <RefreshCw className="h-4 w-4" />
+                      Suggest other times
+                    </Button>
                   </div>
                 </>
               ) : (
-                <div className="rounded-xl border border-border bg-card p-4">
-                  <p className="text-sm text-foreground">
-                    Those times have passed. Let us know what works for you instead.
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowRescheduleDialog(true)}
-                    className="gap-2 mt-3"
-                  >
+                <>
+                  <p className="text-sm text-foreground">The times {teamLower} offered have passed. Tell them what works for you.</p>
+                  <Button onClick={() => setSuggestOpen(true)} className="mt-3 gap-2" data-interview-suggest>
                     <RefreshCw className="h-4 w-4" />
-                    Ask for new times
+                    Suggest times
                   </Button>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── Confirm: one time the team set ── */}
+          {stage === "confirm" && (
+            <div className="mt-4">
+              <p className="font-display ck-num text-xl font-semibold leading-snug text-foreground" data-interview-when>
+                {interviewWhen(effectiveScheduledAt)}
+              </p>
+              {ownClockNote}
+              <p className="mt-3 text-sm text-foreground">Confirm it if it works, or ask for another time.</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2.5">
+                <Button onClick={handleConfirm} disabled={isConfirming} className="gap-2" data-interview-confirm>
+                  {isConfirming ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                  Confirm this time
+                </Button>
+                <Button variant="outline" onClick={() => setSuggestOpen(true)} className="gap-2" data-interview-suggest>
+                  <RefreshCw className="h-4 w-4" />
+                  Ask for another time
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Waiting: they suggested times ── */}
+          {stage === "waiting" && (
+            <div className="mt-4">
+              <p className="text-sm text-foreground">
+                You suggested {localProposedTimesCount === 1 ? "one time" : `${localProposedTimesCount} times`}. {team} will reply here and by
+                email. Nothing to do for now.
+              </p>
+              {localCandidateNote && <p className="mt-2 text-sm italic text-muted-foreground">&ldquo;{localCandidateNote}&rdquo;</p>}
+              {futureWindows.length > 0 && (
+                <div className="mt-4 border-t border-[var(--hair)] pt-4">
+                  <p className="mb-3 text-sm text-muted-foreground">
+                    Changed your mind? {futureWindows.length === 1 ? "The time they offered is" : "The times they offered are"} still open:
+                  </p>
+                  {slotGrid("pick_slot", futureWindows)}
+                  {ownClockNote}
                 </div>
               )}
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-3">
-            {candidateResponse === "pending" && (
-              <>
-                <Button onClick={handleConfirm} disabled={isConfirming} className="gap-2">
-                  {isConfirming ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Check className="h-4 w-4" />
-                  )}
-                  Confirm Interview
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowRescheduleDialog(true)}
-                  className="gap-2"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Request Reschedule
-                </Button>
-              </>
-            )}
+          {/* ── Confirmed: when, how to join, and a way to change ── */}
+          {stage === "confirmed" && (
+            <div className="mt-4">
+              <p className="font-display ck-num text-xl font-semibold leading-snug text-foreground" data-interview-when>
+                {interviewWhen(effectiveScheduledAt)}
+              </p>
+              {ownClockNote}
 
-            {candidateResponse === "confirmed" && (hasDailyRoom || hasLegacyLink) && (
-              <>
-                {hasDailyRoom ? (
-                  <Button onClick={handleJoin} disabled={!canJoin} className="gap-2">
+              <div className="mt-4 flex flex-wrap items-center gap-2.5">
+                {hasBuiltInRoom && (
+                  <Button onClick={() => navigate(`/applications/${applicationId}/interview-room`)} disabled={!canJoin} className="gap-2">
                     <Video className="h-4 w-4" />
-                    Join Interview
+                    Join interview
                   </Button>
-                ) : (
-                  <Button asChild disabled={!canJoin} className="gap-2">
+                )}
+                {ownLink && (
+                  <Button asChild disabled={!canJoin} className={cn("gap-2", !canJoin && "pointer-events-none opacity-50")}>
                     <a
-                      href={canJoin ? interview.meeting_link! : undefined}
+                      href={canJoin ? ownLink : undefined}
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-disabled={!canJoin}
@@ -448,71 +404,80 @@ export function CandidateInterviewConfirmationCard({
                       }}
                     >
                       <Video className="h-4 w-4" />
-                      Join Meeting
+                      Join meeting
                       <ExternalLink className="h-3 w-3" />
                     </a>
                   </Button>
                 )}
-                {!canJoin && (
-                  <span className="text-xs text-muted-foreground">
-                    Join opens {JOIN_WINDOW_MINUTES} min before — starts{" "}
-                    {format(scheduledDate, "EEE, MMM d 'at' h:mm a")}
-                  </span>
-                )}
-              </>
-            )}
-
-            {candidateResponse === "confirmed" && (
-              <Button
-                variant="outline"
-                onClick={handleAddToCalendar}
-                className="gap-2"
-                title="Download a calendar invite (.ics) — works with Google, Apple and Outlook"
-              >
-                <CalendarPlus className="h-4 w-4" />
-                Add to calendar
-              </Button>
-            )}
-
-            {candidateResponse === "confirmed" && hasWindows && (
-              <Button variant="ghost" size="sm" onClick={handleCantMakeIt} className="gap-2 text-muted-foreground">
-                <RefreshCw className="h-3.5 w-3.5" />
-                Can't make it?
-              </Button>
-            )}
-
-            {candidateResponse === "reschedule_requested" && (
-              <div className="text-sm text-muted-foreground">
-                You proposed {localProposedTimesCount} alternative time(s).
-                {localCandidateNote && (
-                  <p className="mt-1 italic">"{localCandidateNote}"</p>
-                )}
+                <Button
+                  variant="outline"
+                  onClick={handleAddToCalendar}
+                  className="gap-2"
+                  title="Saves a calendar file that works with Google, Apple and Outlook"
+                >
+                  <CalendarPlus className="h-4 w-4" />
+                  Add to calendar
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => (canFreeRepick ? setShowRepickSheet(true) : setSuggestOpen(true))}
+                  className="gap-2 text-muted-foreground"
+                  data-interview-change
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Can&apos;t make it?
+                </Button>
               </div>
-            )}
-          </div>
+
+              <p className="mt-3 text-sm text-muted-foreground" data-interview-join-note>
+                {hasBuiltInRoom || ownLink
+                  ? canJoin
+                    ? "The call is open: join when you are ready."
+                    : `The button to join opens here ${JOIN_WINDOW_MINUTES} minutes before the start. The calendar file carries the link too.`
+                  : kind === "Video call"
+                    ? `${team} will send you how to join.`
+                    : `${team} will be in touch with the details.`}
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       <CandidateRescheduleRequestDialog
-        open={showRescheduleDialog}
-        onOpenChange={setShowRescheduleDialog}
+        open={suggestOpen}
+        onOpenChange={setSuggestOpen}
         interviewId={interview.id}
         applicationId={applicationId}
-        currentScheduledAt={effectiveScheduledAt}
-        onSuccess={handleRescheduleSuccess}
+        // No time was ever agreed while they are still choosing: nothing to call "current".
+        currentScheduledAt={stage === "pick" || stage === "waiting" ? null : effectiveScheduledAt}
+        employerName={employerName}
+        onSuccess={handleSuggested}
       />
 
-      {/* Light re-pick sheet: swap to another proposed window, no employer approval needed */}
+      {/* Swap to another offered time: no approval needed. */}
       <Dialog open={showRepickSheet} onOpenChange={setShowRepickSheet}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Pick a different time</DialogTitle>
             <DialogDescription>
-              No need to wait for approval — pick another proposed time and
-              {employerName ? ` ${employerName}` : " the employer"} will be told right away.
+              Choose another of the offered times and {teamLower} is told right away. No need to wait for approval.
             </DialogDescription>
           </DialogHeader>
-          {renderSlotGrid("repick_slot", otherFutureWindows)}
+          {slotGrid("repick_slot", otherFutureWindows)}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pt-1">
+            <span className="text-sm text-muted-foreground">None of these work?</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setShowRepickSheet(false);
+                setSuggestOpen(true);
+              }}
+            >
+              Suggest other times
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </>

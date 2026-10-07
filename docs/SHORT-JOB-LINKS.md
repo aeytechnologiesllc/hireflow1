@@ -159,7 +159,9 @@ What the review found, and what changed:
   no job at all, to the person's own home.
 - **A signed-in candidate's home is `/applications`** (`getPostAuthRoute`),
   not the job-code box; its empty state says "See open roles" (`/`). The
-  code box is still in the menu as Enter Job Code.
+  code box is no longer in the applicant's menu (removed 2026-10-07 at the
+  owner's word: "there's no such thing as enter job code anymore"); `/apply`
+  still answers an old link that carries a code.
 - **Apply opens Sign Up** (`&tab=signup`), and the sign-in screen says
   "Applying for" with the job's title instead of "Candidate Portal". The
   address is still `/candidate/auth`: renaming the auth route is its own

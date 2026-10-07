@@ -43,6 +43,11 @@ export default [
           if (!/to:\s*"\/my-documents"/.test(block)) {
             detail.push("candidateNavItems' Documents item no longer points at /my-documents");
           }
+          // Removed 2026-10-07 at the owner's word ("there's no such thing as
+          // enter job code anymore"): people apply from a job's own page.
+          if (/to:\s*"\/apply"/.test(block) || /Job Code/i.test(block.replace(/\/\/.*$/gm, ""))) {
+            detail.push("candidateNavItems offers the job-code box again: applicants apply from a job's own page");
+          }
         }
       }
 

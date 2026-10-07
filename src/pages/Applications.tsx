@@ -57,6 +57,7 @@ import { buildCandidateJourney, positionFor } from "@/lib/candidateJourney";
 import { stepRoute } from "@/lib/journeyProgress";
 import { thisDeviceKind } from "@/lib/deviceGate";
 import { isFreshArrival, stepWaitingOnComputer } from "@/lib/resumeOnComputer";
+import { candidateInterviewWords, type CandidateInterviewWords } from "@/lib/candidateInterview";
 
 /* The brand glyph kit's components render plain SVGs, not lucide's
    ForwardRefExoticComponent shape — EmptyStateCard's props type them as
@@ -134,13 +135,8 @@ function getGuidanceCopy(displayState: ApplicationDisplayState): string | null {
     const estimate = phaseDurationEstimates[displayState.phaseType]?.label;
     return estimate ? `Your turn — about ${estimate}.` : "Your turn — pick this up when you're ready.";
   }
-  // The employer offered windows and is waiting on the candidate to choose. This
-  // row previously had no guidance line at all in that state.
-  if (displayState.interviewNeedsTimePick) return "Tap to pick a time that works for you.";
-  // Sent them to their email for something they can do right here — the detail
-  // page has the confirmation card. A candidate who lost the email had no path.
-  if (displayState.interviewNeedsConfirmation) return "Tap to confirm your interview time — we're holding your spot.";
-  if (displayState.interviewRescheduleRequested) return "We've asked to reschedule — sit tight for a new time.";
+  // An interview with the team is said by its own block on the card
+  // (InterviewCallout), with its own button: no second line about it here.
   return null;
 }
 
@@ -161,6 +157,50 @@ function StatusChip({ tone }: { tone: ChipTone }) {
     >
       {tone.label}
     </span>
+  );
+}
+
+/**
+ * The interview with the hiring team, on the card itself: what is asked of
+ * the applicant and the button that opens it. Before 2026-10-07 an applicant
+ * who had been offered times saw a small chip beside "Take Assessment" and
+ * had to guess that the row opened to them (the owner, testing as one: "make
+ * it very clear when the interview is scheduled").
+ */
+function InterviewCallout({ words, onOpen }: { words: CandidateInterviewWords; onOpen: (e: React.MouseEvent) => void }) {
+  const settled = words.stage === "confirmed";
+  return (
+    <div
+      data-interview-callout={words.stage}
+      className="mt-3.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-[10px] border px-3.5 py-3"
+      style={{
+        borderColor: settled ? "var(--hair)" : "var(--brass-line)",
+        background: settled ? "var(--jade-soft)" : "var(--amber-bg)",
+      }}
+    >
+      <div className="min-w-0 flex-1 basis-[220px]">
+        <p className="flex items-center gap-1.5 text-[14px] font-semibold leading-snug" style={{ color: "var(--ink)" }}>
+          <Calendar className="h-4 w-4 shrink-0" style={{ color: settled ? "var(--jade-soft-fg)" : "var(--amber-fg)" }} />
+          {words.title}
+        </p>
+        <p className="mt-1 text-[13px] leading-snug" style={{ color: "var(--ink-2)" }}>
+          {words.body}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onOpen}
+        data-testid="interview-open"
+        className={
+          words.theirMove
+            ? "inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-[10px] px-5 text-sm font-semibold transition-[filter] hover:brightness-110 active:scale-[0.98]"
+            : "inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-[10px] border px-4 text-sm font-semibold transition-colors hover:bg-[var(--surface-2)]"
+        }
+        style={words.theirMove ? { background: "var(--jade)", color: "var(--btn-fg)" } : { borderColor: "var(--hair)", color: "var(--ink)" }}
+      >
+        {words.action}
+      </button>
+    </div>
   );
 }
 
@@ -229,19 +269,34 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
     // three above — so an employer who offered three windows produced a row
     // that still would not open. This was the gap left by the first pass.
     displayState.interviewNeedsTimePick;
-  const isLocked =
-    (displayState.isPendingReview || displayState.isWaitingPhase) && !candidateHasSomethingToDo;
   const isFinal = displayState.isHired || displayState.isRejected || application.status === "offered";
 
   const { steps: journeySteps, index: stepIndex } = journeyForCard(application);
   const currentStepTitle = journeySteps[stepIndex]?.title || "";
 
-  const chip = getStatusChip(application, displayState);
   const guidance = getGuidanceCopy(displayState);
   const outcome = getOutcomeCopy(application, displayState);
 
+  // The interview with the team, when one is live: its own block and button.
+  const interviewWords = isFinal ? null : candidateInterviewWords(application.latestInterview, { company: companyName, now: new Date() });
+  const chip: ChipTone | null = interviewWords
+    ? interviewWords.stage === "confirmed"
+      ? { label: interviewWords.chip, bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)" }
+      : { label: interviewWords.chip, bg: "var(--amber-bg)", fg: "var(--amber-fg)" }
+    : getStatusChip(application, displayState);
+
+  // A live interview always opens: that is where its times, its link and its
+  // calendar file are.
+  const isLocked =
+    (displayState.isPendingReview || displayState.isWaitingPhase) && !candidateHasSomethingToDo && !interviewWords;
+
   const goToDetail = () => {
     if (!isLocked) navigate(`/applications/${application.id}`);
+  };
+
+  const openInterview = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigate(`/applications/${application.id}#interview`);
   };
 
   const handleActionClick = (e: React.MouseEvent) => {
@@ -310,7 +365,12 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
               {outcome}
             </p>
           )
-        : <JourneyProgress index={stepIndex} total={journeySteps.length} title={currentStepTitle} />}
+        : (
+            <>
+              {interviewWords && <InterviewCallout words={interviewWords} onOpen={openInterview} />}
+              <JourneyProgress index={stepIndex} total={journeySteps.length} title={currentStepTitle} />
+            </>
+          )}
 
       {guidance && (
         <p className="mt-2 text-[12.5px] leading-snug" style={{ color: "var(--ink-3)" }}>
@@ -324,8 +384,18 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
             type="button"
             onClick={handleActionClick}
             data-testid="application-action"
-            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[10px] px-5 text-sm font-semibold transition-[filter] hover:brightness-110 active:scale-[0.98]"
-            style={{ background: "var(--jade)", color: "var(--btn-fg)" }}
+            // One solid button per card: when the interview is theirs to
+            // answer, that is the one, and the step's button steps back.
+            className={
+              interviewWords?.theirMove
+                ? "inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[10px] border px-5 text-sm font-semibold transition-colors hover:bg-[var(--surface-2)]"
+                : "inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[10px] px-5 text-sm font-semibold transition-[filter] hover:brightness-110 active:scale-[0.98]"
+            }
+            style={
+              interviewWords?.theirMove
+                ? { borderColor: "var(--hair)", color: "var(--ink)" }
+                : { background: "var(--jade)", color: "var(--btn-fg)" }
+            }
           >
             {ActionIcon && <ActionIcon className="h-4 w-4" />}
             {displayState.actionLabel}
@@ -387,7 +457,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
               <AlertDialogTitle className="font-display text-xl">Withdraw this application?</AlertDialogTitle>
               <AlertDialogDescription>
                 This removes your application for &ldquo;{job?.title}&rdquo; for good. If you change your mind,
-                you're welcome to apply again with a new code from the employer.
+                you're welcome to apply again from the job's page.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -677,7 +747,6 @@ export default function Applications() {
               onClick: () => navigate("/"),
               icon: LetterIdentityGlyph,
             }}
-            tip="Got a job code from our team? It still works: choose Enter Job Code in the menu."
           />
         )}
       </div>

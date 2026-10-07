@@ -46,18 +46,37 @@ interface CandidateRescheduleRequestDialogProps {
   onOpenChange: (open: boolean) => void;
   interviewId: string;
   applicationId: string;
-  currentScheduledAt: string;
+  /**
+   * The time that is set now, or null when none was ever agreed (the team
+   * offered times and the applicant is answering "none of these work").
+   */
+  currentScheduledAt: string | null;
+  /** The employer's public name, when it is on file. */
+  employerName?: string | null;
   onSuccess?: (data: RescheduleSuccessData) => void;
 }
 
+/** "13:30" as people say it: "1:30 PM". */
+function clockLabel(time: string): string {
+  const [h, m] = time.split(":").map(Number);
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+}
+
+/**
+ * The applicant suggests times of their own: when none of the offered times
+ * work, or to move a time that is already set. The hiring team answers on
+ * the Interviews page (EmployerRescheduleReviewDialog).
+ */
 export function CandidateRescheduleRequestDialog({
   open,
   onOpenChange,
   interviewId,
   applicationId,
   currentScheduledAt,
+  employerName,
   onSuccess,
 }: CandidateRescheduleRequestDialogProps) {
+  const team = employerName?.trim() || "the hiring team";
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [proposedTimes, setProposedTimes] = useState<ProposedTime[]>([
@@ -97,7 +116,7 @@ export function CandidateRescheduleRequestDialog({
     // Validate at least 2 complete time slots
     const validTimes = proposedTimes.filter((t) => t.date && t.time);
     if (validTimes.length < 2) {
-      toast.error("Please provide at least 2 alternative time slots");
+      toast.error("Give at least 2 times that work for you");
       return;
     }
 
@@ -130,8 +149,9 @@ export function CandidateRescheduleRequestDialog({
       // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ["interview", "application", applicationId] });
       queryClient.invalidateQueries({ queryKey: ["candidate-interview", applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
 
-      toast.success("Reschedule request sent to employer");
+      toast.success(`Sent. ${team === "the hiring team" ? "The hiring team" : team} will reply with a time.`);
       
       // Call success callback with optimistic data
       onSuccess?.({
@@ -146,7 +166,7 @@ export function CandidateRescheduleRequestDialog({
       setNote("");
     } catch (error) {
       console.error("Error requesting reschedule:", error);
-      toast.error("Failed to send reschedule request");
+      toast.error("Couldn't send your times. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -156,20 +176,24 @@ export function CandidateRescheduleRequestDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Request Reschedule</DialogTitle>
+          <DialogTitle>{currentScheduledAt ? "Ask for another time" : "Suggest times that work for you"}</DialogTitle>
           <DialogDescription>
-            Current interview: {format(new Date(currentScheduledAt), "EEEE, MMMM d, yyyy 'at' h:mm a")} ({getTimezoneAbbreviation()})
+            {currentScheduledAt
+              ? `Set now for ${format(new Date(currentScheduledAt), "EEEE, MMMM d 'at' h:mm a")} (${getTimezoneAbbreviation()}).`
+              : `Give ${team} at least 2 times you can do.`}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          <p className="text-sm text-muted-foreground">
+            {currentScheduledAt
+              ? `Give at least 2 other times you can do. ${team === "the hiring team" ? "The hiring team" : team} picks one and you are told here and by email.`
+              : `${team === "the hiring team" ? "The hiring team" : team} picks one and you are told here and by email.`}
+          </p>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Globe className="h-3 w-3" />
-            <span>All times are shown in your local timezone ({getTimezoneAbbreviation()})</span>
+            <span>Times are on your own clock ({getTimezoneAbbreviation()}).</span>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Please provide at least 2 alternative times that work for you. The employer will review your request.
-          </p>
 
           {proposedTimes.map((slot, index) => (
             <div key={index} className="flex items-end gap-2">
@@ -204,14 +228,14 @@ export function CandidateRescheduleRequestDialog({
                     value={slot.time}
                     onValueChange={(value) => updateProposedTime(index, "time", value)}
                   >
-                    <SelectTrigger className="w-28">
+                    <SelectTrigger className="w-32">
                       <Clock className="mr-2 h-4 w-4" />
                       <SelectValue placeholder="Time" />
                     </SelectTrigger>
                     <SelectContent>
                       {timeOptions.map((time) => (
                         <SelectItem key={time} value={time}>
-                          {time}
+                          {clockLabel(time)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -235,15 +259,15 @@ export function CandidateRescheduleRequestDialog({
           {proposedTimes.length < 3 && (
             <Button variant="outline" size="sm" onClick={addTimeSlot} className="w-full">
               <Plus className="h-4 w-4 mr-2" />
-              Add Another Time Option
+              Add another time
             </Button>
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="note">Note to Employer (optional)</Label>
+            <Label htmlFor="note">Note to the team (optional)</Label>
             <Textarea
               id="note"
-              placeholder="Explain why you need to reschedule..."
+              placeholder="Anything they should know, for example the hours you are free."
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={3}
@@ -257,7 +281,7 @@ export function CandidateRescheduleRequestDialog({
           </Button>
           <Button onClick={handleSubmit} disabled={isSubmitting}>
             {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Submit Request
+            Send my times
           </Button>
         </DialogFooter>
       </DialogContent>

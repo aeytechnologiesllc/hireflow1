@@ -11,11 +11,12 @@ import { parseApplicationNotes } from "@/utils/applicationNotes";
 import { createFixtureSupabaseClient, type FixtureAuthUser, type FixtureRow, type FixtureTables } from "./fixtureClient";
 import { buildFixtureRpcHandlers, buildFixtureTables, FIXTURE_SCENARIOS, type FixtureScenario } from "./fixtures";
 import {
+  APP_QUIZ_ID,
   APP_ZULU_RETAKE_ID,
   CANDIDATE_USER_ID,
-  STEP_TYPING,
   EMPLOYER_USER_ID,
   REJECTED_CANDIDATE_USER_ID,
+  STEP_TYPING,
   TEAM_MEMBER_USER_ID,
 } from "./ids";
 
@@ -374,6 +375,89 @@ function previewBlockHandlers(tables: FixtureTables, user: FixtureAuthUser): Rec
 }
 
 /**
+ * An interview with the hiring team, for the applicant's screens
+ * (`?__previewInterview=pick|confirm|waiting|confirmed`, with `,own` for a
+ * link of the team's own instead of the built-in room): put on the
+ * applicant's skills-check application, so the interview is seen beside a
+ * step still to take. The applicant's answers go where the real
+ * candidate-interview-response function writes them, so picking a time,
+ * suggesting others and confirming can all be walked through.
+ */
+function previewCandidateInterview(tables: FixtureTables, mode: string | null): (name: string, options?: InvokeOptions) => Promise<InvokeReply> | null {
+  const flags = (mode ?? "").split(",").filter(Boolean);
+  const stage = flags.find((f) => ["pick", "confirm", "waiting", "confirmed"].includes(f));
+  if (stage) {
+    const at = (days: number, hour: number) => {
+      const d = new Date();
+      d.setDate(d.getDate() + days);
+      d.setHours(hour, 0, 0, 0);
+      return d.toISOString();
+    };
+    const windows = [at(2, 9), at(3, 14), at(4, 20)].map((start) => ({ start, durationMinutes: 30, zone: "America/New_York" }));
+    const offered = stage !== "confirm";
+    tables.interviews = [
+      ...(tables.interviews ?? []).filter((row) => row.application_id !== APP_QUIZ_ID),
+      {
+        id: "0f0f0f0f-1111-4222-8333-444444444444",
+        application_id: APP_QUIZ_ID,
+        scheduled_at: stage === "confirmed" ? windows[1].start : windows[0].start,
+        status: "scheduled",
+        candidate_response: stage === "pick" ? "awaiting_pick" : stage === "confirm" ? "pending" : stage === "waiting" ? "reschedule_requested" : "confirmed",
+        meeting_link: flags.includes("own") ? "https://meet.google.com/preview-only-link" : null,
+        meeting_provider: flags.includes("own") ? null : "daily",
+        meeting_room_name: null,
+        meeting_room_url: null,
+        duration_minutes: 30,
+        interview_type: "video",
+        proposed_times: stage === "waiting" ? [{ datetime: at(5, 10) }, { datetime: at(6, 16) }] : null,
+        candidate_note: stage === "waiting" ? "Mornings are best for me." : null,
+        employer_windows: offered ? windows : null,
+        ai_questions: null,
+        ai_feedback: null,
+        notes: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    ];
+    for (const application of tables.applications ?? []) {
+      if (application.id === APP_QUIZ_ID) application.status = "interview";
+    }
+  }
+  return (name, options) => {
+    if (name !== "candidate-interview-response") return null;
+    return (async (): Promise<InvokeReply> => {
+      const body = (options?.body ?? {}) as { action?: string; interviewId?: string; slotStart?: string; proposedTimes?: unknown[]; candidateNote?: string | null };
+      // Kept on the window as it is asked, so a walk-through can read what was sent.
+      const kept = window as unknown as { __previewInterviewAnswers?: unknown[] };
+      (kept.__previewInterviewAnswers ??= []).push(body);
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      const row = (tables.interviews ?? []).find((r) => r.id === body.interviewId);
+      if (!row) return { data: { error: "Interview not found" }, error: null };
+      if (body.action === "confirm") {
+        row.candidate_response = "confirmed";
+      } else if (body.action === "reschedule_requested") {
+        row.candidate_response = "reschedule_requested";
+        row.proposed_times = body.proposedTimes ?? [];
+        row.candidate_note = body.candidateNote ?? null;
+      } else if (body.action === "pick_slot" || body.action === "repick_slot") {
+        const offered = Array.isArray(row.employer_windows) ? (row.employer_windows as { start: string; durationMinutes?: number }[]) : [];
+        const slot = offered.find((w) => w.start === body.slotStart);
+        if (!slot) return { data: { error: "That time is no longer offered. Please choose one of the current windows." }, error: null };
+        row.scheduled_at = slot.start;
+        row.duration_minutes = slot.durationMinutes ?? 30;
+        row.candidate_response = "confirmed";
+        row.proposed_times = null;
+        row.candidate_note = null;
+      } else {
+        return { data: { error: "Invalid action" }, error: null };
+      }
+      row.updated_at = new Date().toISOString();
+      return { data: { success: true, interview: { ...row } }, error: null };
+    })();
+  };
+}
+
+/**
  * The interview guide's personal part, offline
  * (supabase/functions/interview-guide): a made-up answer after a pause,
  * written to the same table the real function writes, so the guide can be
@@ -540,6 +624,7 @@ export function install(params: URLSearchParams): void {
   const connectionTest = previewConnectionTest(tables);
   const continueLinkEmail = previewContinueLinkEmail(ROLE_USERS[role], params.get("__previewEmail"));
   const interviewGuide = previewInterviewGuide(tables, params.get("__previewGuide"));
+  const candidateInterview = previewCandidateInterview(tables, params.get("__previewInterview"));
   const client = {
     ...base,
     ...realtime,
@@ -572,6 +657,8 @@ export function install(params: URLSearchParams): void {
         if (generated) return generated;
         const guide = interviewGuide(name, options);
         if (guide) return guide;
+        const answered = candidateInterview(name, options);
+        if (answered) return answered;
         return base.functions.invoke(name, options);
       },
     },
