@@ -561,6 +561,13 @@ export function install(params: URLSearchParams): void {
         }
         const emailed = continueLinkEmail(name, options);
         if (emailed) return emailed;
+        // `?__previewMail=sent`: the mail service accepts every notification
+        // (the default answers as it does with no mail service at all).
+        if (name === "send-notification-email" && params.get("__previewMail") === "sent") {
+          // About as long as the real round trip, so anything that waits on it can be seen waiting.
+          await new Promise((resolve) => setTimeout(resolve, 150));
+          return { data: { success: true }, error: null };
+        }
         const generated = previewJobGeneration(name, options);
         if (generated) return generated;
         const guide = interviewGuide(name, options);

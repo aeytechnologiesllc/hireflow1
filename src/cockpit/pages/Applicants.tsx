@@ -26,6 +26,7 @@ import { mapJobRow } from "../lib/mappers";
 // Remove and block, and picking several at once (docs/APPLICANTS-LIST.md §6).
 import { ActionsMenu, ApplicantActionDialogs, applicantMenuItems, type ApplicantActionRequest } from "../components/ApplicantRowMenu";
 import { ApplicantBulkBar, ApplicantRowFrame, SelectMark } from "../components/ApplicantBulkBar";
+import { bulkPassPlan } from "../lib/bulkPass";
 import { useBlockedApplicants } from "../hooks/useApplicantBlocks";
 import { markBlocked } from "../lib/blockedApplicants";
 // The team's shortlist: a bookmark on the row, a tab that gathers them.
@@ -182,7 +183,9 @@ function ListSkeleton() {
 
 /** The applications an action is about. */
 function actionIds(request: ApplicantActionRequest): string[] {
-  return request.kind === "block" ? request.targets.map((t) => t.applicationId) : [request.target.applicationId];
+  if (request.kind === "block") return request.targets.map((t) => t.applicationId);
+  if (request.kind === "passMany") return request.plan.targets.map((t) => t.applicationId);
+  return [request.target.applicationId];
 }
 
 /** What a row can ask of the page. One object for the page's lifetime, so a
@@ -411,6 +414,13 @@ export default function CockpitApplicants() {
     (request: ApplicantActionRequest, ok: boolean) => {
       const ids = actionIds(request);
       settle(ids);
+      // A Pass on several lets every pick go, however it went: whoever is
+      // left undone is named in the toast, and picks themselves again.
+      if (request.kind === "passMany") {
+        setPicked(new Set());
+        setSelectMode(false);
+        return;
+      }
       if (request.kind !== "block" || !ok) return;
       // The blocked let go of their checkboxes; the rest stay picked. With
       // nobody left picked, a phone's Select mode ends too.
@@ -735,6 +745,22 @@ export default function CockpitApplicants() {
     const chosen = view.matched.filter((r) => picked.has(r.id) && r.tab !== "blocked");
     if (chosen.length > 0) setActionRequest({ kind: "block", targets: chosen.map(targetOf) });
   };
+  // Pass on everyone picked: the single Pass's polite note to each, after one
+  // confirm that says how many (lib/bulkPass.ts). One person is the ordinary
+  // Pass dialog, word for word.
+  const passPicked = () => {
+    const plan = bulkPassPlan(view.matched.filter((r) => picked.has(r.id)));
+    if (plan.targets.length === 0) {
+      toast.message(picked.size === 1 ? "They are already declined, hired, blocked or holding an offer." : "Nobody picked can be passed on: they are already declined, hired, blocked or holding an offer.");
+      return;
+    }
+    if (plan.targets.length === 1 && plan.left === 0) {
+      const only = plan.targets[0];
+      setActionRequest({ kind: "pass", target: { applicationId: only.applicationId, candidateId: only.candidateId, name: only.name }, offered: false, jobTitle: only.jobTitle });
+      return;
+    }
+    setActionRequest({ kind: "passMany", plan });
+  };
   // The picked, onto the shortlist in one go (off it, from the Shortlist
   // tab). Only the ones it changes are sent; the picks are let go after.
   const onShortlistTab = state.tab === "shortlist";
@@ -1028,6 +1054,7 @@ export default function CockpitApplicants() {
             onSelectPage={() => setPicked(new Set(pageIds))}
             onClear={clearPicks}
             onBlock={blockPicked}
+            onPass={passPicked}
             onShortlist={() => void shortlistPicked()}
             shortlistOff={onShortlistTab}
             busy={shortlistBusy}

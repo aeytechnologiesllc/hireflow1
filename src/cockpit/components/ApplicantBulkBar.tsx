@@ -1,10 +1,10 @@
 import { useLayoutEffect, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Ban, BookmarkMinus, BookmarkPlus, Check, Minus, X } from "lucide-react";
+import { Ban, BookmarkMinus, BookmarkPlus, Check, Minus, X, XCircle } from "lucide-react";
 
 /**
- * Picking several applicants at once, and the bar that acts on them (Add to
- * shortlist, Remove and block N, Clear, Select all on this page).
+ * Picking several applicants at once, and the bar that acts on them
+ * (Shortlist, Pass N, Remove and block N, Clear, Select all on this page).
  *
  * The owner, 2026-10-06, with applications pouring in: "give me a nicer,
  * easier way to drop down to delete some of these applicants. And that will
@@ -14,6 +14,10 @@ import { Ban, BookmarkMinus, BookmarkPlus, Check, Minus, X } from "lucide-react"
  *    computer it shows on hover and on every row once one is picked; on a
  *    phone in Select mode. It is a sibling of the row's link, never inside it
  *    (a control inside an <a> is invalid and would open the profile).
+ *  - The owner, 2026-10-07: "you didn't give me the option to pass on all of
+ *    them. So I need to do a bulk pass. And make these smaller buttons." Pass
+ *    sits between the shortlist and Remove and block, and the bar's buttons
+ *    are a size down from the page's own.
  *  - The bar is portalled to <body> and fixed: a transformed ancestor (the
  *    cockpit's entrance animations leave one behind) would otherwise pin it
  *    to the page column. On a computer it sits over the list's own column;
@@ -106,6 +110,7 @@ export function ApplicantBulkBar({
   onSelectPage,
   onClear,
   onBlock,
+  onPass,
   onShortlist,
   shortlistOff = false,
   busy = false,
@@ -122,6 +127,9 @@ export function ApplicantBulkBar({
   /** Clear (and, on a phone, leave Select mode). */
   onClear: () => void;
   onBlock: () => void;
+  /** Pass on the picked: the polite note to each (lib/bulkPass.ts); absent
+   *  where nobody may decide. */
+  onPass?: () => void;
   /** Put the picked on the team's shortlist (lib/shortlist.ts); absent where
    *  there is none. */
   onShortlist?: () => void;
@@ -144,14 +152,16 @@ export function ApplicantBulkBar({
       : { left: "50%", transform: "translateX(-50%)", width: "min(760px, calc(100vw - 32px))", bottom: 20 };
 
   const blockLabel = count > 0 ? `Remove and block ${count}` : "Remove and block";
+  const passLabel = count > 0 ? `Pass ${count}` : "Pass";
   const ShortlistIcon = shortlistOff ? BookmarkMinus : BookmarkPlus;
   const shortlistLabel = shortlistOff ? "Take off shortlist" : "Add to shortlist";
+  const dangerStyle: CSSProperties = { color: "var(--hf-danger)", borderColor: "color-mix(in srgb, var(--hf-danger) 50%, transparent)" };
 
   return createPortal(
     <div
       role="region"
       aria-label="Selected applicants"
-      className="fixed z-[45] rounded-[16px] border px-3 py-2.5 md:px-4"
+      className="fixed z-[45] rounded-[14px] border px-2.5 py-2 md:px-3"
       style={{
         ...style,
         background: "var(--hf-surface)",
@@ -175,63 +185,79 @@ export function ApplicantBulkBar({
               Done
             </button>
           </div>
-          {/* One row for both, so the bar stays the height it was. */}
-          <div className="flex gap-2">
+          {/* One row for all three, so the bar stays the height it was. */}
+          <div className="flex gap-1.5">
             {onShortlist && (
               <button
                 type="button"
                 aria-label={shortlistLabel}
-                className="ck-btn ck-btn-outline min-h-[44px] min-w-0 flex-1 !px-2 !text-[14px]"
+                data-bulk="shortlist"
+                className="ck-btn ck-btn-outline min-h-[40px] min-w-0 flex-1 !gap-1 !px-1.5 !text-[13px]"
                 disabled={count === 0 || busy}
                 onClick={onShortlist}
               >
-                <ShortlistIcon aria-hidden className="h-4 w-4 shrink-0" />
+                <ShortlistIcon aria-hidden className="h-3.5 w-3.5 shrink-0" />
                 {shortlistOff ? "Take off" : "Shortlist"}
+              </button>
+            )}
+            {onPass && (
+              <button
+                type="button"
+                data-bulk="pass"
+                className="ck-btn ck-btn-outline min-h-[40px] min-w-0 flex-1 !gap-1 !px-1.5 !text-[13px]"
+                disabled={count === 0 || busy}
+                onClick={onPass}
+              >
+                <XCircle aria-hidden className="h-3.5 w-3.5 shrink-0" />
+                {passLabel}
               </button>
             )}
             <button
               type="button"
-              className={`ck-btn ck-btn-outline min-h-[44px] min-w-0 !px-2 !text-[14px] ${onShortlist ? "flex-[1.7]" : "w-full"}`}
-              style={{ color: "var(--hf-danger)", borderColor: "color-mix(in srgb, var(--hf-danger) 50%, transparent)" }}
+              aria-label={blockLabel}
+              data-bulk="block"
+              className={`ck-btn ck-btn-outline min-h-[40px] min-w-0 !gap-1 !px-1.5 !text-[13px] ${onShortlist || onPass ? "flex-1" : "w-full"}`}
+              style={dangerStyle}
               disabled={count === 0 || busy}
               onClick={onBlock}
             >
-              <Ban aria-hidden className="h-4 w-4 shrink-0" />
-              {blockLabel}
+              <Ban aria-hidden className="h-3.5 w-3.5 shrink-0" />
+              {/* Three across on a phone: the short word, the full one for a screen reader. */}
+              {onShortlist || onPass ? (count > 0 ? `Block ${count}` : "Block") : blockLabel}
             </button>
           </div>
         </div>
       ) : (
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-2 text-[13.5px]" style={{ color: "var(--hf-text)" }}>
-          <button type="button" data-size="icon" aria-label="Clear the selection" className="ck-btn ck-btn-ghost h-9 w-9 !p-0" onClick={onClear}>
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 text-[13px]" style={{ color: "var(--hf-text)" }}>
+          <button type="button" data-size="icon" aria-label="Clear the selection" className="ck-btn ck-btn-ghost h-8 w-8 !p-0" onClick={onClear}>
             <X aria-hidden className="h-4 w-4" />
           </button>
           <span className="font-medium" aria-live="polite">
             {count} selected
           </span>
           {!allOnPage && pageCount > 0 && (
-            <button type="button" className="ck-btn ck-btn-ghost h-9 !px-3 !text-[13px]" onClick={onSelectPage}>
+            <button type="button" className="ck-btn ck-btn-ghost h-8 !px-2.5 !text-[12.5px]" onClick={onSelectPage}>
               Select all {pageCount} on this page
             </button>
           )}
           <span className="flex-1" />
-          <button type="button" className="ck-btn ck-btn-ghost h-9 !px-3 !text-[13px]" onClick={onClear}>
+          <button type="button" className="ck-btn ck-btn-ghost h-8 !px-2.5 !text-[12.5px]" onClick={onClear}>
             Clear
           </button>
           {onShortlist && (
-            <button type="button" className="ck-btn ck-btn-outline h-9 !px-4 !text-[13px]" disabled={count === 0 || busy} onClick={onShortlist}>
-              <ShortlistIcon aria-hidden className="h-4 w-4" />
+            <button type="button" data-bulk="shortlist" className="ck-btn ck-btn-outline h-8 !gap-1.5 !px-3 !text-[12.5px]" disabled={count === 0 || busy} onClick={onShortlist}>
+              <ShortlistIcon aria-hidden className="h-3.5 w-3.5" />
               {shortlistLabel}
             </button>
           )}
-          <button
-            type="button"
-            className="ck-btn ck-btn-outline h-9 !px-4 !text-[13px]"
-            style={{ color: "var(--hf-danger)", borderColor: "color-mix(in srgb, var(--hf-danger) 50%, transparent)" }}
-            disabled={count === 0 || busy}
-            onClick={onBlock}
-          >
-            <Ban aria-hidden className="h-4 w-4" />
+          {onPass && (
+            <button type="button" data-bulk="pass" className="ck-btn ck-btn-outline h-8 !gap-1.5 !px-3 !text-[12.5px]" disabled={count === 0 || busy} onClick={onPass}>
+              <XCircle aria-hidden className="h-3.5 w-3.5" />
+              {passLabel}
+            </button>
+          )}
+          <button type="button" data-bulk="block" className="ck-btn ck-btn-outline h-8 !gap-1.5 !px-3 !text-[12.5px]" style={dangerStyle} disabled={count === 0 || busy} onClick={onBlock}>
+            <Ban aria-hidden className="h-3.5 w-3.5" />
             {blockLabel}
           </button>
         </div>

@@ -1,18 +1,23 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Ban, BookmarkMinus, BookmarkPlus, CheckSquare, ExternalLink, MoreHorizontal, RotateCcw, XCircle } from "lucide-react";
+import { toast } from "sonner";
 import { ActionDialog } from "./ActionDialog";
 import { DeclineNotePreview, passDialogWords } from "./ApplicantDecisionDialogs";
 import { useCockpitActions } from "../hooks/useCockpitData";
 import { useApplicantBlockActions, type BlockTarget } from "../hooks/useApplicantBlocks";
+import { useBulkPass } from "../hooks/useBulkPass";
+import { bulkPassDoneWords, bulkPassProgressWords, bulkPassWords, type BulkPassPlan } from "../lib/bulkPass";
 import { blockConfirmWords, firstNameOf, unblockConfirmWords } from "../lib/blockedApplicants";
 import { canShortlist, shortlistActionLabel } from "../lib/shortlist";
 
 /**
  * The ⋯ menu on each applicant (the list's row and phone card, and the full
- * profile), and the three confirms it opens: Pass (the polite email, as on
- * the profile), Remove and block (silent, and it sticks), Unblock. "Add to
- * shortlist" is in the menu too and opens nothing: one click, no confirm.
+ * profile), and the confirms it and the list's bar open: Pass (the polite
+ * email, as on the profile), Pass on several at once (the same Pass, once per
+ * person, confirmed once: lib/bulkPass.ts), Remove and block (silent, and it
+ * sticks), Unblock. "Add to shortlist" is in the menu too and opens nothing:
+ * one click, no confirm.
  *
  * The owner, 2026-10-06: "give me a nicer, easier way to drop down to delete
  * some of these applicants. And that will just block them too."
@@ -238,6 +243,7 @@ export function ActionsMenu({
 
 export type ApplicantActionRequest =
   | { kind: "pass"; target: BlockTarget; offered: boolean; /** The job they applied for: the note names it. */ jobTitle?: string | null }
+  | { kind: "passMany"; plan: BulkPassPlan }
   | { kind: "block"; targets: BlockTarget[] }
   | { kind: "unblock"; target: BlockTarget };
 
@@ -325,6 +331,7 @@ export function ApplicantActionDialogs({
 }) {
   const { block, unblock, busy: blockBusy } = useApplicantBlockActions();
   const { reject, isUpdating } = useCockpitActions();
+  const { passMany, progress: passProgress } = useBulkPass();
   const [working, setWorking] = useState(false);
   const busy = working || blockBusy || isUpdating;
 
@@ -363,6 +370,30 @@ export function ApplicantActionDialogs({
         reasonLabel="Why? Optional, and only your team sees it."
         reasonPlaceholder="e.g. Spam: the same answers pasted in again."
         onConfirm={(reason) => void finish(() => block(request.targets, reason))}
+        onClose={onClose}
+      />
+    );
+  } else if (request.kind === "passMany") {
+    // The single Pass, once per person, confirmed once (lib/bulkPass.ts).
+    const words = bulkPassWords(request.plan);
+    dialog = (
+      <ActionDialog
+        open
+        title={words.title}
+        description={words.body}
+        confirmLabel={words.confirm}
+        tone="danger"
+        busy={busy}
+        busyLabel={passProgress ? bulkPassProgressWords(passProgress.done, passProgress.total) : undefined}
+        note={<DeclineNotePreview jobTitle={request.plan.jobTitle} />}
+        onConfirm={() =>
+          void finish(async () => {
+            const result = await passMany(request.plan.targets);
+            const said = bulkPassDoneWords(result);
+            (said.ok ? toast.success : toast.error)(said.title, said.description ? { description: said.description } : undefined);
+            return said.ok;
+          })
+        }
         onClose={onClose}
       />
     );

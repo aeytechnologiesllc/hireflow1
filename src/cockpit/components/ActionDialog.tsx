@@ -15,6 +15,8 @@ interface ActionDialogProps {
   /** brass = positive (hire), danger = destructive (pass/decline). */
   tone?: "brass" | "danger";
   busy?: boolean;
+  /** The confirm button's words while busy ("Passing 7 of 25…"); "Working…" otherwise. */
+  busyLabel?: string;
   /** Show a reason textarea; the entered text is passed to onConfirm. */
   withReason?: boolean;
   reasonLabel?: string;
@@ -34,6 +36,7 @@ export function ActionDialog({
   confirmLabel,
   tone = "brass",
   busy = false,
+  busyLabel,
   withReason = false,
   reasonLabel = "Reason (optional)",
   reasonPlaceholder = "",
@@ -147,7 +150,7 @@ export function ActionDialog({
             onClick={() => onConfirm(withReason ? reason : undefined)}
             disabled={confirmDisabled}
           >
-            {busy ? "Working…" : confirmLabel}
+            {busy ? busyLabel ?? "Working…" : confirmLabel}
           </button>
         </div>
       </div>

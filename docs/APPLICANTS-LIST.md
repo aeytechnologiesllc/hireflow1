@@ -507,3 +507,49 @@ the application, nobody writing the table directly, who can read it and that
 the applicant cannot, per job, the cascade, the locks) and
 `scripts/shortlist.test.mjs` (who can be on it, the tab and its counts per
 job, the held list, the words, the one meaning, the wiring).
+
+## 8. Pass on several at once (2026-10-07)
+
+The owner, with 105 applicants in and "Score Under 50" picked: "you added
+remove and block at the shortlist, but you didn't give me the option to pass
+on all of them. So I need to do a bulk pass. And make these smaller buttons."
+
+The bar that shows when applicants are picked now reads **Shortlist, Pass N,
+Remove and block N**, a size down from the page's own buttons (32px, 12.5px;
+three across in one row on a phone, where Remove and block reads "Block N").
+
+**What a bulk Pass is.** The single Pass, once per person: the application is
+declined in the owner's name and the applicant gets the same polite note
+(`src/lib/declineNote.ts`). Nobody is blocked; they can apply again. It is not
+a quieter Remove and block.
+
+**Who it reaches** (`src/cockpit/lib/bulkPass.ts`, `bulkPassPlan`): everyone
+picked who is still being decided on (`in_progress`, `pending`, `reviewing`,
+`interview`). Not someone already declined or hired, not someone on the
+Blocked tab, and not someone holding an offer: an offer is taken back on
+purpose, one person at a time. With one person picked it is the ordinary Pass
+dialog, word for word.
+
+**One confirm**, because every one of them is told by email: the number, how
+many of them have not finished the tests yet (passing closes those
+applications), how many picked are left as they are, and the note itself.
+
+**How it is sent** (`src/cockpit/hooks/useBulkPass.ts`): one person at a time,
+in order. The application is declined, then the note is emailed and waited
+for, then the next. So everyone handled so far is fully handled, the notes
+leave at a pace the mail service accepts, and the outcome can say truthfully
+how many were emailed. It does not go through `useUpdateApplication`, whose
+email is sent without waiting (two dozen would leave in one burst). It writes
+the single Pass's own fields (`passUpdate`) and only where the status is still
+one a Pass may change, so someone who moved to an offer or a hire since they
+were picked is left alone and counted as "had already moved on". After three
+failures in a row it stops and says so. The confirm button counts while it
+runs ("Passing 7 of 25…").
+
+The email itself is the `status_rejected` kind, which only the job's owner or
+a team member who may manage the pipeline can set off
+(docs/NOTIFICATION-EMAILS.md).
+
+Proof: `scripts/bulk_pass.test.mjs`, and a walk-through in the dev preview
+(fifteen picked: twelve passed and each sent the note, three left as they
+were, the Declined tab's count moved by twelve).
