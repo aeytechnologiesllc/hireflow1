@@ -965,6 +965,172 @@
   .ck-rail-chip-core { width: 25px; height: 25px; font-size: 8.5px; }
 }
 
+/* ── CALM: how the rail moves on the applicant profile (GemRail motion="calm") ──
+   2026-10-07, docs/APPLICANT-PROFILE.md "How the journey rail moves". The
+   owner: "make this animation a little bit more smoother and less annoying
+   and distracting". Recorded frame by frame on a profile, the walk leaned
+   before it moved, lunged gem to gem, jumped 188px in one frame, overshot the
+   last gem by 8px and crept back (1.85 s), replayed for every applicant the
+   pager showed, and then never rested: the fill's colours slid for as long as
+   the page was open (and snapped from gold back to green every 8 s, the loop
+   not joining up) while the current gem's halo pulsed.
+
+   Here the gems always show the record and the rail is still. Opening a
+   profile draws ONE glide over them, on the cockpit's own curve; a later step
+   is one more. The line is whole from the start, jade at the first gem and
+   gold at the decision, so the colour under the traveller says how far along
+   they are; what moves is how much of it shows (a window that slides, the
+   line counter-sliding inside it: transforms only, so the line and the chip
+   stay locked together while the page is still busy loading). GemRail sets
+   --rail-chip-x / --rail-chip-y (where the traveller stands), --rail-p (how
+   far the line is drawn, 0 to 1), and for the opening --rail-chip-x0,
+   --rail-hold, --rail-run and each gem's --rail-at. The walk above
+   (the create-job flow, the careers page) is untouched. ── */
+.ck-rail-calm .ck-rail-fill-clip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  height: 10px;
+  /* The line's glow may spill above, below and past its end; never to the
+     left of the first gem, where the sliding window waits. */
+  clip-path: inset(-18px -18px -18px 0);
+}
+.ck-rail-calm .ck-rail-fill {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 999px;
+  box-shadow: 0 0 14px -3px color-mix(in srgb, var(--gem-mint) 55%, transparent);
+  transform: translateX(calc((var(--rail-p, 0) - 1) * 100%));
+  transition: transform var(--rail-move, 660ms) cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ck-rail-calm .ck-rail-ink {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--gem-jade), var(--gem-mint), var(--gem-teal), var(--gem-gold));
+  transform: translateX(calc((1 - var(--rail-p, 0)) * 100%));
+  transition: transform var(--rail-move, 660ms) cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ck-rail-calm .ck-rail-chip {
+  transform: translate(var(--rail-chip-x, 0px), var(--rail-chip-y, 0px));
+  transition: transform var(--rail-move, 660ms) cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* The track and the line's box are laid on the gems by measurement, never
+   animated. Under reduced motion the global rule (index.css) gives every
+   property a 0.01 ms transition, which drew them for one frame at the band's
+   left edge before they landed on the first gem. */
+.ck-rail-track,
+.ck-rail-calm .ck-rail-fill-clip { transition-property: none; }
+/* A placement that is not a move (first paint, a resize). */
+.ck-rail-calm[data-still] .ck-rail-fill,
+.ck-rail-calm[data-still] .ck-rail-ink,
+.ck-rail-calm[data-still] .ck-rail-chip { transition: none; }
+
+.ck-rail-calm .ck-rail-dot {
+  transition: background-color 0.26s ease, border-color 0.26s ease, box-shadow 0.26s ease, color 0.26s ease;
+}
+/* The gem they are moving to takes its ring as they arrive, not as they set off. */
+.ck-rail-calm .ck-rail-node.is-current .ck-rail-dot { transition-delay: var(--rail-ring-at, 0ms); }
+/* The halo: there, and still. */
+.ck-rail-calm .ck-rail-dot::after {
+  content: "";
+  position: absolute;
+  inset: -9px;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--node-color, var(--gem-jade)) 0%, transparent 70%);
+  opacity: 0;
+  pointer-events: none;
+  animation: none;
+  transition: opacity 0.42s ease var(--rail-ring-at, 0ms);
+}
+.ck-rail-calm .ck-rail-node.is-current .ck-rail-dot::after { opacity: 0.22; animation: none; }
+/* One ring where they land, once. */
+.ck-rail-calm .ck-rail-dot::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border: 1.5px solid var(--node-color, var(--gem-jade));
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+}
+@keyframes ck-rail-arrive {
+  from { opacity: 0.5; transform: scale(1); }
+  to   { opacity: 0;   transform: scale(1.45); }
+}
+.ck-rail-calm .ck-rail-node[data-arrive] .ck-rail-dot::before {
+  animation: ck-rail-arrive 0.7s cubic-bezier(0.2, 0.6, 0.3, 1) var(--rail-at, 0ms);
+}
+
+/* The opening. Every part starts on the same frame from one attribute, and
+   each ends on the element's own resting style, so removing the attribute
+   afterwards changes nothing on screen. */
+@keyframes ck-rail-open-window {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(calc((var(--rail-p, 0) - 1) * 100%)); }
+}
+@keyframes ck-rail-open-ink {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(calc((1 - var(--rail-p, 0)) * 100%)); }
+}
+@keyframes ck-rail-open-ride {
+  from { transform: translate(var(--rail-chip-x0, 0px), var(--rail-chip-y, 0px)); }
+  to   { transform: translate(var(--rail-chip-x, 0px), var(--rail-chip-y, 0px)); }
+}
+@keyframes ck-rail-open-gem {
+  from { border-color: var(--line); background-color: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink-3); box-shadow: none; }
+}
+@keyframes ck-rail-open-ring { from { border-color: var(--line); box-shadow: none; } }
+@keyframes ck-rail-open-pop  { from { opacity: 0; transform: scale(0.4); } }
+@keyframes ck-rail-open-fade { from { opacity: 0; } }
+.ck-rail-calm[data-entrance] .ck-rail-fill {
+  animation: ck-rail-open-window var(--rail-run, 800ms) cubic-bezier(0.4, 0, 0.2, 1) var(--rail-hold, 140ms) both;
+}
+.ck-rail-calm[data-entrance] .ck-rail-ink {
+  animation: ck-rail-open-ink var(--rail-run, 800ms) cubic-bezier(0.4, 0, 0.2, 1) var(--rail-hold, 140ms) both;
+}
+.ck-rail-calm[data-entrance] .ck-rail-chip {
+  animation: ck-rail-open-ride var(--rail-run, 800ms) cubic-bezier(0.4, 0, 0.2, 1) var(--rail-hold, 140ms) both;
+}
+.ck-rail-calm[data-entrance] .ck-rail-node.is-cleared:not(.is-decision) .ck-rail-dot {
+  animation: ck-rail-open-gem 0.24s ease-out var(--rail-at, 0ms) both;
+}
+.ck-rail-calm[data-entrance] .ck-rail-node.is-cleared .ck-rail-check {
+  animation: ck-rail-open-pop 0.22s cubic-bezier(0.2, 0.7, 0.3, 1) calc(var(--rail-at, 0ms) + 150ms) both;
+}
+.ck-rail-calm[data-entrance] .ck-rail-node.is-current:not(.is-decision) .ck-rail-dot {
+  animation: ck-rail-open-ring 0.28s ease-out var(--rail-at, 0ms) both;
+}
+.ck-rail-calm[data-entrance] .ck-rail-node.is-current .ck-rail-dot::after {
+  animation: ck-rail-open-fade 0.48s ease-out var(--rail-at, 0ms) both;
+}
+
+/* The verdict lands while the page is open: the pill presses in, once. The
+   traveller stands on the seal by then, so the pill is what can be seen. */
+@keyframes ck-rail-stamp { from { opacity: 0; transform: scale(1.4); } }
+.ck-rail-calm .ck-rail-receipt.show.is-sealed.is-stamped {
+  animation: ck-rail-stamp 0.34s cubic-bezier(0.34, 1.3, 0.5, 1) 0.12s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ck-rail-calm .ck-rail-fill,
+  .ck-rail-calm .ck-rail-ink,
+  .ck-rail-calm .ck-rail-chip,
+  .ck-rail-calm .ck-rail-dot,
+  .ck-rail-calm .ck-rail-dot::after { transition: none; }
+  .ck-rail-calm .ck-rail-fill,
+  .ck-rail-calm .ck-rail-ink,
+  .ck-rail-calm .ck-rail-chip,
+  .ck-rail-calm .ck-rail-dot,
+  .ck-rail-calm .ck-rail-dot::before,
+  .ck-rail-calm .ck-rail-dot::after,
+  .ck-rail-calm .ck-rail-check,
+  .ck-rail-calm .ck-rail-receipt { animation: none !important; }
+}
+
 /* ── MINI GEM RAIL — Dashboard, "Pipeline at a glance" ──────────────────────
    2026-08-30. A compact, AGGREGATE miniature of the rail above: not one
    candidate's progress (no traveler chip, no cleared/current/upcoming

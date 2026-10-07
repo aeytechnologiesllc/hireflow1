@@ -106,3 +106,46 @@ team member's shell (AppSidebar/AppHeader) renders it too. No new colours; no tr
 - Dev preview: `/applicants/30000000-0000-4000-8000-000000000026` (Nadia, finished, Why up/down),
   `…028` (Kwame, a flagged "20 to 30" hours answer), `…015` (Sam, mid-test), `…027` (Luis, not scored yet),
   `…025` (Ayesha, declined), each with `?__preview=1&__previewRole=employer&__previewScenario=zulu`.
+
+## How the journey rail moves (2026-10-07)
+
+The owner, on the rail at the top of the profile: "make this animation a little bit more smoother and
+less annoying and distracting". Approved from a side-by-side of the old motion and this one
+("animations go ahead, build it"); he chose the initials riding the line and no pulsing.
+
+What the old walk did, recorded frame by frame on a profile (headless Chromium, fixture data, 1440px):
+the initials leaned 11° for a quarter of a second before moving, lunged toward the next gem, **jumped
+188px in one frame** when a two-line result appeared under a gem (the result made the band taller, the
+rail's own resize observer re-applied the traveller's place with no transition, and that cancelled the
+glide in flight), stood still for 230 ms, lunged again, overshot the last gem by 8px and crept back:
+1.85 s to rest. Results popping in one by one pushed the page below down by 18 to 25px. Then it never
+rested: the line's colours slid for as long as the page was open and snapped from gold back to green
+every 8 s (the loop did not join up), and the current gem's halo pulsed. The page is rebuilt for every
+person, so the pager replayed all of it each time, and Ava's seal stamped on every open.
+
+Now (`GemRail motion="calm"`, `ck-rail-calm` in cockpit.css, timings in `src/cockpit/lib/gemRail.ts`):
+
+- **The gems always show the record**, from the first frame: labels and results are in place, so no
+  text moves and nothing below shifts.
+- **Opening a profile is one glide**: the line draws from the first gem to where they are, each gem
+  inks as the line reaches it (its delay is the inverse of the glide's easing, not a clock of its own),
+  the initials ride the line's end, and one soft ring marks where they land. `cubic-bezier(0.4, 0, 0.2,
+  1)`, 140 ms after the page turns, 660 ms to 1.2 s by distance. No lean, no overshoot.
+- **Then it is still.** The line is whole and in fixed colours, jade at the first gem and gold at the
+  decision, so the colour under the initials says how far along they are. No sliding, no pulsing.
+- **The pager turns to a rail already in place** (`entrance="none"`). The pager's navigation carries
+  `PAGER_MOVE` in its state, because the cockpit's shell remounts the whole page for every person and
+  nothing kept in memory survives the move. A profile opened from the list or a link draws itself.
+- **A step they finish while the page is open** is one more glide, the ring arriving with them.
+- **A decision made while the page is open** presses the verdict pill in, once. The seal itself no
+  longer stamps on open: the initials stand on it by then.
+- **Travel is transforms only** (a window that slides, the line counter-sliding inside it), so the line
+  and the initials stay locked together while the page is still loading. The opening is CSS started by
+  one attribute (`data-entrance`) and removed when it has played; no state walks, so nothing can be left
+  half-walked.
+- **The resize observer acts only when a gem actually moved** (`measure()` says so). That is the fix
+  for the jump, and it applies to the walk too.
+- Reduced motion: the rail is simply in place.
+
+The create-job flow and the careers page keep the walk (`motion` defaults to "walk"): the owner approved
+this for the profile. Test: `scripts/journey_rail_motion.test.mjs`.

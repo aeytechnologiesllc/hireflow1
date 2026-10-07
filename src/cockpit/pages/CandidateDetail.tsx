@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ChevronLeft,
   ChevronRight,
@@ -169,12 +169,15 @@ export default function CockpitCandidateDetail() {
   useEffect(() => {
     scrollToTopOf(top.current);
   }, [id]);
+  // Opened from the list (or a link): the journey rail draws itself. Turned to
+  // by the pager: it is already in place (see PAGER_MOVE).
+  const turnedTo = (useLocation().state as { pagerMove?: boolean } | null)?.pagerMove === true;
   // One person per mount. The pager moves between people on this same route,
   // and the team member's shell does not remount the page on a new id the way
   // the cockpit's does — so an open sheet or dialog never follows to the next.
   return (
     <div ref={setTop}>
-      <CandidateProfile key={id ?? ""} id={id} pageWidth={pageWidth} />
+      <CandidateProfile key={id ?? ""} id={id} pageWidth={pageWidth} railEntrance={turnedTo ? "none" : "draw"} />
     </div>
   );
 }
@@ -391,10 +394,21 @@ function MoreMenu({ items, pulse }: { items: BarAction[]; pulse: boolean }) {
 /** "3 of 64 ‹ ›" through the list the owner came from (its tab, filters and
  *  sort, as the list wrote it to sessionStorage). Each turn replaces this
  *  profile in history, so Back still lands on the list. */
+/**
+ * What the pager's move carries, so the next profile knows it was turned to,
+ * not opened: the journey rail draws itself for the person a visit opens and
+ * is simply in place for the ones the pager turns to (with the walk replaying
+ * each time, 54 applicants were 54 replays; docs/APPLICANT-PROFILE.md "How the
+ * journey rail moves"). It rides the navigation because the cockpit's shell
+ * remounts the whole page for every person, so nothing kept in memory here
+ * survives the move.
+ */
+const PAGER_MOVE = { pagerMove: true } as const;
+
 function Pager({ position, total, prevId, nextId }: { position: number; total: number; prevId: string | null; nextId: string | null }) {
   const navigate = useNavigate();
   const go = (target: string | null) => {
-    if (target) navigate(`/applicants/${target}`, { replace: true });
+    if (target) navigate(`/applicants/${target}`, { replace: true, state: PAGER_MOVE });
   };
   const arrow =
     "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border disabled:opacity-30 md:h-7 md:w-7";
@@ -414,7 +428,16 @@ function Pager({ position, total, prevId, nextId }: { position: number; total: n
   );
 }
 
-function CandidateProfile({ id, pageWidth }: { id: string | undefined; pageWidth: number | null }) {
+function CandidateProfile({
+  id,
+  pageWidth,
+  railEntrance,
+}: {
+  id: string | undefined;
+  pageWidth: number | null;
+  /** Whether the journey rail draws itself ("draw") or is simply in place ("none"). */
+  railEntrance: "draw" | "none";
+}) {
   const navigate = useNavigate();
   const { isTeamMember } = useAuth();
   const { candidate: c, application, isLoading, isError, refetch } = useCockpitCandidate(id);
@@ -962,6 +985,7 @@ function CandidateProfile({ id, pageWidth }: { id: string | undefined; pageWidth
             line={{ live: record?.live ?? null, sessions, recommendedAction: c.recommendedAction, now }}
             wide={wideRail}
             showSummary={false}
+            entrance={railEntrance}
           />
         </section>
       ) : null;
@@ -1247,6 +1271,7 @@ function CandidateProfile({ id, pageWidth }: { id: string | undefined; pageWidth
               name={c.name}
               liveStepId={record?.live?.stepId ?? null}
               line={{ live: record?.live ?? null, sessions, recommendedAction: c.recommendedAction, now }}
+              entrance={railEntrance}
             />
           </section>
         )}

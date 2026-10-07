@@ -613,7 +613,7 @@ check("the profile draws the journey rail from the record's dots", /journeyDots\
 check("the rail hands each gem its state, and GemRail honours it over position", /state: dot\.state === "done"/.test(rail) && /const stated = node\.state != null/.test(gemRail) && /node\.state === "skipped"/.test(gemRail));
 check("Set up interview lives on the profile: the wizard and the 'propose times?' moment", /<InterviewSchedulingWizard/.test(profile) && /<InterviewMoment/.test(profile) && /text: "Set up interview"/.test(profile));
 check("…moving them to interview offers it", /movingToInterview = advanceLabel === "Interview"/.test(profile) && /if \(movingToInterview\) setInterviewMoment\(true\)/.test(profile));
-check("the pager reads the list's order and replaces history", /readApplicantOrder\(\)/.test(profile) && /pagerFor\(order, id\)/.test(profile) && /navigate\(`\/applicants\/\$\{target\}`, \{ replace: true \}\)/.test(profile));
+check("the pager reads the list's order and replaces history", /readApplicantOrder\(\)/.test(profile) && /pagerFor\(order, id\)/.test(profile) && /navigate\(`\/applicants\/\$\{target\}`, \{ replace: true, state: PAGER_MOVE \}\)/.test(profile));
 check("the phone bar shows three at most, the rest behind More", /splitActionBar\(actions, 3\)/.test(profile) && /<MoreMenu/.test(profile));
 check("…and More's menu is portalled, so a transformed ancestor cannot trap it", /createPortal\(/.test(profile) && /document\.body/.test(profile));
 check("the Needs review pill is the tab's rule, not Ava's recommendation", /applicantChip\(status, finishedEveryTest\(dots\)\)/.test(profile) && !/declineRecommended \? \(\s*<span/.test(profile));

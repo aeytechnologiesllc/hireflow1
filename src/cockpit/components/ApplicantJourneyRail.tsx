@@ -27,6 +27,10 @@ import {
  * Each gem wears its step's own mark (EntryIcon, the record list's map, so the
  * row and the gem are one mark) and the record's own receipt under it
  * ("38 WPM · under 45"), only ever what is on file.
+ *
+ * It moves the calm way (GemRail motion="calm", docs/APPLICANT-PROFILE.md
+ * "How the journey rail moves"): one glide when the profile opens, then
+ * still; `entrance="none"` when the pager turned to this person.
  */
 
 type Glyph = ComponentType<{ className?: string; size?: string | number; strokeWidth?: string | number }>;
@@ -62,6 +66,7 @@ export function ApplicantJourneyRail({
   line,
   wide = false,
   showSummary = true,
+  entrance = "draw",
 }: {
   dots: JourneyDot[];
   /** applications.status: what the Decision gem says. */
@@ -79,6 +84,9 @@ export function ApplicantJourneyRail({
   wide?: boolean;
   /** The line under the rail. Off where the header already says it. */
   showSummary?: boolean;
+  /** "draw": the opening glide plays once. "none": the rail is simply in
+   *  place (the pager moved to this person; the page has already turned). */
+  entrance?: "draw" | "none";
 }) {
   if (dots.length === 0) return null;
   const outcome = decisionWord(status);
@@ -132,6 +140,8 @@ export function ApplicantJourneyRail({
       ariaLabel="Where they are in the job's process"
       focusable
       className={wide ? "ck-rail-wide" : undefined}
+      motion="calm"
+      entrance={entrance}
     />
   );
 }

@@ -7,7 +7,7 @@
  * that drew bare numbers instead of gems. This is the single presentational
  * component all the React callers now share — same `ck-rail-*` rules in
  * cockpit.css, same jade → mint → teal → gold spectrum from lib/gemRail.ts,
- * same traveler, same walk.
+ * same traveler.
  *
  * It is deliberately dumb: it knows nothing about candidates, jobs or steps. A
  * caller computes what each gem means — its glyph, its receipt, whether it is
@@ -15,10 +15,24 @@
  * gem's state from a record (the full profile's ApplicantJourneyRail) passes
  * it as `state`, and the gem shows that instead of its position.
  *
- * The walk. `current` is the truth. `visualIndex` is the animated read of it:
- * on mount it starts at the first gem and races forward, lighting each gem in
- * sequence as the traveler passes, so the rail plays the journey rather than
- * snapping to the end. Motion is skipped entirely under prefers-reduced-motion.
+ * Two ways of moving (`motion`):
+ *
+ *  - "walk", the default (the create-job flow, the careers page). `current`
+ *    is the truth; `visualIndex` is the animated read of it: on mount it
+ *    starts at the first gem and races forward, lighting each gem in sequence
+ *    as the traveler passes, so the rail plays the journey rather than
+ *    snapping to the end.
+ *
+ *  - "calm" (the applicant profile, docs/APPLICANT-PROFILE.md "How the journey
+ *    rail moves"). The gems ALWAYS show the record. Opening a profile plays
+ *    one glide over them (the line draws to where they are, each gem inks as
+ *    the line reaches it, the traveler rides its end), then the rail holds
+ *    still: no flowing colours, no pulsing ring. A later step is one more
+ *    glide. `entrance="none"` skips the opening (flipping through applicants
+ *    with the pager). The opening is CSS, started by one attribute and removed
+ *    when it has played, so nothing can be left half-walked.
+ *
+ * Motion is skipped entirely under prefers-reduced-motion.
  *
  * Geometry is measured, never guessed — flex decides where the gems land, so
  * the track, its fill and the chip are positioned off real node centres.
@@ -29,11 +43,14 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import { Check } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import AvaSeal from "@/components/ava/AvaSeal";
-import { gemPosition } from "@/cockpit/lib/gemRail";
+import { OPENING_HOLD_MS, gemPosition, glideMs, glideTimeAt } from "@/cockpit/lib/gemRail";
 import { cn } from "@/lib/utils";
 
 const reducedMotion = () =>
   typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+/** How long the arrival ring takes to fade once the glide has landed (cockpit.css, ck-rail-arrive). */
+const ARRIVAL_TAIL_MS = 900;
 
 export interface GemRailNode {
   id: string;
@@ -81,11 +98,29 @@ export interface GemRailProps {
   /** Makes each gem keyboard-reachable, so its tooltip can be read without a mouse. */
   focusable?: boolean;
   className?: string;
+  /** How the rail moves (see the note at the top of this file). */
+  motion?: "walk" | "calm";
+  /** Calm only. "draw" plays the opening once when the rail mounts; "none"
+   *  shows it in place. */
+  entrance?: "draw" | "none";
 }
 
-export function GemRail({ nodes, current, traveler, summary, ariaLabel = "Progress", focusable, className }: GemRailProps) {
+export function GemRail({
+  nodes,
+  current,
+  traveler,
+  summary,
+  ariaLabel = "Progress",
+  focusable,
+  className,
+  motion = "walk",
+  entrance = "draw",
+}: GemRailProps) {
+  const calm = motion === "calm";
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const zoneRef = useRef<HTMLDivElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
+  /** Walk: the scaled fill. Calm: the box the drawn line is clipped to. */
   const fillRef = useRef<HTMLDivElement | null>(null);
   const chipRef = useRef<HTMLDivElement | null>(null);
   const chipBodyRef = useRef<HTMLDivElement | null>(null);
@@ -95,26 +130,45 @@ export function GemRail({ nodes, current, traveler, summary, ariaLabel = "Progre
   const visualIndexRef = useRef(0);
   const timersRef = useRef<number[]>([]);
   const genRef = useRef(0);
+  // Calm only.
+  const placedRef = useRef("");
+  const openedRef = useRef(false);
+  const openingTimerRef = useRef(0);
+  const openingMsRef = useRef(0);
+  const sealedRef = useRef<boolean | null>(null);
 
   const target = Math.max(0, Math.min(current, nodes.length - 1));
   const [visualIndex, setVisualIndex] = useState(target);
   const [sealBeat, setSealBeat] = useState(0);
+  const [stampBeat, setStampBeat] = useState(0);
 
-  const measure = () => {
+  /**
+   * Reads where the gems are and lays the track on them. Returns whether any
+   * gem MOVED since the last read: a result line that arrives under a gem
+   * makes the band taller and wakes the resize observer, but moves nothing.
+   * Until 2026-10-07 that re-applied the traveller's place with no transition,
+   * which cancelled the glide in flight: the chip jumped to its next gem in
+   * one frame (188px, measured on a profile) and stood there.
+   */
+  const measure = (): boolean => {
     const zone = zoneRef.current;
-    if (!zone) return;
+    if (!zone) return false;
     // The gem list is rebuilt on every render and refilled at commit; a
     // measure that lands in between (a re-measure after a render React has
     // not committed yet) would read an empty list and leave the traveller
     // with nowhere to stand. Keep the last good points instead.
     const els = dotRefs.current;
-    if (els.length === 0 || els.some((el) => !el)) return;
+    if (els.length === 0 || els.some((el) => !el)) return false;
     const zoneRect = zone.getBoundingClientRect();
-    pointsRef.current = els.map((el) => {
+    const next = els.map((el) => {
       if (!el) return { x: 0, y: 0 };
       const r = el.getBoundingClientRect();
       return { x: r.left + r.width / 2 - zoneRect.left, y: r.top + r.height / 2 - zoneRect.top };
     });
+    const prev = pointsRef.current;
+    const moved =
+      prev.length !== next.length || next.some((p, i) => Math.abs(p.x - prev[i].x) > 0.25 || Math.abs(p.y - prev[i].y) > 0.25);
+    pointsRef.current = next;
     const pts = pointsRef.current;
     const track = trackRef.current;
     const fill = fillRef.current;
@@ -129,6 +183,7 @@ export function GemRail({ nodes, current, traveler, summary, ariaLabel = "Progre
         el.style.transformOrigin = "left center";
       }
     }
+    return moved;
   };
 
   const applyVisual = (index: number, instant: boolean) => {
@@ -156,9 +211,133 @@ export function GemRail({ nodes, current, traveler, summary, ariaLabel = "Progre
     if (fill) write(fill, `scaleX(${nodes.length > 1 ? i / (nodes.length - 1) : 0})`);
   };
 
+  // ── calm ──────────────────────────────────────────────────────────────────
+
+  /** The gem's own element (the dot's parent), where its timings are written. */
+  const nodeAt = (i: number): HTMLElement | null => dotRefs.current[i]?.parentElement ?? null;
+
+  /**
+   * Writes where the traveller stands and how far the line is drawn, as
+   * custom properties the stylesheet turns into transforms. Does nothing when
+   * nothing moved (see `measure`), so a glide in flight is never cut short.
+   */
+  const place = (instant: boolean) => {
+    measure();
+    const root = rootRef.current;
+    const pts = pointsRef.current;
+    if (!root || pts.length === 0) return;
+    const i = Math.max(0, Math.min(visualIndexRef.current, pts.length - 1));
+    const half = (chipRef.current?.offsetWidth || 34) / 2;
+    const span = pts[pts.length - 1].x - pts[0].x;
+    const next = [
+      `${(pts[i].x - half).toFixed(2)}px`,
+      `${(pts[i].y - half).toFixed(2)}px`,
+      `${(pts[0].x - half).toFixed(2)}px`,
+      (span > 0 ? (pts[i].x - pts[0].x) / span : 0).toFixed(5),
+    ];
+    const key = next.join("|");
+    if (key === placedRef.current) return;
+    placedRef.current = key;
+    const write = () => {
+      root.style.setProperty("--rail-chip-x", next[0]);
+      root.style.setProperty("--rail-chip-y", next[1]);
+      root.style.setProperty("--rail-chip-x0", next[2]);
+      root.style.setProperty("--rail-p", next[3]);
+    };
+    if (instant || reducedMotion()) {
+      root.dataset.still = "";
+      write();
+      void root.getBoundingClientRect(); // land it before transitions are back
+      delete root.dataset.still;
+    } else {
+      write();
+    }
+  };
+
+  const endOpening = () => {
+    window.clearTimeout(openingTimerRef.current);
+    const root = rootRef.current;
+    if (root) delete root.dataset.entrance;
+    dotRefs.current.forEach((_, i) => {
+      const node = nodeAt(i);
+      if (node) delete node.dataset.arrive;
+    });
+  };
+
+  /** The opening: one glide from the first gem to where they are. Each gem
+   *  behind them is told when the line reaches it, then one attribute starts
+   *  every part on the same frame. */
+  const startOpening = () => {
+    const root = rootRef.current;
+    const pts = pointsRef.current;
+    const at = visualIndexRef.current;
+    if (!root || at <= 0 || !pts[at]) return;
+    const span = pts[at].x - pts[0].x;
+    const run = glideMs(span);
+    root.style.setProperty("--rail-run", `${run}ms`);
+    root.style.setProperty("--rail-hold", `${OPENING_HOLD_MS}ms`);
+    for (let i = 0; i <= at; i += 1) {
+      const covered = span > 0 ? (pts[i].x - pts[0].x) / span : 1;
+      nodeAt(i)?.style.setProperty("--rail-at", `${Math.round(OPENING_HOLD_MS + run * glideTimeAt(covered))}ms`);
+    }
+    const arrival = nodeAt(at);
+    if (arrival) arrival.dataset.arrive = "";
+    root.dataset.entrance = "draw";
+    openingMsRef.current = OPENING_HOLD_MS + run + ARRIVAL_TAIL_MS;
+    openingTimerRef.current = window.setTimeout(endOpening, openingMsRef.current);
+  };
+
+  useLayoutEffect(() => {
+    if (!calm) return;
+    const root = rootRef.current;
+    if (!root) return;
+    const from = visualIndexRef.current;
+    visualIndexRef.current = target;
+    if (!openedRef.current) {
+      openedRef.current = true;
+      place(true);
+      if (entrance === "draw" && !reducedMotion()) startOpening();
+    } else if (root.dataset.entrance && from === target) {
+      // The same placement again (React's development double run): the
+      // opening is already playing. Only its clean-up timer was dropped.
+      openingTimerRef.current = window.setTimeout(endOpening, openingMsRef.current);
+    } else {
+      // They moved a step while the page was open: one glide, and one ring
+      // where they land. The timings are written before anything is measured,
+      // so the styles that just changed pick them up.
+      endOpening();
+      const pts = pointsRef.current;
+      const move = glideMs(pts[target] && pts[from] ? Math.abs(pts[target].x - pts[from].x) : 0);
+      root.style.setProperty("--rail-move", `${move}ms`);
+      dotRefs.current.forEach((_, i) => nodeAt(i)?.style.removeProperty("--rail-ring-at"));
+      const arrival = target !== from && !reducedMotion() ? nodeAt(target) : null;
+      if (arrival) {
+        arrival.style.setProperty("--rail-ring-at", `${Math.round(move * 0.62)}ms`);
+        arrival.style.setProperty("--rail-at", `${Math.round(move * 0.8)}ms`);
+        arrival.dataset.arrive = "";
+        openingTimerRef.current = window.setTimeout(endOpening, move + ARRIVAL_TAIL_MS);
+      }
+      place(false);
+    }
+    return () => window.clearTimeout(openingTimerRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calm, target, nodes.length]);
+
+  // The verdict lands while the page is open (the owner just decided): the
+  // pill presses in once. Never on a profile opened already decided.
+  const sealedNow = nodes.some((node) => node.sealed);
+  useEffect(() => {
+    if (!calm) return;
+    if (sealedRef.current === false && sealedNow) setStampBeat((n) => n + 1);
+    sealedRef.current = sealedNow;
+  }, [calm, sealedNow]);
+
+  // ── walk ──────────────────────────────────────────────────────────────────
+
   // Measure, then walk from where the traveller was to where they really are —
   // one gem at a time, so gems light in sequence rather than all at once.
   useLayoutEffect(() => {
+    if (calm) return;
     measure();
     const isFirst = !mountedRef.current;
     const start = isFirst ? (reducedMotion() ? target : 0) : visualIndexRef.current;
@@ -221,34 +400,50 @@ export function GemRail({ nodes, current, traveler, summary, ariaLabel = "Progre
 
     return () => timersRef.current.forEach((t) => window.clearTimeout(t));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target, nodes.length]);
+  }, [calm, target, nodes.length]);
 
   // Each tick glides the chip and draws the fill via CSS transition.
   useEffect(() => {
+    if (calm) return;
     applyVisual(visualIndex, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visualIndex]);
+  }, [calm, visualIndex]);
 
-  // Re-measure on width changes without replaying the walk.
+  // Re-measure on width changes without replaying the walk, and only when a
+  // gem actually moved (see `measure`).
   useEffect(() => {
     const zone = zoneRef.current;
     if (!zone || typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(() => {
-      measure();
-      applyVisual(visualIndexRef.current, true);
+      if (calm) place(true);
+      else if (measure()) applyVisual(visualIndexRef.current, true);
     });
     ro.observe(zone);
     return () => ro.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [calm]);
 
   dotRefs.current = [];
 
+  // Calm: the gems show the record from the first frame, and the opening is
+  // drawn over them. Walk: they follow the traveller.
+  const shown = calm ? target : visualIndex;
+
   return (
-    <div className={cn("ck-rail-outer", className)}>
+    <div ref={rootRef} className={cn("ck-rail-outer", calm && "ck-rail-calm", className)}>
       <div className="ck-rail-band" ref={zoneRef}>
         <div className="ck-rail-track" ref={trackRef} aria-hidden="true" />
-        <div className="ck-rail-track-fill" ref={fillRef} aria-hidden="true" />
+        {calm ? (
+          // The line, already whole and in its own colours (jade at the start,
+          // gold at the decision); what is drawn is how much of it shows.
+          <div className="ck-rail-fill-clip" ref={fillRef} aria-hidden="true">
+            <div className="ck-rail-fill">
+              <div className="ck-rail-ink" />
+            </div>
+          </div>
+        ) : (
+          <div className="ck-rail-track-fill" ref={fillRef} aria-hidden="true" />
+        )}
 
         <div className="ck-rail-nodes" role="list" aria-label={ariaLabel}>
           {nodes.map((node, i) => {
@@ -258,9 +453,9 @@ export function GemRail({ nodes, current, traveler, summary, ariaLabel = "Progre
             // A gem with a `state` shows that state once the walk has passed
             // it (or arrived): never a check its record does not have.
             const stated = node.state != null;
-            const reached = i <= visualIndex || visualIndex === target;
-            const cleared = stated ? reached && (node.state === "done" || node.state === "below") : i < visualIndex;
-            const isCurrent = stated ? i === visualIndex && node.state === "now" : i === visualIndex;
+            const reached = i <= shown || shown === target;
+            const cleared = stated ? reached && (node.state === "done" || node.state === "below") : i < shown;
+            const isCurrent = stated ? i === shown && node.state === "now" : i === shown;
             const dotStyle: CSSProperties | undefined = !stated || !reached
               ? undefined
               : node.state === "skipped"
@@ -269,7 +464,8 @@ export function GemRail({ nodes, current, traveler, summary, ariaLabel = "Progre
                   ? { borderWidth: 2, borderColor: "var(--ink-3)" }
                   : undefined;
             const Icon = node.icon;
-            const receipt = (stated ? reached : i <= visualIndex) ? node.receipt : null;
+            const receipt = (stated ? reached : i <= shown) ? node.receipt : null;
+            const stamped = calm && stampBeat > 0 && !!node.sealed;
             return (
               <div
                 key={node.id}
@@ -287,7 +483,10 @@ export function GemRail({ nodes, current, traveler, summary, ariaLabel = "Progre
               >
                 <div className="ck-rail-dot" style={dotStyle} ref={(el) => { dotRefs.current[i] = el; }}>
                   {node.decision ? (
-                    <span key={`seal-${sealBeat}`} className="ck-seal ck-seal-press">
+                    // Walk: the seal stamps when the traveller lands on it.
+                    // Calm: the traveller stands on the seal, so the verdict
+                    // under it is what presses in (is-stamped below).
+                    <span key={`seal-${sealBeat}`} className={calm ? "ck-seal" : "ck-seal ck-seal-press"}>
                       <AvaSeal size={28} tilt={node.sealTilt ?? 0} />
                     </span>
                   ) : Icon ? (
@@ -302,7 +501,10 @@ export function GemRail({ nodes, current, traveler, summary, ariaLabel = "Progre
                   )}
                 </div>
                 <span className="ck-rail-label">{node.label}</span>
-                <span className={cn("ck-rail-receipt", receipt && "show", node.sealed && "is-sealed")}>
+                <span
+                  key={stamped ? `stamp-${stampBeat}` : "receipt"}
+                  className={cn("ck-rail-receipt", receipt && "show", node.sealed && "is-sealed", stamped && "is-stamped")}
+                >
                   {receipt ?? ""}
                 </span>
 
