@@ -2,7 +2,9 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
+  aiUnavailableResponse,
   callOpenAIChat,
+  isAiUnavailable,
   parseJsonContent,
   requireNestedJsonPaths,
   type OpenAIMessage,
@@ -41,6 +43,33 @@ const NARRATIVE_RESERVE_MS = 55_000;
 const STRUCTURED_ATTEMPTS = 2;
 const NARRATIVE_ATTEMPTS = 2;
 
+// When the AI service refuses (2026-10-07, _shared/openai.ts
+// AiUnavailableError): out of credit stops at once; a rate limit or a 5xx
+// may use this step's remaining attempts. Either way it never falls back to
+// the narrative or text-only read (a timeout aside: refusesFallback, below):
+// a degraded read made during an outage
+// ("could not read the application", a neutral score) was saved as the
+// applicant's score and then reused for unchanged evidence. The request
+// answers 503 `ai_unavailable` instead, trigger-ava-analysis saves nothing,
+// and the next step (or a forced re-run) scores them properly.
+
+/**
+ * A refusal that must not be papered over with a lesser read: out of credit,
+ * rate limited, the provider down, refusing us outright or unreachable.
+ *
+ * A timeout is left out on purpose. The structured read is the slow one, and
+ * the narrative read exists for exactly the case where it runs out of time
+ * (NARRATIVE_RESERVE_MS above); a picture-heavy read that times out is what
+ * the text-only read is for. Both worked that way before a timeout was
+ * classed as a refusal (_shared/openai.ts, provider_timeout), and a model
+ * that is merely slow must not start leaving applicants unscored. If the
+ * provider really is hanging, the lesser read times out too, and THAT
+ * refusal is the one that answers 503 with nothing saved.
+ */
+function refusesFallback(error: unknown): boolean {
+  return isAiUnavailable(error) && error.reason !== "provider_timeout";
+}
+
 function pause(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -68,6 +97,7 @@ async function withinDeadline<T>(
     } catch (error) {
       lastError = error;
       console.warn(`[ai-analyze] ${label} attempt ${attempt}/${attempts} failed:`, error);
+      if (isAiUnavailable(error) && error.reason === "credit_exhausted") break;
       if (attempt < attempts && deadline - Date.now() > MIN_CALL_MS + 1000) await pause(1000);
     }
   }
@@ -1461,6 +1491,7 @@ Your skill match analysis should be based on what the candidate stated in their 
             structuredScore: sanitizeStructuredScore(structured.structuredScore, { teamLead }),
           };
         } catch (structuredError) {
+          if (refusesFallback(structuredError)) throw structuredError;
           console.warn(`[ai-analyze] Structured response failed for ${type}, falling back to narrative output:`, structuredError);
         }
       }
@@ -1483,7 +1514,7 @@ Your skill match analysis should be based on what the candidate stated in their 
     try {
       ({ analysis, structuredScore } = await runAnalysis(messages));
     } catch (visionError) {
-      if (usedImages) {
+      if (usedImages && !refusesFallback(visionError)) {
         console.warn(`[ai-analyze] vision analysis failed for ${type}, retrying text-only:`, visionError);
         ({ analysis, structuredScore } = await runAnalysis(textOnlyMessages));
       } else {
@@ -1513,6 +1544,12 @@ Your skill match analysis should be based on what the candidate stated in their 
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
+    if (isAiUnavailable(error)) {
+      // Nothing was read: no analysis to save, and nothing that would stop
+      // a later run from scoring them.
+      console.error(`[ai-analyze] AI service unavailable (${error.reason}); no analysis`);
+      return aiUnavailableResponse(corsHeaders, { reason: error.reason });
+    }
     console.error("Error in ai-analyze function:", error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),

@@ -1,13 +1,15 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { callOpenAIJson, requireJsonKeys } from "../_shared/openai.ts";
+import { aiUnavailableResponse, callOpenAIJson, isAiUnavailable, requireJsonKeys } from "../_shared/openai.ts";
 import { streamOpenAIChatCompletion } from "../_shared/openaiStreaming.ts";
 import { guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { recordStepResult, type MinimalSupabaseAdmin } from "../_shared/trustedResults.ts";
 import {
+  afterReplyAskFailed,
   askForOpener,
   awaitInFlightReply,
+  candidateTurnStatus,
   chatSimulationEndReason,
   computerOnlyGate,
   recordStartDevice,
@@ -17,17 +19,17 @@ import {
   cleanClientMsgId,
   failSession,
   finishGrading,
-  forIdOfReply,
   gateGrading,
   gradingRecord,
+  holdCandidateTurn,
   loadIntegrityEvents,
   loadTurns,
   markReplyAsked,
-  markReplyFailed,
   OPENER_ID,
   readStepOnFile,
   recordCandidateTurn,
   recordingTargetFrom,
+  refuseGradingForOutage,
   releaseGrading,
   replayTextFor,
   replyMsgId,
@@ -36,11 +38,13 @@ import {
   serverMsgId,
   settleTrailingReply,
   sseReplayText,
+  storeHeldCandidateTurn,
   teeAndRecordReply,
   turnsToTranscript,
   updateContext,
   withLeadingSse,
   type AssessmentAdmin,
+  type HeldCandidateTurn,
   type SessionRow,
   type StoredTurn,
 } from "../_shared/assessmentSession.ts";
@@ -414,6 +418,9 @@ serve(async (req) => {
         // model fails or its answer cannot be read, the chat is recorded as
         // NOT graded (no score, transcript kept for re-grading) so the
         // candidate still moves on and nobody reads a made-up 70 as real.
+        // When the AI SERVICE refuses (out of credit, rate limited, down:
+        // throwWhenUnavailable), nothing is recorded at all: the catch below
+        // lets go of the claim and the chat stays open to be sent again.
         let usedFallback = false;
         const { data: reviewed } = await callOpenAIJson({
           apiKey: OPENAI_API_KEY,
@@ -438,6 +445,7 @@ serve(async (req) => {
             usedFallback = true;
             return null;
           },
+          throwWhenUnavailable: true,
         });
         const marked = usedFallback
           ? null
@@ -592,6 +600,14 @@ serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       } catch (error) {
+        if (isAiUnavailable(error)) {
+          // The service refused before anything was recorded: no result, no
+          // "not graded", no move on. The attempt goes back to open with the
+          // whole conversation, and the page offers to send it again.
+          console.warn("[ai-chat-simulation] chat left open, the AI service is unavailable:", error.reason);
+          await refuseGradingForOutage(record, session, gate, error.reason);
+          return aiUnavailableResponse(corsHeaders);
+        }
         if (session && claimed) await failSession(record, session.id, error instanceof Error ? error.message : String(error));
         throw error;
       }
@@ -633,6 +649,8 @@ serve(async (req) => {
     let liveAgentMessage = agentMessage;
     let liveMessageCount = messageCount;
     let replyId: string | null = null;
+    // A new message, held until the model takes it (stored right after).
+    let held: HeldCandidateTurn | null = null;
     let scenarioId: string | null = typeof request.scenarioId === "string" ? request.scenarioId.slice(0, 200) : null;
 
     if (recording) {
@@ -693,46 +711,65 @@ serve(async (req) => {
         replyId = OPENER_ID;
       } else if (mode === "respond" && typeof agentMessage === "string" && agentMessage.trim()) {
         const clientMsgId = cleanClientMsgId(request.clientMsgId) ?? serverMsgId();
-        const turn = await recordCandidateTurn(admin, session.id, {
+        const turnInput = {
           content: agentMessage,
           clientMsgId,
           clientAt: cleanClientAt(request.clientAt),
-          role: "agent",
+          role: "agent" as const,
           // The page's keystroke summary for this reply, cleaned; never a total.
           typing: cleanReplyTyping(request.typing) as Record<string, unknown> | null,
-        });
-        if (!turn.ok && turn.reason === "turn_not_saved") {
-          // Every answer is kept as it is sent: one that could not be stored
-          // (after three tries) is sent again by the page, never carried on
-          // without the record.
-          return json({ error: "Your message did not save. Please send it again.", code: "turn_not_saved", retryable: true }, 503);
-        }
-        let stored: StoredTurn | null = turn.ok ? turn.existingReply : null;
-        if (turn.ok && !stored && turn.repeat) {
-          // Sent again while its first reply may still be streaming: wait for
-          // that reply, so the applicant sees the one the record keeps.
-          const waited = await awaitInFlightReply(admin, session.id, clientMsgId);
-          if (waited.action === "replay") stored = waited.reply;
-          else await markReplyAsked(admin, session.id, clientMsgId);
-        }
-        if (!turn.ok) {
-          notRecorded = turn.reason;
-          recording = null;
-        } else if (stored) {
-          // Its reply is stored: play it back (no second model call, no second reply).
-          return new Response(
-            withLeadingSse(sseReplayText(replayTextFor(stored)), {
-              assessment: { recorded: true, session_id: session.id, attempt: session.attempt, replayed: true },
-            }),
-            { headers: { ...corsHeaders, "Content-Type": "text/event-stream" } },
-          );
-        } else {
-          // The model's history is the STORED conversation, never the
-          // request's (the request's only if the record cannot be read back).
-          history = turn.history ? turnsToTranscript(turn.history) : messages;
-          liveAgentMessage = turn.content;
-          liveMessageCount = turn.history ? turn.history.length : messageCount;
+        };
+        // A NEW message is held until the model takes it, then stored
+        // (_shared/assessmentSession.ts holdCandidateTurn): when the AI
+        // service refuses, nothing is stored and the page puts the text back
+        // in the box, so the record never holds a reply nobody answered. A
+        // message already on the record (sent again) goes on as before.
+        const heldFrom = Date.now();
+        const [known, storedSoFar] = await Promise.all([
+          candidateTurnStatus(admin, session.id, clientMsgId),
+          loadTurns(admin, session.id),
+        ]);
+        if (known === "new") {
+          held = holdCandidateTurn(turnInput, heldFrom);
+          history = storedSoFar ? turnsToTranscript(storedSoFar) : messages;
+          liveAgentMessage = held.input.content;
+          liveMessageCount = storedSoFar ? storedSoFar.length : messageCount;
           replyId = replyMsgId(clientMsgId);
+        } else {
+          const turn = await recordCandidateTurn(admin, session.id, turnInput);
+          if (!turn.ok && turn.reason === "turn_not_saved") {
+            // Every answer is kept as it is sent: one that could not be stored
+            // (after three tries) is sent again by the page, never carried on
+            // without the record.
+            return json({ error: "Your message did not save. Please send it again.", code: "turn_not_saved", retryable: true }, 503);
+          }
+          let stored: StoredTurn | null = turn.ok ? turn.existingReply : null;
+          if (turn.ok && !stored && turn.repeat) {
+            // Sent again while its first reply may still be streaming: wait for
+            // that reply, so the applicant sees the one the record keeps.
+            const waited = await awaitInFlightReply(admin, session.id, clientMsgId);
+            if (waited.action === "replay") stored = waited.reply;
+            else await markReplyAsked(admin, session.id, clientMsgId);
+          }
+          if (!turn.ok) {
+            notRecorded = turn.reason;
+            recording = null;
+          } else if (stored) {
+            // Its reply is stored: play it back (no second model call, no second reply).
+            return new Response(
+              withLeadingSse(sseReplayText(replayTextFor(stored)), {
+                assessment: { recorded: true, session_id: session.id, attempt: session.attempt, replayed: true },
+              }),
+              { headers: { ...corsHeaders, "Content-Type": "text/event-stream" } },
+            );
+          } else {
+            // The model's history is the STORED conversation, never the
+            // request's (the request's only if the record cannot be read back).
+            history = turn.history ? turnsToTranscript(turn.history) : messages;
+            liveAgentMessage = turn.content;
+            liveMessageCount = turn.history ? turn.history.length : messageCount;
+            replyId = replyMsgId(clientMsgId);
+          }
         }
       } else {
         notRecorded = "no_message";
@@ -756,11 +793,60 @@ serve(async (req) => {
         maxCompletionTokens: 700,
       });
     } catch (error) {
-      // No reply is coming for this ask: a message sent again is answered at once.
       if (recording && replyId) {
-        await markReplyFailed(recording.admin, recording.session.id, forIdOfReply(replyId), error instanceof Error ? error.message : String(error));
+        // The AI service refused: a held message stays unsent (the page puts
+        // it back in the box) and the opener or a stored message is marked
+        // so the next ask goes at once. Anything else is recorded as before:
+        // the message stored, its reply marked failed, and a 500.
+        const failure = await afterReplyAskFailed(recording.admin, recording.session.id, { held, replyId, error });
+        if (failure === "ai_unavailable") {
+          console.warn("[ai-chat-simulation] no reply, the AI service is unavailable:", isAiUnavailable(error) ? error.reason : "");
+          return aiUnavailableResponse(corsHeaders, mode === "respond" ? { turnSaved: !held } : {});
+        }
+      } else if (isAiUnavailable(error)) {
+        return aiUnavailableResponse(corsHeaders);
       }
       throw error;
+    }
+
+    if (recording && held) {
+      // The model has taken the message: store it now, before any of the
+      // reply reaches the browser or the record.
+      const turn = await storeHeldCandidateTurn(recording.admin, recording.session.id, held);
+      if (!turn.ok && turn.reason === "turn_not_saved") {
+        await response.body?.cancel().catch(() => {});
+        return json({ error: "Your message did not save. Please send it again.", code: "turn_not_saved", retryable: true }, 503);
+      }
+      if (!turn.ok) {
+        // A full session: answered without being recorded, as before.
+        notRecorded = turn.reason;
+        recording = null;
+      } else if (turn.existingReply || turn.repeat) {
+        // Another request with this same id stored the message first (two
+        // tabs, a resend that overlapped this one): the record keeps THAT
+        // message and THAT reply, and an applicant only ever sees the reply
+        // the record keeps. So this request's own stream is never delivered.
+        // The stored reply is played back, waited for while the other request
+        // is still streaming it (awaitInFlightReply, as for any message sent
+        // again). If none is coming (that ask failed or died), the page is
+        // told to send the message again: it is on the record now, so the
+        // resend goes the way of any stored message and asks for its reply.
+        await response.body?.cancel().catch(() => {});
+        let kept: StoredTurn | null = turn.existingReply;
+        if (!kept) {
+          const waited = await awaitInFlightReply(recording.admin, recording.session.id, held.input.clientMsgId);
+          if (waited.action === "replay") kept = waited.reply;
+        }
+        if (!kept) {
+          return json({ error: "Your message did not save. Please send it again.", code: "turn_not_saved", retryable: true }, 503);
+        }
+        return new Response(
+          withLeadingSse(sseReplayText(replayTextFor(kept)), {
+            assessment: { recorded: true, session_id: recording.session.id, attempt: recording.session.attempt, replayed: true },
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "text/event-stream" } },
+        );
+      }
     }
 
     let body: ReadableStream<Uint8Array> = response.body!;

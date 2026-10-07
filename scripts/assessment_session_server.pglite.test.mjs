@@ -32,6 +32,13 @@
  *   - a transcript the page sent is stored in order, once;
  *   - the typing context and snapshots round-trip; NUL never reaches
  *     Postgres; a missing function reads as "not deployed";
+ *   - when the AI service refuses (2026-10-07): a NEW message is held and
+ *     nothing of it is stored (no turn, no reply count, the attempt open,
+ *     one ai_unavailable marker), then stored once with model_wait_ms when
+ *     the model takes it; any other failure is recorded as before; a stored
+ *     message or the opener gets reply_failed so the next ask goes at once;
+ *     a refused grading lets go of its claim (back to active, or failed when
+ *     it was owed), stores nothing, and a later send claims it again;
  *   - the server's own move to the next step (stepMoveOn.ts) asks
  *     trigger-ava-analysis with the request's JWT only when nobody else has:
  *     a closed tab in an auto-mode job is asked for after the grace; a page
@@ -49,6 +56,7 @@ import * as A from "../supabase/functions/_shared/assessmentSession.ts";
 import * as M from "../supabase/functions/_shared/stepMoveOn.ts";
 import { cleanConnectionMarker } from "../supabase/functions/_shared/connectionStamps.ts";
 import { phaseAiAnalysisFromStoredResult } from "../supabase/functions/ai-chat-simulation/grading.ts";
+import { AiUnavailableError } from "../supabase/functions/_shared/openai.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MIGRATION_PATH = path.join(ROOT, "supabase/migrations/20261005230146_assessment_record.sql");
@@ -1044,6 +1052,109 @@ async function main() {
     delete globalThis.EdgeRuntime;
     const brokenRun = await M.runStepMoveOn(brokenAdmin, input(APP_MOVE, "step_chat"), harness().deps);
     check("runStepMoveOn over a broken client: 'unreadable', nothing asked", brokenRun.kind === "skipped" && brokenRun.why === "unreadable", JSON.stringify(brokenRun));
+  }
+
+  // =========================================================================
+  console.log("\nWhen the AI service refuses (2026-10-07):\n");
+  {
+    // Its own applicant, so nothing above is disturbed.
+    const OUTAGE_CANDIDATE = "20000000-0000-4000-8000-0000000000aa";
+    const OUTAGE_APP = "40000000-0000-4000-8000-0000000000aa";
+    await owner(
+      `insert into public.applications (id, job_id, candidate_id, status, phase, notes) values ($1, $2, $3, 'reviewing', 'step_chat', '{}')`,
+      [OUTAGE_APP, JOB, OUTAGE_CANDIDATE],
+    );
+    const target = { applicationId: OUTAGE_APP, userId: OUTAGE_CANDIDATE, stepId: "step_chat", stepType: "chat_simulation" };
+    const opened = await A.resolveSession(service, { ...target, purpose: "turns" });
+    check("an attempt for the outage applicant", opened.ok, JSON.stringify(opened));
+    const s = opened.session;
+    await A.insertEvent(service, { sessionId: s.id, kind: "assistant_turn", content: "My deposit is missing.", clientMsgId: "opener", detail: { role: "customer" } });
+    const refusal = new AiUnavailableError("credit_exhausted", 'OpenAI stream error 429: {"error":{"type":"insufficient_quota","code":"credit_balance_exhausted"}}', 429);
+    const turnsOf = async () => (await eventsOf(s.id)).filter((e) => e.kind === "candidate_turn");
+    const systemOf = async (what) => (await eventsOf(s.id)).filter((e) => e.kind === "system" && e.detail.what === what);
+    const before = await sessionOf(s.id);
+
+    // A new message, refused: nothing of it is kept.
+    check("a message never sent before is 'new' on the record", (await A.candidateTurnStatus(service, s.id, "o1")) === "new");
+    const held1 = A.holdCandidateTurn({ content: "Let me check that for you.", clientMsgId: "o1", clientAt: null, role: "agent", typing: null });
+    const r1 = await A.afterReplyAskFailed(service, s.id, { held: held1, replyId: A.replyMsgId("o1"), error: refusal });
+    const afterRefusal = await sessionOf(s.id);
+    check("the service refused a new message: 'ai_unavailable' (the function answers 503)", r1 === "ai_unavailable");
+    check("…and NOTHING of the message is stored: no candidate_turn", (await turnsOf()).length === 0);
+    check("…the reply count is untouched (staff never see a reply that was not sent)", !afterRefusal.progress?.candidate_turns, JSON.stringify(afterRefusal.progress));
+    check("…the attempt stays open", afterRefusal.status === "active");
+    check(
+      "…activity unchanged (a marker is not the applicant's activity)",
+      JSON.stringify(afterRefusal.last_activity_at) === JSON.stringify(before.last_activity_at),
+    );
+    const marker = (await systemOf("ai_unavailable"))[0];
+    check(
+      "…one ai_unavailable marker says when and why, for staff reading the timeline",
+      marker?.detail.during === "reply" && marker.detail.message_id === "o1" && marker.detail.reason === "credit_exhausted",
+      JSON.stringify(marker?.detail),
+    );
+    check("…still 'new': the page sends it again under the same id", (await A.candidateTurnStatus(service, s.id, "o1")) === "new");
+
+    // The same message once the service is back: stored when the model takes it.
+    const held1b = A.holdCandidateTurn({ content: "Let me check that for you.", clientMsgId: "o1", clientAt: null, role: "agent", typing: { charsTyped: 26 } }, 1_000);
+    const stored1 = await A.storeHeldCandidateTurn(service, s.id, held1b, { now: () => 2_500 });
+    const t1 = (await turnsOf()).find((e) => e.client_msg_id === "o1");
+    check("the model took it: stored once, with the 1.5 s it was held (model_wait_ms)", stored1.ok && !stored1.repeat && t1?.detail.model_wait_ms === 1500, JSON.stringify(t1?.detail));
+    check("…its keystroke summary kept beside it", t1?.detail.typing?.charsTyped === 26);
+    check("…with the history before it (the opener)", stored1.ok && stored1.history?.length === 1 && stored1.history[0].client_msg_id === "opener");
+    check("…now 'stored': a resend goes the way it always has", (await A.candidateTurnStatus(service, s.id, "o1")) === "stored");
+    const again1 = await A.storeHeldCandidateTurn(service, s.id, held1b, { now: () => 3_000 });
+    check("storing it a second time inserts nothing (idempotent on its id)", again1.ok && again1.repeat && (await turnsOf()).length === 1);
+    check("the reply count says 1", (await sessionOf(s.id)).progress.candidate_turns === 1);
+
+    // Any other failure: recorded exactly as before this change.
+    const held2 = A.holdCandidateTurn({ content: "Is it there now?", clientMsgId: "o2", clientAt: null, role: "agent" }, Date.now() - 800);
+    const r2 = await A.afterReplyAskFailed(service, s.id, { held: held2, replyId: A.replyMsgId("o2"), error: new Error("OpenAI stream error 400: bad request") });
+    check("any other failure: 'failed' (the function answers 500, as before)", r2 === "failed");
+    check("…the message is stored, as before (the page shows it as sent)", (await turnsOf()).some((e) => e.client_msg_id === "o2" && e.content === "Is it there now?"));
+    check("…with its reply_failed marker", (await systemOf("reply_failed")).some((e) => e.detail.reply_for === "o2"));
+    check("…so a resend asks the model again at once", (await A.awaitInFlightReply(service, s.id, "o2", { intervalMs: 10 })).action === "ask");
+
+    // A message already on the record, its reply refused (a reload asking again).
+    await A.markReplyAsked(service, s.id, "o2");
+    const r3 = await A.afterReplyAskFailed(service, s.id, { held: null, replyId: A.replyMsgId("o2"), error: refusal });
+    check("a stored message, refused: 'ai_unavailable', and the message stays", r3 === "ai_unavailable" && (await turnsOf()).some((e) => e.client_msg_id === "o2"));
+    const failedForO2 = (await systemOf("reply_failed")).filter((e) => e.detail.reply_for === "o2");
+    check("…its reply_failed says the service refused", failedForO2.at(-1)?.detail.reason?.startsWith("ai_unavailable (credit_exhausted)"), JSON.stringify(failedForO2.at(-1)?.detail));
+    check("…and the next ask goes at once", (await A.awaitInFlightReply(service, s.id, "o2", { intervalMs: 10 })).action === "ask");
+
+    // The opener, refused.
+    const r4 = await A.afterReplyAskFailed(service, s.id, { held: null, replyId: A.OPENER_ID, error: refusal });
+    check("the opener refused: 'ai_unavailable', marked so Start asks again at once", r4 === "ai_unavailable" && (await systemOf("reply_failed")).some((e) => e.detail.reply_for === "opener"));
+
+    // Grading refused: the attempt is NOT finished, and can be sent again.
+    const sub = await A.resolveSession(service, { ...target, purpose: "submit" });
+    const g1 = await A.gateGrading(service, sub.ok ? sub.session : null, sub.ok ? null : sub.reason);
+    check("grading claims the attempt", g1.go && g1.claim === "claimed" && (await sessionOf(s.id)).status === "grading");
+    await A.refuseGradingForOutage(service, sub.session, g1, "credit_exhausted");
+    const afterGrading = await sessionOf(s.id);
+    check("grading refused by the service: back to open ('active'), never completed or failed", afterGrading.status === "active", afterGrading.status);
+    check("…no grading stored, no end reason, no end time", afterGrading.grading == null && afterGrading.end_reason == null && afterGrading.ended_at == null, JSON.stringify({ g: afterGrading.grading, r: afterGrading.end_reason }));
+    check("…every message still there", (await turnsOf()).length === 2);
+    check("…an ai_unavailable marker for the grading", (await systemOf("ai_unavailable")).some((e) => e.detail.during === "grading" && e.detail.reason === "credit_exhausted"));
+    const turnsAgain = await A.resolveSession(service, { ...target, purpose: "turns" });
+    check("…the applicant can go on writing (the turns resolve to the same attempt)", turnsAgain.ok && turnsAgain.session.id === s.id);
+    const sub2 = await A.resolveSession(service, { ...target, purpose: "submit" });
+    const g2 = await A.gateGrading(service, sub2.ok ? sub2.session : null, null);
+    check("…and a later send claims it again (resumable)", g2.go && g2.claim === "claimed");
+    await A.releaseGrading(service, s.id, g2.fromStatus);
+
+    // A send still owed after a crash ('failed'), refused: still owed.
+    await owner(`update public.assessment_sessions set status = 'failed' where id = $1`, [s.id]);
+    const sub3 = await A.resolveSession(service, { ...target, purpose: "submit" });
+    const g3 = await A.gateGrading(service, sub3.ok ? sub3.session : null, null);
+    await A.refuseGradingForOutage(service, sub3.session, g3, "rate_limited");
+    check("a send still owed ('failed'), refused: back to 'failed' (the page sends it again on its next visit)", g3.go && g3.fromStatus === "failed" && (await sessionOf(s.id)).status === "failed");
+    check("refuseGradingForOutage with no attempt does nothing and never throws", (await A.refuseGradingForOutage(service, null, { claim: "none", fromStatus: null }, "x")) === undefined);
+
+    // The record cannot be read: the old path (store first) decides.
+    const unreadable = flaky(service, "assessment_events", "select", 1, { code: "57014", message: "statement timeout" });
+    check("a lookup that fails: 'unknown' (the function stores first, as before)", (await A.candidateTurnStatus(unreadable.client, s.id, "o9")) === "unknown");
   }
 
   // =========================================================================

@@ -362,10 +362,13 @@ let HELD_LINE_TYPING = null;
   check("…with the step's bar (default 40/90) and the verified typos", evaluate.includes("bar: practiceJob.step?.typingBar ?? { ...DEFAULT_TYPING_BAR }") && evaluate.includes("verifiedSpellingMistakes(reviewed, reviewLines(gradedMessages))"));
   check("…and written on the result (graded or not)", /buildChatSimulationResult\(\{[\s\S]*?typing,\n\s*\}\);/.test(evaluate));
   check("the evaluate never reads a typing figure from the request", !/request\.typing|body\.typing|typing: request/.test(evaluate));
-  const respond = sim.slice(sim.indexOf("const turn = await recordCandidateTurn(admin, session.id, {"), sim.indexOf("if (!turn.ok && turn.reason === \"turn_not_saved\")"));
-  check("each reply's summary is cleaned before it is stored on its candidate_turn", respond.includes("typing: cleanReplyTyping(request.typing)"));
+  // Since 2026-10-07 a new reply is HELD until the model takes it, then stored
+  // (holdCandidateTurn / storeHeldCandidateTurn), and one already on the record
+  // is stored at once: both from the same `turnInput`, cleaned here.
+  const respond = sim.slice(sim.indexOf("const turnInput = {"), sim.indexOf("const heldFrom = Date.now();"));
+  check("each reply's summary is cleaned before it is stored on its candidate_turn", respond.includes("typing: cleanReplyTyping(request.typing)") && /held = holdCandidateTurn\(turnInput, heldFrom\);/.test(sim) && /await recordCandidateTurn\(admin, session\.id, turnInput\);/.test(sim));
   const shared = readFileSync(path.join(ROOT, "supabase/functions/_shared/assessmentSession.ts"), "utf8");
-  check("the candidate_turn keeps it as detail.typing", shared.includes("detail: { role: input.role, ...(isPlainObject(input.typing) ? { typing: input.typing } : {}) },"));
+  check("the candidate_turn keeps it as detail.typing", /detail: \{\s*role: input\.role,\s*\.\.\.\(isPlainObject\(input\.typing\) \? \{ typing: input\.typing \} : \{\}\),/.test(shared));
   // The live job's chat, played as stored rows: a lead who types 50 WPM and answers in ~40 s.
   const at = (sec) => new Date(Date.parse("2026-10-06T15:00:00Z") + sec * 1000).toISOString();
   const rows = [];

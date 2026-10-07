@@ -44,6 +44,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as A from "../supabase/functions/_shared/assessmentSession.ts";
 import * as M from "../supabase/functions/_shared/stepMoveOn.ts";
+import { AiUnavailableError } from "../supabase/functions/_shared/openai.ts";
 import { buildCandidateJourney } from "../supabase/functions/_shared/candidateJourney.ts";
 import { planAutoAdvance } from "../supabase/functions/_shared/trustedResults.ts";
 import { buildSimulationApiMessages, buildChatSimulationResult } from "../supabase/functions/ai-chat-simulation/grading.ts";
@@ -405,11 +406,85 @@ console.log("\nThe test functions use the one gate:\n");
       && /planClaim\(session\.status, session\.updated_at, Date\.now\(\)\) === "wait"/.test(typingFn.slice(startAt, upsertAt)),
     `${startAt} ${finishedAt} ${checkingAt} ${upsertAt}`,
   );
+  // Since 2026-10-07 the catch around the model call hands the failure to
+  // afterReplyAskFailed (assessmentSession.ts), and that writes the marker.
+  // Both halves are proved: the hand-over in each function's source, and
+  // what afterReplyAskFailed records, run for real against a stand-in client
+  // that keeps every inserted event (a real database: the pglite test).
+  const recordedAfter = async (input) => {
+    const events = [];
+    const query = (rows) => {
+      const q = { then: (resolve, reject) => Promise.resolve({ data: rows, error: null }).then(resolve, reject), maybeSingle: () => Promise.resolve({ data: null, error: null }) };
+      for (const method of ["select", "eq", "in", "lt", "order", "limit"]) q[method] = () => q;
+      return q;
+    };
+    const admin = {
+      from: () => ({
+        select: () => query([]),
+        insert: (row) => {
+          events.push(row);
+          return query([{ seq: events.length }]);
+        },
+        update: () => query([]),
+      }),
+      rpc: () => Promise.resolve({ data: null, error: null }),
+    };
+    const answer = await A.afterReplyAskFailed(admin, "session-1", input);
+    return { answer, events, failed: events.filter((e) => e.kind === "system" && e.detail.what === "reply_failed") };
+  };
+  const broken = new Error("OpenAI stream error 400: bad request");
+  const refusal = new AiUnavailableError("credit_exhausted", "OpenAI stream error 429: insufficient_quota", 429);
+  const storedBroken = await recordedAfter({ held: null, replyId: A.replyMsgId("m1"), error: broken });
+  const openerBroken = await recordedAfter({ held: null, replyId: A.OPENER_ID, error: broken });
+  const heldBroken = await recordedAfter({ held: A.holdCandidateTurn({ content: "Let me check.", clientMsgId: "m2", clientAt: null, role: "agent" }), replyId: A.replyMsgId("m2"), error: broken });
+  const storedRefused = await recordedAfter({ held: null, replyId: A.replyMsgId("m3"), error: refusal });
+  const heldRefused = await recordedAfter({ held: A.holdCandidateTurn({ content: "Is it there now?", clientMsgId: "m4", clientAt: null, role: "agent" }), replyId: A.replyMsgId("m4"), error: refusal });
+  const marksFailed =
+    storedBroken.answer === "failed" && storedBroken.failed.length === 1 && storedBroken.failed[0].detail.reply_for === "m1" && storedBroken.failed[0].detail.reason === broken.message
+    && openerBroken.answer === "failed" && openerBroken.failed.length === 1 && openerBroken.failed[0].detail.reply_for === "opener"
+    // A held message is stored first (the page shows it as sent), then marked.
+    && heldBroken.answer === "failed" && heldBroken.events.length === 2 && heldBroken.events[0].kind === "candidate_turn" && heldBroken.events[0].client_msg_id === "m2"
+    && heldBroken.events[1].detail.what === "reply_failed" && heldBroken.events[1].detail.reply_for === "m2"
+    // The service refusing: a stored message is still marked failed (the next ask goes at once)…
+    && storedRefused.answer === "ai_unavailable" && storedRefused.failed.length === 1 && storedRefused.failed[0].detail.reply_for === "m3"
+    && String(storedRefused.failed[0].detail.reason).startsWith("ai_unavailable (credit_exhausted)")
+    // …and a NEW message is not stored at all: its own marker, no reply_failed.
+    && heldRefused.answer === "ai_unavailable" && heldRefused.events.length === 1 && heldRefused.events[0].kind === "system"
+    && heldRefused.events[0].detail.what === "ai_unavailable" && heldRefused.events[0].detail.message_id === "m4";
+  check(
+    "afterReplyAskFailed records a failed model call (reply_failed for the opener, a stored message and any ordinary failure; an unstored message and its own marker when the service refuses a new one)",
+    marksFailed,
+    JSON.stringify([storedBroken, openerBroken, heldBroken, storedRefused, heldRefused].map((r) => [r.answer, r.events.map((e) => `${e.kind}:${e.detail?.what ?? e.client_msg_id}`)])),
+  );
   for (const name of ["ai-chat-simulation", "ai-chat-interview"]) {
     const src = read(fns[name].file);
     check(`${name}: an answer that could not be stored is sent again (503 turn_not_saved)`, /turn\.reason === "turn_not_saved"[\s\S]{0,400}503/.test(src));
     check(`${name}: a message sent again waits for its reply in flight`, src.includes("awaitInFlightReply(admin, session.id, clientMsgId)") && src.includes("awaitInFlightReply(admin, session.id, OPENER_ID)"));
-    check(`${name}: a failed model call is recorded as failed`, /catch \(error\) \{\s*\/\/ No reply is coming[\s\S]{0,300}markReplyFailed\(/.test(src));
+    // The catch of the try that asks the model for the reply: its first act,
+    // whenever the turn is recorded, is the hand-over (nothing answers or
+    // rethrows before it), and what is not answered as a refusal is rethrown.
+    const askAt = src.indexOf("response = await streamOpenAIChatCompletion(");
+    const catchAt = src.indexOf("} catch (error) {", askAt);
+    const failedAsk = askAt > 0 && catchAt > askAt ? src.slice(catchAt, src.indexOf("\n    }\n", catchAt)) : "";
+    check(
+      `${name}: a failed model call is recorded as failed`,
+      marksFailed
+        && /^\} catch \(error\) \{\s*if \(recording && replyId\) \{(?:\s*\/\/[^\n]*)*\s*const failure = await afterReplyAskFailed\(recording\.admin, recording\.session\.id, \{ held, replyId, error \}\);/.test(failedAsk)
+        && /\n      throw error;$/.test(failedAsk),
+      failedAsk.slice(0, 200),
+    );
+    // A new message another request stored first (two tabs, an overlapping
+    // resend): this request's own stream is dropped, the record's reply is
+    // played back (waited for while it streams), and when none is coming the
+    // page is told to send again. An applicant never sees a reply the record
+    // does not keep.
+    const storeAt = src.indexOf("const turn = await storeHeldCandidateTurn(recording.admin, recording.session.id, held);");
+    const afterStore = storeAt > 0 ? src.slice(storeAt, src.indexOf("let body: ReadableStream<Uint8Array> = response.body!;", storeAt)) : "";
+    check(
+      `${name}: a new message another request stored first is answered with the reply the record keeps, never this request's own stream`,
+      /\} else if \(turn\.existingReply \|\| turn\.repeat\) \{(?:\s*\/\/[^\n]*)*\s*await response\.body\?\.cancel\(\)\.catch\(\(\) => \{\}\);\s*let kept: StoredTurn \| null = turn\.existingReply;\s*if \(!kept\) \{\s*const waited = await awaitInFlightReply\(recording\.admin, recording\.session\.id, held\.input\.clientMsgId\);\s*if \(waited\.action === "replay"\) kept = waited\.reply;\s*\}\s*if \(!kept\) \{\s*return json\(\{ error: "[^"]+", code: "turn_not_saved", retryable: true \}, 503\);\s*\}\s*return new Response\(\s*withLeadingSse\(sseReplayText\(replayTextFor\(kept\)\), \{/.test(afterStore),
+      afterStore.slice(0, 160),
+    );
   }
 }
 

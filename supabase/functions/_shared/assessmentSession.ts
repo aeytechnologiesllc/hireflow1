@@ -41,6 +41,12 @@
  *   - (stepMoveOn.ts, beside this module) once a result is recorded, an
  *     auto-mode job's move to the next step is asked for by the server
  *     itself, in the background, so it never waits on the applicant's tab.
+ *   - holdCandidateTurn / storeHeldCandidateTurn / afterReplyAskFailed /
+ *     refuseGradingForOutage (2026-10-07): when the AI service refuses
+ *     (_shared/openai.ts AiUnavailableError), a NEW message is not stored
+ *     (the page puts it back in the reply box) and a grading claim is let go
+ *     (the attempt stays open), so an outage never leaves a conversation
+ *     written into silence or an attempt closed as "not graded".
  *
  * RECORDING NEVER BLOCKS A TEST, with one exception. Every database call
  * here is best effort: a failure is logged and the caller carries on as it
@@ -53,7 +59,7 @@
  * only when it exists.
  *
  * Imports only the other zero-dependency shared modules (candidateJourney.ts,
- * trustedResults.ts), so the pure functions still run under plain Node
+ * trustedResults.ts, deviceKind.ts, openai.ts), so the pure functions still run under plain Node
  * (scripts/assessment_session_server.test.mjs) as well as Deno; the database
  * helpers take the client as a parameter. Call sites pass their supabase-js
  * client cast to AssessmentAdmin (the real builders are thenables,
@@ -63,6 +69,7 @@
 import { buildCandidateJourney, type WorkflowStepLike } from "./candidateJourney.ts";
 import { computeNextStepDecision, nextStepForCandidate, parseNotesObject } from "./trustedResults.ts";
 import { needsComputer, startedOnComputer, stepNeedsComputer } from "./deviceKind.ts";
+import { isAiUnavailable } from "./openai.ts";
 
 // ============================================================================
 // The client slice this module uses
@@ -760,26 +767,45 @@ export type CandidateTurnRecording =
  * (ai-chat-simulation typing.ts cleanReplyTyping); stored as `detail.typing`.
  * A repeat of the same message keeps the first copy's.
  */
+export interface CandidateTurnInput {
+  content: string;
+  clientMsgId: string;
+  clientAt: string | null;
+  role: "agent" | "candidate";
+  typing?: Record<string, unknown> | null;
+  /**
+   * Server only: how long the store waited for the model to take the
+   * message (storeHeldCandidateTurn). Kept as `detail.model_wait_ms`; the
+   * chat practice's reply time takes it off created_at (typing.ts), so
+   * holding a message back never makes an applicant look slower.
+   */
+  modelWaitMs?: number | null;
+}
+
+/** The longest wait `detail.model_wait_ms` may say (a stream that took longer was not "taking" the message). */
+export const MAX_MODEL_WAIT_MS = 120_000;
+
 export async function recordCandidateTurn(
   admin: AssessmentAdmin,
   sessionId: string,
-  input: {
-    content: string;
-    clientMsgId: string;
-    clientAt: string | null;
-    role: "agent" | "candidate";
-    typing?: Record<string, unknown> | null;
-  },
+  input: CandidateTurnInput,
   options: { retryDelaysMs?: readonly number[] } = {},
 ): Promise<CandidateTurnRecording> {
   const content = clampContent(input.content);
+  const waited = typeof input.modelWaitMs === "number" && Number.isFinite(input.modelWaitMs) && input.modelWaitMs > 0
+    ? Math.min(Math.round(input.modelWaitMs), MAX_MODEL_WAIT_MS)
+    : null;
   const row: EventInput = {
     sessionId,
     kind: "candidate_turn",
     content,
     clientMsgId: input.clientMsgId,
     clientAt: input.clientAt,
-    detail: { role: input.role, ...(isPlainObject(input.typing) ? { typing: input.typing } : {}) },
+    detail: {
+      role: input.role,
+      ...(isPlainObject(input.typing) ? { typing: input.typing } : {}),
+      ...(waited !== null ? { model_wait_ms: waited } : {}),
+    },
   };
   let [inserted, turns] = await Promise.all([insertEvent(admin, row), loadTurns(admin, sessionId)]);
   const delays = options.retryDelaysMs ?? TURN_RETRY_DELAYS_MS;
@@ -987,6 +1013,153 @@ export async function awaitInFlightReply(
     if (plan.action !== "wait" || now() >= giveUpAt) return { action: "ask" };
     await sleep(Math.min(options.intervalMs ?? 500, plan.untilMs - now(), giveUpAt - now()));
   }
+}
+
+// ============================================================================
+// When the AI service refuses (2026-10-07; docs/ASSESSMENT-RECORD.md §5.1.2, §5.1.4)
+// ============================================================================
+//
+// On 2026-10-07 the OpenAI account ran out of credit for an hour and a half.
+// Every applicant message was stored and then met by silence, and every
+// "send" closed the attempt as not graded: interviews with answers to no
+// questions. Now:
+//
+//   - a NEW message is HELD while the model is asked, and stored only once
+//     the model has taken the request (a 2xx: the reply is on its way). If
+//     the service refuses, nothing is stored and the page gets 503
+//     `ai_unavailable`: the text goes back in the reply box, and the record
+//     never holds a message nobody answered. Any other failure stores it as
+//     before (the page shows it as sent) with its reply_failed marker;
+//   - the opener and a message already on the record (a resend, a reload)
+//     keep their reply_failed marker, so the next ask goes at once;
+//   - grading refused by the service lets go of its claim: the attempt stays
+//     open with everything the applicant wrote, and a later send grades it.
+
+/** Is this message id already on the record? "unknown" when the record cannot be read. */
+export async function candidateTurnStatus(
+  admin: AssessmentAdmin,
+  sessionId: string,
+  clientMsgId: string,
+): Promise<"stored" | "new" | "unknown"> {
+  const res = await settle(() =>
+    admin
+      .from("assessment_events")
+      .select("seq")
+      .eq("session_id", sessionId)
+      .eq("client_msg_id", clientMsgId)
+      .maybeSingle(),
+  );
+  if (res.error) {
+    console.error("[assessment] message lookup failed:", errorText(res.error));
+    return "unknown";
+  }
+  return isPlainObject(res.data) ? "stored" : "new";
+}
+
+/** A new message held back until the model takes it. */
+export interface HeldCandidateTurn {
+  input: CandidateTurnInput;
+  /** When it would have been stored had it not been held (Date.now()). */
+  heldAtMs: number;
+}
+
+export function holdCandidateTurn(input: CandidateTurnInput, nowMs: number = Date.now()): HeldCandidateTurn {
+  return { input: { ...input, content: clampContent(input.content), modelWaitMs: null }, heldAtMs: nowMs };
+}
+
+/**
+ * Stores a held message (recordCandidateTurn: retried, idempotent on its id),
+ * with how long it was held as `detail.model_wait_ms`, so the reply time the
+ * chat practice measures is the same as if it had been stored at once.
+ */
+export function storeHeldCandidateTurn(
+  admin: AssessmentAdmin,
+  sessionId: string,
+  held: HeldCandidateTurn,
+  options: { now?: () => number; retryDelaysMs?: readonly number[] } = {},
+): Promise<CandidateTurnRecording> {
+  const nowMs = (options.now ?? Date.now)();
+  return recordCandidateTurn(
+    admin,
+    sessionId,
+    { ...held.input, modelWaitMs: Math.max(0, nowMs - held.heldAtMs) },
+    options.retryDelaysMs ? { retryDelaysMs: options.retryDelaysMs } : {},
+  );
+}
+
+/**
+ * A `system` marker: the AI service refused while this attempt asked for a
+ * reply or a grade (`during`), with our reason ("credit_exhausted", …).
+ * For staff reading the timeline against an outage; nothing acts on it.
+ */
+export async function markAiUnavailable(
+  admin: AssessmentAdmin,
+  sessionId: string,
+  input: { during: "reply" | "grading"; messageId?: string | null; reason: string },
+): Promise<void> {
+  const res = await insertEvent(admin, {
+    sessionId,
+    kind: "system",
+    detail: {
+      what: "ai_unavailable",
+      during: input.during,
+      ...(input.messageId ? { message_id: input.messageId } : {}),
+      reason: input.reason.slice(0, 200),
+    },
+  });
+  if (res.error) console.error("[assessment] ai_unavailable marker not saved:", errorText(res.error));
+}
+
+/**
+ * The model was asked for a reply (`replyId`: "opener" or "reply:<id>") and
+ * the request failed before any of it streamed. Answers what the caller
+ * says to the page:
+ *   - "ai_unavailable": the service refused (AiUnavailableError). A held
+ *     message stays unsent, nothing stored but a marker; the opener or a
+ *     stored message gets a reply_failed marker. The caller answers 503.
+ *   - "failed": anything else, recorded as before this change: a held
+ *     message is stored (the page shows it as sent), then reply_failed. The
+ *     caller rethrows (500).
+ * Never throws.
+ */
+export async function afterReplyAskFailed(
+  admin: AssessmentAdmin,
+  sessionId: string,
+  input: { held: HeldCandidateTurn | null; replyId: string; error: unknown; now?: () => number },
+): Promise<"ai_unavailable" | "failed"> {
+  const message = input.error instanceof Error ? input.error.message : String(input.error);
+  const forId = forIdOfReply(input.replyId);
+  if (isAiUnavailable(input.error)) {
+    if (input.held) {
+      await markAiUnavailable(admin, sessionId, { during: "reply", messageId: input.held.input.clientMsgId, reason: input.error.reason });
+    } else {
+      await markReplyFailed(admin, sessionId, forId, `ai_unavailable (${input.error.reason}): ${message}`);
+    }
+    return "ai_unavailable";
+  }
+  if (input.held) {
+    const stored = await storeHeldCandidateTurn(admin, sessionId, input.held, { now: input.now });
+    if (!stored.ok) console.error("[assessment] message not stored after a failed ask:", stored.reason);
+  }
+  await markReplyFailed(admin, sessionId, forId, message);
+  return "failed";
+}
+
+/**
+ * Grading refused by the AI service: the claim is let go (back to the status
+ * it was claimed from, an open one) and a marker says why. Nothing is
+ * recorded as the result, so the attempt stays open and resumable, and the
+ * next send grades the same conversation. Never throws.
+ */
+export async function refuseGradingForOutage(
+  admin: AssessmentAdmin,
+  session: Pick<SessionRow, "id"> | null,
+  gate: { claim: "claimed" | "none"; fromStatus: string | null },
+  reason: string,
+): Promise<void> {
+  if (!session) return;
+  if (gate.claim === "claimed") await releaseGrading(admin, session.id, gate.fromStatus ?? "active");
+  await markAiUnavailable(admin, session.id, { during: "grading", reason });
 }
 
 // ============================================================================

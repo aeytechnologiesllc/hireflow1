@@ -34,6 +34,7 @@ import {
   type ConflictNote,
 } from "../_shared/autopilot.ts";
 import { buildCandidateJourney, type WorkflowStepLike } from "../_shared/candidateJourney.ts";
+import { AI_UNAVAILABLE_RETRY_AFTER_SECONDS } from "../_shared/openai.ts";
 import {
   advanceAfterStep,
   isMissingFunctionError,
@@ -157,6 +158,23 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
     JSON.stringify(body),
     { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
   );
+}
+
+/**
+ * Whether a failed ai-analyze call was the AI service refusing (2026-10-07:
+ * its 503 `ai_unavailable`, out of credit / rate limited / down) rather than
+ * a broken request. supabase-js hands a non-2xx answer back as an error whose
+ * `context` is the Response.
+ */
+async function analyzeRefusedByService(error: unknown): Promise<boolean> {
+  const context = error && typeof error === "object" ? (error as { context?: unknown }).context : null;
+  if (!(context instanceof Response) || context.status !== 503) return false;
+  try {
+    const body = await context.clone().json();
+    return body?.code === "ai_unavailable" || body?.error === "ai_unavailable";
+  } catch {
+    return false;
+  }
 }
 
 function getAutopilotNextPhase(params: {
@@ -1221,6 +1239,24 @@ ${interviewType} Interview with AVA Results:
     });
 
     if (analysisError) {
+      if (await analyzeRefusedByService(analysisError)) {
+        // Nothing is saved: no score, no scorecard, no fingerprint, so this
+        // application stays unscored and the next finished step (or a forced
+        // run, or autopilot-batch, which scores every ai_score null) reads it
+        // properly. Never a stand-in score built without the judge.
+        console.warn("[trigger-ava-analysis] AI service unavailable; analysis not saved", { applicationId });
+        return {
+          ok: false,
+          status: 503,
+          body: {
+            error: "ai_unavailable",
+            code: "ai_unavailable",
+            retryAfterSeconds: AI_UNAVAILABLE_RETRY_AFTER_SECONDS,
+            details: "The analysis service is unavailable right now; nothing was saved. Run it again once it is back.",
+          },
+          profile,
+        };
+      }
       console.error("[trigger-ava-analysis] AI analysis error:", analysisError);
       return {
         ok: false,

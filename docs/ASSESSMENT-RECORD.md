@@ -289,13 +289,13 @@ second time, staff change `phase` or `status` again.
 
 | kind | written by | `content` | `detail` (exact keys) | other columns |
 | --- | --- | --- | --- | --- |
-| `candidate_turn` | server (chat functions) | the applicant's message | `{role, typing?}`: `role` is `"agent"` in chat practice / sales, `"candidate"` in the interview. `typing` (chat practice only) is the page's keystroke summary for this reply, `{charsTyped, activeMs, corrections, keys, pasteLike}`, cleaned by the server (`ai-chat-simulation/typing.ts` `cleanReplyTyping`: whole numbers in range, corrections never more than keys, `pasteLike` only for a real true; anything else is left out) and read at grading only (docs/TYPING-IN-CHAT.md). A repeat of the same `client_msg_id` inserts nothing, so it keeps the first copy's `typing`. A transcript a previous-build page sent only at submit is stored with `source: "submitted_transcript"` | `client_msg_id` = the page's id for the message; `"srv:<uuid>"` when the page sent none (no retry safety); `"submit:<position>"` for a submitted transcript. `client_at` = when it was sent |
+| `candidate_turn` | server (chat functions) | the applicant's message | `{role, typing?, model_wait_ms?}`: `role` is `"agent"` in chat practice / sales, `"candidate"` in the interview. `model_wait_ms` (server only, chat practice and interview): how long the server held this new message before storing it, while the model took the request (5.1.2), at most 120,000; absent for a message stored at once. The chat practice's reply time takes it off `created_at` (docs/TYPING-IN-CHAT.md). `typing` (chat practice only) is the page's keystroke summary for this reply, `{charsTyped, activeMs, corrections, keys, pasteLike}`, cleaned by the server (`ai-chat-simulation/typing.ts` `cleanReplyTyping`: whole numbers in range, corrections never more than keys, `pasteLike` only for a real true; anything else is left out) and read at grading only (docs/TYPING-IN-CHAT.md). A repeat of the same `client_msg_id` inserts nothing, so it keeps the first copy's `typing`. A transcript a previous-build page sent only at submit is stored with `source: "submitted_transcript"` | `client_msg_id` = the page's id for the message; `"srv:<uuid>"` when the page sent none (no retry safety); `"submit:<position>"` for a submitted transcript. `client_at` = when it was sent |
 | `assistant_turn` | server | the full reply text | `{role, model}`. `role` is `"customer"` in chat practice / sales, `"interviewer"` in the interview. Optional extras: `resolved: true`, `closed: true`, `source: "submitted_transcript"` | `client_msg_id`: `"opener"` for the first message, `"reply:<candidate client_msg_id>"` for a reply (so a retried request never stores two replies), `"submit:<position>"` in a submitted transcript |
 | `quiz_shown` | `record_quiz_answer` | – | `{question_id, question_index, client_shown_at?, client_shown_at_raw?}` | `client_msg_id` = `"shown:<question_id>"` (once per question per attempt); `client_at` = the page's shown time when plausible (4.6) |
 | `quiz_answer` | `record_quiz_answer` | – | `{question_id, question_index, answer, seconds_on_question, shown_at, timing_source, changed, client_shown_at?, client_shown_at_raw?}`. `timing_source` is `server`, `client`, `previous_answer` or `attempt_start` | `duration_ms` = time on the question |
 | `typing_snapshot` | server (`submit-typing-test`) | – | `{typed_text, target_text?, wpm, accuracy, elapsed_ms, final, attempt_run?, ended_by?, text_source?}`. Three kinds, by `client_msg_id`: **while typing** `"snap:<run start ms>:<5 s bucket>"` (`final: false`, `wpm`/`accuracy` may be null, `target_text` may be omitted: it is also in `context.target_text`); **a run's end** `"snap:<run start ms>:end"` (`final: false`, `ended_by: "time_up" \| "finished_early"`: the text as it stood when that run stopped, one per run, including runs later replaced by "Try again"); **the submitted text** `"final"` (`final: true`, **always** with `target_text`, `wpm` and `accuracy`; `text_source: "complete"` when it was taken from the run-end snapshot, `"request"` when a previous-build page sent it only at submit). The graded text is the `final` one. `attempt_run: n` names the run | `client_msg_id` as described |
 | `integrity` | `record_integrity_events` | – | the page's own `detail` (minus the server's keys), plus `{kind, duration_ms?, reported_kind?, after_end?, client_at_raw?}`, which only the server writes: the page's own values for these keys are removed first, even where the server's value is "none" | `duration_ms`, `client_at` (only when plausible, 4.4), `client_msg_id` = the page's event id |
-| `system` | functions / triggers / server | – | `{what, …}`. `what` is `started` (+`attempt`), `reloaded`, `came_back` (+`away_ms`), `submitted`, `marked_left`; from `connection-test` (docs/EQUIPMENT-CHECK.md §3–§4) the page's markers `device_read` (+`device_kind, os, browser, screen`), `computer_answer` (+`answer`: `yes`, `no`, `no_switched`, `ran_here_anyway`), `test_started` (+`run`), `test_finished` (+`run`, the page's own `download_mbps, upload_mbps, latency_ms`, `estimate: "page"`), and the server's `test_run` (+`run`, the server's figures, `sent: true` when `record` wrote it), `record_refused` (+`reason`), `submitted` (+`run, runs`); from the chat functions also `reply_asked` (the model is being asked again for a reply, or for the opener: the earlier ask failed or is older than 45 s, 5.1.2) / `reply_failed` (an ask produced no stored reply: the model failed, said nothing, or the reply could not be saved; + `reason`), both with `reply_for`: the message id the reply is for, `"opener"` for the first one. Readers skip a `what` they do not know | the opener's first ask has `client_msg_id` `"srv:opener"` (so two starts at once ask for ONE opener); others none |
+| `system` | functions / triggers / server | – | `{what, …}`. `what` is `started` (+`attempt`), `reloaded`, `came_back` (+`away_ms`), `submitted`, `marked_left`; from `connection-test` (docs/EQUIPMENT-CHECK.md §3–§4) the page's markers `device_read` (+`device_kind, os, browser, screen`), `computer_answer` (+`answer`: `yes`, `no`, `no_switched`, `ran_here_anyway`), `test_started` (+`run`), `test_finished` (+`run`, the page's own `download_mbps, upload_mbps, latency_ms`, `estimate: "page"`), and the server's `test_run` (+`run`, the server's figures, `sent: true` when `record` wrote it), `record_refused` (+`reason`), `submitted` (+`run, runs`); from the chat functions also `reply_asked` (the model is being asked again for a reply, or for the opener: the earlier ask failed or is older than 45 s, 5.1.2) / `reply_failed` (an ask produced no stored reply: the model failed, said nothing, or the reply could not be saved; + `reason`, which starts `ai_unavailable (<reason>)` when the AI service refused the opener or a stored message), both with `reply_for`: the message id the reply is for, `"opener"` for the first one; and `ai_unavailable` (+`during`: `"reply"` with `message_id`, the new message that was NOT stored, or `"grading"`; +`reason`: `credit_exhausted`, `rate_limited`, `provider_error`, `provider_refused`, `provider_unreachable` or `provider_timeout`): the AI service refused while this attempt asked for a reply or for its grade (5.1.2, 5.1.4). Nothing acts on it; it explains a gap to whoever reads the record. Readers skip a `what` they do not know | the opener's first ask has `client_msg_id` `"srv:opener"` (so two starts at once ask for ONE opener); others none |
 
 ### 3.1 Integrity kinds
 
@@ -654,10 +654,30 @@ rule.
    none of them and must keep working exactly as before.
 2. **Chat turns** (`ai-chat-simulation`, `ai-chat-interview`, `submit-sales-simulation`):
    - Insert the `candidate_turn`
-     `{session_id, kind, content, client_msg_id, client_at, detail: {role, typing?}}`
-     **before** calling OpenAI (`typing`: chat practice only, the request's
-     keystroke summary cleaned, section 3). Rebuild the history from the stored turns,
-     never from the request body.
+     `{session_id, kind, content, client_msg_id, client_at, detail: {role, typing?, model_wait_ms?}}`
+     (`typing`: chat practice only, the request's keystroke summary cleaned,
+     section 3). Since 2026-10-07, in `ai-chat-simulation` and
+     `ai-chat-interview`, a NEW message is **held, not stored, until the model
+     has accepted the request** (a 2xx: the reply is on its way), then stored
+     before any of the reply reaches the browser or the record
+     (`holdCandidateTurn` / `storeHeldCandidateTurn`); `model_wait_ms` is how
+     long it was held. A message already on the record (sent again, a reload)
+     is not held: it goes the way of "sent again" below. Rebuild the history
+     from the stored turns, never from the request body.
+   - **When the AI service refuses the ask** (`AiUnavailableError`,
+     `_shared/openai.ts`: out of credit; a rate limit or a 5xx after the
+     retries; a refused key, a forbidden account or a retired model, 401 /
+     403 / 404; no answer at all; or none in time, 20 s a try for the reply's
+     headers): a held message is **not stored**. The function writes a
+     `system` `ai_unavailable` marker (`during: "reply"`, `message_id`,
+     `reason`) and answers **503 `{error: "ai_unavailable", code:
+     "ai_unavailable", retryable: true, retryAfterSeconds: 120, message,
+     turnSaved: false}`** with `Retry-After: 120`. For the opener, or a
+     message already stored, it writes `reply_failed` instead (reason
+     `ai_unavailable (<reason>): …`), so the next ask goes at once: a reply
+     answers the same 503 with `turnSaved: true`, a start with no `turnSaved`.
+     Any other failure of the ask (a bad request) is recorded as before: the
+     held message is stored, then `reply_failed`, and the answer is a 500.
    - After the stream completes, insert the `assistant_turn`
      `{session_id, kind, content: <full text>, client_msg_id: "reply:<id>", detail: {role, model}}`.
    - On start, if the session already has turns, return them. Do not ask for a
@@ -669,11 +689,19 @@ rule.
    - **The applicant's message is stored or the request stops.** The insert is
      tried three times (pauses of 250 ms and 750 ms). If it still fails, the
      function answers **503 `{error, code: "turn_not_saved", retryable: true}`**
-     and the model is not asked, so the page sends it again (same
-     `clientMsgId`, which is idempotent). A full session (`HF005`) is never
-     retried: that message is answered without being recorded. If the message
-     was stored but the conversation cannot be read back, the request's
-     history is used and the reply is still recorded.
+     and none of the reply is sent (a held message's stream is cancelled; for
+     a message sent again the model is not asked), so the page sends it again
+     (same `clientMsgId`, which is idempotent). A full session (`HF005`) is
+     never retried: that message is answered without being recorded. If the
+     message was stored but the conversation cannot be read back, the
+     request's history is used and the reply is still recorded.
+   - **The same new message twice at once** (two tabs, a resend that
+     overlaps the first): both are held, and the first to store wins. The
+     other never delivers its own stream: it waits for the stored message's
+     reply and plays that one back (as "sent again" below), or, when none is
+     coming, answers **503 `turn_not_saved`**, so the page sends it again and
+     it is answered as a stored message. An applicant only ever sees the
+     reply the record keeps.
    - **A message sent again before its reply is stored** (a reload during the
      stream, a dropped connection) waits for the reply the first request is
      still streaming and plays that one back, so the applicant sees the reply
@@ -746,7 +774,18 @@ rule.
    `SESSION LEFT UNFINISHED` (the 7-minute self-heal in 2.3 then closes it).
    If the step refuses the result, the claim is released back to the status
    it was taken from. On a crash, set `status = 'failed'` and put the error
-   under `grading.last_error`. The interview and sales submit answers no
+   under `grading.last_error`. **When the AI service refuses the grading
+   call** in `ai-chat-simulation` or `ai-chat-interview` (the same
+   `AiUnavailableError` as 5.1.2; a timeout here is 60 s a try), nothing is
+   recorded: no result in notes, no `grading`, no end, no move to the next
+   step. The claim is released back to the status it was taken from
+   (`refuseGradingForOutage`), a `system` `ai_unavailable` marker
+   (`during: "grading"`, `reason`) is written, and the answer is **503
+   `ai_unavailable`** (no `turnSaved`). The attempt stays open, and a later
+   send grades the same stored conversation. Only an answer the model did
+   give but that cannot be read as a mark, or an ordinary failure of that
+   one request (a bad request), is still recorded as not graded
+   (`graded: false`). The interview and sales submit answers no
    longer carry `evaluation`, and the interview's old unauthenticated
    `evaluate` mode (the real grader, run on any posted transcript) is gone
    (400 `unknown_mode`): the full employer-facing grading is written only to
@@ -882,6 +921,19 @@ rule.
   - **503 `{code: "turn_not_saved", retryable: true}`** on start/respond: the
     message was not stored. Put the text back in the input, or send it again
     with the same `clientMsgId`; never leave an unanswered bubble.
+  - **503 `{code: "ai_unavailable", retryable: true, retryAfterSeconds,
+    turnSaved?}`** on start/respond and on submit/evaluate (chat practice and
+    interview): the AI service refused, and nothing of the failed step was
+    kept. Check it **before** `turn_not_saved` (it is `retryable` too, so a
+    page on the previous build sends once more and then gives the text
+    back). On respond, `turnSaved: false` (or absent): the message was not
+    stored, so take the bubble off, put the text back in the input and send
+    it again under the same `clientMsgId` while the text is unchanged;
+    `turnSaved: true`: it is on the record, so ask for its reply again. On
+    start: ask again. On submit/evaluate: nothing was recorded and the
+    attempt is still open, so stay on the test and offer the send again.
+    Show the one line in `src/lib/serviceDelay.ts` with Try again, never a
+    raw error.
   - **409 `{code: "already_checking"}`** on submit/evaluate: another request
     is still grading this attempt. Show the "being checked" screen (the
     heartbeat says `grading`); the result arrives on the row. A wait the page

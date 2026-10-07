@@ -55,6 +55,8 @@ import { useResultAtFirstLoad, useStepAdvance } from "@/hooks/useStepAdvance";
 import { useShowContinueOnComputer } from "@/components/candidate/continueOnComputerContext";
 import { ComputerRequiredError, isComputerRequired, refusedDeviceKind, throwIfComputerRequired, withDeviceKind } from "@/lib/deviceGate";
 import { createTypingMeter, type TypingSummary } from "@/lib/typingMeter";
+import { ServiceDelayError, isServiceDelay } from "@/lib/serviceDelay";
+import { ServiceDelayNotice } from "@/components/candidate/ServiceDelayNotice";
 
 interface Message {
   id: string;
@@ -68,6 +70,21 @@ interface ChatScenario {
   customerName: string;
   scenario: string;
 }
+
+/**
+ * What "Try again" does after our side could not answer (src/lib/serviceDelay.ts):
+ *   - start: the player's first message never came; ask for it again;
+ *   - message: the reply in the box was not sent (nothing of it was kept);
+ *     send it again;
+ *   - reply: the applicant's message is on the record but its answer never
+ *     came (a reload asked again); ask for it again;
+ *   - send: the finished chat could not be checked; send it again.
+ */
+type ServiceDelay =
+  | { kind: "start" }
+  | { kind: "message"; clientMsgId: string; text: string }
+  | { kind: "reply"; agentMessage: string; clientMsgId?: string }
+  | { kind: "send" };
 
 function isValidChatScenario(value: unknown): value is ChatScenario {
   if (!value || typeof value !== "object") return false;
@@ -205,6 +222,12 @@ export default function ChatSimulationPhase() {
   // customer that never comes back would leave the candidate typing into a
   // void with no way to finish. Once this is set, they may send what they have.
   const [customerUnavailable, setCustomerUnavailable] = useState(false);
+  // Our side could not answer just now (the AI service refused): one calm
+  // line and Try again, never "isn't responding" (src/lib/serviceDelay.ts).
+  const [serviceDelay, setServiceDelay] = useState<ServiceDelay | null>(null);
+  // The player owes a message (their first one, or the answer to one on the
+  // record): nothing new is sent until it comes.
+  const replyOwed = serviceDelay?.kind === "start" || serviceDelay?.kind === "reply";
 
   // The transcript used to live only here, so a refresh or a phone call wiped
   // it mid-assessment with the clock still running.
@@ -453,6 +476,7 @@ export default function ChatSimulationPhase() {
     },
   ) => {
     setIsTyping(true);
+    setServiceDelay(null);
 
     try {
       const request = async () =>
@@ -484,6 +508,9 @@ export default function ChatSimulationPhase() {
       for (let resent = false; !response.ok; resent = true) {
         const errorData = await response.json().catch(() => null);
         throwIfComputerRequired(response.status, errorData);
+        // Before isTurnNotSaved: this answer is `retryable` too (for pages on
+        // the previous build), but asking again at once cannot help.
+        if (isServiceDelay(response.status, errorData)) throw new ServiceDelayError(errorData);
         if (!isTurnNotSaved(response.status, errorData)) {
           throw new Error(errorData?.error || "Failed to get customer response");
         }
@@ -582,6 +609,26 @@ export default function ChatSimulationPhase() {
 
     } catch (error) {
       if (error instanceof ComputerRequiredError && showContinueOnComputer(error.deviceKind)) return;
+      if (error instanceof ServiceDelayError) {
+        // Our side could not answer just now. Nothing is lost and nothing
+        // is shown as broken: one calm line and Try again (below the box).
+        if (mode === "respond" && opts.giveBack && opts.clientMsgId && opts.agentMessage && !error.turnSaved) {
+          // The server kept nothing of this message: the bubble comes back
+          // off and the text goes back in the box, with its keystrokes.
+          const unsent = opts.agentMessage;
+          const unsentId = opts.clientMsgId;
+          setMessages((prev) => prev.filter((m) => m.id !== unsentId));
+          setInputValue((current) => restoreUnsentText(current, unsent));
+          typingMeter.giveBack(opts.typing, restoreUnsentText(inputRef.current?.value ?? "", unsent));
+          setServiceDelay({ kind: "message", clientMsgId: unsentId, text: unsent });
+        } else if (mode === "respond" && opts.agentMessage) {
+          // The message is on the record; its answer is what is owed.
+          setServiceDelay({ kind: "reply", agentMessage: opts.agentMessage, clientMsgId: opts.clientMsgId });
+        } else {
+          setServiceDelay({ kind: "start" });
+        }
+        return;
+      }
       if (error instanceof TurnNotSavedError && mode === "respond" && opts.giveBack && opts.clientMsgId && opts.agentMessage) {
         // The server has not got this message and will not answer it: take
         // the bubble back off and give the text back to send again.
@@ -622,10 +669,15 @@ export default function ChatSimulationPhase() {
   };
 
   const sendMessage = async () => {
-    if (!inputValue.trim() || isTyping || !currentScenario) return;
+    if (!inputValue.trim() || isTyping || !currentScenario || replyOwed) return;
 
-    // The message's id is also the server's key for it, so a retry is stored once.
-    const clientMsgId = newClientId();
+    // The message's id is also the server's key for it, so a retry is stored
+    // once. A message our side could not answer goes again under its own id
+    // while the box still holds just that text.
+    const clientMsgId =
+      serviceDelay?.kind === "message" && serviceDelay.text === inputValue.trim()
+        ? serviceDelay.clientMsgId
+        : newClientId();
     const agentMessage: Message = {
       id: clientMsgId,
       role: "agent",
@@ -724,6 +776,7 @@ export default function ChatSimulationPhase() {
     if (!application || !currentScenario) return;
 
     setIsSubmitting(true);
+    setServiceDelay(null);
     // The stored result before this send: a 409 "already being checked"
     // waits for a result different from this one.
     const resultBeforeSend = storedChatResult;
@@ -780,6 +833,14 @@ export default function ChatSimulationPhase() {
         if (isComputerRequired(evalResponse.status, errorData)) {
           advance.cancel();
           if (showContinueOnComputer(refusedDeviceKind(errorData))) return;
+        }
+        if (isServiceDelay(evalResponse.status, errorData)) {
+          // Our side could not check it just now. Nothing was recorded: the
+          // chat stays open with every message, and Try again sends it.
+          advance.cancel();
+          setState("chatting");
+          setServiceDelay({ kind: "send" });
+          return;
         }
         const outcome = gradingReplyOutcome(evalResponse.status, errorData);
         if (outcome === "checking" || outcome === "on_file") {
@@ -849,6 +910,27 @@ export default function ChatSimulationPhase() {
   };
   const handleSubmitRef = useRef(handleSubmit);
   handleSubmitRef.current = handleSubmit;
+
+  /** Try again, after our side could not answer: the step that was refused, once more. */
+  const retryAfterDelay = () => {
+    const delay = serviceDelay;
+    const scenario = currentScenario ?? preselectedScenario;
+    if (!delay || isTyping || isSubmitting || !scenario) return;
+    if (delay.kind === "start") {
+      void streamCustomerReply("start", scenario, { history: [] });
+    } else if (delay.kind === "message") {
+      void sendMessage();
+    } else if (delay.kind === "reply") {
+      // The unanswered message is the last one on screen.
+      void streamCustomerReply("respond", scenario, {
+        agentMessage: delay.agentMessage,
+        clientMsgId: delay.clientMsgId,
+        history: messages.slice(0, -1),
+      });
+    } else {
+      endChat();
+    }
+  };
 
   // A send whose check crashed is sent again — once per visit; after that the
   // wrap-up button is there as usual.
@@ -1239,7 +1321,7 @@ export default function ChatSimulationPhase() {
                   </ScrollArea>
 
                   {/* Resolution Banner */}
-                  {isResolved && state === "chatting" && (
+                  {isResolved && state === "chatting" && serviceDelay?.kind !== "send" && (
                     <div className="ck-reveal rounded-lg border border-success/30 bg-success/10 p-4 text-center">
                       <CheckCircle className="h-8 w-8 mx-auto text-success mb-2" />
                       <p className="text-foreground font-medium">Sounds like it's resolved</p>
@@ -1272,7 +1354,7 @@ export default function ChatSimulationPhase() {
                       />
                       <Button
                         onClick={sendMessage}
-                        disabled={!inputValue.trim() || isTyping}
+                        disabled={!inputValue.trim() || isTyping || replyOwed}
                         className="h-[80px] px-4"
                         aria-label="Send message"
                         title="Send message"
@@ -1282,9 +1364,19 @@ export default function ChatSimulationPhase() {
                     </div>
                   )}
 
+                  {/* Our side could not answer just now: one calm line, the
+                      text still in the box, and Try again. */}
+                  {state === "chatting" && serviceDelay && (
+                    <ServiceDelayNotice
+                      onRetry={retryAfterDelay}
+                      busy={isTyping || isSubmitting}
+                      disabled={serviceDelay.kind === "message" && !inputValue.trim()}
+                    />
+                  )}
+
                   {/* End Chat Button — from the first reply on; before the usual
                       number it asks first ("End now — we'll send what you have"). */}
-                  {state === "chatting" && agentReplyCount > 0 && !isResolved && (
+                  {state === "chatting" && agentReplyCount > 0 && !isResolved && serviceDelay?.kind !== "send" && (
                     <div className="space-y-2 text-center pt-2">
                       {endingShort && (
                         <p className="text-sm text-muted-foreground">

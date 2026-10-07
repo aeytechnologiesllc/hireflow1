@@ -14,7 +14,9 @@
  *     is never asked for and never read;
  *   - the SERVER's clock gives the reply time: from the player's message
  *     being stored (`assistant_turn.created_at`) to the applicant's reply
- *     being stored (`candidate_turn.created_at`);
+ *     being stored (`candidate_turn.created_at`, less `detail.model_wait_ms`:
+ *     since 2026-10-07 a new reply is stored once the model has taken it,
+ *     and that wait is the server's, not the applicant's);
  *   - the GRADER lists spelling mistakes left in the applicant's lines,
  *     quoted, and the server keeps only those it finds in those lines.
  *
@@ -164,6 +166,19 @@ function timeOf(iso: string | null): number | null {
   return Number.isFinite(t) ? t : null;
 }
 
+/** The longest server hold a reply's time is corrected by (assessmentSession.ts MAX_MODEL_WAIT_MS). */
+const MAX_MODEL_WAIT_MS = 120_000;
+
+/**
+ * How long the server held this reply before storing it, while the model
+ * took the request (assessmentSession.ts storeHeldCandidateTurn). Written by
+ * the server only; 0 for a reply stored at once.
+ */
+export function modelWaitMs(detail: Record<string, unknown>): number {
+  const value = detail.model_wait_ms;
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.min(value, MAX_MODEL_WAIT_MS) : 0;
+}
+
 function fromSubmittedTranscript(turn: TypingTurn): boolean {
   // Stored at submit by a previous-build page: its times are the submit's, not the chat's.
   return turn.detail.source === "submitted_transcript";
@@ -195,7 +210,8 @@ export function replyTypingRows(turns: readonly TypingTurn[]): ReplyTypingRow[] 
     let replySeconds: number | null = null;
     if (previous && previous.kind === "assistant_turn" && !fromSubmittedTranscript(previous) && !fromSubmittedTranscript(turn)) {
       const from = timeOf(previous.created_at);
-      const to = timeOf(turn.created_at);
+      const storedAt = timeOf(turn.created_at);
+      const to = storedAt === null ? null : storedAt - modelWaitMs(turn.detail);
       if (from !== null && to !== null && to >= from) replySeconds = (to - from) / 1000;
     }
     const typing = cleanReplyTyping(turn.detail.typing);

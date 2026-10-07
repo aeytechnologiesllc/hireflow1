@@ -415,11 +415,19 @@ console.log("\nThe wiring — read from the source:\n");
   const typing = await read("src/pages/TypingTestPhase.tsx");
   const typingBodies = (typing.match(/withDeviceKind\(\{/g) || []).length;
   check("TypingTestPhase: start, complete (and its keepalive), snapshot and submit all carry deviceKind", typingBodies >= 5 && /withDeviceKind\(\{ action: "start"/.test(typing) && /withDeviceKind\(\{ action: "snapshot"/.test(typing), String(typingBodies));
+  // The refusal is the first thing read in the chat's error loop, straight
+  // after the error body. Since 2026-10-07 the chat practice and the
+  // interview check "our side cannot answer right now" next
+  // (src/lib/serviceDelay.ts): that line only throws, so it, and comments,
+  // are all that may stand between the refusal and the page's own retry.
+  // Anything else before or between them (a resend, another answer) fails.
+  const refusalBeforeRetry =
+    /for \(let resent = false; !response\.ok; resent = true\) \{\s*const errorData = await response\.json\(\)\.catch\(\(\) => null\);\s*throwIfComputerRequired\(response\.status, errorData\);\s*(?:\/\/[^\n]*\n\s*)*(?:if \(isServiceDelay\(response\.status, errorData\)\) throw new ServiceDelayError\(errorData\);\s*)?if \(!isTurnNotSaved/;
   for (const file of ["src/pages/ChatSimulationPhase.tsx", "src/pages/ChatInterviewPhase.tsx", "src/pages/SalesSimulationPhase.tsx"]) {
     const src = await read(file);
     const name = path.basename(file, ".tsx");
     check(`${name}: the chat call and the send both carry deviceKind, and the chat reads the refusal before its own retry`,
-      (src.match(/JSON\.stringify\(withDeviceKind\(\{/g) || []).length === 2 && /throwIfComputerRequired\(response\.status, errorData\);\s*if \(!isTurnNotSaved/.test(src));
+      (src.match(/JSON\.stringify\(withDeviceKind\(\{/g) || []).length === 2 && refusalBeforeRetry.test(src));
   }
   const voice = await read("src/hooks/useAvaVoice.ts");
   const voicePage = await read("src/pages/VoiceInterviewPhase.tsx");

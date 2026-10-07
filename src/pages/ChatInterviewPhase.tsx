@@ -57,6 +57,8 @@ import { ComputerRequiredError, isComputerRequired, refusedDeviceKind, throwIfCo
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import { parseApplicationNotes } from "@/utils/applicationNotes";
 import { AvaSeal } from "@/components/ava/AvaSeal";
+import { ServiceDelayError, isServiceDelay } from "@/lib/serviceDelay";
+import { ServiceDelayNotice } from "@/components/candidate/ServiceDelayNotice";
 
 interface Message {
   id: string;
@@ -95,6 +97,21 @@ interface ApplicationDetails {
 
 const CHAT_URL = `${SUPABASE_URL}/functions/v1/ai-chat-interview`;
 
+/**
+ * What "Try again" does after our side could not answer (src/lib/serviceDelay.ts):
+ *   - start: the greeting and first question never came; ask again;
+ *   - message: the answer in the box was not sent (nothing of it was kept);
+ *     send it again;
+ *   - reply: the answer is on the record but the next question never came
+ *     (a reload asked again); ask for it again;
+ *   - send: the interview could not be checked; send it again, the same way.
+ */
+type ServiceDelay =
+  | { kind: "start" }
+  | { kind: "message"; clientMsgId: string; text: string }
+  | { kind: "reply"; userMessage: string; clientMsgId?: string }
+  | { kind: "send"; path: "auto_end" | "manual" };
+
 export default function ChatInterviewPhase() {
   const { id, stepId } = useParams<{ id: string; stepId: string }>();
   const navigate = useNavigate();
@@ -121,6 +138,12 @@ export default function ChatInterviewPhase() {
   // The rules card's "I understand" — Start stays disabled until it is ticked.
   const [rulesAccepted, setRulesAccepted] = useState(false);
   const [confirmEndOpen, setConfirmEndOpen] = useState(false);
+  // Our side could not answer just now (the AI service refused): one calm
+  // line and Try again, never an error toast (src/lib/serviceDelay.ts).
+  const [serviceDelay, setServiceDelay] = useState<ServiceDelay | null>(null);
+  // The interviewer owes a message (the greeting, or the next question after
+  // an answer on the record): nothing new is sent until it comes.
+  const replyOwed = serviceDelay?.kind === "start" || serviceDelay?.kind === "reply";
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -375,6 +398,7 @@ export default function ChatInterviewPhase() {
     
     // Show typing indicator first with a delay to feel more natural
     setIsTyping(true);
+    setServiceDelay(null);
     await new Promise(resolve => setTimeout(resolve, 1500));
     
     const candidateContext = buildCandidateContext();
@@ -416,6 +440,9 @@ export default function ChatInterviewPhase() {
       for (let resent = false; !response.ok; resent = true) {
         const errorData = await response.json().catch(() => null);
         throwIfComputerRequired(response.status, errorData);
+        // Before isTurnNotSaved: this answer is `retryable` too (for pages on
+        // the previous build), but asking again at once cannot help.
+        if (isServiceDelay(response.status, errorData)) throw new ServiceDelayError(errorData);
         if (!isTurnNotSaved(response.status, errorData)) {
           throw new Error(errorData?.error || "Failed to get interview response");
         }
@@ -520,6 +547,23 @@ export default function ChatInterviewPhase() {
 
     } catch (error) {
       if (error instanceof ComputerRequiredError && showContinueOnComputer(error.deviceKind)) return;
+      if (error instanceof ServiceDelayError) {
+        // Our side could not answer just now. Nothing is lost and nothing
+        // is shown as broken: one calm line and Try again (below the box).
+        if (mode === "respond" && giveBack && clientMsgId && userMessage && !error.turnSaved) {
+          // The server kept nothing of this answer: the bubble comes back off
+          // and the text goes back in the box.
+          setMessages((prev) => prev.filter((m) => m.id !== clientMsgId));
+          setInputValue((current) => restoreUnsentText(current, userMessage));
+          setServiceDelay({ kind: "message", clientMsgId, text: userMessage });
+        } else if (mode === "respond" && userMessage) {
+          // The answer is on the record; the next question is what is owed.
+          setServiceDelay({ kind: "reply", userMessage, clientMsgId });
+        } else {
+          setServiceDelay({ kind: "start" });
+        }
+        return;
+      }
       if (error instanceof TurnNotSavedError && mode === "respond" && giveBack && clientMsgId && userMessage) {
         // The server has not got this answer and will not reply to it: take
         // the bubble back off and give the text back to send again.
@@ -546,10 +590,15 @@ export default function ChatInterviewPhase() {
   };
 
   const sendMessage = async () => {
-    if (!inputValue.trim() || isTyping) return;
+    if (!inputValue.trim() || isTyping || replyOwed) return;
 
-    // The message's id is also the server's key for it, so a retry is stored once.
-    const clientMsgId = newClientId();
+    // The message's id is also the server's key for it, so a retry is stored
+    // once. An answer our side could not take goes again under its own id
+    // while the box still holds just that text.
+    const clientMsgId =
+      serviceDelay?.kind === "message" && serviceDelay.text === inputValue.trim()
+        ? serviceDelay.clientMsgId
+        : newClientId();
     const userMessage: Message = {
       id: clientMsgId,
       role: "user",
@@ -646,6 +695,7 @@ export default function ChatInterviewPhase() {
     if (!application) return;
 
     setIsSubmitting(true);
+    setServiceDelay(null);
     // The stored result before this send: a 409 "already being checked"
     // waits for a result different from this one.
     const resultBeforeSend = storedInterviewResult;
@@ -707,6 +757,14 @@ export default function ChatInterviewPhase() {
         if (isComputerRequired(submitResponse.status, errBody)) {
           advance.cancel();
           if (showContinueOnComputer(refusedDeviceKind(errBody))) return;
+        }
+        if (isServiceDelay(submitResponse.status, errBody)) {
+          // Our side could not check it just now. Nothing was recorded: the
+          // interview stays open with every answer, and Try again sends it.
+          advance.cancel();
+          setState("interviewing");
+          setServiceDelay({ kind: "send", path });
+          return;
         }
         const outcome = gradingReplyOutcome(submitResponse.status, errBody);
         if (outcome === "checking" || outcome === "on_file") {
@@ -784,6 +842,23 @@ export default function ChatInterviewPhase() {
   // transcript it sends includes that closing message.
   const submitInterviewRef = useRef(submitInterview);
   submitInterviewRef.current = submitInterview;
+
+  /** Try again, after our side could not answer: the step that was refused, once more. */
+  const retryAfterDelay = () => {
+    const delay = serviceDelay;
+    if (!delay || isTyping || isSubmitting) return;
+    if (delay.kind === "start") {
+      void streamChat("start");
+    } else if (delay.kind === "message") {
+      void sendMessage();
+    } else if (delay.kind === "reply") {
+      // The unanswered answer is the last one on screen.
+      void streamChat("respond", delay.userMessage, delay.clientMsgId, messages.slice(0, -1));
+    } else {
+      setState("evaluating");
+      void submitInterview(delay.path);
+    }
+  };
   useEffect(() => {
     if (autoEndTriggered && state === "interviewing") {
       // Reset first, so a re-render can never send it twice.
@@ -1141,7 +1216,7 @@ export default function ChatInterviewPhase() {
                   />
                   <Button
                     onClick={sendMessage}
-                    disabled={isTyping || !inputValue.trim()}
+                    disabled={isTyping || !inputValue.trim() || replyOwed}
                     className="h-[80px]"
                     aria-label="Send message"
                     title="Send message"
@@ -1151,10 +1226,20 @@ export default function ChatInterviewPhase() {
                 </div>
               )}
 
+              {/* Our side could not answer just now: one calm line, the
+                  answer still in the box, and Try again. */}
+              {state === "interviewing" && serviceDelay && (
+                <ServiceDelayNotice
+                  onRetry={retryAfterDelay}
+                  busy={isTyping || isSubmitting}
+                  disabled={serviceDelay.kind === "message" && !inputValue.trim()}
+                />
+              )}
+
               {/* End Interview — quiet, never competing with the send action.
                   From the first answer on; before the usual five it asks first
                   ("End now — we'll send what you have"). */}
-              {state === "interviewing" && candidateResponseCount > 0 && (
+              {state === "interviewing" && candidateResponseCount > 0 && serviceDelay?.kind !== "send" && (
                 <div className="text-center pt-2">
                   <Button
                     variant="ghost"
