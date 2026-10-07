@@ -19,6 +19,12 @@ whose clock its time is written on, and where the call happens.
 - A first conversation is 30 minutes unless changed.
 - Setting one up moves the application to the interview stage.
 
+**One live interview for an application.** Setting up a new interview
+replaces any earlier one that is still live (it is marked cancelled once the
+new one is safely made). On 2026-10-07 the owner set up a second interview
+for the same applicant and both sat on the Interviews page, one "No time
+yet" and one confirmed.
+
 The applicant can ask to reschedule, and either side can save a calendar file
 (`src/lib/calendarInvite.ts`). No reminder email is sent: the
 `interview_reminder` kind exists in `send-notification-email` but nothing
@@ -96,9 +102,29 @@ cannot disagree. Four stages:
   page.
 - **Every time is on the reader's own clock, and says so** ("Times are on
   your own clock (GMT+8)").
-- **The link to join** (the built-in room, or the team's own) opens 15
-  minutes before the start, not earlier: one Google Meet link serves every
-  interview, so it is not handed out days ahead.
+- **Nothing is booked on one tap.** Choosing a time asks "Book this time?"
+  with the day and time in words; only "Yes, book it" sends the answer, and
+  moving a booked time asks the same way. The owner, 2026-10-07: "as soon as
+  I clicked on the time, it just went ahead and did it. It didn't say, are
+  you sure."
+- **The way in** (`joinPlan`, `src/lib/candidateInterview.ts`): a link of the
+  team's own opens **two hours** before the start (the owner: "it will be
+  available a couple hours before"); the built-in room fifteen minutes
+  before, which is when the room itself opens. The Join button is always a
+  real button: before the way in opens it shows when it will ("Opens Sunday,
+  October 11 at 12:00 PM") and, pressed, says so instead of doing nothing.
+  The link itself is not on the page before then (one Google Meet link
+  serves every interview); the calendar file carries it.
+- **A confirmed interview stays on the page through its length and for an
+  hour after** (`interviewLiveUntil`), so someone running late still finds
+  the way in. Until 2026-10-07 the whole card disappeared at the minute the
+  interview started.
+- **The page announces what the TEAM does, not what the applicant just
+  did.** Its "your interview was rescheduled" pop-up fired for the
+  applicant's own pick as well; their own answers are now marked for a few
+  seconds (`src/lib/ownInterviewChange.ts`) and a first pick among offered
+  times is never a reschedule. A cancelled interview is announced only when
+  no other took its place.
 - **The applicant's menu has no "Enter Job Code"** (removed 2026-10-07 at the
   owner's word). `/apply` still answers an old link that carries a code.
 

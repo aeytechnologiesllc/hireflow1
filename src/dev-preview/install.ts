@@ -377,7 +377,9 @@ function previewBlockHandlers(tables: FixtureTables, user: FixtureAuthUser): Rec
 /**
  * An interview with the hiring team, for the applicant's screens
  * (`?__previewInterview=pick|confirm|waiting|confirmed`, with `,own` for a
- * link of the team's own instead of the built-in room): put on the
+ * link of the team's own instead of the built-in room; a confirmed one can
+ * also be `,soon` (starts in half an hour: the way in is open) or `,started`
+ * (began five minutes ago: someone running late)): put on the
  * applicant's skills-check application, so the interview is seen beside a
  * step still to take. The applicant's answers go where the real
  * candidate-interview-response function writes them, so picking a time,
@@ -403,7 +405,14 @@ function previewCandidateInterview(tables: FixtureTables, mode: string | null): 
       {
         id: "0f0f0f0f-1111-4222-8333-444444444444",
         application_id: APP_QUIZ_ID,
-        scheduled_at: stage === "confirmed" ? windows[1].start : windows[0].start,
+        scheduled_at:
+          stage === "confirmed" && flags.includes("soon")
+            ? new Date(Date.now() + 30 * 60_000).toISOString()
+            : stage === "confirmed" && flags.includes("started")
+              ? new Date(Date.now() - 5 * 60_000).toISOString()
+              : stage === "confirmed"
+                ? windows[1].start
+                : windows[0].start,
         status: "scheduled",
         candidate_response: stage === "pick" ? "awaiting_pick" : stage === "confirm" ? "pending" : stage === "waiting" ? "reschedule_requested" : "confirmed",
         meeting_link: flags.includes("own") ? "https://meet.google.com/preview-only-link" : null,

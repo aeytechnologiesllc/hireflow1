@@ -26,6 +26,27 @@ export interface CandidateInterviewLike {
   duration_minutes?: number | null;
   interview_type?: string | null;
   employer_windows?: unknown;
+  meeting_provider?: string | null;
+  meeting_link?: string | null;
+}
+
+/**
+ * How long after its end a confirmed interview still counts as live: someone
+ * running late must still find the way in. (The built-in room closes an hour
+ * after the end too: supabase/functions/interview-rooms.)
+ */
+export const JOIN_GRACE_MINUTES = 60;
+/** How long before the start the way in opens: a link of the team's own. */
+export const JOIN_OPENS_MINUTES_LINK = 120;
+/** …and the built-in room, which is itself shut until then. */
+export const JOIN_OPENS_MINUTES_ROOM = 15;
+
+/** When a confirmed interview stops being live: its end, plus the grace. Null with no time on it. */
+export function interviewLiveUntil(interview: CandidateInterviewLike | null | undefined): Date | null {
+  const start = interview?.scheduled_at ? new Date(interview.scheduled_at).getTime() : NaN;
+  if (Number.isNaN(start)) return null;
+  const minutes = typeof interview?.duration_minutes === "number" && interview.duration_minutes > 0 ? interview.duration_minutes : 30;
+  return new Date(start + (minutes + JOIN_GRACE_MINUTES) * 60_000);
 }
 
 /**
@@ -63,10 +84,53 @@ export function candidateInterviewStage(interview: CandidateInterviewLike | null
   const response = interview.candidate_response ?? "pending";
   if (response === "awaiting_pick") return "pick";
   if (response === "reschedule_requested") return "waiting";
-  // A time that has passed is no longer something to confirm or to join.
   const at = interview.scheduled_at ? new Date(interview.scheduled_at).getTime() : NaN;
+  if (response === "confirmed") {
+    // A confirmed interview stays live through its length and an hour after:
+    // the way in must not vanish at the very minute it starts. (It did,
+    // until 2026-10-07: someone a minute late found no interview at all.)
+    const until = interviewLiveUntil(interview);
+    return until && until.getTime() > now.getTime() ? "confirmed" : null;
+  }
+  // A time that has passed is no longer something to confirm.
   if (!(at > now.getTime())) return null;
-  return response === "confirmed" ? "confirmed" : "confirm";
+  return "confirm";
+}
+
+/** How a confirmed interview is joined, and from when. */
+export interface JoinPlan {
+  /** "room": the built-in video room. "link": a link of the team's own. "none": nothing to open (a phone call, in person, or not set up). */
+  how: "room" | "link" | "none";
+  /** When the way in opens. */
+  opensAt: Date | null;
+  /** How long before the start that is, in words ("2 hours", "15 minutes"). */
+  leadWords: string;
+  /** Open now. */
+  open: boolean;
+}
+
+/**
+ * The way into a confirmed interview. A link of the team's own opens two
+ * hours before the start (the owner: "it will be available a couple hours
+ * before"); the built-in room fifteen minutes before, which is when the room
+ * itself opens. Both stay open until the interview stops being live.
+ */
+export function joinPlan(interview: CandidateInterviewLike | null | undefined, now: Date): JoinPlan {
+  const hasRoom = interview?.meeting_provider === "daily";
+  const hasLink = !hasRoom && typeof interview?.meeting_link === "string" && interview.meeting_link.trim().length > 0;
+  const how: JoinPlan["how"] = hasRoom ? "room" : hasLink ? "link" : "none";
+  const start = interview?.scheduled_at ? new Date(interview.scheduled_at).getTime() : NaN;
+  if (how === "none" || Number.isNaN(start)) return { how, opensAt: null, leadWords: "", open: false };
+  const lead: number = how === "room" ? JOIN_OPENS_MINUTES_ROOM : JOIN_OPENS_MINUTES_LINK;
+  const opensAt = new Date(start - lead * 60_000);
+  const until = interviewLiveUntil(interview);
+  const t = now.getTime();
+  return {
+    how,
+    opensAt,
+    leadWords: lead >= 120 && lead % 60 === 0 ? `${lead / 60} hours` : `${lead} minutes`,
+    open: t >= opensAt.getTime() && !!until && t < until.getTime(),
+  };
 }
 
 /** "Thursday, October 8 at 9:00 PM", on the reader's own clock unless a zone is given. */

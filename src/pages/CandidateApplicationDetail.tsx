@@ -36,6 +36,7 @@ const BRASS_RULE = (
 import { CandidateInterviewConfirmationCard } from "@/components/CandidateInterviewConfirmationCard";
 import { InterviewSelectedMoment, hasCelebrated, markCelebrated } from "@/components/candidate/InterviewCelebration";
 import { candidateInterviewWords } from "@/lib/candidateInterview";
+import { isOwnInterviewChange } from "@/lib/ownInterviewChange";
 import { useDocumentRequests, DocumentRequestWithDetails } from "@/hooks/useDocumentRequests";
 import { DocumentRequestCard } from "@/components/documents/DocumentRequestCard";
 import { DocumentUploadDialog } from "@/components/documents/DocumentUploadDialog";
@@ -293,21 +294,32 @@ export default function CandidateApplicationDetail() {
           filter: `application_id=eq.${id}`,
         },
         (payload) => {
-          refetchInterview();
-          
           const newData = payload.new as Record<string, unknown>;
           const oldData = payload.old as Record<string, unknown>;
           const prevInterview = previousInterviewRef.current;
-          
-          // Detect cancellation: status changed to "cancelled"
-          if (newData?.status === "cancelled" && (oldData?.status === "scheduled" || prevInterview?.status === "scheduled")) {
-            setStatusScreen("interview_cancelled");
-          }
-          // Detect reschedule: scheduled_at changed while still scheduled
-          else if (
-            newData?.status === "scheduled" && 
+          const wasCancelled =
+            newData?.status === "cancelled" && (oldData?.status === "scheduled" || prevInterview?.status === "scheduled");
+
+          // A cancelled interview is announced only when no other took its
+          // place: setting up a new interview replaces the earlier one, and
+          // "cancelled" beside a fresh invitation would be the wrong news.
+          void refetchInterview().then((result) => {
+            if (wasCancelled && !result.data) setStatusScreen("interview_cancelled");
+          });
+
+          // Moved by the TEAM: the time changed while it stayed scheduled.
+          // Not their own pick, swap or confirm (isOwnInterviewChange), and
+          // not a first pick among offered times (there was no time before
+          // it, only a placeholder). Times are compared as instants.
+          const sameInstant = (a: unknown, b: unknown) => new Date(String(a)).getTime() === new Date(String(b)).getTime();
+          if (wasCancelled) {
+            // Handled above, once the page knows what is left.
+          } else if (
+            newData?.status === "scheduled" &&
             prevInterview?.status === "scheduled" &&
-            newData?.scheduled_at !== prevInterview?.scheduled_at
+            !sameInstant(newData?.scheduled_at, prevInterview?.scheduled_at) &&
+            oldData?.candidate_response !== "awaiting_pick" &&
+            !isOwnInterviewChange(newData?.id as string | undefined)
           ) {
             // Update interview details with new time
             setInterviewDetails({

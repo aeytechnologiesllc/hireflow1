@@ -90,13 +90,34 @@ console.log("\nThe four stages");
   check("agreed: confirmed", stage({ candidate_response: "confirmed" }) === "confirmed");
   check("no interview: nothing", C.candidateInterviewStage(null, NOW) === null && C.candidateInterviewStage(undefined, NOW) === null);
   check("cancelled or done: nothing", stage({ status: "cancelled" }) === null && stage({ status: "completed" }) === null);
-  check("a confirmed time that has passed: nothing to join", stage({ candidate_response: "confirmed", scheduled_at: PAST.start }) === null);
+  check("a confirmed interview long over: nothing to join", stage({ candidate_response: "confirmed", scheduled_at: PAST.start }) === null);
+  // The way in must not vanish at the minute it starts: someone a minute late found no interview at all.
+  const startedAgo = (minutes) => new Date(NOW.getTime() - minutes * 60_000).toISOString();
+  check("a confirmed interview that has just started is still live", stage({ candidate_response: "confirmed", scheduled_at: startedAgo(1) }) === "confirmed" && stage({ candidate_response: "confirmed", scheduled_at: startedAgo(25) }) === "confirmed");
+  check("…and for an hour after its end, for anyone running late", stage({ candidate_response: "confirmed", scheduled_at: startedAgo(30 + 59) }) === "confirmed" && stage({ candidate_response: "confirmed", scheduled_at: startedAgo(30 + 61) }) === null);
+  check("a longer interview is live for longer", stage({ candidate_response: "confirmed", duration_minutes: 60, scheduled_at: startedAgo(60 + 59) }) === "confirmed" && C.interviewLiveUntil({ scheduled_at: W1.start, duration_minutes: 45 }).toISOString() === "2026-10-08T14:45:00.000Z");
   check("a time to confirm that has passed: nothing to confirm", stage({ candidate_response: "pending", scheduled_at: PAST.start }) === null);
   // The placeholder on an offer is the earliest offered time. It passing must
   // not hide the invitation: the applicant still has to answer.
   check("still choosing after the earliest offered time passed: still pick", stage({ scheduled_at: PAST.start }) === "pick");
   check("still waiting after it passed: still waiting", stage({ candidate_response: "reschedule_requested", scheduled_at: PAST.start }) === "waiting");
   check("a time with no date on it is not confirmed", stage({ candidate_response: "confirmed", scheduled_at: null }) === null);
+}
+
+console.log("\nThe way in");
+{
+  const at = (iso) => new Date(iso);
+  const link = { scheduled_at: W1.start, duration_minutes: 30, meeting_provider: null, meeting_link: "https://meet.google.com/abc-defg-hij" };
+  const room = { scheduled_at: W1.start, duration_minutes: 30, meeting_provider: "daily", meeting_link: null };
+  const early = C.joinPlan(link, at("2026-10-08T10:59:00Z"));
+  check("a link of the team's own opens two hours before the start", early.how === "link" && early.opensAt.toISOString() === "2026-10-08T11:00:00.000Z" && early.leadWords === "2 hours" && early.open === false);
+  check("…open from then", C.joinPlan(link, at("2026-10-08T11:00:00Z")).open === true && C.joinPlan(link, at("2026-10-08T12:59:00Z")).open === true);
+  check("…through the interview and the hour after it, then shut", C.joinPlan(link, at("2026-10-08T13:20:00Z")).open === true && C.joinPlan(link, at("2026-10-08T14:29:00Z")).open === true && C.joinPlan(link, at("2026-10-08T14:30:00Z")).open === false);
+  const roomEarly = C.joinPlan(room, at("2026-10-08T12:44:00Z"));
+  check("the built-in room opens fifteen minutes before, when the room itself does", roomEarly.how === "room" && roomEarly.leadWords === "15 minutes" && roomEarly.open === false && C.joinPlan(room, at("2026-10-08T12:45:00Z")).open === true);
+  check("the room counts before a link when both are there", C.joinPlan({ ...link, meeting_provider: "daily" }, NOW).how === "room");
+  check("nothing to open: a phone call, in person, or not set up", C.joinPlan({ scheduled_at: W1.start }, NOW).how === "none" && C.joinPlan({ scheduled_at: W1.start, meeting_link: "   " }, NOW).open === false && C.joinPlan(null, NOW).how === "none");
+  check("no time on it: never open", C.joinPlan({ meeting_link: "https://x.example", scheduled_at: null }, NOW).open === false);
 }
 
 console.log("\nThe words, on the applicant's own clock");
@@ -183,12 +204,23 @@ console.log("\nThe application page and the card");
   check("the page lands on it when the link says so", /window\.location\.hash !== "#interview"/.test(page) && /document\.getElementById\("interview"\)\?\.scrollIntoView/.test(page) && /id="interview"/.test(card));
   check("the card reads the stage from the one place", /const stage = candidateInterviewStage\(/.test(card) && /if \(!stage\) return null;/.test(card));
   check("pick: the open times, each one a button", /stage === "pick" && \(/.test(card) && /slotGrid\("pick_slot", futureWindows\)/.test(card) && /data-interview-slot=\{w\.start\}/.test(card));
+  // "As soon as I clicked on the time, it just went ahead and did it."
+  check("one tap never books: it only asks", /onClick=\{\(\) => setAsking\(\{ window: w, action \}\)\}/.test(card) && !/onClick=\{\(\) => handlePickSlot\(w, action\)\}/.test(card));
+  check("'Book this time?' shows the time, on their clock, and says the team is told", /"Book this time\?"/.test(card) && /data-interview-ask-when/.test(card) && /On your own clock \(\{zone\}\)/.test(card) && /is told right away\./.test(card));
+  check("only 'Yes, book it' books; 'Go back' does nothing", /data-interview-ask-yes[\s\S]{0,220}if \(chosen\) void handlePickSlot\(chosen\.window, chosen\.action\);/.test(card) && /<AlertDialogCancel data-interview-ask-back>Go back<\/AlertDialogCancel>/.test(card) && (card.match(/handlePickSlot\(/g) ?? []).length === 1);
+  check("moving a booked time asks too", /"Move your interview to this time\?"/.test(card) && /"Yes, move it"/.test(card));
   check("pick: 'None of these work?' with a way to suggest others", /"None of these work\?"/.test(card) && /Suggest other times/.test(card) && /data-interview-suggest/.test(card));
   check("pick with every time passed: still a way to answer", /The times \{teamLower\} offered have passed\. Tell them what works for you\./.test(card));
   check("confirm: the time in words, confirm, or ask for another", /stage === "confirm" && \(/.test(card) && /Confirm this time/.test(card) && /Ask for another time/.test(card));
   check("waiting: the offered times stay pickable", /stage === "waiting" && \(/.test(card) && /Changed your mind\?/.test(card));
   check("confirmed: join, calendar, and a way to change it for any interview", /stage === "confirmed" && \(/.test(card) && /Add to calendar/.test(card) && /data-interview-change/.test(card) && /canFreeRepick \? setShowRepickSheet\(true\) : setSuggestOpen\(true\)/.test(card));
-  check("the link to join is not handed out early", /href=\{canJoin \? ownLink : undefined\}/.test(card) && /const canJoin = stage === "confirmed" && minutesToStart <= JOIN_WINDOW_MINUTES;/.test(card));
+  // "Maybe allow them to click on a button. The button will just say it will be available a couple hours before."
+  check("the way in is read from the one place", /const join = joinPlan\(\{ \.\.\.interview, scheduled_at: effectiveScheduledAt, duration_minutes: effectiveDurationMinutes \}, now\);/.test(card) && /const canJoin = stage === "confirmed" && join\.open;/.test(card));
+  check("the Join button always answers: before it opens it says when it will", /if \(!canJoin\) \{[\s\S]{0,260}toast\.message\(`Join opens \$\{join\.leadWords\} before your interview`/.test(card) && !/disabled=\{!canJoin\}/.test(card));
+  check("…and shows when on its own face", /Opens \{opensWords\}/.test(card) && /canJoin \? "Join interview now" : "Join interview"/.test(card));
+  check("the link is opened only once the way in is open", /else if \(ownLink\) window\.open\(ownLink, "_blank", "noopener,noreferrer"\);/.test(card) && card.indexOf("if (!canJoin) {") < card.indexOf('window.open(ownLink, "_blank"') && !/href=\{ownLink\}/.test(card));
+  check("their own pick is marked, so the page does not announce it back as 'rescheduled'", (card.match(/markOwnInterviewChange\(interview\.id\);/g) ?? []).length === 2 && /!isOwnInterviewChange\(newData\?\.id as string \| undefined\)/.test(page) && /oldData\?\.candidate_response !== "awaiting_pick"/.test(page));
+  check("a cancelled interview is announced only when nothing took its place", /void refetchInterview\(\)\.then\(\(result\) => \{\s*if \(wasCancelled && !result\.data\) setStatusScreen\("interview_cancelled"\);/.test(page));
   check("every time says whose clock it is on", /Times are on your own clock \(\{zone\}\)\./.test(card));
   check("no 'current time' is claimed while none is agreed", /currentScheduledAt=\{stage === "pick" \|\| stage === "waiting" \? null : effectiveScheduledAt\}/.test(card));
   check("an answer refreshes the list too", /queryKey: \["applications", "candidate"\]/.test(card));
@@ -229,6 +261,7 @@ console.log("\nThe invitation email");
   check("no select anywhere in it reaches through profiles", !/\.select\([^)]*profiles\s*[:!(]/.test(wizard));
   check("a failed lookup is a failed email, said out loud", /if \(appLookupError \|\| !appData\?\.candidate_id\) \{[\s\S]{0,200}setCandidateEmailStatus\("failed"\);/.test(wizard));
   check("the success screen words the email through the one helper", /inviteEmailWords\(candidateEmailStatus, \{ email: candidateEmail, firstName, exactTime: exactTimeMode \}\)/.test(wizard));
+  check("setting up a new interview replaces an earlier live one, after the new one is safely made", /const earlierIds = \(earlierLive \?\? \[\]\)\.map\(\(row\) => row\.id\);/.test(wizard) && /\.update\(\{ status: "cancelled" \}\)\.in\("id", earlierIds\)/.test(wizard) && wizard.indexOf('.update({ status: "cancelled" }).in("id", earlierIds)') > wizard.lastIndexOf("await createInterview.mutateAsync({"));
   check("each offered time records the clock it was picked on", /durationMinutes: parseInt\(duration\),\s*zone: teamZone,/.test(wizard));
 
   const who = { email: "a@example.com", firstName: "Maria", exactTime: false };

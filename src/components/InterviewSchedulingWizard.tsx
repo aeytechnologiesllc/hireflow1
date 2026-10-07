@@ -617,6 +617,18 @@ export default function InterviewSchedulingWizard({
 
     setIsCreating(true);
     try {
+      // One live interview for an application. Any earlier one still live
+      // (an offer never answered, a time already set) is replaced by this
+      // one, after this one is safely made: on 2026-10-07 the owner set up a
+      // second interview for the same applicant and both sat on the
+      // Interviews page, one "No time yet" and one confirmed.
+      const { data: earlierLive } = await supabase
+        .from("interviews")
+        .select("id")
+        .eq("application_id", applicationId)
+        .eq("status", "scheduled");
+      const earlierIds = (earlierLive ?? []).map((row) => row.id);
+
       let meetingLink = interviewType === "video" ? manualMeetingLink.trim() : "";
       // Offering times with a link of the owner's own instead of the built-in room.
       const ownLink = !exactTimeMode && interviewType === "video" && ownLinkMode ? manualMeetingLink.trim() : "";
@@ -680,6 +692,11 @@ export default function InterviewSchedulingWizard({
 
         interviewDateLabel = `${sortedSelectedWindows.length} times to choose from`;
         interviewTimeLabel = "pick what works in your dashboard";
+      }
+
+      if (earlierIds.length > 0) {
+        const { error: replaceError } = await supabase.from("interviews").update({ status: "cancelled" }).in("id", earlierIds);
+        if (replaceError) console.error("[interview] could not retire the earlier interview:", replaceError);
       }
 
       await updateApplication.mutateAsync({

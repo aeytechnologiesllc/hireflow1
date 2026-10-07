@@ -8,7 +8,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { differenceInMinutes, differenceInHours } from "date-fns";
+import { differenceInHours } from "date-fns";
 import { CalendarPlus, Check, Clock, ExternalLink, Loader2, RefreshCw, Video } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -22,11 +22,23 @@ import {
   candidateInterviewStage,
   interviewKindWords,
   interviewWhen,
+  joinPlan,
   offeredWindows,
   openWindows,
   type OfferedWindow,
 } from "@/lib/candidateInterview";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { InterviewSeal, InterviewSurface } from "@/components/candidate/InterviewCelebration";
+import { markOwnInterviewChange } from "@/lib/ownInterviewChange";
 import type { Json } from "@/integrations/supabase/types";
 
 /**
@@ -44,10 +56,14 @@ import type { Json } from "@/integrations/supabase/types";
  *  - confirmed: the time, how to join, a calendar file, and a way to change.
  *
  * Every time here is on the reader's own clock, and says so.
+ *
+ * Nothing is booked on one tap: choosing a time asks "Book this time?" first
+ * (the owner, 2026-10-07: "as soon as I clicked on the time, it just went
+ * ahead and did it. It didn't say, are you sure"). And the way in is a button
+ * that always answers: before it opens it says when it will ("maybe allow
+ * them to click on a button. The button will just say it will be available a
+ * couple hours before").
  */
-
-// The link to join opens this many minutes before the start.
-const JOIN_WINDOW_MINUTES = 15;
 // A confirmed pick can be swapped for another offered time, without waiting
 // on the team, as long as it is more than this far out.
 const FREE_REPICK_HOURS = 12;
@@ -92,6 +108,10 @@ export function CandidateInterviewConfirmationCard({
   const [pickingStart, setPickingStart] = useState<string | null>(null);
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [showRepickSheet, setShowRepickSheet] = useState(false);
+  // The time they tapped, waiting for "Yes, book it".
+  const [asking, setAsking] = useState<{ window: OfferedWindow; action: "pick_slot" | "repick_slot" } | null>(null);
+  // They pressed Join before it opens: say when it will, on the card.
+  const [joinAsked, setJoinAsked] = useState(false);
 
   // What the applicant just did, shown at once and dropped when the server's
   // row catches up.
@@ -137,6 +157,7 @@ export function CandidateInterviewConfirmationCard({
 
   const handleConfirm = async () => {
     setIsConfirming(true);
+    markOwnInterviewChange(interview.id);
     try {
       const { data, error } = await supabase.functions.invoke("candidate-interview-response", {
         body: { action: "confirm", interviewId: interview.id, timeZone: getTimezoneName() },
@@ -164,6 +185,8 @@ export function CandidateInterviewConfirmationCard({
     setLocalCandidateResponse("confirmed");
     setLocalPickedWindow(window);
     if (action === "repick_slot") setShowRepickSheet(false);
+    // Their own doing: the page must not announce it back as "rescheduled".
+    markOwnInterviewChange(interview.id);
 
     try {
       const { data, error } = await supabase.functions.invoke("candidate-interview-response", {
@@ -204,11 +227,23 @@ export function CandidateInterviewConfirmationCard({
   const kind = interviewKindWords(interview.interview_type);
   const facts = [jobTitle?.trim(), employerName?.trim(), kind, effectiveDurationMinutes ? `${effectiveDurationMinutes} minutes` : null].filter(Boolean).join(" · ");
 
-  // Joining
-  const minutesToStart = differenceInMinutes(scheduledDate, now);
-  const canJoin = stage === "confirmed" && minutesToStart <= JOIN_WINDOW_MINUTES;
+  // Joining: a link of the team's own opens two hours before the start, the
+  // built-in room fifteen minutes before (src/lib/candidateInterview.ts).
+  const join = joinPlan({ ...interview, scheduled_at: effectiveScheduledAt, duration_minutes: effectiveDurationMinutes }, now);
+  const canJoin = stage === "confirmed" && join.open;
   const hasBuiltInRoom = interview.meeting_provider === "daily";
   const ownLink = !hasBuiltInRoom && interview.meeting_link ? interview.meeting_link : null;
+  const opensWords = join.opensAt ? interviewWhen(join.opensAt) : "";
+  const handleJoin = () => {
+    if (!canJoin) {
+      // Not open yet: the button still answers, with when it will.
+      setJoinAsked(true);
+      toast.message(`Join opens ${join.leadWords} before your interview`, { description: opensWords ? `That is ${opensWords}. Come back to this page then.` : undefined });
+      return;
+    }
+    if (hasBuiltInRoom) navigate(`/applications/${applicationId}/interview-room`);
+    else if (ownLink) window.open(ownLink, "_blank", "noopener,noreferrer");
+  };
 
   // Changing a confirmed time: swap to another offered time while well out,
   // otherwise ask the team. Compared as instants, never as text: Postgres
@@ -244,7 +279,8 @@ export function CandidateInterviewConfirmationCard({
             key={w.start}
             type="button"
             disabled={disabled}
-            onClick={() => handlePickSlot(w, action)}
+            // One tap only asks: "Book this time?" does the booking.
+            onClick={() => setAsking({ window: w, action })}
             data-interview-slot={w.start}
             className={cn(
               "flex min-h-[64px] items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3 text-left transition-colors",
@@ -260,7 +296,7 @@ export function CandidateInterviewConfirmationCard({
             </span>
             <span className="inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-[var(--jade)]">
               {picking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-              {picking ? "Booking" : "Pick"}
+              {picking ? "Booking" : "Choose"}
             </span>
           </button>
         );
@@ -382,27 +418,23 @@ export function CandidateInterviewConfirmationCard({
               {ownClockNote}
 
               <div className="mt-4 flex flex-wrap items-center gap-2.5">
-                {hasBuiltInRoom && (
-                  <Button onClick={() => navigate(`/applications/${applicationId}/interview-room`)} disabled={!canJoin} className="gap-2">
-                    <Video className="h-4 w-4" />
-                    Join interview
-                  </Button>
-                )}
-                {ownLink && (
-                  <Button asChild disabled={!canJoin} className={cn("gap-2", !canJoin && "pointer-events-none opacity-50")}>
-                    <a
-                      href={canJoin ? ownLink : undefined}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-disabled={!canJoin}
-                      onClick={(e) => {
-                        if (!canJoin) e.preventDefault();
-                      }}
-                    >
-                      <Video className="h-4 w-4" />
-                      Join meeting
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
+                {(hasBuiltInRoom || ownLink) && (
+                  <Button
+                    onClick={handleJoin}
+                    variant={canJoin ? "default" : "outline"}
+                    className="h-auto gap-2.5 py-2.5"
+                    data-interview-join={canJoin ? "open" : "not-yet"}
+                    // Sizes inline: the phone stylesheet's button rule outranks any class.
+                    style={{ minHeight: 52, paddingInline: 20, fontSize: 15 }}
+                  >
+                    <Video className="h-4 w-4 shrink-0" />
+                    <span className="flex flex-col items-start leading-tight">
+                      <span className="font-semibold">{canJoin ? "Join interview now" : "Join interview"}</span>
+                      {!canJoin && opensWords && (
+                        <span className="text-[12px] font-normal text-muted-foreground">Opens {opensWords}</span>
+                      )}
+                    </span>
+                    {canJoin && ownLink && <ExternalLink className="h-3.5 w-3.5 shrink-0" />}
                   </Button>
                 )}
                 <Button
@@ -426,11 +458,15 @@ export function CandidateInterviewConfirmationCard({
                 </Button>
               </div>
 
-              <p className="mt-3 text-sm text-muted-foreground" data-interview-join-note>
+              <p
+                className={cn("mt-3 text-sm", joinAsked && !canJoin ? "font-medium text-foreground" : "text-muted-foreground")}
+                data-interview-join-note
+                aria-live="polite"
+              >
                 {hasBuiltInRoom || ownLink
                   ? canJoin
                     ? "The call is open: join when you are ready."
-                    : `The button to join opens here ${JOIN_WINDOW_MINUTES} minutes before the start. The calendar file carries the link too.`
+                    : `Join opens ${join.leadWords} before the start${opensWords ? `: ${opensWords}` : ""}. Come back to this page then and press Join. The calendar file has the link too.`
                   : kind === "Video call"
                     ? `${team} will send you how to join.`
                     : `${team} will be in touch with the details.`}
@@ -450,6 +486,43 @@ export function CandidateInterviewConfirmationCard({
         employerName={employerName}
         onSuccess={handleSuggested}
       />
+
+      {/* "Are you sure?": nothing is booked on one tap. */}
+      <AlertDialog open={!!asking} onOpenChange={(open) => !open && setAsking(null)}>
+        <AlertDialogContent data-interview-ask={asking?.action ?? ""} style={{ borderTop: "3px solid var(--brass-line)" }}>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display text-xl">
+              {asking?.action === "repick_slot" ? "Move your interview to this time?" : "Book this time?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                <p className="font-display ck-num text-[22px] font-semibold leading-snug text-foreground" data-interview-ask-when>
+                  {asking ? interviewWhen(asking.window.start) : ""}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  On your own clock ({zone}){asking ? ` · ${asking.window.durationMinutes} minutes` : ""}
+                </p>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  {team} is told right away. If something comes up you can change it from this page.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-interview-ask-back>Go back</AlertDialogCancel>
+            <AlertDialogAction
+              data-interview-ask-yes
+              onClick={() => {
+                const chosen = asking;
+                setAsking(null);
+                if (chosen) void handlePickSlot(chosen.window, chosen.action);
+              }}
+            >
+              {asking?.action === "repick_slot" ? "Yes, move it" : "Yes, book it"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Swap to another offered time: no approval needed. */}
       <Dialog open={showRepickSheet} onOpenChange={setShowRepickSheet}>
