@@ -142,16 +142,24 @@ export function lengthWords(minutes: unknown): string {
 
 /**
  * How the applicant joins, in one line for their confirmation email. The
- * link itself is never put in the email: one meeting link serves every
- * interview, and the application page opens it 15 minutes before the start.
+ * link itself is never put in the email (the owner chose that on
+ * 2026-10-07): one meeting link serves every interview. The Join button on
+ * the application page opens two hours before the start for a link of the
+ * team's own, fifteen minutes before for the built-in room. The same two
+ * numbers as the page: JOIN_OPENS_MINUTES_LINK and JOIN_OPENS_MINUTES_ROOM
+ * in src/lib/candidateInterview.ts (scripts/interview_answer.test.mjs fails
+ * if they drift apart).
  */
+export const EMAIL_JOIN_OPENS_MINUTES_LINK = 120;
+export const EMAIL_JOIN_OPENS_MINUTES_ROOM = 15;
 export function joinNoteFor(interview: { meeting_provider?: unknown; meeting_link?: unknown; interview_type?: unknown }): string {
   const type = typeof interview.interview_type === "string" ? interview.interview_type : "video";
   if (type === "phone") return "This is a phone call. The hiring team will be in touch with the details.";
   if (type === "in_person" || type === "in-person" || type === "onsite") return "This is in person. The hiring team will be in touch with the details.";
   const hasRoom = interview.meeting_provider === "daily";
   const hasLink = typeof interview.meeting_link === "string" && interview.meeting_link.trim().length > 0;
-  if (hasRoom || hasLink) return "This is a video call. The button to join is on your application page and opens 15 minutes before the start.";
+  if (hasRoom) return `This is a video call. The Join button is on your application page and opens ${EMAIL_JOIN_OPENS_MINUTES_ROOM} minutes before the start.`;
+  if (hasLink) return `This is a video call. The Join button is on your application page and opens ${EMAIL_JOIN_OPENS_MINUTES_LINK / 60} hours before the start.`;
   return "This is a video call. The hiring team will send you how to join.";
 }
 

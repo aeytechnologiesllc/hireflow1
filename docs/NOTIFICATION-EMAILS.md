@@ -118,8 +118,10 @@ applicant picks an offered time, swaps to another, or confirms a set one
 
 - `interview_confirmed`, to the applicant: the job, the date and the time on
   their own clock with the zone named, the length, and how to join. The
-  meeting link is never in it (one link serves every interview; the
-  application page opens it 15 minutes before the start). The button opens
+  meeting link is never in it (the owner chose that on 2026-10-07: one link
+  serves every interview). It says when the Join button on their application
+  page opens: two hours before the start for a link of the team's own,
+  fifteen minutes before for the built-in room. The button opens
   their own application, and only when the id is an id.
 - `interview_time_picked`, to the job's owner: who, which job, and when on
   the team's clock; it reads as picked, moved or confirmed.

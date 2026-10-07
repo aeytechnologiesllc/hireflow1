@@ -128,7 +128,10 @@ console.log("\nWhen a time becomes agreed: the two emails");
 
   const room = A.joinNoteFor({ meeting_provider: "daily", meeting_link: null, interview_type: "video" });
   const own = A.joinNoteFor({ meeting_provider: null, meeting_link: "https://meet.google.com/abc-defg-hij", interview_type: "video" });
-  check("a video call says where the button is and when it opens", room === "This is a video call. The button to join is on your application page and opens 15 minutes before the start." && own === room);
+  check("a video call on the team's own link: the Join button opens two hours before", own === "This is a video call. The Join button is on your application page and opens 2 hours before the start.", own);
+  check("…in the built-in room: fifteen minutes before, when the room itself opens", room === "This is a video call. The Join button is on your application page and opens 15 minutes before the start.", room);
+  const pageLib = await import(pathToFileURL(path.join(ROOT, "src/lib/candidateInterview.ts")).href);
+  check("the email and the page give the same two numbers", A.EMAIL_JOIN_OPENS_MINUTES_LINK === pageLib.JOIN_OPENS_MINUTES_LINK && A.EMAIL_JOIN_OPENS_MINUTES_ROOM === pageLib.JOIN_OPENS_MINUTES_ROOM);
   check("the meeting link itself is never in the line", !/meet\.google|https?:/.test(own));
   check("a video call with nothing set up yet says the team will send it", A.joinNoteFor({ interview_type: "video" }) === "This is a video call. The hiring team will send you how to join." && A.joinNoteFor({}) === A.joinNoteFor({ interview_type: "video" }));
   check("a phone call and an in-person one say so", /^This is a phone call\./.test(A.joinNoteFor({ interview_type: "phone" })) && /^This is in person\./.test(A.joinNoteFor({ interview_type: "in-person" })) && /^This is in person\./.test(A.joinNoteFor({ interview_type: "in_person" })));
