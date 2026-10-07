@@ -374,6 +374,79 @@ function previewBlockHandlers(tables: FixtureTables, user: FixtureAuthUser): Rec
 }
 
 /**
+ * The interview guide's personal part, offline
+ * (supabase/functions/interview-guide): a made-up answer after a pause,
+ * written to the same table the real function writes, so the guide can be
+ * opened, written, opened again and written again. `?__previewGuide=down`
+ * answers as the function does while the AI service refuses; `lead` marks the
+ * applicants as scored for a team lead job, so the lead plan shows.
+ */
+function previewInterviewGuide(tables: FixtureTables, mode: string | null): (name: string, options?: InvokeOptions) => Promise<InvokeReply> | null {
+  const flags = (mode ?? "").split(",");
+  if (flags.includes("lead")) {
+    for (const application of tables.applications ?? []) {
+      const card = application.ai_scorecard && typeof application.ai_scorecard === "object" ? (application.ai_scorecard as Record<string, unknown>) : {};
+      application.ai_scorecard = { ...card, jobFamily: "team_lead" };
+    }
+  }
+  let written = 0;
+  return (name, options) => {
+    if (name !== "interview-guide") return null;
+    return (async (): Promise<InvokeReply> => {
+      await new Promise((resolve) => setTimeout(resolve, 900));
+      if (flags.includes("down")) {
+        const refused = new Response(JSON.stringify({ error: "ai_unavailable", code: "ai_unavailable" }), { status: 503 });
+        return { data: null, error: Object.assign(new Error("Edge Function returned a non-2xx status code"), { context: refused }) };
+      }
+      const applicationId = String((options?.body as { applicationId?: unknown } | undefined)?.applicationId ?? "");
+      const application = (tables.applications ?? []).find((a) => a.id === applicationId);
+      written += 1;
+      const guide = {
+        version: 1,
+        atAGlance: [
+          "Says more than 4 years in chat support and more than 2 years leading a team of 4 to 8.",
+          "Strongest result: the skills check. Weakest: the chat practice, where one line read as a promise to the player.",
+          written > 1 ? "Written again: nothing else stands out." : "Be careful about money wording.",
+        ],
+        questions: [
+          {
+            question: "In the practice chat you told the player the cash-out would arrive. Talk me through what you knew at that point, and how you would word it now.",
+            why: "The reviewer read one line of the practice chat as a new promise to the player.",
+            listenFor: "They separate what is known from what is not, give only the real next step, and promise no date or amount.",
+            redFlag: "They repeat that the money will arrive, or defend the wording.",
+            source: "chat_practice",
+            quote: "Rest assured your cash-out will reflect on your end.",
+          },
+          {
+            question: "Tell me about one week when you led that team of eight. What did you personally do each day?",
+            why: "The application gives the size of the team but no example of leading it day to day.",
+            listenFor: "A real week: who reported to them, what they checked, one thing they fixed.",
+            redFlag: "Only titles and duties, with nothing they did themselves.",
+            source: "application",
+            quote: null,
+          },
+          {
+            question: "The written interview ended before the last topics. Which days can you reliably cover, and how much notice do you need to cover for a teammate?",
+            why: "They ended the written interview before it reached the hours they can cover.",
+            listenFor: "Specific days, a clear limit, and how they would say no early.",
+            redFlag: "Vague availability, or days that do not fit the fixed shift.",
+            source: "written_interview",
+            quote: null,
+          },
+        ],
+        confirm: ["Confirm they can start within a week.", "Confirm they can work the fixed shift five days a week."],
+      };
+      const row = { application_id: applicationId, job_id: application?.job_id ?? null, guide, generated_at: new Date().toISOString() };
+      const list = (tables.interview_guides ??= []);
+      const at = list.findIndex((r) => r.application_id === applicationId);
+      if (at >= 0) list[at] = row;
+      else list.push(row);
+      return { data: { guide, generatedAt: row.generated_at, saved: true }, error: null };
+    })();
+  };
+}
+
+/**
  * The team's shortlist, offline (supabase/migrations/*_shortlisted_applications.sql):
  * the same rows the real function writes, so the bookmark, the Shortlist tab,
  * the bulk bar and the profile's button can be clicked through. Nothing here
@@ -466,6 +539,7 @@ export function install(params: URLSearchParams): void {
   // inline picture, so the record's file previews can be looked at.
   const connectionTest = previewConnectionTest(tables);
   const continueLinkEmail = previewContinueLinkEmail(ROLE_USERS[role], params.get("__previewEmail"));
+  const interviewGuide = previewInterviewGuide(tables, params.get("__previewGuide"));
   const client = {
     ...base,
     ...realtime,
@@ -489,6 +563,8 @@ export function install(params: URLSearchParams): void {
         if (emailed) return emailed;
         const generated = previewJobGeneration(name, options);
         if (generated) return generated;
+        const guide = interviewGuide(name, options);
+        if (guide) return guide;
         return base.functions.invoke(name, options);
       },
     },

@@ -5,6 +5,7 @@ import { AlertCircle, CalendarPlus, HelpCircle, ShieldCheck, Video, type LucideI
 import { toast } from "sonner";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { EmployerRescheduleReviewDialog } from "@/components/EmployerRescheduleReviewDialog";
+import { InterviewGuideDialog } from "../components/InterviewGuideDialog";
 import { useInterviews, useUpdateInterview, type InterviewWithDetails } from "@/hooks/useInterviews";
 import { supabase } from "@/integrations/supabase/client";
 import { notifyInterviewCancelled } from "@/utils/emailNotifications";
@@ -195,6 +196,8 @@ export default function CockpitInterviews() {
   const { account } = useCockpitAccount();
   const [reviewing, setReviewing] = useState<Session | null>(null);
   const [cancelling, setCancelling] = useState<Session | null>(null);
+  // What to ask them: the guide for one row's applicant (InterviewGuideDialog).
+  const [guideFor, setGuideFor] = useState<Session | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [markingId, setMarkingId] = useState<string | null>(null);
   const updateInterview = useUpdateInterview();
@@ -677,6 +680,11 @@ export default function CockpitInterviews() {
                       <button className="ck-btn ck-btn-outline !py-2 !text-[12px]" onClick={() => openRecord(s)}>
                         Details
                       </button>
+                      {s.applicationId && (
+                        <button className="ck-btn ck-btn-outline !py-2 !text-[12px]" onClick={() => setGuideFor(s)} data-interview-guide-open>
+                          Interview guide
+                        </button>
+                      )}
                       {confirm && (
                         <button className="ck-btn ck-btn-primary !py-2 !text-[12px]" onClick={() => setReviewing(s)}>
                           Review times
@@ -939,6 +947,14 @@ export default function CockpitInterviews() {
           </div>
         </>
       )}
+
+      <InterviewGuideDialog
+        open={!!guideFor}
+        applicationId={guideFor?.applicationId ?? null}
+        applicantName={guideFor?.name ?? ""}
+        jobTitle={guideFor?.role ?? null}
+        onClose={() => setGuideFor(null)}
+      />
 
       {/* The candidate proposed other times; this is where you take the call. */}
       {reviewing && (

@@ -73,9 +73,77 @@ carries (docs/NOTIFICATION-EMAILS.md).
   `google-calendar` function needs `GOOGLE_CLIENT_ID` and
   `GOOGLE_CLIENT_SECRET`, which are not set.
 
+## The interview guide
+
+"Interview guide" on an applicant's profile, and on each row of the
+Interviews page, opens one page to read before and during the call
+(`src/cockpit/components/InterviewGuideDialog.tsx`). The owner asked for it on
+2026-10-07: "make a system inside that could generate important
+questionnaires for the interview ... maybe I just start with why should we
+hire you ... I'm more concerned about the thing is constant change, this
+whole app, AI, there's a lot of bugs ... team leadership."
+
+It has two parts.
+
+**The plan, the same for every applicant** (`src/lib/interviewGuide.ts`,
+written by hand, nothing stored, no AI): how the half hour runs, the opening
+question ("Why should we hire you for this role?"), five questions everyone
+gets, two to close, five things to mark from 1 to 5 straight after, and one
+question to answer for yourself. Everyone gets the same ones so the answers
+can be compared. A team lead job (the scorer's own `inferJobFamily`) gets
+questions built on the owner's concerns: the team they led, working the chats
+while leading six people, tools and rules that change or break mid-shift, an
+agent's wrong promise about money, and an agent who is struggling. Any other
+job gets a general set. Every question says what to listen for and what is a
+red flag. Nothing is folded away: the page is read during a call.
+
+**The personal part, written for one applicant** by the `interview-guide`
+edge function, with one button: a few lines on who they are on paper, three
+or four questions only this person should be asked, and facts to confirm.
+
+- It is written from the applicant's own record, which the function reads
+  itself. The request names an application and nothing else.
+- Who may ask: the job's owner or an active team member scoped to the job,
+  by the same functions the applications RLS uses. Not found and not allowed
+  read the same (404).
+- What the writer is given: the tests' figures, the reviewers' plain notes
+  and the applicant's own words (their form, the line a reviewer flagged in
+  the practice chat, their written interview), fenced as data. What it is
+  NOT given, on purpose: the written-interview grader's verdict, credibility
+  rating and list of "inconsistencies" (on the first live days it called 41
+  of 43 applicants "No Hire", often for picking the form's top choice), and
+  anything about latency (the 200 ms bar fails nearly everyone in the
+  Philippines for distance alone). It is told how the form's choices work,
+  that second-language mistakes are normal, that a "new promise" flag is one
+  reading of one line, and never to accuse.
+- A quote is shown as the applicant's words only when it really is in their
+  own writing (`personalGuideFrom`). The answer is cut to known keys and
+  plain, bounded lines before it is stored or shown (`readPersonalGuide`).
+- It is kept in `public.interview_guides`, one row per application, written
+  by the function with the service role. **Only the job's hiring team can
+  read that table.** It is not in `applications.notes` because an applicant
+  can read their own application: they must never see what they will be
+  asked or what the interviewer is listening for.
+- When the AI service refuses, the function answers the shared 503 and
+  stores nothing; the plan is still on the page.
+
+"Copy all" gives the whole guide as plain text, numbered in the order it is
+asked. Marks are not stored: they are for the owner's own notes.
+
+The old "Interview Questions" dialog (generic, sales-flavoured, tied to a
+scheduled interview, and opened by no screen) was removed.
+
 ## Proof
 
-`scripts/interview_times.test.mjs`: the Eastern-to-Manila case, no zone on
+The guide: `scripts/interview_guide.test.mjs` (the plan, the reader, what the
+writer is and is not given, the request, the reading of the answer, the
+function's access rule, the wiring) and
+`scripts/interview_guides.pglite.test.mjs` (against a real Postgres: the
+applicant cannot read their own guide, nobody writes the table from a client).
+Before it shipped, a private trial copy of the function wrote guides for
+three real applicants; every quote it offered checked out as their own words.
+
+Times: `scripts/interview_times.test.mjs`: the Eastern-to-Manila case, no zone on
 file, daylight saving, half-hour zones, where the zone is read from, and the
 wiring of all four email paths and of the owner's own link. A walk-through in
 the dev preview (an owner on US Eastern, an applicant whose check recorded

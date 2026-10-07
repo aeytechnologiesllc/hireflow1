@@ -125,3 +125,9 @@ verify_jwt = false
 # (notes.fileUploads, resume_url). The function also checks the caller is the
 # job's owner or an active team member scoped to the job.
 verify_jwt = true
+
+[functions.interview-guide]
+# Staff only: writes the personal part of an applicant's interview guide from
+# their own record (docs/INTERVIEWS.md). The function also checks the caller
+# is the job's owner or an active team member scoped to the job.
+verify_jwt = true

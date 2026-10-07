@@ -1032,6 +1032,61 @@ export type Database = {
           },
         ]
       }
+      interview_guides: {
+        Row: {
+          application_id: string
+          fingerprint: string | null
+          generated_at: string
+          generated_by: string | null
+          guide: Json
+          job_id: string
+          model: string | null
+          prompt_version: string | null
+        }
+        Insert: {
+          application_id: string
+          fingerprint?: string | null
+          generated_at?: string
+          generated_by?: string | null
+          guide: Json
+          job_id: string
+          model?: string | null
+          prompt_version?: string | null
+        }
+        Update: {
+          application_id?: string
+          fingerprint?: string | null
+          generated_at?: string
+          generated_by?: string | null
+          guide?: Json
+          job_id?: string
+          model?: string | null
+          prompt_version?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_guides_application_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_guides_job_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_guides_job_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "published_jobs_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       interviews: {
         Row: {
           ai_feedback: string | null

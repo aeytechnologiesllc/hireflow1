@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import AvaSeal from "@/components/ava/AvaSeal";
 import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
+import { InterviewGuideDialog } from "../components/InterviewGuideDialog";
 import { CandidateMark } from "../components/CandidateMark";
 import { CockpitErrorCard } from "../components/ErrorCard";
 import { HiringDocumentPromptDialog } from "@/components/HiringDocumentPromptDialog";
@@ -450,6 +451,7 @@ function CandidateProfile({
   const [hirePrompt, setHirePrompt] = useState(false);
   const [resumeOpen, setResumeOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   // The guided moment after a move to Interview — "want to propose times now?"
   const [interviewMoment, setInterviewMoment] = useState(false);
   // A brief pulse on "Set up interview" after "Later" — the visible hint for
@@ -786,11 +788,14 @@ function CandidateProfile({
       ? { key: "continue", text: "Let them take the next test", variant: "outline", onClick: () => setDialog("continue"), disabled: isUpdating }
       : null;
     const passAction: BarAction = { key: "pass", text: "Pass", cardText: `Pass on ${first}`, variant: "outline", onClick: () => setDialog("reject"), disabled: isUpdating };
-    actions = [...(continueAction ? [continueAction] : []), lead, passAction, ...(other ? [other] : []), messageAction];
+    // What to ask them when you talk: the questions everyone gets, and the
+    // ones written for this applicant (InterviewGuideDialog).
+    const guideAction: BarAction = { key: "guide", text: "Interview guide", variant: "outline", onClick: () => setGuideOpen(true) };
+    actions = [...(continueAction ? [continueAction] : []), lead, passAction, ...(other ? [other] : []), messageAction, guideAction];
     cardActions = {
       primary: lead,
       pair: [...(other ? [other] : []), messageAction],
-      extra: continueAction ? [continueAction] : [],
+      extra: [...(continueAction ? [continueAction] : []), guideAction],
       quiet: passAction,
     };
   }
@@ -908,6 +913,14 @@ function CandidateProfile({
             jobTitle={c.role}
           />
         )}
+
+        <InterviewGuideDialog
+          open={guideOpen}
+          applicationId={c.id}
+          applicantName={c.name}
+          jobTitle={c.role}
+          onClose={() => setGuideOpen(false)}
+        />
 
         <AssessmentRecordSheet
           open={!!openEntry}
