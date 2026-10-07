@@ -46,7 +46,8 @@ type NotificationType =
   | "reschedule_requested"
   | "voice_minutes_low"
   | "voice_minutes_exhausted"
-  | "interview_ready";
+  | "interview_ready"
+  | "steps_reopened";
 
 /** Emails that go to the hiring team; everything else goes to a candidate
  *  (new_message goes either way and is decided by the recipient's role). */
@@ -98,6 +99,8 @@ interface NotificationRequest {
     sender_id?: string;
     /** new_message: skips the role lookup when the caller already knows. */
     recipient_role?: RecipientRole;
+    /** steps_reopened: the steps to redo, in words ("the chat practice and the interview"). */
+    retake_steps?: string;
   };
 }
 
@@ -410,6 +413,28 @@ const getEmailContent = (
       ),
     },
     
+    // CANDIDATE-FACING — a step the hiring team handed back because something
+    // on OUR side broke while they were taking it (2026-10-07: the AI service
+    // stopped answering mid-chat). Says it was our fault, that the rest is
+    // saved, and where to go. Never names the machine behind it.
+    steps_reopened: (() => {
+      const steps = data.retake_steps?.trim() || "one part of your application";
+      const plural = /\band\b/.test(steps);
+      const firstName = data.candidate_name?.trim().split(/\s+/)[0] || "";
+      return {
+        // "Zulu Support Team" -> "your Zulu application".
+        subject: `Please redo ${plural ? "part" : "one part"} of your ${data.company_name?.trim() ? `${data.company_name.trim().split(/\s+/)[0]} ` : ""}application`,
+        html: wrapEmail(
+          plural ? "Please redo part of your application" : "Please redo one part of your application",
+          `<p>Hi${firstName ? ` ${esc(firstName)}` : ""}, thanks for applying for <strong>${esc(data.job_title)}</strong>.</p>
+           <p>While you were doing ${esc(steps)}, we had a technical problem on our side and it stopped responding. That was our fault, not yours.</p>
+           <p>Everything else you did is saved. Please open <strong>hireflownow.com/applications</strong> on your computer to redo ${plural ? "those parts" : "that part"}.</p>`,
+          "Continue my application",
+          candidateLink("/applications")
+        ),
+      };
+    })(),
+
     // EMPLOYER-FACING - Interview Ready
     interview_ready: {
       subject: `Ready for Interview: ${data.candidate_name} scored ${data.score}% for ${data.job_title}`,
@@ -447,6 +472,7 @@ const getPreferenceField = (type: NotificationType): string => {
     voice_minutes_low: "email_voice_minutes",
     voice_minutes_exhausted: "email_voice_minutes",
     interview_ready: "email_new_applications", // Uses new_applications pref since it's about new candidates
+    steps_reopened: "email_phase_updates",
   };
   return mapping[type];
 };
