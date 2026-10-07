@@ -403,6 +403,35 @@ function previewShortlistHandlers(tables: FixtureTables, user: FixtureAuthUser):
   };
 }
 
+/**
+ * "Email me the link" on the Continue on your computer screen, offline
+ * (supabase/functions/send-notification-email, type continue_on_computer):
+ * no email is ever sent from the preview. It answers as the function would,
+ * so the button's four outcomes can be looked at: sent (the default), and
+ * with `?__previewEmail=wait | off | fail`, "one went a moment ago", "emails
+ * are off for this account" and a failure. The second press in one page load
+ * is always "a moment ago", as the server's own limit would make it.
+ */
+function previewContinueLinkEmail(user: FixtureAuthUser, mode: string | null): (name: string, options?: InvokeOptions) => InvokeReply | null {
+  let sent = 0;
+  const refusal = (status: number, body: Record<string, unknown>): InvokeReply => ({
+    data: null,
+    error: Object.assign(new Error("Edge Function returned a non-2xx status code"), {
+      name: "FunctionsHttpError",
+      context: new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }),
+    }),
+  });
+  return (name, options) => {
+    const body = (options?.body ?? {}) as { type?: unknown };
+    if (name !== "send-notification-email" || body.type !== "continue_on_computer") return null;
+    if (mode === "fail") return refusal(500, { error: "preview" });
+    if (mode === "off") return { data: { message: "Email notifications disabled" }, error: null };
+    if (mode === "wait" || sent > 0) return refusal(429, { error: "We sent it a moment ago.", code: "too_soon", retryAfter: 120 });
+    sent += 1;
+    return { data: { success: true, recipient: user.email }, error: null };
+  };
+}
+
 function isPreviewRole(value: string | null): value is PreviewRole {
   return !!value && Object.prototype.hasOwnProperty.call(ROLE_USERS, value);
 }
@@ -436,6 +465,7 @@ export function install(params: URLSearchParams): void {
   // edge function (a short-lived signed link). Offline, it answers with an
   // inline picture, so the record's file previews can be looked at.
   const connectionTest = previewConnectionTest(tables);
+  const continueLinkEmail = previewContinueLinkEmail(ROLE_USERS[role], params.get("__previewEmail"));
   const client = {
     ...base,
     ...realtime,
@@ -449,6 +479,8 @@ export function install(params: URLSearchParams): void {
         if (name === "connection-test" || name.startsWith("connection-test?")) {
           return connectionTest(name, options);
         }
+        const emailed = continueLinkEmail(name, options);
+        if (emailed) return emailed;
         const generated = previewJobGeneration(name, options);
         if (generated) return generated;
         return base.functions.invoke(name, options);

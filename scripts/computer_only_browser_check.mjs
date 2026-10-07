@@ -13,6 +13,7 @@
  *     (the check and every step after it) each show ONLY "Continue on your
  *     computer", and the step page's own module is never even loaded, so
  *     none of its hooks ran (no attempt opened, no integrity event, no timer);
+ *     "Email me the link" on it says where it went and starts nothing either;
  *   - the same as an iPad asking for the desktop site (a Mac user agent with
  *     touch, 1180×820);
  *   - at 1280×900 on a desktop browser, every one of those steps renders
@@ -269,7 +270,7 @@ async function run() {
         JSON.stringify({ seen, h1s: shown.h1s, pageText }),
       );
       check(`${step.name}: the step page was never loaded, so none of its hooks ran`, !modules.includes(step.module), modules.join(","));
-      check(`${step.name}: nothing on it starts anything (only Copy link and Back)`, shown.buttons.every((b) => /Copy link|Back to your application|^$/.test(b)), shown.buttons.join(" | "));
+      check(`${step.name}: nothing on it starts anything (only Email me the link, Copy link and Back)`, shown.buttons.every((b) => /Email me the link|Copy link|Back to your application|^$/.test(b)), shown.buttons.join(" | "));
       check(`${step.name}: no sideways scroll, no page error`, !shown.overflow && errors.length === 0, errors.join(" | "));
       await page.close();
     }
@@ -282,6 +283,19 @@ async function run() {
       const copied = await page.evaluate(() => navigator.clipboard.readText()).catch(() => "");
       check("Copy link copies this step's own address", copied === `${BASE}${GATED_STEPS[1].path}`, copied);
       check("…and says so", (await page.getByRole("button", { name: "Link copied" }).count()) === 1);
+      await page.close();
+    }
+    {
+      // "Email me the link" (2026-10-07): the preview answers as the function
+      // would and sends nothing. It says where it went, rests, and the screen
+      // stays the screen: the step page is still never loaded.
+      const { page, modules } = await openStep(phone, GATED_STEPS[3]);
+      await page.getByRole("button", { name: "Email me the link" }).click();
+      await page.getByRole("button", { name: "Email sent" }).waitFor({ timeout: 5_000 }).catch(() => {});
+      const line = (await page.locator('[data-testid="continue-link-status"]').textContent())?.trim() ?? "";
+      check("Email me the link says where it went", /^Sent to \S+@\S+\. Open it on your computer\.$/.test(line), line);
+      check("…rests after one, and Copy link is still there", (await page.getByRole("button", { name: "Email sent" }).isDisabled()) && (await page.getByRole("button", { name: "Copy link" }).count()) === 1);
+      check("…and it started nothing: still only the screen, the step page never loaded", (await page.locator(GATE).count()) === 1 && !modules.includes(GATED_STEPS[3].module), modules.join(","));
       await page.close();
     }
     await phone.close();

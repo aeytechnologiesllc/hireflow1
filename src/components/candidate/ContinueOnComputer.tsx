@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Check, Copy, Monitor } from "lucide-react";
+import { ArrowLeft, Check, Copy, Mail, Monitor } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,6 +9,16 @@ import { GlyphCheckSeal } from "@/components/candidate/glyphs";
 import { candidateOrigin } from "@/lib/hosts";
 import { stepRoute } from "@/lib/journeyProgress";
 import { markWaitingOnComputer } from "@/lib/waitingOnComputer";
+import {
+  EMAIL_LINK_LABEL,
+  EMAIL_LINK_SENDING_LABEL,
+  EMAIL_LINK_SENT_LABEL,
+  continueLinkEmailWords,
+  continueLinkHint,
+  continueLinkRestSeconds,
+  type ContinueLinkEmailOutcome,
+} from "@/lib/continueLinkEmail";
+import { sendContinueLinkEmail } from "@/lib/sendContinueLinkEmail";
 
 export interface ContinueOnComputerProps {
   applicationId: string;
@@ -75,6 +85,16 @@ async function copyText(text: string): Promise<boolean> {
  * this step's own address to copy. Candidate copy: never names any
  * machinery.
  *
+ * "Email me the link" (2026-10-07; the owner: "make it a little bit easy if
+ * there is a way"): one press sends the link to the address they are signed
+ * in with, so it is waiting in their inbox when they sit down at the
+ * computer. The page sends only the application's id; who it goes to, how
+ * often, and every word of it are the server's (the one call is
+ * src/lib/sendContinueLinkEmail.ts; docs/COMPUTER-ONLY-TESTS.md, "Email me
+ * the link"). Like everything else here it starts no test and no timer,
+ * opens no attempt and records no integrity event. Copy link stays, for a
+ * message to themself instead.
+ *
  * Where to go is `<site>/applications`, the one address that is true for
  * every applicant: signed out, it asks them to sign in and comes back; on a
  * computer, the applications page opens the one step waiting for a computer
@@ -89,9 +109,21 @@ export function ContinueOnComputer({ applicationId, step, index, total, jobTitle
   const { user } = useAuth();
   const [copied, setCopied] = useState<"yes" | "failed" | null>(null);
   const resetRef = useRef<number | null>(null);
+  // "Email me the link": being sent, what came of it, and the button resting
+  // after one went (the server allows one every few minutes).
+  const [emailing, setEmailing] = useState(false);
+  const [emailOutcome, setEmailOutcome] = useState<ContinueLinkEmailOutcome | null>(null);
+  const [emailResting, setEmailResting] = useState(false);
+  const restRef = useRef<number | null>(null);
+  const aliveRef = useRef(true);
 
-  useEffect(() => () => {
-    if (resetRef.current !== null) window.clearTimeout(resetRef.current);
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+      if (resetRef.current !== null) window.clearTimeout(resetRef.current);
+      if (restRef.current !== null) window.clearTimeout(restRef.current);
+    };
   }, []);
 
   const origin = candidateOrigin();
@@ -115,6 +147,45 @@ export function ContinueOnComputer({ applicationId, step, index, total, jobTitle
     if (resetRef.current !== null) window.clearTimeout(resetRef.current);
     resetRef.current = window.setTimeout(() => setCopied(null), 4000);
   };
+
+  // One press, one email, to the address they are signed in with. The button
+  // rests afterwards for as long as the server would refuse another.
+  const emailLink = async () => {
+    if (emailing || emailResting) return;
+    if (resetRef.current !== null) window.clearTimeout(resetRef.current);
+    setCopied(null);
+    setEmailing(true);
+    const outcome = await sendContinueLinkEmail(applicationId);
+    if (!aliveRef.current) return;
+    setEmailing(false);
+    setEmailOutcome(outcome);
+    const rest = continueLinkRestSeconds(outcome);
+    if (rest > 0) {
+      setEmailResting(true);
+      if (restRef.current !== null) window.clearTimeout(restRef.current);
+      restRef.current = window.setTimeout(() => setEmailResting(false), rest * 1000);
+    }
+  };
+  const emailSent = emailResting && emailOutcome?.kind === "sent";
+
+  // One line under the buttons: what the last press did, or what they do.
+  let status: ReactNode;
+  if (copied === "failed") {
+    status = (
+      <>
+        Couldn't copy it here. This step's link is{" "}
+        <span className="select-all break-all font-mono text-[0.7rem] text-foreground/80">{stepLink}</span>
+      </>
+    );
+  } else if (copied === "yes") {
+    status = "Copied. Send it to yourself in an email or a message, then open it on your computer.";
+  } else if (emailing && email) {
+    status = `Sending it to ${email}…`;
+  } else if (emailOutcome) {
+    status = continueLinkEmailWords(emailOutcome, email);
+  } else {
+    status = email ? continueLinkHint(email) : "Copies this step's link, to send to yourself in an email or a message.";
+  }
 
   return (
     <div className="ck-page mx-auto max-w-3xl space-y-6" data-testid="continue-on-computer">
@@ -212,12 +283,22 @@ export function ContinueOnComputer({ applicationId, step, index, total, jobTitle
           </div>
 
           <div className="space-y-3 border-t border-border pt-5">
-            {/* Copy first in reading order; on a wide screen it sits on the right. */}
+            {/* The two ways to take the link away first in reading order (the
+                email, then the copy); on a wide screen they sit on the right.
+                Without an address to send to, Copy link is the one action. */}
             <div className="flex flex-col gap-3 sm:flex-row-reverse sm:items-center sm:justify-between">
-              <Button onClick={copyLink} size="lg" className="w-full gap-2 sm:w-auto">
-                {copied === "yes" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                {copied === "yes" ? "Link copied" : "Copy link"}
-              </Button>
+              <div className="flex flex-col gap-3 sm:flex-row-reverse sm:items-center">
+                {email && (
+                  <Button onClick={emailLink} size="lg" disabled={emailing || emailResting} className="w-full gap-2 sm:w-auto" data-testid="email-me-the-link">
+                    {emailSent ? <Check className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
+                    {emailing ? EMAIL_LINK_SENDING_LABEL : emailSent ? EMAIL_LINK_SENT_LABEL : EMAIL_LINK_LABEL}
+                  </Button>
+                )}
+                <Button onClick={copyLink} size="lg" variant={email ? "outline" : "default"} className="w-full gap-2 sm:w-auto">
+                  {copied === "yes" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  {copied === "yes" ? "Link copied" : "Copy link"}
+                </Button>
+              </div>
               <Button
                 variant="outline"
                 onClick={() => navigate(`/applications/${applicationId}`)}
@@ -227,17 +308,8 @@ export function ContinueOnComputer({ applicationId, step, index, total, jobTitle
                 Back to your application
               </Button>
             </div>
-            <p className="text-xs leading-relaxed text-muted-foreground sm:text-right" aria-live="polite">
-              {copied === "failed" ? (
-                <>
-                  Couldn't copy it here. This step's link is{" "}
-                  <span className="select-all break-all font-mono text-[0.7rem] text-foreground/80">{stepLink}</span>
-                </>
-              ) : copied === "yes" ? (
-                "Copied. Send it to yourself in an email or a message, then open it on your computer."
-              ) : (
-                "Copies this step's link, to send to yourself in an email or a message."
-              )}
+            <p className="text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere] sm:text-right" aria-live="polite" data-testid="continue-link-status">
+              {status}
             </p>
           </div>
         </CardContent>

@@ -389,6 +389,21 @@ console.log("\nThe wiring — read from the source:\n");
       /\.rpc\("mark_waiting_on_computer"/.test(waitingLib) &&
       !/functions\.invoke|fetch\(|start_assessment_session|open_assessment_session|record_integrity_events|useTestIntegrity/.test(waitingLib),
   );
+  // And one thing it can ask for, only on a press: "Email me the link"
+  // (2026-10-07), through src/lib/sendContinueLinkEmail.ts, which makes
+  // exactly one call, to the email function. It is never made on its own
+  // (no effect calls it), and it opens no attempt either.
+  const emailLib = await read("src/lib/sendContinueLinkEmail.ts");
+  check(
+    "…and, only when 'Email me the link' is pressed, one email: no attempt, no integrity hook, never sent on its own",
+    /<Button onClick=\{emailLink\}/.test(screen) &&
+      (screen.match(/sendContinueLinkEmail\(/g) ?? []).length === 1 &&
+      /const emailLink = async \(\) => \{[\s\S]*?await sendContinueLinkEmail\(applicationId\);/.test(screen) &&
+      !/useEffect\([^)]*emailLink|useEffect\(\(\) => \{[^}]*sendContinueLinkEmail/.test(screen) &&
+      (emailLib.match(/functions\.invoke\(/g) ?? []).length === 1 &&
+      /functions\.invoke\("send-notification-email"/.test(emailLib) &&
+      !/\.rpc\(|fetch\(|\.from\(|start_assessment_session|open_assessment_session|record_integrity_events|useTestIntegrity/.test(emailLib),
+  );
 
   const conn = await read("src/pages/ConnectionCheckPhase.tsx");
   const phoneBranch = /\{looksLikePhone \? \(([\s\S]*?)\) : saidNo \? \(/.exec(conn)?.[1] ?? "";

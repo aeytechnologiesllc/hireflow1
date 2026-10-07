@@ -1,7 +1,13 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// Pinned (2026-10-07). "@2" follows the newest release, and at 12:34 UTC today
+// 2.117.3 came out with a part esm.sh could not serve, so this function would
+// not bundle and could not be deployed at all. 2.117.2 is the release this
+// function was already running on in production (what "@2" meant until then).
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { declineNoteLines } from "../_shared/declineNote.ts";
+import { CONTINUE_ON_COMPUTER_TYPE, continueOnComputerEmail, decideContinueLinkEmail } from "../_shared/continueOnComputerEmail.ts";
+import { checkRateLimit } from "../_shared/rateLimit.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
@@ -48,7 +54,8 @@ type NotificationType =
   | "voice_minutes_low"
   | "voice_minutes_exhausted"
   | "interview_ready"
-  | "steps_reopened";
+  | "steps_reopened"
+  | "continue_on_computer";
 
 /** Emails that go to the hiring team; everything else goes to a candidate
  *  (new_message goes either way and is decided by the recipient's role). */
@@ -74,6 +81,7 @@ const isCandidateEmail = (type: NotificationType, recipientRole: RecipientRole) 
 
 interface NotificationRequest {
   type: NotificationType;
+  /** Not read for continue_on_computer: that one goes to whoever is signed in. */
   recipient_user_id: string;
   data: {
     candidate_name?: string;
@@ -102,6 +110,9 @@ interface NotificationRequest {
     recipient_role?: RecipientRole;
     /** steps_reopened: the steps to redo, in words ("the chat practice and the interview"). */
     retake_steps?: string;
+    /** continue_on_computer: the applicant's own application. The ONLY field
+     *  that type reads from a request; everything it says is looked up. */
+    application_id?: string;
   };
 }
 
@@ -437,6 +448,28 @@ const getEmailContent = (
       };
     })(),
 
+    // CANDIDATE-FACING — "Email me the link" on the Continue on your computer
+    // screen: the one email an applicant asks for themself. The handler has
+    // already replaced `data` with what it looked up (the name, the job, the
+    // team), so nothing here came from the page. Words:
+    // _shared/continueOnComputerEmail.ts.
+    continue_on_computer: (() => {
+      const words = continueOnComputerEmail({
+        firstName: data.candidate_name,
+        jobTitle: data.job_title,
+        siteHost: baseUrl.replace(/^https?:\/\//, ""),
+      });
+      return {
+        subject: words.subject,
+        html: wrapEmail(
+          esc(words.title),
+          words.lines.map((line) => `<p>${esc(line)}</p>`).join("\n           "),
+          esc(words.button),
+          candidateLink("/applications")
+        ),
+      };
+    })(),
+
     // EMPLOYER-FACING - Interview Ready
     interview_ready: {
       subject: `Ready for Interview: ${data.candidate_name} scored ${data.score}% for ${data.job_title}`,
@@ -475,6 +508,7 @@ const getPreferenceField = (type: NotificationType): string => {
     voice_minutes_exhausted: "email_voice_minutes",
     interview_ready: "email_new_applications", // Uses new_applications pref since it's about new candidates
     steps_reopened: "email_phase_updates",
+    continue_on_computer: "email_phase_updates",
   };
   return mapping[type];
 };
@@ -497,7 +531,58 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { type, recipient_user_id, data }: NotificationRequest = await req.json();
+    const request: NotificationRequest = await req.json();
+    const type = request.type;
+    let recipient_user_id = request.recipient_user_id;
+    let data = request.data;
+
+    // "Email me the link" (Continue on your computer): the applicant presses
+    // it themself, so this one type trusts nothing the page sent but the
+    // application's id. It goes to whoever is signed in, for an application
+    // that is theirs and open, at most once every few minutes; the job and
+    // the team are looked up. A refusal answers here and nothing is sent.
+    if (type === CONTINUE_ON_COMPUTER_TYPE) {
+      const decision = await decideContinueLinkEmail(data, {
+        callerId: async () => {
+          const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+          if (!token) return null;
+          const { data: auth, error } = await supabase.auth.getUser(token);
+          return error ? null : auth?.user?.id ?? null;
+        },
+        application: async (applicationId) => {
+          const { data: row } = await supabase
+            .from("applications")
+            .select("id, candidate_id, status, jobs(title, employer_id)")
+            .eq("id", applicationId)
+            .maybeSingle();
+          if (!row) return null;
+          const job = (Array.isArray(row.jobs) ? row.jobs[0] : row.jobs) as { title?: string | null; employer_id?: string | null } | null;
+          return { id: row.id, candidate_id: row.candidate_id, status: row.status, job_title: job?.title ?? null, employer_id: job?.employer_id ?? null };
+        },
+        fullName: async (userId) => {
+          const { data: me } = await supabase.from("profiles").select("full_name").eq("user_id", userId).maybeSingle();
+          return me?.full_name ?? null;
+        },
+        companyName: async (employerId) => {
+          const { data: team } = await supabase.from("profiles").select("company_name").eq("user_id", employerId).maybeSingle();
+          return team?.company_name ?? null;
+        },
+        checkLimit: checkRateLimit,
+      });
+      if (!decision.ok) {
+        const { refusal } = decision;
+        console.log(`[send-notification-email] continue_on_computer refused: ${refusal.code}`);
+        return new Response(
+          JSON.stringify({ error: refusal.message, code: refusal.code, ...(refusal.retryAfter ? { retryAfter: refusal.retryAfter } : {}) }),
+          {
+            status: refusal.status,
+            headers: { "Content-Type": "application/json", ...corsHeaders, ...(refusal.retryAfter ? { "Retry-After": String(refusal.retryAfter) } : {}) },
+          },
+        );
+      }
+      recipient_user_id = decision.recipientUserId;
+      data = decision.data;
+    }
 
     // Only new_message reads differently per side; look the role up once, and
     // only when the caller did not say. Default to the candidate copy, which is
@@ -568,6 +653,19 @@ const handler = async (req: Request): Promise<Response> => {
       subject: emailContent.subject,
       html: emailContent.html,
     });
+
+    // The mail client does not throw when the provider refuses a message (a
+    // spent quota, an address it will not take, its own outage): it answers
+    // { data: null, error }. That is not a sent email, and must never be
+    // reported as one: "Email me the link" tells an applicant "Sent to …" on
+    // this answer, and every other caller's "sent" means the same.
+    if (emailResponse?.error) {
+      console.error(`[send-notification-email] The provider refused ${type} for ${profile.email}:`, JSON.stringify(emailResponse.error));
+      return new Response(
+        JSON.stringify({ success: false, error: "The email provider refused the message", provider_error: emailResponse.error }),
+        { status: 502, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
     console.log(`[send-notification-email] Email sent successfully to ${profile.email}:`, JSON.stringify(emailResponse));
 
