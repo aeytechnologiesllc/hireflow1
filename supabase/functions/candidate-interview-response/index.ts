@@ -1,29 +1,56 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
+import {
+  cleanNote,
+  cleanSuggestedTimes,
+  clockForTeam,
+  noTimeAgreedYet,
+  sayTimeForTeam,
+  suggestionToStore,
+  teamNoticeFor,
+} from "../_shared/interviewAnswer.ts";
+
+/**
+ * An applicant's answer about an interview with the hiring team: confirm the
+ * time that was set, pick one of the times offered, swap to another offered
+ * time, or suggest times of their own (docs/INTERVIEWS.md, "What the
+ * applicant sees"). The applicant's browser may only read the interviews
+ * table; every answer is written here, after checking it is theirs.
+ *
+ * What the team is told states the time on the team's own clock when the
+ * wizard recorded it (employer_windows[].zone), otherwise on the applicant's
+ * clock and says so. Never a bare time: until 2026-10-07 it was the server's
+ * clock (UTC) with no zone, four hours off for the owner.
+ */
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface ConfirmPayload {
+/** The applicant's own time zone, as their browser names it. Only ever used to word a time. */
+interface WithZone {
+  timeZone?: string;
+}
+
+interface ConfirmPayload extends WithZone {
   action: "confirm";
   interviewId: string;
 }
 
-interface ReschedulePayload {
+interface ReschedulePayload extends WithZone {
   action: "reschedule_requested";
   interviewId: string;
   proposedTimes: { datetime: string }[];
   candidateNote?: string;
 }
 
-interface PickSlotPayload {
+interface PickSlotPayload extends WithZone {
   action: "pick_slot";
   interviewId: string;
   slotStart: string;
 }
 
-interface RepickSlotPayload {
+interface RepickSlotPayload extends WithZone {
   action: "repick_slot";
   interviewId: string;
   slotStart: string;
@@ -71,7 +98,7 @@ Deno.serve(async (req) => {
     }
 
     const payload: RequestPayload = await req.json();
-    console.log("Received payload:", payload);
+    console.log("Received answer:", { action: payload?.action, interviewId: payload?.interviewId });
 
     // Create service client for privileged operations
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
@@ -86,6 +113,7 @@ Deno.serve(async (req) => {
         duration_minutes,
         candidate_response,
         employer_windows,
+        proposed_times,
         status,
         applications(
           id,
@@ -145,29 +173,61 @@ Deno.serve(async (req) => {
 
     let updateData: {
       candidate_response?: string;
-      proposed_times?: { datetime: string }[] | null;
+      proposed_times?: { datetime: string; fromOffer?: true }[] | null;
       candidate_note?: string | null;
       scheduled_at?: string;
       duration_minutes?: number;
     } = {};
     let notificationTitle = "";
     let notificationMessage = "";
+    // Where the team's bell opens: the applicant, or the Interviews page when there is something to answer.
+    let notificationLink = `/applicants/${application.id}`;
+    // The times the applicant suggested, as kept (reschedule_requested only).
+    let suggested: { datetime: string }[] = [];
+    let suggestedNote: string | null = null;
+
+    // Whose clock the team reads a time on, and the words for it.
+    const clock = clockForTeam(interview.employer_windows, payload.timeZone);
+    const who = { name: candidateName, jobTitle };
 
     if (payload.action === "confirm") {
+      // Offered times are not an appointment: there is nothing to confirm
+      // until one is picked. (The row's scheduled_at is only a placeholder.)
+      if (noTimeAgreedYet(interview.candidate_response, interview.proposed_times)) {
+        return new Response(JSON.stringify({ error: "pick_a_time_first" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       updateData = {
         candidate_response: "confirmed",
       };
-      notificationTitle = "Interview Confirmed";
-      notificationMessage = `${candidateName} has confirmed their interview for ${jobTitle}.`;
+      const notice = teamNoticeFor("confirmed", who, {
+        when: interview.scheduled_at ? sayTimeForTeam(interview.scheduled_at as string, clock) : undefined,
+      });
+      notificationTitle = notice.title;
+      notificationMessage = notice.message;
     } else if (payload.action === "reschedule_requested") {
+      suggested = cleanSuggestedTimes(payload.proposedTimes, Date.now());
+      if (suggested.length === 0) {
+        return new Response(JSON.stringify({ error: "no_times" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      suggestedNote = cleanNote(payload.candidateNote);
+      // No time agreed yet (they are answering an offer): marked, so the
+      // team's answer never treats the placeholder as an "original time".
+      const fromOffer = noTimeAgreedYet(interview.candidate_response, interview.proposed_times);
       updateData = {
         candidate_response: "reschedule_requested",
-        proposed_times: payload.proposedTimes,
-        candidate_note: payload.candidateNote || null,
+        proposed_times: suggestionToStore(suggested, fromOffer),
+        candidate_note: suggestedNote,
       };
-      notificationTitle = "Reschedule Requested";
-      const timesCount = payload.proposedTimes?.length || 0;
-      notificationMessage = `${candidateName} has requested to reschedule their interview for ${jobTitle} and proposed ${timesCount} alternative time(s).`;
+      const notice = teamNoticeFor(fromOffer ? "countered" : "suggested", who, { count: suggested.length });
+      notificationTitle = notice.title;
+      notificationMessage = notice.message;
+      notificationLink = "/interviews";
     } else if (payload.action === "pick_slot" || payload.action === "repick_slot") {
       const windows: EmployerWindow[] = Array.isArray(interview.employer_windows)
         ? (interview.employer_windows as EmployerWindow[])
@@ -249,21 +309,11 @@ Deno.serve(async (req) => {
         candidate_note: null,
       };
 
-      const formattedSlot = new Date(payload.slotStart).toLocaleString("en-US", {
-        weekday: "long",
-        month: "long",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
+      const notice = teamNoticeFor(isAlreadyConfirmed ? "moved" : "picked", who, {
+        when: sayTimeForTeam(matchedWindow.start, clock),
       });
-
-      if (isAlreadyConfirmed) {
-        notificationTitle = "Interview Moved";
-        notificationMessage = `${candidateName} moved their interview for ${jobTitle} to ${formattedSlot}.`;
-      } else {
-        notificationTitle = "Interview Time Picked";
-        notificationMessage = `${candidateName} picked a time for their interview for ${jobTitle}: ${formattedSlot}.`;
-      }
+      notificationTitle = notice.title;
+      notificationMessage = notice.message;
     } else {
       return new Response(JSON.stringify({ error: "Invalid action" }), {
         status: 400,
@@ -287,7 +337,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log("Interview updated:", updatedInterview);
+    console.log("Interview updated:", { id: updatedInterview?.id, candidate_response: updatedInterview?.candidate_response });
 
     // Create notification for employer
     if (employerId) {
@@ -298,7 +348,7 @@ Deno.serve(async (req) => {
           type: "interview",
           title: notificationTitle,
           message: notificationMessage,
-          link: `/applicants/${application.id}`,
+          link: notificationLink,
           is_read: false,
         });
 
@@ -312,18 +362,8 @@ Deno.serve(async (req) => {
       // Send email notification to employer when candidate requests reschedule
       if (payload.action === "reschedule_requested") {
         try {
-          // Format proposed times for email
-          const formattedTimes = payload.proposedTimes?.map(t => {
-            const date = new Date(t.datetime);
-            return date.toLocaleString("en-US", {
-              weekday: "long",
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-              hour: "numeric",
-              minute: "2-digit",
-            });
-          }).join(", ") || "Not specified";
+          // The suggested times, on the team's clock (or the applicant's, said so).
+          const formattedTimes = suggested.map((t) => sayTimeForTeam(t.datetime, clock)).join("; ") || "Not specified";
 
           console.log("Sending reschedule email to employer:", employerId);
           
@@ -335,7 +375,7 @@ Deno.serve(async (req) => {
                 candidate_name: candidateName,
                 job_title: jobTitle,
                 proposed_times: formattedTimes,
-                candidate_note: payload.candidateNote || undefined,
+                candidate_note: suggestedNote || undefined,
               },
             },
           });
@@ -355,7 +395,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({
       success: true, 
       interview: updatedInterview,
-      proposedTimesCount: payload.action === "reschedule_requested" ? payload.proposedTimes?.length : 0,
+      proposedTimesCount: payload.action === "reschedule_requested" ? suggested.length : 0,
     }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

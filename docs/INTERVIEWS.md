@@ -78,6 +78,42 @@ cannot disagree. Four stages:
 - **The applicant's menu has no "Enter Job Code"** (removed 2026-10-07 at the
   owner's word). `/apply` still answers an old link that carries a code.
 
+## When the applicant suggests other times
+
+Every answer an applicant gives is written by the
+`candidate-interview-response` function (their browser may only read the
+interviews table): `confirm`, `pick_slot`, `repick_slot`,
+`reschedule_requested`. Its reading and wording live in
+`supabase/functions/_shared/interviewAnswer.ts`.
+
+- **What may be stored.** Suggested times are cleaned first: real moments,
+  still ahead, no repeats, at most six, soonest first; the note is plain text
+  up to 500 characters. Before 2026-10-07 whatever the browser sent was
+  stored as it came. An offer cannot be "confirmed": a time has to be picked.
+- **Was a time ever agreed?** A suggestion made while still choosing among
+  offered times is a different thing from asking to move an agreed time. The
+  function marks each such suggested time `fromOffer: true`
+  (`interviews.proposed_times`), because the row's own `scheduled_at` is only
+  a placeholder then.
+- **What the team is told** (their bell, and the reschedule email) states
+  the time on the team's own clock when the wizard recorded it
+  (`employer_windows[].zone`, written since 2026-10-07), otherwise on the
+  applicant's clock and says so ("9:00 PM GMT+8 (their clock)"). It used to
+  be the server's clock, UTC, with no zone: "1:00 PM" for the 9:00 AM the
+  owner had offered.
+- **The team answers** on the Interviews page ("Review times",
+  `EmployerRescheduleReviewDialog`):
+  - *Accept this time*: the interview is set to it and is **confirmed**. The
+    applicant suggested it, so nobody is asked to confirm again (it used to
+    go back to "pending"). They are emailed the time on their own clock.
+  - Answering a move of a set time: *Keep the time as it is* (they are asked
+    to confirm it).
+  - Answering an offer (`fromOffer`): there is no "original time" and no
+    "keep". *None of these work* sends them back to choosing among the
+    offered times still open, with the invitation email again. When the
+    offered times have all passed, the button is off and the dialog says to
+    accept one of theirs or message them.
+
 ## Whose clock a time is written on
 
 **The rule: a time that leaves for an applicant is on the applicant's own
@@ -204,6 +240,10 @@ outcome, the menu). A walk-through in the dev preview
 (`?__previewRole=candidate&__previewInterview=pick,own`, also `confirm`,
 `waiting`, `confirmed`) picked a time, suggested others and confirmed one,
 on a computer and a phone, and read back what was sent.
+
+The exchange: `scripts/interview_answer.test.mjs` (whose clock the team
+reads, what may be stored, whether a time was ever agreed, the bell's words,
+the function, and the team's three answers).
 
 Times: `scripts/interview_times.test.mjs`: the Eastern-to-Manila case, no zone on
 file, daylight saving, half-hour zones, where the zone is read from, and the

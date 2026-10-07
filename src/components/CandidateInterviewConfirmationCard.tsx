@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { CandidateRescheduleRequestDialog } from "./CandidateRescheduleRequestDialog";
-import { getTimezoneAbbreviation } from "@/lib/timezone";
+import { getTimezoneAbbreviation, getTimezoneName } from "@/lib/timezone";
 import { buildCandidateInterviewIcs, downloadIcsFile, icsFileStem } from "@/lib/calendarInvite";
 import {
   candidateInterviewStage,
@@ -138,7 +138,7 @@ export function CandidateInterviewConfirmationCard({
     setIsConfirming(true);
     try {
       const { data, error } = await supabase.functions.invoke("candidate-interview-response", {
-        body: { action: "confirm", interviewId: interview.id },
+        body: { action: "confirm", interviewId: interview.id, timeZone: getTimezoneName() },
       });
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || "Failed to confirm interview");
@@ -166,7 +166,8 @@ export function CandidateInterviewConfirmationCard({
 
     try {
       const { data, error } = await supabase.functions.invoke("candidate-interview-response", {
-        body: { action, interviewId: interview.id, slotStart: window.start },
+        // Their own time zone words the time for the team when the team's is not on file.
+        body: { action, interviewId: interview.id, slotStart: window.start, timeZone: getTimezoneName() },
       });
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || "Failed to lock in that time");

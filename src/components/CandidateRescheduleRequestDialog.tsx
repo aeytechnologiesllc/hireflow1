@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { getTimezoneAbbreviation } from "@/lib/timezone";
+import { getTimezoneAbbreviation, getTimezoneName } from "@/lib/timezone";
 
 interface ProposedTime {
   date: Date | undefined;
@@ -137,6 +137,7 @@ export function CandidateRescheduleRequestDialog({
           interviewId,
           proposedTimes: formattedTimes,
           candidateNote: note || null,
+          timeZone: getTimezoneName(),
         },
       });
 

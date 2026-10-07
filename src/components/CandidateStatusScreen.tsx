@@ -28,6 +28,7 @@ import { AvaSeal } from "@/components/ava/AvaSeal";
 import { useImprovementBlueprint } from "@/hooks/useImprovementBlueprint";
 import { ImprovementBlueprintView } from "@/components/ImprovementBlueprintView";
 import { getErrorMessage } from "@/lib/utils";
+import { getTimezoneName } from "@/lib/timezone";
 
 /* ── Shared pieces ──────────────────────────────────────────────────────
    Every state is the same shell: a quiet icon mark, one Fraunces headline
@@ -259,6 +260,7 @@ export function CandidateStatusScreen({
         body: {
           action: "confirm",
           interviewId,
+          timeZone: getTimezoneName(),
         },
       });
 

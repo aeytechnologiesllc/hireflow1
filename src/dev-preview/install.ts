@@ -395,6 +395,9 @@ function previewCandidateInterview(tables: FixtureTables, mode: string | null): 
     };
     const windows = [at(2, 9), at(3, 14), at(4, 20)].map((start) => ({ start, durationMinutes: 30, zone: "America/New_York" }));
     const offered = stage !== "confirm";
+    // The stand-in database does not parse select strings, so the join the
+    // team's answer dialog asks for is already on the row.
+    const application = (tables.applications ?? []).find((row) => row.id === APP_QUIZ_ID);
     tables.interviews = [
       ...(tables.interviews ?? []).filter((row) => row.application_id !== APP_QUIZ_ID),
       {
@@ -409,7 +412,8 @@ function previewCandidateInterview(tables: FixtureTables, mode: string | null): 
         meeting_room_url: null,
         duration_minutes: 30,
         interview_type: "video",
-        proposed_times: stage === "waiting" ? [{ datetime: at(5, 10) }, { datetime: at(6, 16) }] : null,
+        // Suggested while still choosing among offered times: marked, as the real function marks it.
+        proposed_times: stage === "waiting" ? [{ datetime: at(5, 10), fromOffer: true }, { datetime: at(6, 16), fromOffer: true }] : null,
         candidate_note: stage === "waiting" ? "Mornings are best for me." : null,
         employer_windows: offered ? windows : null,
         ai_questions: null,
@@ -417,11 +421,12 @@ function previewCandidateInterview(tables: FixtureTables, mode: string | null): 
         notes: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        applications: application
+          ? { id: application.id, candidate_id: application.candidate_id, jobs: application.jobs ?? null }
+          : null,
       },
     ];
-    for (const application of tables.applications ?? []) {
-      if (application.id === APP_QUIZ_ID) application.status = "interview";
-    }
+    if (application) application.status = "interview";
   }
   return (name, options) => {
     if (name !== "candidate-interview-response") return null;

@@ -69,6 +69,14 @@ interface Session {
   questions: string[];
   candidateNote: string | null;
   proposedTimes: Array<{ datetime: string }>;
+  /**
+   * The applicant suggested these while still choosing among offered times:
+   * no time was ever agreed, so the row's own time is only a placeholder
+   * (candidate-interview-response marks each suggested time `fromOffer`).
+   */
+  suggestedFromOffer: boolean;
+  /** The offered times that have not passed (their start instants). */
+  openOfferedTimes: string[];
   /** How many windows the employer offered when handing the pick to the candidate. */
   windowsOffered: number;
   /** 'daily' -> an in-app call room; anything else with a link is a legacy external meeting_link. */
@@ -126,6 +134,10 @@ function fromRow(row: InterviewWithDetails): Session {
     proposedTimes: raw
       .filter((t) => !!t?.datetime)
       .map((t) => ({ datetime: t.datetime as string })),
+    suggestedFromOffer: raw.some((t) => (t as { fromOffer?: unknown } | null)?.fromOffer === true),
+    openOfferedTimes: (windows as Array<{ start?: unknown }>)
+      .map((w) => (typeof w?.start === "string" ? w.start : ""))
+      .filter((start) => !!start && new Date(start).getTime() > Date.now()),
     windowsOffered: windows.length,
     meetingProvider: v2.meeting_provider ?? null,
     // The room route resolves the Daily room from the interview id itself; this
@@ -236,6 +248,8 @@ export default function CockpitInterviews() {
         questions: [],
         candidateNote: null,
         proposedTimes: [],
+        suggestedFromOffer: false,
+        openOfferedTimes: [],
         windowsOffered: 0,
         meetingProvider: null,
         meetingLink: null,
@@ -601,7 +615,9 @@ export default function CockpitInterviews() {
                       s.minutes ? `${s.minutes} min` : null,
                       typeLabel(s.type),
                       confirm
-                        ? "they asked for a different time — your slot is still held"
+                        ? s.suggestedFromOffer
+                          ? "they can't make the times you offered and suggested others"
+                          : "they asked for a different time — your slot is still held"
                         : awaitingPick
                           ? `${s.windowsOffered} ${s.windowsOffered === 1 ? "time" : "times"} offered`
                           : s.response === "pending"
@@ -655,7 +671,7 @@ export default function CockpitInterviews() {
                             {s.name}
                           </span>
                           {confirm ? (
-                            <Chip tone="amber">Needs confirm</Chip>
+                            <Chip tone="amber">{s.suggestedFromOffer ? "Suggested other times" : "Needs confirm"}</Chip>
                           ) : s.response === "confirmed" ? (
                             <Chip tone="live">Confirmed</Chip>
                           ) : awaitingPick ? (
@@ -968,6 +984,9 @@ export default function CockpitInterviews() {
           currentScheduledAt={reviewing.at ? reviewing.at.toISOString() : ""}
           proposedTimes={reviewing.proposedTimes}
           candidateNote={reviewing.candidateNote}
+          candidateName={reviewing.name}
+          fromOffer={reviewing.suggestedFromOffer}
+          openOfferedTimes={reviewing.openOfferedTimes}
           // Land on this candidate's thread, not the inbox — a bare /messages
           // opened whichever thread was newest and left the owner to hunt.
           onMessageCandidate={() =>

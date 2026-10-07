@@ -20,11 +20,27 @@ import { getTimezoneAbbreviation } from "@/lib/timezone";
 import { applicantEmailTime, localTimeZone } from "@/lib/interviewTimes";
 import { fetchApplicantTimeZone } from "@/hooks/useApplicantTimeZone";
 
+/**
+ * The hiring team's answer when an applicant suggests interview times of
+ * their own (docs/INTERVIEWS.md, "When the applicant suggests other times").
+ *
+ * Two different situations reach it, and they must not be confused:
+ *  - a time was agreed (or set) and the applicant asks to move it: there is
+ *    a time to keep;
+ *  - the applicant was still choosing among offered times and says none
+ *    work (`fromOffer`): no time was ever agreed, and the row's own time is
+ *    only a placeholder. There is nothing to "keep": the other answer is to
+ *    send them back to the offered times.
+ *
+ * Accepting one of the applicant's own times settles it: they suggested it,
+ * so nobody is asked to confirm it again.
+ */
+
 // Helper to safely format dates
 const safeFormatDate = (dateStr: string | null | undefined, formatStr: string): string => {
   if (!dateStr) return "Not specified";
   try {
-    const date = typeof dateStr === 'string' ? parseISO(dateStr) : new Date(dateStr);
+    const date = typeof dateStr === "string" ? parseISO(dateStr) : new Date(dateStr);
     if (!isValid(date)) return "Invalid date";
     return format(date, formatStr);
   } catch {
@@ -45,7 +61,15 @@ interface EmployerRescheduleReviewDialogProps {
   proposedTimes: ProposedTime[];
   candidateNote: string | null;
   onMessageCandidate: () => void;
+  /** The applicant's name, for the wording. */
+  candidateName?: string | null;
+  /** They were answering offered times: no time was ever agreed. */
+  fromOffer?: boolean;
+  /** The offered times that have not passed (start instants), for sending them back to. */
+  openOfferedTimes?: string[];
 }
+
+type JoinedApplication = { candidate_id?: string; jobs?: { title?: string } | null } | null;
 
 export function EmployerRescheduleReviewDialog({
   open,
@@ -56,33 +80,56 @@ export function EmployerRescheduleReviewDialog({
   proposedTimes,
   candidateNote,
   onMessageCandidate,
+  candidateName,
+  fromOffer = false,
+  openOfferedTimes = [],
 }: EmployerRescheduleReviewDialogProps) {
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [action, setAction] = useState<"accept" | "keep" | null>(null);
 
+  const first = candidateName?.trim().split(/\s+/)[0] || "They";
+  const them = candidateName?.trim().split(/\s+/)[0] || "them";
+
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["interview", "application", applicationId] });
+    queryClient.invalidateQueries({ queryKey: ["interviews"] });
+  };
+
+  /** Who the interview is with, and for which job: what every email here needs. */
+  const lookUp = async () => {
+    const { data } = await supabase
+      .from("interviews")
+      .select("applications(candidate_id, jobs(title)), scheduled_at")
+      .eq("id", interviewId)
+      .single();
+    const application = (data?.applications ?? null) as JoinedApplication;
+    return {
+      candidateId: application?.candidate_id ?? null,
+      jobTitle: application?.jobs?.title || "Interview",
+      scheduledAt: (data?.scheduled_at as string | undefined) ?? null,
+    };
+  };
+
   const handleAcceptTime = async () => {
     if (!selectedTime) {
-      toast.error("Please select a time slot");
+      toast.error("Choose one of their times first");
       return;
     }
 
     setIsSubmitting(true);
     setAction("accept");
     try {
-      // First get the application to find candidate_id
-      const { data: interview } = await supabase
-        .from("interviews")
-        .select("applications(candidate_id, jobs(title))")
-        .eq("id", interviewId)
-        .single();
+      const { candidateId, jobTitle } = await lookUp();
 
       const { error } = await supabase
         .from("interviews")
         .update({
           scheduled_at: selectedTime,
-          candidate_response: "pending", // Reset for re-confirmation
+          // They suggested this time themselves: it is agreed, not waiting on
+          // a second confirmation from them.
+          candidate_response: "confirmed",
           proposed_times: null,
           candidate_note: null,
         })
@@ -90,59 +137,45 @@ export function EmployerRescheduleReviewDialog({
 
       if (error) throw error;
 
-      // The bell notification is handled server-side now — see
-      // notify_interview_scheduled_or_rescheduled() (on_interview_reschedule_notify,
-      // 20260915122000_in_app_notifications_for_key_moments.sql), which fires
-      // on this same scheduled_at change and would otherwise double up with a
-      // client-side insert here.
-      const candidateId = (interview?.applications as { candidate_id?: string; jobs?: { title?: string } | null } | null)?.candidate_id;
-      const jobTitle = (interview?.applications as { candidate_id?: string; jobs?: { title?: string } | null } | null)?.jobs?.title || "Interview";
-
+      // The applicant's bell is the database's own
+      // (notify_interview_scheduled_or_rescheduled, on this scheduled_at change).
       if (candidateId) {
-        // Send email notification to candidate
         try {
-          const { notifyInterviewRescheduled } = await import("@/utils/emailNotifications");
           // On the applicant's own clock, with the zone named (src/lib/interviewTimes.ts).
           const written = applicantEmailTime(parseISO(selectedTime), await fetchApplicantTimeZone(applicationId), localTimeZone());
-          await notifyInterviewRescheduled(
-            candidateId,
-            jobTitle,
-            written.date,
-            written.time
-          );
+          const { notifyInterviewScheduled, notifyInterviewRescheduled } = await import("@/utils/emailNotifications");
+          // A first agreed time reads as "scheduled"; a moved one as "rescheduled".
+          if (fromOffer) await notifyInterviewScheduled(candidateId, jobTitle, written.date, written.time, undefined);
+          else await notifyInterviewRescheduled(candidateId, jobTitle, written.date, written.time);
         } catch (emailErr) {
-          console.error("Failed to send reschedule email:", emailErr);
+          console.error("Failed to email the agreed time:", emailErr);
         }
       }
 
-      queryClient.invalidateQueries({ queryKey: ["interview", "application", applicationId] });
-      queryClient.invalidateQueries({ queryKey: ["interviews"] });
-      
-      toast.success("Interview rescheduled! Candidate will need to confirm the new time.");
+      refresh();
+      toast.success(`Interview set for ${safeFormatDate(selectedTime, "EEE, MMM d 'at' h:mm a")}`, {
+        description: `${first === "They" ? "They have" : `${first} has`} been told. It is confirmed: they suggested this time.`,
+      });
       onOpenChange(false);
     } catch (error) {
-      console.error("Error accepting reschedule:", error);
-      toast.error("Failed to reschedule interview");
+      console.error("Error accepting a suggested time:", error);
+      toast.error("Couldn't set that time. Try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  /** A time was set before they asked: it stays, and they are asked to confirm it. */
   const handleKeepOriginal = async () => {
     setIsSubmitting(true);
     setAction("keep");
     try {
-      // First get the application to find candidate_id
-      const { data: interview } = await supabase
-        .from("interviews")
-        .select("applications(candidate_id, jobs(title)), scheduled_at")
-        .eq("id", interviewId)
-        .single();
+      const { candidateId, jobTitle, scheduledAt } = await lookUp();
 
       const { error } = await supabase
         .from("interviews")
         .update({
-          candidate_response: "pending", // Reset - they need to confirm original
+          candidate_response: "pending", // They are asked to confirm the time that stands
           proposed_times: null,
           candidate_note: null,
         })
@@ -150,45 +183,83 @@ export function EmployerRescheduleReviewDialog({
 
       if (error) throw error;
 
-      // Create notification for candidate
-      const candidateId = (interview?.applications as { candidate_id?: string; jobs?: { title?: string } | null } | null)?.candidate_id;
-      const jobTitle = (interview?.applications as { candidate_id?: string; jobs?: { title?: string } | null } | null)?.jobs?.title || "Interview";
-      const scheduledAt = interview?.scheduled_at;
-      
       if (candidateId) {
         await supabase.from("notifications").insert({
           user_id: candidateId,
           type: "interview",
-          title: "Interview Time Confirmed",
-          message: `The employer has kept the original interview time for ${jobTitle}. Please confirm your attendance.`,
+          title: "Your interview time stays as it was",
+          message: `The hiring team kept the interview time for ${jobTitle}. Please confirm it, or message them.`,
           link: `/applications`,
         });
 
-        // Send email notification to candidate
         if (scheduledAt) {
           try {
             const { notifyInterviewRescheduled } = await import("@/utils/emailNotifications");
             const written = applicantEmailTime(parseISO(scheduledAt), await fetchApplicantTimeZone(applicationId), localTimeZone());
-            await notifyInterviewRescheduled(
-              candidateId,
-              jobTitle,
-              written.date,
-              written.time
-            );
+            await notifyInterviewRescheduled(candidateId, jobTitle, written.date, written.time);
           } catch (emailErr) {
-            console.error("Failed to send interview confirmation email:", emailErr);
+            console.error("Failed to email the kept time:", emailErr);
           }
         }
       }
 
-      queryClient.invalidateQueries({ queryKey: ["interview", "application", applicationId] });
-      queryClient.invalidateQueries({ queryKey: ["interviews"] });
-      
-      toast.success("Original time kept. Candidate will be notified.");
+      refresh();
+      toast.success("The time stays as it was", { description: `${first === "They" ? "They are" : `${first} is`} asked to confirm it.` });
       onOpenChange(false);
     } catch (error) {
-      console.error("Error keeping original time:", error);
-      toast.error("Failed to update interview");
+      console.error("Error keeping the time:", error);
+      toast.error("Couldn't update the interview. Try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  /**
+   * No time was agreed and none of theirs work: back to the times that were
+   * offered. Never "keep the original": there was none, only a placeholder.
+   */
+  const handleBackToOffer = async () => {
+    setIsSubmitting(true);
+    setAction("keep");
+    try {
+      const { candidateId, jobTitle } = await lookUp();
+
+      const { error } = await supabase
+        .from("interviews")
+        .update({
+          candidate_response: "awaiting_pick",
+          proposed_times: null,
+          candidate_note: null,
+        })
+        .eq("id", interviewId);
+
+      if (error) throw error;
+
+      if (candidateId) {
+        await supabase.from("notifications").insert({
+          user_id: candidateId,
+          type: "interview",
+          title: "Please pick one of the offered times",
+          message: `The times you suggested for ${jobTitle} don't work for the hiring team. Pick one of the times they offered, or message them.`,
+          link: `/applications/${applicationId}`,
+        });
+
+        try {
+          const theirZone = await fetchApplicantTimeZone(applicationId);
+          const lines = openOfferedTimes.map((start) => applicantEmailTime(parseISO(start), theirZone, localTimeZone()).line);
+          const { notifyInterviewPickTime } = await import("@/utils/emailNotifications");
+          await notifyInterviewPickTime(candidateId, jobTitle, lines, undefined);
+        } catch (emailErr) {
+          console.error("Failed to email the offered times again:", emailErr);
+        }
+      }
+
+      refresh();
+      toast.success(`${first === "They" ? "They are" : `${first} is`} asked to pick one of your offered times`);
+      onOpenChange(false);
+    } catch (error) {
+      console.error("Error sending them back to the offered times:", error);
+      toast.error("Couldn't update the interview. Try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -199,50 +270,58 @@ export function EmployerRescheduleReviewDialog({
     onMessageCandidate();
   };
 
+  const theirTimes = (proposedTimes ?? []).filter((time) => time?.datetime);
+  const zone = getTimezoneAbbreviation();
+  const canGoBackToOffer = openOfferedTimes.length > 0;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-hidden flex flex-col" data-review-suggested={fromOffer ? "offer" : "set"}>
         <DialogHeader className="flex-shrink-0">
-          <DialogTitle>Reschedule Request</DialogTitle>
+          <DialogTitle>{fromOffer ? "Other times suggested" : "Another time asked for"}</DialogTitle>
           <DialogDescription>
-            The candidate has requested to reschedule this interview.
+            {fromOffer
+              ? `${first} can't make the times you offered and suggested ${theirTimes.length === 1 ? "this one" : "these"} instead.`
+              : `${first} asked to move this interview and suggested ${theirTimes.length === 1 ? "this time" : "these times"}.`}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4 overflow-y-auto flex-1 min-h-0">
-          {/* Original Time */}
-          <Card className="bg-muted/50">
-            <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">
-                Original Time
-              </p>
-              <div className="flex items-center gap-4 flex-wrap">
-                <div className="flex items-center gap-2 text-sm">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span>{safeFormatDate(currentScheduledAt, "EEEE, MMMM d, yyyy")}</span>
+          {/* The time that stands. Not shown for an answer to offered times: none was agreed. */}
+          {!fromOffer && (
+            <Card className="bg-muted/50">
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Set now for</p>
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span>{safeFormatDate(currentScheduledAt, "EEEE, MMMM d, yyyy")}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <span>
+                      {safeFormatDate(currentScheduledAt, "h:mm a")} ({zone})
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  <span>{safeFormatDate(currentScheduledAt, "h:mm a")} ({getTimezoneAbbreviation()})</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
-          {/* Candidate's Note */}
           {candidateNote && (
             <div className="bg-[var(--amber-bg)] border border-[var(--brass-line)] rounded-lg p-4">
-              <p className="text-xs text-[var(--amber-fg)] uppercase tracking-wide mb-1">Candidate's Note</p>
-              <p className="text-sm text-foreground italic">"{candidateNote}"</p>
+              <p className="text-xs text-[var(--amber-fg)] uppercase tracking-wide mb-1">Their note</p>
+              <p className="text-sm text-foreground italic">&ldquo;{candidateNote}&rdquo;</p>
             </div>
           )}
 
-          {/* Proposed Times */}
-          {proposedTimes && proposedTimes.length > 0 ? (
+          {theirTimes.length > 0 ? (
             <div className="space-y-2">
-              <p className="text-sm font-medium">Candidate's Proposed Times</p>
+              <p className="text-sm font-medium">
+                {theirTimes.length === 1 ? "Their time" : "Their times"} <span className="font-normal text-muted-foreground">(on your clock, {zone})</span>
+              </p>
               <RadioGroup value={selectedTime} onValueChange={setSelectedTime}>
-                {proposedTimes.filter(time => time?.datetime).map((time, index) => (
+                {theirTimes.map((time, index) => (
                   <div
                     key={index}
                     className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:border-primary/50 transition-colors"
@@ -256,7 +335,7 @@ export function EmployerRescheduleReviewDialog({
                         </div>
                         <div className="flex items-center gap-2 text-sm">
                           <Clock className="h-4 w-4 text-muted-foreground" />
-                          <span>{safeFormatDate(time.datetime, "h:mm a")} ({getTimezoneAbbreviation()})</span>
+                          <span>{safeFormatDate(time.datetime, "h:mm a")}</span>
                         </div>
                       </div>
                     </Label>
@@ -265,45 +344,43 @@ export function EmployerRescheduleReviewDialog({
               </RadioGroup>
             </div>
           ) : (
-            <div className="text-sm text-muted-foreground italic p-4 bg-muted/30 rounded-lg">
-              No alternative times proposed by the candidate.
-            </div>
+            <div className="text-sm text-muted-foreground italic p-4 bg-muted/30 rounded-lg">They did not suggest a time.</div>
+          )}
+
+          {fromOffer && (
+            <p className="text-xs text-muted-foreground" data-review-offer-note>
+              {canGoBackToOffer
+                ? `If none of these work for you, ${them} can be sent back to the ${openOfferedTimes.length === 1 ? "time" : `${openOfferedTimes.length} times`} you offered.`
+                : `The times you offered have passed. Accept one of theirs, or message ${them} to agree another.`}
+            </p>
           )}
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2 flex-shrink-0 pt-4 border-t border-border">
-          <Button
-            variant="outline"
-            onClick={handleMessageCandidate}
-            className="gap-2"
-          >
+          <Button variant="outline" onClick={handleMessageCandidate} className="gap-2">
             <MessageSquare className="h-4 w-4" />
-            Message Candidate
+            Message {them}
           </Button>
-          <Button
-            variant="outline"
-            onClick={handleKeepOriginal}
-            disabled={isSubmitting}
-            className="gap-2"
-          >
-            {isSubmitting && action === "keep" ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <X className="h-4 w-4" />
-            )}
-            Keep Original
-          </Button>
-          <Button
-            onClick={handleAcceptTime}
-            disabled={isSubmitting || !selectedTime}
-            className="gap-2"
-          >
-            {isSubmitting && action === "accept" ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Check className="h-4 w-4" />
-            )}
-            Accept Selected Time
+          {fromOffer ? (
+            <Button
+              variant="outline"
+              onClick={handleBackToOffer}
+              disabled={isSubmitting || !canGoBackToOffer}
+              className="gap-2"
+              data-review-back-to-offer
+            >
+              {isSubmitting && action === "keep" ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+              None of these work
+            </Button>
+          ) : (
+            <Button variant="outline" onClick={handleKeepOriginal} disabled={isSubmitting} className="gap-2" data-review-keep>
+              {isSubmitting && action === "keep" ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+              Keep the time as it is
+            </Button>
+          )}
+          <Button onClick={handleAcceptTime} disabled={isSubmitting || !selectedTime} className="gap-2" data-review-accept>
+            {isSubmitting && action === "accept" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            Accept this time
           </Button>
         </DialogFooter>
       </DialogContent>
