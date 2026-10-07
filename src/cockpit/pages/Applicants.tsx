@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { Navigate, useLocation, useNavigate, useNavigationType, useSearchParams } from "react-router-dom";
 import { CheckSquare, ChevronRight } from "lucide-react";
+import { toast } from "sonner";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile, useMinWidth } from "@/hooks/use-mobile";
@@ -27,6 +28,9 @@ import { ActionsMenu, ApplicantActionDialogs, applicantMenuItems, type Applicant
 import { ApplicantBulkBar, ApplicantRowFrame, SelectMark } from "../components/ApplicantBulkBar";
 import { useBlockedApplicants } from "../hooks/useApplicantBlocks";
 import { markBlocked } from "../lib/blockedApplicants";
+// The team's shortlist: a bookmark on the row, a tab that gathers them.
+import { useShortlist, useShortlistActions, type ShortlistTarget } from "../hooks/useShortlist";
+import { SHORTLIST_EMPTY_LINE, SHORTLIST_PRIVATE_LINE, canShortlist, markShortlisted } from "../lib/shortlist";
 import { writeApplicantOrder, writeApplicantTab } from "../lib/applicantProfile";
 import {
   APPLIED_OPTIONS,
@@ -77,6 +81,7 @@ const SCROLL_FRESH_MS = 60 * 60 * 1000;
 
 const TAB_EMPTY: Record<ApplicantTab, string> = {
   all: "Nobody here yet.",
+  shortlist: SHORTLIST_EMPTY_LINE,
   "needs-review": "Nobody is waiting on your decision right now.",
   "taking-tests": "Nobody is taking a test right now.",
   "part-way": "Nobody is part-way through.",
@@ -190,6 +195,8 @@ interface RowActions {
   openProfile: (id: string) => void;
   select: (id: string) => void;
   request: (request: ApplicantActionRequest) => void;
+  /** Put them on the team's shortlist, or take them off: one click. */
+  shortlist: (row: ApplicantListRow) => void;
 }
 
 /**
@@ -232,6 +239,7 @@ const ApplicantListItem = memo(function ApplicantListItem({
           status: row.status,
           blocked: !!row.blocked,
           jobTitle: row.jobTitle,
+          shortlist: { on: !!row.shortlisted, onToggle: () => actions.shortlist(row) },
           onOpenProfile: () => actions.openProfile(row.id),
           onSelect: () => actions.select(row.id),
           onRequest: actions.request,
@@ -274,8 +282,13 @@ export default function CockpitApplicants() {
   // Blocked tab only, off All and every other tab and count. The list waits
   // for who is blocked, so a blocked row never shows for a moment and leaves.
   const blocks = useBlockedApplicants();
-  const rows = useMemo(() => markBlocked(listRows, blocks.blocked), [listRows, blocks.blocked]);
-  const isLoading = listLoading || blocks.isLoading;
+  // The team's shortlist (lib/shortlist.ts): marked after the blocks, which
+  // it reads. Waited for too, so the Shortlist tab never opens on "nobody
+  // yet" and then fills.
+  const shortlist = useShortlist();
+  const { setShortlisted, busy: shortlistBusy } = useShortlistActions();
+  const rows = useMemo(() => markShortlisted(markBlocked(listRows, blocks.blocked), shortlist.ids), [listRows, blocks.blocked, shortlist.ids]);
+  const isLoading = listLoading || blocks.isLoading || shortlist.isLoading;
   // The same cached query the list's hook reads; mapped only for the job's
   // name, its link and the share kit, never for counts.
   const { data: rawJobs } = useEmployerJobs();
@@ -535,9 +548,9 @@ export default function CockpitApplicants() {
   /* ── One object the rows call back through, for the page's lifetime
      (ApplicantListItem is memoised on it): it reads the page's latest
      state from a ref, so no row redraws because a callback was rebuilt. ── */
-  const latest = useRef({ wide, selectMode, togglePick, openRow, navigate });
+  const latest = useRef({ wide, selectMode, togglePick, openRow, navigate, settle, setShortlisted });
   useLayoutEffect(() => {
-    latest.current = { wide, selectMode, togglePick, openRow, navigate };
+    latest.current = { wide, selectMode, togglePick, openRow, navigate, settle, setShortlisted };
   });
   const rowActions = useMemo<RowActions>(
     () => ({
@@ -561,6 +574,13 @@ export default function CockpitApplicants() {
         lastPicked.current = id;
       },
       request: setActionRequest,
+      // His own click shows at once (settled first): taken off the shortlist
+      // while on the Shortlist tab, the row leaves; the toast's Undo puts it
+      // back where it was.
+      shortlist: (r) => {
+        latest.current.settle([r.id]);
+        void latest.current.setShortlisted([{ applicationId: r.id, name: r.name }], !r.shortlisted);
+      },
     }),
     [],
   );
@@ -714,6 +734,22 @@ export default function CockpitApplicants() {
   const blockPicked = () => {
     const chosen = view.matched.filter((r) => picked.has(r.id) && r.tab !== "blocked");
     if (chosen.length > 0) setActionRequest({ kind: "block", targets: chosen.map(targetOf) });
+  };
+  // The picked, onto the shortlist in one go (off it, from the Shortlist
+  // tab). Only the ones it changes are sent; the picks are let go after.
+  const onShortlistTab = state.tab === "shortlist";
+  const shortlistPicked = async () => {
+    const on = !onShortlistTab;
+    const chosen: ShortlistTarget[] = view.matched
+      .filter((r) => picked.has(r.id) && canShortlist(r.status, !!r.blocked) && !!r.shortlisted !== on)
+      .map((r) => ({ applicationId: r.id, name: r.name }));
+    if (chosen.length > 0) {
+      settle(chosen.map((t) => t.applicationId));
+      await setShortlisted(chosen, on);
+    } else if (picked.size > 0) {
+      toast.message(picked.size === 1 ? "They're already on your shortlist." : "They're all on your shortlist already.");
+    }
+    clearPicks();
   };
   // Cards: picking several starts with Select (a tap then picks, not opens).
   const selectButton =
@@ -925,6 +961,12 @@ export default function CockpitApplicants() {
 
       {!isPhone && updatesBar}
 
+      {/* Shortlist: what it is, once, above them. */}
+      {onShortlistTab && view.total > 0 && (
+        <p className="text-[12.5px] leading-[1.5]" style={{ color: "var(--ink-3)" }}>
+          The people you marked for your shortlist{shownJob ? ` for ${shownJob.title}` : ""}. {SHORTLIST_PRIVATE_LINE} Passing on someone takes them off it.
+        </p>
+      )}
       {/* Blocked: what it means, once, above them. */}
       {onBlockedTab && (
         <p className="text-[12.5px] leading-[1.5]" style={{ color: "var(--ink-3)" }}>
@@ -986,6 +1028,9 @@ export default function CockpitApplicants() {
             onSelectPage={() => setPicked(new Set(pageIds))}
             onClear={clearPicks}
             onBlock={blockPicked}
+            onShortlist={() => void shortlistPicked()}
+            shortlistOff={onShortlistTab}
+            busy={shortlistBusy}
             anchor={rootEl}
             phone={isPhone}
             aboveTabBar={!isTeamMember}

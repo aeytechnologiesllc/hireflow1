@@ -1654,6 +1654,49 @@ export type Database = {
           },
         ]
       }
+      shortlisted_applications: {
+        Row: {
+          added_by: string | null
+          application_id: string
+          created_at: string
+          job_id: string
+        }
+        Insert: {
+          added_by?: string | null
+          application_id: string
+          created_at?: string
+          job_id: string
+        }
+        Update: {
+          added_by?: string | null
+          application_id?: string
+          created_at?: string
+          job_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shortlisted_applications_application_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shortlisted_applications_job_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shortlisted_applications_job_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "published_jobs_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscription_usage: {
         Row: {
           ai_analyses_used: number | null
@@ -2567,6 +2610,10 @@ export type Database = {
       }
       save_application_draft: {
         Args: { p_answers: Json; p_application_id: string }
+        Returns: Json
+      }
+      set_applications_shortlisted: {
+        Args: { p_application_ids: string[]; p_shortlisted: boolean }
         Returns: Json
       }
       start_assessment_session: {

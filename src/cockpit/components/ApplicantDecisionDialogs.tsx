@@ -67,8 +67,8 @@ export function ApplicantDecisionDialogs({
         const label = advanceTargetLabel(status);
         const rec = avaAdvanceRec(candidate.overall ?? 0, candidate.analyzed, candidate.recommendedAction, candidate.hardRejectReason);
         const ask =
-          label === "Shortlist"
-            ? { title: `Move ${who} to your shortlist?`, body: `I'll let ${who} know they've moved on, and keep them near the top of your list.` }
+          label === "Review"
+            ? { title: `Move ${who} into review?`, body: `I'll let ${who} know they've moved on. To mark them as one of your picks instead, use Add to shortlist: that one tells them nothing.` }
             : label === "Interview"
               ? { title: `Take ${who} to interview?`, body: `I'll tell ${who} you'd like to meet. You can pick the time straight after this.` }
               : label === "Offer"

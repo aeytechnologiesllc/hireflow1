@@ -111,12 +111,19 @@ export interface ApplicantDot {
 /** Tab keys, also their `?tab=` values. Screen order. "blocked" holds the
  *  people the employer removed and blocked (lib/blockedApplicants.ts): no
  *  row is placed there by tabFor, only by markBlocked, and they are off All
- *  and every other tab and count. */
-export const APPLICANT_TABS = ["all", "needs-review", "taking-tests", "part-way", "interview", "declined", "blocked"] as const;
+ *  and every other tab and count.
+ *
+ *  "shortlist" is the hiring team's own picks (lib/shortlist.ts). It cuts
+ *  across the others: no row's `tab` is ever "shortlist"; a row is on it when
+ *  markShortlisted set `shortlisted`, and it stays on its own tab as well. */
+export const APPLICANT_TABS = ["all", "shortlist", "needs-review", "taking-tests", "part-way", "interview", "declined", "blocked"] as const;
 export type ApplicantTab = (typeof APPLICANT_TABS)[number];
+/** The one tab a person sits on: every tab but the two that cut across. */
+export type ApplicantOwnTab = Exclude<ApplicantTab, "all" | "shortlist">;
 
 export const TAB_LABELS: Record<ApplicantTab, string> = {
   all: "All",
+  shortlist: "Shortlist",
   "needs-review": "Needs review",
   "taking-tests": "Taking tests now",
   "part-way": "Part-way",
@@ -216,6 +223,10 @@ export interface ApplicantListRow {
   /** Set by markBlocked: the name of a blocked person whose phone this
    *  applicant typed. A phone is flagged on the list, never refused. */
   sameBlockedPhoneAs?: string | null;
+  /** Set by markShortlisted (lib/shortlist.ts): the hiring team marked this
+   *  application for their shortlist, and it is still in the running (not
+   *  declined, not blocked). Private to the team; the applicant is not told. */
+  shortlisted?: boolean;
   record: AssessmentRecord;
 }
 
@@ -720,7 +731,7 @@ export function journeyForJob(job: ApplicantListJob | null | undefined): Candida
  * or being checked inside the server's 7-minute claim), Part-way (everyone
  * else). `liveState` is the row's, after effectiveLiveState.
  */
-export function tabFor(input: { status: string | null | undefined; finished: boolean; liveState: LiveState | null | undefined }): Exclude<ApplicantTab, "all"> {
+export function tabFor(input: { status: string | null | undefined; finished: boolean; liveState: LiveState | null | undefined }): ApplicantOwnTab {
   const status = input.status ?? "";
   if (status === "rejected") return "declined";
   if (status === "interview" || status === "offered" || status === "hired") return "interview";
@@ -1257,9 +1268,13 @@ export function countryOptions(rows: readonly ApplicantListRow[]): Array<FilterO
   return [{ value: "all", label: "All", count: rows.length }, ...known, ...(unknown ? [{ value: UNKNOWN_COUNTRY, label: UNKNOWN_COUNTRY, count: unknown }] : [])];
 }
 
-/** All is everyone but the blocked; a blocked person is only on Blocked. */
+/** All is everyone but the blocked; a blocked person is only on Blocked.
+ *  Shortlist is whoever the team marked (never the blocked or the declined:
+ *  markShortlisted leaves them unmarked), whatever tab they are on. */
 export function inTab(row: ApplicantListRow, tab: ApplicantTab): boolean {
-  return tab === "all" ? row.tab !== "blocked" : row.tab === tab;
+  if (tab === "all") return row.tab !== "blocked";
+  if (tab === "shortlist") return row.shortlisted === true && row.tab !== "blocked";
+  return row.tab === tab;
 }
 
 export function matchesWhere(row: ApplicantListRow, where: string): boolean {
@@ -1371,11 +1386,13 @@ export function sortRows(rows: readonly ApplicantListRow[], sort: SortKey): Appl
   return out;
 }
 
-/** Per-tab counts. They ignore every filter but the job (contract §1). */
+/** Per-tab counts. They ignore every filter but the job (contract §1). A
+ *  shortlisted person counts on Shortlist and on their own tab. */
 export function tabCounts(rows: readonly ApplicantListRow[]): Record<ApplicantTab, number> {
   const counts = Object.fromEntries(APPLICANT_TABS.map((t) => [t, 0])) as Record<ApplicantTab, number>;
   for (const r of rows) {
     if (r.tab !== "blocked") counts.all += 1;
+    if (inTab(r, "shortlist")) counts.shortlist += 1;
     counts[r.tab] += 1;
   }
   return counts;

@@ -42,7 +42,12 @@ Tabs (each applicant is in exactly one; counts ignore the filters):
 "Finished every test" is NOT a tab: in an auto-mode job everyone who finishes
 is waiting on a decision, so it would hold the same people as Needs review.
 It is a "Where they are" filter option instead. Tab order on screen: All,
-Needs review, Taking tests now, Part-way, Interview, Declined.
+Shortlist, Needs review, Taking tests now, Part-way, Interview, Declined
+(then Blocked, once someone is: section 6).
+
+**Shortlist** is the one tab that is not a place in that table: it is the
+hiring team's own picks and cuts across the others (section 7). Someone on it
+is still on their own tab and still counted there.
 
 Old links keep working: `?tab=applying|started` → Part-way (Taking tests now
 when live is not knowable from a link, so Part-way), `?tab=reading` → Part-way,
@@ -435,3 +440,70 @@ as blocked, no email path, the locks the migration takes) and section B of
 `scripts/applicant_list.test.mjs` (the closed are off every tab and count and
 leave a held list at once, an interview the block left open stays, the phone
 flag).
+
+## 7. Shortlist (2026-10-07)
+
+The owner, on his first live hiring day, 62 applicants in: *"I need you to
+also add a feature where I can add them as favorites. Maybe do a short list
+for this particular job. Not favorite, but short list, I guess."*
+
+A shortlist entry is a private mark on one application, so on one job. It
+decides nothing and tells the applicant nothing: no status change, no email,
+no bell, and they cannot read it.
+
+- **Adding and taking off** is one click, with no confirm: "Add to shortlist"
+  / "Take off shortlist" in a row's ⋯ menu; "Add to shortlist" on the bar that
+  appears when several are picked ("Take off shortlist" on the Shortlist tab);
+  and a button on the profile's top line beside the pager, which reads "On
+  your shortlist" once they are (on a phone, the bookmark alone, in the
+  header). Taking someone off shows a toast with **Undo**.
+- **On the list** a marked row carries a small brass bookmark beside the name
+  (table row and phone card; "On your shortlist" to a screen reader). The
+  **Shortlist** tab, second after All, gathers them, with a count. It follows
+  the job in view like every other count, which is what makes it "for this
+  particular job": with one job chosen it is that job's shortlist.
+- **Who can be on it**: anyone still in the running (`canShortlist`). Not
+  someone declined, and not someone blocked: the menu item and the profile's
+  button are not offered, and a mark made earlier stops showing. So passing
+  on someone takes them off the shortlist, with nothing to clean up. (The row
+  in the database stays; nothing reads it for a declined application.)
+- **The held list** (section 1): marking someone moves no row. His own click
+  is settled first, so taking someone off while on the Shortlist tab removes
+  that row at once and Undo puts it back where it was; a teammate's change
+  waits in the update bar like any other. The Shortlist count is never held:
+  it is always who is marked now.
+- **Teammates**: the job's owner and its active team members all see the same
+  shortlist; a team member limited to some jobs sees those jobs' only. Adding
+  and taking off needs the right to manage the job's pipeline (the people who
+  may decide on the applicant). A mark writes nothing to the application, so
+  no realtime event comes for it: an open page picks up a teammate's change
+  within a minute (the query's own clock), on refocus, or when opened.
+
+**"Shortlist" means one thing now.** Until this, the staff screens used the
+word for the pipeline stage `reviewing`, which every applicant reaches by
+sending the form: the Jobs page said "Applied → shortlist 65%" with 40 of 62
+people in it on day one, and the advance button for someone still on the form
+said "Move to Shortlist" (and told the applicant they had moved on). Those
+now read "Applied → in review", "In review" on the dashboard's funnel, and
+"Move to Review" / "Move Maria into review?". The internal keys
+(`stats.shortlist`, the `"Shortlist"` candidate stage in `mappers.ts`) are
+unchanged; only the words on screen moved.
+
+The database half is `supabase/migrations/*_shortlisted_applications.sql`:
+`shortlisted_applications` (one row per marked application, with its job;
+RLS: the job's owner and active team read, nobody else, and nobody writes it
+directly) and `set_applications_shortlisted(ids, on)` (SECURITY DEFINER; the
+job's owner or a pipeline team member; up to 200 at a time; anything the
+caller may not decide on comes back under `skipped`). It is a table of its
+own, not a column on `applications`, because an applicant can read their own
+application row. Applying it takes two locks on existing tables, the foreign
+keys to `applications` and `jobs`, as its last statements, under a 3-second
+`lock_timeout`; a re-run takes none. The client half is `lib/shortlist.ts`,
+`hooks/useShortlist.ts`, `components/ApplicantRowMenu.tsx`,
+`components/ApplicantBulkBar.tsx`, `components/ApplicantRow.tsx` and the
+profile's top line in `pages/CandidateDetail.tsx`. Proof:
+`scripts/shortlist.pglite.test.mjs` (who may change it, the job taken from
+the application, nobody writing the table directly, who can read it and that
+the applicant cannot, per job, the cascade, the locks) and
+`scripts/shortlist.test.mjs` (who can be on it, the tab and its counts per
+job, the held list, the words, the one meaning, the wiring).

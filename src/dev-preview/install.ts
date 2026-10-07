@@ -373,6 +373,36 @@ function previewBlockHandlers(tables: FixtureTables, user: FixtureAuthUser): Rec
   };
 }
 
+/**
+ * The team's shortlist, offline (supabase/migrations/*_shortlisted_applications.sql):
+ * the same rows the real function writes, so the bookmark, the Shortlist tab,
+ * the bulk bar and the profile's button can be clicked through. Nothing here
+ * checks who may: the preview is one employer's own data.
+ */
+function previewShortlistHandlers(tables: FixtureTables, user: FixtureAuthUser): Record<string, (args: unknown) => unknown> {
+  const rows = (name: string): FixtureRow[] => (tables[name] ??= []);
+  return {
+    set_applications_shortlisted: (args) => {
+      const { p_application_ids: ids = [], p_shortlisted: on = true } = (args ?? {}) as { p_application_ids?: string[]; p_shortlisted?: boolean };
+      const done: string[] = [];
+      const skipped: string[] = [];
+      for (const id of [...new Set(ids)]) {
+        const app = rows("applications").find((a) => a.id === id);
+        if (!app) {
+          skipped.push(id);
+          continue;
+        }
+        const list = rows("shortlisted_applications");
+        const at = list.findIndex((r) => r.application_id === id);
+        if (on && at < 0) list.push({ application_id: id, job_id: app.job_id, added_by: user.id, created_at: new Date().toISOString() });
+        if (!on && at >= 0) list.splice(at, 1);
+        done.push(id);
+      }
+      return { done, skipped };
+    },
+  };
+}
+
 function isPreviewRole(value: string | null): value is PreviewRole {
   return !!value && Object.prototype.hasOwnProperty.call(ROLE_USERS, value);
 }
@@ -399,7 +429,7 @@ export function install(params: URLSearchParams): void {
   const base = createFixtureSupabaseClient({
     user: ROLE_USERS[role],
     tables,
-    rpc: { ...buildFixtureRpcHandlers(scenario), ...previewBlockHandlers(tables, ROLE_USERS[role]) },
+    rpc: { ...buildFixtureRpcHandlers(scenario), ...previewBlockHandlers(tables, ROLE_USERS[role]), ...previewShortlistHandlers(tables, ROLE_USERS[role]) },
   });
   const realtime = liveRealtime(base, tables, params.get("__previewLive"));
   // The staff record opens applicants' uploads through the applicant-file-url

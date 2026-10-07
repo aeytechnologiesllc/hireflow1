@@ -9,7 +9,10 @@ own tokens (NIGHT and DAY). The PHONE layout does not change.
 ## Layout, from 1200px of content width up
 
 1. **Top line**: Back to applicants (with the list's tab in words, e.g. "· Needs review"), and the pager
-   "3 of 64 ‹ ›" on the right (the existing one).
+   "3 of 64 ‹ ›" on the right (the existing one). After the pager: the **shortlist** button ("Add to
+   shortlist", or "On your shortlist" with a filled brass bookmark once they are; one click, no confirm,
+   and the applicant is not told: docs/APPLICANTS-LIST.md §7) and the ⋯ menu. The button is not there for
+   someone declined or blocked. On a phone it is the bookmark alone, at the end of the sticky header.
 2. **Header band, no box**: avatar (live dot when active), name, the status chip, then one meta line:
    job title, country, applied when, and the live line ("Finished every test 40 min ago", "Escalated chat
    practice: away from the test for under a minute"). On the right: "Ava suggests" (the recommendation in

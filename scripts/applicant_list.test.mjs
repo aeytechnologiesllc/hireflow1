@@ -561,7 +561,7 @@ console.log("\n3. The tabs partition everyone");
                 : ["doing", "away", "checking"].includes(liveState)
                   ? "taking-tests"
                   : "part-way";
-        if (tab !== want || !L.APPLICANT_TABS.includes(tab) || tab === "all") {
+        if (tab !== want || !L.APPLICANT_TABS.includes(tab) || tab === "all" || tab === "shortlist") {
           ok = false;
           bad.push(`${status}/${finished}/${liveState}→${tab}`);
         }
@@ -569,8 +569,10 @@ console.log("\n3. The tabs partition everyone");
     }
   }
   check(`tabFor places all ${statuses.length * 2 * lives.length} combinations in exactly one tab, by precedence`, ok, bad.join(", "));
+  // Shortlist second: the team's own picks, across the tabs (scripts/shortlist.test.mjs).
   // Blocked last: the people the employer removed and blocked (section B).
-  check("tab order on screen", eq(L.TAB_OPTIONS.map((o) => o.label), ["All", "Needs review", "Taking tests now", "Part-way", "Interview", "Declined", "Blocked"]));
+  check("tab order on screen", eq(L.TAB_OPTIONS.map((o) => o.label), ["All", "Shortlist", "Needs review", "Taking tests now", "Part-way", "Interview", "Declined", "Blocked"]));
+  check("nobody is on Shortlist until the team marks them, and it takes nobody off their own tab", counts.shortlist === 0 && rows.every((r) => r.tab !== "shortlist"), show(counts));
 }
 
 /* ── 4. Filters, search, sort ──────────────────────────────────────────── */

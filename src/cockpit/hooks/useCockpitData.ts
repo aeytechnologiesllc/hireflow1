@@ -307,7 +307,11 @@ export function nextAdvanceStatus(currentStatus?: string): string | null {
 /** Human label for the stage a candidate moves INTO when advanced (for the
  *  confirm dialog, so "Advance" is never a mystery). */
 const STATUS_STAGE_LABEL: Record<string, string> = {
-  reviewing: "Shortlist",
+  // Was "Shortlist" until 2026-10-07. The shortlist is now the team's own
+  // private picks (lib/shortlist.ts); this is the pipeline stage every
+  // applicant reaches by sending the form, and moving someone into it by
+  // hand tells them so.
+  reviewing: "Review",
   interview: "Interview",
   offered: "Offer",
 };

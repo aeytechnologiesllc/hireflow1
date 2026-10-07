@@ -532,7 +532,9 @@ export default function CockpitJobs() {
 
     if (totals.inPlay > 0) {
       out.push({
-        label: "Applied → shortlist",
+        // The job row beside it calls the same people "In review". Not
+        // "shortlist": that is the team's own picks now (lib/shortlist.ts).
+        label: "Applied → in review",
         value: `${Math.round((totals.inPlay / totals.applicants) * 100)}%`,
         tone: "jade",
         sub: `${totals.inPlay} of ${totals.applicants} moved past the first read`,

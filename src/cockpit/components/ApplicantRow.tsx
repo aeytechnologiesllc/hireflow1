@@ -1,6 +1,6 @@
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { ChevronRight, ShieldAlert } from "lucide-react";
+import { Bookmark, ChevronRight, ShieldAlert } from "lucide-react";
 import { TONE_VAR, type ApplicantDot, type ApplicantListRow, type DotState, type LineSegment } from "../lib/applicantList";
 import { samePhoneWords } from "../lib/blockedApplicants";
 
@@ -204,6 +204,18 @@ export function SamePhoneChip({ name }: { name: string }) {
   );
 }
 
+/** The bookmark beside the name of someone on the team's shortlist
+ *  (lib/shortlist.ts). Brass, filled, and said in words to a screen reader. */
+export function ShortlistMark({ size = 14 }: { size?: number }) {
+  return (
+    // `relative` contains the sr-only text (see FlagsCell).
+    <span className="relative inline-flex shrink-0" title="On your shortlist" data-shortlist-mark>
+      <Bookmark aria-hidden style={{ width: size, height: size, color: "var(--brass)", fill: "var(--brass)" }} />
+      <span className="sr-only">On your shortlist</span>
+    </span>
+  );
+}
+
 /** ai_score over /100 in Fraunces, "so far" or "not scored yet" under it.
  *  Never a quiz percentage standing in for it. `reserve` keeps the second
  *  line's room when there are no words (the phone card: a score landing,
@@ -348,6 +360,7 @@ export function ApplicantTableRow({ row, onOpen, index = 0, reveal = true }: Row
             <span className="max-w-full truncate text-[14.5px] font-medium" style={{ color: "var(--ink)" }}>
               {row.name}
             </span>
+            {row.shortlisted && <ShortlistMark />}
             {row.chip && <StatusChip chip={row.chip} />}
             {row.sameBlockedPhoneAs && <SamePhoneChip name={row.sameBlockedPhoneAs} />}
           </span>
@@ -424,8 +437,12 @@ export function ApplicantCard({ row, onOpen, index = 0, reveal = true }: RowProp
       <span className="flex items-center gap-[11px]">
         <Who row={row} />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[15px] font-medium leading-[1.3]" style={{ color: "var(--ink)" }}>
-            {row.name}
+          {/* One line, as before: the name cuts short, the bookmark never does. */}
+          <span className="flex min-w-0 items-center gap-1.5 text-[15px] leading-[1.3]">
+            <span className="min-w-0 truncate font-medium" style={{ color: "var(--ink)" }}>
+              {row.name}
+            </span>
+            {row.shortlisted && <ShortlistMark />}
           </span>
           <span className="block text-[12.5px] leading-[1.4]" style={{ color: "var(--ink-3)" }}>
             <SubLine row={row} words={row.onForm ? `started ${row.appliedAgo}` : row.appliedAgo} />

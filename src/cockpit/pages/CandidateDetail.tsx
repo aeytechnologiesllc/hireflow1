@@ -15,6 +15,7 @@ import {
   XCircle,
   ArrowLeft,
   Ban,
+  Bookmark,
   RotateCcw,
 } from "lucide-react";
 import AvaSeal from "@/components/ava/AvaSeal";
@@ -41,6 +42,9 @@ import { ApplicantDecisionCard, type DecisionAction, type DecisionCardActions } 
 // Remove and block on the profile too (its ⋯ menu; the phone's More).
 import { ActionsMenu, ApplicantActionDialogs, BlockedNote, applicantMenuItems, type ApplicantActionRequest } from "../components/ApplicantRowMenu";
 import { useBlockedApplicants } from "../hooks/useApplicantBlocks";
+// The team's shortlist: a private mark, one click from the profile's top line.
+import { useShortlist, useShortlistActions } from "../hooks/useShortlist";
+import { SHORTLIST_PRIVATE_LINE, canShortlist, shortlistActionLabel, shortlistButtonLabel } from "../lib/shortlist";
 import { ApplicantHeaderBand } from "../components/ApplicantHeaderBand";
 import { ApplicantTestTiles } from "../components/ApplicantTestTiles";
 import { ApplicantAtAGlance } from "../components/ApplicantAtAGlance";
@@ -458,6 +462,10 @@ function CandidateProfile({
   // Remove and block / Unblock, from the ⋯ beside the pager (the phone's More).
   const blocks = useBlockedApplicants();
   const [blockRequest, setBlockRequest] = useState<ApplicantActionRequest | null>(null);
+  // The team's shortlist (lib/shortlist.ts): who is marked, and the one click
+  // that changes it. It decides nothing and the applicant is not told.
+  const shortlist = useShortlist();
+  const { setShortlisted, busy: shortlistBusy } = useShortlistActions();
   const now = useNow(30_000);
   // The server's record of every attempt (live through useEmployerLiveSync).
   const { data: sessions } = useApplicationSessions(id ?? null);
@@ -700,6 +708,40 @@ function CandidateProfile({
   // Pass is on the decision card already; the menu holds what is not.
   const profileMenuItems = applicantMenuItems({ target: blockTarget, status: status ?? "", blocked: !!blockRow, onRequest: setBlockRequest }).filter((item) => item.key !== "pass");
   const blockedNode = blockRow ? <BlockedNote blockedAt={blockRow.created_at} onUnblock={() => setBlockRequest({ kind: "unblock", target: blockTarget })} /> : null;
+
+  // Shortlist: a toggle beside the pager. Only for someone still in the
+  // running (not declined, not blocked), as on the list. `compact` is the
+  // phone's: the bookmark alone, named for a screen reader.
+  const canMark = canShortlist(status, !!blockRow);
+  const onShortlist = canMark && shortlist.ids.has(c.id);
+  const shortlistButton = (compact: boolean) =>
+    canMark ? (
+      <button
+        type="button"
+        data-shortlist-toggle
+        data-size={compact ? "icon" : undefined}
+        aria-pressed={onShortlist}
+        aria-label={compact ? shortlistActionLabel(onShortlist) : undefined}
+        title={onShortlist ? `Take ${first} off your shortlist. ${SHORTLIST_PRIVATE_LINE}` : `Add ${first} to your shortlist. ${SHORTLIST_PRIVATE_LINE}`}
+        disabled={shortlistBusy}
+        className={
+          compact
+            ? "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border disabled:opacity-60"
+            : "ck-btn ck-btn-outline !h-8 shrink-0 !gap-1.5 !px-3 !py-0 !text-[12.5px]"
+        }
+        style={
+          compact
+            ? { borderColor: onShortlist ? "var(--brass)" : "var(--line)", background: "var(--surface)", color: "var(--ink-2)" }
+            : onShortlist
+              ? { borderColor: "var(--brass)", color: "var(--ink)" }
+              : undefined
+        }
+        onClick={() => void setShortlisted([{ applicationId: c.id, name: c.name }], !onShortlist)}
+      >
+        <Bookmark aria-hidden className="h-4 w-4 shrink-0" style={onShortlist ? { color: "var(--brass)", fill: "var(--brass)" } : undefined} />
+        {!compact && shortlistButtonLabel(onShortlist)}
+      </button>
+    ) : null;
 
   // The decision bar, in the order it reads. On a phone the first buttons
   // stay and the rest go behind "More" (at most three on screen); from md up
@@ -947,7 +989,8 @@ function CandidateProfile({
             </span>
           </button>
           {pager && <Pager {...pager} />}
-          <span className={pager ? "shrink-0" : "ml-auto shrink-0"}>
+          <span className={`flex shrink-0 items-center gap-2 ${pager ? "" : "ml-auto"}`}>
+            {shortlistButton(false)}
             <ActionsMenu label={`More actions for ${c.name}`} items={profileMenuItems} />
           </span>
         </div>
@@ -1188,6 +1231,7 @@ function CandidateProfile({
           {c.name}
         </span>
         {pager && <Pager {...pager} />}
+        {shortlistButton(true)}
       </div>
 
       <div className="space-y-3">

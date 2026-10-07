@@ -1,10 +1,10 @@
 import { useLayoutEffect, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Ban, Check, Minus, X } from "lucide-react";
+import { Ban, BookmarkMinus, BookmarkPlus, Check, Minus, X } from "lucide-react";
 
 /**
- * Picking several applicants at once, and the bar that acts on them (Remove
- * and block N, Clear, Select all on this page).
+ * Picking several applicants at once, and the bar that acts on them (Add to
+ * shortlist, Remove and block N, Clear, Select all on this page).
  *
  * The owner, 2026-10-06, with applications pouring in: "give me a nicer,
  * easier way to drop down to delete some of these applicants. And that will
@@ -106,6 +106,8 @@ export function ApplicantBulkBar({
   onSelectPage,
   onClear,
   onBlock,
+  onShortlist,
+  shortlistOff = false,
   busy = false,
   anchor,
   phone,
@@ -120,6 +122,11 @@ export function ApplicantBulkBar({
   /** Clear (and, on a phone, leave Select mode). */
   onClear: () => void;
   onBlock: () => void;
+  /** Put the picked on the team's shortlist (lib/shortlist.ts); absent where
+   *  there is none. */
+  onShortlist?: () => void;
+  /** On the Shortlist tab the same button takes them off it. */
+  shortlistOff?: boolean;
   busy?: boolean;
   /** The list's own column, for where the bar sits on a computer. */
   anchor: HTMLElement | null;
@@ -137,6 +144,8 @@ export function ApplicantBulkBar({
       : { left: "50%", transform: "translateX(-50%)", width: "min(760px, calc(100vw - 32px))", bottom: 20 };
 
   const blockLabel = count > 0 ? `Remove and block ${count}` : "Remove and block";
+  const ShortlistIcon = shortlistOff ? BookmarkMinus : BookmarkPlus;
+  const shortlistLabel = shortlistOff ? "Take off shortlist" : "Add to shortlist";
 
   return createPortal(
     <div
@@ -166,16 +175,31 @@ export function ApplicantBulkBar({
               Done
             </button>
           </div>
-          <button
-            type="button"
-            className="ck-btn ck-btn-outline min-h-[44px] w-full !text-[14px]"
-            style={{ color: "var(--hf-danger)", borderColor: "color-mix(in srgb, var(--hf-danger) 50%, transparent)" }}
-            disabled={count === 0 || busy}
-            onClick={onBlock}
-          >
-            <Ban aria-hidden className="h-4 w-4" />
-            {blockLabel}
-          </button>
+          {/* One row for both, so the bar stays the height it was. */}
+          <div className="flex gap-2">
+            {onShortlist && (
+              <button
+                type="button"
+                aria-label={shortlistLabel}
+                className="ck-btn ck-btn-outline min-h-[44px] min-w-0 flex-1 !px-2 !text-[14px]"
+                disabled={count === 0 || busy}
+                onClick={onShortlist}
+              >
+                <ShortlistIcon aria-hidden className="h-4 w-4 shrink-0" />
+                {shortlistOff ? "Take off" : "Shortlist"}
+              </button>
+            )}
+            <button
+              type="button"
+              className={`ck-btn ck-btn-outline min-h-[44px] min-w-0 !px-2 !text-[14px] ${onShortlist ? "flex-[1.7]" : "w-full"}`}
+              style={{ color: "var(--hf-danger)", borderColor: "color-mix(in srgb, var(--hf-danger) 50%, transparent)" }}
+              disabled={count === 0 || busy}
+              onClick={onBlock}
+            >
+              <Ban aria-hidden className="h-4 w-4 shrink-0" />
+              {blockLabel}
+            </button>
+          </div>
         </div>
       ) : (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-2 text-[13.5px]" style={{ color: "var(--hf-text)" }}>
@@ -194,6 +218,12 @@ export function ApplicantBulkBar({
           <button type="button" className="ck-btn ck-btn-ghost h-9 !px-3 !text-[13px]" onClick={onClear}>
             Clear
           </button>
+          {onShortlist && (
+            <button type="button" className="ck-btn ck-btn-outline h-9 !px-4 !text-[13px]" disabled={count === 0 || busy} onClick={onShortlist}>
+              <ShortlistIcon aria-hidden className="h-4 w-4" />
+              {shortlistLabel}
+            </button>
+          )}
           <button
             type="button"
             className="ck-btn ck-btn-outline h-9 !px-4 !text-[13px]"

@@ -384,7 +384,9 @@ export function buildPipeline(apps: ApplicationWithCandidate[]): PipelineNode[] 
       tone: voice > 0 && voice / total < 0.25 ? "bottleneck" : "green",
       dropOff: drop(voice, shortlist),
     },
-    { key: "shortlist", label: "Shortlist", count: shortlist, pct: pct(shortlist), tone: "muted", dropOff: drop(shortlist, hired) },
+    // "In review", not "Shortlist": every applicant who sends the form lands
+    // here. The shortlist is the team's own picks (lib/shortlist.ts).
+    { key: "shortlist", label: "In review", count: shortlist, pct: pct(shortlist), tone: "muted", dropOff: drop(shortlist, hired) },
     { key: "hired", label: "Hired", count: hired, pct: pct(hired), tone: "muted" },
   ];
 

@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Ban, CheckSquare, ExternalLink, MoreHorizontal, RotateCcw, XCircle } from "lucide-react";
+import { Ban, BookmarkMinus, BookmarkPlus, CheckSquare, ExternalLink, MoreHorizontal, RotateCcw, XCircle } from "lucide-react";
 import { ActionDialog } from "./ActionDialog";
 import { DeclineNotePreview, passDialogWords } from "./ApplicantDecisionDialogs";
 import { useCockpitActions } from "../hooks/useCockpitData";
 import { useApplicantBlockActions, type BlockTarget } from "../hooks/useApplicantBlocks";
 import { blockConfirmWords, firstNameOf, unblockConfirmWords } from "../lib/blockedApplicants";
+import { canShortlist, shortlistActionLabel } from "../lib/shortlist";
 
 /**
  * The ⋯ menu on each applicant (the list's row and phone card, and the full
  * profile), and the three confirms it opens: Pass (the polite email, as on
- * the profile), Remove and block (silent, and it sticks), Unblock.
+ * the profile), Remove and block (silent, and it sticks), Unblock. "Add to
+ * shortlist" is in the menu too and opens nothing: one click, no confirm.
  *
  * The owner, 2026-10-06: "give me a nicer, easier way to drop down to delete
  * some of these applicants. And that will just block them too."
@@ -245,6 +247,7 @@ export function applicantMenuItems({
   status,
   blocked,
   jobTitle,
+  shortlist,
   onOpenProfile,
   onSelect,
   onRequest,
@@ -254,6 +257,10 @@ export function applicantMenuItems({
   blocked: boolean;
   /** The job they applied for, for the note a Pass sends. */
   jobTitle?: string | null;
+  /** The team's shortlist (lib/shortlist.ts): whether they are on it, and
+   *  the one click that changes that. No confirm: it decides nothing and the
+   *  applicant is not told. Absent where the page has its own button. */
+  shortlist?: { on: boolean; onToggle: () => void };
   /** Absent on the profile itself. */
   onOpenProfile?: () => void;
   /** "Select" (the list's checkboxes); absent where there is none. */
@@ -271,6 +278,12 @@ export function applicantMenuItems({
   if (blocked && closed) {
     items.push(unblock);
     return items;
+  }
+  // The shortlist is the people still in the running: not offered on someone
+  // declined or blocked.
+  if (shortlist && canShortlist(status, blocked)) {
+    const Icon = shortlist.on ? BookmarkMinus : BookmarkPlus;
+    items.push({ key: "shortlist", label: shortlistActionLabel(shortlist.on), icon: <Icon aria-hidden className="h-4 w-4 shrink-0" />, onSelect: shortlist.onToggle });
   }
   // Pass, the polite way out, exactly as the profile offers it: not once they
   // are declined or hired; an offer is taken back rather than passed on.
