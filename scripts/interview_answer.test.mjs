@@ -153,6 +153,9 @@ console.log("\nThe team's answer");
   check("the row says which it is", /"they can't make the times you offered and suggested others"/.test(page) && /s\.suggestedFromOffer \? "Suggested other times" : "Needs confirm"/.test(page));
   check("the dialog is told", /fromOffer=\{reviewing\.suggestedFromOffer\}\s*openOfferedTimes=\{reviewing\.openOfferedTimes\}/.test(page));
 
+  check("one reading of 'no time is agreed yet' on the page", /function noTimeYet\(s: Pick<Session, "response" \| "suggestedFromOffer">\): boolean \{\s*return s\.response === "awaiting_pick" \|\| \(s\.response === "reschedule_requested" && s\.suggestedFromOffer\);/.test(page));
+  check("a row with no agreed time shows no clock time as if it were set", /\{noTimeYet\(s\) \? \([\s\S]{0,700}No time yet[\s\S]{0,420}\{awaitingPick \? "They pick" : "Your call"\}/.test(page) && /data-interview-time="none"/.test(page));
+  check("the brief does not say 'Set for' or 'ready for' a placeholder", /next\.at && !noTimeYet\(next\) \? \(isToday\(next\.at\)/.test(page) && /\{noTimeYet\(next\) \? \(\s*<Evidence icon=\{AlertCircle\} tone="var\(--amber-fg\)" label="No time yet:">/.test(page));
   check("answering an offer: no 'set now for' time is shown", /\{!fromOffer && \(\s*<Card className="bg-muted\/50">/.test(review));
   check("…and no 'keep': the other answer is back to the offered times", /\{fromOffer \? \(\s*<Button[\s\S]{0,220}onClick=\{handleBackToOffer\}/.test(review) && /onClick=\{handleKeepOriginal\}/.test(review));
   const back = /const handleBackToOffer = async \(\) => \{[\s\S]*?\n  \};\n/.exec(review)?.[0] ?? "";

@@ -276,7 +276,7 @@ export function EmployerRescheduleReviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-hidden flex flex-col" data-review-suggested={fromOffer ? "offer" : "set"}>
+      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-hidden flex flex-col" data-review-suggested={fromOffer ? "offer" : "set"}>
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>{fromOffer ? "Other times suggested" : "Another time asked for"}</DialogTitle>
           <DialogDescription>
@@ -356,8 +356,9 @@ export function EmployerRescheduleReviewDialog({
           )}
         </div>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2 flex-shrink-0 pt-4 border-t border-border">
-          <Button variant="outline" onClick={handleMessageCandidate} className="gap-2">
+        {/* Three answers: each label stays on one line, and the row wraps instead of squeezing them. */}
+        <DialogFooter className="flex-col gap-2 flex-shrink-0 pt-4 border-t border-border sm:flex-row sm:flex-wrap sm:justify-end sm:gap-2 sm:space-x-0">
+          <Button variant="outline" onClick={handleMessageCandidate} className="gap-2 whitespace-nowrap">
             <MessageSquare className="h-4 w-4" />
             Message {them}
           </Button>
@@ -366,19 +367,19 @@ export function EmployerRescheduleReviewDialog({
               variant="outline"
               onClick={handleBackToOffer}
               disabled={isSubmitting || !canGoBackToOffer}
-              className="gap-2"
+              className="gap-2 whitespace-nowrap"
               data-review-back-to-offer
             >
               {isSubmitting && action === "keep" ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
               None of these work
             </Button>
           ) : (
-            <Button variant="outline" onClick={handleKeepOriginal} disabled={isSubmitting} className="gap-2" data-review-keep>
+            <Button variant="outline" onClick={handleKeepOriginal} disabled={isSubmitting} className="gap-2 whitespace-nowrap" data-review-keep>
               {isSubmitting && action === "keep" ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
               Keep the time as it is
             </Button>
           )}
-          <Button onClick={handleAcceptTime} disabled={isSubmitting || !selectedTime} className="gap-2" data-review-accept>
+          <Button onClick={handleAcceptTime} disabled={isSubmitting || !selectedTime} className="gap-2 whitespace-nowrap" data-review-accept>
             {isSubmitting && action === "accept" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
             Accept this time
           </Button>

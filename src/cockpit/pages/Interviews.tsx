@@ -103,6 +103,16 @@ function typeLabel(type: string | null) {
   return t.replace(/[-_]/g, " ");
 }
 
+/**
+ * No time is agreed yet: the applicant is still choosing among offered times,
+ * or said none work and suggested their own. The row's own time is then only
+ * a placeholder (the earliest offered time) and is never shown as the
+ * appointment (docs/INTERVIEWS.md).
+ */
+function noTimeYet(s: Pick<Session, "response" | "suggestedFromOffer">): boolean {
+  return s.response === "awaiting_pick" || (s.response === "reschedule_requested" && s.suggestedFromOffer);
+}
+
 function readResponse(value: string | null): Response {
   if (value === "confirmed") return "confirmed";
   if (value === "reschedule_requested") return "reschedule_requested";
@@ -580,7 +590,7 @@ export default function CockpitInterviews() {
                               }}
                             >
                               {format(s.at as Date, "h:mm aaa")} &middot; {firstName(s.name)}
-                              {confirm ? " · confirm" : ""}
+                              {confirm ? (s.suggestedFromOffer ? " · suggested others" : " · confirm") : ""}
                               {/* awaiting_pick shows the earliest offered window as a
                                   placeholder — the candidate has not chosen yet, so say
                                   so quietly rather than let it read as a confirmed time. */}
@@ -633,20 +643,38 @@ export default function CockpitInterviews() {
                     className="ck-card ck-reveal flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3"
                     style={{ ["--ck-i" as string]: i, borderRadius: 10 }}
                   >
-                    <div className="min-w-[104px] shrink-0">
-                      <div
-                        className="text-[10px] font-bold uppercase leading-[1.2] tracking-[0.1em]"
-                        style={{ color: "var(--brass)" }}
-                      >
-                        {s.at ? format(s.at, "EEE d") : "Next"}
+                    {noTimeYet(s) ? (
+                      /* No time is agreed: no clock time is shown as if it were. */
+                      <div className="min-w-[104px] shrink-0" data-interview-time="none">
+                        <div
+                          className="text-[10px] font-bold uppercase leading-[1.2] tracking-[0.1em]"
+                          style={{ color: "var(--brass)" }}
+                        >
+                          No time yet
+                        </div>
+                        <div
+                          className="font-display mt-[5px] whitespace-nowrap leading-none"
+                          style={{ fontSize: 18, fontWeight: 600, color: "var(--ink-2)" }}
+                        >
+                          {awaitingPick ? "They pick" : "Your call"}
+                        </div>
                       </div>
-                      <div
-                        className="font-display tnum mt-[3px] whitespace-nowrap leading-none"
-                        style={{ fontSize: 28, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.02em" }}
-                      >
-                        {s.at ? format(s.at, "h:mm aaa") : s.timeLabel}
+                    ) : (
+                      <div className="min-w-[104px] shrink-0" data-interview-time="set">
+                        <div
+                          className="text-[10px] font-bold uppercase leading-[1.2] tracking-[0.1em]"
+                          style={{ color: "var(--brass)" }}
+                        >
+                          {s.at ? format(s.at, "EEE d") : "Next"}
+                        </div>
+                        <div
+                          className="font-display tnum mt-[3px] whitespace-nowrap leading-none"
+                          style={{ fontSize: 28, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.02em" }}
+                        >
+                          {s.at ? format(s.at, "h:mm aaa") : s.timeLabel}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     <button
                       type="button"
@@ -843,7 +871,7 @@ export default function CockpitInterviews() {
               <section>
                 <SectionTitle>
                   {firstName(next.name)}&rsquo;s brief
-                  {next.at ? (isToday(next.at) ? " — ready for today" : ` — ready for ${format(next.at, "EEEE")}`) : ""}
+                  {next.at && !noTimeYet(next) ? (isToday(next.at) ? " — ready for today" : ` — ready for ${format(next.at, "EEEE")}`) : ""}
                 </SectionTitle>
                 <div
                   className="ck-card relative"
@@ -856,11 +884,21 @@ export default function CockpitInterviews() {
                     aria-hidden
                   />
                   <ul className="mt-1.5 flex flex-col gap-2">
-                    <Evidence icon={ShieldCheck} tone="var(--brass)" label="Set for:">
-                      {next.at ? format(next.at, "EEEE d MMM 'at' h:mm aaa") : next.timeLabel}
-                      {next.minutes ? ` · ${next.minutes} min` : ""}
-                      {typeLabel(next.type) ? ` · ${typeLabel(next.type)}` : ""}
-                    </Evidence>
+                    {noTimeYet(next) ? (
+                      <Evidence icon={AlertCircle} tone="var(--amber-fg)" label="No time yet:">
+                        {next.response === "awaiting_pick"
+                          ? `${next.windowsOffered} ${next.windowsOffered === 1 ? "time" : "times"} offered. I am waiting for them to pick one.`
+                          : "They can't make the times you offered and suggested others. Review times to answer."}
+                        {next.minutes ? ` · ${next.minutes} min` : ""}
+                        {typeLabel(next.type) ? ` · ${typeLabel(next.type)}` : ""}
+                      </Evidence>
+                    ) : (
+                      <Evidence icon={ShieldCheck} tone="var(--brass)" label="Set for:">
+                        {next.at ? format(next.at, "EEEE d MMM 'at' h:mm aaa") : next.timeLabel}
+                        {next.minutes ? ` · ${next.minutes} min` : ""}
+                        {typeLabel(next.type) ? ` · ${typeLabel(next.type)}` : ""}
+                      </Evidence>
+                    )}
                     {next.questions.slice(0, 3).map((q, qi) => (
                       <Evidence key={qi} icon={HelpCircle} tone="var(--ink-3)" label="Ask:">
                         {q}

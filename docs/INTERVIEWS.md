@@ -114,6 +114,12 @@ interviews table): `confirm`, `pick_slot`, `repick_slot`,
     offered times have all passed, the button is off and the dialog says to
     accept one of theirs or message them.
 
+- **The Interviews page never shows a placeholder as the appointment.** While
+  no time is agreed (`noTimeYet`: still choosing, or a suggestion that
+  answers an offer) the row reads "No time yet · They pick" or "Your call"
+  instead of a clock time, and the brief says "No time yet" instead of "Set
+  for ... ready for Thursday".
+
 ## Whose clock a time is written on
 
 **The rule: a time that leaves for an applicant is on the applicant's own
