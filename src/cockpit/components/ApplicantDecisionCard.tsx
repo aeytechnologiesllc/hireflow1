@@ -17,7 +17,7 @@ import { PanelLabel } from "./ProfileSection";
 
 /** One decision the page offers (CandidateDetail builds them). */
 export interface DecisionAction {
-  key: "continue" | "advance" | "setup" | "pass" | "message" | "hire" | "takeBack";
+  key: "continue" | "advance" | "setup" | "pass" | "message" | "hire" | "takeBack" | "block";
   text: string;
   /** The card's own words, when they differ from the bar's ("Pass on Maria"). */
   cardText?: string;

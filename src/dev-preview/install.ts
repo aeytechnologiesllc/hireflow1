@@ -307,6 +307,72 @@ function liveRealtime(base: ReturnType<typeof createFixtureSupabaseClient>, tabl
   return { channel, removeChannel };
 }
 
+/**
+ * Remove and block, offline (supabase/migrations/20261007022249_block_applicants.sql):
+ * the same writes the real functions make to the fixture tables, so the list's
+ * ⋯ menu, the bulk bar, the Blocked tab and Unblock can be clicked through.
+ * Nothing here checks who may: the preview is one employer's own data.
+ */
+function previewBlockHandlers(tables: FixtureTables, user: FixtureAuthUser): Record<string, (args: unknown) => unknown> {
+  const rows = (name: string): FixtureRow[] => (tables[name] ??= []);
+  return {
+    block_applicants: (args) => {
+      const { p_application_ids: ids = [], p_reason: reason = null } = (args ?? {}) as { p_application_ids?: string[]; p_reason?: string | null };
+      const blocked: string[] = [];
+      const skipped: string[] = [];
+      for (const id of ids) {
+        const app = rows("applications").find((a) => a.id === id);
+        const job = app ? rows("jobs").find((j) => j.id === app.job_id) : undefined;
+        if (!app || !job) {
+          skipped.push(id);
+          continue;
+        }
+        const at = new Date().toISOString();
+        for (const other of rows("applications")) {
+          const sameEmployer = rows("jobs").some((j) => j.id === other.job_id && j.employer_id === job.employer_id);
+          if (other.candidate_id !== app.candidate_id || !sameEmployer) continue;
+          if (other.id !== app.id && !["in_progress", "pending", "reviewing"].includes(String(other.status))) continue;
+          other.status = "rejected";
+          // Every key kept, as merge_application_notes keeps them.
+          let notes: Record<string, unknown> = {};
+          try {
+            const parsed: unknown = JSON.parse(typeof other.notes === "string" && other.notes.trim() ? other.notes : "{}");
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) notes = parsed as Record<string, unknown>;
+          } catch {
+            // Unreadable notes: the stamp alone.
+          }
+          other.notes = JSON.stringify({ ...notes, blocked: { at, by: user.id } });
+          other.updated_at = at;
+        }
+        const list = rows("blocked_applicants");
+        if (!list.some((b) => b.employer_id === job.employer_id && b.candidate_id === app.candidate_id)) {
+          const profile = rows("profiles").find((p) => p.user_id === app.candidate_id);
+          list.push({
+            id: `block-${String(app.candidate_id)}`,
+            employer_id: job.employer_id,
+            candidate_id: app.candidate_id,
+            email: typeof profile?.email === "string" ? profile.email.toLowerCase() : null,
+            phone: null,
+            reason,
+            blocked_by: user.id,
+            created_at: at,
+          });
+        }
+        blocked.push(id);
+      }
+      return { blocked, skipped };
+    },
+    unblock_applicant: (args) => {
+      const candidate = (args as { p_candidate_id?: string } | undefined)?.p_candidate_id;
+      const list = rows("blocked_applicants");
+      const keep = list.filter((b) => b.candidate_id !== candidate);
+      const removed = list.length - keep.length;
+      tables.blocked_applicants = keep;
+      return removed;
+    },
+  };
+}
+
 function isPreviewRole(value: string | null): value is PreviewRole {
   return !!value && Object.prototype.hasOwnProperty.call(ROLE_USERS, value);
 }
@@ -333,7 +399,7 @@ export function install(params: URLSearchParams): void {
   const base = createFixtureSupabaseClient({
     user: ROLE_USERS[role],
     tables,
-    rpc: buildFixtureRpcHandlers(scenario),
+    rpc: { ...buildFixtureRpcHandlers(scenario), ...previewBlockHandlers(tables, ROLE_USERS[role]) },
   });
   const realtime = liveRealtime(base, tables, params.get("__previewLive"));
   // The staff record opens applicants' uploads through the applicant-file-url

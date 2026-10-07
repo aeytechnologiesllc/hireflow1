@@ -68,7 +68,13 @@ active count, opening a bottom sheet with chip groups and "Show N applicants"):
 - **Country**: All, then the countries present, most common first, then Unknown.
 - **Applied**: Any time, Today, This week, This month.
 - **Job**: only when the employer has more than one job (`?roleId=` is the same filter).
-- **Sort**: Score high to low (unscored last), Newest, Last active.
+- **Sort**: Score high to low (unscored last), Newest, Last active. Ties,
+  and the whole unscored block, go by when they applied (newest first), then
+  id: keys nothing a live applicant does can move. Only "Last active" reads
+  activity, because that is what it asks for. (Until 2026-10-07 a Score tie
+  went by the last move; with four in five applicants unscored and a
+  heartbeat every two seconds, the default order changed on nearly every
+  event.)
 
 An active filter reads as a filled chip with an × (desktop) and as a count on
 the Filters button (phone). Below 1440px an unset desktop dropdown shows only
@@ -80,6 +86,75 @@ Tab, filters, sort, search and how many are shown live in the URL (replace,
 not push; unknown params such as `roleId` and `__preview*` are kept), and the
 list's scroll position is restored when coming back from a profile. The page
 scrolls inside the shell's `<main class="ck-scroll">`, not the window.
+
+### The list holds still while it is read (2026-10-07)
+
+The owner, with 31 applications in an hour: *"the page is doing this weird
+refresh thing … there's too much weird shit going on."* Every heartbeat of a
+live applicant re-sorted the list, and every row a re-sort moved replayed its
+entrance fade (Chrome restarts a CSS animation on a node React moves), so the
+whole list blinked to nothing and faded back in every couple of seconds.
+
+- **The order on screen is held.** It is taken when the list lands, and taken
+  again only when he changes the tab, a filter, the sort or the search,
+  presses the update bar, or comes back to the page (a new visit, or the page
+  hidden for 30 seconds or more: it is taken afresh every 30 seconds while
+  hidden, from the moment it is hidden or mounted hidden, and once more on
+  the way back; a quick look at another tab returns to exactly the order it
+  left). "Show 25 more" draws further down the same
+  held order. Between those, each row's own facts (live dot, the one line,
+  last active, flags, score, chip) change in place; no row moves, none is
+  added, and the tab counts stand still.
+- **What would move in THIS list waits in one quiet bar**: "12 new · 5
+  moved · Show". *New* is anyone new since the hold who would join this list
+  (its tab, filters and search). *Moved* is a held applicant who would change
+  place in it: into it, out of it, or to another position in it (the fewest
+  rows that would have to move: one score lifting a row past twelve others
+  is 1 moved, not 13). A change on another tab moves no row here, so it never
+  waits in the bar (the bar once said "5 new" on Interview for five people on
+  the form, and Show moved nothing); the tab counts take it in silently the
+  next time the list is taken. Show applies everything at once. The bar's
+  slot is always there at one height ("Up to date" when nothing waits), so it
+  never pushes the list down. It is one button in both states (inert while
+  up to date), so Show keeps the keyboard focus, and its words are a polite
+  live region. On a phone it sits under the tabs; on a computer at the top
+  of the list.
+- A held row that no longer matches its tab or filters stays where it is,
+  showing its new state, until the update. A deleted applicant leaves at once
+  (that moves no one else). When the held list is empty there is nothing to
+  keep still, and whoever would join it shows at once (a change elsewhere
+  does not retake it).
+- The owner's own action on a row from the list (decline, delete, block) can
+  show at once through `settle([id])` (`settleApplicantHold`): that row's tab
+  counts as it is now and it leaves a list it no longer matches, while
+  everyone else stays held. The list settles the rows as he confirms, before
+  anything is sent, so a realtime update that lands ahead of the round trip
+  shows at once too. A move onto or off Blocked always shows at once
+  (only the hiring team blocks anyone; in the owner's words a block is a
+  delete), the way a deleted row leaves.
+- Rows rise in (`ck-reveal`) only while the list first lands; a row that moves
+  on Show, or arrives later, appears without the animation.
+- A background refetch never shows the skeleton or moves the scroll: the list
+  queries keep their previous rows while a new key loads
+  (`placeholderData: keepPreviousData`).
+- Only the rows that changed redraw. The row builder hands back the very same
+  row object while it says the same thing (even after a refetch rebuilds every
+  record), and the page draws each row through one memoised item
+  (`ApplicantListItem`) with one callbacks object for its lifetime; a row's ⋯
+  menu builds its items only while it is open. During a flood every realtime
+  event renders the page, and redrawing 300 rows each time was a long
+  main-thread task per heartbeat.
+- A phone card does not change height when its facts change in place: the
+  score always keeps the room for "so far", and the foot (the line and the
+  flags) is always two lines tall, never more.
+- A row's ⋯ menu closes when its row moves under it (a row above deleted or
+  blocked, the list taken afresh) rather than sit beside someone else.
+
+The rule lives in `src/cockpit/lib/applicantList.ts` (`holdApplicantList`,
+`heldListView`, `listUpdates`, `settleApplicantHold`) and
+`useHeldApplicantList` in `src/cockpit/hooks/useApplicantList.ts`; the bar is
+`src/cockpit/components/ListUpdatesBar.tsx`. Guarded by
+`scripts/guards/cockpit-live-applicants.mjs` (wave 5).
 
 ## 2. One row
 
@@ -266,8 +341,84 @@ It gains:
   refetches; an open profile refetches only for its own applicant's attempts;
   interview changes refresh `['interviews']` on their own channel
   (`scripts/applicant_list.test.mjs`, `scripts/employer_live_sync.test.mjs`).
+- The list holds still: a heartbeat changes neither the Score nor the Newest
+  order; a burst of 50 updates (heartbeats and score landings) and 20 new
+  applicants, through the real live sync, row builder and held view, moves no
+  row and no tab count on Score, Last active, Newest or a tab, until Show,
+  which then draws the live order with all 20 new; a row drawn after the
+  first paint has no `ck-reveal` (section 11 and 12 of
+  `scripts/applicant_list.test.mjs`).
 - Existing checks that pinned the right-hand panel are rewritten in the same
   change, never deleted without a replacement.
 - Dev preview has ~12 fixture applicants covering every state above; the list
   and the profile are looked at rendered at 390 and 1280, in NIGHT and DAY,
   and inside the team member's shell too.
+
+## 6. Remove and block (2026-10-07)
+
+The owner, with a live job taking applications as fast as people could type:
+*"give me a nicer, easier way to drop down to delete some of these
+applicants. And that will just block them too."* Pass stays the polite way
+out (it emails the candidate); Remove and block is the other one: silent, and
+it sticks.
+
+- **Where**: the ⋯ on every row and phone card (Open profile, Select, Pass or
+  Take back offer, Remove and block; Unblock on a blocked one), the profile's
+  ⋯ beside the pager (the phone's More), and the bulk bar. Menus and dialogs
+  are portalled to `<body>`.
+- **Picking several**: on the table a checkbox sits over each avatar (on hover,
+  and on every row once one is picked; shift-click picks a range) with "all on
+  this page" in the header. On cards, **Select** beside the count starts a
+  mode where a tap picks instead of opening. One bar at the foot: "N
+  selected", Select all on this page, Clear, **Remove and block N**. Escape
+  lets go. A pick lasts while its applicant is on this list, drawn or not: Show
+  pushing a picked row past the 25 drawn does not drop it.
+- **The confirm**: "Remove and block <name>? They won't be emailed. They
+  leave your list, along with any other open application of theirs to your
+  jobs, and they can't apply again with this account or email. If someone
+  applies with the same phone, I'll flag them. You can undo this in Blocked."
+  with an optional reason only the team sees.
+- **The list**: a blocked person's application that the block closed is on
+  the **Blocked** tab only (last, shown only when someone is blocked), off
+  All, off every other tab, off every count and the header's "N applied". One
+  the block deliberately left open (an interview, offer or hire on another
+  job, or a job the person who blocked them cannot decide on) stays on its own
+  tab with the Blocked chip, and its ⋯ offers Unblock: the list never hides
+  what is still live. A block or an unblock shows at once: a move onto or off
+  Blocked never waits in the update bar (`followsLive`), and the clicked rows
+  read as rejected on the click (the staff hook patches the cached rows; the
+  live sync then merges the server's own).
+- **A phone is flagged, never refused**: anyone on the list whose form phone
+  (their answers, or the form's draft while they are on it) is a blocked
+  person's (the block's phone, or one on their own rows; the last 10 digits
+  agree, made-up numbers like 1234567890 ignored) carries a "Blocked phone"
+  chip naming who. The ⋯ menu's Remove and block is one tap away.
+- **Unblock** lets them apply again. Their application **stays declined**,
+  and the dialog, the toast and the Blocked tab all say so.
+- **The candidate** is told nothing: no email (blocking never goes through
+  `useUpdateApplication`, whose status write is what sends the rejection
+  email), no bell and no push (`notify_application_status_change` skips while
+  `block_applicant` runs); a form they were filling in closes as "blocked",
+  not "submitted". A new application to this employer from the same account
+  or the same email (Gmail's dots, googlemail.com and any +tag ignored) is
+  refused with "We can't take an application from this account.", which the
+  job page shows as it is. A phone never refuses: it is typed by the
+  applicant and unchecked, and a shared or mistyped number would turn a real
+  person away.
+
+The database half is `supabase/migrations/20261007022249_block_applicants.sql`
+(`blocked_applicants`, read-only to staff and written only by
+`block_applicant(s)` and `unblock_applicant`; the
+`applications_refuse_blocked` guard). Applying it takes one lock on
+`applications`, the trigger's creation, as its last statement, under a
+3-second `lock_timeout`; a re-run takes none. The client half is
+`lib/blockedApplicants.ts`, `hooks/useApplicantBlocks.ts`,
+`components/ApplicantRowMenu.tsx` and `components/ApplicantBulkBar.tsx`.
+Proof: `scripts/block_applicants.pglite.test.mjs` (who may call, nobody
+writing the table directly, the guard by id and by email with Gmail aliases,
+a phone never refused, the phone taken from another of their applications,
+an unrelated employer untouched, unblock, no bell, no push, the form closed
+as blocked, no email path, the locks the migration takes) and section B of
+`scripts/applicant_list.test.mjs` (the closed are off every tab and count and
+leave a held list at once, an interview the block left open stays, the phone
+flag).

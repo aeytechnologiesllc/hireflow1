@@ -14,6 +14,8 @@ import {
   CheckCircle2,
   XCircle,
   ArrowLeft,
+  Ban,
+  RotateCcw,
 } from "lucide-react";
 import AvaSeal from "@/components/ava/AvaSeal";
 import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
@@ -36,6 +38,9 @@ import { ApplicantTimeline, type TimelineApp } from "../components/ApplicantTime
 import { InterviewMoment } from "../components/InterviewMoment";
 import { ApplicantDecisionDialogs, type ApplicantDecision } from "../components/ApplicantDecisionDialogs";
 import { ApplicantDecisionCard, type DecisionAction, type DecisionCardActions } from "../components/ApplicantDecisionCard";
+// Remove and block on the profile too (its ⋯ menu; the phone's More).
+import { ActionsMenu, ApplicantActionDialogs, BlockedNote, applicantMenuItems, type ApplicantActionRequest } from "../components/ApplicantRowMenu";
+import { useBlockedApplicants } from "../hooks/useApplicantBlocks";
 import { ApplicantHeaderBand } from "../components/ApplicantHeaderBand";
 import { ApplicantTestTiles } from "../components/ApplicantTestTiles";
 import { ApplicantAtAGlance } from "../components/ApplicantAtAGlance";
@@ -427,6 +432,9 @@ function CandidateProfile({ id, pageWidth }: { id: string | undefined; pageWidth
   // An integrity alert opens on that test's timeline (see Notifications).
   const [recordFocus, setRecordFocus] = useState<"integrity" | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
+  // Remove and block / Unblock, from the ⋯ beside the pager (the phone's More).
+  const blocks = useBlockedApplicants();
+  const [blockRequest, setBlockRequest] = useState<ApplicantActionRequest | null>(null);
   const now = useNow(30_000);
   // The server's record of every attempt (live through useEmployerLiveSync).
   const { data: sessions } = useApplicationSessions(id ?? null);
@@ -658,6 +666,18 @@ function CandidateProfile({ id, pageWidth }: { id: string | undefined; pageWidth
   const message = () => navigate(`/messages?candidate=${c.avatar}`);
   const first = firstName(c.name);
 
+  // Remove and block: blocked people are off the list, so the profile says
+  // so plainly, with Unblock beside it (their application stays declined).
+  const candidateId = (application as { candidate_id?: string | null } | null)?.candidate_id ?? null;
+  const blockRow = candidateId ? blocks.blocked.get(candidateId) ?? null : null;
+  const blockTarget = { applicationId: c.id, candidateId, name: c.name };
+  const blockAction: BarAction = blockRow
+    ? { key: "block", text: "Unblock", icon: <RotateCcw className="h-4 w-4" />, variant: "outline", onClick: () => setBlockRequest({ kind: "unblock", target: blockTarget }) }
+    : { key: "block", text: "Remove and block", icon: <Ban className="h-4 w-4" />, variant: "danger", onClick: () => setBlockRequest({ kind: "block", targets: [blockTarget] }) };
+  // Pass is on the decision card already; the menu holds what is not.
+  const profileMenuItems = applicantMenuItems({ target: blockTarget, status: status ?? "", blocked: !!blockRow, onRequest: setBlockRequest }).filter((item) => item.key !== "pass");
+  const blockedNode = blockRow ? <BlockedNote blockedAt={blockRow.created_at} onUnblock={() => setBlockRequest({ kind: "unblock", target: blockTarget })} /> : null;
+
   // The decision bar, in the order it reads. On a phone the first buttons
   // stay and the rest go behind "More" (at most three on screen); from md up
   // every one is on the bar.
@@ -709,6 +729,8 @@ function CandidateProfile({ id, pageWidth }: { id: string | undefined; pageWidth
       quiet: passAction,
     };
   }
+  // Last: on a phone it lands in More unless the bar has room.
+  actions = [...actions, blockAction];
   const split = splitActionBar(actions, 3);
 
   const barNode = (
@@ -778,6 +800,15 @@ function CandidateProfile({ id, pageWidth }: { id: string | undefined; pageWidth
 
   const dialogs = (
     <>
+        {/* Blocked from here: back to the list, which no longer shows them. */}
+        <ApplicantActionDialogs
+          request={blockRequest}
+          onClose={() => setBlockRequest(null)}
+          onDone={(request, ok) => {
+            if (request.kind === "block" && ok) goBack();
+          }}
+        />
+
         <ApplicantDecisionDialogs
           open={dialog}
           candidate={c}
@@ -893,6 +924,9 @@ function CandidateProfile({ id, pageWidth }: { id: string | undefined; pageWidth
             </span>
           </button>
           {pager && <Pager {...pager} />}
+          <span className={pager ? "shrink-0" : "ml-auto shrink-0"}>
+            <ActionsMenu label={`More actions for ${c.name}`} items={profileMenuItems} />
+          </span>
         </div>
       </div>
     );
@@ -1039,6 +1073,7 @@ function CandidateProfile({ id, pageWidth }: { id: string | undefined; pageWidth
         <div data-profile-layout="desktop" data-ckp-head={headSplit}>
           {topLine}
           {header}
+          {blockedNode && <div className="mt-4">{blockedNode}</div>}
           {journeyNode}
           <div className="ckp-body">
             <div className="min-w-0">{main}</div>
@@ -1072,6 +1107,7 @@ function CandidateProfile({ id, pageWidth }: { id: string | undefined; pageWidth
       <div className="pb-6" data-profile-layout="column" data-ckp-head={headSplit}>
         {topLine}
         {header}
+        {blockedNode && <div className="mt-4">{blockedNode}</div>}
         <div ref={setCardEl} className="mt-5">
           <ApplicantDecisionCard actions={cardActions} outcome={outcome} layout={!measured || width >= CARD_ROW_FROM ? "row" : "stack"} />
         </div>
@@ -1131,6 +1167,7 @@ function CandidateProfile({ id, pageWidth }: { id: string | undefined; pageWidth
       </div>
 
       <div className="space-y-3">
+        {blockedNode}
         <div className="ck-card flex items-center gap-4 p-4">
           {/* No score yet → no arc. The ring must not draw a 0 as a verdict. */}
           <CandidateMark who={c.avatar} initials={getInitials(c.name)} size={72} score={score.value ?? undefined} rich variant="signal" />

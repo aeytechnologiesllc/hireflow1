@@ -33,6 +33,7 @@ import { JobPageHead } from "@/components/seo/JobPageHead";
 import { isStaffHost } from "@/lib/hosts";
 import { jobPagePath, shortLinkFor, slugFromParam, withApplyAsk } from "@/lib/jobSlug";
 import { jobLevelLabel, jobTypeLabel } from "@/lib/jobLabels";
+import { APPLICANT_BLOCKED_MESSAGE, isApplicantBlockedError } from "@/lib/applicantBlocked";
 
 export default function JobDetails() {
   // Three doors to this one page (docs/SHORT-JOB-LINKS.md): the short link
@@ -262,6 +263,14 @@ export default function JobDetails() {
       go(`/applications/${newApp.id}/application/application`);
     } catch (err) {
       console.error("Error starting application:", err);
+      // An employer who removed and blocked this account: the database says
+      // so in its own plain words (applications_refuse_blocked). "Please try
+      // again" would be untrue, a retry can never work.
+      if (isApplicantBlockedError(err)) {
+        toast.error(APPLICANT_BLOCKED_MESSAGE, { duration: 10_000 });
+        if (automatic) navigate(location.pathname, { replace: true });
+        return;
+      }
       toast.error("Failed to start application. Please try again.");
       // Leave the page as a plain job page: the Apply button is the retry.
       if (automatic) navigate(location.pathname, { replace: true });

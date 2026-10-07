@@ -1,5 +1,5 @@
-import { useMemo, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSchemaMode } from "@/hooks/useSchemaMode";
 import { useEmployerJobs } from "@/hooks/useJobs";
@@ -10,11 +10,20 @@ import type { CandidateJourneyStep } from "@/lib/candidateJourney";
 import {
   APPLICANT_LIST_COLUMNS,
   createApplicantRowBuilder,
+  heldListView,
+  holdApplicantList,
   journeyForJob,
+  listHoldKey,
+  NO_LIST_UPDATES,
+  settleApplicantHold,
   type ApplicantListApp,
+  type ApplicantListHold,
   type ApplicantListInterview,
   type ApplicantListJob,
   type ApplicantListRow,
+  type ApplicantListState,
+  type ApplicantListView,
+  type HeldListView,
 } from "../lib/applicantList";
 
 /**
@@ -102,6 +111,9 @@ const MERGED_FRESHNESS = {
   refetchOnWindowFocus: false,
   refetchOnReconnect: true,
   retry,
+  // A new key (a job added or removed) keeps the rows on screen until its
+  // load lands: a background change must never put the skeleton back.
+  placeholderData: keepPreviousData,
 } as const;
 
 /** The small hand-backs list: refetched by the live sync on every
@@ -111,6 +123,7 @@ const LIST_FRESHNESS = {
   refetchOnWindowFocus: true,
   refetchOnReconnect: true,
   retry,
+  placeholderData: keepPreviousData,
 } as const;
 
 type PageResult = { data: unknown; error: { code?: string | null; message?: string | null } | null };
@@ -312,6 +325,9 @@ export function useApplicantList(): ApplicantListData {
     queryFn: () => fetchListInterviews(interviewIds),
     enabled: enabled && interviewIds.length > 0,
     staleTime: 60_000,
+    // Someone moved to interview changes the key: everyone else's
+    // "Interview Thu 3 PM" stays put while the new list loads.
+    placeholderData: keepPreviousData,
   });
 
   const now = useNow(30_000);
@@ -355,4 +371,111 @@ export function useApplicantList(): ApplicantListData {
     error: jobsQuery.error ?? apps.error ?? sessions.error ?? reopens.error ?? null,
     refetch: () => Promise.all([jobsQuery.refetch(), apps.refetch(), sessions.refetch(), reopens.refetch(), interviews.refetch()]),
   };
+}
+
+/* ── The list holds still while it is read (2026-10-07) ────────────────── */
+
+/** A page hidden this long is taken afresh: a quick look at another tab
+ *  comes back to the same order, a long absence to a current list (taken
+ *  while hidden, and once more on the way back). */
+export const HIDDEN_RETAKE_MS = 30_000;
+
+export interface HeldApplicantList {
+  /** What the page draws: the held order, each row as it is now, the tab
+   *  counts as held, and what is waiting (`view.updates`). */
+  view: HeldListView;
+  /** The update bar's Show: everything waiting, in one go. */
+  apply: () => void;
+  /** The owner's own change to these applicants, shown at once
+   *  (settleApplicantHold). Call it after an action taken from the list. */
+  settle: (ids: readonly string[]) => void;
+  /** 1 for the order the list first landed in; one more each time it is
+   *  taken again (Show, a new tab, filter, sort or search, a long absence). */
+  generation: number;
+}
+
+interface HeldState {
+  hold: ApplicantListHold;
+  generation: number;
+  /** The `asked` count it was taken for: Show and a long absence ask again. */
+  asked: number;
+}
+
+/**
+ * The Applicants list's order on screen (lib/applicantList.ts, "The list
+ * holds still"). `live` is applyListState over the current rows; `ready` is
+ * false while the first load is under way (nothing is held from an empty
+ * loading list). The hold is taken during render, so a new tab or filter
+ * never paints a frame in the old order. When the held list is empty there
+ * is nothing on screen to keep still, and whatever came in shows at once.
+ */
+export function useHeldApplicantList(
+  rows: readonly ApplicantListRow[],
+  live: ApplicantListView,
+  state: ApplicantListState,
+  ready: boolean,
+): HeldApplicantList {
+  const key = listHoldKey(state);
+  const [held, setHeld] = useState<HeldState | null>(null);
+  const [asked, setAsked] = useState(0);
+
+  let current = held;
+  const take = (): HeldState => ({ hold: holdApplicantList(rows, live, state), generation: (current?.generation ?? 0) + 1, asked });
+  if (ready && (!current || current.hold.key !== key || current.asked !== asked)) {
+    current = take();
+    setHeld(current);
+  }
+  let view: HeldListView = current ? heldListView(current.hold, live, state) : { ...live, updates: NO_LIST_UPDATES };
+  // An empty list has nothing to keep still: retaken only when someone would
+  // join it (the bar counts this list alone), never for a change elsewhere.
+  if (current && view.matched.length === 0 && view.updates.fresh + view.updates.moved > 0) {
+    current = take();
+    setHeld(current);
+    view = heldListView(current.hold, live, state);
+  }
+
+  const apply = useCallback(() => setAsked((n) => n + 1), []);
+  const settle = useCallback((ids: readonly string[]) => {
+    setHeld((h) => {
+      if (!h) return h;
+      const hold = settleApplicantHold(h.hold, ids);
+      return hold === h.hold ? h : { ...h, hold };
+    });
+  }, []);
+
+  // Coming back to the page after a while. While the page is hidden nobody
+  // is reading it, so the list is taken afresh every 30 s; on the way back
+  // from an absence that long, once more for whatever came in since (a
+  // hidden page's timers are throttled). A quick look at another tab comes
+  // back to exactly the order it left.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    let hiddenAt = 0;
+    const stop = () => {
+      if (timer != null) clearInterval(timer);
+      timer = null;
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        hiddenAt = Date.now();
+        stop();
+        timer = setInterval(() => setAsked((n) => n + 1), HIDDEN_RETAKE_MS);
+        return;
+      }
+      stop();
+      if (hiddenAt && Date.now() - hiddenAt >= HIDDEN_RETAKE_MS) setAsked((n) => n + 1);
+      hiddenAt = 0;
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    // Mounted in a background tab (or on a route change while hidden): no
+    // visibilitychange comes until it is shown, so start the clock now.
+    if (document.hidden) onVisibility();
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      stop();
+    };
+  }, []);
+
+  return { view, apply, settle, generation: current?.generation ?? 0 };
 }

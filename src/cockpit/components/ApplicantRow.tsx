@@ -1,7 +1,8 @@
-import type { CSSProperties, MouseEvent } from "react";
+import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ChevronRight, ShieldAlert } from "lucide-react";
 import { TONE_VAR, type ApplicantDot, type ApplicantListRow, type DotState, type LineSegment } from "../lib/applicantList";
+import { samePhoneWords } from "../lib/blockedApplicants";
 
 /**
  * One applicant on the Applicants list (docs/APPLICANTS-LIST.md §2): a row of
@@ -190,9 +191,24 @@ export function FlagsCell({ flags, hideNone = false }: { flags: ApplicantListRow
   );
 }
 
+/** Same phone as someone the team blocked: flagged, never refused
+ *  (lib/blockedApplicants.ts). The full words are its tooltip and are read
+ *  out; the chip itself stays short. */
+export function SamePhoneChip({ name }: { name: string }) {
+  const words = samePhoneWords(name);
+  return (
+    <span className="ck-pill relative shrink-0 !px-[7px] !py-[3px]" style={{ color: "var(--crit)", background: "var(--crit-bg)" }} title={words.title}>
+      <span aria-hidden>{words.chip}</span>
+      <span className="sr-only">{words.title}</span>
+    </span>
+  );
+}
+
 /** ai_score over /100 in Fraunces, "so far" or "not scored yet" under it.
- *  Never a quiz percentage standing in for it. */
-export function ScoreCell({ row, size = 30 }: { row: ApplicantListRow; size?: number }) {
+ *  Never a quiz percentage standing in for it. `reserve` keeps the second
+ *  line's room when there are no words (the phone card: a score landing,
+ *  or "so far" arriving, must not change the card's height). */
+export function ScoreCell({ row, size = 30, reserve = false }: { row: ApplicantListRow; size?: number; reserve?: boolean }) {
   return (
     <span className="block text-right leading-none">
       {row.score == null ? (
@@ -207,10 +223,16 @@ export function ScoreCell({ row, size = 30 }: { row: ApplicantListRow; size?: nu
           </span>
         </span>
       )}
-      {row.scoreWords && (
+      {row.scoreWords ? (
         <span className="mt-1 block font-sans text-[11.5px]" style={{ color: "var(--ink-3)" }}>
           {row.scoreWords}
         </span>
+      ) : (
+        reserve && (
+          <span aria-hidden className="mt-1 block font-sans text-[11.5px]">
+            {" "}
+          </span>
+        )
       )}
     </span>
   );
@@ -260,19 +282,29 @@ function lowerFirst(s: string): string {
 
 /* ── The desktop row ───────────────────────────────────────────────────── */
 
-export function ApplicantTableHeader() {
+/** `lead`: the "all on this page" checkbox, drawn over the avatars' column
+ *  (SelectMark, components/ApplicantBulkBar.tsx); the labels stay hidden from
+ *  a screen reader, the checkbox does not. */
+export function ApplicantTableHeader({ lead }: { lead?: ReactNode } = {}) {
   return (
     <div
       className="grid h-10 items-center gap-4 border-b px-5 text-[11px] uppercase tracking-[0.12em]"
       style={{ gridTemplateColumns: APPLICANT_GRID, color: "var(--ink-3)", borderColor: "var(--line-soft)", background: "var(--ground-2)" }}
-      aria-hidden
+      aria-hidden={lead ? undefined : true}
     >
-      <span>Applicant</span>
-      <span>Where they are</span>
-      <span>Last active</span>
-      <span>Flags</span>
-      <span className="text-right">Score</span>
-      <span />
+      {lead ? (
+        <span className="flex items-center gap-3">
+          <span className="grid w-[38px] shrink-0 place-items-center">{lead}</span>
+          <span aria-hidden>Applicant</span>
+        </span>
+      ) : (
+        <span>Applicant</span>
+      )}
+      <span aria-hidden>Where they are</span>
+      <span aria-hidden>Last active</span>
+      <span aria-hidden>Flags</span>
+      <span aria-hidden className="text-right">Score</span>
+      <span aria-hidden />
     </div>
   );
 }
@@ -282,16 +314,21 @@ interface RowProps {
   /** Called before the link navigates (the page keeps its scroll). */
   onOpen?: (row: ApplicantListRow, event: MouseEvent) => void;
   index?: number;
+  /** Rise in with the list (`ck-reveal`). Only while the list first lands:
+   *  the browser replays a CSS animation on any node React moves, so a row
+   *  that changed place, or arrived later, would blink out and fade back in
+   *  (the Applicants page passes false after its first paint). */
+  reveal?: boolean;
 }
 
-export function ApplicantTableRow({ row, onOpen, index = 0 }: RowProps) {
+export function ApplicantTableRow({ row, onOpen, index = 0, reveal = true }: RowProps) {
   return (
     <Link
       to={`/applicants/${row.id}`}
       onClick={(e) => onOpen?.(row, e)}
       data-applicant-row={row.id}
       className={[
-        "ck-reveal group relative grid min-h-[74px] items-center gap-4 border-b px-5 py-3 last:border-b-0",
+        `${reveal ? "ck-reveal " : ""}group relative grid min-h-[74px] items-center gap-4 border-b px-5 py-3 last:border-b-0`,
         "transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_3.5%,transparent)]",
         // Focus is drawn INSIDE the row: the table card clips anything outside
         // it, and the cockpit's own ring (.ck-scroll a:focus-visible) sits 2px out.
@@ -312,6 +349,7 @@ export function ApplicantTableRow({ row, onOpen, index = 0 }: RowProps) {
               {row.name}
             </span>
             {row.chip && <StatusChip chip={row.chip} />}
+            {row.sameBlockedPhoneAs && <SamePhoneChip name={row.sameBlockedPhoneAs} />}
           </span>
           {/* Wraps rather than cuts: the applied age is the part that matters. */}
           <span className="block text-[12.5px] leading-[1.4]" style={{ color: "var(--ink-3)" }}>
@@ -339,7 +377,9 @@ export function ApplicantTableRow({ row, onOpen, index = 0 }: RowProps) {
       {/* Score */}
       <ScoreCell row={row} />
 
-      <ChevronRight aria-hidden className="h-4 w-4 opacity-60 transition-colors group-hover:opacity-100 group-hover:text-[var(--jade)]" style={{ color: "var(--ink-3)" }} />
+      {/* data-row-chevron: hidden where the row's ⋯ menu takes its place
+          (ApplicantRowFrame, components/ApplicantBulkBar.tsx). */}
+      <ChevronRight data-row-chevron aria-hidden className="h-4 w-4 opacity-60 transition-colors group-hover:opacity-100 group-hover:text-[var(--jade)]" style={{ color: "var(--ink-3)" }} />
     </Link>
   );
 }
@@ -370,7 +410,7 @@ function CardLine({ row }: { row: ApplicantListRow }) {
   );
 }
 
-export function ApplicantCard({ row, onOpen, index = 0 }: RowProps) {
+export function ApplicantCard({ row, onOpen, index = 0, reveal = true }: RowProps) {
   return (
     <Link
       to={`/applicants/${row.id}`}
@@ -378,7 +418,7 @@ export function ApplicantCard({ row, onOpen, index = 0 }: RowProps) {
       data-applicant-row={row.id}
       // `relative` contains anything absolutely placed inside (the flags'
       // screen-reader text), so it can never stretch the page around it.
-      className="ck-card ck-reveal relative block !rounded-[16px] px-3.5 pb-[13px] pt-3.5 transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--jade)]"
+      className={`ck-card ${reveal ? "ck-reveal " : ""}relative block !rounded-[16px] px-3.5 pb-[13px] pt-3.5 transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--jade)]`}
       style={{ ["--ck-i" as string]: Math.min(index, 8) }}
     >
       <span className="flex items-center gap-[11px]">
@@ -392,14 +432,27 @@ export function ApplicantCard({ row, onOpen, index = 0 }: RowProps) {
           </span>
         </span>
         <span className="shrink-0">
-          <ScoreCell row={row} size={27} />
+          <ScoreCell row={row} size={27} reserve />
         </span>
       </span>
       <span className="mt-[13px] block">
         <JourneyDots dots={row.dots} size={17} />
       </span>
-      <span className="mt-2 flex items-start justify-between gap-2 text-[12.5px] leading-[1.45]" style={{ color: "var(--ink-2)" }}>
-        <span className="min-w-0">
+      {/* data-card-foot: keeps clear of the card's ⋯ / checkbox corner (ApplicantRowFrame).
+          Always two lines tall, never more: a live line that grows, or a
+          flag landing beside it, changes what it says, not the card's
+          height, so the cards below never slide (2026-10-07). */}
+      <span
+        data-card-foot
+        className="mt-2 flex items-start justify-between gap-2 text-[12.5px] leading-[1.45]"
+        style={{ color: "var(--ink-2)", height: CARD_FOOT_HEIGHT }}
+      >
+        <span className="min-w-0 overflow-hidden" style={{ maxHeight: CARD_FOOT_HEIGHT }}>
+          {row.sameBlockedPhoneAs && (
+            <>
+              <SamePhoneChip name={row.sameBlockedPhoneAs} />{" "}
+            </>
+          )}
           <CardLine row={row} />
         </span>
         <FlagsCell flags={row.flags} hideNone />
@@ -407,3 +460,6 @@ export function ApplicantCard({ row, onOpen, index = 0 }: RowProps) {
     </Link>
   );
 }
+
+/** Two lines of the card's foot (12.5px at 1.45). */
+const CARD_FOOT_HEIGHT = "calc(2 * 1.45em)";

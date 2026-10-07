@@ -108,8 +108,11 @@ export interface ApplicantDot {
   left: boolean;
 }
 
-/** Tab keys, also their `?tab=` values. Screen order. */
-export const APPLICANT_TABS = ["all", "needs-review", "taking-tests", "part-way", "interview", "declined"] as const;
+/** Tab keys, also their `?tab=` values. Screen order. "blocked" holds the
+ *  people the employer removed and blocked (lib/blockedApplicants.ts): no
+ *  row is placed there by tabFor, only by markBlocked, and they are off All
+ *  and every other tab and count. */
+export const APPLICANT_TABS = ["all", "needs-review", "taking-tests", "part-way", "interview", "declined", "blocked"] as const;
 export type ApplicantTab = (typeof APPLICANT_TABS)[number];
 
 export const TAB_LABELS: Record<ApplicantTab, string> = {
@@ -119,6 +122,7 @@ export const TAB_LABELS: Record<ApplicantTab, string> = {
   "part-way": "Part-way",
   interview: "Interview",
   declined: "Declined",
+  blocked: "Blocked",
 };
 
 /** A colour by meaning; TONE_VAR maps it onto the cockpit's own tokens. */
@@ -200,6 +204,18 @@ export interface ApplicantListRow {
   scoreWords: string | null;
   recommendedAction: string | null;
   interviewAt: string | null;
+  /** The phone they typed on the form, as digits (7 to 15 of them): their
+   *  answers, or the form's draft while they are still on it; null when
+   *  there is none. Read only to flag a new account that uses a blocked
+   *  person's phone (lib/blockedApplicants.ts); never shown on the list. */
+  phone: string | null;
+  /** Set by markBlocked: this person is blocked. Their application closed by
+   *  the block is on the Blocked tab; one the block left open (an interview
+   *  on another job) stays on its own tab with the Blocked chip. */
+  blocked?: boolean;
+  /** Set by markBlocked: the name of a blocked person whose phone this
+   *  applicant typed. A phone is flagged on the list, never refused. */
+  sameBlockedPhoneAs?: string | null;
   record: AssessmentRecord;
 }
 
@@ -637,6 +653,54 @@ export function countryFrom(answers: unknown, questions: unknown, draft: unknown
   return UNKNOWN_COUNTRY;
 }
 
+/* ── Phone (Remove and block, docs/APPLICANTS-LIST.md §6) ──────────────── */
+
+/** A phone as a block stores it: its digits, 7 to 15 of them, else null
+ *  (applicant_phone_key in supabase/migrations/20261007022249_block_applicants.sql). */
+export function phoneKey(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const digits = value.replace(/\D/g, "");
+  return digits.length >= 7 && digits.length <= 15 ? digits : null;
+}
+
+const PHONE_TYPES = new Set(["tel", "phone", "telephone", "mobile"]);
+const PHONE_WORDS = /\b(phone|whats\s?app|mobile)\b/i;
+
+function questionType(value: unknown): string {
+  return (str(value) ?? "text").toLowerCase();
+}
+
+/**
+ * The phone the applicant typed on the job's form: the first answer to a
+ * phone-type question, else a free-text question that asks for a phone,
+ * WhatsApp or mobile number (the profile's contactFacts and the block's
+ * applicant_phone_from_notes read it the same way); while they are still on
+ * the form, the same questions in its draft. Digits only, or null.
+ */
+export function phoneFrom(answers: unknown, questions: unknown, draft: unknown): string | null {
+  const stored = (Array.isArray(answers) ? answers : []).map(obj).filter((a): a is Obj => !!a);
+  for (const a of stored) {
+    const key = PHONE_TYPES.has(questionType(a.type)) ? phoneKey(a.answer) : null;
+    if (key) return key;
+  }
+  for (const a of stored) {
+    const key = questionType(a.type) === "text" && PHONE_WORDS.test(str(a.question) ?? "") ? phoneKey(a.answer) : null;
+    if (key) return key;
+  }
+  const d = obj(draft);
+  if (!d) return null;
+  const asked = (Array.isArray(questions) ? questions : []).map(obj).filter((q): q is Obj => !!q && !!str(q.id));
+  const phoneQuestions = [
+    ...asked.filter((q) => PHONE_TYPES.has(questionType(q.type))),
+    ...asked.filter((q) => questionType(q.type) === "text" && PHONE_WORDS.test(str(q.question) ?? "")),
+  ];
+  for (const q of phoneQuestions) {
+    const key = phoneKey(d[str(q.id)!]);
+    if (key) return key;
+  }
+  return null;
+}
+
 /* ── One row (contract §2) ─────────────────────────────────────────────── */
 
 /** "Active now" and the avatar's live dot. */
@@ -840,6 +904,7 @@ export function listRowFor(
   const formSessions = sessions.filter((s) => s.step_type === "application");
   const draft = [...formSessions].sort((a, b) => (b.attempt ?? 1) - (a.attempt ?? 1)).find((s) => obj(s.draft))?.draft ?? null;
   const country = countryFrom(notes.applicationAnswers, app.jobs?.application_questions, draft);
+  const phone = phoneFrom(notes.applicationAnswers, app.jobs?.application_questions, draft);
   // Applied = when they pressed Apply (created_at), the one definition the
   // profile's header and timeline use too. (The form's own end would say
   // "applied 1 h ago" here and "Applied 3 days ago" on the profile.)
@@ -889,8 +954,32 @@ export function listRowFor(
     scoreWords: scoreKind === "so_far" ? "so far" : scoreKind === "none" ? "not scored yet" : null,
     recommendedAction,
     interviewAt: interviewMs != null ? new Date(interviewMs).toISOString() : null,
+    phone,
     record,
   };
+}
+
+/** Plain data compared by value, a few levels deep (a row's dots, line,
+ *  flags and chip). */
+function sameData(a: unknown, b: unknown, depth = 0): boolean {
+  if (a === b) return true;
+  if (depth > 4 || !a || !b || typeof a !== "object" || typeof b !== "object") return false;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((x, i) => sameData(x, b[i], depth + 1));
+  }
+  const ka = Object.keys(a as Obj);
+  const kb = Object.keys(b as Obj);
+  return ka.length === kb.length && ka.every((k) => sameData((a as Obj)[k], (b as Obj)[k], depth + 1));
+}
+
+/** Two builds of one row say the same thing: every value the list draws or
+ *  filters on is equal. (`record` is left out: nothing on the list draws it,
+ *  and a refetch rebuilds every record from new but equal rows.) */
+function sameRow(a: ApplicantListRow, b: ApplicantListRow): boolean {
+  const keys = Object.keys(b) as Array<keyof ApplicantListRow>;
+  if (keys.length !== Object.keys(a).length) return false;
+  return keys.every((key) => key === "record" || sameData(a[key], b[key]));
 }
 
 /* ── Building every row, memoised per row ──────────────────────────────── */
@@ -963,11 +1052,14 @@ function groupBy<T extends { application_id?: string | null }>(rows: readonly T[
 /**
  * A row builder with its own memory: a person's record is rebuilt only when
  * their application, attempts, hand-backs or job changed, or, for someone
- * in a test right now, when the clock moved (readsTheClock).
- * One per mounted list (the hook keeps it in a ref).
+ * in a test right now, when the clock moved (readsTheClock). A row that says
+ * exactly what it said last time comes back as the very same object, so the
+ * page redraws only the rows that changed (a heartbeat redraws one row, not
+ * three hundred). One per mounted list (the hook keeps it in a ref).
  */
 export function createApplicantRowBuilder() {
   const records = new Map<string, CachedRecord>();
+  const lastRows = new Map<string, ApplicantListRow>();
   let sessionGroups = new Map<string, readonly AssessmentSessionRow[]>();
   let reopenGroups = new Map<string, readonly StepReopenRow[]>();
   const jobMemo = new Map<string, ApplicantListJob>();
@@ -1025,15 +1117,23 @@ export function createApplicantRowBuilder() {
         journey = journeyForJob(job);
         journeys.set(job, journey);
       }
-      rows.push(
-        listRowFor({ ...app, jobs: job }, cached!.record, journey ?? null, input.now, {
-          sessions,
-          interviewAt: interviewAt.get(app.id) ?? null,
-          jobTitle: str(job?.title),
-        }),
-      );
+      const next = listRowFor({ ...app, jobs: job }, cached!.record, journey ?? null, input.now, {
+        sessions,
+        interviewAt: interviewAt.get(app.id) ?? null,
+        jobTitle: str(job?.title),
+      });
+      const before = lastRows.get(app.id);
+      let row = next;
+      if (before && sameRow(before, next)) {
+        // The same object, carrying the current record (nothing draws it).
+        before.record = next.record;
+        row = before;
+      }
+      lastRows.set(app.id, row);
+      rows.push(row);
     }
     for (const id of [...records.keys()]) if (!seen.has(id)) records.delete(id);
+    for (const id of [...lastRows.keys()]) if (!seen.has(id)) lastRows.delete(id);
     return rows;
   };
 }
@@ -1157,8 +1257,9 @@ export function countryOptions(rows: readonly ApplicantListRow[]): Array<FilterO
   return [{ value: "all", label: "All", count: rows.length }, ...known, ...(unknown ? [{ value: UNKNOWN_COUNTRY, label: UNKNOWN_COUNTRY, count: unknown }] : [])];
 }
 
+/** All is everyone but the blocked; a blocked person is only on Blocked. */
 export function inTab(row: ApplicantListRow, tab: ApplicantTab): boolean {
-  return tab === "all" || row.tab === tab;
+  return tab === "all" ? row.tab !== "blocked" : row.tab === tab;
 }
 
 export function matchesWhere(row: ApplicantListRow, where: string): boolean {
@@ -1245,7 +1346,15 @@ function byTime(a: string | null, b: string | null): number {
   return (toMillis(b) ?? -Infinity) - (toMillis(a) ?? -Infinity);
 }
 
-/** Score high to low (unscored last), Newest, or Last active; ties by last move, then name. */
+/**
+ * Score high to low (unscored last), Newest, or Last active. Ties, and the
+ * whole unscored block, go by when they applied (newest first), then id:
+ * two keys nothing a live applicant does can move. Until 2026-10-07 a tie
+ * went by the last move, and in a busy hour four in five applicants are
+ * unscored and a heartbeat lands every two seconds, so the default Score
+ * order changed on nearly every event and the list never held still. Only
+ * "Last active" reads activity, because that is what it is asked for.
+ */
 export function sortRows(rows: readonly ApplicantListRow[], sort: SortKey): ApplicantListRow[] {
   const out = [...rows];
   out.sort((a, b) => {
@@ -1254,13 +1363,10 @@ export function sortRows(rows: readonly ApplicantListRow[], sort: SortKey): Appl
       if (a.score == null && b.score != null) return 1;
       if (b.score == null && a.score != null) return -1;
       d = (b.score ?? 0) - (a.score ?? 0);
-      if (d === 0) d = byTime(a.lastActiveAt, b.lastActiveAt);
-    } else if (sort === "newest") {
-      d = byTime(a.appliedAt, b.appliedAt);
-    } else {
+    } else if (sort === "last-active") {
       d = byTime(a.lastActiveAt, b.lastActiveAt);
     }
-    return d || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+    return d || byTime(a.appliedAt, b.appliedAt) || a.id.localeCompare(b.id);
   });
   return out;
 }
@@ -1269,7 +1375,7 @@ export function sortRows(rows: readonly ApplicantListRow[], sort: SortKey): Appl
 export function tabCounts(rows: readonly ApplicantListRow[]): Record<ApplicantTab, number> {
   const counts = Object.fromEntries(APPLICANT_TABS.map((t) => [t, 0])) as Record<ApplicantTab, number>;
   for (const r of rows) {
-    counts.all += 1;
+    if (r.tab !== "blocked") counts.all += 1;
     counts[r.tab] += 1;
   }
   return counts;
@@ -1433,4 +1539,208 @@ export function profileRedirectFor(search: string | URLSearchParams): string | n
   const id = str(p.get("applicationId"));
   if (!id || !/^[A-Za-z0-9-]+$/.test(id)) return null;
   return `/applicants/${id}`;
+}
+
+/* ── The list holds still while it is read (2026-10-07) ────────────────── */
+
+/**
+ * The owner, 2026-10-07, with 31 applications in an hour: "the page is doing
+ * this weird refresh thing … there's too much weird shit going on." Every
+ * heartbeat of a live applicant re-sorted the list, and every row a re-sort
+ * moved replayed its entrance fade, so the whole list blinked every couple
+ * of seconds.
+ *
+ * So the order on screen is HELD (docs/APPLICANTS-LIST.md §1, "The list holds
+ * still"). It is taken when the list lands, and taken again only when he
+ * changes the tab, a filter, the sort or the search, presses the update bar,
+ * or comes back to the page. In between, each row's own facts (live dot, the
+ * one line, last active, flags, score) still change in place, but no row
+ * moves, none is added, and the tab counts stand still. What WOULD move
+ * collects as ListUpdates and is shown as one quiet bar ("12 new · 5 moved
+ * · Show"). A row deleted in the meantime simply leaves: that moves nobody.
+ */
+export interface ApplicantListHold {
+  /** The tab, filters, sort, search and job it was taken for (listHoldKey).
+   *  `shown` is not part of it: "Show 25 more" draws further down the same
+   *  held order. */
+  key: string;
+  /** Everyone the tab and filters matched, in the order drawn. */
+  order: readonly string[];
+  /** Every applicant the list held, on any job: anyone else is new. */
+  known: ReadonlySet<string>;
+  /** Everyone in the job's scope, with the tab each was on: the tab counts. */
+  tabs: ReadonlyMap<string, ApplicantTab>;
+  /** Applicants whose own changes show at once (settleApplicantHold): the
+   *  owner just acted on them, so their tab counts as it is now and they
+   *  leave a list they no longer match. */
+  follow?: ReadonlySet<string>;
+}
+
+/** What is waiting for the update bar: only what Show would change in THIS
+ *  list (its tab, filters and search). A change on another tab moves no row
+ *  here, so it never waits in the bar; the tab counts take it in silently
+ *  the next time the list is taken. */
+export interface ListUpdates {
+  /** Applicants new since the hold who would join this list. */
+  fresh: number;
+  /** Held applicants who would change place in this list: into it, out of
+   *  it, or to another position in it. A position change counts the fewest
+   *  rows that would have to move, so one row rising past twelve others is
+   *  1, not 13. */
+  moved: number;
+}
+
+export const NO_LIST_UPDATES: ListUpdates = { fresh: 0, moved: 0 };
+
+/** The list as it is drawn while held, plus what is waiting. */
+export interface HeldListView extends ApplicantListView {
+  updates: ListUpdates;
+}
+
+/** The view a hold belongs to: every part of the state but `shown`. */
+export function listHoldKey(state: ApplicantListState): string {
+  const rest: Partial<ApplicantListState> = { ...state, q: state.q.trim() };
+  delete rest.shown;
+  return JSON.stringify(rest);
+}
+
+/** Holds the list as it is now: the order drawn, who is known, each one's tab. */
+export function holdApplicantList(rows: readonly ApplicantListRow[], live: ApplicantListView, state: ApplicantListState): ApplicantListHold {
+  return {
+    key: listHoldKey(state),
+    order: live.matched.map((r) => r.id),
+    known: new Set(rows.map((r) => r.id)),
+    tabs: new Map(live.scoped.map((r) => [r.id, r.tab] as const)),
+  };
+}
+
+/** Indexes of `seq` that are outside one longest increasing run of it: the
+ *  fewest entries that would have to move to put it in order (O(n log n)). */
+function outOfOrder(seq: readonly number[]): number[] {
+  const tails: number[] = [];
+  const prev = new Array<number>(seq.length).fill(-1);
+  for (let i = 0; i < seq.length; i += 1) {
+    let lo = 0;
+    let hi = tails.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (seq[tails[mid]] < seq[i]) lo = mid + 1;
+      else hi = mid;
+    }
+    if (lo > 0) prev[i] = tails[lo - 1];
+    tails[lo] = i;
+  }
+  const keep = new Set<number>();
+  for (let i = tails.length > 0 ? tails[tails.length - 1] : -1; i !== -1; i = prev[i]) keep.add(i);
+  const out: number[] = [];
+  for (let i = 0; i < seq.length; i += 1) if (!keep.has(i)) out.push(i);
+  return out;
+}
+
+/** Tabs only the hiring team puts anyone on (Blocked, lib/blockedApplicants.ts).
+ *  Strings, so this rule needs nothing from the tab list itself. */
+const STAFF_ONLY_TABS: ReadonlySet<string> = new Set(["blocked"]);
+
+/**
+ * Whether a held applicant's own change shows at once rather than waiting
+ * for the bar: one the owner settled, or a move onto or off a staff-only tab.
+ * Blocking someone is the hiring team's own act, a delete in the owner's
+ * words ("delete … and that will just block them too"), so the row leaves at
+ * once, the way a deleted row does; that moves no one else.
+ */
+function followsLive(hold: ApplicantListHold, row: ApplicantListRow): boolean {
+  if (hold.follow?.has(row.id)) return true;
+  const was = hold.tabs.get(row.id);
+  return was !== undefined && was !== row.tab && (STAFF_ONLY_TABS.has(was) || STAFF_ONLY_TABS.has(row.tab));
+}
+
+/** The held applicants whose changes show at once (followsLive). */
+function followedIds(hold: ApplicantListHold, live: ApplicantListView): Set<string> {
+  const out = new Set<string>();
+  for (const r of live.scoped) if (hold.known.has(r.id) && followsLive(hold, r)) out.add(r.id);
+  return out;
+}
+
+/**
+ * What Show would change in this list since the hold: who would join it
+ * (new, or a held applicant from another tab), leave it, or sit elsewhere in
+ * it. Nothing else: a new applicant on another tab, or a teammate moving
+ * someone between two other tabs, moves no row here (2026-10-07: the bar
+ * said "5 new · Show" on the Interview tab and Show changed nothing).
+ */
+export function listUpdates(hold: ApplicantListHold, live: ApplicantListView): ListUpdates {
+  const followed = followedIds(hold, live);
+  let fresh = 0;
+  const moved = new Set<string>();
+  const present = new Set(live.scoped.map((r) => r.id));
+  const heldAt = new Map(hold.order.map((id, i) => [id, i] as const));
+  const matchedNow = new Set(live.matched.map((r) => r.id));
+  // Left this list: off its tab, or no longer through the filters or search.
+  for (const id of hold.order) if (present.has(id) && !matchedNow.has(id) && !followed.has(id)) moved.add(id);
+  // Joined it, or would sit somewhere else in it.
+  const seq: number[] = [];
+  const seqIds: string[] = [];
+  for (const r of live.matched) {
+    const at = heldAt.get(r.id);
+    if (at === undefined) {
+      if (hold.known.has(r.id)) moved.add(r.id);
+      else fresh += 1;
+      continue;
+    }
+    if (followed.has(r.id)) continue;
+    seq.push(at);
+    seqIds.push(r.id);
+  }
+  for (const i of outOfOrder(seq)) moved.add(seqIds[i]);
+  return { fresh, moved: moved.size };
+}
+
+/**
+ * The list as held, each row as it is now: the held order (a row deleted
+ * since is left out, which moves no one), the tab counts as they were held,
+ * and what is waiting. `live` is applyListState over the current rows.
+ */
+export function heldListView(hold: ApplicantListHold, live: ApplicantListView, state: ApplicantListState): HeldListView {
+  const followed = followedIds(hold, live);
+  const byId = new Map(live.scoped.map((r) => [r.id, r] as const));
+  const matchedNow = new Set(live.matched.map((r) => r.id));
+  const matched: ApplicantListRow[] = [];
+  for (const id of hold.order) {
+    const row = byId.get(id);
+    if (!row) continue;
+    if (followed.has(id) && !matchedNow.has(id)) continue;
+    matched.push(row);
+  }
+  const shown = matched.slice(0, Math.max(PAGE_SIZE, state.shown));
+  const scoped = live.scoped.filter((r) => hold.tabs.has(r.id));
+  // Counted by tabCounts' own rule, each on the tab it was held on.
+  const counts = tabCounts(
+    scoped.map((r) => {
+      const tab = followed.has(r.id) ? r.tab : hold.tabs.get(r.id)!;
+      return tab === r.tab ? r : { ...r, tab };
+    }),
+  );
+  return {
+    scoped,
+    tabCounts: counts,
+    matched,
+    shown,
+    total: matched.length,
+    hasMore: matched.length > shown.length,
+    words: live.words,
+    updates: listUpdates(hold, live),
+  };
+}
+
+/**
+ * Shows the owner's own change to these applicants at once, and nobody
+ * else's: from now until the list is next taken, their tab counts as it is
+ * and they leave a list they no longer match. For an action taken from the
+ * list itself (decline, delete, block): his own click must not wait in the
+ * update bar. Applicants the hold never had are left to the bar.
+ */
+export function settleApplicantHold(hold: ApplicantListHold, ids: readonly string[]): ApplicantListHold {
+  const add = ids.filter((id) => hold.known.has(id) && !hold.follow?.has(id));
+  if (add.length === 0) return hold;
+  return { ...hold, follow: new Set([...(hold.follow ?? []), ...add]) };
 }

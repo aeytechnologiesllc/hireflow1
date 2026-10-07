@@ -92,7 +92,9 @@ export function ActionDialog({
           <X className="h-4 w-4" />
         </button>
 
-        <div className="font-display text-[19px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
+        {/* pr-7: a long title ("Remove and block Jordan Alvarez?") wraps
+            before the close × instead of running under it. */}
+        <div className="pr-7 font-display text-[19px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
           {title}
         </div>
         {description && (

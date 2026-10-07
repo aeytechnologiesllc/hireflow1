@@ -375,6 +375,42 @@ export type Database = {
           },
         ]
       }
+      blocked_applicants: {
+        Row: {
+          blocked_by: string
+          candidate_id: string
+          created_at: string
+          email: string | null
+          email_key: string | null
+          employer_id: string
+          id: string
+          phone: string | null
+          reason: string | null
+        }
+        Insert: {
+          blocked_by?: string
+          candidate_id: string
+          created_at?: string
+          email?: string | null
+          email_key?: never
+          employer_id: string
+          id?: string
+          phone?: string | null
+          reason?: string | null
+        }
+        Update: {
+          blocked_by?: string
+          candidate_id?: string
+          created_at?: string
+          email?: string | null
+          email_key?: never
+          employer_id?: string
+          id?: string
+          phone?: string | null
+          reason?: string | null
+        }
+        Relationships: []
+      }
       blueprint_purchases: {
         Row: {
           amount_paid: number | null
@@ -2276,6 +2312,14 @@ export type Database = {
         Returns: Json
       }
       assign_user_role: { Args: { p_role: string }; Returns: undefined }
+      block_applicant: {
+        Args: { p_application_id: string; p_reason?: string | null }
+        Returns: Json
+      }
+      block_applicants: {
+        Args: { p_application_ids: string[]; p_reason?: string | null }
+        Returns: Json
+      }
       can_create_document_workflows_for_user: {
         Args: { target_user_id: string }
         Returns: boolean
@@ -2567,6 +2611,7 @@ export type Database = {
         Args: { p_key: string; p_type: string }
         Returns: string
       }
+      unblock_applicant: { Args: { p_candidate_id: string }; Returns: number }
     }
     Enums: {
       app_role: "employer" | "candidate" | "team_member" | "developer"

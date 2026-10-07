@@ -569,7 +569,8 @@ console.log("\n3. The tabs partition everyone");
     }
   }
   check(`tabFor places all ${statuses.length * 2 * lives.length} combinations in exactly one tab, by precedence`, ok, bad.join(", "));
-  check("tab order on screen", eq(L.TAB_OPTIONS.map((o) => o.label), ["All", "Needs review", "Taking tests now", "Part-way", "Interview", "Declined"]));
+  // Blocked last: the people the employer removed and blocked (section B).
+  check("tab order on screen", eq(L.TAB_OPTIONS.map((o) => o.label), ["All", "Needs review", "Taking tests now", "Part-way", "Interview", "Declined", "Blocked"]));
 }
 
 /* ── 4. Filters, search, sort ──────────────────────────────────────────── */
@@ -628,11 +629,27 @@ console.log("\n4. Filters, search and sort");
 
   const byScore = view({ sort: "score" }).matched.map((r) => r.name);
   check("score, high to low", eq(byScore.slice(0, 5), ["Jon Riaz", "Gia Siddiqui", "Noor Aziz", "Ivy Reyes", "Hal Wanjiru"]), show(byScore));
-  check("…unscored last, most recently active first", eq(byScore.slice(-3), ["Eve Bello", "Ben Castillo", "Finn Tan"]), show(byScore.slice(-3)));
+  check("…unscored last, newest applied first", eq(byScore.slice(-3), ["Eve Bello", "Ben Castillo", "Finn Tan"]), show(byScore.slice(-3)));
   const newest = view({ sort: "newest" }).matched.map((r) => r.name);
   check("newest", newest[0] === "Eve Bello" && newest.at(-1) === "Kai Mendoza", show(newest));
   const active = view({ sort: "last-active" }).matched.map((r) => r.name);
-  check("last active (ties by name)", eq(active.slice(0, 5), ["Ada Okafor", "Eve Bello", "Dev Mwangi", "Léa Dubois", "Ben Castillo"]), show(active.slice(0, 5)));
+  // Ada and Eve were both active 30 s ago: Eve applied later, so Eve first.
+  check("last active (ties by when they applied)", eq(active.slice(0, 5), ["Eve Bello", "Ada Okafor", "Dev Mwangi", "Léa Dubois", "Ben Castillo"]), show(active.slice(0, 5)));
+
+  // A heartbeat moves nothing in the Score order (2026-10-07). Ben (applied
+  // 40 min ago, not scored yet) answers a question now: before, the unscored
+  // block and every score tie went by the last move, so each heartbeat
+  // re-sorted the list and every row it moved blinked.
+  const beat = SESSIONS.map((x) => (x.application_id === BEN.id ? { ...x, last_activity_at: ago(1000), updated_at: ago(1000) } : x));
+  const beatRows = L.createApplicantRowBuilder()({ apps: APPS, sessions: beat, reopens: [], jobs: [JOB, JOB_B], interviews: INTERVIEWS, now: NOW });
+  const beatBen = beatRows.find((r) => r.name === "Ben Castillo");
+  check("…(Ben's heartbeat made him the most recently active unscored applicant)", Date.parse(beatBen.lastActiveAt) > Date.parse(byName["Eve Bello"].lastActiveAt), `${beatBen.lastActiveAt} vs ${byName["Eve Bello"].lastActiveAt}`);
+  check("a heartbeat does not change the Score order", eq(L.applyListState(beatRows, S({ sort: "score" }), NOW).matched.map((r) => r.id), view({ sort: "score" }).matched.map((r) => r.id)));
+  check("…nor Newest", eq(L.applyListState(beatRows, S({ sort: "newest" }), NOW).matched.map((r) => r.id), view({ sort: "newest" }).matched.map((r) => r.id)));
+  check("…while Last active follows it, as asked", L.applyListState(beatRows, S({ sort: "last-active" }), NOW).matched[0].name === "Ben Castillo");
+  const tie = (score, created, id) => ({ id, name: `Tie ${id}`, score, appliedAt: new Date(created).toISOString(), lastActiveAt: new Date(NOW - Number(id) * 1000).toISOString() });
+  const tied = L.sortRows([tie(70, NOW - HR, "3"), tie(70, NOW - 2 * HR, "1"), tie(70, NOW - HR, "2"), tie(null, NOW - 3 * HR, "5"), tie(null, NOW - MIN, "4")], "score").map((r) => r.id);
+  check("score ties: newest applied first, then id; unscored the same way", eq(tied, ["2", "3", "1", "4", "5"]), show(tied));
 
   check("words for the active filters", eq(L.filterWords(S({ score: "50-up", flags: "none", below: "phone", country: "Kenya", applied: "week", where: "step_typing" }), (id) => (id === "step_typing" ? "Typing speed and accuracy" : null)), [
     "at typing speed and accuracy",
@@ -831,15 +848,22 @@ console.log("\n8. Each record is rebuilt only when its own inputs change");
 {
   const b = L.createApplicantRowBuilder();
   const input = { apps: APPS, sessions: SESSIONS, reopens: [], jobs: [JOB, JOB_B], interviews: INTERVIEWS, now: NOW };
+  // Rows keep their identity while they say the same thing (below), so each
+  // build's records are read off as it lands.
+  const recordsOf = (list) => list.map((r) => r.record);
   const first = b(input);
+  const firstRecords = recordsOf(first);
   const again = b({ ...input, jobs: [{ ...JOB }, { ...JOB_B }] });
-  check("a refetched job list with the same jobs rebuilds nothing", first.every((r, i) => r.record === again[i].record));
+  const againRecords = recordsOf(again);
+  check("a refetched job list with the same jobs rebuilds nothing", againRecords.every((r, i) => r === firstRecords[i]));
   const changed = SESSIONS.map((s) => (s.application_id === BEN.id ? { ...s, progress: { current_index: 6, total: 10 } } : s));
   const third = b({ ...input, sessions: changed });
+  const thirdRecords = recordsOf(third);
   const ben = third.find((r) => r.name === "Ben Castillo");
-  check("one attempt merged: only that person's record is rebuilt", ben.record !== again.find((r) => r.name === "Ben Castillo").record && ben.lineText.includes("question 7 of 10") && third.filter((r, i) => r.record !== again[i].record).length === 1);
+  const benAt = third.indexOf(ben);
+  check("one attempt merged: only that person's record is rebuilt", thirdRecords[benAt] !== againRecords[benAt] && ben.lineText.includes("question 7 of 10") && thirdRecords.filter((r, i) => r !== againRecords[i]).length === 1);
   const tick = b({ ...input, sessions: changed, now: NOW + 30_000 });
-  const rebuilt = names(tick.filter((r, i) => r.record !== third[i].record));
+  const rebuilt = names(tick.filter((r, i) => r.record !== thirdRecords[i]));
   // Not Cara (left 20 h ago: her record cannot change without a new event),
   // not Léa (a claim being checked: its 7-minute limit is read by the row,
   // not the record), not the decided, not anyone who abandoned a step.
@@ -852,6 +876,18 @@ console.log("\n8. Each record is rebuilt only when its own inputs change");
     `${lea.tab} / ${lea.lineText} / ${lea.activeTone}`,
   );
   check("…and every row's words still age", tick.find((r) => r.name === "Candidate 1").activeWords === "Done 20 h ago");
+
+  // A row that says what it said comes back as the very same object, so the
+  // page redraws only the rows that changed (2026-10-07: 300 rows redrawn
+  // on every heartbeat made every realtime event a long task).
+  const b2 = L.createApplicantRowBuilder();
+  const r1 = b2(input);
+  const r2 = b2({ ...input, apps: APPS.map((a) => ({ ...a })), sessions: SESSIONS.map((x) => ({ ...x })), jobs: [{ ...JOB }, { ...JOB_B }] });
+  const kept = r2.filter((r, i) => r === r1[i]).length;
+  check("refetched rows that say the same thing are the same objects", kept === r1.length, `${kept} of ${r1.length}`);
+  const beat = b2({ ...input, sessions: changed });
+  const redrawn = names(beat.filter((r, i) => r !== r1[i]));
+  check("…and one attempt merged redraws only that person's row", eq(redrawn, ["Ben Castillo"]), show(redrawn));
 }
 
 /* ── 9. The slim load (useApplicantList's queries) and the live merge ──── */
@@ -1191,6 +1227,379 @@ console.log("\n10. Live: an UPDATE merges in place with no refetch; an INSERT re
   check("merge: INSERT on a covered job → refetch; on another job → not", mergeIntoList(rowsA, ev("INSERT", { id: "y", job_id: "j2" }), key).refetch && !mergeIntoList(rowsA, ev("INSERT", { id: "y", job_id: "j9" }), key).refetch);
   check("merge: nothing cached yet → refetch for its jobs only", mergeIntoList(undefined, ev("UPDATE", { id: "x", job_id: "j1" }), key).refetch);
   check("merge: DELETE of a row it lacks → nothing", eq(mergeIntoList(rowsA, ev("DELETE", {}, { id: "zz" }), key), { rows: rowsA, refetch: false }));
+}
+
+console.log("\n11. The list holds still while it is read (2026-10-07)");
+{
+  // The owner, 2026-10-07, 31 applications in an hour: "the page is doing this
+  // weird refresh thing". The order on screen is held between his own actions;
+  // what would move waits for the update bar ("12 new · 5 moved · Show").
+  const S = (patch) => ({ ...L.DEFAULT_LIST_STATE, ...patch });
+  const ids = (list) => list.map((r) => r.id);
+
+  check("the hold's key ignores 'Show 25 more' and a trailing space", L.listHoldKey(S({ shown: 50, q: "ada " })) === L.listHoldKey(S({ q: "ada" })) && L.listHoldKey(S({ tab: "declined" })) !== L.listHoldKey(S({})));
+
+  const state = S({});
+  const live0 = L.applyListState(rows, state, NOW);
+  const hold0 = L.holdApplicantList(rows, live0, state);
+  const held0 = L.heldListView(hold0, live0, state);
+  check("held at once: the same order, the same counts, nothing waiting", eq(ids(held0.matched), ids(live0.matched)) && eq(held0.tabCounts, live0.tabCounts) && eq(held0.updates, { fresh: 0, moved: 0 }));
+
+  // One score lands and lifts a row from the bottom to the top: 1 moved, not 13.
+  const lifted = rows.map((r) => (r.name === "Finn Tan" ? { ...r, score: 99 } : r));
+  const liveL = L.applyListState(lifted, state, NOW);
+  const heldL = L.heldListView(hold0, liveL, state);
+  check("a score that lifts a row past everyone: the order holds", eq(ids(heldL.matched), ids(live0.matched)) && liveL.matched[0].name === "Finn Tan");
+  check("…its new score shows in place", heldL.matched.find((r) => r.name === "Finn Tan").score === 99);
+  check("…and the bar says 1 moved, not one per row it passed", eq(heldL.updates, { fresh: 0, moved: 1 }), show(heldL.updates));
+
+  // Someone finishes their last test on the Taking tests now tab.
+  const tabState = S({ tab: "taking-tests" });
+  const liveT0 = L.applyListState(rows, tabState, NOW);
+  const holdT = L.holdApplicantList(rows, liveT0, tabState);
+  const finished = rows.map((r) => (r.name === "Ada Okafor" ? { ...r, tab: "needs-review", finished: true } : r));
+  const heldT = L.heldListView(holdT, L.applyListState(finished, tabState, NOW), tabState);
+  check("someone who leaves this tab stays in place, with their new state, until Show", eq(ids(heldT.matched), ids(liveT0.matched)) && heldT.matched.find((r) => r.name === "Ada Okafor").tab === "needs-review");
+  check("…the tab counts wait for the bar too", eq(heldT.tabCounts, liveT0.tabCounts) && heldT.updates.moved === 1, show(heldT.updates));
+
+  // A row deleted in the meantime leaves; that moves no one else.
+  const gone = rows.filter((r) => r.name !== "Ben Castillo");
+  const heldG = L.heldListView(hold0, L.applyListState(gone, state, NOW), state);
+  check("a deleted applicant leaves at once, the rest keep their order", eq(ids(heldG.matched), ids(live0.matched).filter((id) => id !== byName["Ben Castillo"].id)) && heldG.tabCounts.all === live0.tabCounts.all - 1 && eq(heldG.updates, { fresh: 0, moved: 0 }));
+
+  // The owner declines someone from the list: his own click shows at once.
+  const partState = S({ tab: "part-way" });
+  const livePart = L.applyListState(rows, partState, NOW);
+  const holdP = L.holdApplicantList(rows, livePart, partState);
+  const finn = byName["Finn Tan"].id;
+  const declined = rows.map((r) => (r.id === finn ? { ...r, status: "rejected", tab: "declined", decided: true } : r));
+  const liveD = L.applyListState(declined, partState, NOW);
+  const waits = L.heldListView(holdP, liveD, partState);
+  check("someone else's decline waits for the bar", ids(waits.matched).includes(finn) && waits.updates.moved === 1);
+  const settled = L.heldListView(L.settleApplicantHold(holdP, [finn]), liveD, partState);
+  check("the owner's own decline (settle) leaves the list at once", !ids(settled.matched).includes(finn) && eq(ids(settled.matched), ids(livePart.matched).filter((id) => id !== finn)));
+  check("…counts as Declined now, and nothing waits for it", settled.tabCounts.declined === livePart.tabCounts.declined + 1 && settled.tabCounts["part-way"] === livePart.tabCounts["part-way"] - 1 && eq(settled.updates, { fresh: 0, moved: 0 }), show(settled.tabCounts));
+  check("settle never takes in someone the hold did not have", L.settleApplicantHold(holdP, ["not-held"]) === holdP);
+
+  // The bar counts only what Show would change in THIS list (2026-10-07: on
+  // Interview it said "5 new · Show" for five people on the form, and Show
+  // moved nothing; on All a teammate moving someone between two other tabs
+  // said "1 moved").
+  const interviewState = S({ tab: "interview" });
+  const liveI0 = L.applyListState(rows, interviewState, NOW);
+  const holdI = L.holdApplicantList(rows, liveI0, interviewState);
+  const fiveNew = [...rows, ...[1, 2, 3, 4, 5].map((n) => ({ ...byName["Ada Okafor"], id: `new-on-the-form-${n}`, name: `New ${n}`, tab: "taking-tests", status: "in_progress", onForm: true }))];
+  const heldI = L.heldListView(holdI, L.applyListState(fiveNew, interviewState, NOW), interviewState);
+  check("five new people on the form: nothing waits on the Interview tab", eq(heldI.updates, { fresh: 0, moved: 0 }), show(heldI.updates));
+  check("…the Interview list and every count hold, to be taken in silently next time", eq(ids(heldI.matched), ids(liveI0.matched)) && eq(heldI.tabCounts, liveI0.tabCounts));
+  const heldAllNew = L.heldListView(hold0, L.applyListState(fiveNew, state, NOW), state);
+  check("…while on All the same five are '5 new'", eq(heldAllNew.updates, { fresh: 5, moved: 0 }), show(heldAllNew.updates));
+  // A teammate moves someone from Part-way to Interview without moving them on All (Score sort).
+  const partWayer = rows.find((r) => r.tab === "part-way");
+  const toInterview = rows.map((r) => (r.id === partWayer.id ? { ...r, tab: "interview", status: "interview", decided: true } : r));
+  const heldMove = L.heldListView(hold0, L.applyListState(toInterview, state, NOW), state);
+  check("a move between two tabs that leaves All's order alone: nothing waits on All", eq(heldMove.updates, { fresh: 0, moved: 0 }) && eq(ids(heldMove.matched), ids(live0.matched)), show(heldMove.updates));
+  check("…but on Interview it is 1 to show", L.heldListView(holdI, L.applyListState(toInterview, interviewState, NOW), interviewState).updates.moved === 1);
+
+  // Blocking is the hiring team's own act (a delete, in the owner's words):
+  // the row leaves at once, wherever it was blocked from, and nothing waits.
+  if (L.APPLICANT_TABS.includes("blocked")) {
+    const blocked = rows.map((r) => (r.id === finn ? { ...r, tab: "blocked" } : r));
+    const liveB = L.applyListState(blocked, state, NOW);
+    const heldB = L.heldListView(hold0, liveB, state);
+    check("a row blocked from the list leaves at once, the rest keep their order", eq(ids(heldB.matched), ids(live0.matched).filter((id) => id !== finn)) && eq(heldB.updates, { fresh: 0, moved: 0 }), show(heldB.updates));
+    check("…and the counts follow it at once (off All, onto Blocked)", heldB.tabCounts.all === live0.tabCounts.all - 1 && heldB.tabCounts.blocked === 1 && eq(heldB.tabCounts, liveB.tabCounts), show(heldB.tabCounts));
+  }
+
+  /* The burst: 50 updates and 20 inserts through the real live sync, the
+     real row builder and the held view, the way the page reads them. */
+  const { QueryClient, QueryObserver, startEmployerLiveSync, applicantListKeys } = H;
+  const settle = () => new Promise((resolve) => setImmediate(resolve));
+  const pending = new Map();
+  let nTimer = 0;
+  const timers = {
+    setTimeout(fn) {
+      nTimer += 1;
+      pending.set(nTimer, fn);
+      return nTimer;
+    },
+    clearTimeout(id) {
+      pending.delete(id);
+    },
+  };
+  const fire = async () => {
+    for (let i = 0; i < 4; i += 1) {
+      const due = [...pending.values()];
+      pending.clear();
+      due.forEach((fn) => fn());
+      await settle();
+      await settle();
+    }
+  };
+  const channels = new Map();
+  const client = {
+    channel(topic) {
+      const chan = { topic, bindings: [], on: (_t, _f, cb) => (chan.bindings.push(cb), chan), subscribe: (cb) => ((chan.status = cb), chan), emit: (p) => chan.bindings.forEach((cb) => cb(p)) };
+      channels.set(topic, chan);
+      return chan;
+    },
+    async removeChannel(chan) {
+      channels.delete(chan.topic);
+    },
+  };
+  const slim = (a) => ({ ...Object.fromEntries(L.APPLICANT_LIST_COLUMNS.split(", ").map((c) => [c, a[c] ?? null])), profiles: a.profiles });
+  // What a refetch returns: the server's rows, as new objects every time.
+  const server = { apps: APPS.map(slim), sessions: SESSIONS.map((x) => ({ ...x })) };
+  const JOBS_KEY = [JOB_ID, JOB_B.id].sort().join(",");
+  const appsKey = applicantListKeys.applications(JOBS_KEY);
+  const sessKey = applicantListKeys.sessions(JOBS_KEY);
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const observe = (queryKey, fetchRows) => {
+    queryClient.setQueryData(queryKey, fetchRows());
+    return new QueryObserver(queryClient, { queryKey, queryFn: async () => fetchRows(), staleTime: Infinity }).subscribe(() => {});
+  };
+  const unwatch = [observe(appsKey, () => server.apps.map((a) => ({ ...a }))), observe(sessKey, () => server.sessions.map((x) => ({ ...x })))];
+  const stop = startEmployerLiveSync({ client, queryClient, userId: "e32a8a14-0000-4000-8000-000000000002", instanceId: ":burst:", timers });
+  const appsChan = [...channels.values()].find((c) => c.topic.startsWith("employer-live-"));
+  const sessChan = [...channels.values()].find((c) => c.topic.startsWith("employer-sessions-"));
+  await fire();
+
+  const builder = L.createApplicantRowBuilder();
+  const rowsNow = () => builder({ apps: queryClient.getQueryData(appsKey), sessions: queryClient.getQueryData(sessKey), reopens: [], jobs: [JOB, JOB_B], interviews: INTERVIEWS, now: NOW });
+
+  // One page per sort and tab, each held the moment the list landed.
+  const pages = [S({}), S({ sort: "last-active" }), S({ sort: "newest" }), S({ tab: "taking-tests" })].map((st) => {
+    const r0 = rowsNow();
+    const l0 = L.applyListState(r0, st, NOW);
+    const hold = L.holdApplicantList(r0, l0, st);
+    const first = L.heldListView(hold, l0, st);
+    return { st, hold, order: ids(first.matched), counts: first.tabCounts, drawnChanges: 0, liveChanges: 0, lastLive: ids(l0.matched) };
+  });
+  const look = () => {
+    const r = rowsNow();
+    for (const page of pages) {
+      const l = L.applyListState(r, page.st, NOW);
+      const h = L.heldListView(page.hold, l, page.st);
+      if (!eq(ids(h.matched), page.order)) page.drawnChanges += 1;
+      if (!eq(h.tabCounts, page.counts)) page.countChanges = (page.countChanges ?? 0) + 1;
+      if (!eq(ids(l.matched), page.lastLive)) page.liveChanges += 1;
+      page.lastLive = ids(l.matched);
+      page.updates = h.updates;
+    }
+  };
+
+  const liveAttempts = server.sessions.filter((x) => x.status === "active");
+  const scoreLandings = [BEN, EVE, FINN, CARA, CANDIDATE_2, LEA, DEV, ADA];
+  let updates = 0;
+  let inserts = 0;
+  for (let i = 0; i < 70; i += 1) {
+    const at = (k) => new Date(NOW - (70 - k) * 900).toISOString();
+    if ((i % 7 === 3 || i % 7 === 6) && inserts < 20) {
+      // A new applicant presses Apply: an application and its form attempt.
+      inserts += 1;
+      const a = app(`New Applicant ${inserts}`, { status: "in_progress", phase: "application", created_at: at(i), updated_at: at(i), notes: null });
+      const s = session(a, "application", "application", { started_at: at(i), last_activity_at: at(i), updated_at: at(i), progress: { answered: 0, total: 11 }, draft: {} });
+      server.apps.push(slim(a));
+      server.sessions.push(s);
+      appsChan.emit({ eventType: "INSERT", errors: null, new: slim(a), old: {} });
+      sessChan.emit({ eventType: "INSERT", errors: null, new: s, old: {} });
+    } else if (updates < 50) {
+      updates += 1;
+      if (updates % 6 === 0 && scoreLandings.length > 0) {
+        // Ava's score lands: the whole row, as the realtime payload carries it.
+        const who = scoreLandings.shift();
+        const row = { ...slim(server.apps.find((x) => x.id === who.id)), ai_score: 40 + ((updates * 7) % 59), ai_scorecard: { overallScore: 70, decisionState: "needs_more_evidence" }, updated_at: at(i) };
+        delete row.profiles;
+        server.apps = server.apps.map((x) => (x.id === who.id ? { ...x, ...row } : x));
+        appsChan.emit({ eventType: "UPDATE", errors: null, new: row, old: { id: who.id } });
+      } else {
+        // A heartbeat, an answer, a chat turn: the attempt row moves.
+        const s = liveAttempts[updates % liveAttempts.length];
+        const next = { ...server.sessions.find((x) => x.id === s.id), last_activity_at: at(i), updated_at: at(i), progress: { answered: updates % 11, total: 11 } };
+        server.sessions = server.sessions.map((x) => (x.id === s.id ? next : x));
+        sessChan.emit({ eventType: "UPDATE", errors: null, new: next, old: { id: s.id } });
+      }
+    }
+    look();
+    await fire();
+    look();
+  }
+  check("the burst was 50 updates and 20 inserts", updates === 50 && inserts === 20, `${updates} / ${inserts}`);
+  check("…and it would have moved the live order (Score, Last active, Newest, a tab)", pages.every((p) => p.liveChanges > 0), show(pages.map((p) => p.liveChanges)));
+  check("zero reorders on screen until Show, on every sort and tab", pages.every((p) => p.drawnChanges === 0), show(pages.map((p) => p.drawnChanges)));
+  check("…and the tab counts stood still", pages.every((p) => !p.countChanges), show(pages.map((p) => p.countChanges ?? 0)));
+  check("…while each held row's facts stayed live (a landed score shows in place)", L.heldListView(pages[0].hold, L.applyListState(rowsNow(), pages[0].st, NOW), pages[0].st).matched.find((r) => r.id === BEN.id).score != null);
+  check("the bar collected all 20 new applicants", pages.slice(0, 3).every((p) => p.updates.fresh === 20), show(pages.map((p) => p.updates)));
+  check("…and the rows that would move", pages[0].updates.moved > 0 && pages[1].updates.moved > 0, show(pages.map((p) => p.updates)));
+
+  // Show: the list is taken afresh, in one go.
+  const after = rowsNow();
+  const liveA = L.applyListState(after, pages[0].st, NOW);
+  const shown = L.heldListView(L.holdApplicantList(after, liveA, pages[0].st), liveA, pages[0].st);
+  check("Show draws the live order, the 20 new included, with nothing left waiting", eq(ids(shown.matched), ids(liveA.matched)) && shown.matched.filter((r) => r.name.startsWith("New Applicant")).length === 20 && eq(shown.updates, { fresh: 0, moved: 0 }) && eq(shown.tabCounts, liveA.tabCounts));
+
+  stop();
+  unwatch.forEach((u) => u());
+}
+
+/* ── 12. A row rises in once, never on a move ──────────────────────────── */
+
+console.log("\n12. The entrance fade plays only while the list first lands");
+{
+  // Chrome restarts a CSS animation on a node React moves: a moved row with
+  // `ck-reveal` blinked out to opacity 0 and faded back in.
+  const rowBundle = await build({
+    stdin: {
+      contents:
+        'export { ApplicantTableRow, ApplicantCard } from "./src/cockpit/components/ApplicantRow.tsx";\n' +
+        'export { renderToStaticMarkup } from "react-dom/server.browser";\n' +
+        'export { createElement } from "react";\n' +
+        'export { MemoryRouter } from "react-router-dom";\n',
+      resolveDir: ROOT,
+      loader: "tsx",
+    },
+    bundle: true,
+    write: false,
+    format: "esm",
+    platform: "node",
+    jsx: "automatic",
+    define: { "process.env.NODE_ENV": '"production"' },
+    logLevel: "silent",
+    plugins: [
+      {
+        name: "aliases",
+        setup(b) {
+          b.onResolve({ filter: /^@\// }, async (args) => {
+            const base = path.join(ROOT, "src", args.path.slice(2));
+            for (const suffix of [".ts", ".tsx", "/index.ts"]) {
+              const r = await b.resolve(base + suffix, { kind: args.kind, resolveDir: ROOT });
+              if (!r.errors.length) return { path: r.path };
+            }
+            throw new Error(`cannot resolve ${args.path}`);
+          });
+        },
+      },
+    ],
+  });
+  const R = await import("data:text/javascript;base64," + Buffer.from(rowBundle.outputFiles[0].text).toString("base64"));
+  const draw = (Comp, reveal) => R.renderToStaticMarkup(R.createElement(R.MemoryRouter, null, R.createElement(Comp, { row: byName["Ada Okafor"], index: 3, ...(reveal === undefined ? {} : { reveal }) })));
+  check("a table row drawn after the first paint has no ck-reveal", !draw(R.ApplicantTableRow, false).includes("ck-reveal"));
+  check("…nor a phone card", !draw(R.ApplicantCard, false).includes("ck-reveal"));
+  check("while the list first lands, both still rise in", draw(R.ApplicantTableRow, true).includes("ck-reveal") && draw(R.ApplicantCard, true).includes("ck-reveal"));
+}
+
+/* ── B. Remove and block (lib/blockedApplicants.ts) ───────────────────── */
+// The owner, 2026-10-06: "give me a nicer, easier way to drop down to delete
+// some of these applicants. And that will just block them too." A blocked
+// person's closed application is on the Blocked tab only: off All, off every
+// other tab, off every count; a block shows at once and never waits in the
+// update bar. One the block left open stays where it is, chip and all, and
+// a phone is flagged, never refused.
+
+console.log("\nB. Remove and block: the blocked are on Blocked, and nowhere else");
+{
+  const B = await import(pathToFileURL(path.join(ROOT, "src/cockpit/lib/blockedApplicants.ts")).href);
+  const S = (over) => ({ ...L.DEFAULT_LIST_STATE, ...over });
+  const victims = [rows.find((r) => r.tab === "needs-review"), rows.find((r) => r.tab === "taking-tests")];
+  const isVictim = (r) => victims.some((v) => v.id === r.id);
+  const blocked = B.blockedIndex([...victims.map((r) => ({ candidate_id: r.candidateId })), null, { candidate_id: "" }]);
+  check("the block list is indexed by person (empty rows ignored)", blocked.size === 2);
+  // What the block leaves the rows as: their applications rejected (the
+  // server's write, and the staff hook's optimistic copy of it).
+  const closedRows = rows.map((r) => (isVictim(r) ? { ...r, status: "rejected", tab: "declined", decided: true } : r));
+  const marked = B.markBlocked(closedRows, blocked);
+
+  check("markBlocked moves their closed applications to Blocked with the Blocked chip", victims.every((v) => {
+    const m = marked.find((r) => r.id === v.id);
+    return m.tab === "blocked" && m.blocked === true && m.chip?.label === "Blocked" && m.chip?.tone === "crit";
+  }));
+  check("…and hands everyone else back as the same object", marked.filter((r) => !isVictim(r)).every((r) => closedRows.includes(r)));
+  check("…and the same marked rows on the next pass (nothing redraws)", B.markBlocked(closedRows, blocked).every((r, i) => r === marked[i]));
+  const notYet = B.markBlocked(rows, blocked).find((r) => r.id === victims[0].id);
+  check("a blocked person's application still open stays on its own tab, with the Blocked chip", notYet.tab === victims[0].tab && notYet.blocked === true && notYet.chip?.label === "Blocked");
+  check("with nobody blocked, the very same array comes back", B.markBlocked(rows, new Map()) === rows);
+
+  const before = L.tabCounts(rows);
+  const counts = L.tabCounts(marked);
+  check("All no longer counts them", counts.all === before.all - 2, show(counts));
+  check("Blocked counts them", counts.blocked === 2 && before.blocked === 0);
+  check("…and neither does the tab each was on", counts["needs-review"] === before["needs-review"] - 1 && counts["taking-tests"] === before["taking-tests"] - 1);
+  const six = ["needs-review", "taking-tests", "part-way", "interview", "declined"].reduce((n, t) => n + counts[t], 0);
+  check("still exactly one tab each: the five plus Blocked add up to everyone", six === counts.all && six + counts.blocked === rows.length, show(counts));
+
+  let leaked = [];
+  for (const tab of L.APPLICANT_TABS.filter((t) => t !== "blocked")) {
+    const v = L.applyListState(marked, S({ tab }), NOW);
+    leaked = leaked.concat(v.matched.filter(isVictim).map((r) => `${tab}:${r.name}`));
+  }
+  check("no tab but Blocked lists them, All included", leaked.length === 0, leaked.join(", "));
+  const all = L.applyListState(marked, S({}), NOW);
+  check("All shows everyone else", all.total === rows.length - 2);
+  check("All's tab counts leave them out too", all.tabCounts.all === rows.length - 2 && all.tabCounts.blocked === 2);
+
+  const onBlocked = L.applyListState(marked, S({ tab: "blocked" }), NOW);
+  check("the Blocked tab lists exactly them", eq(names(onBlocked.matched), names(victims)), show(names(onBlocked.matched)));
+  check("…with search working there too", L.applyListState(marked, S({ tab: "blocked", q: victims[0].name }), NOW).total === 1);
+  check("the sheet's counts on All leave them out", L.optionCounts(marked, S({}), "score", ["any"], NOW).any === rows.length - 2);
+  check("…and on Blocked count only them", L.optionCounts(marked, S({ tab: "blocked" }), "score", ["any"], NOW).any === 2);
+  check("?tab=blocked survives the URL", L.parseListState(L.serializeListState(S({ tab: "blocked" }))).tab === "blocked");
+
+  // Someone who applied to both jobs: the block closes the open one too, and
+  // both leave All. An interview on another job is left open by the block:
+  // it stays on Interview with the Blocked chip, never hidden.
+  const twice = rows.find((r) => r.jobId === JOB_B.id);
+  if (twice) {
+    const closedTwice = { ...twice, status: "rejected", tab: "declined", decided: true };
+    const extra = { ...closedTwice, id: "app-same-person-other-job", jobId: JOB.id };
+    const withTwo = B.markBlocked([...rows.filter((r) => r.id !== twice.id), closedTwice, extra], B.blockedIndex([{ candidate_id: twice.candidateId }]));
+    check("a person with two applications the block closed: both rows leave All", withTwo.filter((r) => r.candidateId === twice.candidateId).every((r) => r.tab === "blocked"));
+    const interviewRow = { ...twice, id: "app-same-person-interview", jobId: JOB.id, status: "interview", tab: "interview", decided: true, chip: { label: "Interview", tone: "jade" } };
+    const withInterview = B.markBlocked([...rows.filter((r) => r.id !== twice.id), closedTwice, interviewRow], B.blockedIndex([{ candidate_id: twice.candidateId }]));
+    const stays = withInterview.find((r) => r.id === interviewRow.id);
+    check("…but their interview on another job stays on Interview, chip Blocked", stays.tab === "interview" && stays.blocked === true && stays.chip?.label === "Blocked");
+    const v = L.applyListState(withInterview, S({ tab: "interview" }), NOW);
+    check("…listed and counted on Interview, not hidden", v.matched.some((r) => r.id === interviewRow.id) && v.tabCounts.interview === L.tabCounts(rows).interview + 1);
+  }
+
+  // A phone: flagged, never moved.
+  const spammer = { ...byName["Ben Castillo"], status: "rejected", tab: "declined", phone: "639171234567" };
+  const twin = { ...byName["Eve Bello"], phone: "09171234567" };
+  const fake = { ...byName["Finn Tan"], phone: "1234567890" };
+  const phoneRows = rows.map((r) => (r.id === spammer.id ? spammer : r.id === twin.id ? twin : r.id === fake.id ? fake : r));
+  const flagged = B.markBlocked(phoneRows, B.blockedIndex([{ candidate_id: spammer.candidateId, phone: null }, { candidate_id: "someone-with-a-fake-number", phone: "1234567890" }]));
+  const twinNow = flagged.find((r) => r.id === twin.id);
+  check("someone who typed a blocked person's phone ('0917…' = '+63 917…') is flagged with their name", twinNow.sameBlockedPhoneAs === "Ben Castillo" && twinNow.tab === twin.tab && !twinNow.blocked, show({ as: twinNow.sameBlockedPhoneAs, tab: twinNow.tab }));
+  check("…the blocked person's phone came from their own row (the block had none)", !!twinNow.sameBlockedPhoneAs);
+  check("a made-up number ('1234567890') flags nobody", !flagged.find((r) => r.id === fake.id).sameBlockedPhoneAs);
+  check("plausible phones: runs and repeats are not", !B.isPlausiblePhone("0000000") && !B.isPlausiblePhone("1111111111") && !B.isPlausiblePhone("0123456789") && !B.isPlausiblePhone("+1 234 567 8901".replace(/\D/g, "")) && B.isPlausiblePhone("639171234567"));
+  check("the list reads the phone from the form, and the draft while on it", L.phoneFrom([{ type: "tel", answer: "+63 917 123 4567" }], [], null) === "639171234567" && L.phoneFrom([], [{ id: "q3", type: "tel", question: "Phone" }], { q3: "0917 123 4567" }) === "09171234567" && L.phoneFrom([{ type: "text", question: "Your WhatsApp", answer: "+44 7700 900123" }], [], null) === "447700900123" && L.phoneFrom([{ type: "text", question: "Name", answer: "5551234567" }], [], null) === null);
+
+  // The held list (section 11): a block is his own act, so it shows at once.
+  const live0 = L.applyListState(rows, S({}), NOW);
+  const hold = L.holdApplicantList(rows, live0, S({}));
+  const held = L.heldListView(hold, L.applyListState(marked, S({}), NOW), S({}));
+  check("held: the blocked leave the list at once", !held.matched.some(isVictim) && held.matched.length === live0.matched.length - 2);
+  check("held: …the rest keep their order", eq(held.matched.map((r) => r.id), live0.matched.filter((r) => !isVictim(r)).map((r) => r.id)));
+  check("held: …nothing waits in the update bar for it", held.updates.fresh === 0 && held.updates.moved === 0, show(held.updates));
+  check("held: …and the counts move at once", held.tabCounts.all === rows.length - 2 && held.tabCounts.blocked === 2, show(held.tabCounts));
+  const holdB = L.holdApplicantList(marked, L.applyListState(marked, S({ tab: "blocked" }), NOW), S({ tab: "blocked" }));
+  const unblocked = L.heldListView(holdB, L.applyListState(rows, S({ tab: "blocked" }), NOW), S({ tab: "blocked" }));
+  check("held: an unblocked person leaves Blocked at once", unblocked.matched.length === 0 && unblocked.updates.moved === 0, show(unblocked.updates));
+
+  // The words.
+  const one = B.blockConfirmWords(["Maria Santos"]);
+  check(
+    "the confirm, word for word: what it promises is what the database does (account and email refused, a phone flagged)",
+    one.title === "Remove and block Maria Santos?" &&
+      one.body ===
+        "They won't be emailed. They leave your list, along with any other open application of theirs to your jobs, and they can't apply again with this account or email. Anyone who applies with the same phone is flagged. You can undo this in Blocked." &&
+      one.confirm === "Remove and block",
+  );
+  check("…and it never promises the phone is refused", !/email or phone|account, email or phone/.test(one.body + B.blockConfirmWords(["A", "B"]).body));
+  check("…and for several", B.blockConfirmWords(["A", "B", "C"]).confirm === "Remove and block 3");
+  check("unblocking says their application stays declined", /application stays declined/.test(B.unblockConfirmWords("Maria").body));
+  check("the candidate's refusal is recognised by its hint or its words", B.isApplicantBlockedError({ code: "P0001", hint: "applicant_blocked" }) && B.isApplicantBlockedError({ message: B.APPLICANT_BLOCKED_MESSAGE }) && !B.isApplicantBlockedError({ message: "duplicate key value" }) && !B.isApplicantBlockedError(null));
+  check("the words the candidate sees", B.APPLICANT_BLOCKED_MESSAGE === "We can't take an application from this account.");
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

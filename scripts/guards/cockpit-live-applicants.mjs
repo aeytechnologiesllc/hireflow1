@@ -34,6 +34,18 @@
  *    public.interviews binding disappears, loses its own per-instance channel
  *    (it must never share the applications channel), or one open profile goes
  *    back to refetching its attempts on every OTHER applicant's heartbeat.
+ *  - (wave 5, 2026-10-07) the Applicants list stops holding still. With 31
+ *    applications in an hour the owner saw "this weird refresh thing": a
+ *    heartbeat every two seconds re-sorted the list (the Score sort broke
+ *    ties by the last move), and every row React moved replayed its
+ *    `ck-reveal` fade, so the list blinked to opacity 0. The guard fails if
+ *    the page draws the live order instead of the held one
+ *    (useHeldApplicantList), loses the update bar, gives a row `ck-reveal`
+ *    that is not behind its `reveal` prop or stops passing that prop, sorts
+ *    anything but "Last active" by activity, lets a new query key put
+ *    the skeleton back (placeholderData: keepPreviousData), or stops drawing
+ *    the rows through the memoised ApplicantListItem (a flood's every event
+ *    redrew all 300 rows).
  */
 
 const HOOK = "src/cockpit/hooks/useEmployerLiveSync.ts";
@@ -43,6 +55,9 @@ const APPLICATIONS = "src/hooks/useApplications.ts";
 const TOASTS = "src/components/GlobalNotificationToasts.tsx";
 const RECORD_HOOKS = "src/cockpit/hooks/useAssessmentSessions.ts";
 const LIST_HOOK = "src/cockpit/hooks/useApplicantList.ts";
+const LIST_PAGE = "src/cockpit/pages/Applicants.tsx";
+const LIST_ROW = "src/cockpit/components/ApplicantRow.tsx";
+const LIST_LIB = "src/cockpit/lib/applicantList.ts";
 
 /** Shell-level realtime listeners that must never share a topic between mounts. */
 const SHELL_REALTIME_FILES = [
@@ -264,6 +279,59 @@ export default [
           `${HOOK}: both coalescers must skip the merged lists unless a change marked them stale (\`lists || !isMergedListKey(\`, found ${predicates}) — ` +
             "otherwise every heartbeat re-downloads every applicant and attempt",
         );
+      }
+
+      // 3d. (wave 5, 2026-10-07) The list holds still while it is read.
+      const page = await read(LIST_PAGE);
+      if (page == null) {
+        detail.push(`${LIST_PAGE} is missing`);
+      } else {
+        if (!/useHeldApplicantList\(/.test(page) || !/const view = held\.view;/.test(page)) {
+          detail.push(`${LIST_PAGE}: the rows must be drawn from the held order (\`const view = held.view\` from useHeldApplicantList) — the live order re-sorts on every heartbeat`);
+        }
+        if (!/<ListUpdatesBar\b/.test(page)) {
+          detail.push(`${LIST_PAGE}: the update bar (<ListUpdatesBar>) is gone — new applicants and moves would have nowhere to wait`);
+        }
+        // Every realtime event renders the page; 300 rows redrawn each time
+        // was a long main-thread task per heartbeat (2026-10-07). The rows go
+        // through one memoised item with one stable callbacks object.
+        if (!/const ApplicantListItem = memo\(/.test(page) || !/<ApplicantListItem\b[^>]*\bactions=\{rowActions\}/.test(page) || !/const rowActions = useMemo<RowActions>\([\s\S]*?\[\],\s*\)/.test(page)) {
+          detail.push(`${LIST_PAGE}: rows must be drawn through the memoised ApplicantListItem with the one stable rowActions object — otherwise every heartbeat redraws every row`);
+        }
+        for (const tag of ["ApplicantTableRow", "ApplicantCard"]) {
+          const uses = [...page.matchAll(new RegExp(`<${tag}\\b[^>]*>`, "g"))].map((m) => m[0]);
+          if (uses.length === 0 || uses.some((u) => !/\breveal=\{/.test(u))) {
+            detail.push(`${LIST_PAGE}: every <${tag}> must pass reveal={…} (true only while the list first lands) — a row moved with ck-reveal blinks`);
+          }
+        }
+      }
+      // Every component that draws a list row or wraps one (the row, the
+      // card, a frame around them: the keyed node React moves) adds
+      // `ck-reveal` only behind its `reveal` prop.
+      const rowFile = await read(LIST_ROW);
+      if (rowFile == null) detail.push(`${LIST_ROW} is missing`);
+      for (const { rel, text } of await sources([".tsx"])) {
+        if (!rel.startsWith("src/cockpit/components/") || !/data-applicant-(row|frame)\b/.test(text)) continue;
+        // Code only: the comments may name the class.
+        const code = text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+        const all = (code.match(/ck-reveal/g) ?? []).length;
+        const gated = (code.match(/reveal\s*\?\s*["'`]ck-reveal\b/g) ?? []).length;
+        if (all !== gated) {
+          detail.push(`${rel}: \`ck-reveal\` must only be added behind the \`reveal\` prop (found ${all}, gated ${gated}) — the browser replays it on every row React moves`);
+        }
+      }
+      const lib = await read(LIST_LIB);
+      if (lib != null) {
+        const sortBody = functionBody(lib, "sortRows") ?? "";
+        if ((sortBody.match(/lastActiveAt/g) ?? []).length !== 2 || !/sort === "last-active"\) \{\s*d = byTime\(a\.lastActiveAt, b\.lastActiveAt\)/.test(sortBody)) {
+          detail.push(`${LIST_LIB}: sortRows may read lastActiveAt only for the "Last active" sort — a tie broken by activity re-sorts the list on every heartbeat`);
+        }
+        if (!/byTime\(a\.appliedAt, b\.appliedAt\) \|\| a\.id\.localeCompare\(b\.id\)/.test(sortBody)) {
+          detail.push(`${LIST_LIB}: sortRows must break ties by when they applied, then id (keys nothing live can move)`);
+        }
+      }
+      if (listHook != null && !/placeholderData: keepPreviousData/.test(listHook.match(/const MERGED_FRESHNESS = \{([^}]*)\}/)?.[1] ?? "")) {
+        detail.push(`${LIST_HOOK}: MERGED_FRESHNESS must keep the previous rows (placeholderData: keepPreviousData) — a new key would put the skeleton back`);
       }
 
       // 4. The applicant queries heal on their own too.
