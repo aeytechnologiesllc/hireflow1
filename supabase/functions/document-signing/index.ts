@@ -5,7 +5,7 @@
 //
 // verify_jwt = true (config.toml) — unlike verify-document, every caller
 // here must be a logged-in party. There's no anonymous case.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import {
   canCountersign,
   canDecline,

@@ -20,7 +20,7 @@
  * the trigger called extensions.http_post, which does not exist on this
  * project. Every push was silently skipped.
  */
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { pushUrlForLink } from "../_shared/pushLink.ts";
 
 const corsHeaders = {

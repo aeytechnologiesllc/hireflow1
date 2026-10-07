@@ -23,7 +23,7 @@
  * wrote into their own notes. The link lasts five minutes.
  * verify_jwt = true (config.toml), plus auth.getUser() here.
  */
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { guardAuthenticatedAiCall } from "../_shared/rateLimit.ts";
 import { isScopedTeamMemberFromRpc } from "../_shared/teamMemberRpcAccess.ts";
 import { APPLICANT_FILES_BUCKET, authorizeApplicantFilePath, canReadApplicantFiles } from "./filePaths.ts";

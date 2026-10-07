@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.117.2';
 import { guardPublicAiCall } from '../_shared/rateLimit.ts';
 import { isPartyToDocument } from '../_shared/documentParties.ts';
 

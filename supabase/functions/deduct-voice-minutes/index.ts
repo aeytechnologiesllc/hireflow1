@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.117.2';
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { hasSubscriptionBypassForUser } from "../_shared/subscriptionBypass.ts";
 import { computeChargeMinutes } from "../_shared/voiceSessionCharge.ts";

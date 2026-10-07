@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { recordStepResult } from "../_shared/trustedResults.ts";
 import type { MinimalSupabaseAdmin, StepType } from "../_shared/trustedResults.ts";
 import {

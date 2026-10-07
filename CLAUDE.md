@@ -179,6 +179,22 @@ npx supabase functions deploy
 npx supabase functions deploy <function-name>
 ```
 
+## Edge function imports are pinned (2026-10-07)
+
+Every edge function imports the Supabase client by exact version
+(`https://esm.sh/@supabase/supabase-js@2.117.2`), and
+`scripts/guards/edge-function-pinned-imports.mjs` fails on any remote import
+in `supabase/functions` without a full x.y.z version. On 2026-10-07 a deploy
+was blocked outright: functions imported the floating `@2`, and a release
+published six minutes earlier could not be served by esm.sh ("Failed to bundle
+the function ... Module not found"). To move to a newer release: change
+`SUPABASE_JS` in that guard, replace the version in the imports that carry
+the old one, run `node scripts/deno_check_functions.mjs`, and commit
+`deno.lock` with it. A function only picks a new version up when it is next
+deployed, so pinning changed nothing that is live. Eleven functions
+deliberately stay on older pins (2.45.0, 2.49.1; listed in the guard): move
+one only with that function's own tests.
+
 ## Still Needs Setup (updated 2026-09-16)
 
 - [ ] Stripe live keys — checkout is deliberately disabled (fails loudly, takes no money) until pay-per-job billing ships; see "Distribution & billing state" above

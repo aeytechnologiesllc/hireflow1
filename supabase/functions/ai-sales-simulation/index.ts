@@ -3,7 +3,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { type OpenAIMessage } from "../_shared/openai.ts";
 import { streamOpenAIChatCompletion } from "../_shared/openaiStreaming.ts";
 import { guardPublicAiCall } from "../_shared/rateLimit.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { computerRequiredBody, deviceKindOfRequest, needsComputer } from "../_shared/deviceKind.ts";
 import { computerOnlyGate, recordingTargetFrom, type AssessmentAdmin } from "../_shared/assessmentSession.ts";
 

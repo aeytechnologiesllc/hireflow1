@@ -7,7 +7,7 @@
  *
  * NOTE (pre-launch): deployed with verify_jwt=false for demo. Gate behind auth + rate-limit before launch.
  */
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 
 type RigorKey = "easy" | "medium" | "hard";
 

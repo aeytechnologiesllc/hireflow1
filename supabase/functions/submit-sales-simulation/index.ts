@@ -36,7 +36,7 @@
 // events the page recorded when there are any. Once the result is recorded,
 // an auto-mode job's move to the next step is asked for by the server too
 // (_shared/stepMoveOn.ts), so a tab closed during grading still moves on.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { callOpenAIJson, requireJsonKeys, type OpenAIMessage } from "../_shared/openai.ts";
 import { guardAuthenticatedAiCall } from "../_shared/rateLimit.ts";
 import { recordStepResult, type MinimalSupabaseAdmin } from "../_shared/trustedResults.ts";
