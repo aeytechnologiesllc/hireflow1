@@ -44,6 +44,18 @@ when no email went out (`inviteEmailWords`, `src/lib/interviewTimes.ts`).
 `scripts/candidate_interview.test.mjs` fails if any screen embeds `profiles`
 in a select again.
 
+**A staff tab left open used to keep running old code.** At 22:29 UTC on
+2026-10-07, two and a half hours after the fix above was live, the owner set
+up a second test interview and the invitation email was again not sent: the
+request log shows the OLD lookup (the 400). His staff tab had been open since
+before the fix, and the app only reloads when a page's code can no longer be
+fetched at all. Staff tabs now move to the newest build by themselves
+(`useStaffAutoUpdate`, `src/lib/newVersion.ts`): the tab asks for the front
+page every five minutes and when it is looked at again, compares the build's
+entry script with its own, and once a newer one is live the next change of
+page is a full load. Never mid-task, never twice for one build, and never an
+applicant's tab (they may be mid-test). `scripts/new_version.test.mjs`.
+
 ## What the applicant sees
 
 One reading of the interview row, `src/lib/candidateInterview.ts`, used by

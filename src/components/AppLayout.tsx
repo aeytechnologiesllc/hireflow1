@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate, Outlet, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useStaffAutoUpdate } from "@/hooks/useStaffAutoUpdate";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
@@ -76,6 +77,9 @@ export default function AppLayout() {
   const { teamAccess, isLoading: subLoading, error: subError, completeOnboarding, needsOnboarding: hookNeedsOnboarding } = useSubscription();
   const isMobile = useIsMobile();
   usePushNotifications(); // Auto-registers device for push notifications in Natively
+  // A staff tab left open moves to the newest build at its next change of
+  // page (never an applicant's: they may be mid-test).
+  useStaffAutoUpdate(!!user && !loading && (role === "employer" || isTeamMember));
   
   // Mobile sidebar is hidden by default, desktop is expanded
   const [sidebarOpen, setSidebarOpen] = useState(() => {
