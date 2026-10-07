@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,7 +9,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { differenceInMinutes, differenceInHours } from "date-fns";
-import { Calendar, CalendarPlus, Check, Clock, ExternalLink, Loader2, RefreshCw, Video } from "lucide-react";
+import { CalendarPlus, Check, Clock, ExternalLink, Loader2, RefreshCw, Video } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -19,6 +18,7 @@ import { CandidateRescheduleRequestDialog } from "./CandidateRescheduleRequestDi
 import { getTimezoneAbbreviation, getTimezoneName } from "@/lib/timezone";
 import { buildCandidateInterviewIcs, downloadIcsFile, icsFileStem } from "@/lib/calendarInvite";
 import {
+  SELECTED_TITLE,
   candidateInterviewStage,
   interviewKindWords,
   interviewWhen,
@@ -26,6 +26,7 @@ import {
   openWindows,
   type OfferedWindow,
 } from "@/lib/candidateInterview";
+import { InterviewSeal, InterviewSurface } from "@/components/candidate/InterviewCelebration";
 import type { Json } from "@/integrations/supabase/types";
 
 /**
@@ -201,7 +202,7 @@ export function CandidateInterviewConfirmationCard({
   const teamLower = employerName?.trim() || "the hiring team";
   const zone = getTimezoneAbbreviation();
   const kind = interviewKindWords(interview.interview_type);
-  const facts = [employerName?.trim(), kind, effectiveDurationMinutes ? `${effectiveDurationMinutes} minutes` : null].filter(Boolean).join(" · ");
+  const facts = [jobTitle?.trim(), employerName?.trim(), kind, effectiveDurationMinutes ? `${effectiveDurationMinutes} minutes` : null].filter(Boolean).join(" · ");
 
   // Joining
   const minutesToStart = differenceInMinutes(scheduledDate, now);
@@ -274,34 +275,28 @@ export function CandidateInterviewConfirmationCard({
     </p>
   );
 
-  const settled = stage === "confirmed";
-  const title =
-    stage === "confirmed"
-      ? "Your interview is confirmed"
-      : stage === "waiting"
-        ? "You asked for another interview time"
-        : "You're invited to an interview";
+  // Just chosen, and not answered yet: the surface celebrates.
+  const selected = stage === "pick" || stage === "confirm";
+  const title = selected ? SELECTED_TITLE : stage === "confirmed" ? "Your interview is confirmed" : "You asked for another interview time";
+  const eyebrow = selected ? "Congratulations" : stage === "confirmed" ? "You're booked" : "Your interview";
 
   return (
     <>
-      <Card
+      <InterviewSurface
         id="interview"
+        tone={stage === "waiting" ? "quiet" : stage === "confirmed" ? "confirmed" : "selected"}
         data-candidate-interview={stage}
-        className="relative scroll-mt-24 overflow-hidden border bg-card"
-        style={{ borderColor: settled ? "var(--hair)" : "var(--brass-line)" }}
+        className="scroll-mt-24"
       >
-        <div aria-hidden className="absolute inset-x-0 top-0 h-[3px]" style={{ background: settled ? "var(--jade)" : "var(--brass-line)" }} />
-        <CardContent className="p-5 sm:p-6">
-          <div className="flex items-start gap-3">
-            <span
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
-              style={{ background: settled ? "var(--jade-soft)" : "var(--amber-bg)", color: settled ? "var(--jade-soft-fg)" : "var(--amber-fg)" }}
-            >
-              <Calendar className="h-5 w-5" />
-            </span>
+        <div className="p-5 sm:p-7">
+          <div className="flex items-start gap-4 sm:gap-5">
+            <InterviewSeal size={58} press={selected} />
             <div className="min-w-0">
-              <h3 className="font-display text-lg font-semibold leading-snug text-foreground sm:text-xl">{title}</h3>
-              {facts && <p className="mt-0.5 break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">{facts}</p>}
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: "var(--brass)" }}>
+                {eyebrow}
+              </p>
+              <h3 className="font-display mt-1 text-balance text-[22px] font-semibold leading-[1.15] text-foreground sm:text-[28px]">{title}</h3>
+              {facts && <p className="mt-1.5 break-words text-[13.5px] leading-snug text-muted-foreground [overflow-wrap:anywhere]">{facts}</p>}
             </div>
           </div>
 
@@ -442,8 +437,8 @@ export function CandidateInterviewConfirmationCard({
               </p>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </InterviewSurface>
 
       <CandidateRescheduleRequestDialog
         open={suggestOpen}

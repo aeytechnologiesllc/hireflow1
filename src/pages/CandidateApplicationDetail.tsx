@@ -34,6 +34,8 @@ const BRASS_RULE = (
 );
 
 import { CandidateInterviewConfirmationCard } from "@/components/CandidateInterviewConfirmationCard";
+import { InterviewSelectedMoment, hasCelebrated, markCelebrated } from "@/components/candidate/InterviewCelebration";
+import { candidateInterviewWords } from "@/lib/candidateInterview";
 import { useDocumentRequests, DocumentRequestWithDetails } from "@/hooks/useDocumentRequests";
 import { DocumentRequestCard } from "@/components/documents/DocumentRequestCard";
 import { DocumentUploadDialog } from "@/components/documents/DocumentUploadDialog";
@@ -80,6 +82,7 @@ export default function CandidateApplicationDetail() {
   
   // Status screen state
   const [statusScreen, setStatusScreen] = useState<"rejected" | "interview_scheduled" | "hired" | "ava_interview_unlocked" | "reconsidered" | "interview_cancelled" | "interview_rescheduled" | null>(null);
+  const [, setMomentsClosed] = useState(0);
   const [interviewDetails, setInterviewDetails] = useState<{ scheduledAt?: string; meetingLink?: string; durationMinutes?: number; candidateResponse?: string | null } | null>(null);
   const previousStatusRef = useRef<string | null>(null);
   const previousPhaseRef = useRef<string | null>(null);
@@ -217,8 +220,9 @@ export default function CandidateApplicationDetail() {
             } else if (newStatus === "hired") {
               setStatusScreen("hired");
             } else if (newStatus === "interview") {
+              // Selected for an interview: the celebration below takes it
+              // from here as soon as the interview itself has been read.
               fetchInterviewDetails(id);
-              setStatusScreen("interview_scheduled");
             }
           }
           
@@ -353,7 +357,6 @@ export default function CandidateApplicationDetail() {
         setStatusScreen("hired");
       } else if (application.status === "interview") {
         fetchInterviewDetails(application.id);
-        setStatusScreen("interview_scheduled");
       }
     }
     
@@ -541,6 +544,23 @@ export default function CandidateApplicationDetail() {
   const isRejected = applicationStatus === "rejected";
   const isHired = applicationStatus === "hired";
 
+  // A live interview with the hiring team is all this page is about: the
+  // step panel and the list of steps are not shown beside it (the owner:
+  // "they should not even be seeing the skill test or anything else because
+  // they have already been selected for an interview").
+  const interviewWords =
+    isRejected || isHired || applicationStatus === "offered"
+      ? null
+      : candidateInterviewWords(candidateInterview, { company: employerBranding, now: new Date() });
+  const interviewLive = !!interviewWords;
+  // "You've been selected": the moment, once for each interview on this browser.
+  const celebrateId = interviewWords?.selected && candidateInterview && !hasCelebrated(candidateInterview.id) ? candidateInterview.id : null;
+  const closeMoment = () => {
+    markCelebrated(candidateInterview?.id);
+    // Remembered outside React: draw again so the moment goes.
+    setMomentsClosed((n) => n + 1);
+  };
+
   // GUIDED: the one status line that answers "what's happening right now" and,
   // where there's something to do, "what's the one next thing". Once every
   // step is behind them the header moves to the closing stage — "Step 6 of 6
@@ -606,6 +626,19 @@ export default function CandidateApplicationDetail() {
         candidateResponse={candidateInterview?.candidate_response ?? interviewDetails?.candidateResponse}
         onInterviewConfirmed={() => refetchInterview()}
         onRescheduleRequested={() => refetchInterview()}
+      />
+
+      <InterviewSelectedMoment
+        open={!!celebrateId}
+        companyName={employerBranding}
+        jobTitle={job?.title}
+        detail={interviewWords?.ask ?? ""}
+        action={interviewWords?.action ?? ""}
+        onAction={() => {
+          closeMoment();
+          window.setTimeout(() => document.getElementById("interview")?.scrollIntoView({ block: "start", behavior: "smooth" }), 80);
+        }}
+        onClose={closeMoment}
       />
 
       <div className="space-y-6">
@@ -693,7 +726,7 @@ export default function CandidateApplicationDetail() {
                   </p>
                 </div>
               </div>
-            ) : phases.length > 0 ? (
+            ) : interviewLive ? null : phases.length > 0 ? (
               <div className="mt-5 border-t border-[var(--hair)] pt-5">
                 <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
                   <p className="font-display text-base font-medium text-foreground sm:text-lg">
@@ -805,8 +838,10 @@ export default function CandidateApplicationDetail() {
             );
           })()}
 
-        {/* Every step, listed quietly — the full picture, no competing CTAs */}
-        <div className="ck-reveal" style={{ ["--ck-i" as string]: 2 }}>
+        {/* Every step, listed quietly — the full picture, no competing CTAs.
+            Not shown while an interview with the team is live. */}
+        {!interviewLive && (
+        <div className="ck-reveal" style={{ ["--ck-i" as string]: 2 }} data-steps-list>
           <p className="px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Your steps
           </p>
@@ -879,6 +914,7 @@ export default function CandidateApplicationDetail() {
             })}
           </div>
         </div>
+        )}
       </div>
 
       {/* Document Upload Dialog */}

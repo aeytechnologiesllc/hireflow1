@@ -487,9 +487,11 @@ console.log("\nThe screen's promise — <site>/applications opens the step waiti
   const callback = await read("src/pages/AuthCallback.tsx");
   check("both sign-in screens send the person on with AFTER_SIGN_IN_STATE", /navigate\(nextRoute, \{ replace: true, state: AFTER_SIGN_IN_STATE \}\)/.test(auth) && /\{ replace: true, state: AFTER_SIGN_IN_STATE \}\)/.test(callback));
   const list = await read("src/pages/Applications.tsx");
+  // Since 2026-10-07 an applicant selected for an interview is left out of
+  // this: they are never forwarded to a test (docs/INTERVIEWS.md).
   check(
     "the applications page forwards only a fresh arrival, only on a computer, with replace",
-    /isFreshArrival\(location\)/.test(list) && /stepWaitingOnComputer\(applications\)/.test(list) && /thisDeviceKind\(\)/.test(list) && /if \(kind === "computer"\) navigate\(waitingOnComputer\.route, \{ replace: true \}\)/.test(list),
+    /isFreshArrival\(location\)/.test(list) && /stepWaitingOnComputer\(applications\?\.filter\(\(app\) => !liveInterviewWords\(app\)\)\)/.test(list) && /thisDeviceKind\(\)/.test(list) && /if \(kind === "computer"\) navigate\(waitingOnComputer\.route, \{ replace: true \}\)/.test(list),
   );
   // Finding 2: the card buttons for the connection check and the typing test went to a 404.
   check(

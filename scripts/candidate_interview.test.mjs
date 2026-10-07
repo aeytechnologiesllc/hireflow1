@@ -16,10 +16,23 @@
  *    sent: the wizard's lookup asked the database for a join it does not
  *    have, got a 400, and skipped the email without a word.
  *
+ * He then saw the first fix (an amber notice box above "Take Assessment")
+ * and sent it back: "this SaaS dashboard yellow color ... It needs to be an
+ * actual applause. You have been selected for an interview. Boom, boom,
+ * shabam. Get rid of the skill test ... they should not even be seeing the
+ * skill test or anything else because they have already been selected for
+ * an interview. ... It all needs to happen in real time too."
+ *
  * These checks prove:
  *  - the four stages are read the same everywhere, from the row itself;
  *  - an offered time is never presented as the appointment;
- *  - the list card carries the interview's own block and button;
+ *  - being selected is said as that, and celebrated once: a lit surface, a
+ *    seal, paper in the brand's own colours; still for anyone who asked for
+ *    less motion;
+ *  - while an interview is live it is ALL the applicant sees of the
+ *    application: no step, no test, on the list or on the page;
+ *  - the list hears about interviews live, on one subscription that is not
+ *    torn down by its own refetch;
  *  - the page puts the interview first, with pick, confirm, and a way to
  *    suggest other times from every stage;
  *  - the invitation's lookup is one the database can answer, and a failure
@@ -96,9 +109,12 @@ console.log("\nThe words, on the applicant's own clock");
   check("how it happens", C.interviewKindWords("video") === "Video call" && C.interviewKindWords("phone") === "Phone call" && C.interviewKindWords("in_person") === "In person" && C.interviewKindWords(null) === "Video call");
 
   const pick = words(row());
-  check("pick: invited, by whom, how many, and what to do", pick.stage === "pick" && pick.theirMove && pick.title === "You're invited to an interview" && pick.body === "Zulu Support Team offered 2 times. Pick the one that works for you." && pick.action === "Pick your time" && pick.chip === "Pick your time", JSON.stringify(pick));
+  check("pick: selected, by whom, how many, and what to do", pick.stage === "pick" && pick.theirMove && pick.title === "You've been selected for an interview" && pick.body === "Zulu Support Team offered 2 times. Pick the one that works for you." && pick.action === "Pick your time" && pick.chip === "Pick your time", JSON.stringify(pick));
+  check("being selected is one sentence, said the same everywhere", C.SELECTED_TITLE === "You've been selected for an interview");
+  check("…and it is a moment to celebrate: 'Congratulations'", pick.selected === true && pick.eyebrow === "Congratulations");
+  check("the same ask without the team's name, for where it was just said", pick.ask === "They offered 2 times. Pick the one that works for you.");
   const one = words(row({ employer_windows: [W1] }));
-  check("one offered time: take it or suggest another", one.body === "Zulu Support Team offered one time. Take it, or suggest another.", one.body);
+  check("one offered time: take it or suggest another", one.body === "Zulu Support Team offered one time. Take it, or suggest another." && one.ask === "They offered one time. Take it, or suggest another.", one.body);
   const gone = words(row({ employer_windows: [PAST] }));
   check("offered times all passed: tell them what works", gone.stage === "pick" && gone.theirMove && gone.body === "The times Zulu Support Team offered have passed. Tell them what works for you." && gone.action === "Suggest times", JSON.stringify(gone));
   check("an offer counts only the times still open", words(row({ employer_windows: [PAST, W1, W2] })).body.includes("offered 2 times"));
@@ -106,13 +122,16 @@ console.log("\nThe words, on the applicant's own clock");
   check("an offered time is never said as the appointment", !/October|9:00|AM|PM/.test(`${pick.title} ${pick.body} ${pick.action} ${pick.chip}`), pick.body);
 
   const confirm = words(row({ candidate_response: "pending", employer_windows: null }));
+  check("a time to confirm is being selected too", confirm.selected === true && confirm.title === C.SELECTED_TITLE && confirm.ask === "They set it for Thursday, October 8 at 9:00 PM. Confirm it, or ask for another time.");
   check("confirm: the time, and both ways out", confirm.stage === "confirm" && confirm.theirMove && confirm.body === "Zulu Support Team set it for Thursday, October 8 at 9:00 PM. Confirm it, or ask for another time." && confirm.action === "Confirm or change", JSON.stringify(confirm));
   const waiting = words(row({ candidate_response: "reschedule_requested" }));
+  check("waiting and confirmed are not the celebration", waiting.selected === false && words(row({ candidate_response: "confirmed", scheduled_at: W2.start })).selected === false && waiting.eyebrow === "Your interview");
   check("waiting: not their move, and it says so", waiting.stage === "waiting" && !waiting.theirMove && waiting.body === "Zulu Support Team has your times and will reply. Nothing to do for now." && !/October/.test(waiting.body), JSON.stringify(waiting));
   const confirmed = words(row({ candidate_response: "confirmed", scheduled_at: W2.start }));
   check("confirmed: the time and where the link is", confirmed.stage === "confirmed" && !confirmed.theirMove && confirmed.title === "Your interview is confirmed" && confirmed.body.startsWith("Friday, October 9 at 9:00 PM.") && confirmed.chip === "Interview confirmed", JSON.stringify(confirmed));
   check("no company name on file: 'The hiring team', never 'null'", words(row(), null).body === "The hiring team offered 2 times. Pick the one that works for you." && words(row({ candidate_response: "reschedule_requested" }), "  ").body === "The hiring team has your times and will reply. Nothing to do for now." && words(row({ employer_windows: [PAST] }), null).body === "The times the hiring team offered have passed. Tell them what works for you.");
   check("nothing live: no words", words(null) === null && words(row({ status: "cancelled" })) === null);
+  check("a live interview is known as one, from the same reading", C.hasLiveInterview(row(), NOW) && C.hasLiveInterview(row({ candidate_response: "confirmed" }), NOW) && !C.hasLiveInterview(null, NOW) && !C.hasLiveInterview(row({ status: "cancelled" }), NOW) && !C.hasLiveInterview(row({ candidate_response: "confirmed", scheduled_at: PAST.start }), NOW));
   for (const w of [pick, one, gone, confirm, waiting, confirmed]) {
     if (/null|undefined|NaN|Invalid/.test(JSON.stringify(w))) check(`no leaked value in ${w.stage}`, false, JSON.stringify(w));
   }
@@ -124,13 +143,27 @@ console.log("\nThe applications list");
   const list = await read("src/pages/Applications.tsx");
   const hook = await read("src/hooks/useApplications.ts");
   check("the list asks for the offered times with each interview", /\.select\("id, application_id, scheduled_at, status, candidate_response, meeting_link, duration_minutes, interview_type, proposed_times, candidate_note, employer_windows"\)/.test(hook) && /employer_windows: interview\.employer_windows,/.test(hook));
-  check("one reading for the card", /const interviewWords = isFinal \? null : candidateInterviewWords\(application\.latestInterview, \{ company: companyName, now: new Date\(\) \}\);/.test(list));
-  check("the interview has its own block, before the step", /\{interviewWords && <InterviewCallout words=\{interviewWords\} onOpen=\{openInterview\} \/>\}\s*<JourneyProgress/.test(list));
+  check("one reading for the card and for the page's moment, and none once an application is decided", /function liveInterviewWords\(application: ApplicationWithJob, companyName\?: string \| null\): CandidateInterviewWords \| null \{\s*if \(application\.status === "rejected" \|\| application\.status === "hired" \|\| application\.status === "offered"\) return null;/.test(list) && /const interviewWords = liveInterviewWords\(application, companyName\);/.test(list));
+  check("a live interview takes the whole card", /if \(interviewWords\) \{\s*return \(\s*<InterviewHero/.test(list));
+  const hero = /function InterviewHero\(\{[\s\S]*?\n\}\n/.exec(list)?.[0] ?? "";
+  check("…with no step and no test on it", hero.length > 400 && !/JourneyProgress|application-action|Take Assessment|actionLabel|Step \{/.test(hero));
+  check("…said as a celebration, on the lit surface, with the seal", /<InterviewSurface\s+tone=\{tone\}/.test(hero) && /<InterviewSeal size=\{58\} press=\{words\.selected\} \/>/.test(hero) && /\{words\.eyebrow\}/.test(hero) && /\{words\.title\}/.test(hero));
+  check("…never the amber notice box again", !/amber-bg|amber-fg/.test(hero));
   check("its button opens the application at the interview", /navigate\(`\/applications\/\$\{application\.id\}#interview`\);/.test(list));
-  check("one solid button per card: the step's steps back when the interview is theirs to answer", /interviewWords\?\.theirMove\s*\? "inline-flex min-h-\[44px\] items-center justify-center gap-2 rounded-\[10px\] border /.test(list));
+  check("the whole card opens it for a tap; the button inside is the control", /className="ck-reveal cursor-pointer p-5 sm:p-7"\s+onClick=\{onOpen\}/.test(hero) && /data-testid="interview-open"/.test(hero) && !/role="button"/.test(hero.replace(/\/\/.*$/gm, "")));
+  check("its sizes are set where the phone stylesheet cannot shrink them", /minHeight: 50, fontSize: 15\.5, paddingInline: 28/.test(hero));
+  check("the withdraw menu is still on it", /<div className="-mr-2 -mt-2 shrink-0">\{menu\}<\/div>/.test(hero) && /const menu = \(/.test(list));
   check("a live interview always opens the row", /const isLocked =\s*\(displayState\.isPendingReview \|\| displayState\.isWaitingPhase\) && !candidateHasSomethingToDo && !interviewWords;/.test(list));
-  check("the chip is the interview's own", /const chip: ChipTone \| null = interviewWords\s*\?/.test(list));
-  check("a decided application shows no interview block", /const interviewWords = isFinal \? null :/.test(list));
+  check("someone selected is never forwarded to a test on arrival", /stepWaitingOnComputer\(applications\?\.filter\(\(app\) => !liveInterviewWords\(app\)\)\)/.test(list));
+
+  // Live.
+  check("the list hears about interviews as well as applications", /\.on\("postgres_changes", \{ event: "\*", schema: "public", table: "interviews" \}, refresh\)/.test(list) && /\{ event: "\*", schema: "public", table: "applications", filter: `candidate_id=eq\.\$\{userId\}` \}/.test(list));
+  check("on one subscription for the life of the page (its own refetch never tears it down)", /\}, \[userId, isEmployer, queryClient, liveId\]\);/.test(list) && /\.channel\(`candidate-applications-\$\{userId\}-\$\{liveId\}`\)/.test(list) && !/\}, \[user, isEmployer, refetch, applications, employerNames\]\);/.test(list));
+  check("what happened while the line was down is caught up on connecting", /\.subscribe\(\(status\) => \{\s*if \(status === "SUBSCRIBED"\) refresh\(\);/.test(list));
+
+  // The moment.
+  check("the moment shows for someone just selected, once for each interview", /if \(words\?\.selected && interviewId && !hasCelebrated\(interviewId\)\) return \{ application, words, company, interviewId \};/.test(list) && /if \(selectedMoment\) markCelebrated\(selectedMoment\.interviewId\);/.test(list));
+  check("its button goes to the interview", /<InterviewSelectedMoment\s+open=\{!!selectedMoment\}/.test(list) && /if \(id\) navigate\(`\/applications\/\$\{id\}#interview`\);/.test(list));
   check("no leftover lines about a job code", !/job code/i.test(list.replace(/\/\/.*$/gm, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "")) && !/new code from the employer/.test(list));
 }
 
@@ -141,6 +174,11 @@ console.log("\nThe application page and the card");
   const first = page.indexOf("<CandidateInterviewConfirmationCard");
   const panel = page.indexOf("The one panel: who you applied to");
   check("the interview comes before the step panel", first > 0 && panel > 0 && first < panel);
+  check("while an interview is live the page shows no step to take", /\) : interviewLive \? null : phases\.length > 0 \? \(/.test(page));
+  check("…and no list of steps", /\{!interviewLive && \(\s*<div className="ck-reveal" style=\{\{ \["--ck-i" as string\]: 2 \}\} data-steps-list>/.test(page));
+  check("…read from the one place, and not for a decided application", /isRejected \|\| isHired \|\| applicationStatus === "offered"\s*\? null\s*: candidateInterviewWords\(candidateInterview, \{ company: employerBranding, now: new Date\(\) \}\);/.test(page) && /const interviewLive = !!interviewWords;/.test(page));
+  check("the page celebrates too, once, and the old pop-up is no longer raised for an interview", /<InterviewSelectedMoment\s+open=\{!!celebrateId\}/.test(page) && /interviewWords\?\.selected && candidateInterview && !hasCelebrated\(candidateInterview\.id\)/.test(page) && !/setStatusScreen\("interview_scheduled"\)/.test(page));
+  check("the card sits on the lit surface, with the seal and the same sentence", /<InterviewSurface\s+id="interview"/.test(card) && /<InterviewSeal size=\{58\} press=\{selected\} \/>/.test(card) && /const title = selected \? SELECTED_TITLE :/.test(card) && !/amber-bg|amber-fg/.test(card));
   check("…once only", page.split("<CandidateInterviewConfirmationCard").length === 2);
   check("the page lands on it when the link says so", /window\.location\.hash !== "#interview"/.test(page) && /document\.getElementById\("interview"\)\?\.scrollIntoView/.test(page) && /id="interview"/.test(card));
   check("the card reads the stage from the one place", /const stage = candidateInterviewStage\(/.test(card) && /if \(!stage\) return null;/.test(card));
@@ -164,6 +202,24 @@ console.log("\nThe application page and the card");
   check("the pop-up shows no date and no link for an offer", /interviewDetails && localCandidateResponse !== "awaiting_pick" && <InterviewDetailsCard/.test(popup));
   check("…and sends them to the times instead of 'Confirm interview'", /localCandidateResponse === "awaiting_pick" \? \(\s*<div className="space-y-3" data-status-interview="pick">/.test(popup) && /See the times/.test(popup));
   check("the page tells the pop-up whether a time is set or only offered", /candidateResponse=\{candidateInterview\?\.candidate_response \?\? interviewDetails\?\.candidateResponse\}/.test(page) && /candidateResponse: data\.candidate_response,/.test(page));
+}
+
+console.log("\nThe celebration");
+{
+  const fx = await read("src/components/candidate/InterviewCelebration.tsx");
+  const css = await read("src/styles/motion.css");
+  check("the moment says it in the one sentence, under 'Congratulations'", /\{SELECTED_TITLE\}/.test(fx) && />\s*Congratulations\s*</.test(fx));
+  check("it is a dialog with one thing to do, and a way to leave it for later", /role="dialog"\s+aria-modal="true"/.test(fx) && /data-testid="interview-moment-action"/.test(fx) && /Not now/.test(fx) && /event\.key === "Escape"\) onClose\(\)/.test(fx));
+  check("paper is thrown once and clears itself", /export const CONFETTI_MS = \d+;/.test(fx) && /window\.setTimeout\(\(\) => done\.current\?\.\(\), CONFETTI_MS\)/.test(fx) && /\{paper && <ConfettiBurst onDone=\{\(\) => setPaper\(false\)\} \/>\}/.test(fx));
+  check("three throws: a popper from each lower corner, then one from the middle", (fx.match(/\.\.\.popper\(/g) ?? []).length === 3);
+  const paper = /const PAPER = \[([^\]]+)\]/.exec(fx)?.[1] ?? "";
+  check("only the brand's own colours", paper.length > 0 && paper.split(",").every((c) => /^\s*"var\(--(jade|brass|brass-line|jade-soft-fg|ink)\)"\s*$/.test(c)), paper);
+  check("the paper touches nothing and is hidden from screen readers", /className="hf-confetti" aria-hidden/.test(fx) && /\.hf-confetti \{[^}]*pointer-events: none;/.test(css));
+  check("once for each interview on a browser, and for the visit when it will not keep anything", /const seenKey = \(interviewId: string\) => `hf-interview-celebrated:\$\{interviewId\}`;/.test(fx) && /seenThisVisit\.add\(interviewId\);/.test(fx) && /if \(seenThisVisit\.has\(interviewId\)\) return true;/.test(fx));
+  check("no interview id: nothing to celebrate", /if \(!interviewId\) return true;/.test(fx));
+  check("the surface is jade and brass, with a quiet form for waiting", /\.hf-invite \{[\s\S]*?var\(--jade\)[\s\S]*?var\(--brass\)[\s\S]*?\}/.test(css) && /\.hf-invite\[data-tone="quiet"\]/.test(css) && !/\.hf-invite[^{]*\{[^}]*amber/.test(css));
+  const calm = css.slice(css.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
+  check("for someone who asked for less motion: no paper, still sparks, words in place", /\.hf-confetti \{ display: none; \}/.test(calm) && /\.hf-spark \{ animation: none;/.test(calm) && /\.hf-rise \{ animation: none; \}/.test(calm));
 }
 
 console.log("\nThe invitation email");

@@ -51,17 +51,41 @@ cannot disagree. Four stages:
 | **waiting** | `reschedule_requested` | Nothing: the team has their times. The offered times stay pickable. |
 | **confirmed** | `confirmed`, time still ahead | The time, how to join, a calendar file, "Can't make it?". |
 
-- **The applications list** (`src/pages/Applications.tsx`): the card carries
-  the interview's own block (`InterviewCallout`) with its own button, above
-  the step. When the next move is the applicant's, that button is the one
-  solid button on the card and the step's button steps back to an outline.
-  Before 2026-10-07 an applicant who had been offered times saw a small
-  "Pick your time" chip beside "Take Assessment" and had to guess that the
-  row opened (the owner, testing as an applicant: "make it very clear when
-  the interview is scheduled").
-- **The application page** (`src/pages/CandidateApplicationDetail.tsx`): the
-  interview card (`CandidateInterviewConfirmationCard`) comes first, above
-  the step panel; `#interview` in the address lands on it.
+- **Being selected is a celebration, and it is all they see.** The owner sent
+  the first version back the same evening (an amber notice box above "Take
+  Assessment"): "this SaaS dashboard yellow color ... It needs to be an
+  actual applause. You have been selected for an interview. Boom, boom,
+  shabam. Get rid of the skill test ... they should not even be seeing the
+  skill test or anything else because they have already been selected for
+  an interview. ... It all needs to happen in real time too." So:
+  - **One sentence, everywhere**: "You've been selected for an interview"
+    (`SELECTED_TITLE`), under "Congratulations".
+  - **The moment** (`InterviewSelectedMoment`,
+    `src/components/candidate/InterviewCelebration.tsx`): full screen, the
+    seal pressing in, paper thrown once in the brand's own colours (a popper
+    from each lower corner, then one from the middle), and one button. Shown
+    once for each interview on each browser (`hf-interview-celebrated:<id>`
+    in localStorage), whether the news arrives live or they open the page
+    later. It stands still for anyone who asked for less motion.
+  - **While an interview is live it is all the application shows.** On the
+    list (`src/pages/Applications.tsx`) the card IS the interview
+    (`InterviewHero`, on the lit jade-and-brass surface `InterviewSurface`):
+    no step, no "Take Assessment". On the application page
+    (`src/pages/CandidateApplicationDetail.tsx`) the interview card comes
+    first, and the step panel and the list of steps are not shown
+    (`interviewLive`). Someone selected is never forwarded to a test on
+    arrival either. The steps come back if the interview is cancelled.
+  - **Live.** The list listens to `applications` and to `interviews` on one
+    subscription that lasts the life of the page, and catches up when the
+    line connects. Before, it was torn down and remade after every refetch
+    and never heard about interviews, so an answer from the team waited for
+    a reload. The page has its own subscription; the owner's screens were
+    already live (`useEmployerLiveSync`).
+  - **Phones.** The global phone stylesheet restyles every `button` and
+    `[role="button"]` (12px text, 10px side padding, 44px high) at a
+    specificity no class beats, so the celebration's buttons carry their
+    sizes inline, and the hero card is not given `role="button"`.
+- **The application page**: `#interview` in the address lands on the card.
 - **An offered time is never shown as the appointment.** While they choose,
   the row's `scheduled_at` is only a placeholder (the earliest offered
   time): no date, and no link to join, is shown from it, on the card or in
@@ -254,7 +278,8 @@ three real applicants; every quote it offered checked out as their own words.
 
 The applicant's side: `scripts/candidate_interview.test.mjs` (the four
 stages, the words, an offered time never presented as the appointment, the
-list's block, the page's order, the invitation lookup and its honest
+celebration and its once-only rule, no step shown while an interview is
+live, the live list, the page's order, the invitation lookup and its honest
 outcome, the menu). A walk-through in the dev preview
 (`?__previewRole=candidate&__previewInterview=pick,own`, also `confirm`,
 `waiting`, `confirmed`) picked a time, suggested others and confirmed one,

@@ -92,12 +92,38 @@ export interface CandidateInterviewWords {
   stage: CandidateInterviewStage;
   /** True when the next move is the applicant's. */
   theirMove: boolean;
+  /**
+   * They have just been chosen and have not answered yet: the moment to
+   * celebrate (the owner: "You have been selected for an interview. Boom,
+   * boom, shabam.").
+   */
+  selected: boolean;
   /** The short chip on the applications list. */
   chip: string;
+  /** The small line above the title ("Congratulations"). */
+  eyebrow: string;
   title: string;
   body: string;
+  /**
+   * The same ask without the team's name, for where the name has just been
+   * said ("They offered 2 times. Pick the one that works for you.").
+   */
+  ask: string;
   /** The button that opens it. */
   action: string;
+}
+
+/** What an applicant who has just been chosen is told, everywhere. */
+export const SELECTED_TITLE = "You've been selected for an interview";
+
+/**
+ * Has this applicant a live interview with the team? While they have, the
+ * interview is all their application shows: no step still to take, no test
+ * (the owner: "they should not even be seeing the skill test or anything
+ * else because they have already been selected for an interview").
+ */
+export function hasLiveInterview(interview: CandidateInterviewLike | null | undefined, now: Date): boolean {
+  return candidateInterviewStage(interview, now) != null;
 }
 
 /**
@@ -119,18 +145,24 @@ export function candidateInterviewWords(
       return {
         stage,
         theirMove: true,
+        selected: true,
         chip: "Reply needed",
-        title: "You're invited to an interview",
+        eyebrow: "Congratulations",
+        title: SELECTED_TITLE,
         body: `The times ${team === "The hiring team" ? "the hiring team" : team} offered have passed. Tell them what works for you.`,
+        ask: "The times they offered have passed. Tell them what works for you.",
         action: "Suggest times",
       };
     }
     return {
       stage,
       theirMove: true,
+      selected: true,
       chip: "Pick your time",
-      title: "You're invited to an interview",
+      eyebrow: "Congratulations",
+      title: SELECTED_TITLE,
       body: `${team} offered ${open === 1 ? "one time" : `${open} times`}. ${open === 1 ? "Take it, or suggest another." : "Pick the one that works for you."}`,
+      ask: `They offered ${open === 1 ? "one time" : `${open} times`}. ${open === 1 ? "Take it, or suggest another." : "Pick the one that works for you."}`,
       action: "Pick your time",
     };
   }
@@ -138,9 +170,12 @@ export function candidateInterviewWords(
     return {
       stage,
       theirMove: true,
+      selected: true,
       chip: "Confirm interview",
-      title: "You're invited to an interview",
+      eyebrow: "Congratulations",
+      title: SELECTED_TITLE,
       body: `${team} set it for ${when}. Confirm it, or ask for another time.`,
+      ask: `They set it for ${when}. Confirm it, or ask for another time.`,
       action: "Confirm or change",
     };
   }
@@ -148,18 +183,24 @@ export function candidateInterviewWords(
     return {
       stage,
       theirMove: false,
+      selected: false,
       chip: "Awaiting reply",
+      eyebrow: "Your interview",
       title: "You asked for another interview time",
       body: `${team === "The hiring team" ? "The hiring team has" : `${team} has`} your times and will reply. Nothing to do for now.`,
+      ask: "They have your times and will reply. Nothing to do for now.",
       action: "View",
     };
   }
   return {
     stage,
     theirMove: false,
+    selected: false,
     chip: "Interview confirmed",
+    eyebrow: "You're booked",
     title: "Your interview is confirmed",
     body: `${when}. Open it for how to join and to add it to your calendar.`,
+    ask: `${when}. Open it for how to join and to add it to your calendar.`,
     action: "View details",
   };
 }

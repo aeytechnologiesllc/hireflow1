@@ -15,7 +15,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useId, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { EmptyStateCard } from "@/components/EmptyStateCard";
 import { supabase } from "@/integrations/supabase/client";
@@ -58,6 +58,13 @@ import { stepRoute } from "@/lib/journeyProgress";
 import { thisDeviceKind } from "@/lib/deviceGate";
 import { isFreshArrival, stepWaitingOnComputer } from "@/lib/resumeOnComputer";
 import { candidateInterviewWords, type CandidateInterviewWords } from "@/lib/candidateInterview";
+import {
+  InterviewSeal,
+  InterviewSelectedMoment,
+  InterviewSurface,
+  hasCelebrated,
+  markCelebrated,
+} from "@/components/candidate/InterviewCelebration";
 
 /* The brand glyph kit's components render plain SVGs, not lucide's
    ForwardRefExoticComponent shape — EmptyStateCard's props type them as
@@ -135,8 +142,8 @@ function getGuidanceCopy(displayState: ApplicationDisplayState): string | null {
     const estimate = phaseDurationEstimates[displayState.phaseType]?.label;
     return estimate ? `Your turn — about ${estimate}.` : "Your turn — pick this up when you're ready.";
   }
-  // An interview with the team is said by its own block on the card
-  // (InterviewCallout), with its own button: no second line about it here.
+  // An interview with the team takes the whole card (InterviewHero): no
+  // line about it here.
   return null;
 }
 
@@ -160,47 +167,89 @@ function StatusChip({ tone }: { tone: ChipTone }) {
   );
 }
 
+/** The words for an application's live interview, or null: none, or the application is already decided. */
+function liveInterviewWords(application: ApplicationWithJob, companyName?: string | null): CandidateInterviewWords | null {
+  if (application.status === "rejected" || application.status === "hired" || application.status === "offered") return null;
+  return candidateInterviewWords(application.latestInterview, { company: companyName, now: new Date() });
+}
+
 /**
- * The interview with the hiring team, on the card itself: what is asked of
- * the applicant and the button that opens it. Before 2026-10-07 an applicant
- * who had been offered times saw a small chip beside "Take Assessment" and
- * had to guess that the row opened to them (the owner, testing as one: "make
- * it very clear when the interview is scheduled").
+ * An application whose applicant has a live interview with the hiring team.
+ * The interview is ALL the card shows: no step, no test still to take. The
+ * owner, 2026-10-07: "You have been selected for an interview. Boom, boom,
+ * shabam. Get rid of the skill test ... they should not even be seeing the
+ * skill test or anything else because they have already been selected."
+ * (It was an amber notice box above "Take Assessment" before that.)
  */
-function InterviewCallout({ words, onOpen }: { words: CandidateInterviewWords; onOpen: (e: React.MouseEvent) => void }) {
-  const settled = words.stage === "confirmed";
+function InterviewHero({
+  words,
+  jobTitle,
+  companyName,
+  onOpen,
+  menu,
+}: {
+  words: CandidateInterviewWords;
+  jobTitle: string;
+  companyName?: string | null;
+  onOpen: () => void;
+  menu: React.ReactNode;
+}) {
+  const tone = words.stage === "waiting" ? "quiet" : words.stage === "confirmed" ? "confirmed" : "selected";
   return (
-    <div
+    <InterviewSurface
+      tone={tone}
       data-interview-callout={words.stage}
-      className="mt-3.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-[10px] border px-3.5 py-3"
-      style={{
-        borderColor: settled ? "var(--hair)" : "var(--brass-line)",
-        background: settled ? "var(--jade-soft)" : "var(--amber-bg)",
-      }}
+      // The whole card opens it for a mouse or a finger; the button inside
+      // is the control a keyboard and a screen reader use. (Not role="button":
+      // it holds a button of its own, and the phone stylesheet restyles
+      // anything with that role as a small button.)
+      className="ck-reveal cursor-pointer p-5 sm:p-7"
+      onClick={onOpen}
     >
-      <div className="min-w-0 flex-1 basis-[220px]">
-        <p className="flex items-center gap-1.5 text-[14px] font-semibold leading-snug" style={{ color: "var(--ink)" }}>
-          <Calendar className="h-4 w-4 shrink-0" style={{ color: settled ? "var(--jade-soft-fg)" : "var(--amber-fg)" }} />
-          {words.title}
-        </p>
-        <p className="mt-1 text-[13px] leading-snug" style={{ color: "var(--ink-2)" }}>
+      <div className="flex items-start gap-4 sm:gap-5">
+        <InterviewSeal size={58} press={words.selected} />
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: "var(--brass)" }}>
+            {words.eyebrow}
+          </p>
+          <h3 className="font-display mt-1 text-balance text-[22px] font-semibold leading-[1.15] sm:text-[28px]" style={{ color: "var(--ink)" }}>
+            {words.title}
+          </h3>
+          <p className="mt-1.5 break-words text-[13.5px] leading-snug [overflow-wrap:anywhere]" style={{ color: "var(--ink-3)" }}>
+            {[jobTitle, companyName].filter(Boolean).join(" · ")}
+          </p>
+        </div>
+        <div className="-mr-2 -mt-2 shrink-0">{menu}</div>
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-x-5 gap-y-3.5 sm:pl-[78px]">
+        <p className="min-w-0 flex-1 basis-[240px] text-[15px] leading-snug" style={{ color: "var(--ink)" }}>
           {words.body}
         </p>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpen();
+          }}
+          data-testid="interview-open"
+          className={
+            words.theirMove
+              ? "inline-flex min-h-[50px] w-full shrink-0 items-center justify-center gap-2 rounded-[12px] px-7 text-[15.5px] font-semibold transition-[filter,transform] hover:brightness-110 active:scale-[0.98] sm:w-auto"
+              : "inline-flex min-h-[46px] w-full shrink-0 items-center justify-center gap-2 rounded-[12px] border px-5 text-sm font-semibold transition-colors hover:bg-[var(--surface-2)] sm:w-auto"
+          }
+          // Sizes inline: the phone stylesheet's button rule outranks any class.
+          style={
+            words.theirMove
+              ? { background: "var(--jade)", color: "var(--btn-fg)", minHeight: 50, fontSize: 15.5, paddingInline: 28 }
+              : { borderColor: "var(--hair)", color: "var(--ink)", minHeight: 46, fontSize: 14, paddingInline: 20 }
+          }
+        >
+          {words.action}
+          <ChevronRight className="h-4 w-4" />
+        </button>
       </div>
-      <button
-        type="button"
-        onClick={onOpen}
-        data-testid="interview-open"
-        className={
-          words.theirMove
-            ? "inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-[10px] px-5 text-sm font-semibold transition-[filter] hover:brightness-110 active:scale-[0.98]"
-            : "inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-[10px] border px-4 text-sm font-semibold transition-colors hover:bg-[var(--surface-2)]"
-        }
-        style={words.theirMove ? { background: "var(--jade)", color: "var(--btn-fg)" } : { borderColor: "var(--hair)", color: "var(--ink)" }}
-      >
-        {words.action}
-      </button>
-    </div>
+    </InterviewSurface>
   );
 }
 
@@ -278,12 +327,8 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
   const outcome = getOutcomeCopy(application, displayState);
 
   // The interview with the team, when one is live: its own block and button.
-  const interviewWords = isFinal ? null : candidateInterviewWords(application.latestInterview, { company: companyName, now: new Date() });
-  const chip: ChipTone | null = interviewWords
-    ? interviewWords.stage === "confirmed"
-      ? { label: interviewWords.chip, bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)" }
-      : { label: interviewWords.chip, bg: "var(--amber-bg)", fg: "var(--amber-fg)" }
-    : getStatusChip(application, displayState);
+  const interviewWords = liveInterviewWords(application, companyName);
+  const chip: ChipTone | null = getStatusChip(application, displayState);
 
   // A live interview always opens: that is where its times, its link and its
   // calendar file are.
@@ -294,8 +339,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
     if (!isLocked) navigate(`/applications/${application.id}`);
   };
 
-  const openInterview = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const openInterview = () => {
     navigate(`/applications/${application.id}#interview`);
   };
 
@@ -311,6 +355,75 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
     const route = step ? stepRoute(application.id, step) : null;
     navigate(route ?? `/applications/${application.id}`);
   };
+
+  // "Withdraw application", and its confirm: the same on both layouts.
+  const menu = (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label="More actions"
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full transition-colors hover:bg-[var(--surface-2)]"
+            style={{ color: "var(--ink-3)" }}
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              setConfirmWithdrawOpen(true);
+            }}
+            className="text-[var(--crit)] focus:bg-[var(--crit-bg)] focus:text-[var(--crit)]"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Withdraw application
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AlertDialog open={confirmWithdrawOpen} onOpenChange={setConfirmWithdrawOpen}>
+        <AlertDialogContent
+          onClick={(e) => e.stopPropagation()}
+          style={{ borderTop: "3px solid var(--brass-line)" }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display text-xl">Withdraw this application?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes your application for &ldquo;{job?.title}&rdquo; for good. If you change your mind,
+              you're welcome to apply again from the job's page.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Withdrawing..." : "Withdraw Application"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+
+  // A live interview is all the card shows: no step, no test still to take.
+  if (interviewWords) {
+    return (
+      <InterviewHero
+        words={interviewWords}
+        jobTitle={job?.title || "Unknown Position"}
+        companyName={companyName}
+        onOpen={openInterview}
+        menu={menu}
+      />
+    );
+  }
 
   return (
     <div
@@ -365,12 +478,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
               {outcome}
             </p>
           )
-        : (
-            <>
-              {interviewWords && <InterviewCallout words={interviewWords} onOpen={openInterview} />}
-              <JourneyProgress index={stepIndex} total={journeySteps.length} title={currentStepTitle} />
-            </>
-          )}
+        : <JourneyProgress index={stepIndex} total={journeySteps.length} title={currentStepTitle} />}
 
       {guidance && (
         <p className="mt-2 text-[12.5px] leading-snug" style={{ color: "var(--ink-3)" }}>
@@ -384,18 +492,8 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
             type="button"
             onClick={handleActionClick}
             data-testid="application-action"
-            // One solid button per card: when the interview is theirs to
-            // answer, that is the one, and the step's button steps back.
-            className={
-              interviewWords?.theirMove
-                ? "inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[10px] border px-5 text-sm font-semibold transition-colors hover:bg-[var(--surface-2)]"
-                : "inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[10px] px-5 text-sm font-semibold transition-[filter] hover:brightness-110 active:scale-[0.98]"
-            }
-            style={
-              interviewWords?.theirMove
-                ? { borderColor: "var(--hair)", color: "var(--ink)" }
-                : { background: "var(--jade)", color: "var(--btn-fg)" }
-            }
+            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[10px] px-5 text-sm font-semibold transition-[filter] hover:brightness-110 active:scale-[0.98]"
+            style={{ background: "var(--jade)", color: "var(--btn-fg)" }}
           >
             {ActionIcon && <ActionIcon className="h-4 w-4" />}
             {displayState.actionLabel}
@@ -422,56 +520,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
           </button>
         )}
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label="More actions"
-              onClick={(e) => e.stopPropagation()}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full transition-colors hover:bg-[var(--surface-2)]"
-              style={{ color: "var(--ink-3)" }}
-            >
-              <MoreVertical className="h-4 w-4" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-            <DropdownMenuItem
-              onSelect={(e) => {
-                e.preventDefault();
-                setConfirmWithdrawOpen(true);
-              }}
-              className="text-[var(--crit)] focus:bg-[var(--crit-bg)] focus:text-[var(--crit)]"
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Withdraw application
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <AlertDialog open={confirmWithdrawOpen} onOpenChange={setConfirmWithdrawOpen}>
-          <AlertDialogContent
-            onClick={(e) => e.stopPropagation()}
-            style={{ borderTop: "3px solid var(--brass-line)" }}
-          >
-            <AlertDialogHeader>
-              <AlertDialogTitle className="font-display text-xl">Withdraw this application?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This removes your application for &ldquo;{job?.title}&rdquo; for good. If you change your mind,
-                you're welcome to apply again from the job's page.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDelete}
-                disabled={isDeleting}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                {isDeleting ? "Withdrawing..." : "Withdraw Application"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {menu}
 
         {!isLocked && <ChevronRight className="h-4 w-4 shrink-0" style={{ color: "var(--ink-3)" }} />}
       </div>
@@ -519,7 +568,8 @@ export default function Applications() {
   const freshArrival = isFreshArrival(location);
   const [forwardDecided, setForwardDecided] = useState(false);
   const waitingOnComputer = useMemo(
-    () => (freshArrival && !forwardDecided && !isEmployer ? stepWaitingOnComputer(applications) : null),
+    // Someone selected for an interview is never forwarded to a test.
+    () => (freshArrival && !forwardDecided && !isEmployer ? stepWaitingOnComputer(applications?.filter((app) => !liveInterviewWords(app))) : null),
     [freshArrival, forwardDecided, isEmployer, applications],
   );
   useEffect(() => {
@@ -585,45 +635,76 @@ export default function Applications() {
     setShowBlueprintDialog(true);
   };
 
-  // Subscribe to real-time updates for all candidate applications
+  // Live: an application that changes, and an interview that is offered,
+  // answered, moved or cancelled, show here without a refresh (the owner:
+  // "it all needs to happen in real time"). One subscription for the life of
+  // the page: it used to be torn down and remade after every refetch (it
+  // depended on the list itself), with a moment each time when nothing was
+  // listening, and it never heard about interviews at all, so an answer from
+  // the team waited for a reload.
+  const latest = useRef({ applications, employerNames });
+  latest.current = { applications, employerNames };
+  const liveId = useId();
+  const userId = user?.id;
   useEffect(() => {
-    if (!user || isEmployer) return;
+    if (!userId || isEmployer) return;
+    const refresh = () => {
+      queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
+    };
 
     const channel = supabase
-      .channel("candidate-applications")
+      .channel(`candidate-applications-${userId}-${liveId}`)
       .on(
         "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "applications",
-          filter: `candidate_id=eq.${user.id}`,
-        },
+        { event: "*", schema: "public", table: "applications", filter: `candidate_id=eq.${userId}` },
         (payload) => {
-          const newStatus = payload.new.status as string | undefined;
-          const oldStatus = payload.old?.status as string | undefined;
-
-          if (newStatus === "rejected" && oldStatus !== "rejected") {
-            const updatedApplicationId = payload.new.id as string;
-            const existingApplication = applications?.find((application) => application.id === updatedApplicationId);
-
-            const employerId = existingApplication?.jobs?.employer_id;
+          const next = (payload.new ?? {}) as { id?: string; status?: string };
+          const previous = (payload.old ?? {}) as { status?: string };
+          if (payload.eventType === "UPDATE" && next.status === "rejected" && previous.status !== "rejected" && next.id) {
+            const existing = latest.current.applications?.find((application) => application.id === next.id);
+            const employerId = existing?.jobs?.employer_id;
             setRejectedAnnouncement({
-              applicationId: updatedApplicationId,
-              jobTitle: existingApplication?.jobs?.title,
-              companyName: employerId ? employerNames?.[employerId] : undefined,
+              applicationId: next.id,
+              jobTitle: existing?.jobs?.title,
+              companyName: employerId ? latest.current.employerNames?.[employerId] : undefined,
             });
           }
-
-          refetch();
-        }
+          refresh();
+        },
       )
-      .subscribe();
+      // Interviews carry no applicant id of their own to filter on: the
+      // database's own access rule already limits these to this applicant's.
+      .on("postgres_changes", { event: "*", schema: "public", table: "interviews" }, refresh)
+      // Anything that happened while the line was down or still connecting.
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") refresh();
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, isEmployer, refetch, applications, employerNames]);
+  }, [userId, isEmployer, queryClient, liveId]);
+
+  // "You've been selected for an interview": the moment, once for each
+  // interview on this browser, whether the news arrived just now or while
+  // they were away.
+  const [momentsSeen, setMomentsSeen] = useState(0);
+  const selectedMoment = useMemo(() => {
+    void momentsSeen;
+    if (isEmployer || deciding) return null;
+    for (const application of applications ?? []) {
+      const employerId = application.jobs?.employer_id;
+      const company = employerId ? employerNames?.[employerId] : undefined;
+      const words = liveInterviewWords(application, company);
+      const interviewId = application.latestInterview?.id;
+      if (words?.selected && interviewId && !hasCelebrated(interviewId)) return { application, words, company, interviewId };
+    }
+    return null;
+  }, [applications, employerNames, isEmployer, deciding, momentsSeen]);
+  const closeMoment = () => {
+    if (selectedMoment) markCelebrated(selectedMoment.interviewId);
+    setMomentsSeen((n) => n + 1);
+  };
 
   const filteredApplications = applications?.filter((app) => {
     const matchesSearch = app.jobs?.title?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -750,6 +831,20 @@ export default function Applications() {
           />
         )}
       </div>
+
+      <InterviewSelectedMoment
+        open={!!selectedMoment}
+        companyName={selectedMoment?.company}
+        jobTitle={selectedMoment?.application.jobs?.title}
+        detail={selectedMoment?.words.ask ?? ""}
+        action={selectedMoment?.words.action ?? ""}
+        onAction={() => {
+          const id = selectedMoment?.application.id;
+          closeMoment();
+          if (id) navigate(`/applications/${id}#interview`);
+        }}
+        onClose={closeMoment}
+      />
 
       {/* Blueprint Dialog */}
       <Dialog open={showBlueprintDialog} onOpenChange={setShowBlueprintDialog}>
