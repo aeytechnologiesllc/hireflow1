@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { declineNoteLines } from "../_shared/declineNote.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
@@ -348,13 +349,14 @@ const getEmailContent = (
     
     // CANDIDATE-FACING — a decision, so it comes from the employer, not from
     // HireFlow. Short and warm; no "feedback report" (there is nothing to
-    // download), and no mention of how the decision was reached.
+    // download), and no mention of how the decision was reached. The words
+    // are _shared/declineNote.ts, the same ones the Pass dialog shows the
+    // owner before he confirms: thanks, "not this time", a door left open.
     status_rejected: {
       subject: `An update on your ${data.job_title} application`,
       html: wrapEmail(
         `An update from ${companyName || "the hiring team"}`,
-        `<p>Thank you for applying for the <strong>${esc(data.job_title)}</strong> role${companyName ? ` at ${companyName}` : ''}, and for the time you put into it.</p>
-         <p style="color: #666;">We've decided to move forward with other candidates this time. We're grateful you considered us, and we wish you the very best in your search.</p>`,
+        declineNoteLines(data.job_title).map((line) => `<p>${esc(line)}</p>`).join("\n         "),
         "View your applications",
         candidateLink("/applications"),
         `— ${teamLabel}`

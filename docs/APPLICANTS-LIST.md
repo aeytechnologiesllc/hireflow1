@@ -362,6 +362,19 @@ applicants. And that will just block them too."* Pass stays the polite way
 out (it emails the candidate); Remove and block is the other one: silent, and
 it sticks.
 
+**Pass is a plain confirm (2026-10-07).** It used to ask "Why, in a line? Only
+you see this." The owner read that as having to explain himself: *"just ask me
+for confirmation and send them whatever they need … I shouldn't have to tell
+them why … we don't want to depress them, we want to keep them encouraged."*
+The dialog (the profile's and this list's, one set of words:
+`passDialogWords` and `DeclineNotePreview` in ApplicantDecisionDialogs) now
+shows the note they will get, word for word, with Cancel and Pass. The note is
+`src/lib/declineNote.ts` (copied to `supabase/functions/_shared/` for the
+email; `scripts/decline_note.test.mjs` keeps the two identical): thanks for
+the work they put in, "not the right fit for this role at the moment", and
+welcome to apply again. No reason is asked for or sent. (The private reason
+went to `applications.employer_notes`, which no screen in the cockpit shows.)
+
 - **Where**: the ⋯ on every row and phone card (Open profile, Select, Pass or
   Take back offer, Remove and block; Unblock on a blocked one), the profile's
   ⋯ beside the pager (the phone's More), and the bulk bar. Menus and dialogs

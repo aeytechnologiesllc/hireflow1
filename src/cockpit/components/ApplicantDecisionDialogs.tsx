@@ -4,6 +4,19 @@ import { advanceTargetLabel, avaAdvanceRec } from "../hooks/useCockpitData";
 import { firstName } from "../lib/avaProse";
 import type { Candidate } from "../data";
 import type { CandidateJourneyStep } from "@/lib/candidateJourney";
+import { declineNoteText } from "@/lib/declineNote";
+
+/** What the Pass confirm says above the note; the list's menu says the same. */
+export function passDialogWords(who: string, offered: boolean): string {
+  return offered
+    ? `${who}'s offer is taken back, and ${who} gets this note in your name:`
+    : `${who} comes off your list and gets this note in your name:`;
+}
+
+/** The note they will read, word for word (src/lib/declineNote.ts: the email's own words). */
+export function DeclineNotePreview({ jobTitle }: { jobTitle?: string | null }) {
+  return <span>&ldquo;{declineNoteText(jobTitle)}&rdquo;</span>;
+}
 
 /**
  * The four decisions a hiring team makes about one applicant — move them on,
@@ -105,20 +118,15 @@ export function ApplicantDecisionDialogs({
       <ActionDialog
         open={open === "reject" && !!candidate}
         title={candidate ? (offered ? `Take back ${who}'s offer?` : `Pass on ${who}?`) : ""}
-        description={
-          candidate
-            ? offered
-              ? `I'll let ${who} know the offer is no longer open, in your name and kindly.`
-              : `${who} comes off your list and I send a polite note in your name.`
-            : ""
-        }
+        description={candidate ? passDialogWords(who, offered) : ""}
         confirmLabel={candidate && offered ? "Take back offer" : "Pass"}
         tone="danger"
         busy={busy}
-        withReason
-        reasonLabel="Why, in a line? Only you see this."
-        reasonPlaceholder="e.g. Strong, but went with someone with more weekend availability."
-        onConfirm={onReject}
+        // A plain confirm: no reason to type. What they will read is shown,
+        // word for word (the owner: "just ask me for confirmation and send
+        // them whatever they need").
+        note={candidate ? <DeclineNotePreview jobTitle={candidate.role} /> : null}
+        onConfirm={() => onReject()}
         onClose={onClose}
       />
     </>,

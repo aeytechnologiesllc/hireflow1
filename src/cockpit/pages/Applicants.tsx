@@ -231,6 +231,7 @@ const ApplicantListItem = memo(function ApplicantListItem({
           target: { applicationId: row.id, candidateId: row.candidateId, name: row.name },
           status: row.status,
           blocked: !!row.blocked,
+          jobTitle: row.jobTitle,
           onOpenProfile: () => actions.openProfile(row.id),
           onSelect: () => actions.select(row.id),
           onRequest: actions.request,

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { createPortal } from "react-dom";
 import { Ban, CheckSquare, ExternalLink, MoreHorizontal, RotateCcw, XCircle } from "lucide-react";
 import { ActionDialog } from "./ActionDialog";
+import { DeclineNotePreview, passDialogWords } from "./ApplicantDecisionDialogs";
 import { useCockpitActions } from "../hooks/useCockpitData";
 import { useApplicantBlockActions, type BlockTarget } from "../hooks/useApplicantBlocks";
 import { blockConfirmWords, firstNameOf, unblockConfirmWords } from "../lib/blockedApplicants";
@@ -234,7 +235,7 @@ export function ActionsMenu({
 /* ── What the menu can ask for ──────────────────────────────────────────── */
 
 export type ApplicantActionRequest =
-  | { kind: "pass"; target: BlockTarget; offered: boolean }
+  | { kind: "pass"; target: BlockTarget; offered: boolean; /** The job they applied for: the note names it. */ jobTitle?: string | null }
   | { kind: "block"; targets: BlockTarget[] }
   | { kind: "unblock"; target: BlockTarget };
 
@@ -243,6 +244,7 @@ export function applicantMenuItems({
   target,
   status,
   blocked,
+  jobTitle,
   onOpenProfile,
   onSelect,
   onRequest,
@@ -250,6 +252,8 @@ export function applicantMenuItems({
   target: BlockTarget;
   status: string;
   blocked: boolean;
+  /** The job they applied for, for the note a Pass sends. */
+  jobTitle?: string | null;
   /** Absent on the profile itself. */
   onOpenProfile?: () => void;
   /** "Select" (the list's checkboxes); absent where there is none. */
@@ -276,7 +280,7 @@ export function applicantMenuItems({
       key: "pass",
       label: offered ? "Take back offer" : "Pass",
       icon: <XCircle aria-hidden className="h-4 w-4 shrink-0" />,
-      onSelect: () => onRequest({ kind: "pass", target, offered }),
+      onSelect: () => onRequest({ kind: "pass", target, offered, jobTitle }),
     });
   }
   items.push({ key: "block", label: "Remove and block", icon: <Ban aria-hidden className="h-4 w-4 shrink-0" />, danger: true, onSelect: () => onRequest({ kind: "block", targets: [target] }) });
@@ -369,20 +373,14 @@ export function ApplicantActionDialogs({
       <ActionDialog
         open
         title={request.offered ? `Take back ${who}'s offer?` : `Pass on ${who}?`}
-        description={
-          request.offered
-            ? `I'll let ${who} know the offer is no longer open, in your name and kindly.`
-            : `${who} comes off your list and I send a polite note in your name.`
-        }
+        description={passDialogWords(who, request.offered)}
         confirmLabel={request.offered ? "Take back offer" : "Pass"}
         tone="danger"
         busy={busy}
-        withReason
-        reasonLabel="Why, in a line? Only you see this."
-        reasonPlaceholder="e.g. Strong, but went with someone with more weekend availability."
-        onConfirm={(reason) =>
+        note={<DeclineNotePreview jobTitle={request.jobTitle} />}
+        onConfirm={() =>
           void finish(async () => {
-            await reject(request.target.applicationId, reason);
+            await reject(request.target.applicationId);
             return true;
           })
         }
