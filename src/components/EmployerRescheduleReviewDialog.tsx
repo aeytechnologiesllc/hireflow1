@@ -17,6 +17,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { getTimezoneAbbreviation } from "@/lib/timezone";
+import { applicantEmailTime, localTimeZone } from "@/lib/interviewTimes";
+import { fetchApplicantTimeZone } from "@/hooks/useApplicantTimeZone";
 
 // Helper to safely format dates
 const safeFormatDate = (dateStr: string | null | undefined, formatStr: string): string => {
@@ -100,11 +102,13 @@ export function EmployerRescheduleReviewDialog({
         // Send email notification to candidate
         try {
           const { notifyInterviewRescheduled } = await import("@/utils/emailNotifications");
+          // On the applicant's own clock, with the zone named (src/lib/interviewTimes.ts).
+          const written = applicantEmailTime(parseISO(selectedTime), await fetchApplicantTimeZone(applicationId), localTimeZone());
           await notifyInterviewRescheduled(
             candidateId,
             jobTitle,
-            format(parseISO(selectedTime), "EEEE, MMMM d, yyyy"),
-            format(parseISO(selectedTime), "h:mm a")
+            written.date,
+            written.time
           );
         } catch (emailErr) {
           console.error("Failed to send reschedule email:", emailErr);
@@ -164,11 +168,12 @@ export function EmployerRescheduleReviewDialog({
         if (scheduledAt) {
           try {
             const { notifyInterviewRescheduled } = await import("@/utils/emailNotifications");
+            const written = applicantEmailTime(parseISO(scheduledAt), await fetchApplicantTimeZone(applicationId), localTimeZone());
             await notifyInterviewRescheduled(
               candidateId,
               jobTitle,
-              format(parseISO(scheduledAt), "EEEE, MMMM d, yyyy"),
-              format(parseISO(scheduledAt), "h:mm a")
+              written.date,
+              written.time
             );
           } catch (emailErr) {
             console.error("Failed to send interview confirmation email:", emailErr);

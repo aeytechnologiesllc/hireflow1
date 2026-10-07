@@ -479,6 +479,12 @@ export function install(params: URLSearchParams): void {
         if (name === "connection-test" || name.startsWith("connection-test?")) {
           return connectionTest(name, options);
         }
+        // Every email a screen asks for is kept on the window, so a walk-through
+        // can read what WOULD have gone out. Nothing leaves the machine here.
+        if (name === "send-notification-email") {
+          const kept = window as unknown as { __previewEmails?: unknown[] };
+          (kept.__previewEmails ??= []).push(options?.body ?? null);
+        }
         const emailed = continueLinkEmail(name, options);
         if (emailed) return emailed;
         const generated = previewJobGeneration(name, options);

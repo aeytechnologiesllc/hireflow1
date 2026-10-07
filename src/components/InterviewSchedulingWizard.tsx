@@ -46,6 +46,8 @@ import { hapticLight } from "@/lib/haptics";
 import type { Json } from "@/integrations/supabase/types";
 import type { EmailStatus } from "@/utils/emailNotifications";
 import { candidateOrigin } from "@/lib/hosts";
+import { applicantEmailTime, clockGapWords, localTimeZone, shortTimeIn, zonePlace } from "@/lib/interviewTimes";
+import { fetchApplicantTimeZone, useApplicantTimeZone } from "@/hooks/useApplicantTimeZone";
 
 interface InterviewSchedulingWizardProps {
   applicationId: string | null;
@@ -97,6 +99,19 @@ const WHEEL_PADDING = (WHEEL_HEIGHT - WHEEL_ROW_HEIGHT) / 2;
 
 const WIZARD_STATE_KEY = "interview_wizard_state";
 const WIZARD_STATE_EXPIRY = 30 * 60 * 1000; // 30 minutes
+// The owner's own meeting link, remembered on this browser: one Google Meet
+// "meeting for later" link serves every interview, so it is pasted once.
+const OWN_LINK_KEY = "interview_own_meeting_link";
+// A first conversation with someone who finished every test: half an hour.
+const DEFAULT_DURATION = "30";
+
+const rememberedOwnLink = (): string => {
+  try {
+    return localStorage.getItem(OWN_LINK_KEY) ?? "";
+  } catch {
+    return "";
+  }
+};
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 const GOOGLE_SCOPES = "https://www.googleapis.com/auth/calendar.events";
@@ -198,6 +213,23 @@ const combineDayAndTime = (day: Date, time: string): Date => {
 
 const windowKey = (day: Date, time: string): string => `${format(day, "yyyy-MM-dd")}_${time}`;
 
+/**
+ * One offered time: the owner's clock, and under it the applicant's own when
+ * theirs differs. Two short lines, so neither breaks in the middle on a phone.
+ */
+function OfferedTime({ mine, theirs }: { mine: string; theirs: string | null }) {
+  return (
+    <span className="flex flex-col leading-tight">
+      <span className="whitespace-nowrap">{mine}</span>
+      {theirs && (
+        <span className="whitespace-nowrap text-[11px] font-normal" style={{ color: "var(--ink-3)" }}>
+          {theirs} theirs
+        </span>
+      )}
+    </span>
+  );
+}
+
 export default function InterviewSchedulingWizard({
   applicationId,
   candidateName,
@@ -217,7 +249,7 @@ export default function InterviewSchedulingWizard({
   const [selectedTime, setSelectedTime] = useState("");
   const [selectedWindows, setSelectedWindows] = useState<WindowSlot[]>([]);
   const [viewDayIndex, setViewDayIndex] = useState(0);
-  const [duration, setDuration] = useState("15");
+  const [duration, setDuration] = useState(DEFAULT_DURATION);
   const [interviewType, setInterviewType] = useState("video");
   const [notes, setNotes] = useState("");
   const [generateMeetLink, setGenerateMeetLink] = useState(true);
@@ -234,6 +266,20 @@ export default function InterviewSchedulingWizard({
   const [candidateEmailStatus, setCandidateEmailStatus] = useState<EmailStatus | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [meetingLinkError, setMeetingLinkError] = useState<string | null>(null);
+  // Offering times: the built-in room, or a link of the owner's own (Google
+  // Meet, Zoom). Booking one exact time has always taken a link.
+  const [ownLinkMode, setOwnLinkMode] = useState(false);
+
+  // The applicant's own clock, as their connection check recorded it: shown
+  // beside every time here, and what their email says (src/lib/interviewTimes.ts).
+  const teamZone = useMemo(() => localTimeZone(), []);
+  const zoneLookup = useApplicantTimeZone(applicationId, open);
+  const applicantZone = zoneLookup.data ?? null;
+  const firstName = candidateName.trim().split(/\s+/)[0] || "them";
+  const theirTime = useCallback(
+    (at: Date): string | null => (applicantZone && applicantZone !== teamZone ? shortTimeIn(at, applicantZone) : null),
+    [applicantZone, teamZone],
+  );
 
   const queryClient = useQueryClient();
   const createInterview = useCreateInterview();
@@ -363,10 +409,11 @@ export default function InterviewSchedulingWizard({
       case 1:
         return true;
       case 2:
-        // For video interviews: require either Google auto-generate OR a valid manual link —
-        // but only in exact-time mode. Windows mode gets an in-app room, no link to collect.
+        // For video interviews: require either Google auto-generate OR a valid manual link
+        // in exact-time mode. Windows mode gets the in-app room unless the owner
+        // chose a link of their own, which then has to be a real one.
         if (interviewType === "video") {
-          if (!exactTimeMode) return true;
+          if (!exactTimeMode) return !ownLinkMode || isValidMeetingLink(manualMeetingLink);
           // Google connected with auto-generate enabled = valid
           if (isGoogleConnected && generateMeetLink) {
             return true;
@@ -391,6 +438,7 @@ export default function InterviewSchedulingWizard({
     isGoogleConnected,
     generateMeetLink,
     manualMeetingLink,
+    ownLinkMode,
   ]);
 
   const handleNext = useCallback(() => {
@@ -569,10 +617,15 @@ export default function InterviewSchedulingWizard({
 
     setIsCreating(true);
     try {
-      let meetingLink = manualMeetingLink;
+      let meetingLink = interviewType === "video" ? manualMeetingLink.trim() : "";
+      // Offering times with a link of the owner's own instead of the built-in room.
+      const ownLink = !exactTimeMode && interviewType === "video" && ownLinkMode ? manualMeetingLink.trim() : "";
       let scheduledAt: Date;
       let interviewDateLabel: string;
       let interviewTimeLabel: string;
+      // Their email states every time on THEIR clock, with the zone named. The
+      // lookup has usually landed by now; when it has not, ask once more.
+      const theirZone = applicantZone ?? (await fetchApplicantTimeZone(applicationId));
 
       if (exactTimeMode) {
         // Create Google Calendar event with Meet link if connected
@@ -596,8 +649,9 @@ export default function InterviewSchedulingWizard({
           notes: notes || null,
         });
 
-        interviewDateLabel = format(scheduledAt, "EEEE, MMMM d, yyyy");
-        interviewTimeLabel = formatTimeToAMPM(selectedTime);
+        const written = applicantEmailTime(scheduledAt, theirZone, teamZone);
+        interviewDateLabel = written.date;
+        interviewTimeLabel = written.time;
       } else {
         // Windows mode: offer a set of start times, the candidate picks one.
         // scheduled_at is a placeholder (the earliest window) until they do.
@@ -612,11 +666,13 @@ export default function InterviewSchedulingWizard({
           scheduled_at: scheduledAt.toISOString(),
           duration_minutes: parseInt(duration),
           interview_type: interviewType,
-          meeting_link: null,
+          meeting_link: ownLink || null,
           notes: notes || null,
           candidate_response: "awaiting_pick",
           employer_windows: employerWindows as unknown as Json,
-          meeting_provider: interviewType === "video" ? "daily" : null,
+          // 'daily' is the built-in room; a link of the owner's own takes its
+          // place, and both sides then get that link to join.
+          meeting_provider: interviewType === "video" && !ownLink ? "daily" : null,
         });
 
         interviewDateLabel = `${sortedSelectedWindows.length} times to choose from`;
@@ -650,7 +706,7 @@ export default function InterviewSchedulingWizard({
         } else {
           const { notifyInterviewPickTime } = await import("@/utils/emailNotifications");
           const proposedTimes = sortedSelectedWindows.map(
-            (w) => `${format(w.day, "EEEE, MMMM d")} · ${formatTimeToAMPM(w.time)}`
+            (w) => applicantEmailTime(combineDayAndTime(w.day, w.time), theirZone, teamZone).line
           );
           const status = await notifyInterviewPickTime(
             appData.candidate_id,
@@ -668,9 +724,18 @@ export default function InterviewSchedulingWizard({
 
       // Clear saved wizard state
       localStorage.removeItem(WIZARD_STATE_KEY);
+      // A pasted link is remembered for the next interview (this browser only).
+      const pastedLink = exactTimeMode ? (isGoogleConnected && generateMeetLink ? "" : meetingLink) : ownLink;
+      if (pastedLink) {
+        try {
+          localStorage.setItem(OWN_LINK_KEY, pastedLink);
+        } catch {
+          // Private window or blocked storage: it is only a convenience.
+        }
+      }
 
       // Show success view instead of closing immediately
-      setCreatedMeetLink(exactTimeMode ? meetingLink || null : null);
+      setCreatedMeetLink(exactTimeMode ? meetingLink || null : ownLink || null);
       setShowSuccess(true);
 
       // Call onComplete to notify parent that scheduling was successful
@@ -707,15 +772,27 @@ export default function InterviewSchedulingWizard({
     setSelectedTime("");
     setSelectedWindows([]);
     setViewDayIndex(0);
-    setDuration("60");
+    setDuration(DEFAULT_DURATION);
     setInterviewType("video");
     setNotes("");
     setManualMeetingLink("");
+    setMeetingLinkError(null);
+    setOwnLinkMode(false);
     setCreatedMeetLink(null);
     setShowSuccess(false);
     setLinkCopied(false);
     setCandidateEmailStatus(null);
   };
+
+  // The link the owner pasted last time comes back with them: whoever ran the
+  // last interview on their own Google Meet link almost always wants it again.
+  useEffect(() => {
+    if (!open) return;
+    const remembered = rememberedOwnLink();
+    if (!remembered || !isValidMeetingLink(remembered)) return;
+    setManualMeetingLink((current) => current || remembered);
+    setOwnLinkMode(true);
+  }, [open]);
 
   // Restore wizard state from localStorage on mount (after OAuth return)
   useEffect(() => {
@@ -735,6 +812,45 @@ export default function InterviewSchedulingWizard({
       setCurrentStep(2);
     }
   }, [open, initialState]);
+
+  // The one place a meeting link is typed: booking an exact time, or offering
+  // times with a link of the owner's own.
+  const meetingLinkField = (
+    <div className="space-y-2">
+      <Label className="text-sm font-medium" htmlFor="interview-meeting-link">
+        Meeting Link <span className="text-destructive">*</span>
+      </Label>
+      <div className="relative">
+        <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          id="interview-meeting-link"
+          placeholder="https://meet.google.com/... or https://zoom.us/j/..."
+          value={manualMeetingLink}
+          onChange={(e) => {
+            const value = e.target.value;
+            setManualMeetingLink(value);
+
+            // Validate and show error only if user has typed something
+            if (value && !isValidMeetingLink(value)) {
+              setMeetingLinkError("Please enter a valid Google Meet, Zoom, or Teams link");
+            } else {
+              setMeetingLinkError(null);
+            }
+          }}
+          className={cn(
+            "pl-10 bg-background",
+            meetingLinkError && "border-destructive focus-visible:ring-destructive"
+          )}
+        />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Accepted: Google Meet, Zoom, Microsoft Teams, Webex, GoToMeeting
+      </p>
+      {meetingLinkError && (
+        <p className="text-xs text-destructive">{meetingLinkError}</p>
+      )}
+    </div>
+  );
 
   return (
     <>
@@ -780,6 +896,11 @@ export default function InterviewSchedulingWizard({
                     <p className="font-medium">
                       {selectedDate ? format(selectedDate, "EEEE, MMMM d, yyyy") : ""} at {formatTimeToAMPM(selectedTime)}
                     </p>
+                    {selectedDate && selectedTime && theirTime(combineDayAndTime(selectedDate, selectedTime)) && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {theirTime(combineDayAndTime(selectedDate, selectedTime))} for {firstName}
+                      </p>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -791,9 +912,12 @@ export default function InterviewSchedulingWizard({
                       {sortedSelectedWindows.map((w) => (
                         <span
                           key={windowKey(w.day, w.time)}
-                          className="text-xs font-medium rounded-full border border-border bg-muted/50 px-2 py-1"
+                          className="text-xs font-medium rounded-xl border border-border bg-muted/50 px-2.5 py-1"
                         >
-                          {format(w.day, "EEE, MMM d")} · {formatTimeToAMPM(w.time)}
+                          <OfferedTime
+                            mine={`${format(w.day, "EEE, MMM d")} · ${formatTimeToAMPM(w.time)}`}
+                            theirs={theirTime(combineDayAndTime(w.day, w.time))}
+                          />
                         </span>
                       ))}
                     </div>
@@ -850,10 +974,15 @@ export default function InterviewSchedulingWizard({
                     )}
                   </Button>
                 </div>
+                {!exactTimeMode && (
+                  <p className="text-xs text-muted-foreground mt-2 text-left">
+                    {firstName} gets this link once they have picked a time.
+                  </p>
+                )}
               </div>
             )}
 
-            {!exactTimeMode && interviewType === "video" && (
+            {!exactTimeMode && interviewType === "video" && !createdMeetLink && (
               <div className="mb-6 flex items-center gap-3 p-3 rounded-lg bg-muted/50 text-left">
                 <Video className="h-5 w-5 text-muted-foreground shrink-0" />
                 <p className="text-sm text-muted-foreground">
@@ -867,7 +996,7 @@ export default function InterviewSchedulingWizard({
               <span className="text-sm text-muted-foreground">
                 {candidateEmail && candidateEmailStatus === "sent"
                   ? exactTimeMode
-                    ? `Calendar invite sent to ${candidateEmail}`
+                    ? `Email sent to ${candidateEmail} with the date and time`
                     : `Email sent to ${candidateEmail} to pick a time`
                   : "Interview scheduled — they'll see it in HireFlow"}
               </span>
@@ -945,6 +1074,21 @@ export default function InterviewSchedulingWizard({
                       </button>
                     </div>
 
+                    {/* Whose clock: the times here are the owner's; the applicant's
+                        own are beside them, and their email states theirs. */}
+                    {applicantZone && applicantZone !== teamZone && (
+                      <p className="text-xs leading-relaxed" style={{ color: "var(--ink-2)" }} data-testid="their-clock-note">
+                        {firstName} is in {zonePlace(applicantZone)}, {clockGapWords(new Date(), applicantZone, teamZone)}. You
+                        pick on your clock; their own time is shown beside it, and it is the time their email states.
+                      </p>
+                    )}
+                    {zoneLookup.isFetched && !applicantZone && (
+                      <p className="text-xs leading-relaxed" style={{ color: "var(--ink-2)" }} data-testid="their-clock-note">
+                        {firstName}'s time zone is not on file, so their email gives these times on your clock and names
+                        your time zone.
+                      </p>
+                    )}
+
                     {exactTimeMode ? (
                       <div className="grid md:grid-cols-2 gap-6">
                         {/* Date Picker */}
@@ -972,6 +1116,11 @@ export default function InterviewSchedulingWizard({
                               />
                             ))}
                           </div>
+                          {selectedDate && selectedTime && theirTime(combineDayAndTime(selectedDate, selectedTime)) && (
+                            <p className="text-xs" style={{ color: "var(--ink-2)" }} data-testid="their-time-exact">
+                              That is {theirTime(combineDayAndTime(selectedDate, selectedTime))} for {firstName}.
+                            </p>
+                          )}
                         </div>
                       </div>
                     ) : (
@@ -1154,6 +1303,12 @@ export default function InterviewSchedulingWizard({
                                 } ${format(viewDay, "EEE")} ${formatTimeToAMPM(daySlots[wheelCenterIndex].value)}`
                               : "No times left today"}
                           </button>
+                          {daySlots[wheelCenterIndex] &&
+                            theirTime(combineDayAndTime(viewDay, daySlots[wheelCenterIndex].value)) && (
+                              <p className="text-xs" style={{ color: "var(--ink-2)" }} data-testid="their-time-wheel">
+                                {theirTime(combineDayAndTime(viewDay, daySlots[wheelCenterIndex].value))} for {firstName}
+                              </p>
+                            )}
                         </div>
 
                         {/* Selected windows as removable chips */}
@@ -1181,10 +1336,13 @@ export default function InterviewSchedulingWizard({
                               {sortedSelectedWindows.map((w) => (
                                 <span
                                   key={windowKey(w.day, w.time)}
-                                  className="inline-flex items-center gap-1.5 rounded-full py-1 pl-3 pr-1.5 text-sm font-medium transition-transform duration-150 ease-out active:scale-[0.96] motion-reduce:transition-none"
+                                  className="inline-flex items-center gap-1.5 rounded-2xl py-1 pl-3 pr-1.5 text-sm font-medium transition-transform duration-150 ease-out active:scale-[0.96] motion-reduce:transition-none"
                                   style={{ background: "var(--surface-2)", color: "var(--ink)" }}
                                 >
-                                  {format(w.day, "EEE d")} · {formatTimeToAMPM(w.time)}
+                                  <OfferedTime
+                                    mine={`${format(w.day, "EEE d")} · ${formatTimeToAMPM(w.time)}`}
+                                    theirs={theirTime(combineDayAndTime(w.day, w.time))}
+                                  />
                                   <button
                                     type="button"
                                     onClick={() => toggleWindow(w.day, w.time)}
@@ -1292,19 +1450,56 @@ export default function InterviewSchedulingWizard({
                     className="space-y-6"
                   >
                     {interviewType === "video" && !exactTimeMode && (
-                      <div className="p-4 rounded-lg border border-border bg-card">
-                        <div className="flex items-start gap-4">
-                          <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ background: "var(--gradient-primary)" }}>
-                            <Video className="h-6 w-6" style={{ color: "hsl(var(--primary-foreground))" }} />
+                      <div className="space-y-3" role="radiogroup" aria-label="Where the call happens">
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={!ownLinkMode}
+                          data-testid="meeting-built-in"
+                          onClick={() => setOwnLinkMode(false)}
+                          className={cn(
+                            "w-full text-left p-4 rounded-lg border bg-card transition-colors",
+                            !ownLinkMode ? "border-primary" : "border-border",
+                          )}
+                        >
+                          <div className="flex items-start gap-4">
+                            <div className="w-12 h-12 shrink-0 rounded-lg flex items-center justify-center" style={{ background: "var(--gradient-primary)" }}>
+                              <Video className="h-6 w-6" style={{ color: "hsl(var(--primary-foreground))" }} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-foreground">Built-in video room</h3>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                No link to send. A private room opens 15 minutes before the call, and you both join
+                                it right here in HireFlow.
+                              </p>
+                            </div>
                           </div>
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-foreground">In-app video room</h3>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              No link to send — a private room is created automatically once {candidateName} confirms
-                              a time, and you'll both join it right here in HireFlow.
-                            </p>
+                        </button>
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={ownLinkMode}
+                          data-testid="meeting-own-link"
+                          onClick={() => setOwnLinkMode(true)}
+                          className={cn(
+                            "w-full text-left p-4 rounded-lg border bg-card transition-colors",
+                            ownLinkMode ? "border-primary" : "border-border",
+                          )}
+                        >
+                          <div className="flex items-start gap-4">
+                            <div className="w-12 h-12 shrink-0 rounded-lg flex items-center justify-center bg-muted">
+                              <Link2 className="h-6 w-6 text-muted-foreground" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-foreground">My own link</h3>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Google Meet, Zoom or Teams. {firstName} gets the link once they have picked a time,
+                                and it is remembered here for your next interview.
+                              </p>
+                            </div>
                           </div>
-                        </div>
+                        </button>
+                        {ownLinkMode && meetingLinkField}
                       </div>
                     )}
 
@@ -1379,39 +1574,7 @@ export default function InterviewSchedulingWizard({
                         )}
 
                         {/* Manual Link */}
-                        {(!isGoogleConnected || !generateMeetLink) && (
-                          <div className="space-y-2">
-                            <Label className="text-sm font-medium">Meeting Link <span className="text-destructive">*</span></Label>
-                            <div className="relative">
-                              <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                              <Input
-                                placeholder="https://meet.google.com/... or https://zoom.us/j/..."
-                                value={manualMeetingLink}
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  setManualMeetingLink(value);
-                                  
-                                  // Validate and show error only if user has typed something
-                                  if (value && !isValidMeetingLink(value)) {
-                                    setMeetingLinkError("Please enter a valid Google Meet, Zoom, or Teams link");
-                                  } else {
-                                    setMeetingLinkError(null);
-                                  }
-                                }}
-                                className={cn(
-                                  "pl-10 bg-background",
-                                  meetingLinkError && "border-destructive focus-visible:ring-destructive"
-                                )}
-                              />
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              Accepted: Google Meet, Zoom, Microsoft Teams, Webex, GoToMeeting
-                            </p>
-                            {meetingLinkError && (
-                              <p className="text-xs text-destructive">{meetingLinkError}</p>
-                            )}
-                          </div>
-                        )}
+                        {(!isGoogleConnected || !generateMeetLink) && meetingLinkField}
                       </>
                     )}
 
@@ -1460,6 +1623,11 @@ export default function InterviewSchedulingWizard({
                               <p className="font-medium">
                                 {selectedDate ? format(selectedDate, "EEEE, MMMM d, yyyy") : ""} at {formatTimeToAMPM(selectedTime)}
                               </p>
+                              {selectedDate && selectedTime && theirTime(combineDayAndTime(selectedDate, selectedTime)) && (
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  {theirTime(combineDayAndTime(selectedDate, selectedTime))} for {firstName}
+                                </p>
+                              )}
                             </div>
                           </div>
                         ) : (
@@ -1471,9 +1639,12 @@ export default function InterviewSchedulingWizard({
                                 {sortedSelectedWindows.map((w) => (
                                   <span
                                     key={windowKey(w.day, w.time)}
-                                    className="text-xs font-medium rounded-full border border-border bg-muted/40 px-2 py-1"
+                                    className="text-xs font-medium rounded-xl border border-border bg-muted/40 px-2.5 py-1"
                                   >
-                                    {format(w.day, "EEE, MMM d")} · {formatTimeToAMPM(w.time)}
+                                    <OfferedTime
+                                      mine={`${format(w.day, "EEE, MMM d")} · ${formatTimeToAMPM(w.time)}`}
+                                      theirs={theirTime(combineDayAndTime(w.day, w.time))}
+                                    />
                                   </span>
                                 ))}
                               </div>
@@ -1503,9 +1674,11 @@ export default function InterviewSchedulingWizard({
                             <Link2 className="h-5 w-5 text-muted-foreground" />
                             <div>
                               <p className="text-sm text-muted-foreground">Meeting</p>
-                              <p className="font-medium">
+                              <p className="font-medium break-all">
                                 {!exactTimeMode
-                                  ? "In-app video room — created automatically"
+                                  ? ownLinkMode
+                                    ? manualMeetingLink.trim()
+                                    : "In-app video room — created automatically"
                                   : isGoogleConnected && generateMeetLink
                                   ? "Google Meet link will be generated"
                                   : manualMeetingLink || "No link provided"}

@@ -9,6 +9,8 @@ import { useInterviews, useUpdateInterview, type InterviewWithDetails } from "@/
 import { supabase } from "@/integrations/supabase/client";
 import { notifyInterviewCancelled } from "@/utils/emailNotifications";
 import { buildEmployerInterviewIcs, downloadIcsFile, icsFileStem } from "@/lib/calendarInvite";
+import { applicantEmailTime, localTimeZone } from "@/lib/interviewTimes";
+import { fetchApplicantTimeZone } from "@/hooks/useApplicantTimeZone";
 import CkAvatar from "../components/Avatar";
 import { ActionDialog } from "../components/ActionDialog";
 import { PageHeader } from "../components/PageHeader";
@@ -365,11 +367,11 @@ export default function CockpitInterviews() {
         if (notifyErr) console.error("Could not notify candidate of cancellation:", notifyErr);
 
         try {
-          await notifyInterviewCancelled(
-            target.candidateId,
-            target.role,
-            target.at ? format(target.at, "EEEE, MMMM d, yyyy 'at' h:mm a") : undefined,
-          );
+          // The time they had, on their own clock with the zone named (src/lib/interviewTimes.ts).
+          const hadAt = target.at
+            ? applicantEmailTime(target.at, await fetchApplicantTimeZone(target.applicationId), localTimeZone()).dateAndTime
+            : undefined;
+          await notifyInterviewCancelled(target.candidateId, target.role, hadAt);
         } catch (emailErr) {
           console.error("Failed to send cancellation email:", emailErr);
         }

@@ -25,6 +25,8 @@ import { format } from "date-fns";
 import { Calendar as CalendarIcon, Clock, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/integrations/supabase/types";
+import { applicantEmailTime, localTimeZone } from "@/lib/interviewTimes";
+import { fetchApplicantTimeZone } from "@/hooks/useApplicantTimeZone";
 
 interface RescheduleInterviewDialogProps {
   open: boolean;
@@ -90,11 +92,13 @@ export function RescheduleInterviewDialog({
 
       if (appData) {
         const { notifyInterviewRescheduled } = await import("@/utils/emailNotifications");
+        // On the applicant's own clock, with the zone named (src/lib/interviewTimes.ts).
+        const written = applicantEmailTime(scheduledAt, await fetchApplicantTimeZone(applicationId), localTimeZone());
         await notifyInterviewRescheduled(
           appData.candidate_id,
           (appData.jobs as { title?: string } | null)?.title || "Position",
-          format(scheduledAt, "EEEE, MMMM d, yyyy"),
-          format(scheduledAt, "h:mm a")
+          written.date,
+          written.time
         );
       }
 
