@@ -8,6 +8,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { declineNoteLines } from "../_shared/declineNote.ts";
 import { CONTINUE_ON_COMPUTER_TYPE, continueOnComputerEmail, decideContinueLinkEmail } from "../_shared/continueOnComputerEmail.ts";
 import { checkRateLimit } from "../_shared/rateLimit.ts";
+import {
+  NOTIFICATION_RULES,
+  decideNotification,
+  looksLikeServiceKey,
+  sameSecret,
+  type NotificationCaller,
+} from "../_shared/notificationAccess.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
@@ -513,6 +520,44 @@ const getPreferenceField = (type: NotificationType): string => {
   return mapping[type];
 };
 
+/**
+ * Who is asking (_shared/notificationAccess.ts). The gateway lets the site's
+ * public key through, so the function works it out itself:
+ *   - the service key (another edge function, a script): this function's own
+ *     key, or another form of it that the database itself accepts as one;
+ *   - a signed-in person, by their own sign-in;
+ *   - otherwise nobody.
+ */
+async function identifyCaller(
+  req: Request,
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  supabaseUrl: string,
+  serviceKey: string,
+): Promise<NotificationCaller> {
+  const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+  if (!token) return { kind: "anonymous" };
+  if (sameSecret(token, serviceKey)) return { kind: "service" };
+  if (looksLikeServiceKey(token)) {
+    // Proven by doing something only a service key may do: the limiter's
+    // function is revoked from everyone else. (It counts one row in a bucket
+    // of its own and reads nobody's data.)
+    try {
+      const proof = await fetch(`${supabaseUrl}/rest/v1/rpc/check_rate_limit`, {
+        method: "POST",
+        headers: { apikey: token, Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ p_bucket: "service-key-check", p_identifier: "send-notification-email", p_limit: 1000000, p_window_secs: 3600 }),
+      });
+      await proof.body?.cancel().catch(() => {});
+      if (proof.ok) return { kind: "service" };
+    } catch {
+      // Not proven.
+    }
+  }
+  const { data: auth, error } = await supabase.auth.getUser(token);
+  return !error && auth?.user?.id ? { kind: "user", id: auth.user.id } : { kind: "anonymous" };
+}
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -534,7 +579,21 @@ const handler = async (req: Request): Promise<Response> => {
     const request: NotificationRequest = await req.json();
     const type = request.type;
     let recipient_user_id = request.recipient_user_id;
-    let data = request.data;
+    let data: NotificationRequest["data"] = request.data && typeof request.data === "object" ? request.data : {};
+    // Which side the recipient is on (only new_message reads differently).
+    let recipientRole: RecipientRole = "candidate";
+
+    const refuse = (status: number, body: Record<string, unknown>, retryAfter?: number) =>
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { "Content-Type": "application/json", ...corsHeaders, ...(retryAfter ? { "Retry-After": String(retryAfter) } : {}) },
+      });
+
+    // A kind this function does not know used to fall through to a template
+    // that was not there (a 500). It is simply not one of ours.
+    if (typeof type !== "string" || !Object.prototype.hasOwnProperty.call(NOTIFICATION_RULES, type)) {
+      return refuse(400, { error: "Unknown notification.", code: "unknown_type" });
+    }
 
     // "Email me the link" (Continue on your computer): the applicant presses
     // it themself, so this one type trusts nothing the page sent but the
@@ -584,20 +643,76 @@ const handler = async (req: Request): Promise<Response> => {
       data = decision.data;
     }
 
-    // Only new_message reads differently per side; look the role up once, and
-    // only when the caller did not say. Default to the candidate copy, which is
-    // the safer failure: an employer reading candidate copy is odd, a candidate
-    // reading employer copy ("New message from <their own name>") is wrong.
-    let recipientRole: RecipientRole = data?.recipient_role ?? "candidate";
-    if (type === "new_message" && !data?.recipient_role) {
-      const { data: roleRows } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", recipient_user_id);
-      const roles = (roleRows ?? []).map((r: { role: string }) => r.role);
-      if (roles.includes("employer")) recipientRole = "employer";
-      else if (roles.includes("team_member")) recipientRole = "team_member";
-      else recipientRole = "candidate";
+    // Every other kind (2026-10-07): whose request is this? Until now the
+    // kind, the recipient and every word came from the request, and the
+    // request needed only the site's public key, so anyone could have the
+    // hiring address send any user a "You've got the job" signed with any
+    // name. The rules are _shared/notificationAccess.ts: the system's own
+    // alerts are the system's; everything else belongs to the people who can
+    // already do the thing it reports, and who signs it, the names in it and
+    // (for an applicant) the job are looked up, not taken from the request.
+    if (type !== CONTINUE_ON_COMPUTER_TYPE) {
+      const caller = await identifyCaller(req, supabase, supabaseUrl, supabaseServiceKey);
+      if (caller.kind === "service") {
+        // The system asking (another edge function, a script with the service
+        // key): sent as asked, as it always was. Only new_message reads
+        // differently per side; look the role up once, and only when the
+        // caller did not say. Default to the candidate copy, which is the
+        // safer failure: an employer reading candidate copy is odd, a
+        // candidate reading employer copy ("New message from <their own
+        // name>") is wrong.
+        recipientRole = data?.recipient_role ?? "candidate";
+        if (type === "new_message" && !data?.recipient_role) {
+          const { data: roleRows } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", recipient_user_id);
+          const roles = (roleRows ?? []).map((r: { role: string }) => r.role);
+          if (roles.includes("employer")) recipientRole = "employer";
+          else if (roles.includes("team_member")) recipientRole = "team_member";
+          else recipientRole = "candidate";
+        }
+      } else {
+        const access = await decideNotification({ type, recipient_user_id, data }, caller, {
+          applicationsOf: async (candidateId) => {
+            const { data: rows, error } = await supabase
+              .from("applications")
+              .select("id, job_id, created_at, jobs(title, employer_id)")
+              .eq("candidate_id", candidateId)
+              .order("created_at", { ascending: false })
+              .limit(200);
+            if (error) throw error;
+            // deno-lint-ignore no-explicit-any
+            return (rows ?? []).map((row: any) => {
+              const job = (Array.isArray(row.jobs) ? row.jobs[0] : row.jobs) as { title?: string | null; employer_id?: string | null } | null;
+              return { id: row.id, job_id: row.job_id ?? null, job_title: job?.title ?? null, employer_id: job?.employer_id ?? null };
+            });
+          },
+          membershipsOf: async (userId) => {
+            const { data: rows, error } = await supabase
+              .from("team_members")
+              .select("employer_id, assigned_job_ids, can_manage_pipeline, can_schedule_interviews, can_send_documents, can_message_candidates")
+              .eq("user_id", userId)
+              .eq("status", "active");
+            if (error) throw error;
+            return rows ?? [];
+          },
+          profileOf: async (userId) => {
+            const { data: row, error } = await supabase.from("profiles").select("full_name, company_name, email").eq("user_id", userId).maybeSingle();
+            if (error) throw error;
+            return row ?? null;
+          },
+          checkLimit: checkRateLimit,
+        });
+        if (!access.ok) {
+          const refusal = access.refusal;
+          console.log(`[send-notification-email] ${type} refused: ${refusal.code} (${caller.kind})`);
+          return refuse(refusal.status, { error: refusal.message, code: refusal.code, ...(refusal.retryAfter ? { retryAfter: refusal.retryAfter } : {}) }, refusal.retryAfter);
+        }
+        recipient_user_id = access.recipientUserId;
+        data = access.data as NotificationRequest["data"];
+        recipientRole = access.recipientRole;
+      }
     }
 
     console.log(`[send-notification-email] Processing ${type} notification for user ${recipient_user_id}`);
@@ -678,8 +793,10 @@ const handler = async (req: Request): Promise<Response> => {
     const stack = error instanceof Error ? error.stack : undefined;
     console.error("[send-notification-email] Error sending notification email:", error);
     console.error("[send-notification-email] Error stack:", stack);
+    // The detail is in the logs above. The answer does not carry it: this
+    // function can be reached by anyone, and a stack trace is a map.
     return new Response(
-      JSON.stringify({ error: message, stack }),
+      JSON.stringify({ error: "The notification could not be sent." }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }

@@ -99,6 +99,17 @@ minutes after these migrations actually ran; re-run the query above yourself
 before trusting either this line or that one, per
 `docs/MIGRATION-HISTORY.md`'s "Keeping this file honest across sessions."
 
+**Notification emails are caller-checked (live since 2026-10-07).**
+`send-notification-email` works out who is asking and decides who may set off
+each kind of email, and looks up who signs it and who is named in it
+(`supabase/functions/_shared/notificationAccess.ts`,
+`docs/NOTIFICATION-EMAILS.md`). Before that, anyone holding the site's public
+key could have any template ("You've got the job" included) sent to any user
+id, signed with any name: the gateway lets the public key through even with
+`verify_jwt = true`. Never add a kind of email that takes its recipient or
+its signer from the request. `scripts/notification_access.test.mjs` runs the
+real function against a stand-in world and fails if a rule is weakened.
+
 **One production account has no `profiles` row right now.** Verified live
 2026-09-16: `select count(*) from auth.users u left join public.profiles p
 on p.user_id=u.id where p.user_id is null` returns 1. The self-healing fix
