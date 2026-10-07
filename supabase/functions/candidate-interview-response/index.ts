@@ -1,13 +1,18 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import {
+  agreedTimeEmails,
   cleanNote,
   cleanSuggestedTimes,
   clockForTeam,
+  knownZone,
   noTimeAgreedYet,
   sayTimeForTeam,
   suggestionToStore,
   teamNoticeFor,
+  teamZoneOf,
+  type AgreedChange,
 } from "../_shared/interviewAnswer.ts";
+import { applicantEmailTime, applicantTimeZone } from "../_shared/interviewTimes.ts";
 
 /**
  * An applicant's answer about an interview with the hiring team: confirm the
@@ -20,6 +25,10 @@ import {
  * wizard recorded it (employer_windows[].zone), otherwise on the applicant's
  * clock and says so. Never a bare time: until 2026-10-07 it was the server's
  * clock (UTC) with no zone, four hours off for the owner.
+ *
+ * When a time becomes agreed (a pick, a swap, a confirm) both sides are also
+ * emailed: the applicant their confirmation, on their own clock, and the
+ * team a notice on theirs. The emails never hold up or fail the answer.
  */
 
 const corsHeaders = {
@@ -61,6 +70,19 @@ type RequestPayload = ConfirmPayload | ReschedulePayload | PickSlotPayload | Rep
 interface EmployerWindow {
   start: string;
   durationMinutes?: number;
+}
+
+/**
+ * Runs `task` after the answer has been sent (EdgeRuntime.waitUntil keeps the
+ * worker alive for it); where the runtime has no such thing it simply runs.
+ * Never throws.
+ */
+function afterResponse(task: Promise<unknown>): void {
+  const guarded = task.catch((error) => {
+    console.error("Failed to email the agreed time:", error);
+  });
+  const runtime = (globalThis as unknown as { EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void } }).EdgeRuntime;
+  if (runtime && typeof runtime.waitUntil === "function") runtime.waitUntil(guarded);
 }
 
 Deno.serve(async (req) => {
@@ -115,9 +137,13 @@ Deno.serve(async (req) => {
         employer_windows,
         proposed_times,
         status,
+        interview_type,
+        meeting_link,
+        meeting_provider,
         applications(
           id,
           candidate_id,
+          notes,
           jobs(id, employer_id, title)
         )
       `)
@@ -141,6 +167,8 @@ Deno.serve(async (req) => {
     const application = interview.applications as unknown as {
       id: string;
       candidate_id: string;
+      /** Read only for the applicant's own time zone, when their browser did not send one. */
+      notes: unknown;
       jobs: { id: string; employer_id: string; title: string } | null;
     } | null;
     if (application?.candidate_id !== user.id) {
@@ -185,6 +213,8 @@ Deno.serve(async (req) => {
     // The times the applicant suggested, as kept (reschedule_requested only).
     let suggested: { datetime: string }[] = [];
     let suggestedNote: string | null = null;
+    // Set when this answer makes a time agreed: both sides are then emailed.
+    let agreed: { change: AgreedChange; at: string; minutes: number | null } | null = null;
 
     // Whose clock the team reads a time on, and the words for it.
     const clock = clockForTeam(interview.employer_windows, payload.timeZone);
@@ -207,6 +237,10 @@ Deno.serve(async (req) => {
       });
       notificationTitle = notice.title;
       notificationMessage = notice.message;
+      // Confirming twice is not news: only the first time is emailed.
+      if (interview.scheduled_at && interview.candidate_response !== "confirmed") {
+        agreed = { change: "confirmed", at: interview.scheduled_at as string, minutes: (interview.duration_minutes as number | null) ?? null };
+      }
     } else if (payload.action === "reschedule_requested") {
       suggested = cleanSuggestedTimes(payload.proposedTimes, Date.now());
       if (suggested.length === 0) {
@@ -314,6 +348,7 @@ Deno.serve(async (req) => {
       });
       notificationTitle = notice.title;
       notificationMessage = notice.message;
+      agreed = { change: isAlreadyConfirmed ? "moved" : "picked", at: matchedWindow.start, minutes: duration };
     } else {
       return new Response(JSON.stringify({ error: "Invalid action" }), {
         status: 400,
@@ -390,6 +425,48 @@ Deno.serve(async (req) => {
           // Don't fail the request for email errors
         }
       }
+    }
+
+    // A time is agreed: email both sides. The applicant reads it on their own
+    // clock (their browser's zone, else the one their connection check
+    // recorded, else the team's, named either way); the team on theirs.
+    // Sent together AFTER the answer has gone back: the pick is already
+    // saved, and a slow mail service must never make it look as if it failed.
+    if (agreed) {
+      const settled = agreed;
+      afterResponse((async () => {
+        let companyName: string | null = null;
+        if (employerId) {
+          const { data: employerProfile } = await supabaseAdmin
+            .from("profiles")
+            .select("company_name")
+            .eq("user_id", employerId)
+            .maybeSingle();
+          companyName = (employerProfile?.company_name as string | null) ?? null;
+        }
+        const theirZone = knownZone(payload.timeZone) ?? applicantTimeZone(application?.notes);
+        const written = applicantEmailTime(new Date(settled.at), theirZone, teamZoneOf(interview.employer_windows) ?? "UTC");
+        const emails = agreedTimeEmails({
+          change: settled.change,
+          candidateId: application?.candidate_id,
+          employerId,
+          candidateName,
+          jobTitle,
+          companyName,
+          applicationId: application?.id,
+          applicantTime: { date: written.date, time: written.time },
+          teamWhen: sayTimeForTeam(settled.at, clock),
+          minutes: settled.minutes,
+          interview,
+        });
+        const results = await Promise.allSettled(
+          emails.map((body) => supabaseAdmin.functions.invoke("send-notification-email", { body })),
+        );
+        results.forEach((result, index) => {
+          const failed = result.status === "rejected" || !!result.value?.error;
+          console.log(`Agreed-time email ${emails[index].type}: ${failed ? "not sent" : "asked"}`);
+        });
+      })());
     }
 
     return new Response(JSON.stringify({

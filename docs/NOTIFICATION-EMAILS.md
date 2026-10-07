@@ -35,7 +35,9 @@ The function works out who is asking itself (`identifyCaller`):
 
 - **the system**: another edge function or a script holding the service key
   (this function's own key compared whole; or another form of it, proven by
-  calling something only a service key may call);
+  calling something only a service key may call). The key counts in either
+  the `Authorization` or the `apikey` header: see "How the system really
+  calls" below;
 - **a signed-in person**, by their own sign-in;
 - otherwise **nobody**, who gets nothing sent (401), for every kind.
 
@@ -47,7 +49,7 @@ The function works out who is asking itself (`identifyCaller`):
 | `new_message` | the owner, or a team member with **message candidates**, to an applicant of theirs; or an applicant, to the owner of a job they applied to | the other of the two |
 | `application_received` | an applicant | themself |
 | `new_application`, `phase_completed` | an applicant | the owner of a job they applied to |
-| `document_signed`, `reschedule_requested`, `voice_minutes_low`, `voice_minutes_exhausted`, `interview_ready`, `interview_reminder`, `steps_reopened` | the system only | as the system says |
+| `document_signed`, `reschedule_requested`, `voice_minutes_low`, `voice_minutes_exhausted`, `interview_ready`, `interview_reminder`, `steps_reopened`, `interview_confirmed`, `interview_time_picked` | the system only | as the system says |
 | `continue_on_computer` | its own gate (`_shared/continueOnComputerEmail.ts`) | the signed-in applicant |
 
 A team member limited to some jobs (`assigned_job_ids`) is the hiring team
@@ -77,6 +79,52 @@ proposed interview times. Each is cut to one short plain line (no line
 breaks, no control characters), and anything else in the request is dropped.
 
 The system's own requests are sent as asked, as they always were.
+
+## How the system really calls (found 2026-10-07, five hours after the lock)
+
+Another edge function calls with the project's secret key
+(`supabaseAdmin.functions.invoke(...)`). That request arrives with the key in
+the **`apikey` header and no `Authorization` header at all**. Seen live with
+two throwaway functions that reported only the shape of what they received:
+`authorization: none, apikey: sb_secret (equal to the callee's own key)`. A
+browser sends the public key in both, or the person's sign-in in
+`Authorization`.
+
+The first version of `identifyCaller` read only `Authorization`. So from
+15:34 UTC on 2026-10-07 every email one function asked another to send was
+answered `401 not_signed_in`: "they suggested other times"
+(`reschedule_requested`), "ready for interview" (`interview_ready`). The
+function's tests modelled the key in `Authorization` and all passed. The
+request log shows no such email was attempted in those hours, so none was
+lost; it was found while adding the two emails below, by asking the live
+function from a throwaway one for an email to a user who does not exist.
+
+Now the service key counts in either header (holding it is the proof), a
+person is still only ever read from `Authorization`, and the tests call the
+function the way a function really does (`asFunction`: the key in `apikey`,
+nothing else) as well as the way a browser does. Putting the old check back
+fails fourteen of them.
+
+**When a new caller of this function is added, prove it on the live
+function before trusting it**: a request for a kind it may send, to a user
+id that does not exist, answers 404 "User profile not found" when the caller
+is accepted and 401/403 when it is not, and sends nothing either way.
+
+## When an interview time is agreed
+
+`candidate-interview-response` sends two emails, as the system, when an
+applicant picks an offered time, swaps to another, or confirms a set one
+(docs/INTERVIEWS.md):
+
+- `interview_confirmed`, to the applicant: the job, the date and the time on
+  their own clock with the zone named, the length, and how to join. The
+  meeting link is never in it (one link serves every interview; the
+  application page opens it 15 minutes before the start). The button opens
+  their own application, and only when the id is an id.
+- `interview_time_picked`, to the job's owner: who, which job, and when on
+  the team's clock; it reads as picked, moved or confirmed.
+
+Both respect the recipient's interview-email setting.
 
 ## Limits
 
@@ -117,7 +165,7 @@ HTTP server, the mail client, the database client) and drives it against a
 small world: an owner, another employer, team members with and without each
 permission, one limited to a job, one no longer active, applicants, a
 signed-in stranger, and nobody. Among what it holds true: with no real
-sign-in none of the 21 kinds sends anything; nine ways of sending a decision
+sign-in none of the 23 kinds sends anything; nine ways of sending a decision
 without being the hiring team for that applicant are refused, for five
 kinds, including an applicant sending themself "You've got the job"; a
 hand-made token that only claims to be the service is nobody; every

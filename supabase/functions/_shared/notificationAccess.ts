@@ -107,6 +107,10 @@ export const NOTIFICATION_RULES: Readonly<Record<string, NotificationRule>> = {
   voice_minutes_exhausted: { who: "service" },
   interview_ready: { who: "service" },
   interview_reminder: { who: "service" },
+  // A time has just become agreed (candidate-interview-response): the
+  // applicant's confirmation and the hiring team's notice.
+  interview_confirmed: { who: "service" },
+  interview_time_picked: { who: "service" },
   steps_reopened: { who: "service" },
   // The hiring team, to someone who applied to their job.
   status_rejected: { who: "staff", permission: "can_manage_pipeline" },

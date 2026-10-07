@@ -137,7 +137,7 @@ const fn = await src("supabase/functions/send-notification-email/index.ts");
   check("no rule is for a kind that is gone", ruled.every((k) => kinds.includes(k)), ruled.filter((k) => !kinds.includes(k)).join(", "));
 
   const who = (k) => A.NOTIFICATION_RULES[k]?.who;
-  check("the system's own alerts are the system's only", ["document_signed", "reschedule_requested", "voice_minutes_low", "voice_minutes_exhausted", "interview_ready", "interview_reminder", "steps_reopened"].every((k) => who(k) === "service"));
+  check("the system's own alerts are the system's only", ["document_signed", "reschedule_requested", "voice_minutes_low", "voice_minutes_exhausted", "interview_ready", "interview_reminder", "steps_reopened", "interview_confirmed", "interview_time_picked"].every((k) => who(k) === "service"));
   check("a decision or a phase move is the hiring team's, and needs the pipeline permission", ["status_rejected", "status_hired", "phase_advanced"].every((k) => who(k) === "staff" && A.NOTIFICATION_RULES[k].permission === "can_manage_pipeline"));
   check("interview emails need the scheduling permission", ["interview_scheduled", "interview_pick_time", "interview_cancelled", "interview_rescheduled"].every((k) => who(k) === "staff" && A.NOTIFICATION_RULES[k].permission === "can_schedule_interviews"));
   check("document emails need the documents permission", ["document_sent", "document_requested"].every((k) => who(k) === "staff" && A.NOTIFICATION_RULES[k].permission === "can_send_documents"));
@@ -295,6 +295,24 @@ async function ask(token, body) {
   const res = await emailFunction(new Request("http://fn.stand-in/send-notification-email", { method: "POST", headers, body: JSON.stringify(body) }));
   return { status: res.status, body: await res.json().catch(() => null), retryAfter: res.headers.get("Retry-After") };
 }
+/**
+ * A request with the two credential headers set exactly as given. This is
+ * how the real callers differ, as seen live on 2026-10-07:
+ *   - another edge function: NO Authorization header, `apikey` = the
+ *     project's secret key;
+ *   - a browser: `apikey` = the public key, Authorization = the public key
+ *     (signed out) or the person's own sign-in.
+ */
+async function askWith({ authorization, apikey }, body) {
+  const headers = { "Content-Type": "application/json" };
+  if (authorization) headers.Authorization = `Bearer ${authorization}`;
+  if (apikey) headers.apikey = apikey;
+  const res = await emailFunction(new Request("http://fn.stand-in/send-notification-email", { method: "POST", headers, body: JSON.stringify(body) }));
+  return { status: res.status, body: await res.json().catch(() => null) };
+}
+const PUBLIC_KEY = "sb_publishable_the_sites_public_key";
+/** As another edge function calls: the secret key in `apikey`, nothing else. */
+const asFunction = (body) => askWith({ apikey: SERVICE_KEY }, body);
 const textOf = (mail) => String(mail?.html ?? "").replace(/<[^>]+>/g, " ").replace(/&#39;/g, "'").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\s+/g, " ").trim();
 const emailOf = (userId) => world.profiles.find((p) => p.user_id === userId)?.email;
 const KINDS = Object.keys(A.NOTIFICATION_RULES);
@@ -467,6 +485,102 @@ void quiet;
   check("…and so is a hand-made token that merely CLAIMS to be the service", r.status === 401 && world.sent.length === 0, show(r));
 }
 
+/* 6b. The system, as it REALLY calls. Another edge function holds the
+   project's secret key, and its request arrives with that key in `apikey`
+   and no Authorization header at all. The first version of the caller check
+   read only Authorization: every email one function asked another to send
+   was refused (401) on the live site for five hours on 2026-10-07, while
+   every check above passed. */
+{
+  const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
+  let r = await hush(async () => (reset(), asFunction({ type: "interview_ready", recipient_user_id: OWNER, data: { candidate_name: "Ana Reyes", job_title: TITLE_A, score: "82" } })));
+  check("another edge function (secret key in apikey, no Authorization) is the system: its email is sent", r.status === 200 && r.body?.success === true && show(world.sent[0]?.to) === show([emailOf(OWNER)]), show(r));
+  r = await hush(async () => (reset(), asFunction({ type: "reschedule_requested", recipient_user_id: OWNER, data: { candidate_name: "Ana Reyes", job_title: TITLE_A, proposed_times: "Thursday, October 8 at 9:00 AM EDT; Friday, October 9 at 9:00 AM EDT", candidate_note: "Mornings are best." } })));
+  check("…the 'they suggested other times' email among them, with the times as given", r.status === 200 && world.sent[0]?.subject === `Reschedule Request: Ana Reyes for ${TITLE_A}` && textOf(world.sent[0]).includes("Thursday, October 8 at 9:00 AM EDT; Friday, October 9 at 9:00 AM EDT"), world.sent[0]?.subject);
+  r = await hush(async () => (reset(), askWith({ apikey: "sb_secret_the_other_form" }, { type: "interview_ready", recipient_user_id: OWNER, data: { candidate_name: "A", job_title: "B", score: "1" } })));
+  check("the key's other form in apikey counts once the database itself accepts it", r.status === 200 && world.sent.length === 1, show(r));
+
+  const bad = [];
+  for (const kind of KINDS) {
+    for (const [label, headers] of [
+      ["public key only", { apikey: PUBLIC_KEY }],
+      ["public key in both", { apikey: PUBLIC_KEY, authorization: PUBLIC_KEY }],
+      ["a made-up secret in apikey", { apikey: "sb_secret_made_up" }],
+      ["a token that only claims to be the service, in apikey", { apikey: `${b64({ alg: "none" })}.${b64({ role: "service_role" })}.` }],
+      ["the secret key cut short", { apikey: SERVICE_KEY.slice(0, -1) }],
+      ["the secret key with one more character", { apikey: `${SERVICE_KEY}x` }],
+    ]) {
+      const res = await hush(async () => (reset(), askWith(headers, { type: kind, recipient_user_id: ANA, data: { application_id: id(201), job_title: "x", candidate_name: "y" } })));
+      if (res.status !== 401 || world.sent.length !== 0) bad.push(`${kind}/${label}: ${res.status}`);
+    }
+  }
+  check(`anything in apikey that is not the secret key is nobody, for all ${KINDS.length} kinds`, bad.length === 0, bad.slice(0, 6).join(", "));
+
+  r = await hush(async () => (reset(), askWith({ apikey: PUBLIC_KEY, authorization: "tok-owner" }, { type: "status_rejected", recipient_user_id: ANA, data: {} })));
+  check("a browser (public key in apikey, the person's sign-in in Authorization) is still that person", r.status === 200 && show(world.sent[0]?.to) === show([emailOf(ANA)]), show(r));
+  r = await hush(async () => (reset(), askWith({ apikey: PUBLIC_KEY, authorization: "tok-ana" }, { type: "status_hired", recipient_user_id: ANA, data: {} })));
+  check("…and still cannot send themself a decision", r.status === 403 && world.sent.length === 0, show(r));
+  r = await hush(async () => (reset(), askWith({ apikey: PUBLIC_KEY, authorization: "tok-owner" }, { type: "interview_confirmed", recipient_user_id: ANA, data: { job_title: TITLE_A, interview_date: "x", interview_time: "y" } })));
+  check("…nor ask for a system email by putting the public key in apikey", r.status === 403 && world.sent.length === 0, show(r));
+}
+
+/* 6c. A time is agreed: the applicant's confirmation and the team's notice
+   (candidate-interview-response sends both, as the system). */
+{
+  const confirmed = (over = {}) => ({
+    type: "interview_confirmed",
+    recipient_user_id: ANA,
+    data: {
+      job_title: TITLE_A,
+      company_name: "Zulu Support Team",
+      interview_date: "Thursday, October 8, 2026",
+      interview_time: "9:00 PM Philippine Standard Time",
+      interview_length: "30 minutes",
+      join_note: "This is a video call. The button to join is on your application page and opens 15 minutes before the start.",
+      application_id: id(201),
+      ...over,
+    },
+  });
+  let r = await hush(async () => (reset(), asFunction(confirmed())));
+  let mail = world.sent[0];
+  let text = textOf(mail);
+  check("the applicant's confirmation is sent to the applicant, from the hiring address", r.status === 200 && show(mail?.to) === show([emailOf(ANA)]) && /^Zulu Support Team <hiring@/.test(mail?.from ?? ""), show({ to: mail?.to, from: mail?.from }));
+  check("it says it is confirmed, for which job", mail?.subject === `Interview confirmed: ${TITLE_A}` && text.includes("Your interview is confirmed") && text.includes(`Your interview for ${TITLE_A} is confirmed.`), mail?.subject);
+  check("with the date, the time on a named clock, and the length", text.includes("Date: Thursday, October 8, 2026") && text.includes("Time: 9:00 PM Philippine Standard Time") && text.includes("Length: 30 minutes"), text.slice(0, 260));
+  check("how to join, and what to do if they cannot make it", text.includes("The button to join is on your application page and opens 15 minutes before the start.") && text.includes(`choose "Can't make it?"`));
+  check("the button opens their own application, through applicant sign-in", mail?.html.includes(`/candidate/auth?redirect=${encodeURIComponent(`/applications/${id(201)}`)}`), (/href="([^"]+)"/.exec(mail?.html ?? "") ?? [])[1]);
+  check("it is signed by the team that is hiring", text.includes("— The Zulu Support Team") && !text.includes("Team team"));
+  check("no meeting link is ever in it", !/meet\.google|zoom\.us|https?:\/\/[^ "]*daily/i.test(mail?.html ?? ""));
+  r = await hush(async () => (reset(), asFunction(confirmed({ application_id: "../../employer/auth", interview_length: undefined, join_note: undefined, company_name: undefined }))));
+  mail = world.sent[0];
+  check("an application id that is not an id never reaches the link", r.status === 200 && mail.html.includes(`/candidate/auth?redirect=${encodeURIComponent("/applications")}"`) && !mail.html.includes("employer"), (/href="([^"]+)"/.exec(mail?.html ?? "") ?? [])[1]);
+  check("…and with no length, join line or team name it is still a whole email", !/undefined|null/.test(textOf(mail)) && textOf(mail).includes("— The hiring team") && !textOf(mail).includes("Length:"));
+  r = await hush(async () => (reset(), asFunction(confirmed({ job_title: '<img src=x onerror=alert(1)>', join_note: "<script>x</script>" }))));
+  check("words in it are escaped", r.status === 200 && !/<img|<script/i.test(world.sent[0].html));
+  r = await hush(async () => (reset((w) => { w.profiles.find((p) => p.user_id === ANA).email_interview_reminders = false; }), asFunction(confirmed())));
+  check("an applicant who turned interview emails off is not sent it", r.status === 200 && r.body?.success !== true && world.sent.length === 0, show(r));
+
+  const picked = (change, over = {}) => ({
+    type: "interview_time_picked",
+    recipient_user_id: OWNER,
+    data: { candidate_name: "Ana Reyes", job_title: TITLE_A, interview_when: "Thursday, October 8 at 9:00 AM EDT", interview_change: change, interview_length: "30 minutes", ...over },
+  });
+  r = await hush(async () => (reset(), asFunction(picked("picked"))));
+  mail = world.sent[0];
+  text = textOf(mail);
+  check("the team's notice goes to the job's owner, from HireFlow", r.status === 200 && show(mail?.to) === show([emailOf(OWNER)]) && /^HireFlow <notifications@/.test(mail?.from ?? ""), show({ to: mail?.to, from: mail?.from }));
+  check("it says who picked, for which job, and when on the team's clock", mail?.subject === `Ana Reyes picked an interview time: ${TITLE_A}` && text.includes(`Ana Reyes picked an interview time for ${TITLE_A}`) && text.includes("When: Thursday, October 8 at 9:00 AM EDT") && text.includes("Length: 30 minutes"), mail?.subject);
+  check("its button opens the Interviews page", /href="https:\/\/hireflownow\.com\/interviews"/.test(mail?.html ?? ""));
+  r = await hush(async () => (reset(), asFunction(picked("moved"))));
+  check("a swap to another offered time reads as moved", world.sent[0]?.subject === `Ana Reyes moved their interview: ${TITLE_A}` && textOf(world.sent[0]).includes("Interview moved"));
+  r = await hush(async () => (reset(), asFunction(picked("confirmed"))));
+  check("confirming a set time reads as confirmed", world.sent[0]?.subject === `Ana Reyes confirmed their interview: ${TITLE_A}` && textOf(world.sent[0]).includes("Interview confirmed"));
+  r = await hush(async () => (reset(), asFunction(picked("anything else", { candidate_name: "<b>Ana</b>" }))));
+  check("an unknown word for how it happened reads as picked, and names are escaped", world.sent[0]?.subject.includes("picked an interview time") && !/<b>Ana/.test(world.sent[0].html));
+  r = await hush(async () => (reset((w) => { w.profiles.find((p) => p.user_id === OWNER).email_interview_reminders = false; }), asFunction(picked("picked"))));
+  check("an owner who turned interview emails off is not sent it", r.status === 200 && world.sent.length === 0);
+}
+
 /* 7. Limits, failures, and the rest. */
 {
   let r;
@@ -530,7 +644,8 @@ console.log("\nC. The wiring\n");
   const profileAt = body.indexOf('.select("email, email_notifications_enabled');
   const sendAt = body.indexOf("resend.emails.send(");
   check("whose request it is is settled before the recipient is read, long before anything is sent", identifyAt > 0 && decideAt > identifyAt && profileAt > decideAt && sendAt > profileAt, `${identifyAt} ${decideAt} ${profileAt} ${sendAt}`);
-  check("only the service key skips the decision, compared whole, or proven by the database itself", /if \(sameSecret\(token, serviceKey\)\) return \{ kind: "service" \};/.test(body) && /if \(looksLikeServiceKey\(token\)\) \{[\s\S]*?rpc\/check_rate_limit[\s\S]*?if \(proof\.ok\) return \{ kind: "service" \};/.test(body));
+  check("only the service key skips the decision, compared whole in either header, or proven by the database itself", /if \(sameSecret\(token, serviceKey\) \|\| sameSecret\(apikey, serviceKey\)\) return \{ kind: "service" \};/.test(body) && /for \(const candidate of new Set\(\[token, apikey\]\)\) \{\s*if \(!candidate \|\| !looksLikeServiceKey\(candidate\)\) continue;[\s\S]*?rpc\/check_rate_limit[\s\S]*?if \(proof\.ok\) return \{ kind: "service" \};/.test(body));
+  check("a person is only ever read from Authorization, never from apikey", /if \(!token\) return \{ kind: "anonymous" \};\s*const \{ data: auth, error \} = await supabase\.auth\.getUser\(token\);/.test(body) && !/getUser\(apikey\)/.test(body));
   check("a person is who their own sign-in says", /await supabase\.auth\.getUser\(token\);\s*return !error && auth\?\.user\?\.id \? \{ kind: "user", id: auth\.user\.id \} : \{ kind: "anonymous" \};/.test(body));
   check("a refusal answers there and then", /if \(!access\.ok\) \{[\s\S]*?return refuse\(refusal\.status,/.test(body));
   check("then the recipient, the words and the side are REPLACED by what was decided", /recipient_user_id = access\.recipientUserId;\s*data = access\.data as NotificationRequest\["data"\];\s*recipientRole = access\.recipientRole;/.test(body));

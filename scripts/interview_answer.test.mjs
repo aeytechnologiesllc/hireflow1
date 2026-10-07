@@ -121,9 +121,59 @@ console.log("\nWhat the team's bell says");
   check("no leaked values", [picked, moved, confirmed, countered, suggested].every((n) => !/undefined|null|NaN/.test(`${n.title} ${n.message}`)));
 }
 
+console.log("\nWhen a time becomes agreed: the two emails");
+{
+  check("a length in words", A.lengthWords(30) === "30 minutes" && A.lengthWords(60) === "1 hour" && A.lengthWords(90) === "1 hour 30 minutes" && A.lengthWords(120) === "2 hours");
+  check("no length known: nothing, not '0 minutes'", [0, -5, null, undefined, "30", NaN, 99999].every((v) => A.lengthWords(v) === ""));
+
+  const room = A.joinNoteFor({ meeting_provider: "daily", meeting_link: null, interview_type: "video" });
+  const own = A.joinNoteFor({ meeting_provider: null, meeting_link: "https://meet.google.com/abc-defg-hij", interview_type: "video" });
+  check("a video call says where the button is and when it opens", room === "This is a video call. The button to join is on your application page and opens 15 minutes before the start." && own === room);
+  check("the meeting link itself is never in the line", !/meet\.google|https?:/.test(own));
+  check("a video call with nothing set up yet says the team will send it", A.joinNoteFor({ interview_type: "video" }) === "This is a video call. The hiring team will send you how to join." && A.joinNoteFor({}) === A.joinNoteFor({ interview_type: "video" }));
+  check("a phone call and an in-person one say so", /^This is a phone call\./.test(A.joinNoteFor({ interview_type: "phone" })) && /^This is in person\./.test(A.joinNoteFor({ interview_type: "in-person" })) && /^This is in person\./.test(A.joinNoteFor({ interview_type: "in_person" })));
+
+  const base = {
+    change: "picked",
+    candidateId: "cand-1",
+    employerId: "emp-1",
+    candidateName: "Maria Santos",
+    jobTitle: "Chat Support Team Leader",
+    companyName: " Zulu Support Team ",
+    applicationId: "app-1",
+    applicantTime: { date: "Thursday, October 8, 2026", time: "9:00 PM Philippine Standard Time" },
+    teamWhen: "Thursday, October 8 at 9:00 AM EDT",
+    minutes: 30,
+    interview: { meeting_provider: null, meeting_link: "https://meet.google.com/abc-defg-hij", interview_type: "video" },
+  };
+  const both = A.agreedTimeEmails(base);
+  check("two emails: the applicant's confirmation and the team's notice", both.length === 2 && both[0].type === "interview_confirmed" && both[1].type === "interview_time_picked");
+  check("the confirmation goes to the applicant, with their own clock's date and time", both[0].recipient_user_id === "cand-1" && both[0].data.interview_date === "Thursday, October 8, 2026" && both[0].data.interview_time === "9:00 PM Philippine Standard Time");
+  check("…the job, the length, how to join, who signs it, and which application to open", both[0].data.job_title === "Chat Support Team Leader" && both[0].data.interview_length === "30 minutes" && both[0].data.join_note === own && both[0].data.company_name === "Zulu Support Team" && both[0].data.application_id === "app-1");
+  check("the notice goes to the job's owner, with the team's clock", both[1].recipient_user_id === "emp-1" && both[1].data.interview_when === "Thursday, October 8 at 9:00 AM EDT" && both[1].data.candidate_name === "Maria Santos" && both[1].data.interview_change === "picked");
+  check("neither carries the meeting link", !/meet\.google/.test(JSON.stringify(both)));
+  check("how it became agreed is passed on", A.agreedTimeEmails({ ...base, change: "moved" })[1].data.interview_change === "moved" && A.agreedTimeEmails({ ...base, change: "confirmed" })[1].data.interview_change === "confirmed");
+  check("nobody to send to: that email is left out, the other still goes", A.agreedTimeEmails({ ...base, candidateId: null }).map((e) => e.type).join() === "interview_time_picked" && A.agreedTimeEmails({ ...base, employerId: undefined }).map((e) => e.type).join() === "interview_confirmed");
+  check("no time in words: nothing is sent rather than an empty time", A.agreedTimeEmails({ ...base, applicantTime: { date: "", time: "" }, teamWhen: "" }).length === 0);
+  check("unknown length or team name: left out, never 'undefined'", !/undefined|null/.test(JSON.stringify(A.agreedTimeEmails({ ...base, minutes: null, companyName: null, applicationId: null }))) && !("interview_length" in A.agreedTimeEmails({ ...base, minutes: null })[0].data));
+  check("every value is text (the email function is sent only strings)", both.every((e) => Object.values(e.data).every((v) => typeof v === "string")));
+
+  const page = await read("src/lib/interviewTimes.ts");
+  const server = await read("supabase/functions/_shared/interviewTimes.ts");
+  check("the function words the applicant's time with the very same code the pages use (identical, byte for byte)", page === server);
+}
+
 console.log("\nThe function");
 {
   const fn = await read("supabase/functions/candidate-interview-response/index.ts");
+  check("a pick or a swap marks the time as agreed", /agreed = \{ change: isAlreadyConfirmed \? "moved" : "picked", at: matchedWindow\.start, minutes: duration \};/.test(fn));
+  check("a first confirm does too; confirming twice is not news", /if \(interview\.scheduled_at && interview\.candidate_response !== "confirmed"\) \{\s*agreed = \{ change: "confirmed",/.test(fn));
+  check("a suggestion does not (the team is emailed about that separately)", !/reschedule_requested[\s\S]{0,900}agreed = /.test(fn.slice(fn.indexOf('payload.action === "reschedule_requested"'), fn.indexOf('payload.action === "pick_slot"'))));
+  check("the emails go after the answer is saved, and after it has gone back", fn.indexOf("afterResponse((async () => {") > fn.indexOf('.from("interviews")\n      .update(updateData)') && /function afterResponse\(task: Promise<unknown>\): void \{[\s\S]{0,420}runtime\.waitUntil\(guarded\);/.test(fn));
+  check("…and a failed email can never fail the answer", /const guarded = task\.catch\(\(error\) => \{/.test(fn) && /Promise\.allSettled\(\s*emails\.map\(\(body\) => supabaseAdmin\.functions\.invoke\("send-notification-email", \{ body \}\)\),/.test(fn));
+  check("the applicant's clock: their browser's zone, else the one their connection check recorded", /const theirZone = knownZone\(payload\.timeZone\) \?\? applicantTimeZone\(application\?\.notes\);/.test(fn));
+  check("…worded by the shared helper, falling back to the team's clock by name", /applicantEmailTime\(new Date\(settled\.at\), theirZone, teamZoneOf\(interview\.employer_windows\) \?\? "UTC"\)/.test(fn));
+  check("who signs the applicant's email is looked up, not taken from the browser", /\.from\("profiles"\)\s*\.select\("company_name"\)\s*\.eq\("user_id", employerId\)/.test(fn));
   check("it words times through the helper, never the server's own clock", /sayTimeForTeam\(matchedWindow\.start, clock\)/.test(fn) && !/toLocaleString/.test(fn));
   check("the clock comes from the offered times, then the applicant's own zone", /const clock = clockForTeam\(interview\.employer_windows, payload\.timeZone\);/.test(fn));
   check("suggested times are cleaned before they are stored", /suggested = cleanSuggestedTimes\(payload\.proposedTimes, Date\.now\(\)\);/.test(fn) && /proposed_times: suggestionToStore\(suggested, fromOffer\),/.test(fn) && !/proposed_times: payload\.proposedTimes/.test(fn));
@@ -131,6 +181,7 @@ console.log("\nThe function");
   check("the note is cleaned too", /suggestedNote = cleanNote\(payload\.candidateNote\);/.test(fn) && /candidate_note: suggestedNote,/.test(fn));
   check("an offer cannot be 'confirmed': a time has to be picked", /if \(payload\.action === "confirm"\) \{[\s\S]{0,360}if \(noTimeAgreedYet\(interview\.candidate_response, interview\.proposed_times\)\) \{\s*return new Response\(JSON\.stringify\(\{ error: "pick_a_time_first" \}\)/.test(fn));
   check("it reads the suggestion already on the row", /employer_windows,\s*proposed_times,\s*status,/.test(fn));
+  check("…and how the call happens, for the join line", /interview_type,\s*meeting_link,\s*meeting_provider,/.test(fn));
   check("a suggestion opens the Interviews page for the team", /notificationLink = "\/interviews";/.test(fn) && /link: notificationLink,/.test(fn));
   check("the email to the team lists the times through the helper", /suggested\.map\(\(t\) => sayTimeForTeam\(t\.datetime, clock\)\)\.join\("; "\)/.test(fn));
   check("only the applicant on the interview may answer", /if \(application\?\.candidate_id !== user\.id\) \{/.test(fn) && /status: 403/.test(fn));

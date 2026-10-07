@@ -109,6 +109,10 @@ id, signed with any name: the gateway lets the public key through even with
 `verify_jwt = true`. Never add a kind of email that takes its recipient or
 its signer from the request. `scripts/notification_access.test.mjs` runs the
 real function against a stand-in world and fails if a rule is weakened.
+One edge function calling another presents the project's secret key in the
+**`apikey` header with no `Authorization` header** (seen live 2026-10-07):
+a check that reads only `Authorization` refuses every function-to-function
+call, which is what the first version of this lock did for five hours.
 
 **One production account has no `profiles` row right now.** Verified live
 2026-09-16: `select count(*) from auth.users u left join public.profiles p

@@ -114,6 +114,19 @@ interviews table): `confirm`, `pick_slot`, `repick_slot`,
     offered times have all passed, the button is off and the dialog says to
     accept one of theirs or message them.
 
+- **When a time becomes agreed, both sides are emailed** (a pick, a swap to
+  another offered time, a confirm): the applicant gets "Your interview is
+  confirmed" with the date and time on their own clock (their browser's
+  zone, else the one their connection check recorded, else the team's, named
+  either way), the length and how to join; the job's owner gets "X picked an
+  interview time" with the time on the team's clock. The function sends them
+  after its answer has gone back (`EdgeRuntime.waitUntil`), so a slow mail
+  service can never make a saved pick look failed. The words are built by
+  `agreedTimeEmails` (`_shared/interviewAnswer.ts`); the applicant's time by
+  `_shared/interviewTimes.ts`, a byte-identical copy of
+  `src/lib/interviewTimes.ts`. The kinds and who may send them:
+  docs/NOTIFICATION-EMAILS.md. Before 2026-10-07 neither existed: the
+  applicant saw it only in the app and the team got only a bell.
 - **The Interviews page never shows a placeholder as the appointment.** While
   no time is agreed (`noTimeYet`: still choosing, or a suggestion that
   answers an offer) the row reads "No time yet · They pick" or "Your call"

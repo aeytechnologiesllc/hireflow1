@@ -128,3 +128,95 @@ export function teamNoticeFor(
   if (kind === "countered") return { title: "Other interview times suggested", message: `${name} can't make the times you offered for ${jobTitle} and suggested ${times}. Open Interviews to answer.` };
   return { title: "Another interview time asked for", message: `${name} asked to move their interview for ${jobTitle} and suggested ${times}. Open Interviews to answer.` };
 }
+
+/* ── When a time becomes agreed: the two emails ─────────────────────────── */
+
+/** "30 minutes", "1 hour", "1 hour 30 minutes"; nothing when the length is not known. */
+export function lengthWords(minutes: unknown): string {
+  const n = typeof minutes === "number" && Number.isFinite(minutes) ? Math.round(minutes) : 0;
+  if (n <= 0 || n > 24 * 60) return "";
+  const hours = Math.floor(n / 60);
+  const rest = n % 60;
+  return [hours ? `${hours} hour${hours === 1 ? "" : "s"}` : "", rest ? `${rest} minutes` : ""].filter(Boolean).join(" ");
+}
+
+/**
+ * How the applicant joins, in one line for their confirmation email. The
+ * link itself is never put in the email: one meeting link serves every
+ * interview, and the application page opens it 15 minutes before the start.
+ */
+export function joinNoteFor(interview: { meeting_provider?: unknown; meeting_link?: unknown; interview_type?: unknown }): string {
+  const type = typeof interview.interview_type === "string" ? interview.interview_type : "video";
+  if (type === "phone") return "This is a phone call. The hiring team will be in touch with the details.";
+  if (type === "in_person" || type === "in-person" || type === "onsite") return "This is in person. The hiring team will be in touch with the details.";
+  const hasRoom = interview.meeting_provider === "daily";
+  const hasLink = typeof interview.meeting_link === "string" && interview.meeting_link.trim().length > 0;
+  if (hasRoom || hasLink) return "This is a video call. The button to join is on your application page and opens 15 minutes before the start.";
+  return "This is a video call. The hiring team will send you how to join.";
+}
+
+/** How a time became agreed, from the applicant's side. */
+export type AgreedChange = "picked" | "moved" | "confirmed";
+
+/** One request to send-notification-email. */
+export interface AgreedEmail {
+  type: "interview_confirmed" | "interview_time_picked";
+  recipient_user_id: string;
+  data: Record<string, string>;
+}
+
+/**
+ * The two emails for a time that has just become agreed: the applicant's
+ * confirmation (their own clock, how to join) and the hiring team's notice
+ * (the team's clock). Either is left out when there is nobody to send it to.
+ * Until 2026-10-07 neither existed: the applicant saw it only in the app and
+ * the team got only a bell.
+ */
+export function agreedTimeEmails(input: {
+  change: AgreedChange;
+  candidateId: string | null | undefined;
+  employerId: string | null | undefined;
+  candidateName: string;
+  jobTitle: string;
+  companyName: string | null | undefined;
+  applicationId: string | null | undefined;
+  /** The time on the applicant's own clock, zone named (interviewTimes.applicantEmailTime). */
+  applicantTime: { date: string; time: string };
+  /** The time on the team's clock (sayTimeForTeam). */
+  teamWhen: string;
+  minutes: unknown;
+  interview: { meeting_provider?: unknown; meeting_link?: unknown; interview_type?: unknown };
+}): AgreedEmail[] {
+  const out: AgreedEmail[] = [];
+  const length = lengthWords(input.minutes);
+  const company = (input.companyName ?? "").trim();
+  if (input.candidateId && input.applicantTime.date && input.applicantTime.time) {
+    out.push({
+      type: "interview_confirmed",
+      recipient_user_id: input.candidateId,
+      data: {
+        job_title: input.jobTitle,
+        interview_date: input.applicantTime.date,
+        interview_time: input.applicantTime.time,
+        join_note: joinNoteFor(input.interview),
+        ...(length ? { interview_length: length } : {}),
+        ...(company ? { company_name: company } : {}),
+        ...(input.applicationId ? { application_id: input.applicationId } : {}),
+      },
+    });
+  }
+  if (input.employerId && input.teamWhen) {
+    out.push({
+      type: "interview_time_picked",
+      recipient_user_id: input.employerId,
+      data: {
+        candidate_name: input.candidateName,
+        job_title: input.jobTitle,
+        interview_when: input.teamWhen,
+        interview_change: input.change,
+        ...(length ? { interview_length: length } : {}),
+      },
+    });
+  }
+  return out;
+}

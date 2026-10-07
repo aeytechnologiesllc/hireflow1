@@ -50,6 +50,8 @@ type NotificationType =
   | "interview_cancelled"
   | "interview_rescheduled"
   | "interview_reminder"
+  | "interview_confirmed"
+  | "interview_time_picked"
   | "document_sent"
   | "document_signed"
   | "document_requested"
@@ -74,6 +76,7 @@ const EMPLOYER_FACING: ReadonlySet<NotificationType> = new Set<NotificationType>
   "voice_minutes_low",
   "voice_minutes_exhausted",
   "interview_ready",
+  "interview_time_picked",
 ]);
 
 /** Who an email reads as coming from. Candidates applied to the Zulu Support
@@ -117,6 +120,14 @@ interface NotificationRequest {
     recipient_role?: RecipientRole;
     /** steps_reopened: the steps to redo, in words ("the chat practice and the interview"). */
     retake_steps?: string;
+    /** interview_confirmed, interview_time_picked: "30 minutes". */
+    interview_length?: string;
+    /** interview_confirmed: how the applicant joins, in one line. Never the meeting link itself. */
+    join_note?: string;
+    /** interview_time_picked: the agreed time on the team's clock ("Thursday, October 8 at 9:00 AM EDT"). */
+    interview_when?: string;
+    /** interview_time_picked: how it became agreed. */
+    interview_change?: string;
     /** continue_on_computer: the applicant's own application. The ONLY field
      *  that type reads from a request; everything it says is looked up. */
     application_id?: string;
@@ -258,6 +269,53 @@ const getEmailContent = (
       ),
     },
     
+    // CANDIDATE-FACING — a time is agreed: the applicant picked one of the
+    // offered times, swapped to another, or confirmed the one that was set.
+    // Sent by candidate-interview-response (the system), which writes the
+    // date and time on the applicant's own clock with the zone named. The
+    // meeting link is never in it: one link serves every interview, and the
+    // application page opens it 15 minutes before the start.
+    interview_confirmed: {
+      subject: `Interview confirmed: ${data.job_title}`,
+      html: wrapEmail(
+        "Your interview is confirmed",
+        `<p>Your interview for <strong>${esc(data.job_title)}</strong> is confirmed.</p>
+         <p><strong>Date:</strong> ${esc(data.interview_date)}<br><strong>Time:</strong> ${esc(data.interview_time)}${data.interview_length ? `<br><strong>Length:</strong> ${esc(data.interview_length)}` : ""}</p>
+         ${data.join_note ? `<p>${esc(data.join_note)}</p>` : ""}
+         <p style="color: #666;">Can't make it after all? Open your application and choose "Can't make it?" so the team knows.</p>`,
+        "Open my application",
+        candidateLink(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.application_id ?? "")
+            ? `/applications/${data.application_id}`
+            : "/applications"
+        )
+      ),
+    },
+
+    // EMPLOYER-FACING — the same moment, told to the hiring team, with the
+    // time on the team's own clock.
+    interview_time_picked: (() => {
+      const did =
+        data.interview_change === "moved" ? "moved their interview"
+        : data.interview_change === "confirmed" ? "confirmed their interview"
+        : "picked an interview time";
+      const title =
+        data.interview_change === "moved" ? "Interview moved"
+        : data.interview_change === "confirmed" ? "Interview confirmed"
+        : "Interview time picked";
+      return {
+        subject: `${data.candidate_name} ${did}: ${data.job_title}`,
+        html: wrapEmail(
+          title,
+          `<p><strong>${esc(data.candidate_name)}</strong> ${did} for <strong>${esc(data.job_title)}</strong>.</p>
+           <p><strong>When:</strong> ${esc(data.interview_when)}${data.interview_length ? `<br><strong>Length:</strong> ${esc(data.interview_length)}` : ""}</p>
+           <p style="color: #666;">It is on your Interviews page, with the interview guide.</p>`,
+          "Open Interviews",
+          `${baseUrl}/interviews`
+        ),
+      };
+    })(),
+
     // CANDIDATE-FACING
     interview_pick_time: {
       subject: `Pick a time for your interview — ${data.job_title}`,
@@ -504,6 +562,8 @@ const getPreferenceField = (type: NotificationType): string => {
     interview_cancelled: "email_interview_reminders",
     interview_rescheduled: "email_interview_reminders",
     interview_reminder: "email_interview_reminders",
+    interview_confirmed: "email_interview_reminders",
+    interview_time_picked: "email_interview_reminders",
     document_sent: "email_document_updates",
     document_signed: "email_document_updates",
     document_requested: "email_document_updates",
@@ -527,6 +587,17 @@ const getPreferenceField = (type: NotificationType): string => {
  *     key, or another form of it that the database itself accepts as one;
  *   - a signed-in person, by their own sign-in;
  *   - otherwise nobody.
+ *
+ * Where the key is looked for matters. Another edge function calls with the
+ * project's secret key, and that arrives in the `apikey` header with NO
+ * Authorization header at all (seen live on 2026-10-07 with two throwaway
+ * functions: Authorization none, apikey the secret key). The first version of
+ * this check read only Authorization, so every email one function asked
+ * another to send was answered 401 from 15:34 UTC that day until this was
+ * fixed: the "they suggested other times" email, "ready for interview", and
+ * the voice-minutes alerts. The function's tests had modelled the key in the
+ * Authorization header and passed. So: the service key counts in either
+ * header. Holding it is the proof; which header carried it is not.
  */
 async function identifyCaller(
   req: Request,
@@ -536,16 +607,17 @@ async function identifyCaller(
   serviceKey: string,
 ): Promise<NotificationCaller> {
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
-  if (!token) return { kind: "anonymous" };
-  if (sameSecret(token, serviceKey)) return { kind: "service" };
-  if (looksLikeServiceKey(token)) {
+  const apikey = (req.headers.get("apikey") ?? "").trim();
+  if (sameSecret(token, serviceKey) || sameSecret(apikey, serviceKey)) return { kind: "service" };
+  for (const candidate of new Set([token, apikey])) {
+    if (!candidate || !looksLikeServiceKey(candidate)) continue;
     // Proven by doing something only a service key may do: the limiter's
     // function is revoked from everyone else. (It counts one row in a bucket
     // of its own and reads nobody's data.)
     try {
       const proof = await fetch(`${supabaseUrl}/rest/v1/rpc/check_rate_limit`, {
         method: "POST",
-        headers: { apikey: token, Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: { apikey: candidate, Authorization: `Bearer ${candidate}`, "Content-Type": "application/json" },
         body: JSON.stringify({ p_bucket: "service-key-check", p_identifier: "send-notification-email", p_limit: 1000000, p_window_secs: 3600 }),
       });
       await proof.body?.cancel().catch(() => {});
@@ -554,6 +626,7 @@ async function identifyCaller(
       // Not proven.
     }
   }
+  if (!token) return { kind: "anonymous" };
   const { data: auth, error } = await supabase.auth.getUser(token);
   return !error && auth?.user?.id ? { kind: "user", id: auth.user.id } : { kind: "anonymous" };
 }
