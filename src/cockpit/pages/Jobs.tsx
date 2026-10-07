@@ -6,10 +6,14 @@ import { toast } from "sonner";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { clearDraft } from "@/lib/avaEngine/draft";
 import { useDeleteJob, useUpdateJob } from "@/hooks/useJobs";
+// A job kept to post again: "Copy to drafts", and "New job" starting from one.
+import { jobCopyFailureWords, useCopyJobToDrafts } from "@/hooks/useJobCopy";
+import { COPY_TO_DRAFTS_HINT, COPY_TO_DRAFTS_LABEL, copiedToDraftsWords, sortJobStartOptions, type JobStartOption } from "@/lib/jobCopy";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { SearchInput, FilterSelect } from "../components/controls";
 import { ActionDialog } from "../components/ActionDialog";
 import { ShareKitDialog } from "../components/ShareKitDialog";
+import { NewJobDialog } from "../components/NewJobDialog";
 import { CockpitErrorCard } from "../components/ErrorCard";
 import { useCockpitJobsData, useSchemaMode } from "../hooks/useCockpitData";
 import type { JobRow, JobStatus } from "../data";
@@ -144,6 +148,8 @@ function JobListRow({
   onBoost,
   onCloseRole,
   onDelete,
+  onCopy,
+  copying,
 }: {
   job: JobRow;
   extras: RowExtras;
@@ -154,6 +160,11 @@ function JobListRow({
   onCloseRole: () => void;
   /** null hides Delete — team members without the permission, and the showcase dataset. */
   onDelete: (() => void) | null;
+  /** "Copy to drafts" (src/lib/jobCopy.ts); null hides it — whoever may not
+   *  create jobs, and the showcase dataset. Never on a draft: it is one. */
+  onCopy: (() => void) | null;
+  /** This row's copy is being saved. */
+  copying: boolean;
 }) {
   const live = job.status === "live";
   const draft = job.status === "draft";
@@ -243,8 +254,10 @@ function JobListRow({
         {second && <JobStat label={second.label} value={second.value} tone="jade" />}
       </div>
 
-      {/* the one next thing — with the quiet ways out first, so the primary stays loudest */}
-      <div className="flex w-full shrink-0 justify-end gap-2 sm:w-auto">
+      {/* the one next thing — with the quiet ways out first, so the primary stays loudest.
+          flex-wrap: on a phone a live role's five buttons are wider than the
+          row, and without it the first ones ran off the left edge. */}
+      <div className="flex w-full shrink-0 flex-wrap justify-end gap-2 sm:w-auto">
         {live && (
           <button
             type="button"
@@ -270,6 +283,21 @@ function JobListRow({
             }}
           >
             Delete
+          </button>
+        )}
+        {!draft && onCopy && (
+          <button
+            type="button"
+            data-copy-to-drafts
+            title={COPY_TO_DRAFTS_HINT}
+            className="ck-btn ck-btn-ghost !px-3 !py-2 !text-[12.5px]"
+            disabled={copying}
+            onClick={(e) => {
+              e.stopPropagation();
+              onCopy();
+            }}
+          >
+            {copying ? "Copying…" : COPY_TO_DRAFTS_LABEL}
           </button>
         )}
         {live && (
@@ -388,6 +416,7 @@ export default function CockpitJobs() {
   const { data: teamPermissions } = useTeamMemberPermissions();
   const updateJob = useUpdateJob();
   const deleteJob = useDeleteJob();
+  const copyJob = useCopyJobToDrafts();
 
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<StatusKey>("all");
@@ -395,10 +424,17 @@ export default function CockpitJobs() {
   const [sort, setSort] = useState<SortKey>("recent");
   const [kitJob, setKitJob] = useState<JobRow | null>(null);
   const [pendingDelete, setPendingDelete] = useState<JobRow | null>(null);
+  // "New job" asks where to start from when there is a job to start from.
+  const [newJobOpen, setNewJobOpen] = useState(false);
+  // The job whose copy is being saved (one at a time).
+  const [copyingId, setCopyingId] = useState<string | null>(null);
 
   // Delete is real and final, so it only shows where it can actually happen: not on the
   // showcase dataset, and not for a team member whose role does not include it.
   const canDelete = mode !== "showcase" && !(teamPermissions?.isTeamMember && !teamPermissions.canDeleteJobs);
+  // A copy is a new job, so it is offered to whoever may create one (the
+  // database decides in the end: the copy is an ordinary insert).
+  const canCopy = mode !== "showcase" && !(teamPermissions?.isTeamMember && !teamPermissions.canCreateJobs);
 
   // Closing is the reversible way out — "Post it again" brings it back — so it needs no
   // dialog. Closing takes it off the job page and out of the job board feed at once.
@@ -457,6 +493,31 @@ export default function CockpitJobs() {
     navigate("/jobs/create");
   }, [navigate]);
 
+  // "Copy to drafts": the job as it stands, saved as a new draft. From the
+  // row it stays on this page (the draft is for later); from "New job" the
+  // copy opens in the editor, ready to change and publish.
+  const copyToDrafts = async (job: { id: string; title: string }, thenOpen: boolean) => {
+    if (copyingId) return;
+    setCopyingId(job.id);
+    try {
+      const draft = await copyJob.mutateAsync(job.id);
+      const openIt = () => navigate(`/jobs/edit/${draft.id}`);
+      if (thenOpen) {
+        setNewJobOpen(false);
+        toast.success("Copied to your drafts", { description: "Change what you need, then publish." });
+        openIt();
+      } else {
+        const words = copiedToDraftsWords(job.title);
+        toast.success(words.title, { description: words.body, action: { label: "Open it", onClick: openIt } });
+      }
+    } catch (error) {
+      console.error("Failed to copy job:", error);
+      toast.error(jobCopyFailureWords(error));
+    } finally {
+      setCopyingId(null);
+    }
+  };
+
   const counts = useMemo(() => {
     const live = jobs.filter((j) => j.status === "live").length;
     const draft = jobs.filter((j) => j.status === "draft").length;
@@ -499,6 +560,25 @@ export default function CockpitJobs() {
     }
     return map;
   }, [jobs, rawJobs, applications]);
+
+  // What a new job can start from: every job on this page, drafts first.
+  const startOptions = useMemo<JobStartOption[]>(() => {
+    if (!canCopy) return [];
+    const rawById = new Map(rawJobs.map((r) => [r.id, r]));
+    return sortJobStartOptions(
+      jobs.map((job) => {
+        const raw = rawById.get(job.id);
+        const stamp = raw ? (job.status === "draft" ? raw.updated_at : raw.created_at) : null;
+        return {
+          id: job.id,
+          title: job.title,
+          status: job.status,
+          when: extras.get(job.id)?.when ?? `${job.dateLabel} ${job.date}`,
+          at: stamp ? Date.parse(stamp) || 0 : 0,
+        };
+      }),
+    );
+  }, [canCopy, jobs, rawJobs, extras]);
 
   // Time to hire, measured the way the rest of the app measures it: from the
   // day that person applied to the day you hired them.
@@ -639,7 +719,12 @@ export default function CockpitJobs() {
           </span>
         )}
         <div className="ml-auto max-md:w-full">
-          <button type="button" className="ck-btn ck-btn-primary !py-2 !text-[13px] max-md:w-full" onClick={startRole}>
+          {/* With a job to start from, ask where to start; with none, Ava, as before. */}
+          <button
+            type="button"
+            className="ck-btn ck-btn-primary !py-2 !text-[13px] max-md:w-full"
+            onClick={() => (startOptions.length > 0 ? setNewJobOpen(true) : startRole())}
+          >
             + New job
           </button>
         </div>
@@ -752,6 +837,8 @@ export default function CockpitJobs() {
                   onBoost={() => setKitJob(job)}
                   onCloseRole={() => void closeRole(job)}
                   onDelete={canDelete ? () => setPendingDelete(job) : null}
+                  onCopy={canCopy ? () => void copyToDrafts(job, false) : null}
+                  copying={copyingId === job.id}
                 />
               ))}
             </div>
@@ -781,6 +868,8 @@ export default function CockpitJobs() {
                       onBoost={() => setKitJob(job)}
                       onCloseRole={() => void closeRole(job)}
                       onDelete={canDelete ? () => setPendingDelete(job) : null}
+                      onCopy={canCopy ? () => void copyToDrafts(job, false) : null}
+                      copying={copyingId === job.id}
                     />
                   ))}
                 </div>
@@ -823,6 +912,28 @@ export default function CockpitJobs() {
         busy={deleteJob.isPending}
         onConfirm={() => void confirmDelete()}
         onClose={() => setPendingDelete(null)}
+      />
+
+      {/* "+ New job": write one with Ava, or start from one already here. A
+          draft opens to be finished; any other job is copied to a new draft
+          first, and the copy opens. */}
+      <NewJobDialog
+        open={newJobOpen}
+        options={startOptions}
+        busyId={newJobOpen ? copyingId : null}
+        onAva={() => {
+          setNewJobOpen(false);
+          startRole();
+        }}
+        onPick={(option) => {
+          if (option.status === "draft") {
+            setNewJobOpen(false);
+            navigate(`/jobs/edit/${option.id}`);
+          } else {
+            void copyToDrafts(option, true);
+          }
+        }}
+        onClose={() => setNewJobOpen(false)}
       />
     </div>
   );
