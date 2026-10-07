@@ -26,7 +26,8 @@
  *   - idempotent: a second call for the same step (another device, two fired
  *     together) leaves the first stamp exactly as it is; a later step
  *     replaces it; so does a later visit after an attempt on the step moved
- *     or the step was reopened, and a stamp dated in the future;
+ *     (at the stamp's own millisecond counts) or the step was reopened, and
+ *     a stamp dated in the future;
  *   - an application at the interview stage is refused (HF001), like a
  *     decided one;
  *   - it opens no attempt, records no event, sends no notification, and
@@ -253,6 +254,18 @@ async function setAsService(appId, setSql, params = []) {
   if (res.error) throw new Error(res.error.message);
 }
 
+/**
+ * Lets the database's clock reach a later millisecond. A stamp keeps
+ * milliseconds, and "since the stamp" is at or after it. In life an attempt
+ * and the next visit to the gate are minutes apart; here they are a few
+ * statements apart, and PGlite's clock ticks in whole milliseconds.
+ */
+async function nextMillisecond() {
+  const clock = async () => (await db.query("select to_char(clock_timestamp(), 'YYYYMMDDHH24MISSMS') as ms")).rows[0].ms;
+  const from = await clock();
+  while ((await clock()) === from) await new Promise((resolve) => setTimeout(resolve, 1));
+}
+
 async function main() {
   await db.exec(SCHEMA_SQL);
   for (const file of MIGRATIONS) await db.exec(await readFile(path.join(ROOT, "supabase/migrations", file), "utf8"));
@@ -399,11 +412,29 @@ async function main() {
        values ($1, $2, $3, 'wf-typing', 'typing_test', 'abandoned')`,
       [APP, JOB, CANDIDATE],
     );
+    // The visit after it lands in a later millisecond than the attempt, as it
+    // does in life. When the two shared one, the attempt counted as since the
+    // fresh stamp too, and the call after that stamped again instead of
+    // keeping it: this file failed that way now and then.
+    await nextMillisecond();
     const back = await mark("authenticated", CANDIDATE, APP, "wf-typing", "phone");
     const fresh = (await notesOf(APP)).parsed.waiting_on_computer;
     check("an attempt moved since the stamp: stamped again, fresh", back.error == null && back.data.stamped === true && fresh?.device_kind === "phone" && Date.parse(fresh.at) >= Date.parse(w.at), JSON.stringify(back.error ?? back.data));
     const steady = await mark("authenticated", CANDIDATE, APP, "wf-typing", "tablet");
     check("…and with nothing new since THAT stamp, it is kept again", steady.error == null && steady.data.stamped === false && canonical((await notesOf(APP)).parsed.waiting_on_computer) === canonical(fresh), JSON.stringify(steady.error ?? steady.data));
+
+    // That edge, as a rule of its own: an attempt in the stamp's own
+    // millisecond counts as since it. The record shows the line only while
+    // every attempt is OLDER than the stamp (assessmentRecord.ts), so a stamp
+    // kept here would hide this visit for good.
+    const moved = await db.query(
+      `update public.assessment_sessions set last_activity_at = $2::timestamptz
+        where application_id = $1 and step_id = 'wf-typing'
+        returning greatest(started_at, last_activity_at) = $2::timestamptz as at_the_stamp`,
+      [APP, fresh.at],
+    );
+    const sameMoment = await mark("authenticated", CANDIDATE, APP, "wf-typing", "phone");
+    check("an attempt in the stamp's own millisecond counts as since it: stamped again", moved.rows[0]?.at_the_stamp === true && sameMoment.error == null && sameMoment.data.stamped === true, JSON.stringify(sameMoment.error ?? sameMoment.data));
 
     // Staff reopened the step since the stamp (a retake).
     await db.query(
