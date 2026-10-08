@@ -32,6 +32,55 @@ export type Database = {
         }
         Relationships: []
       }
+      applicant_notes: {
+        Row: {
+          application_id: string
+          author_id: string | null
+          body: string
+          created_at: string
+          id: string
+          job_id: string
+        }
+        Insert: {
+          application_id: string
+          author_id?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          job_id: string
+        }
+        Update: {
+          application_id?: string
+          author_id?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          job_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "applicant_notes_application_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applicant_notes_job_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applicant_notes_job_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "published_jobs_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       applicant_packs: {
         Row: {
           amount_cents: number
@@ -92,6 +141,49 @@ export type Database = {
             columns: ["job_unlock_id"]
             isOneToOne: false
             referencedRelation: "job_unlocks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      applicant_views: {
+        Row: {
+          application_id: string
+          job_id: string
+          viewed_at: string
+          viewer_id: string
+        }
+        Insert: {
+          application_id: string
+          job_id: string
+          viewed_at?: string
+          viewer_id: string
+        }
+        Update: {
+          application_id?: string
+          job_id?: string
+          viewed_at?: string
+          viewer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "applicant_views_application_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applicant_views_job_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applicant_views_job_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "published_jobs_public"
             referencedColumns: ["id"]
           },
         ]
@@ -2374,6 +2466,10 @@ export type Database = {
     }
     Functions: {
       accept_team_invitation: { Args: { p_code: string }; Returns: string }
+      add_applicant_note: {
+        Args: { p_application_id: string; p_body: string }
+        Returns: Json
+      }
       assessment_duration_text: { Args: { p_ms: number }; Returns: string }
       assessment_integrity_alert: {
         Args: { p_session_id: string }
@@ -2443,6 +2539,7 @@ export type Database = {
         }
         Returns: Json
       }
+      delete_applicant_note: { Args: { p_note_id: string }; Returns: boolean }
       did_candidate_apply_to_job: {
         Args: { p_job_id: string; p_user_id: string }
         Returns: boolean
@@ -2584,6 +2681,10 @@ export type Database = {
         Returns: boolean
       }
       job_voice_interviews_used: { Args: { p_job_id: string }; Returns: number }
+      mark_applicant_viewed: {
+        Args: { p_application_id: string }
+        Returns: string
+      }
       mark_stale_assessment_sessions: {
         Args: { p_idle_minutes?: number }
         Returns: number

@@ -32,6 +32,9 @@ import { markBlocked } from "../lib/blockedApplicants";
 // The team's shortlist: a bookmark on the row, a tab that gathers them.
 import { useShortlist, useShortlistActions, type ShortlistTarget } from "../hooks/useShortlist";
 import { SHORTLIST_EMPTY_LINE, SHORTLIST_PRIVATE_LINE, canShortlist, markShortlisted } from "../lib/shortlist";
+// The team's notes, and which applicants this reader has already opened.
+import { useApplicantNotes, useApplicantViews } from "../hooks/useApplicantNotes";
+import { markSeenAndNoted } from "../lib/applicantNotes";
 import { writeApplicantOrder, writeApplicantTab } from "../lib/applicantProfile";
 import {
   APPLIED_OPTIONS,
@@ -290,7 +293,14 @@ export default function CockpitApplicants() {
   // yet" and then fills.
   const shortlist = useShortlist();
   const { setShortlisted, busy: shortlistBusy } = useShortlistActions();
-  const rows = useMemo(() => markShortlisted(markBlocked(listRows, blocks.blocked), shortlist.ids), [listRows, blocks.blocked, shortlist.ids]);
+  // …then each reader's own marks: "Viewed" on the ones they have opened
+  // since the applicant last did anything, and the team's notes.
+  const applicantNotes = useApplicantNotes();
+  const applicantViews = useApplicantViews();
+  const rows = useMemo(
+    () => markSeenAndNoted(markShortlisted(markBlocked(listRows, blocks.blocked), shortlist.ids), applicantViews.viewedAt, applicantNotes.byApplication),
+    [listRows, blocks.blocked, shortlist.ids, applicantViews.viewedAt, applicantNotes.byApplication],
+  );
   const isLoading = listLoading || blocks.isLoading || shortlist.isLoading;
   // The same cached query the list's hook reads; mapped only for the job's
   // name, its link and the share kit, never for counts.

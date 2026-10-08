@@ -625,6 +625,64 @@ function previewShortlistHandlers(tables: FixtureTables, user: FixtureAuthUser):
 }
 
 /**
+ * The team's notes on an applicant and each reader's "viewed" marks, offline
+ * (supabase/migrations/*_applicant_notes_and_views.sql): the same rows the
+ * real functions write, so a note can be written and removed and the list's
+ * "Viewed" chip seen. `?__previewNotes=some` starts with two notes on the
+ * first applicant and every third applicant already opened. Nothing here
+ * checks who may: the preview is one employer's own data.
+ */
+function previewNotesHandlers(tables: FixtureTables, user: FixtureAuthUser, seed: string | null): Record<string, (args: unknown) => unknown> {
+  const rows = (name: string): FixtureRow[] => (tables[name] ??= []);
+  rows("applicant_notes");
+  rows("applicant_views");
+  if (seed === "some") {
+    const apps = rows("applications");
+    const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+    if (apps[0]) {
+      rows("applicant_notes").push(
+        { id: "70000000-0000-4000-8000-000000000001", application_id: apps[0].id, job_id: apps[0].job_id, author_id: user.id, body: "Calm and clear in the chat practice. My first pick so far.", created_at: ago(95) },
+        { id: "70000000-0000-4000-8000-000000000002", application_id: apps[0].id, job_id: apps[0].job_id, author_id: "00000000-0000-4000-8000-0000000000aa", body: "Ask about working nights for a full month.", created_at: ago(26 * 60) },
+      );
+    }
+    apps.forEach((app, index) => {
+      if (index % 3 === 0) rows("applicant_views").push({ viewer_id: user.id, application_id: app.id, job_id: app.job_id, viewed_at: new Date().toISOString() });
+    });
+  }
+  return {
+    add_applicant_note: (args) => {
+      const { p_application_id: applicationId, p_body: body = "" } = (args ?? {}) as { p_application_id?: string; p_body?: string };
+      const app = rows("applications").find((a) => a.id === applicationId);
+      const text = String(body).trim();
+      // The stand-in client cannot answer with an error: nothing is kept.
+      if (!app || !text) return null;
+      const note = { id: crypto.randomUUID(), application_id: app.id, job_id: app.job_id, author_id: user.id, body: text, created_at: new Date().toISOString() };
+      rows("applicant_notes").push(note);
+      return { id: note.id, application_id: note.application_id, author_id: note.author_id, body: note.body, created_at: note.created_at };
+    },
+    delete_applicant_note: (args) => {
+      const { p_note_id: id } = (args ?? {}) as { p_note_id?: string };
+      const list = rows("applicant_notes");
+      const at = list.findIndex((n) => n.id === id);
+      if (at < 0) return false;
+      list.splice(at, 1);
+      return true;
+    },
+    mark_applicant_viewed: (args) => {
+      const { p_application_id: applicationId } = (args ?? {}) as { p_application_id?: string };
+      const app = rows("applications").find((a) => a.id === applicationId);
+      if (!app) return null;
+      const list = rows("applicant_views");
+      const now = new Date().toISOString();
+      const mine = list.find((v) => v.viewer_id === user.id && v.application_id === app.id);
+      if (mine) mine.viewed_at = now;
+      else list.push({ viewer_id: user.id, application_id: app.id, job_id: app.job_id, viewed_at: now });
+      return now;
+    },
+  };
+}
+
+/**
  * "Email me the link" on the Continue on your computer screen, offline
  * (supabase/functions/send-notification-email, type continue_on_computer):
  * no email is ever sent from the preview. It answers as the function would,
@@ -715,7 +773,12 @@ export function install(params: URLSearchParams): void {
   const base = createFixtureSupabaseClient({
     user: ROLE_USERS[role],
     tables,
-    rpc: { ...buildFixtureRpcHandlers(scenario), ...previewBlockHandlers(tables, ROLE_USERS[role]), ...previewShortlistHandlers(tables, ROLE_USERS[role]) },
+    rpc: {
+      ...buildFixtureRpcHandlers(scenario),
+      ...previewBlockHandlers(tables, ROLE_USERS[role]),
+      ...previewShortlistHandlers(tables, ROLE_USERS[role]),
+      ...previewNotesHandlers(tables, ROLE_USERS[role], params.get("__previewNotes")),
+    },
   });
   const realtime = liveRealtime(base, tables, params.get("__previewLive"));
   // The staff record opens applicants' uploads through the applicant-file-url

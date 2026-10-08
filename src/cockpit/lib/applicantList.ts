@@ -227,6 +227,13 @@ export interface ApplicantListRow {
    *  application for their shortlist, and it is still in the running (not
    *  declined, not blocked). Private to the team; the applicant is not told. */
   shortlisted?: boolean;
+  /** Set by markSeenAndNoted (lib/applicantNotes.ts): this reader has opened
+   *  the applicant's page since the applicant last did anything. Their own
+   *  mark; a teammate's is their own. */
+  viewed?: boolean;
+  /** Set by markSeenAndNoted: the team's notes on this applicant (how many,
+   *  and the newest). Private to the team; the applicant never sees them. */
+  note?: { count: number; latest: string } | null;
   record: AssessmentRecord;
 }
 

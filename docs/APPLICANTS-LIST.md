@@ -553,3 +553,51 @@ a team member who may manage the pipeline can set off
 Proof: `scripts/bulk_pass.test.mjs`, and a walk-through in the dev preview
 (fifteen picked: twelve passed and each sent the note, three left as they
 were, the Declined tab's count moved by twelve).
+
+## 9. Notes, and "Viewed" (2026-10-08)
+
+The owner, going through 124 applicants on his second live hiring day: *"is
+there a way you can cleanly allow me to add some notes ... I like him or he
+did something really good. That's why I picked him ... just a simple note
+that I can also access. Also ... sometimes I forget which one I've already
+clicked on and reviewed ... maybe they change after I've clicked on it once.
+So that way I know I've clicked on it and viewed their profile."*
+
+Both are private marks of the hiring team's own. They decide nothing and tell
+the applicant nothing: no status change, no email, no bell.
+
+- **Notes** live on the applicant's page ("Notes", under "Your decision"; a
+  card of its own in the older layout): one box, Save (or Ctrl/Cmd + Enter),
+  and the notes under it, newest first, each with who wrote it and when. A
+  note is kept as written, line breaks and all, up to 2000 characters.
+  Taking one away is one click with **Undo**; the writer may remove their
+  own, the job's owner any.
+- **On the list** a noted applicant carries a small note icon beside the name
+  (with the count when there is more than one); the newest note is its
+  tooltip.
+- **"Viewed"**: opening an applicant's page sets the reader's own mark. On the
+  list a "Needs review" applicant they have opened then reads **Viewed**, in
+  a quiet tone, so the unopened ones stand out. It stays on the Needs review
+  tab and in its count: it still needs a decision. If the applicant does
+  anything after it was opened (finishes another test), it reads "Needs
+  review" again (`seenSince`). Any other chip (Interview, Declined...) is
+  left alone. Each person has their own marks: a teammate opening someone
+  does not mark them viewed for the owner.
+- **Who can read what** (`supabase/migrations/*_applicant_notes_and_views.sql`):
+  a note, only the job's owner and its active team members; a mark, only the
+  person whose mark it is. The applicant can read neither, which is why
+  these are tables of their own and not columns on the application (an
+  applicant can read their own application row). Nobody writes either table
+  directly: `add_applicant_note`, `delete_applicant_note` and
+  `mark_applicant_viewed` take the job from the application and the person
+  from the sign-in.
+- **Not live-synced**: neither writes anything to the application, so no
+  realtime event comes. A teammate's note reaches an open page within a
+  minute, on refocus, and whenever the page is opened.
+
+Code: `src/cockpit/lib/applicantNotes.ts` (pure), `hooks/useApplicantNotes.ts`,
+`components/ApplicantNotesPanel.tsx`. Proof:
+`scripts/applicant_notes.test.mjs` (what a note is, the Viewed rule, the
+wiring) and `scripts/applicant_notes.pglite.test.mjs` (against a real
+Postgres: who may write and read, the applicant never, nobody directly).
+Preview: `?__previewNotes=some`.

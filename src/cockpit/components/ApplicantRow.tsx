@@ -1,6 +1,7 @@
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Bookmark, ChevronRight, ShieldAlert } from "lucide-react";
+import { Bookmark, ChevronRight, ShieldAlert, StickyNote } from "lucide-react";
+import { noteTitle } from "../lib/applicantNotes";
 import { TONE_VAR, type ApplicantDot, type ApplicantListRow, type DotState, type LineSegment } from "../lib/applicantList";
 import { samePhoneWords } from "../lib/blockedApplicants";
 
@@ -156,6 +157,9 @@ export function LineText({ line, className = "", style, title }: { line: readonl
 
 const CHIP_LOOK: Record<string, CSSProperties> = {
   amber: { color: "var(--amber-fg)", background: "var(--amber-bg)" },
+  // "Viewed": a Needs-review applicant this reader has already opened
+  // (lib/applicantNotes.ts). Quiet, so the unopened ones stand out.
+  muted: { color: "var(--ink-3)", background: "color-mix(in srgb, var(--ink) 8%, transparent)" },
   jade: { color: "var(--jade-soft-fg)", background: "var(--jade-soft)" },
   crit: { color: "var(--crit)", background: "var(--crit-bg)" },
 };
@@ -212,6 +216,21 @@ export function ShortlistMark({ size = 14 }: { size?: number }) {
     <span className="relative inline-flex shrink-0" title="On your shortlist" data-shortlist-mark>
       <Bookmark aria-hidden style={{ width: size, height: size, color: "var(--brass)", fill: "var(--brass)" }} />
       <span className="sr-only">On your shortlist</span>
+    </span>
+  );
+}
+
+/** The team has written notes on this applicant (lib/applicantNotes.ts). The
+ *  newest is the tooltip, and is read out. */
+export function NoteMark({ note, size = 14 }: { note: NonNullable<ApplicantListRow["note"]>; size?: number }) {
+  const title = noteTitle(note);
+  return (
+    <span className="relative inline-flex shrink-0 items-center gap-1 text-[11.5px] font-medium" style={{ color: "var(--ink-3)" }} title={title} data-note-mark={note.count}>
+      <StickyNote aria-hidden style={{ width: size, height: size }} />
+      {note.count > 1 && <span aria-hidden>{note.count}</span>}
+      <span className="sr-only">
+        {note.count === 1 ? "1 note" : `${note.count} notes`}: {title}
+      </span>
     </span>
   );
 }
@@ -361,6 +380,7 @@ export function ApplicantTableRow({ row, onOpen, index = 0, reveal = true }: Row
               {row.name}
             </span>
             {row.shortlisted && <ShortlistMark />}
+            {row.note && <NoteMark note={row.note} />}
             {row.chip && <StatusChip chip={row.chip} />}
             {row.sameBlockedPhoneAs && <SamePhoneChip name={row.sameBlockedPhoneAs} />}
           </span>
@@ -443,6 +463,7 @@ export function ApplicantCard({ row, onOpen, index = 0, reveal = true }: RowProp
               {row.name}
             </span>
             {row.shortlisted && <ShortlistMark />}
+            {row.note && <NoteMark note={row.note} />}
           </span>
           <span className="block text-[12.5px] leading-[1.4]" style={{ color: "var(--ink-3)" }}>
             <SubLine row={row} words={row.onForm ? `started ${row.appliedAgo}` : row.appliedAgo} />

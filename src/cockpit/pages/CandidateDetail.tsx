@@ -43,6 +43,8 @@ import { ApplicantDecisionCard, InterviewStatus, type DecisionAction, type Decis
 import { useLiveInterviewForApplication } from "@/hooks/useLiveInterviewForApplication";
 import { useApplicantTimeZone } from "@/hooks/useApplicantTimeZone";
 import { teamInterviewStatus } from "@/lib/teamInterviewStatus";
+import { ApplicantNotesPanel } from "../components/ApplicantNotesPanel";
+import { useApplicantViews } from "../hooks/useApplicantNotes";
 // Remove and block on the profile too (its ⋯ menu; the phone's More).
 import { ActionsMenu, ApplicantActionDialogs, BlockedNote, applicantMenuItems, type ApplicantActionRequest } from "../components/ApplicantRowMenu";
 import { useBlockedApplicants } from "../hooks/useApplicantBlocks";
@@ -454,6 +456,13 @@ function CandidateProfile({
   // where it stands instead of offering "Set up interview" as if none had.
   const liveInterview = useLiveInterviewForApplication(id).data ?? null;
   const theirZone = useApplicantTimeZone(id, !!liveInterview).data ?? null;
+  // Opening this page is "I have looked at this one": the list then shows
+  // "Viewed" in place of "Needs review" for this reader (their own mark).
+  const { markViewed } = useApplicantViews();
+  const openedId = c?.id ?? null;
+  useEffect(() => {
+    if (openedId) void markViewed(openedId);
+  }, [openedId, markViewed]);
   const [dialog, setDialog] = useState<ApplicantDecision | null>(null);
   const [hirePrompt, setHirePrompt] = useState(false);
   const [resumeOpen, setResumeOpen] = useState(false);
@@ -1160,6 +1169,8 @@ function CandidateProfile({
     // At a glance, integrity and the timeline: the right column's, under the
     // decision card; in one column, their own section.
     const glancePanel = <ApplicantAtAGlance rows={glance} phone={contact.phone} email={contact.email} />;
+    // The team's own notes on this applicant (never shown to the applicant).
+    const notesPanel = <ApplicantNotesPanel applicationId={c.id} firstName={first} />;
     const integrityPanel = <ApplicantIntegrityPanel record={record} onOpen={openRecord} />;
     const timelinePanel = record && record.entries.length > 0 && (
       <section aria-label="Timeline">
@@ -1197,6 +1208,7 @@ function CandidateProfile({
                 </div>
               </div>
               <div ref={setPanelsEl} className="ckp-panels">
+                {notesPanel}
                 {glancePanel}
                 {integrityPanel}
                 {timelinePanel}
@@ -1224,7 +1236,10 @@ function CandidateProfile({
           {main}
           <div className="ckp-sec">
             <div className={`grid gap-8 ${!measured || width >= 680 ? "grid-cols-2" : "grid-cols-1"}`}>
-              {glancePanel}
+              <div className="ckp-panels">
+                {notesPanel}
+                {glancePanel}
+              </div>
               <div className="ckp-panels">
                 {integrityPanel}
                 {timelinePanel}
@@ -1284,6 +1299,9 @@ function CandidateProfile({
             <InterviewStatus status={interviewLine} />
           </div>
         )}
+        <div className="ck-card p-4">
+          <ApplicantNotesPanel applicationId={c.id} firstName={first} />
+        </div>
         <div className="ck-card flex items-center gap-4 p-4">
           {/* No score yet → no arc. The ring must not draw a 0 as a verdict. */}
           <CandidateMark who={c.avatar} initials={getInitials(c.name)} size={72} score={score.value ?? undefined} rich variant="signal" />
