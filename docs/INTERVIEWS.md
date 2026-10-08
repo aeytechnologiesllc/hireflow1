@@ -20,6 +20,28 @@ whose clock its time is written on, and where the call happens.
   among them.
 - **Book it directly**: for a time already agreed some other way. The
   applicant confirms it or says they cannot make it.
+- **Two clocks on the wheel, and a suggestion** (`src/lib/interviewSuggestion.ts`,
+  `src/hooks/useJobInterviewHints.ts`). The owner, picking a time for someone
+  twelve hours ahead (2026-10-07): "can you also make it so I can see the
+  Philippine time as well next to it ... And kind of also show me a
+  suggestion always in there, what would be good based on the job ... if
+  they're used to it or not. Because it's got to be good for me too."
+  - Every time on the wheel shows the applicant's own time beside the
+    owner's. Their clock is the one their connection check recorded; when
+    none is on file, the one the job is posted for (its country, or the
+    clock its post writes the shift on), and the screen says so. That
+    fallback is for the screen only: an email never states a guessed clock.
+  - "Suggested" is the times inside the job's own shift when its post states
+    one ("3:00 AM to 11:00 AM Philippine time"): the hours they would work,
+    so the interview shows whether they are up for it. With no shift in the
+    post it is the applicant's waking hours (7:00 AM to a 9:30 PM start on
+    their clock). The owner's side is already covered: the wheel only offers
+    his 9:00 AM to 8:00 PM.
+  - The wheel starts each day on the first suggested time, until he moves it
+    himself. "Go to 3:00 PM" brings it back.
+  - A wheel row is exactly as tall as the wheel counts on. On a phone the
+    stylesheet's 44px button floor made rows taller, so the lit row and the
+    button drifted a row apart further down the list.
 - **It opens on the first day that still has a time to offer**
   (`src/lib/interviewOfferDays.ts`). It used to open on today, always: after
   8:00 PM every one of today's times has passed, so the owner, who sets

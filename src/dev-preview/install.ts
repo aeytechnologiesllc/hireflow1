@@ -653,6 +653,42 @@ function previewContinueLinkEmail(user: FixtureAuthUser, mode: string | null): (
   };
 }
 
+/**
+ * For the set-up screen's two clocks and its suggestion
+ * (src/lib/interviewSuggestion.ts):
+ *  - `__previewTheirZone=Asia/Manila` puts every applicant's connection
+ *    check on that clock; `none` takes the clock off file, so the job's own
+ *    is used;
+ *  - `__previewShift=ph` adds the live job's shift sentence to every job
+ *    post ("3:00 AM to 11:00 AM Philippine time (3:00 PM to 11:00 PM US
+ *    Eastern)").
+ */
+function previewInterviewClocks(tables: FixtureTables, theirZone: string | null, shift: string | null): void {
+  if (theirZone) {
+    for (const application of tables.applications ?? []) {
+      const notes = parseApplicationNotes(application.notes) as Record<string, unknown>;
+      const check = (notes.equipmentCheckResult ?? {}) as Record<string, unknown>;
+      const device = { ...((check.device ?? {}) as Record<string, unknown>) };
+      if (theirZone === "none") delete device.timezone;
+      else device.timezone = theirZone;
+      application.notes = { ...notes, equipmentCheckResult: { ...check, device } };
+    }
+  }
+  if (shift === "ph") {
+    const sentence =
+      " This is a full-time job: 40 hours a week, 5 days a week, on one fixed shift: 3:00 AM to 11:00 AM Philippine time (3:00 PM to 11:00 PM US Eastern).";
+    const seen = new Set<unknown>();
+    const add = (job: FixtureRow | null | undefined) => {
+      if (!job || seen.has(job)) return;
+      seen.add(job);
+      job.description = `${typeof job.description === "string" ? job.description : ""}${sentence}`;
+    };
+    for (const job of tables.jobs ?? []) add(job);
+    // An application carries its own copy of its job.
+    for (const application of tables.applications ?? []) add(application.jobs as FixtureRow | null);
+  }
+}
+
 function isPreviewRole(value: string | null): value is PreviewRole {
   return !!value && Object.prototype.hasOwnProperty.call(ROLE_USERS, value);
 }
@@ -688,6 +724,7 @@ export function install(params: URLSearchParams): void {
   const connectionTest = previewConnectionTest(tables);
   const continueLinkEmail = previewContinueLinkEmail(ROLE_USERS[role], params.get("__previewEmail"));
   const interviewGuide = previewInterviewGuide(tables, params.get("__previewGuide"));
+  previewInterviewClocks(tables, params.get("__previewTheirZone"), params.get("__previewShift"));
   const candidateInterview = previewCandidateInterview(tables, params.get("__previewInterview"));
   const client = {
     ...base,

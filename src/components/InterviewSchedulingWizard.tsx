@@ -3,6 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCreateInterview, useInterviews } from "@/hooks/useInterviews";
 import { clashAt, clashWords, type BusyInterview } from "@/lib/interviewClash";
 import { atClock, firstDayWithTimes, timesLeftOn } from "@/lib/interviewOfferDays";
+import { sayClock, suggestTimes, suggestionWords } from "@/lib/interviewSuggestion";
+import { useJobInterviewHints } from "@/hooks/useJobInterviewHints";
 import { useUpdateApplication } from "@/hooks/useApplications";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -288,10 +290,19 @@ export default function InterviewSchedulingWizard({
   const zoneLookup = useApplicantTimeZone(applicationId, open);
   const applicantZone = zoneLookup.data ?? null;
   const firstName = candidateName.trim().split(/\s+/)[0] || "them";
+  // Whose clock is shown beside the owner's own: the applicant's when their
+  // connection check recorded it, else the one the job is posted for
+  // (src/lib/interviewSuggestion.ts). The owner, 2026-10-07: "since my job is
+  // posted in the Philippines ... based on where I post it, the time should
+  // show me." Only what this screen SHOWS: their email still states their own
+  // clock, or the team's (named) when theirs is not on file.
+  const jobHints = useJobInterviewHints(applicationId, open).data ?? null;
+  const shownZone = applicantZone ?? jobHints?.zone ?? null;
   const theirTime = useCallback(
-    (at: Date): string | null => (applicantZone && applicantZone !== teamZone ? shortTimeIn(at, applicantZone) : null),
-    [applicantZone, teamZone],
+    (at: Date): string | null => (shownZone && shownZone !== teamZone ? shortTimeIn(at, shownZone) : null),
+    [shownZone, teamZone],
   );
+  const showTheirClock = !!shownZone && shownZone !== teamZone;
 
   const queryClient = useQueryClient();
   const createInterview = useCreateInterview();
@@ -418,12 +429,53 @@ export default function InterviewSchedulingWizard({
     });
   }, []);
 
-  // Snap the wheel back to the top slot whenever the viewed day (or the
-  // duration, which reshapes daySlots) changes — a fresh day starts fresh.
+  // Which of the day's times to suggest: the ones inside the job's own shift
+  // when its post states one, else the applicant's waking hours
+  // (src/lib/interviewSuggestion.ts). "Show me a suggestion always in there,
+  // what would be good based on the job ... it's got to be good for me too":
+  // the owner's own hours are already the times this wheel offers.
+  const suggestion = useMemo(
+    () => suggestTimes(viewDay, daySlots.map((slot) => slot.value), durationMinutes, shownZone, jobHints?.shift ?? null),
+    [viewDay, daySlots, durationMinutes, shownZone, jobHints],
+  );
+  const suggestedTimes = useMemo(() => new Set(suggestion.slots), [suggestion]);
+  const suggestionSaid = useMemo(
+    () => suggestionWords(suggestion, viewDay, shownZone, firstName === "them" ? "" : firstName),
+    [suggestion, viewDay, shownZone, firstName],
+  );
+  // Not worth saying when every time on offer suits them anyway.
+  const showSuggestion =
+    !!shownZone && shownZone !== teamZone && daySlots.length > 0 && !(suggestion.kind === "waking" && suggestion.slots.length === daySlots.length);
+  const firstSuggestedIndex = useMemo(
+    () => (showSuggestion && suggestion.slots.length > 0 ? daySlots.findIndex((slot) => slot.value === suggestion.slots[0]) : -1),
+    [showSuggestion, suggestion, daySlots],
+  );
+
+  // The wheel starts each day on the first suggested time (the top one when
+  // there is none), until the owner moves it himself: after that it is his.
+  const wheelMovedByHand = useRef(false);
+  const markWheelMoved = useCallback(() => {
+    wheelMovedByHand.current = true;
+  }, []);
   useLayoutEffect(() => {
-    if (wheelRef.current) wheelRef.current.scrollTop = 0;
-    setWheelScrollTop(0);
-  }, [viewDayIndex, durationMinutes]);
+    wheelMovedByHand.current = false;
+  }, [viewDayIndex, open]);
+  useLayoutEffect(() => {
+    if (wheelMovedByHand.current) return;
+    const top = Math.max(0, firstSuggestedIndex) * WHEEL_ROW_HEIGHT;
+    if (wheelRef.current) wheelRef.current.scrollTop = top;
+    setWheelScrollTop(top);
+  }, [viewDayIndex, durationMinutes, firstSuggestedIndex, open]);
+  // Coming back to this step puts a new wheel on the page: it is set to
+  // where the last one was, so the lit row and the button still agree.
+  useLayoutEffect(() => {
+    if (currentStep === 0 && wheelRef.current) wheelRef.current.scrollTop = wheelScrollTop;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep]);
+  const goToSuggested = useCallback(() => {
+    if (firstSuggestedIndex < 0 || !wheelRef.current) return;
+    wheelRef.current.scrollTo({ top: firstSuggestedIndex * WHEEL_ROW_HEIGHT, behavior: prefersReducedMotion ? "auto" : "smooth" });
+  }, [firstSuggestedIndex, prefersReducedMotion]);
 
   const wheelCenterIndex = useMemo(() => {
     if (daySlots.length === 0) return 0;
@@ -1162,7 +1214,14 @@ export default function InterviewSchedulingWizard({
                         pick on your clock; their own time is shown beside it, and it is the time their email states.
                       </p>
                     )}
-                    {zoneLookup.isFetched && !applicantZone && (
+                    {zoneLookup.isFetched && !applicantZone && shownZone && shownZone !== teamZone && (
+                      <p className="text-xs leading-relaxed" style={{ color: "var(--ink-2)" }} data-testid="their-clock-note">
+                        {firstName}&apos;s own time zone is not on file. This job is posted on {zonePlace(shownZone)} time,{" "}
+                        {clockGapWords(new Date(), shownZone, teamZone)}, so that is the time shown beside yours. Their email
+                        gives the time on your clock and names your time zone.
+                      </p>
+                    )}
+                    {zoneLookup.isFetched && !applicantZone && !(shownZone && shownZone !== teamZone) && (
                       <p className="text-xs leading-relaxed" style={{ color: "var(--ink-2)" }} data-testid="their-clock-note">
                         {firstName}'s time zone is not on file, so their email gives these times on your clock and names
                         your time zone.
@@ -1270,10 +1329,60 @@ export default function InterviewSchedulingWizard({
 
                         {/* iOS-style time wheel — the heart of this step */}
                         <div className="flex flex-col items-center gap-2">
-                          <p className="text-xs font-medium" style={{ color: "var(--ink-3)" }}>
-                            {format(viewDay, "EEEE, MMM d")}
-                          </p>
-                          <div className="relative w-[200px] max-w-full" style={{ height: WHEEL_HEIGHT }}>
+                          {/* The day, and beside it the suggestion: always here when
+                              their clock is known. One line, so the wheel and its
+                              button stay on the screen without scrolling. */}
+                          <div className="max-w-[600px] text-center" data-testid={showSuggestion ? "time-suggestion" : undefined} data-suggestion-kind={showSuggestion ? suggestion.kind : undefined}>
+                            <p className="flex flex-wrap items-baseline justify-center gap-x-2 gap-y-0.5">
+                              <span className="text-xs font-medium" style={{ color: "var(--ink-3)" }} data-testid="wheel-day">
+                                {format(viewDay, "EEEE, MMM d")}
+                              </span>
+                              {showSuggestion && suggestionSaid.headline && (
+                                <>
+                                  <span
+                                    className="text-[10px] font-bold uppercase leading-[1.2] tracking-[0.12em]"
+                                    style={{ color: "var(--brass)" }}
+                                  >
+                                    Suggested
+                                  </span>
+                                  <span className="text-[14.5px] font-semibold" style={{ color: "var(--ink)" }}>
+                                    {suggestionSaid.headline}
+                                  </span>
+                                  {firstSuggestedIndex >= 0 && !suggestedTimes.has(daySlots[wheelCenterIndex]?.value ?? "") && (
+                                    <button
+                                      type="button"
+                                      onClick={goToSuggested}
+                                      onPointerDown={hapticLight}
+                                      className="text-xs font-semibold transition-opacity duration-150 ease-out active:opacity-60 motion-reduce:transition-none"
+                                      // The phone stylesheet's 44px button floor would open a gap in this line.
+                                      style={{ color: "var(--jade)", minHeight: 0, padding: 0 }}
+                                      data-testid="time-suggestion-go"
+                                    >
+                                      Go to {sayClock(suggestion.slots[0])}
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                            </p>
+                            {showSuggestion && (
+                              <p className="mt-0.5 text-xs leading-relaxed" style={{ color: "var(--ink-2)" }}>
+                                {suggestionSaid.why}
+                              </p>
+                            )}
+                          </div>
+                          <div className={cn("relative max-w-full", showTheirClock ? "w-[300px]" : "w-[200px]")} style={{ height: WHEEL_HEIGHT }}>
+                            {/* Two clocks, side by side: the owner's, and theirs. Named over
+                                the top of the wheel, where its rows fade out anyway. */}
+                            {showTheirClock && daySlots.length > 0 && (
+                              <div
+                                className="pointer-events-none absolute inset-x-0 top-0 grid grid-cols-2 gap-4 px-2.5 text-[10px] font-bold uppercase leading-[1.2] tracking-[0.1em]"
+                                style={{ color: "var(--ink-3)", zIndex: 2 }}
+                                data-testid="wheel-clocks"
+                              >
+                                <span className="text-right">Your time</span>
+                                <span className="truncate text-left">{firstName === "them" ? "Their" : `${firstName}'s`} time</span>
+                              </div>
+                            )}
                             {/* Center band — soft jade tint behind the selected row */}
                             <div
                               className="pointer-events-none absolute left-0 right-0 rounded-2xl"
@@ -1296,6 +1405,10 @@ export default function InterviewSchedulingWizard({
                               <div
                                 ref={wheelRef}
                                 onScroll={handleWheelScroll}
+                                onPointerDown={markWheelMoved}
+                                onWheel={markWheelMoved}
+                                onTouchStart={markWheelMoved}
+                                onKeyDown={markWheelMoved}
                                 className="iwz-scrollbar-none relative h-full overflow-y-auto"
                                 style={{
                                   zIndex: 1,
@@ -1316,15 +1429,24 @@ export default function InterviewSchedulingWizard({
                                     WHEEL_ROW_HEIGHT;
                                   const distance = Math.abs(i - continuousCenter);
                                   const selected = isWindowSelected(viewDay, slot.value);
+                                  const theirs = showTheirClock ? theirTime(combineDayAndTime(viewDay, slot.value)) : null;
+                                  const isSuggested = showSuggestion && suggestedTimes.has(slot.value);
                                   return (
                                     <button
                                       key={slot.value}
                                       type="button"
                                       onClick={() => handleWheelRowTap(i, slot.value)}
                                       onPointerDown={hapticLight}
-                                      className="flex w-full items-center justify-center"
+                                      data-wheel-time={slot.value}
+                                      data-suggested={isSuggested ? "true" : undefined}
+                                      className={theirs ? "grid w-full grid-cols-2 items-center gap-4" : "flex w-full items-center justify-center"}
                                       style={{
                                         height: WHEEL_ROW_HEIGHT,
+                                        // The phone stylesheet gives every button a 44px floor
+                                        // (src/index.css). A taller row than the wheel counts on
+                                        // put the lit row and the button a row apart, further
+                                        // down the list: the row's height is the wheel's own.
+                                        minHeight: WHEEL_ROW_HEIGHT,
                                         scrollSnapAlign: "center",
                                         fontSize: centered ? 19 : 15,
                                         fontWeight: centered ? 600 : 500,
@@ -1338,13 +1460,29 @@ export default function InterviewSchedulingWizard({
                                         transition: "color 150ms ease-out",
                                       }}
                                     >
-                                      {slot.label}
-                                      {selected && (
+                                      <span className={theirs ? "whitespace-nowrap text-right" : undefined}>
+                                        {slot.label}
+                                        {selected && (
+                                          <span
+                                            className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full"
+                                            style={{ background: "var(--jade)" }}
+                                            aria-hidden="true"
+                                          />
+                                        )}
+                                      </span>
+                                      {theirs && (
+                                        /* Their own clock for this row. A suggested time reads in jade. */
                                         <span
-                                          className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full"
-                                          style={{ background: "var(--jade)" }}
-                                          aria-hidden="true"
-                                        />
+                                          className="whitespace-nowrap text-left"
+                                          style={{
+                                            fontSize: centered ? 14 : 12.5,
+                                            fontWeight: isSuggested ? 600 : 500,
+                                            color: isSuggested ? "var(--jade-soft-fg)" : centered ? "var(--ink-2)" : "var(--ink-3)",
+                                          }}
+                                          data-their-time
+                                        >
+                                          {theirs}
+                                        </span>
                                       )}
                                     </button>
                                   );
@@ -1800,14 +1938,16 @@ export default function InterviewSchedulingWizard({
 
             {/* Footer */}
             <div className="border-t border-border p-4 flex justify-between">
-              <Button
+              {/* A soft pill, not the stock outline: at night that one is a black slab. */}
+              <button
                 type="button"
-                variant="outline"
+                className="hf-pill hf-pill--tonal"
                 onClick={currentStep === 0 ? () => onOpenChange(false) : handleBack}
+                data-testid="wizard-back"
               >
-                <ChevronLeft className="h-4 w-4 mr-2" />
+                <ChevronLeft />
                 {currentStep === 0 ? "Cancel" : "Back"}
-              </Button>
+              </button>
 
               {currentStep < steps.length - 1 ? (
                 <Button onClick={handleNext} disabled={!canProceed()}>
