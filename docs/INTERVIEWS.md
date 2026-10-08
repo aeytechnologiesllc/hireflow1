@@ -81,17 +81,45 @@ when no email went out (`inviteEmailWords`, `src/lib/interviewTimes.ts`).
 `scripts/candidate_interview.test.mjs` fails if any screen embeds `profiles`
 in a select again.
 
-**A staff tab left open used to keep running old code.** At 22:29 UTC on
+**A tab left open used to keep running old code.** At 22:29 UTC on
 2026-10-07, two and a half hours after the fix above was live, the owner set
 up a second test interview and the invitation email was again not sent: the
 request log shows the OLD lookup (the 400). His staff tab had been open since
 before the fix, and the app only reloads when a page's code can no longer be
-fetched at all. Staff tabs now move to the newest build by themselves
-(`useStaffAutoUpdate`, `src/lib/newVersion.ts`): the tab asks for the front
-page every five minutes and when it is looked at again, compares the build's
-entry script with its own, and once a newer one is live the next change of
-page is a full load. Never mid-task, never twice for one build, and never an
-applicant's tab (they may be mid-test). `scripts/new_version.test.mjs`.
+fetched at all. Staff tabs were then made to move to the newest build as
+they changed page. That was not enough: the same evening he sat on one
+applicant's page while a new set-up screen went live, opened it without
+changing page, and got the old one. His words: "you also need to make sure
+that it will force reload ... all the applicants applying, they're not going
+to see a new version unless you do a hard refresh."
+
+So now **every tab moves to the newest build by itself, staff and
+applicant** (`useAutoUpdate`, mounted at the root of the app;
+`src/lib/newVersion.ts`). The tab asks for the front page every three minutes
+while it is in view and whenever it is looked at again, and compares the
+build's entry script with its own. Once a newer one is live it reloads at the
+first moment that throws nothing away (`safeToReloadNow`):
+
+- on arriving at a page (unless the page just left was a busy one: what it
+  sent may still be on its way);
+- when the tab is out of view;
+- or after it has sat untouched in view for 45 seconds.
+
+And never:
+
+- on a busy page (`isBusyPath`): any test step or interview room (everything
+  below an application's own page), the team's interview room, signing in,
+  the short application forms, writing a job;
+- over an open pop-up, with the cursor in a field, or after anything was
+  typed, chosen or uploaded on the page;
+- twice for one build (if the reload still lands on the old one, the tab is
+  left alone rather than reloaded in a loop).
+
+No hard refresh is needed for any of this: the front page is served to be
+re-checked every time (`max-age=0, must-revalidate`) and the app keeps no
+service worker. `scripts/new_version.test.mjs` proves the rule, and that
+every route below an application's page counts as busy, so a step added
+later is covered without anyone remembering.
 
 ## What the applicant sees
 

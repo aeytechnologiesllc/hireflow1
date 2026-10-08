@@ -17,6 +17,7 @@ import { OrbLoader } from "@/components/ava/OrbLoader";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { routeImporters } from "@/lib/prefetchRoutes";
 import { usePageViewTracking } from "@/hooks/usePageViewTracking";
+import { useAutoUpdate } from "@/hooks/useAutoUpdate";
 
 // Core pages loaded eagerly for instant navigation
 import Dashboard from "./pages/Dashboard";
@@ -160,6 +161,14 @@ function PageViewTracker() {
   return null;
 }
 
+// Every tab, staff and applicant, moves to the newest build by itself at a
+// moment that throws nothing away (src/hooks/useAutoUpdate.ts). Inside the
+// router for the same reason as above.
+function AutoUpdate() {
+  useAutoUpdate();
+  return null;
+}
+
 const App = () => (
   <ErrorBoundary>
     <ThemeProvider attribute="class" defaultTheme="dark">
@@ -170,6 +179,7 @@ const App = () => (
             <Sonner />
             <BrowserRouter>
               <PageViewTracker />
+              <AutoUpdate />
               <HostGate>
               <Suspense fallback={<LazyFallback />}>
                 <Routes>
