@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -9,22 +8,24 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { differenceInHours } from "date-fns";
-import { CalendarPlus, Check, Clock, ExternalLink, Loader2, RefreshCw, Video } from "lucide-react";
+import { ArrowRight, CalendarPlus, Check, Clock, ExternalLink, Loader2, Video } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { cn } from "@/lib/utils";
 import { CandidateRescheduleRequestDialog } from "./CandidateRescheduleRequestDialog";
 import { getTimezoneAbbreviation, getTimezoneName } from "@/lib/timezone";
 import { buildCandidateInterviewIcs, downloadIcsFile, icsFileStem } from "@/lib/calendarInvite";
 import {
   SELECTED_TITLE,
   candidateInterviewStage,
+  clockTime,
   interviewKindWords,
   interviewWhen,
+  joinOpensWords,
   joinPlan,
   offeredWindows,
   openWindows,
+  ticketDate,
   type OfferedWindow,
 } from "@/lib/candidateInterview";
 import {
@@ -56,6 +57,12 @@ import type { Json } from "@/integrations/supabase/types";
  *  - confirmed: the time, how to join, a calendar file, and a way to change.
  *
  * Every time here is on the reader's own clock, and says so.
+ *
+ * The look is the "Ticket": the date on a stub, torn along a dashed line,
+ * and no button anywhere is a dark slab (styles: src/styles/motion.css). The
+ * owner chose it from three drawn options on 2026-10-07 after a photo of the
+ * card it replaces: "why are we still using the ugly old design, black
+ * buttons ... I don't like them. Always choose modern."
  *
  * Nothing is booked on one tap: choosing a time asks "Book this time?" first
  * (the owner, 2026-10-07: "as soon as I clicked on the time, it just went
@@ -93,8 +100,17 @@ interface CandidateInterviewConfirmationCardProps {
   jobTitle?: string | null;
 }
 
-const dayWords = (at: string) => new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric" }).format(new Date(at));
-const clockWords = (at: string) => new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(at)).replace(/\s+/g, " ");
+/** The date as a ticket stub: weekday, day, month. */
+function Stub({ at, mini = false }: { at: string; mini?: boolean }) {
+  const d = ticketDate(at);
+  return (
+    <div className={mini ? "hf-mini__stub" : "hf-ticket__stub"} aria-hidden>
+      <span className="hf-ticket__wk">{d?.weekday}</span>
+      <span className="hf-ticket__num">{d?.day}</span>
+      <span className="hf-ticket__mo">{d?.month}</span>
+    </div>
+  );
+}
 
 export function CandidateInterviewConfirmationCard({
   interview,
@@ -225,7 +241,7 @@ export function CandidateInterviewConfirmationCard({
   const teamLower = employerName?.trim() || "the hiring team";
   const zone = getTimezoneAbbreviation();
   const kind = interviewKindWords(interview.interview_type);
-  const facts = [jobTitle?.trim(), employerName?.trim(), kind, effectiveDurationMinutes ? `${effectiveDurationMinutes} minutes` : null].filter(Boolean).join(" · ");
+  const who = [jobTitle?.trim(), employerName?.trim()].filter(Boolean).join(" · ");
 
   // Joining: a link of the team's own opens two hours before the start, the
   // built-in room fifteen minutes before (src/lib/candidateInterview.ts).
@@ -234,6 +250,7 @@ export function CandidateInterviewConfirmationCard({
   const hasBuiltInRoom = interview.meeting_provider === "daily";
   const ownLink = !hasBuiltInRoom && interview.meeting_link ? interview.meeting_link : null;
   const opensWords = join.opensAt ? interviewWhen(join.opensAt) : "";
+  const opensShort = joinOpensWords(join.opensAt, now);
   const handleJoin = () => {
     if (!canJoin) {
       // Not open yet: the button still answers, with when it will.
@@ -269,212 +286,275 @@ export function CandidateInterviewConfirmationCard({
     downloadIcsFile(`interview-${icsFileStem(employerName || "hireflow")}`, ics);
   };
 
-  const slotGrid = (action: "pick_slot" | "repick_slot", slots: OfferedWindow[]) => (
-    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2" data-interview-slots={slots.length}>
-      {slots.map((w) => {
-        const picking = pickingStart === w.start;
-        const disabled = pickingStart !== null;
-        return (
+  /** One offered time, as a small ticket. Tapping it only asks; "Yes, book it" books. */
+  const miniTicket = (w: OfferedWindow, action: "pick_slot" | "repick_slot" | null) => {
+    const picking = pickingStart === w.start;
+    const busy = pickingStart !== null;
+    const ask = () => {
+      if (!busy && action) setAsking({ window: w, action });
+    };
+    return (
+      <div
+        key={w.start}
+        className="hf-mini"
+        data-interview-slot={w.start}
+        data-tappable={action && !busy ? "true" : undefined}
+        data-busy={busy && !picking ? "true" : undefined}
+        onClick={ask}
+        title={interviewWhen(w.start)}
+      >
+        <Stub at={w.start} mini />
+        <div className="hf-mini__main">
+          <div className="hf-mini__time">{clockTime(w.start)}</div>
+          <div className="hf-mini__sub">
+            {w.durationMinutes} minutes · your time ({zone})
+          </div>
+        </div>
+        {action ? (
           <button
-            key={w.start}
             type="button"
-            disabled={disabled}
-            // One tap only asks: "Book this time?" does the booking.
-            onClick={() => setAsking({ window: w, action })}
-            data-interview-slot={w.start}
-            className={cn(
-              "flex min-h-[64px] items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3 text-left transition-colors",
-              "border-[var(--hair)]",
-              !disabled && "hover:border-[var(--jade)] hover:bg-[var(--jade-soft)]",
-              picking && "border-[var(--jade)] bg-[var(--jade-soft)]",
-              disabled && !picking && "opacity-50",
-            )}
+            className="hf-pill hf-pill--mint hf-pill--sm"
+            disabled={busy}
+            aria-label={`Choose ${interviewWhen(w.start)}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              ask();
+            }}
           >
-            <span className="min-w-0">
-              <span className="block text-xs font-medium uppercase tracking-wide text-muted-foreground">{dayWords(w.start)}</span>
-              <span className="ck-num mt-0.5 block text-lg font-semibold leading-tight text-foreground">{clockWords(w.start)}</span>
-            </span>
-            <span className="inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-[var(--jade)]">
-              {picking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-              {picking ? "Booking" : "Choose"}
-            </span>
+            {picking ? "Booking" : "Choose"}
+            {picking ? <Loader2 className="animate-spin" /> : <ArrowRight />}
           </button>
-        );
-      })}
+        ) : (
+          <span />
+        )}
+      </div>
+    );
+  };
+
+  const slotList = (action: "pick_slot" | "repick_slot", slots: OfferedWindow[]) => (
+    <div className="grid gap-3" data-interview-slots={slots.length}>
+      {slots.map((w) => miniTicket(w, action))}
     </div>
   );
 
-  const ownClockNote = (
-    <p className="mt-2.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-      <Clock className="h-3 w-3 shrink-0" />
-      Times are on your own clock ({zone}).
-    </p>
+  /** Seal, small line, headline: the top of the two cards that are not tickets. */
+  const header = (eyebrow: string, title: string, line: string, press: boolean) => (
+    <div className="flex items-start gap-4 sm:gap-[18px]">
+      <InterviewSeal size={54} press={press} />
+      <div className="min-w-0">
+        <p className="text-[11.5px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--brass)" }}>
+          {eyebrow}
+        </p>
+        <h3 className="font-display mt-1.5 text-balance text-[24px] font-semibold leading-[1.12] text-foreground sm:text-[30px]">{title}</h3>
+        {line && <p className="mt-2 text-[14.5px] leading-snug" style={{ color: "var(--ink-3)" }}>{line}</p>}
+      </div>
+    </div>
   );
 
-  // Just chosen, and not answered yet: the surface celebrates.
-  const selected = stage === "pick" || stage === "confirm";
-  const title = selected ? SELECTED_TITLE : stage === "confirmed" ? "Your interview is confirmed" : "You asked for another interview time";
-  const eyebrow = selected ? "Congratulations" : stage === "confirmed" ? "You're booked" : "Your interview";
+  const noneWork = (question: string) => (
+    <div className="mt-5 flex flex-wrap items-center gap-x-1.5 gap-y-2 text-[14.5px]" style={{ color: "var(--ink-3)" }}>
+      <span>{question}</span>
+      <button type="button" className="hf-pill hf-pill--text hf-pill--link" onClick={() => setSuggestOpen(true)} data-interview-suggest>
+        Suggest other times
+      </button>
+      <span className="hf-chip ml-auto" data-interview-clock>
+        <Clock />
+        Your time · {zone}
+      </span>
+    </div>
+  );
+
+  /** The ticket itself: the stub with the date, and what goes beside it. */
+  const ticket = (tone: "selected" | "confirmed", label: string, children: React.ReactNode) => (
+    <div className="hf-ticket-wrap">
+      <span className="hf-ticket__notch hf-ticket__notch--top" aria-hidden />
+      <span className="hf-ticket__notch hf-ticket__notch--bottom" aria-hidden />
+      <InterviewSurface id="interview" tone={tone} sparks={false} data-candidate-interview={stage} className="scroll-mt-24" aria-label={label}>
+        <div className="hf-ticket">
+          <Stub at={effectiveScheduledAt} />
+          <div className="hf-ticket__main">{children}</div>
+        </div>
+      </InterviewSurface>
+    </div>
+  );
+
+  const timeLine = (
+    <div className="hf-ticket__time" data-interview-when title={interviewWhen(effectiveScheduledAt)}>
+      {clockTime(effectiveScheduledAt)}
+      <small>your time ({zone})</small>
+    </div>
+  );
+  const facts = (
+    <>
+      {who && <p className="mt-2.5 break-words text-[15px] leading-snug [overflow-wrap:anywhere]" style={{ color: "var(--ink-2)" }}>{who}</p>}
+      <div className="mt-3.5 flex flex-wrap gap-2">
+        <span className="hf-chip">
+          <Video />
+          {kind}
+        </span>
+        {effectiveDurationMinutes ? (
+          <span className="hf-chip">
+            <Clock />
+            {effectiveDurationMinutes} minutes
+          </span>
+        ) : null}
+      </div>
+    </>
+  );
 
   return (
     <>
-      <InterviewSurface
-        id="interview"
-        tone={stage === "waiting" ? "quiet" : stage === "confirmed" ? "confirmed" : "selected"}
-        data-candidate-interview={stage}
-        className="scroll-mt-24"
-      >
-        <div className="p-5 sm:p-7">
-          <div className="flex items-start gap-4 sm:gap-5">
-            <InterviewSeal size={58} press={selected} />
-            <div className="min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: "var(--brass)" }}>
-                {eyebrow}
-              </p>
-              <h3 className="font-display mt-1 text-balance text-[22px] font-semibold leading-[1.15] text-foreground sm:text-[28px]">{title}</h3>
-              {facts && <p className="mt-1.5 break-words text-[13.5px] leading-snug text-muted-foreground [overflow-wrap:anywhere]">{facts}</p>}
-            </div>
-          </div>
-
-          {/* ── Pick: the times the team offered ── */}
-          {stage === "pick" && (
-            <div className="mt-4">
-              {futureWindows.length > 0 ? (
-                <>
-                  <p className="mb-3 text-sm text-foreground">
-                    {futureWindows.length === 1
-                      ? `${team} offered one time. Take it, or suggest another.`
-                      : `${team} offered ${futureWindows.length} times. Pick the one that works for you.`}
-                  </p>
-                  {slotGrid("pick_slot", futureWindows)}
-                  {ownClockNote}
-                  <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-[var(--hair)] pt-4">
-                    <span className="text-sm text-muted-foreground">{futureWindows.length === 1 ? "Can't make it?" : "None of these work?"}</span>
-                    <Button variant="outline" size="sm" onClick={() => setSuggestOpen(true)} className="gap-2" data-interview-suggest>
-                      <RefreshCw className="h-4 w-4" />
-                      Suggest other times
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-foreground">The times {teamLower} offered have passed. Tell them what works for you.</p>
-                  <Button onClick={() => setSuggestOpen(true)} className="mt-3 gap-2" data-interview-suggest>
-                    <RefreshCw className="h-4 w-4" />
-                    Suggest times
-                  </Button>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* ── Confirm: one time the team set ── */}
-          {stage === "confirm" && (
-            <div className="mt-4">
-              <p className="font-display ck-num text-xl font-semibold leading-snug text-foreground" data-interview-when>
-                {interviewWhen(effectiveScheduledAt)}
-              </p>
-              {ownClockNote}
-              <p className="mt-3 text-sm text-foreground">Confirm it if it works, or ask for another time.</p>
-              <div className="mt-3 flex flex-wrap items-center gap-2.5">
-                <Button onClick={handleConfirm} disabled={isConfirming} className="gap-2" data-interview-confirm>
-                  {isConfirming ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                  Confirm this time
-                </Button>
-                <Button variant="outline" onClick={() => setSuggestOpen(true)} className="gap-2" data-interview-suggest>
-                  <RefreshCw className="h-4 w-4" />
-                  Ask for another time
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* ── Waiting: they suggested times ── */}
-          {stage === "waiting" && (
-            <div className="mt-4">
-              <p className="text-sm text-foreground">
-                You suggested {localProposedTimesCount === 1 ? "one time" : `${localProposedTimesCount} times`}. {team} will reply here and by
-                email. Nothing to do for now.
-              </p>
-              {localCandidateNote && <p className="mt-2 text-sm italic text-muted-foreground">&ldquo;{localCandidateNote}&rdquo;</p>}
-              {futureWindows.length > 0 && (
-                <div className="mt-4 border-t border-[var(--hair)] pt-4">
-                  <p className="mb-3 text-sm text-muted-foreground">
-                    Changed your mind? {futureWindows.length === 1 ? "The time they offered is" : "The times they offered are"} still open:
-                  </p>
-                  {slotGrid("pick_slot", futureWindows)}
-                  {ownClockNote}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── Confirmed: when, how to join, and a way to change ── */}
-          {stage === "confirmed" && (
-            <div className="mt-4">
-              <p className="font-display ck-num text-xl font-semibold leading-snug text-foreground" data-interview-when>
-                {interviewWhen(effectiveScheduledAt)}
-              </p>
-              {ownClockNote}
-
-              <div className="mt-4 flex flex-wrap items-center gap-2.5">
-                {(hasBuiltInRoom || ownLink) && (
-                  <Button
-                    onClick={handleJoin}
-                    variant={canJoin ? "default" : "outline"}
-                    className="h-auto gap-2.5 py-2.5"
-                    data-interview-join={canJoin ? "open" : "not-yet"}
-                    // Sizes inline: the phone stylesheet's button rule outranks any class.
-                    style={{ minHeight: 52, paddingInline: 20, fontSize: 15 }}
-                  >
-                    <Video className="h-4 w-4 shrink-0" />
-                    <span className="flex flex-col items-start leading-tight">
-                      <span className="font-semibold">{canJoin ? "Join interview now" : "Join interview"}</span>
-                      {!canJoin && opensWords && (
-                        <span className="text-[12px] font-normal text-muted-foreground">Opens {opensWords}</span>
-                      )}
-                    </span>
-                    {canJoin && ownLink && <ExternalLink className="h-3.5 w-3.5 shrink-0" />}
-                  </Button>
+      {/* ── Pick: the times the team offered ── */}
+      {stage === "pick" && (
+        <InterviewSurface id="interview" tone="selected" data-candidate-interview={stage} className="scroll-mt-24">
+          <div className="p-5 sm:px-8 sm:py-[30px]">
+            {futureWindows.length > 0 ? (
+              <>
+                {header(
+                  "Congratulations",
+                  SELECTED_TITLE,
+                  futureWindows.length === 1
+                    ? `${team} offered one time. Take it, or suggest another.`
+                    : `${team} offered ${futureWindows.length} times. Pick the one that works for you.`,
+                  true,
                 )}
-                <Button
-                  variant="outline"
-                  onClick={handleAddToCalendar}
-                  className="gap-2"
-                  title="Saves a calendar file that works with Google, Apple and Outlook"
-                >
-                  <CalendarPlus className="h-4 w-4" />
-                  Add to calendar
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => (canFreeRepick ? setShowRepickSheet(true) : setSuggestOpen(true))}
-                  className="gap-2 text-muted-foreground"
-                  data-interview-change
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  Can&apos;t make it?
-                </Button>
-              </div>
+                <div className="mt-6">{slotList("pick_slot", futureWindows)}</div>
+                {noneWork(futureWindows.length === 1 ? "Can't make it?" : "None of these work?")}
+              </>
+            ) : (
+              <>
+                {header("Congratulations", SELECTED_TITLE, `The times ${teamLower} offered have passed. Tell them what works for you.`, true)}
+                <div className="mt-6">
+                  <button type="button" className="hf-pill hf-pill--jade" onClick={() => setSuggestOpen(true)} data-interview-suggest>
+                    Suggest times
+                    <ArrowRight />
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </InterviewSurface>
+      )}
 
-              <p
-                className={cn("mt-3 text-sm", joinAsked && !canJoin ? "font-medium text-foreground" : "text-muted-foreground")}
-                data-interview-join-note
-                aria-live="polite"
-              >
-                {hasBuiltInRoom || ownLink
-                  ? canJoin
-                    ? "The call is open: join when you are ready."
-                    : `Join opens ${join.leadWords} before the start${opensWords ? `: ${opensWords}` : ""}. Come back to this page then and press Join. The calendar file has the link too.`
-                  : kind === "Video call"
-                    ? `${team} will send you how to join.`
-                    : `${team} will be in touch with the details.`}
-              </p>
+      {/* ── Confirm: one time the team set ── */}
+      {stage === "confirm" &&
+        ticket(
+          "selected",
+          `${SELECTED_TITLE}: ${interviewWhen(effectiveScheduledAt)}`,
+          <>
+            <p className="text-[11.5px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--brass)" }}>
+              Congratulations
+            </p>
+            <h3 className="font-display mt-1.5 text-balance text-[22px] font-semibold leading-[1.15] text-foreground sm:text-[26px]">{SELECTED_TITLE}</h3>
+            {timeLine}
+            {facts}
+            <p className="mt-4 text-[14.5px]" style={{ color: "var(--ink-2)" }}>
+              Confirm it if it works, or ask for another time.
+            </p>
+            <div className="hf-acts mt-4">
+              <button type="button" className="hf-pill hf-pill--jade hf-pill--lg" onClick={handleConfirm} disabled={isConfirming} data-interview-confirm>
+                {isConfirming ? <Loader2 className="animate-spin" /> : <Check />}
+                Confirm this time
+              </button>
+              <button type="button" className="hf-pill hf-pill--tonal hf-pill--lg" onClick={() => setSuggestOpen(true)} data-interview-suggest>
+                Ask for another time
+              </button>
             </div>
-          )}
-        </div>
-      </InterviewSurface>
+          </>,
+        )}
+
+      {/* ── Waiting: they suggested times ── */}
+      {stage === "waiting" && (
+        <InterviewSurface id="interview" tone="quiet" data-candidate-interview={stage} className="scroll-mt-24">
+          <div className="p-5 sm:px-8 sm:py-[30px]">
+            {header(
+              "Your interview",
+              "You asked for another interview time",
+              `You suggested ${localProposedTimesCount === 1 ? "one time" : `${localProposedTimesCount} times`}. ${team} will reply here and by email. Nothing to do for now.`,
+              false,
+            )}
+            {localCandidateNote && (
+              <p className="mt-3 text-sm italic sm:pl-[72px]" style={{ color: "var(--ink-3)" }}>
+                &ldquo;{localCandidateNote}&rdquo;
+              </p>
+            )}
+            {futureWindows.length > 0 && (
+              <div className="mt-6">
+                <p className="mb-3 text-[14.5px]" style={{ color: "var(--ink-3)" }}>
+                  Changed your mind? {futureWindows.length === 1 ? "The time they offered is" : "The times they offered are"} still open:
+                </p>
+                {slotList("pick_slot", futureWindows)}
+              </div>
+            )}
+          </div>
+        </InterviewSurface>
+      )}
+
+      {/* ── Confirmed: when, how to join, and a way to change ── */}
+      {stage === "confirmed" &&
+        ticket(
+          "confirmed",
+          `Your interview is confirmed: ${interviewWhen(effectiveScheduledAt)}`,
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[11.5px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--brass)" }}>
+                Interview confirmed
+              </span>
+              <span className="hf-chip hf-chip--ok">
+                <Check />
+                You&apos;re booked
+              </span>
+            </div>
+            {timeLine}
+            {facts}
+            <div className="hf-acts mt-5">
+              {(hasBuiltInRoom || ownLink) && (
+                <button
+                  type="button"
+                  onClick={handleJoin}
+                  className={canJoin ? "hf-pill hf-pill--jade hf-pill--lg" : "hf-pill hf-pill--tonal hf-pill--lg"}
+                  data-interview-join={canJoin ? "open" : "not-yet"}
+                >
+                  {canJoin ? <Video /> : <span className="hf-dot" aria-hidden />}
+                  {canJoin ? "Join interview now" : `Join opens ${opensShort}`}
+                  {canJoin && ownLink && <ExternalLink style={{ width: 14, height: 14 }} />}
+                </button>
+              )}
+              <button
+                type="button"
+                className="hf-pill hf-pill--mint hf-pill--lg"
+                onClick={handleAddToCalendar}
+                title="Saves a calendar file that works with Google, Apple and Outlook"
+              >
+                <CalendarPlus />
+                Add to calendar
+              </button>
+              <button
+                type="button"
+                className="hf-pill hf-pill--text"
+                onClick={() => (canFreeRepick ? setShowRepickSheet(true) : setSuggestOpen(true))}
+                data-interview-change
+              >
+                Can&apos;t make it?
+              </button>
+            </div>
+            <p
+              className="mt-3.5 flex items-center gap-2 text-[13.5px] leading-snug"
+              style={{ color: canJoin ? "var(--jade-soft-fg)" : joinAsked ? "var(--ink)" : "var(--ink-3)", fontWeight: joinAsked && !canJoin ? 500 : 400 }}
+              data-interview-join-note
+              aria-live="polite"
+            >
+              {canJoin && <span className="hf-dot hf-dot--live" aria-hidden />}
+              {hasBuiltInRoom || ownLink
+                ? canJoin
+                  ? "The call is open: join when you are ready."
+                  : `Join opens ${join.leadWords} before the start. Come back to this page then. Your calendar file has the link too.`
+                : kind === "Video call"
+                  ? `${team} will send you how to join.`
+                  : `${team} will be in touch with the details.`}
+            </p>
+          </>,
+        )}
 
       <CandidateRescheduleRequestDialog
         open={suggestOpen}
@@ -489,28 +569,30 @@ export function CandidateInterviewConfirmationCard({
 
       {/* "Are you sure?": nothing is booked on one tap. */}
       <AlertDialog open={!!asking} onOpenChange={(open) => !open && setAsking(null)}>
-        <AlertDialogContent data-interview-ask={asking?.action ?? ""} style={{ borderTop: "3px solid var(--brass-line)" }}>
+        <AlertDialogContent data-interview-ask={asking?.action ?? ""} className="hf-sheet">
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-display text-xl">
+            <AlertDialogTitle className="font-display text-[22px] font-semibold">
               {asking?.action === "repick_slot" ? "Move your interview to this time?" : "Book this time?"}
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div>
-                <p className="font-display ck-num text-[22px] font-semibold leading-snug text-foreground" data-interview-ask-when>
-                  {asking ? interviewWhen(asking.window.start) : ""}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  On your own clock ({zone}){asking ? ` · ${asking.window.durationMinutes} minutes` : ""}
-                </p>
-                <p className="mt-3 text-sm text-muted-foreground">
+                {asking && (
+                  <div className="mt-2" data-interview-ask-when aria-label={interviewWhen(asking.window.start)}>
+                    {miniTicket(asking.window, null)}
+                  </div>
+                )}
+                <p className="mt-4 text-[14.5px] leading-relaxed" style={{ color: "var(--ink-2)" }}>
                   {team} is told right away. If something comes up you can change it from this page.
                 </p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel data-interview-ask-back>Go back</AlertDialogCancel>
+          <AlertDialogFooter className="gap-2.5 sm:gap-2.5 sm:space-x-0">
+            <AlertDialogCancel className="hf-pill hf-pill--tonal" data-interview-ask-back>
+              Go back
+            </AlertDialogCancel>
             <AlertDialogAction
+              className="hf-pill hf-pill--jade"
               data-interview-ask-yes
               onClick={() => {
                 const chosen = asking;
@@ -526,26 +608,26 @@ export function CandidateInterviewConfirmationCard({
 
       {/* Swap to another offered time: no approval needed. */}
       <Dialog open={showRepickSheet} onOpenChange={setShowRepickSheet}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="hf-sheet sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Pick a different time</DialogTitle>
+            <DialogTitle className="font-display text-[22px] font-semibold">Pick a different time</DialogTitle>
             <DialogDescription>
               Choose another of the offered times and {teamLower} is told right away. No need to wait for approval.
             </DialogDescription>
           </DialogHeader>
-          {slotGrid("repick_slot", otherFutureWindows)}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pt-1">
-            <span className="text-sm text-muted-foreground">None of these work?</span>
-            <Button
-              variant="outline"
-              size="sm"
+          {slotList("repick_slot", otherFutureWindows)}
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 text-[14.5px]" style={{ color: "var(--ink-3)" }}>
+            <span>None of these work?</span>
+            <button
+              type="button"
+              className="hf-pill hf-pill--text hf-pill--link"
               onClick={() => {
                 setShowRepickSheet(false);
                 setSuggestOpen(true);
               }}
             >
               Suggest other times
-            </Button>
+            </button>
           </div>
         </DialogContent>
       </Dialog>

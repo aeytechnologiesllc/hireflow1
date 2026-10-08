@@ -76,15 +76,19 @@ export function InterviewSurface({
   tone,
   children,
   className = "",
+  sparks = true,
   ...rest
 }: {
   tone: "selected" | "confirmed" | "quiet";
   children: ReactNode;
   className?: string;
+  /** Off for the ticket, which is busy enough on its own. */
+  sparks?: boolean;
 } & Omit<React.HTMLAttributes<HTMLDivElement>, "children" | "className">) {
   return (
     <div className={`hf-invite ${className}`} data-tone={tone} {...rest}>
-      {tone !== "quiet" &&
+      {sparks &&
+        tone !== "quiet" &&
         SPARKS.map((spark, index) => (
           <i
             key={index}
@@ -260,9 +264,8 @@ export function InterviewSelectedMoment({
             type="button"
             onClick={onAction}
             data-testid="interview-moment-action"
-            className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[12px] px-7 text-[16px] font-semibold transition-[filter,transform] hover:brightness-110 active:scale-[0.98] sm:w-auto"
-            // Sizes inline: the phone stylesheet's button rule outranks any class.
-            style={{ background: "var(--jade)", color: "var(--btn-fg)", minHeight: 52, fontSize: 16, paddingInline: 28 }}
+            className="hf-pill hf-pill--jade w-full sm:w-auto"
+            style={{ minHeight: 54, fontSize: 16, paddingInline: 30 }}
           >
             {action}
             <ArrowRight className="h-4 w-4" />
@@ -270,8 +273,8 @@ export function InterviewSelectedMoment({
           <button
             type="button"
             onClick={onClose}
-            className="min-h-[40px] px-3 text-[13px] font-medium underline-offset-4 hover:underline"
-            style={{ color: "var(--ink-3)", fontSize: 13 }}
+            className="hf-pill hf-pill--text"
+            style={{ fontSize: 13.5 }}
           >
             Not now
           </button>

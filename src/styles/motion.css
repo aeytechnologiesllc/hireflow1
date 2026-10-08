@@ -75,8 +75,8 @@
 .hf-invite {
   position: relative;
   overflow: hidden;
-  border-radius: 14px;
-  border: 1px solid var(--brass-line);
+  border-radius: 24px;
+  border: 1px solid color-mix(in srgb, var(--brass-line) 60%, transparent);
   background:
     radial-gradient(120% 150% at 0% 0%, color-mix(in srgb, var(--jade) 22%, transparent) 0%, transparent 58%),
     radial-gradient(95% 130% at 100% 100%, color-mix(in srgb, var(--brass) 20%, transparent) 0%, transparent 62%),
@@ -90,8 +90,9 @@
   position: absolute;
   inset-inline: 0;
   top: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--jade), var(--brass-line) 50%, var(--jade));
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--jade) 25%, var(--brass) 55%, transparent);
+  opacity: 0.9;
 }
 /* Nothing to celebrate (waiting on the team): the same shape, at rest. */
 .hf-invite[data-tone="quiet"] {
@@ -186,3 +187,236 @@
   .hf-spark { animation: none; opacity: 0.55; }
   .hf-rise { animation: none; }
 }
+
+/* ── The interview screens, "Ticket" ─────────────────────────────────────
+   The owner chose this from three drawn options on 2026-10-07 (first the
+   bold "Spotlight", then: "My bad. Actually, I like option B more"), after
+   a photo of the card it replaces: "why are we still using the ugly old
+   design, black buttons, and cheap, cheap style ... especially these harsh
+   black buttons. I don't like them. Always choose modern."
+
+   So no button here is a dark slab. Four kinds, all pills:
+     jade   the one thing to do                (solid)
+     tonal  a second thing                     (a soft tint of the text colour)
+     mint   a second thing that is good news   (a soft tint of jade)
+     text   everything quieter                 (no surface at all)
+   Every colour is a mix of the theme's own tokens, so day and night both
+   work. The class is tripled on purpose: the phone stylesheet restyles
+   every <button> at a specificity no single class beats (src/index.css,
+   "Global mobile button sizing"). */
+.hf-pill.hf-pill.hf-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 50px;
+  height: auto;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 999px;
+  font: 600 15px/1.15 Inter, system-ui, sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: filter 150ms ease, background-color 150ms ease, color 150ms ease, transform 100ms ease;
+}
+.hf-pill.hf-pill.hf-pill:active { transform: scale(0.98); }
+.hf-pill.hf-pill.hf-pill:disabled { opacity: 0.55; cursor: default; transform: none; }
+/* The keyboard ring is quiet: a pop-up puts it on "Go back" as it opens, and
+   a loud one made that look like the chosen answer. */
+.hf-pill.hf-pill.hf-pill:focus-visible { outline: 1.5px solid color-mix(in srgb, var(--ink) 38%, transparent); outline-offset: 2px; }
+.hf-pill.hf-pill.hf-pill svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+.hf-pill--jade.hf-pill--jade.hf-pill--jade {
+  color: var(--btn-fg);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--jade) 84%, white), var(--jade));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32), 0 12px 28px -14px color-mix(in srgb, var(--jade) 85%, transparent);
+}
+.hf-pill--jade.hf-pill--jade.hf-pill--jade:hover:not(:disabled) { filter: brightness(1.07); }
+
+.hf-pill--tonal.hf-pill--tonal.hf-pill--tonal {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 11%, transparent);
+}
+.hf-pill--tonal.hf-pill--tonal.hf-pill--tonal:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 12%, transparent); }
+
+.hf-pill--mint.hf-pill--mint.hf-pill--mint {
+  color: var(--jade-soft-fg);
+  background: var(--jade-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jade) 26%, transparent);
+}
+.hf-pill--mint.hf-pill--mint.hf-pill--mint:hover:not(:disabled) { background: color-mix(in srgb, var(--jade) 24%, transparent); }
+
+.hf-pill--text.hf-pill--text.hf-pill--text {
+  min-height: 40px;
+  padding: 0 10px;
+  font-weight: 500;
+  color: var(--ink-2);
+  background: none;
+}
+.hf-pill--text.hf-pill--text.hf-pill--text:hover:not(:disabled) { color: var(--ink); }
+.hf-pill--text.hf-pill--link.hf-pill--link { color: var(--jade-soft-fg); font-weight: 600; }
+
+/* A size up, for the row of things to do on the ticket. */
+.hf-pill--lg.hf-pill--lg.hf-pill--lg { min-height: 54px; }
+/* A size down, for "Choose" on each offered time. */
+.hf-pill--sm.hf-pill--sm.hf-pill--sm { min-height: 42px; padding: 0 18px; font-size: 14.5px; }
+.hf-pill--sm.hf-pill--sm.hf-pill--sm svg { width: 16px; height: 16px; }
+
+/* A small label that is not a button. */
+.hf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font: 600 12px/1 Inter, system-ui, sans-serif;
+  color: var(--ink-2);
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent);
+}
+.hf-chip svg { width: 13px; height: 13px; flex-shrink: 0; }
+.hf-chip--ok {
+  color: var(--jade-soft-fg);
+  background: var(--jade-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jade) 26%, transparent);
+}
+
+/* The little light on the Join pill: brass while it waits, jade and breathing when it is open. */
+.hf-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 999px; background: var(--brass); box-shadow: 0 0 0 4px color-mix(in srgb, var(--brass) 18%, transparent); }
+.hf-dot--live { background: var(--jade); box-shadow: 0 0 0 4px color-mix(in srgb, var(--jade) 24%, transparent); animation: hf-breathe 1.8s ease-in-out infinite; }
+@keyframes hf-breathe {
+  0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--jade) 26%, transparent); }
+  50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--jade) 8%, transparent); }
+}
+
+/* The ticket: the date on a stub at the left, torn along a dashed line. */
+.hf-ticket-wrap { position: relative; }
+.hf-ticket { display: grid; grid-template-columns: 208px minmax(0, 1fr); }
+.hf-ticket__stub {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 30px 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--jade) 18%, transparent), color-mix(in srgb, var(--jade) 6%, transparent));
+}
+.hf-ticket__stub::after {
+  content: "";
+  position: absolute;
+  top: 18px;
+  bottom: 18px;
+  right: 0;
+  border-right: 2px dashed color-mix(in srgb, var(--brass) 44%, transparent);
+}
+.hf-ticket__wk { font: 700 13px/1 Inter, system-ui, sans-serif; letter-spacing: 0.22em; text-transform: uppercase; color: var(--brass); }
+.hf-ticket__num { margin: 6px 0 2px; font: 600 84px/1 Fraunces, Georgia, serif; letter-spacing: -0.03em; color: var(--ink); font-variant-numeric: tabular-nums; }
+.hf-ticket__mo { font: 600 14px/1 Inter, system-ui, sans-serif; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink-2); }
+.hf-ticket__main { min-width: 0; padding: 28px 32px 28px 36px; }
+.hf-ticket__time { margin-top: 14px; font: 600 46px/1 Fraunces, Georgia, serif; letter-spacing: -0.02em; color: var(--ink); }
+.hf-ticket__time small { margin-left: 10px; font: 500 16px/1 Inter, system-ui, sans-serif; letter-spacing: 0; color: var(--ink-3); white-space: nowrap; }
+/* The two bites out of the edge, where the stub tears off. They sit outside
+   the card (which clips its own contents) and take the page's own ground. */
+.hf-ticket__notch {
+  position: absolute;
+  left: 196px;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--ground);
+  pointer-events: none;
+}
+.hf-ticket__notch--top { top: -12px; }
+.hf-ticket__notch--bottom { bottom: -12px; }
+
+/* The row of things to do on a ticket. */
+.hf-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+
+/* An offered time, as a small ticket with its own button. */
+.hf-mini {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) auto;
+  align-items: center;
+  overflow: hidden;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent);
+  transition: background-color 150ms ease;
+}
+.hf-mini[data-tappable="true"] { cursor: pointer; }
+.hf-mini[data-tappable="true"]:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.hf-mini[data-busy="true"] { opacity: 0.6; }
+.hf-mini__stub {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 0;
+  background: color-mix(in srgb, var(--jade) 11%, transparent);
+  border-right: 2px dashed color-mix(in srgb, var(--brass) 34%, transparent);
+}
+.hf-mini__stub .hf-ticket__wk { font-size: 11px; }
+.hf-mini__stub .hf-ticket__num { margin: 4px 0 2px; font-size: 34px; letter-spacing: -0.02em; }
+.hf-mini__stub .hf-ticket__mo { font-size: 11px; }
+.hf-mini__main { min-width: 0; padding: 14px 22px; }
+.hf-mini__time { font: 600 26px/1 Fraunces, Georgia, serif; color: var(--ink); white-space: nowrap; }
+.hf-mini__sub { margin-top: 6px; font: 500 13px/1.3 Inter, system-ui, sans-serif; color: var(--ink-3); }
+.hf-mini > .hf-pill { margin-right: 16px; }
+
+@media (max-width: 640px) {
+  /* The stub lies down across the top; the tear runs under it. */
+  .hf-ticket { grid-template-columns: minmax(0, 1fr); }
+  .hf-ticket__stub { flex-direction: row; align-items: baseline; justify-content: flex-start; gap: 10px; padding: 16px 22px 14px; }
+  .hf-ticket__stub::after { top: auto; bottom: 0; left: 18px; right: 18px; border-right: 0; border-bottom: 2px dashed color-mix(in srgb, var(--brass) 44%, transparent); }
+  .hf-ticket__num { margin: 0; font-size: 44px; }
+  .hf-ticket__main { padding: 20px 22px 24px; }
+  .hf-ticket__time { margin-top: 12px; font-size: 40px; }
+  .hf-ticket__time small { display: block; margin: 8px 0 0; font-size: 14px; }
+  .hf-ticket__notch { display: none; }
+  .hf-acts { flex-direction: column; align-items: stretch; }
+  .hf-acts > .hf-pill { width: 100%; }
+  .hf-mini { grid-template-columns: 72px minmax(0, 1fr) auto; }
+  .hf-mini__main { padding: 12px 14px; }
+  .hf-mini__time { font-size: 22px; }
+  .hf-mini__sub { display: none; }
+  .hf-mini > .hf-pill { margin-right: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hf-dot--live { animation: none; }
+  .hf-pill.hf-pill.hf-pill, .hf-mini { transition: none; }
+}
+
+/* A pop-up on these screens: the same soft, rounded sheet, never a hard box. */
+.hf-sheet.hf-sheet {
+  border: 0;
+  border-radius: 24px;
+  padding: 28px 30px 26px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 100%, transparent), var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent), 0 40px 80px -30px rgba(0, 0, 0, 0.65);
+}
+@media (max-width: 640px) {
+  .hf-sheet.hf-sheet { padding: 24px 20px 20px; border-radius: 22px; }
+}
+
+/* A field on these pop-ups (a date, a time, a note): the same soft tint as a
+   tonal pill, squarer, and never the dark input box. */
+.hf-field.hf-field.hf-field {
+  min-height: 46px;
+  border: 0;
+  border-radius: 14px;
+  justify-content: flex-start;
+  font-weight: 500;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 11%, transparent);
+}
+.hf-field--empty.hf-field--empty.hf-field--empty { color: var(--ink-3); }
+.hf-field--select.hf-field--select.hf-field--select { padding: 0 14px; font-size: 14.5px; }
+.hf-field--area.hf-field--area.hf-field--area { min-height: 84px; padding: 12px 14px; font-size: 14.5px; line-height: 1.5; }
+.hf-field.hf-field.hf-field:focus-visible,
+.hf-field.hf-field.hf-field:focus { outline: 1.5px solid color-mix(in srgb, var(--ink) 38%, transparent); outline-offset: 2px; }

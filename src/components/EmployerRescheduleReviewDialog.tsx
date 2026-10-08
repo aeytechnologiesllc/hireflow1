@@ -7,7 +7,6 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
@@ -276,9 +275,9 @@ export function EmployerRescheduleReviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-hidden flex flex-col" data-review-suggested={fromOffer ? "offer" : "set"}>
+      <DialogContent className="hf-sheet sm:max-w-xl max-h-[90vh] overflow-hidden flex flex-col" data-review-suggested={fromOffer ? "offer" : "set"}>
         <DialogHeader className="flex-shrink-0">
-          <DialogTitle>{fromOffer ? "Other times suggested" : "Another time asked for"}</DialogTitle>
+          <DialogTitle className="font-display text-[22px] font-semibold">{fromOffer ? "Other times suggested" : "Another time asked for"}</DialogTitle>
           <DialogDescription>
             {fromOffer
               ? `${first} can't make the times you offered and suggested ${theirTimes.length === 1 ? "this one" : "these"} instead.`
@@ -358,31 +357,31 @@ export function EmployerRescheduleReviewDialog({
 
         {/* Three answers: each label stays on one line, and the row wraps instead of squeezing them. */}
         <DialogFooter className="flex-col gap-2 flex-shrink-0 pt-4 border-t border-border sm:flex-row sm:flex-wrap sm:justify-end sm:gap-2 sm:space-x-0">
-          <Button variant="outline" onClick={handleMessageCandidate} className="gap-2 whitespace-nowrap">
-            <MessageSquare className="h-4 w-4" />
+          <button type="button" className="hf-pill hf-pill--text" onClick={handleMessageCandidate}>
+            <MessageSquare />
             Message {them}
-          </Button>
+          </button>
           {fromOffer ? (
-            <Button
-              variant="outline"
+            <button
+              type="button"
+              className="hf-pill hf-pill--tonal"
               onClick={handleBackToOffer}
               disabled={isSubmitting || !canGoBackToOffer}
-              className="gap-2 whitespace-nowrap"
               data-review-back-to-offer
             >
-              {isSubmitting && action === "keep" ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+              {isSubmitting && action === "keep" ? <Loader2 className="animate-spin" /> : <X />}
               None of these work
-            </Button>
+            </button>
           ) : (
-            <Button variant="outline" onClick={handleKeepOriginal} disabled={isSubmitting} className="gap-2 whitespace-nowrap" data-review-keep>
-              {isSubmitting && action === "keep" ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+            <button type="button" className="hf-pill hf-pill--tonal" onClick={handleKeepOriginal} disabled={isSubmitting} data-review-keep>
+              {isSubmitting && action === "keep" ? <Loader2 className="animate-spin" /> : <X />}
               Keep the time as it is
-            </Button>
+            </button>
           )}
-          <Button onClick={handleAcceptTime} disabled={isSubmitting || !selectedTime} className="gap-2 whitespace-nowrap" data-review-accept>
-            {isSubmitting && action === "accept" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+          <button type="button" className="hf-pill hf-pill--jade" onClick={handleAcceptTime} disabled={isSubmitting || !selectedTime} data-review-accept>
+            {isSubmitting && action === "accept" ? <Loader2 className="animate-spin" /> : <Check />}
             Accept this time
-          </Button>
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

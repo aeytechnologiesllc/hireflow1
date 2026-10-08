@@ -211,7 +211,7 @@ console.log("\nThe team's answer");
   check("a row with no agreed time shows no clock time as if it were set", /\{noTimeYet\(s\) \? \([\s\S]{0,700}No time yet[\s\S]{0,420}\{awaitingPick \? "They pick" : "Your call"\}/.test(page) && /data-interview-time="none"/.test(page));
   check("the brief does not say 'Set for' or 'ready for' a placeholder", /next\.at && !noTimeYet\(next\) \? \(isToday\(next\.at\)/.test(page) && /\{noTimeYet\(next\) \? \(\s*<Evidence icon=\{AlertCircle\} tone="var\(--amber-fg\)" label="No time yet:">/.test(page));
   check("answering an offer: no 'set now for' time is shown", /\{!fromOffer && \(\s*<Card className="bg-muted\/50">/.test(review));
-  check("…and no 'keep': the other answer is back to the offered times", /\{fromOffer \? \(\s*<Button[\s\S]{0,220}onClick=\{handleBackToOffer\}/.test(review) && /onClick=\{handleKeepOriginal\}/.test(review));
+  check("…and no 'keep': the other answer is back to the offered times", /\{fromOffer \? \(\s*<button[\s\S]{0,220}onClick=\{handleBackToOffer\}/.test(review) && /onClick=\{handleKeepOriginal\}/.test(review));
   const back = /const handleBackToOffer = async \(\) => \{[\s\S]*?\n  \};\n/.exec(review)?.[0] ?? "";
   check("back to the offer puts them back to choosing", /candidate_response: "awaiting_pick",\s*proposed_times: null,\s*candidate_note: null,/.test(back));
   check("…never touching the time, and never 'pending'", !/scheduled_at:/.test(back) && !/"pending"/.test(back));

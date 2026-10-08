@@ -7,7 +7,6 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
@@ -175,9 +174,9 @@ export function CandidateRescheduleRequestDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="hf-sheet sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{currentScheduledAt ? "Ask for another time" : "Suggest times that work for you"}</DialogTitle>
+          <DialogTitle className="font-display text-[22px] font-semibold">{currentScheduledAt ? "Ask for another time" : "Suggest times that work for you"}</DialogTitle>
           <DialogDescription>
             {currentScheduledAt
               ? `Set now for ${format(new Date(currentScheduledAt), "EEEE, MMMM d 'at' h:mm a")} (${getTimezoneAbbreviation()}).`
@@ -203,16 +202,13 @@ export function CandidateRescheduleRequestDialog({
                 <div className="flex gap-2">
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "flex-1 justify-start text-left font-normal",
-                          !slot.date && "text-muted-foreground"
-                        )}
+                      <button
+                        type="button"
+                        className={cn("hf-pill hf-pill--tonal hf-field flex-1", !slot.date && "hf-field--empty")}
                       >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {slot.date ? format(slot.date, "MMM d, yyyy") : "Pick date"}
-                      </Button>
+                        <CalendarIcon />
+                        {slot.date ? format(slot.date, "EEE, MMM d") : "Pick date"}
+                      </button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
@@ -229,7 +225,7 @@ export function CandidateRescheduleRequestDialog({
                     value={slot.time}
                     onValueChange={(value) => updateProposedTime(index, "time", value)}
                   >
-                    <SelectTrigger className="w-32">
+                    <SelectTrigger className="hf-field hf-field--select w-36">
                       <Clock className="mr-2 h-4 w-4" />
                       <SelectValue placeholder="Time" />
                     </SelectTrigger>
@@ -245,29 +241,25 @@ export function CandidateRescheduleRequestDialog({
               </div>
 
               {proposedTimes.length > 2 && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0"
-                  onClick={() => removeTimeSlot(index)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+                <button type="button" className="hf-pill hf-pill--text shrink-0" aria-label={`Remove option ${index + 1}`} onClick={() => removeTimeSlot(index)}>
+                  <X />
+                </button>
               )}
             </div>
           ))}
 
           {proposedTimes.length < 3 && (
-            <Button variant="outline" size="sm" onClick={addTimeSlot} className="w-full">
-              <Plus className="h-4 w-4 mr-2" />
+            <button type="button" className="hf-pill hf-pill--text hf-pill--link" onClick={addTimeSlot}>
+              <Plus />
               Add another time
-            </Button>
+            </button>
           )}
 
           <div className="space-y-2">
             <Label htmlFor="note">Note to the team (optional)</Label>
             <Textarea
               id="note"
+              className="hf-field hf-field--area"
               placeholder="Anything they should know, for example the hours you are free."
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -276,14 +268,14 @@ export function CandidateRescheduleRequestDialog({
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="gap-2.5 sm:gap-2.5 sm:space-x-0">
+          <button type="button" className="hf-pill hf-pill--tonal" onClick={() => onOpenChange(false)}>
             Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          </button>
+          <button type="button" className="hf-pill hf-pill--jade" onClick={handleSubmit} disabled={isSubmitting}>
+            {isSubmitting && <Loader2 className="animate-spin" />}
             Send my times
-          </Button>
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

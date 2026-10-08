@@ -268,3 +268,41 @@ export function candidateInterviewWords(
     action: "View details",
   };
 }
+
+/* ── The ticket's own words ─────────────────────────────────────────────── */
+
+/** The date as a ticket stub shows it: "SUN", "11", "OCT". On the reader's own clock unless a zone is given. */
+export function ticketDate(at: string | Date, timeZone?: string): { weekday: string; day: string; month: string } | null {
+  const date = typeof at === "string" ? new Date(at) : at;
+  if (Number.isNaN(date.getTime())) return null;
+  const zone = timeZone ? { timeZone } : {};
+  const part = (options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-US", { ...options, ...zone }).format(date);
+  return { weekday: part({ weekday: "short" }).toUpperCase(), day: part({ day: "numeric" }), month: part({ month: "short" }).toUpperCase() };
+}
+
+/** "9:00 AM": the clock time alone, with a plain space before AM/PM. */
+export function clockTime(at: string | Date, timeZone?: string): string {
+  const date = typeof at === "string" ? new Date(at) : at;
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", ...(timeZone ? { timeZone } : {}) }).format(date).replace(/\s+/g, " ");
+}
+
+/**
+ * When the way in opens, said shortly for the Join button: "today at 7:00 AM",
+ * "tomorrow at 7:00 AM", "Sun at 7:00 AM" within the week, "Sun, Oct 18 at
+ * 7:00 AM" beyond it.
+ */
+export function joinOpensWords(opensAt: Date | null | undefined, now: Date, timeZone?: string): string {
+  if (!opensAt || Number.isNaN(opensAt.getTime())) return "";
+  const zone = timeZone ? { timeZone } : {};
+  // The calendar day each falls on, on the reader's clock.
+  const dayOf = (d: Date) => new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", ...zone }).format(d);
+  const daysApart = Math.round((Date.parse(`${dayOf(opensAt)}T00:00:00Z`) - Date.parse(`${dayOf(now)}T00:00:00Z`)) / 86_400_000);
+  const time = clockTime(opensAt, timeZone);
+  if (daysApart === 0) return `today at ${time}`;
+  if (daysApart === 1) return `tomorrow at ${time}`;
+  const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short", ...zone }).format(opensAt);
+  if (daysApart > 1 && daysApart < 7) return `${weekday} at ${time}`;
+  const monthDay = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", ...zone }).format(opensAt);
+  return `${weekday}, ${monthDay} at ${time}`;
+}

@@ -172,7 +172,7 @@ console.log("\nThe applications list");
   check("…never the amber notice box again", !/amber-bg|amber-fg/.test(hero));
   check("its button opens the application at the interview", /navigate\(`\/applications\/\$\{application\.id\}#interview`\);/.test(list));
   check("the whole card opens it for a tap; the button inside is the control", /className="ck-reveal cursor-pointer p-5 sm:p-7"\s+onClick=\{onOpen\}/.test(hero) && /data-testid="interview-open"/.test(hero) && !/role="button"/.test(hero.replace(/\/\/.*$/gm, "")));
-  check("its sizes are set where the phone stylesheet cannot shrink them", /minHeight: 50, fontSize: 15\.5, paddingInline: 28/.test(hero));
+  check("its button is a pill, solid jade when it is theirs to do (never a dark slab)", /className=\{`hf-pill \$\{words\.theirMove \? "hf-pill--jade" : "hf-pill--tonal"\} hf-pill--lg w-full shrink-0 sm:w-auto`\}/.test(hero));
   check("the withdraw menu is still on it", /<div className="-mr-2 -mt-2 shrink-0">\{menu\}<\/div>/.test(hero) && /const menu = \(/.test(list));
   check("a live interview always opens the row", /const isLocked =\s*\(displayState\.isPendingReview \|\| displayState\.isWaitingPhase\) && !candidateHasSomethingToDo && !interviewWords;/.test(list));
   check("someone selected is never forwarded to a test on arrival", /stepWaitingOnComputer\(applications\?\.filter\(\(app\) => !liveInterviewWords\(app\)\)\)/.test(list));
@@ -199,29 +199,30 @@ console.log("\nThe application page and the card");
   check("…and no list of steps", /\{!interviewLive && \(\s*<div className="ck-reveal" style=\{\{ \["--ck-i" as string\]: 2 \}\} data-steps-list>/.test(page));
   check("…read from the one place, and not for a decided application", /isRejected \|\| isHired \|\| applicationStatus === "offered"\s*\? null\s*: candidateInterviewWords\(candidateInterview, \{ company: employerBranding, now: new Date\(\) \}\);/.test(page) && /const interviewLive = !!interviewWords;/.test(page));
   check("the page celebrates too, once, and the old pop-up is no longer raised for an interview", /<InterviewSelectedMoment\s+open=\{!!celebrateId\}/.test(page) && /interviewWords\?\.selected && candidateInterview && !hasCelebrated\(candidateInterview\.id\)/.test(page) && !/setStatusScreen\("interview_scheduled"\)/.test(page));
-  check("the card sits on the lit surface, with the seal and the same sentence", /<InterviewSurface\s+id="interview"/.test(card) && /<InterviewSeal size=\{58\} press=\{selected\} \/>/.test(card) && /const title = selected \? SELECTED_TITLE :/.test(card) && !/amber-bg|amber-fg/.test(card));
+  check("the card sits on the lit surface, with the seal and the same sentence", /<InterviewSurface id="interview" tone="selected"/.test(card) && /<InterviewSeal size=\{54\} press=\{press\} \/>/.test(card) && (card.match(/SELECTED_TITLE/g) ?? []).length >= 4 && !/amber-bg|amber-fg/.test(card));
   check("…once only", page.split("<CandidateInterviewConfirmationCard").length === 2);
   check("the page lands on it when the link says so", /window\.location\.hash !== "#interview"/.test(page) && /document\.getElementById\("interview"\)\?\.scrollIntoView/.test(page) && /id="interview"/.test(card));
   check("the card reads the stage from the one place", /const stage = candidateInterviewStage\(/.test(card) && /if \(!stage\) return null;/.test(card));
-  check("pick: the open times, each one a button", /stage === "pick" && \(/.test(card) && /slotGrid\("pick_slot", futureWindows\)/.test(card) && /data-interview-slot=\{w\.start\}/.test(card));
+  check("pick: the open times, each a small ticket with its own Choose button", /stage === "pick" && \(/.test(card) && /slotList\("pick_slot", futureWindows\)/.test(card) && /data-interview-slot=\{w\.start\}/.test(card) && /aria-label=\{`Choose \$\{interviewWhen\(w\.start\)\}`\}/.test(card));
   // "As soon as I clicked on the time, it just went ahead and did it."
-  check("one tap never books: it only asks", /onClick=\{\(\) => setAsking\(\{ window: w, action \}\)\}/.test(card) && !/onClick=\{\(\) => handlePickSlot\(w, action\)\}/.test(card));
-  check("'Book this time?' shows the time, on their clock, and says the team is told", /"Book this time\?"/.test(card) && /data-interview-ask-when/.test(card) && /On your own clock \(\{zone\}\)/.test(card) && /is told right away\./.test(card));
-  check("only 'Yes, book it' books; 'Go back' does nothing", /data-interview-ask-yes[\s\S]{0,220}if \(chosen\) void handlePickSlot\(chosen\.window, chosen\.action\);/.test(card) && /<AlertDialogCancel data-interview-ask-back>Go back<\/AlertDialogCancel>/.test(card) && (card.match(/handlePickSlot\(/g) ?? []).length === 1);
+  check("one tap never books: it only asks", /const ask = \(\) => \{\s*if \(!busy && action\) setAsking\(\{ window: w, action \}\);\s*\};/.test(card) && !/onClick=\{\(\) => handlePickSlot\(w, action\)\}/.test(card));
+  check("'Book this time?' shows the time as its ticket, on their clock, and says the team is told", /"Book this time\?"/.test(card) && /data-interview-ask-when aria-label=\{interviewWhen\(asking\.window\.start\)\}>\s*\{miniTicket\(asking\.window, null\)\}/.test(card) && /minutes · your time \(\{zone\}\)/.test(card) && /is told right away\./.test(card));
+  check("only 'Yes, book it' books; 'Go back' does nothing", /data-interview-ask-yes[\s\S]{0,220}if \(chosen\) void handlePickSlot\(chosen\.window, chosen\.action\);/.test(card) && /<AlertDialogCancel className="hf-pill hf-pill--tonal" data-interview-ask-back>\s*Go back\s*<\/AlertDialogCancel>/.test(card) && (card.match(/handlePickSlot\(/g) ?? []).length === 1);
   check("moving a booked time asks too", /"Move your interview to this time\?"/.test(card) && /"Yes, move it"/.test(card));
   check("pick: 'None of these work?' with a way to suggest others", /"None of these work\?"/.test(card) && /Suggest other times/.test(card) && /data-interview-suggest/.test(card));
-  check("pick with every time passed: still a way to answer", /The times \{teamLower\} offered have passed\. Tell them what works for you\./.test(card));
-  check("confirm: the time in words, confirm, or ask for another", /stage === "confirm" && \(/.test(card) && /Confirm this time/.test(card) && /Ask for another time/.test(card));
+  check("pick with every time passed: still a way to answer", /`The times \$\{teamLower\} offered have passed\. Tell them what works for you\.`/.test(card) && /Suggest times/.test(card));
+  check("confirm: the ticket, confirm, or ask for another", /stage === "confirm" &&\s*ticket\(\s*"selected",/.test(card) && /Confirm this time/.test(card) && /Ask for another time/.test(card));
   check("waiting: the offered times stay pickable", /stage === "waiting" && \(/.test(card) && /Changed your mind\?/.test(card));
-  check("confirmed: join, calendar, and a way to change it for any interview", /stage === "confirmed" && \(/.test(card) && /Add to calendar/.test(card) && /data-interview-change/.test(card) && /canFreeRepick \? setShowRepickSheet\(true\) : setSuggestOpen\(true\)/.test(card));
+  check("confirmed: the ticket, with join, calendar, and a way to change it for any interview", /stage === "confirmed" &&\s*ticket\(\s*"confirmed",/.test(card) && /Add to calendar/.test(card) && /data-interview-change/.test(card) && /canFreeRepick \? setShowRepickSheet\(true\) : setSuggestOpen\(true\)/.test(card));
+  check("the ticket says its date in words for a screen reader (the stub is three short labels)", /aria-label=\{label\}/.test(card) && /`Your interview is confirmed: \$\{interviewWhen\(effectiveScheduledAt\)\}`/.test(card) && /className=\{mini \? "hf-mini__stub" : "hf-ticket__stub"\} aria-hidden/.test(card));
   // "Maybe allow them to click on a button. The button will just say it will be available a couple hours before."
   check("the way in is read from the one place", /const join = joinPlan\(\{ \.\.\.interview, scheduled_at: effectiveScheduledAt, duration_minutes: effectiveDurationMinutes \}, now\);/.test(card) && /const canJoin = stage === "confirmed" && join\.open;/.test(card));
   check("the Join button always answers: before it opens it says when it will", /if \(!canJoin\) \{[\s\S]{0,260}toast\.message\(`Join opens \$\{join\.leadWords\} before your interview`/.test(card) && !/disabled=\{!canJoin\}/.test(card));
-  check("…and shows when on its own face", /Opens \{opensWords\}/.test(card) && /canJoin \? "Join interview now" : "Join interview"/.test(card));
+  check("…and shows when on its own face", /\{canJoin \? "Join interview now" : `Join opens \$\{opensShort\}`\}/.test(card) && /const opensShort = joinOpensWords\(join\.opensAt, now\);/.test(card));
   check("the link is opened only once the way in is open", /else if \(ownLink\) window\.open\(ownLink, "_blank", "noopener,noreferrer"\);/.test(card) && card.indexOf("if (!canJoin) {") < card.indexOf('window.open(ownLink, "_blank"') && !/href=\{ownLink\}/.test(card));
   check("their own pick is marked, so the page does not announce it back as 'rescheduled'", (card.match(/markOwnInterviewChange\(interview\.id\);/g) ?? []).length === 2 && /!isOwnInterviewChange\(newData\?\.id as string \| undefined\)/.test(page) && /oldData\?\.candidate_response !== "awaiting_pick"/.test(page));
   check("a cancelled interview is announced only when nothing took its place", /void refetchInterview\(\)\.then\(\(result\) => \{\s*if \(wasCancelled && !result\.data\) setStatusScreen\("interview_cancelled"\);/.test(page));
-  check("every time says whose clock it is on", /Times are on your own clock \(\{zone\}\)\./.test(card));
+  check("every time says whose clock it is on", /<small>your time \(\{zone\}\)<\/small>/.test(card) && /Your time · \{zone\}/.test(card) && /minutes · your time \(\{zone\}\)/.test(card));
   check("no 'current time' is claimed while none is agreed", /currentScheduledAt=\{stage === "pick" \|\| stage === "waiting" \? null : effectiveScheduledAt\}/.test(card));
   check("an answer refreshes the list too", /queryKey: \["applications", "candidate"\]/.test(card));
 
@@ -234,6 +235,44 @@ console.log("\nThe application page and the card");
   check("the pop-up shows no date and no link for an offer", /interviewDetails && localCandidateResponse !== "awaiting_pick" && <InterviewDetailsCard/.test(popup));
   check("…and sends them to the times instead of 'Confirm interview'", /localCandidateResponse === "awaiting_pick" \? \(\s*<div className="space-y-3" data-status-interview="pick">/.test(popup) && /See the times/.test(popup));
   check("the page tells the pop-up whether a time is set or only offered", /candidateResponse=\{candidateInterview\?\.candidate_response \?\? interviewDetails\?\.candidateResponse\}/.test(page) && /candidateResponse: data\.candidate_response,/.test(page));
+}
+
+console.log("\nThe look: the ticket, and no dark buttons");
+{
+  // The owner, from a photo of the card before this: "why are we still using
+  // the ugly old design, black buttons ... especially these harsh black
+  // buttons. I don't like them. Always choose modern." He then chose the
+  // "Ticket" from three drawn options.
+  const css = await read("src/styles/motion.css");
+  const card = await read("src/components/CandidateInterviewConfirmationCard.tsx");
+  const suggest = await read("src/components/CandidateRescheduleRequestDialog.tsx");
+  const review = await read("src/components/EmployerRescheduleReviewDialog.tsx");
+  const fx = await read("src/components/candidate/InterviewCelebration.tsx");
+  for (const [name, text] of [["the interview card", card], ["the suggest-times pop-up", suggest], ["the team's answer pop-up", review], ["the celebration", fx]]) {
+    check(`${name} uses none of the stock buttons (their outline is a black slab at night)`, !/from "@\/components\/ui\/button"/.test(text) && !/variant="outline"/.test(text));
+  }
+  const buttons = [...card.matchAll(/<button\b[^>]*?className=(?:"([^"]*)"|\{([^}]*)\})/g)].map((m) => m[1] ?? m[2]);
+  check("every button on the card is a pill", buttons.length >= 7 && buttons.every((c) => /hf-pill/.test(c)), buttons.filter((c) => !/hf-pill/.test(c)).join(" | "));
+  const pill = (kind) => new RegExp(`\\.hf-pill--${kind}\\.hf-pill--${kind}\\.hf-pill--${kind} \\{([^}]*)\\}`).exec(css)?.[1] ?? "";
+  check("four kinds: jade, tonal, mint, text", ["jade", "tonal", "mint", "text"].every((k) => pill(k).length > 0));
+  check("none of them is filled with the page's dark ground or with black", ["jade", "tonal", "mint", "text"].every((k) => !/var\(--(background|ground|sidebar|surface)\)|#0|#1|black/.test(pill(k))), ["jade", "tonal", "mint", "text"].map(pill).join(" "));
+  check("the soft ones are a tint of the text colour or of jade, so day and night both work", /color-mix\(in srgb, var\(--ink\) 7%, transparent\)/.test(pill("tonal")) && /var\(--jade-soft\)/.test(pill("mint")));
+  check("they outrank the phone stylesheet's button rule (the class is tripled)", /\.hf-pill\.hf-pill\.hf-pill \{/.test(css));
+  check("the keyboard ring is quiet, so 'Go back' does not look chosen", /\.hf-pill\.hf-pill\.hf-pill:focus-visible \{ outline: 1\.5px solid color-mix\(in srgb, var\(--ink\) 38%, transparent\)/.test(css));
+  check("the ticket: a stub with the date, a dashed tear, two notches", /\.hf-ticket \{ display: grid; grid-template-columns: 208px minmax\(0, 1fr\); \}/.test(css) && /\.hf-ticket__stub::after \{[^}]*border-right: 2px dashed/.test(css) && /\.hf-ticket__notch \{[^}]*background: var\(--ground\);/.test(css));
+  check("on a phone the stub lies across the top and the buttons are full width", /\.hf-ticket \{ grid-template-columns: minmax\(0, 1fr\); \}/.test(css) && /\.hf-acts > \.hf-pill \{ width: 100%; \}/.test(css) && /\.hf-ticket__notch \{ display: none; \}/.test(css));
+
+  const z = "America/New_York";
+  const now = new Date("2026-10-07T23:30:00Z");
+  check("the stub's three labels", JSON.stringify(C.ticketDate("2026-10-11T13:00:00Z", z)) === '{"weekday":"SUN","day":"11","month":"OCT"}');
+  check("…on the reader's own clock (midnight is the next day over there)", JSON.stringify(C.ticketDate("2026-10-11T16:30:00Z", "Asia/Manila")) === '{"weekday":"MON","day":"12","month":"OCT"}');
+  check("not a date: no stub", C.ticketDate("nope") === null);
+  check("the clock time alone, with a plain space", C.clockTime("2026-10-11T13:00:00Z", z) === "9:00 AM" && C.clockTime("nope") === "");
+  check("Join opens: today", C.joinOpensWords(new Date("2026-10-08T01:00:00Z"), now, z) === "today at 9:00 PM");
+  check("Join opens: tomorrow", C.joinOpensWords(new Date("2026-10-08T11:00:00Z"), now, z) === "tomorrow at 7:00 AM");
+  check("Join opens: later this week, by its day", C.joinOpensWords(new Date("2026-10-11T11:00:00Z"), now, z) === "Sun at 7:00 AM");
+  check("Join opens: further out, with the date", C.joinOpensWords(new Date("2026-10-18T11:00:00Z"), now, z) === "Sun, Oct 18 at 7:00 AM");
+  check("nothing to open: no words", C.joinOpensWords(null, now, z) === "" && C.joinOpensWords(undefined, now) === "");
 }
 
 console.log("\nThe celebration");
@@ -251,7 +290,7 @@ console.log("\nThe celebration");
   check("no interview id: nothing to celebrate", /if \(!interviewId\) return true;/.test(fx));
   check("the surface is jade and brass, with a quiet form for waiting", /\.hf-invite \{[\s\S]*?var\(--jade\)[\s\S]*?var\(--brass\)[\s\S]*?\}/.test(css) && /\.hf-invite\[data-tone="quiet"\]/.test(css) && !/\.hf-invite[^{]*\{[^}]*amber/.test(css));
   const calm = css.slice(css.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
-  check("for someone who asked for less motion: no paper, still sparks, words in place", /\.hf-confetti \{ display: none; \}/.test(calm) && /\.hf-spark \{ animation: none;/.test(calm) && /\.hf-rise \{ animation: none; \}/.test(calm));
+  check("for someone who asked for less motion: no paper, still sparks, words in place", /@media \(prefers-reduced-motion: reduce\) \{\s*\.hf-confetti \{ display: none; \}\s*\.hf-spark \{ animation: none;[^}]*\}\s*\.hf-rise \{ animation: none; \}/.test(css) && /\.hf-dot--live \{ animation: none; \}/.test(calm));
 }
 
 console.log("\nThe invitation email");

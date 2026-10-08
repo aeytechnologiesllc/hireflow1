@@ -114,6 +114,26 @@ cannot disagree. Four stages:
   page.
 - **Every time is on the reader's own clock, and says so** ("Times are on
   your own clock (GMT+8)").
+- **The look is the "Ticket", and no button is a dark slab.** From a photo of
+  the confirmed card the owner said (2026-10-07): "why are we still using the
+  ugly old design, black buttons, and cheap, cheap style ... before you
+  recreate it or change it ... I need you to show me the screenshots first of
+  the design ... especially these harsh black buttons. I don't like them.
+  Always choose modern." Three options were drawn first (a standalone page
+  with the real colours and fonts, one picture each); he chose "Ticket". A
+  confirmed interview, and one waiting to be confirmed, is a ticket: the date
+  on a stub at the left (weekday, day, month), torn along a dashed line, the
+  time large beside it. Each offered time is a small ticket with its own
+  "Choose". The stub is three short labels, so the surface carries the date
+  in words for a screen reader. Buttons are four kinds of pill and nothing
+  else (`.hf-pill` in `src/styles/motion.css`): jade (the one thing to do),
+  tonal (a soft tint of the text colour), mint (a soft tint of jade) and
+  text. The stock `Button` is not used on these screens or their pop-ups:
+  its `outline` variant is `bg-background`, a black slab at night. Fields on
+  the pop-ups use the same tint (`.hf-field`), and pop-ups are soft rounded
+  sheets (`.hf-sheet`). The same pills are on the team's "Other times
+  suggested" pop-up. **For any redesign: draw options and show them before
+  changing a screen.**
 - **Nothing is booked on one tap.** Choosing a time asks "Book this time?"
   with the day and time in words; only "Yes, book it" sends the answer, and
   moving a booked time asks the same way. The owner, 2026-10-07: "as soon as
@@ -123,8 +143,9 @@ cannot disagree. Four stages:
   team's own opens **two hours** before the start (the owner: "it will be
   available a couple hours before"); the built-in room fifteen minutes
   before, which is when the room itself opens. The Join button is always a
-  real button: before the way in opens it shows when it will ("Opens Sunday,
-  October 11 at 12:00 PM") and, pressed, says so instead of doing nothing.
+  real button: before the way in opens it shows when it will ("Join opens
+  Sun at 7:00 AM"; `joinOpensWords`) and, pressed, says so instead of doing
+  nothing.
   The link itself is not on the page before then (one Google Meet link
   serves every interview); the calendar file carries it.
 - **A confirmed interview stays on the page through its length and for an

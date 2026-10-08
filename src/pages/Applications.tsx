@@ -233,20 +233,13 @@ function InterviewHero({
             onOpen();
           }}
           data-testid="interview-open"
-          className={
-            words.theirMove
-              ? "inline-flex min-h-[50px] w-full shrink-0 items-center justify-center gap-2 rounded-[12px] px-7 text-[15.5px] font-semibold transition-[filter,transform] hover:brightness-110 active:scale-[0.98] sm:w-auto"
-              : "inline-flex min-h-[46px] w-full shrink-0 items-center justify-center gap-2 rounded-[12px] border px-5 text-sm font-semibold transition-colors hover:bg-[var(--surface-2)] sm:w-auto"
-          }
-          // Sizes inline: the phone stylesheet's button rule outranks any class.
-          style={
-            words.theirMove
-              ? { background: "var(--jade)", color: "var(--btn-fg)", minHeight: 50, fontSize: 15.5, paddingInline: 28 }
-              : { borderColor: "var(--hair)", color: "var(--ink)", minHeight: 46, fontSize: 14, paddingInline: 20 }
-          }
+          // A pill, like every button on the interview screens (no dark slabs:
+          // src/styles/motion.css, "Ticket"). Solid jade when it is theirs to do.
+          className={`hf-pill ${words.theirMove ? "hf-pill--jade" : "hf-pill--tonal"} hf-pill--lg w-full shrink-0 sm:w-auto`}
+          style={words.theirMove ? { paddingInline: 28, fontSize: 15.5 } : undefined}
         >
           {words.action}
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight />
         </button>
       </div>
     </InterviewSurface>
