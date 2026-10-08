@@ -50,6 +50,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const C = await import(pathToFileURL(path.join(ROOT, "src/lib/candidateInterview.ts")).href);
 const T = await import(pathToFileURL(path.join(ROOT, "src/lib/interviewTimes.ts")).href);
 const read = (rel) => readFile(path.join(ROOT, rel), "utf8");
+const read_ = read;
 
 let passed = 0;
 let failed = 0;
@@ -431,6 +432,52 @@ console.log("\nThe set-up screen opens on a day with times left");
   check("the same start times and cutoff are used for both", /const SLOT_VALUES = timeSlots\.map\(\(slot\) => slot\.value\);/.test(wizard) && /const DAY_CUTOFF = \{ hour: 20, minute: 30 \};/.test(wizard));
   // Booking a time outright had the same hole: every time of today could be chosen, passed or not.
   check("booking outright: a time that has passed is not offered, and Next waits for one that is ahead", /disabled=\{exactTimePassed\(slot\.value\)\}/.test(wizard) && /if \(exactTimeMode\) return !!\(selectedDate && selectedTime\) && !exactTimePassed\(selectedTime\);/.test(wizard) && /if \(selectedTime && exactTimePassed\(selectedTime\)\) setSelectedTime\(""\);/.test(wizard));
+}
+
+console.log("\nThe team's page for an applicant says where the interview stands");
+{
+  // The owner, minutes after inviting his first finalists: "I just set him
+  // up for an interview, but it didn't change here. It still says set up
+  // interview. Can you see if that one went through?" It had. The page read
+  // no interview at all.
+  const TS = await import(pathToFileURL(path.join(ROOT, "src/lib/teamInterviewStatus.ts")).href);
+  const EAST = "America/New_York";
+  const read = (interview, over = {}) => TS.teamInterviewStatus(interview, NOW, { firstName: "Ana", theirZone: MANILA, teamZone: EAST, ...over });
+  const OFFER = { start: "2026-10-09T21:00:00.000Z", durationMinutes: 30, zone: EAST };
+  const offered = read({ status: "scheduled", candidate_response: "awaiting_pick", scheduled_at: OFFER.start, duration_minutes: 30, employer_windows: [OFFER] });
+  check("a time offered and not booked: said, on both clocks, and that it is not booked yet", offered.state === "offered" && offered.title === "Interview offered" && offered.detail === "Fri, Oct 9 at 5:00 PM (Sat 5:00 AM for Ana). Not booked yet: you are told when Ana books it." && offered.action === "change", JSON.stringify(offered));
+  check("someone on the team's own clock: one time, not the same one twice", read({ status: "scheduled", candidate_response: "awaiting_pick", scheduled_at: OFFER.start, employer_windows: [OFFER] }, { theirZone: EAST }).detail === "Fri, Oct 9 at 5:00 PM. Not booked yet: you are told when Ana books it.");
+  check("their clock not on file: the team's time alone", read({ status: "scheduled", candidate_response: "awaiting_pick", scheduled_at: OFFER.start, employer_windows: [OFFER] }, { theirZone: null }).detail.startsWith("Fri, Oct 9 at 5:00 PM. Not booked yet"));
+  const passed = read({ status: "scheduled", candidate_response: "awaiting_pick", scheduled_at: PAST.start, employer_windows: [PAST] });
+  check("the offered time went by unbooked: said, and the button sets one up again", passed.state === "passed" && passed.title === "The offered time passed" && passed.action === "set-up", JSON.stringify(passed));
+  const several = read({ status: "scheduled", candidate_response: "awaiting_pick", scheduled_at: W1.start, employer_windows: [W1, W2] });
+  check("an older offer of several times: how many are still open", several.state === "offered-several" && several.detail === "2 times are still open. Not picked yet.", JSON.stringify(several));
+  const booked = read({ status: "scheduled", candidate_response: "confirmed", scheduled_at: OFFER.start, duration_minutes: 30, employer_windows: [OFFER] });
+  check("booked: said as booked, with the time", booked.state === "booked" && booked.title === "Interview booked" && booked.detail === "Fri, Oct 9 at 5:00 PM (Sat 5:00 AM for Ana). Ana booked it." && booked.action === "change", JSON.stringify(booked));
+  const justStarted = TS.teamInterviewStatus({ status: "scheduled", candidate_response: "confirmed", scheduled_at: new Date(NOW.getTime() - 20 * 60_000).toISOString(), duration_minutes: 30 }, NOW, { firstName: "Ana" });
+  check("a booked interview is still there while it runs, and gone once it is well over", justStarted?.state === "booked" && TS.teamInterviewStatus({ status: "scheduled", candidate_response: "confirmed", scheduled_at: PAST.start, duration_minutes: 30 }, NOW, {}) === null);
+  const toConfirm = read({ status: "scheduled", candidate_response: "pending", scheduled_at: OFFER.start });
+  check("a time booked outright: waiting for them to confirm", toConfirm.state === "to-confirm" && toConfirm.detail === "Fri, Oct 9 at 5:00 PM (Sat 5:00 AM for Ana). Waiting for Ana to confirm.", JSON.stringify(toConfirm));
+  const cant = read({ status: "scheduled", candidate_response: "reschedule_requested", scheduled_at: OFFER.start, employer_windows: [OFFER] });
+  check("they can't make it: said, and the button sets a new time", cant.state === "cant-make" && cant.title === "Ana can't make it" && cant.detail === "Ana wrote when they are free. Set a new time and they are asked to book it." && cant.action === "set-new", JSON.stringify(cant));
+  check("no interview, a cancelled one, a finished one: nothing is said", read(null) === null && read({ status: "cancelled", candidate_response: "confirmed", scheduled_at: OFFER.start }) === null && read({ status: "completed", candidate_response: "confirmed", scheduled_at: OFFER.start }) === null && read({ status: "scheduled", candidate_response: "pending", scheduled_at: PAST.start }) === null);
+  const nameless = TS.teamInterviewStatus({ status: "scheduled", candidate_response: "reschedule_requested" }, NOW, {});
+  check("no name: still sentences", nameless.title === "They can't make it" && nameless.detail.startsWith("They wrote when they are free."));
+  check("no leaked value and no dash as punctuation in any of it", [offered, passed, several, booked, toConfirm, cant, nameless].every((r) => !/undefined|null|NaN|Invalid|[\u2013\u2014\u00a0\u202f]/.test(`${r.title} ${r.detail}`)));
+
+  const page = await read_("src/cockpit/pages/CandidateDetail.tsx");
+  const cardFile = await read_("src/cockpit/components/ApplicantDecisionCard.tsx");
+  const hook = await read_("src/hooks/useLiveInterviewForApplication.ts");
+  check("the page reads the applicant's live interview, and words it from the one place", /const liveInterview = useLiveInterviewForApplication\(id\)\.data \?\? null;/.test(page) && /teamInterviewStatus\(liveInterview, new Date\(\), \{ firstName: first, theirZone \}\)/.test(page));
+  check("one plain look-up, no join, kept fresh with every other interview query", /\.from\("interviews"\)\s*\.select\("id, status, candidate_response, scheduled_at, duration_minutes, employer_windows, created_at"\)/.test(hook) && /queryKey: \["interviews", "application-live", applicationId\]/.test(hook) && /\.eq\("status", "scheduled"\)\s*\.order\("created_at", \{ ascending: false \}\)\s*\.limit\(1\)/.test(hook) && !/profiles/.test(hook));
+  const sync = await read_("src/cockpit/hooks/useEmployerLiveSync.ts");
+  check("…so it changes live when the applicant books, without a refresh", /LIVE_SYNC_INTERVIEW_KEYS: readonly QueryKey\[\] = \[\["interviews"\]\];/.test(sync));
+  check("with an interview that stands the button changes its time, and nothing is filled", /text: "Change interview time", cardText: "Change the time"/.test(page) && /const nothingToPress = lead === setupAction && interviewStatus\?\.action === "change";\s*if \(!declineRecommended && !nothingToPress\) lead\.variant = "primary";/.test(page));
+  check("after 'can't make it' the button is 'Set a new time', on the Interviews page", /text: "Set a new time", variant: "outline", onClick: \(\) => navigate\("\/interviews"\)/.test(page));
+  check("the card says it above its buttons, in every layout that has a card, and the older layout says it too", /\{interview && !outcome && <InterviewStatus status=\{interview\} className="mb-3" \/>\}/.test(cardFile) && (page.match(/interview=\{interviewLine\}/g) ?? []).length === 2 && /\{interviewLine && \(\s*<div className="ck-card p-4">\s*<InterviewStatus status=\{interviewLine\} \/>/.test(page));
+  check("not once a decision is made (offered, hired, declined)", /const interviewStatus = isOffered \|\| isTerminal \? null : interviewRead;/.test(page));
+  const wizard = await read_("src/components/InterviewSchedulingWizard.tsx");
+  check("a time that replaces a live interview is said to the applicant as a new time", /\.\.\.\(earlierIds\.length > 0 \? \{ again: true \} : \{\}\),/.test(wizard) && /undefined,\s*earlierIds\.length > 0\s*\);/.test(wizard));
 }
 
 console.log("\nThe applicant's menu");

@@ -770,10 +770,13 @@ export default function InterviewSchedulingWizard({
         scheduledAt = combineDayAndTime(sortedSelectedWindows[0].day, sortedSelectedWindows[0].time);
         // `zone` is the clock these were picked on: what the applicant's
         // answer is written on when the team is told (candidate-interview-response).
+        // Replacing an interview that was still live (the time changed):
+        // marked `again`, so the applicant's page and email say "a new time".
         const employerWindows = sortedSelectedWindows.map((w) => ({
           start: combineDayAndTime(w.day, w.time).toISOString(),
           durationMinutes: parseInt(duration),
           zone: teamZone,
+          ...(earlierIds.length > 0 ? { again: true } : {}),
         }));
 
         await createInterview.mutateAsync({
@@ -839,7 +842,8 @@ export default function InterviewSchedulingWizard({
             appData.candidate_id,
             resolvedJobTitle,
             proposedTimes,
-            undefined
+            undefined,
+            earlierIds.length > 0
           );
           setCandidateEmailStatus(status);
         }

@@ -39,7 +39,10 @@ import { AvasRead, type AvasReadApp } from "../components/AvasRead";
 import { ApplicantTimeline, type TimelineApp } from "../components/ApplicantTimeline";
 import { InterviewMoment } from "../components/InterviewMoment";
 import { ApplicantDecisionDialogs, type ApplicantDecision } from "../components/ApplicantDecisionDialogs";
-import { ApplicantDecisionCard, type DecisionAction, type DecisionCardActions } from "../components/ApplicantDecisionCard";
+import { ApplicantDecisionCard, InterviewStatus, type DecisionAction, type DecisionCardActions, type DecisionInterviewStatus } from "../components/ApplicantDecisionCard";
+import { useLiveInterviewForApplication } from "@/hooks/useLiveInterviewForApplication";
+import { useApplicantTimeZone } from "@/hooks/useApplicantTimeZone";
+import { teamInterviewStatus } from "@/lib/teamInterviewStatus";
 // Remove and block on the profile too (its ⋯ menu; the phone's More).
 import { ActionsMenu, ApplicantActionDialogs, BlockedNote, applicantMenuItems, type ApplicantActionRequest } from "../components/ApplicantRowMenu";
 import { useBlockedApplicants } from "../hooks/useApplicantBlocks";
@@ -447,6 +450,10 @@ function CandidateProfile({
   const { isTeamMember } = useAuth();
   const { candidate: c, application, isLoading, isError, refetch } = useCockpitCandidate(id);
   const { advance, hire, reject, letContinue, isUpdating } = useCockpitActions();
+  // Their live interview, if one has been set up: the decision card says
+  // where it stands instead of offering "Set up interview" as if none had.
+  const liveInterview = useLiveInterviewForApplication(id).data ?? null;
+  const theirZone = useApplicantTimeZone(id, !!liveInterview).data ?? null;
   const [dialog, setDialog] = useState<ApplicantDecision | null>(null);
   const [hirePrompt, setHirePrompt] = useState(false);
   const [resumeOpen, setResumeOpen] = useState(false);
@@ -745,6 +752,17 @@ function CandidateProfile({
       </button>
     ) : null;
 
+  // Where their interview stands, in words (null when none is live).
+  const interviewRead = teamInterviewStatus(liveInterview, new Date(), { firstName: first, theirZone });
+  const interviewStatus = isOffered || isTerminal ? null : interviewRead;
+  const interviewLine: DecisionInterviewStatus | null = interviewStatus
+    ? {
+        title: interviewStatus.title,
+        detail: interviewStatus.detail,
+        tone: interviewStatus.state === "booked" ? "ok" : interviewStatus.action === "change" ? "wait" : "act",
+      }
+    : null;
+
   // The decision bar, in the order it reads. On a phone the first buttons
   // stay and the rest go behind "More" (at most three on screen); from md up
   // every one is on the bar.
@@ -773,14 +791,24 @@ function CandidateProfile({
           disabled: isUpdating,
         }
       : null;
-    const setupAction: BarAction = { key: "setup", text: "Set up interview", variant: "outline", onClick: () => setScheduleOpen(true), pulse: scheduleHint };
+    // With an interview already live, the button changes that one's time
+    // (the wizard replaces it); after "I can't make it" it goes to the
+    // Interviews page, where what they wrote is and the new time is set.
+    const setupAction: BarAction =
+      interviewStatus?.action === "set-new"
+        ? { key: "setup", text: "Set a new time", variant: "outline", onClick: () => navigate("/interviews") }
+        : interviewStatus?.action === "change"
+          ? { key: "setup", text: "Change interview time", cardText: "Change the time", variant: "outline", onClick: () => setScheduleOpen(true) }
+          : { key: "setup", text: "Set up interview", variant: "outline", onClick: () => setScheduleOpen(true), pulse: scheduleHint };
     // Once they are in the interview stage, booking the time is the next
     // thing; before that, moving them on is. The human still decides — both
     // stay live, never disabled or hidden — but when Ava recommends declining
     // neither is filled, so the page is not nudging toward what she warned against.
     const [lead, other]: [BarAction, BarAction | null] =
       status === "interview" || !advanceAction ? [setupAction, advanceAction] : [advanceAction, setupAction];
-    if (!declineRecommended) lead.variant = "primary";
+    // An interview that stands needs nothing pressed: no button is filled.
+    const nothingToPress = lead === setupAction && interviewStatus?.action === "change";
+    if (!declineRecommended && !nothingToPress) lead.variant = "primary";
     // Opens their next STEP (quiz, typing test, chat practice…), which Ava
     // holds back when she recommends declining. "Move to …" only moves the
     // pipeline stage.
@@ -1165,7 +1193,7 @@ function CandidateProfile({
             >
               <div className="ckp-decide-wrap">
                 <div ref={setDecideEl}>
-                  <ApplicantDecisionCard actions={cardActions} outcome={outcome} />
+                  <ApplicantDecisionCard actions={cardActions} outcome={outcome} interview={interviewLine} />
                 </div>
               </div>
               <div ref={setPanelsEl} className="ckp-panels">
@@ -1189,7 +1217,7 @@ function CandidateProfile({
         {header}
         {blockedNode && <div className="mt-4">{blockedNode}</div>}
         <div ref={setCardEl} className="mt-5">
-          <ApplicantDecisionCard actions={cardActions} outcome={outcome} layout={!measured || width >= CARD_ROW_FROM ? "row" : "stack"} />
+          <ApplicantDecisionCard actions={cardActions} outcome={outcome} interview={interviewLine} layout={!measured || width >= CARD_ROW_FROM ? "row" : "stack"} />
         </div>
         {journeyNode}
         <div className="mt-[26px]">
@@ -1249,6 +1277,13 @@ function CandidateProfile({
 
       <div className="space-y-3">
         {blockedNode}
+        {/* The older layout has no decision card: where their interview stands
+            is said here, above the bar of buttons it explains. */}
+        {interviewLine && (
+          <div className="ck-card p-4">
+            <InterviewStatus status={interviewLine} />
+          </div>
+        )}
         <div className="ck-card flex items-center gap-4 p-4">
           {/* No score yet → no arc. The ring must not draw a 0 as a verdict. */}
           <CandidateMark who={c.avatar} initials={getInitials(c.name)} size={72} score={score.value ?? undefined} rich variant="signal" />

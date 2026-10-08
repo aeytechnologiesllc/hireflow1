@@ -42,6 +42,17 @@ whose clock its time is written on, and where the call happens.
   - A wheel row is exactly as tall as the wheel counts on. On a phone the
     stylesheet's 44px button floor made rows taller, so the lit row and the
     button drifted a row apart further down the list.
+- **The applicant's page says where their interview stands**
+  (`src/lib/teamInterviewStatus.ts`, `useLiveInterviewForApplication`). The
+  owner, minutes after his first invitations (2026-10-08): "I just set him up
+  for an interview, but it didn't change here. It still says set up
+  interview. Can you see if that one went through?" It had; the page read no
+  interview at all. Now "Your decision" says "Interview offered ... Not
+  booked yet", "Interview booked", or "X can't make it", with the time on
+  both clocks, and its button becomes "Change the time" (or "Set a new time",
+  which opens the Interviews page). It changes live when the applicant books.
+  Changing the time replaces the interview, and the applicant is told it is
+  a new time.
 - **It opens on the first day that still has a time to offer**
   (`src/lib/interviewOfferDays.ts`). It used to open on today, always: after
   8:00 PM every one of today's times has passed, so the owner, who sets
