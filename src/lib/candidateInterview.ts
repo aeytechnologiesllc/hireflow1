@@ -51,10 +51,18 @@ export function interviewLiveUntil(interview: CandidateInterviewLike | null | un
 
 /**
  * Where the applicant stands:
- *  - "pick": the team offered times and none is chosen yet;
+ *  - "pick": the team offered a time (one, since 2026-10-07; several before)
+ *    and it is not booked yet;
  *  - "confirm": the team set one time and asks them to confirm it;
- *  - "waiting": they asked for other times and the team has not answered;
+ *  - "waiting": they said they cannot make it and wrote when they are free;
+ *    the team has not set a new time yet;
  *  - "confirmed": a time is agreed.
+ *
+ * The owner, 2026-10-07: "I wanna just give them one time for the interview,
+ * not two ... if they cannot make it on that time, don't let them just select
+ * times. Let them write a message ... and then I get to schedule it." So the
+ * applicant books the one time or writes their availability: no time pickers
+ * on their side, and no back and forth over times nobody can do.
  */
 export type CandidateInterviewStage = "pick" | "confirm" | "waiting" | "confirmed";
 
@@ -179,6 +187,8 @@ export interface CandidateInterviewWords {
 
 /** What an applicant who has just been chosen is told, everywhere. */
 export const SELECTED_TITLE = "You've been selected for an interview";
+/** The one way to answer "I can't make it": say when they are free, in words. */
+export const TELL_AVAILABILITY = "Tell them when you're free";
 
 /**
  * Has this applicant a live interview with the team? While they have, the
@@ -204,8 +214,12 @@ export function candidateInterviewWords(
   const when = interview.scheduled_at ? interviewWhen(interview.scheduled_at, options.timeZone) : "";
 
   if (stage === "pick") {
-    const open = openWindows(offeredWindows(interview.employer_windows), options.now).length;
+    const offered = offeredWindows(interview.employer_windows);
+    const stillOpen = openWindows(offered, options.now);
+    const open = stillOpen.length;
     if (open === 0) {
+      const passed = offered.length === 1 ? "time" : "times";
+      const have = offered.length === 1 ? "has" : "have";
       return {
         stage,
         theirMove: true,
@@ -213,9 +227,24 @@ export function candidateInterviewWords(
         chip: "Reply needed",
         eyebrow: "Congratulations",
         title: SELECTED_TITLE,
-        body: `The times ${team === "The hiring team" ? "the hiring team" : team} offered have passed. Tell them what works for you.`,
-        ask: "The times they offered have passed. Tell them what works for you.",
-        action: "Suggest times",
+        body: `The ${passed} ${team === "The hiring team" ? "the hiring team" : team} offered ${have} passed. Tell them when you are free.`,
+        ask: `The ${passed} they offered ${have} passed. Tell them when you are free.`,
+        action: TELL_AVAILABILITY,
+      };
+    }
+    if (open === 1) {
+      // One time: said outright, wherever this is read.
+      const offeredWhen = interviewWhen(stillOpen[0].start, options.timeZone);
+      return {
+        stage,
+        theirMove: true,
+        selected: true,
+        chip: "Book your time",
+        eyebrow: "Congratulations",
+        title: SELECTED_TITLE,
+        body: `${team} would like to meet you on ${offeredWhen}. Book it, or tell them when you are free.`,
+        ask: `They would like to meet you on ${offeredWhen}. Book it, or tell them when you are free.`,
+        action: "See your time",
       };
     }
     return {
@@ -225,8 +254,8 @@ export function candidateInterviewWords(
       chip: "Pick your time",
       eyebrow: "Congratulations",
       title: SELECTED_TITLE,
-      body: `${team} offered ${open === 1 ? "one time" : `${open} times`}. ${open === 1 ? "Take it, or suggest another." : "Pick the one that works for you."}`,
-      ask: `They offered ${open === 1 ? "one time" : `${open} times`}. ${open === 1 ? "Take it, or suggest another." : "Pick the one that works for you."}`,
+      body: `${team} offered ${open} times. Pick the one that works for you.`,
+      ask: `They offered ${open} times. Pick the one that works for you.`,
       action: "Pick your time",
     };
   }
@@ -238,8 +267,8 @@ export function candidateInterviewWords(
       chip: "Confirm interview",
       eyebrow: "Congratulations",
       title: SELECTED_TITLE,
-      body: `${team} set it for ${when}. Confirm it, or ask for another time.`,
-      ask: `They set it for ${when}. Confirm it, or ask for another time.`,
+      body: `${team} set it for ${when}. Confirm it, or tell them when you are free.`,
+      ask: `They set it for ${when}. Confirm it, or tell them when you are free.`,
       action: "Confirm or change",
     };
   }
@@ -251,8 +280,8 @@ export function candidateInterviewWords(
       chip: "Awaiting reply",
       eyebrow: "Your interview",
       title: "You asked for another interview time",
-      body: `${team === "The hiring team" ? "The hiring team has" : `${team} has`} your times and will reply. Nothing to do for now.`,
-      ask: "They have your times and will reply. Nothing to do for now.",
+      body: `${team === "The hiring team" ? "The hiring team has" : `${team} has`} your message and will set a new time. Nothing to do for now.`,
+      ask: "They have your message and will set a new time. Nothing to do for now.",
       action: "View",
     };
   }

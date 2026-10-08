@@ -380,6 +380,8 @@ export async function decideNotification(
           .slice(0, 12);
         kept.proposed_times_list = times.length > 0 ? times : undefined;
         kept.window_count = times.length > 0 ? String(times.length) : undefined;
+        // A new time, set after they could not make an earlier one: a mark, never text.
+        kept.again = asked.again === "1" || asked.again === true ? "1" : undefined;
       }
       return {
         ok: true,

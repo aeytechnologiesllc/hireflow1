@@ -11,12 +11,13 @@ import { differenceInHours } from "date-fns";
 import { ArrowRight, CalendarPlus, Check, Clock, ExternalLink, Loader2, Video } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CandidateRescheduleRequestDialog } from "./CandidateRescheduleRequestDialog";
 import { getTimezoneAbbreviation, getTimezoneName } from "@/lib/timezone";
 import { buildCandidateInterviewIcs, downloadIcsFile, icsFileStem } from "@/lib/calendarInvite";
 import {
   SELECTED_TITLE,
+  TELL_AVAILABILITY,
   candidateInterviewStage,
   clockTime,
   interviewKindWords,
@@ -49,12 +50,17 @@ import type { Json } from "@/integrations/supabase/types";
  *
  * Four stages, read by src/lib/candidateInterview.ts so this card, the
  * applications list and the pop-up always agree:
- *  - pick: the team offered times. They choose one, or say none work and
- *    suggest their own.
- *  - confirm: the team set one time. They confirm it or ask for another.
- *  - waiting: they suggested times; the team has not answered. The offered
- *    times stay pickable.
+ *  - pick: the team offered a time (one, since 2026-10-07). They book it, or
+ *    say they cannot make it and write when they are free.
+ *  - confirm: the team set one time. They confirm it, or say they cannot.
+ *  - waiting: they wrote when they are free; the team has not set a new time
+ *    yet. The offered time stays bookable in case they can make it after all.
  *  - confirmed: the time, how to join, a calendar file, and a way to change.
+ *
+ * The applicant never picks times of their own. The owner, 2026-10-07: "don't
+ * let them just select times. Let them write a message ... and then I get to
+ * schedule it ... I don't want them to pick two times and then I can't do
+ * those two times."
  *
  * Every time here is on the reader's own clock, and says so.
  *
@@ -132,9 +138,7 @@ export function CandidateInterviewConfirmationCard({
   // What the applicant just did, shown at once and dropped when the server's
   // row catches up.
   const [localCandidateResponse, setLocalCandidateResponse] = useState(interview.candidate_response);
-  const [localProposedTimesCount, setLocalProposedTimesCount] = useState<number>(
-    Array.isArray(interview.proposed_times) ? interview.proposed_times.length : 0
-  );
+  // What they wrote when they said they cannot make it (their availability).
   const [localCandidateNote, setLocalCandidateNote] = useState<string | null>(interview.candidate_note);
   const [localPickedWindow, setLocalPickedWindow] = useState<OfferedWindow | null>(null);
 
@@ -147,14 +151,47 @@ export function CandidateInterviewConfirmationCard({
 
   useEffect(() => {
     setLocalCandidateResponse(interview.candidate_response);
-    setLocalProposedTimesCount(Array.isArray(interview.proposed_times) ? interview.proposed_times.length : 0);
     setLocalCandidateNote(interview.candidate_note);
     setLocalPickedWindow(null);
   }, [interview.candidate_response, interview.proposed_times, interview.candidate_note, interview.scheduled_at]);
 
   const windows = useMemo(() => offeredWindows(interview.employer_windows), [interview.employer_windows]);
   const hasWindows = windows.length > 0;
-  const futureWindows = useMemo(() => openWindows(windows, now), [windows, now]);
+  // The team set this time after the applicant said they could not make an
+  // earlier one (EmployerRescheduleReviewDialog marks it `again`).
+  const reoffered = useMemo(
+    () => Array.isArray(interview.employer_windows) && interview.employer_windows.some((w) => (w as { again?: unknown } | null)?.again === true),
+    [interview.employer_windows],
+  );
+
+  // One time, one applicant: the offered times another applicant has already
+  // booked are not shown. This applicant cannot see anyone else's interview,
+  // so the function says which ones are gone ("open_slots"). Asked on arrival
+  // and whenever the page is looked at again; if it cannot be asked, every
+  // time is shown and the function still refuses a taken one at the booking.
+  const { data: takenStarts } = useQuery({
+    queryKey: ["interview-open-slots", interview.id],
+    queryFn: async (): Promise<string[]> => {
+      const { data, error } = await supabase.functions.invoke("candidate-interview-response", {
+        body: { action: "open_slots", interviewId: interview.id },
+      });
+      if (error || !data?.success || !Array.isArray(data.taken)) return [];
+      return data.taken as string[];
+    },
+    // Only while there is still a time to choose (or to swap to).
+    enabled: hasWindows && interview.status === "scheduled" && (localCandidateResponse !== "confirmed" || showRepickSheet),
+    staleTime: 20_000,
+    refetchOnWindowFocus: true,
+    refetchInterval: 60_000,
+  });
+  // Named at the moment of booking too (the function's "slot_taken").
+  const [justTaken, setJustTaken] = useState<string[]>([]);
+  const futureWindows = useMemo(() => {
+    const gone = new Set([...(takenStarts ?? []), ...justTaken].map((start) => new Date(start).getTime()));
+    return openWindows(windows, now).filter((w) => !gone.has(new Date(w.start).getTime()));
+  }, [windows, now, takenStarts, justTaken]);
+  // Offered times that are still ahead, taken or not: to say "taken" rather than "passed".
+  const someStillAhead = useMemo(() => openWindows(windows, now).length > 0, [windows, now]);
 
   const effectiveScheduledAt = localPickedWindow?.start ?? interview.scheduled_at;
   const effectiveDurationMinutes = localPickedWindow?.durationMinutes ?? interview.duration_minutes;
@@ -210,6 +247,16 @@ export function CandidateInterviewConfirmationCard({
         body: { action, interviewId: interview.id, slotStart: window.start, timeZone: getTimezoneName() },
       });
       if (error) throw error;
+      if (data?.error === "slot_taken") {
+        // Someone else booked it in the meantime: put things back, take that
+        // time off the list, and say so plainly.
+        setLocalCandidateResponse(previousResponse);
+        setLocalPickedWindow(previousPicked);
+        setJustTaken((prev) => [...prev, window.start, ...(Array.isArray(data.taken) ? (data.taken as string[]) : [])]);
+        queryClient.invalidateQueries({ queryKey: ["interview-open-slots", interview.id] });
+        toast.error("That time was just taken", { description: "Someone else booked it a moment ago. Please pick another." });
+        return;
+      }
       if (!data?.success) throw new Error(data?.error || "Failed to lock in that time");
 
       refresh();
@@ -228,10 +275,9 @@ export function CandidateInterviewConfirmationCard({
     }
   };
 
-  const handleSuggested = ({ proposedTimesCount, candidateNote }: { proposedTimesCount: number; candidateNote: string | null }) => {
+  const handleAvailabilitySent = ({ availability }: { availability: string }) => {
     setLocalCandidateResponse("reschedule_requested");
-    setLocalProposedTimesCount(proposedTimesCount);
-    setLocalCandidateNote(candidateNote);
+    setLocalCandidateNote(availability);
     queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
   };
 
@@ -287,7 +333,7 @@ export function CandidateInterviewConfirmationCard({
   };
 
   /** One offered time, as a small ticket. Tapping it only asks; "Yes, book it" books. */
-  const miniTicket = (w: OfferedWindow, action: "pick_slot" | "repick_slot" | null) => {
+  const miniTicket = (w: OfferedWindow, action: "pick_slot" | "repick_slot" | null, word = "Choose") => {
     const picking = pickingStart === w.start;
     const busy = pickingStart !== null;
     const ask = () => {
@@ -315,13 +361,13 @@ export function CandidateInterviewConfirmationCard({
             type="button"
             className="hf-pill hf-pill--mint hf-pill--sm"
             disabled={busy}
-            aria-label={`Choose ${interviewWhen(w.start)}`}
+            aria-label={`${word} ${interviewWhen(w.start)}`}
             onClick={(e) => {
               e.stopPropagation();
               ask();
             }}
           >
-            {picking ? "Booking" : "Choose"}
+            {picking ? "Booking" : word}
             {picking ? <Loader2 className="animate-spin" /> : <ArrowRight />}
           </button>
         ) : (
@@ -331,9 +377,10 @@ export function CandidateInterviewConfirmationCard({
     );
   };
 
+  // One time on the table is booked, not chosen among.
   const slotList = (action: "pick_slot" | "repick_slot", slots: OfferedWindow[]) => (
     <div className="grid gap-3" data-interview-slots={slots.length}>
-      {slots.map((w) => miniTicket(w, action))}
+      {slots.map((w) => miniTicket(w, action, slots.length === 1 && action === "pick_slot" ? "Book this time" : "Choose"))}
     </div>
   );
 
@@ -355,7 +402,7 @@ export function CandidateInterviewConfirmationCard({
     <div className="mt-5 flex flex-wrap items-center gap-x-1.5 gap-y-2 text-[14.5px]" style={{ color: "var(--ink-3)" }}>
       <span>{question}</span>
       <button type="button" className="hf-pill hf-pill--text hf-pill--link" onClick={() => setSuggestOpen(true)} data-interview-suggest>
-        Suggest other times
+        {TELL_AVAILABILITY}
       </button>
       <span className="hf-chip ml-auto" data-interview-clock>
         <Clock />
@@ -411,10 +458,12 @@ export function CandidateInterviewConfirmationCard({
             {futureWindows.length > 0 ? (
               <>
                 {header(
-                  "Congratulations",
+                  reoffered ? "A new time" : "Congratulations",
                   SELECTED_TITLE,
                   futureWindows.length === 1
-                    ? `${team} offered one time. Take it, or suggest another.`
+                    ? reoffered
+                      ? `${team} set a new time for you. Book it, or tell them when you are free.`
+                      : `${team} would like to meet you at this time. Book it, or tell them when you are free.`
                     : `${team} offered ${futureWindows.length} times. Pick the one that works for you.`,
                   true,
                 )}
@@ -423,10 +472,21 @@ export function CandidateInterviewConfirmationCard({
               </>
             ) : (
               <>
-                {header("Congratulations", SELECTED_TITLE, `The times ${teamLower} offered have passed. Tell them what works for you.`, true)}
+                {header(
+                  "Congratulations",
+                  SELECTED_TITLE,
+                  windows.length === 1
+                    ? someStillAhead
+                      ? `The time ${teamLower} offered has just been taken. Tell them when you are free.`
+                      : `The time ${teamLower} offered has passed. Tell them when you are free.`
+                    : someStillAhead
+                      ? `The times ${teamLower} offered have all been taken. Tell them when you are free.`
+                      : `The times ${teamLower} offered have passed. Tell them when you are free.`,
+                  true,
+                )}
                 <div className="mt-6">
                   <button type="button" className="hf-pill hf-pill--jade" onClick={() => setSuggestOpen(true)} data-interview-suggest>
-                    Suggest times
+                    {TELL_AVAILABILITY}
                     <ArrowRight />
                   </button>
                 </div>
@@ -449,7 +509,7 @@ export function CandidateInterviewConfirmationCard({
             {timeLine}
             {facts}
             <p className="mt-4 text-[14.5px]" style={{ color: "var(--ink-2)" }}>
-              Confirm it if it works, or ask for another time.
+              Confirm it if it works. If you can&apos;t make it, tell them when you are free.
             </p>
             <div className="hf-acts mt-4">
               <button type="button" className="hf-pill hf-pill--jade hf-pill--lg" onClick={handleConfirm} disabled={isConfirming} data-interview-confirm>
@@ -457,31 +517,36 @@ export function CandidateInterviewConfirmationCard({
                 Confirm this time
               </button>
               <button type="button" className="hf-pill hf-pill--tonal hf-pill--lg" onClick={() => setSuggestOpen(true)} data-interview-suggest>
-                Ask for another time
+                Can&apos;t make it
               </button>
             </div>
           </>,
         )}
 
-      {/* ── Waiting: they suggested times ── */}
+      {/* ── Waiting: they wrote when they are free ── */}
       {stage === "waiting" && (
         <InterviewSurface id="interview" tone="quiet" data-candidate-interview={stage} className="scroll-mt-24">
           <div className="p-5 sm:px-8 sm:py-[30px]">
             {header(
               "Your interview",
               "You asked for another interview time",
-              `You suggested ${localProposedTimesCount === 1 ? "one time" : `${localProposedTimesCount} times`}. ${team} will reply here and by email. Nothing to do for now.`,
+              `${team} has your message and will set a new time. You will be told here and by email. Nothing to do for now.`,
               false,
             )}
             {localCandidateNote && (
-              <p className="mt-3 text-sm italic sm:pl-[72px]" style={{ color: "var(--ink-3)" }}>
-                &ldquo;{localCandidateNote}&rdquo;
-              </p>
+              <div className="mt-4 sm:pl-[72px]" data-interview-availability-sent>
+                <p className="text-[11.5px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--ink-3)" }}>
+                  You wrote
+                </p>
+                <p className="mt-1.5 break-words text-[14.5px] leading-relaxed [overflow-wrap:anywhere]" style={{ color: "var(--ink-2)" }}>
+                  &ldquo;{localCandidateNote}&rdquo;
+                </p>
+              </div>
             )}
             {futureWindows.length > 0 && (
               <div className="mt-6">
                 <p className="mb-3 text-[14.5px]" style={{ color: "var(--ink-3)" }}>
-                  Changed your mind? {futureWindows.length === 1 ? "The time they offered is" : "The times they offered are"} still open:
+                  Can make it after all? {futureWindows.length === 1 ? "The time they offered is" : "The times they offered are"} still open:
                 </p>
                 {slotList("pick_slot", futureWindows)}
               </div>
@@ -561,10 +626,13 @@ export function CandidateInterviewConfirmationCard({
         onOpenChange={setSuggestOpen}
         interviewId={interview.id}
         applicationId={applicationId}
-        // No time was ever agreed while they are still choosing: nothing to call "current".
-        currentScheduledAt={stage === "pick" || stage === "waiting" ? null : effectiveScheduledAt}
+        // The time they are saying no to: the one offered, or the one that is
+        // set. None while they wait, or when nothing bookable is left.
+        currentScheduledAt={
+          stage === "waiting" ? null : stage === "pick" ? (futureWindows.length === 1 ? futureWindows[0].start : null) : effectiveScheduledAt
+        }
         employerName={employerName}
-        onSuccess={handleSuggested}
+        onSuccess={handleAvailabilitySent}
       />
 
       {/* "Are you sure?": nothing is booked on one tap. */}
@@ -626,7 +694,7 @@ export function CandidateInterviewConfirmationCard({
                 setSuggestOpen(true);
               }}
             >
-              Suggest other times
+              {TELL_AVAILABILITY}
             </button>
           </div>
         </DialogContent>

@@ -379,11 +379,16 @@ function previewBlockHandlers(tables: FixtureTables, user: FixtureAuthUser): Rec
  * (`?__previewInterview=pick|confirm|waiting|confirmed`, with `,own` for a
  * link of the team's own instead of the built-in room; a confirmed one can
  * also be `,soon` (starts in half an hour: the way in is open) or `,started`
- * (began five minutes ago: someone running late)): put on the
- * applicant's skills-check application, so the interview is seen beside a
- * step still to take. The applicant's answers go where the real
- * candidate-interview-response function writes them, so picking a time,
- * suggesting others and confirming can all be walked through.
+ * (began five minutes ago: someone running late); `,taken` and `,race` have
+ * another applicant book an offered time first; `,one` offers a single time,
+ * which is the rule since 2026-10-07, and `,again` marks it as a new time
+ * set after they could not make an earlier one; `waiting` is someone who
+ * wrote when they are free, and `waiting,times` the older answer that listed
+ * times of their own): put on the applicant's skills-check application, so
+ * the interview is seen beside a step still to take. The applicant's answers
+ * go where the real candidate-interview-response function writes them, so
+ * booking a time, saying when they are free and confirming can all be
+ * walked through.
  */
 function previewCandidateInterview(tables: FixtureTables, mode: string | null): (name: string, options?: InvokeOptions) => Promise<InvokeReply> | null {
   const flags = (mode ?? "").split(",").filter(Boolean);
@@ -395,7 +400,14 @@ function previewCandidateInterview(tables: FixtureTables, mode: string | null): 
       d.setHours(hour, 0, 0, 0);
       return d.toISOString();
     };
-    const windows = [at(2, 9), at(3, 14), at(4, 20)].map((start) => ({ start, durationMinutes: 30, zone: "America/New_York" }));
+    const windows = (flags.includes("one") ? [at(3, 14)] : [at(2, 9), at(3, 14), at(4, 20)]).map((start) => ({
+      start,
+      durationMinutes: 30,
+      zone: "America/New_York",
+      ...(flags.includes("again") ? { again: true } : {}),
+    }));
+    // The middle time of three, or the only one.
+    const booked = windows[Math.min(1, windows.length - 1)];
     const offered = stage !== "confirm";
     // The stand-in database does not parse select strings, so the join the
     // team's answer dialog asks for is already on the row.
@@ -411,7 +423,7 @@ function previewCandidateInterview(tables: FixtureTables, mode: string | null): 
             : stage === "confirmed" && flags.includes("started")
               ? new Date(Date.now() - 5 * 60_000).toISOString()
               : stage === "confirmed"
-                ? windows[1].start
+                ? booked.start
                 : windows[0].start,
         status: "scheduled",
         candidate_response: stage === "pick" ? "awaiting_pick" : stage === "confirm" ? "pending" : stage === "waiting" ? "reschedule_requested" : "confirmed",
@@ -421,9 +433,17 @@ function previewCandidateInterview(tables: FixtureTables, mode: string | null): 
         meeting_room_url: null,
         duration_minutes: 30,
         interview_type: "video",
-        // Suggested while still choosing among offered times: marked, as the real function marks it.
-        proposed_times: stage === "waiting" ? [{ datetime: at(5, 10), fromOffer: true }, { datetime: at(6, 16), fromOffer: true }] : null,
-        candidate_note: stage === "waiting" ? "Mornings are best for me." : null,
+        // Said while the offered time was still unbooked: marked, as the real
+        // function marks it. `,times` is the answer from before 2026-10-07,
+        // which listed times of the applicant's own.
+        proposed_times:
+          stage !== "waiting"
+            ? null
+            : flags.includes("times")
+              ? [{ datetime: at(5, 10), fromOffer: true }, { datetime: at(6, 16), fromOffer: true }]
+              : [{ fromOffer: true }],
+        candidate_note:
+          stage !== "waiting" ? null : flags.includes("times") ? "Mornings are best for me." : "Monday to Wednesday, 9:00 AM to 2:00 PM. Friday any time after 4:00 PM.",
         employer_windows: offered ? windows : null,
         ai_questions: null,
         ai_feedback: null,
@@ -436,23 +456,53 @@ function previewCandidateInterview(tables: FixtureTables, mode: string | null): 
       },
     ];
     if (application) application.status = "interview";
+    // `,manila`: their connection check recorded a clock twelve hours from US
+    // Eastern, so the team's screens show their time beside the team's own.
+    if (application && flags.includes("manila")) {
+      application.notes = { ...parseApplicationNotes(application.notes), equipmentCheckResult: { device: { timezone: "Asia/Manila" } } };
+    }
   }
   return (name, options) => {
     if (name !== "candidate-interview-response") return null;
     return (async (): Promise<InvokeReply> => {
-      const body = (options?.body ?? {}) as { action?: string; interviewId?: string; slotStart?: string; proposedTimes?: unknown[]; candidateNote?: string | null };
-      // Kept on the window as it is asked, so a walk-through can read what was sent.
+      const body = (options?.body ?? {}) as {
+        action?: string;
+        interviewId?: string;
+        slotStart?: string;
+        availability?: string;
+        proposedTimes?: unknown[];
+        candidateNote?: string | null;
+      };
+      // Kept on the window as it is asked, so a walk-through can read what was
+      // sent. (Only answers: asking which times are free is not one.)
       const kept = window as unknown as { __previewInterviewAnswers?: unknown[] };
-      (kept.__previewInterviewAnswers ??= []).push(body);
+      if (body.action !== "open_slots") (kept.__previewInterviewAnswers ??= []).push(body);
       await new Promise((resolve) => setTimeout(resolve, 250));
       const row = (tables.interviews ?? []).find((r) => r.id === body.interviewId);
       if (!row) return { data: { error: "Interview not found" }, error: null };
+      // `,taken`: another applicant has already booked the first offered time.
+      const offeredNow = Array.isArray(row.employer_windows) ? (row.employer_windows as { start: string }[]) : [];
+      const takenNow = flags.includes("taken") && offeredNow[0] ? [offeredNow[0].start] : [];
+      // `,race`: the second offered time is taken at the very moment it is booked.
+      const racedNow = flags.includes("race") && offeredNow[1] ? [offeredNow[1].start] : [];
+      if (body.action === "open_slots") return { data: { success: true, taken: takenNow }, error: null };
+      if ((body.action === "pick_slot" || body.action === "repick_slot") && [...takenNow, ...racedNow].includes(String(body.slotStart))) {
+        return { data: { success: false, error: "slot_taken", taken: [...takenNow, ...racedNow] }, error: null };
+      }
       if (body.action === "confirm") {
         row.candidate_response = "confirmed";
       } else if (body.action === "reschedule_requested") {
+        const words = typeof body.availability === "string" ? body.availability.trim() : "";
+        if (!words && !(Array.isArray(body.proposedTimes) && body.proposedTimes.length > 0)) {
+          return { data: { error: "no_availability" }, error: null };
+        }
+        // No time agreed yet: marked, as the real function marks it.
+        const unbooked =
+          row.candidate_response === "awaiting_pick" ||
+          (Array.isArray(row.proposed_times) && (row.proposed_times as { fromOffer?: boolean }[]).some((t) => t?.fromOffer === true));
         row.candidate_response = "reschedule_requested";
-        row.proposed_times = body.proposedTimes ?? [];
-        row.candidate_note = body.candidateNote ?? null;
+        row.proposed_times = words ? (unbooked ? [{ fromOffer: true }] : null) : (body.proposedTimes ?? []);
+        row.candidate_note = words || body.candidateNote || null;
       } else if (body.action === "pick_slot" || body.action === "repick_slot") {
         const offered = Array.isArray(row.employer_windows) ? (row.employer_windows as { start: string; durationMinutes?: number }[]) : [];
         const slot = offered.find((w) => w.start === body.slotStart);

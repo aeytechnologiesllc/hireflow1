@@ -91,6 +91,50 @@ console.log("\nWhat an applicant may suggest");
   check(`a long note is cut to ${A.MAX_NOTE_LENGTH}`, A.cleanNote("x".repeat(2000)).length === A.MAX_NOTE_LENGTH);
 }
 
+console.log("\n'I can't make it': their availability, in words");
+{
+  // The owner, 2026-10-07: "don't let them just select times. Let them write
+  // a message ... type out your availability ... and then I get to schedule
+  // it. Because I don't want them to pick two times and then I can't do
+  // those two times."
+  check("what they wrote is kept, trimmed", A.cleanAvailability("  Monday to Wednesday, 9:00 AM to 2:00 PM.  ") === "Monday to Wednesday, 9:00 AM to 2:00 PM.");
+  check("several lines become one, each still told apart", A.cleanAvailability("Mon 9-5\n\nTue 1-4\r\n  Fri after 4") === "Mon 9-5; Tue 1-4; Fri after 4");
+  check("other control characters become spaces", A.cleanAvailability("Mon\t9-5\u0000ok") === "Mon 9-5 ok");
+  check("a short real answer is an answer", A.cleanAvailability("Any day") === "Any day" && A.MIN_AVAILABILITY_LENGTH === 3);
+  check("nothing, or next to nothing, is not", A.cleanAvailability("") === null && A.cleanAvailability("   \n ") === null && A.cleanAvailability("ok") === null && A.cleanAvailability(null) === null && A.cleanAvailability(42) === null && A.cleanAvailability(["Mon"]) === null);
+  check(`a long one is cut to ${A.MAX_NOTE_LENGTH}`, A.cleanAvailability("free ".repeat(400)).length <= A.MAX_NOTE_LENGTH);
+  check("no times are kept beside it: only the mark that none was agreed", JSON.stringify(A.availabilityToStore(true)) === '[{"fromOffer":true}]' && A.availabilityToStore(false) === null);
+  check("…and that mark still reads as 'no time agreed yet'", A.noTimeAgreedYet("reschedule_requested", A.availabilityToStore(true)) === true && A.noTimeAgreedYet("reschedule_requested", A.availabilityToStore(false)) === false);
+
+  const who = { name: "Maria Santos", jobTitle: "Chat Support Team Leader" };
+  const told = A.teamNoticeFor("availability", who, { when: "Thursday, October 8 at 9:00 AM EDT", availability: "Monday to Wednesday, 9:00 AM to 2:00 PM.", clockGap: "12 hours ahead of yours" });
+  check("the team's bell: who, the time they can't make, what they wrote, whose clock, and what to do", told.title === "Can't make the interview time" && told.message === 'Maria Santos can\'t make Thursday, October 8 at 9:00 AM EDT for Chat Support Team Leader. They are free: "Monday to Wednesday, 9:00 AM to 2:00 PM." (their clock, 12 hours ahead of yours). Open Interviews to set a new time.', told.message);
+  const bare = A.teamNoticeFor("availability", who, { availability: "Any day" });
+  check("with no time and no clock known it is still a sentence", bare.message === 'Maria Santos can\'t make the interview time for Chat Support Team Leader. They are free: "Any day". Open Interviews to set a new time.', bare.message);
+  check("it never asks the team to 'review times'", !/suggested|Review|answer/i.test(`${told.title} ${told.message}`));
+  const long = A.teamNoticeFor("availability", who, { availability: "free on some days ".repeat(40) }).message;
+  check("a long message is cut for the bell, at a word, and says so", long.length < 330 && /…"/.test(long) && !/ …/.test(long), String(long.length));
+  check("a short one is not touched", A.shortened("Any day") === "Any day" && A.shortened("x".repeat(160)).length === 160);
+
+  const fn = await read("supabase/functions/candidate-interview-response/index.ts");
+  const branch = fn.slice(fn.indexOf('payload.action === "reschedule_requested"'), fn.indexOf('payload.action === "pick_slot"'));
+  check("the function reads their words first", /availability = cleanAvailability\(payload\.availability\);/.test(branch));
+  check("with words, no times are read or stored", /suggested = availability \? \[\] : cleanSuggestedTimes\(payload\.proposedTimes, Date\.now\(\)\);/.test(branch) && /proposed_times: availabilityToStore\(fromOffer\),\s*candidate_note: availability,/.test(branch));
+  check("neither words nor times: refused, nothing written", /if \(!availability && suggested\.length === 0\) \{\s*return new Response\(JSON\.stringify\(\{ error: "no_availability" \}\), \{\s*status: 400/.test(branch));
+  check("the team is told how far the applicant's clock is from theirs", /clockGap = clockGapWords\(new Date\(\), theirZone, teamZone\)\.replace\(\/ you\$\/, " yours"\);/.test(branch) && /teamNoticeFor\("availability", who, \{ when: cannotMakeWhen, availability, clockGap \}\)/.test(branch));
+  check("…and the time they cannot make, on the team's clock", /interview\.scheduled_at \? sayTimeForTeam\(interview\.scheduled_at as string, clock\) : ""/.test(branch) && /"the times you offered"/.test(branch));
+  check("the team's bell opens the Interviews page", /notificationLink = "\/interviews";/.test(branch));
+  check("the team's email carries their words, not a list of times", /data: availability\s*\? \{[\s\S]{0,260}availability,\s*\.\.\.\(cannotMakeWhen \? \{ cannot_make: cannotMakeWhen \} : \{\}\),\s*\.\.\.\(clockGap \? \{ clock_gap: clockGap \} : \{\}\),/.test(fn));
+  check("it still makes no time agreed", !/agreed = /.test(branch));
+
+  const mail = await read("supabase/functions/send-notification-email/index.ts");
+  check("the team's email says they can't make it, what they wrote, and to set a new time", /reschedule_requested: data\.availability\s*\? \{/.test(mail) && /can't make the interview time: \$\{data\.job_title\}/.test(mail) && /<strong>When they are free:<\/strong> "\$\{esc\(data\.availability\)\}"/.test(mail) && /"Set a New Time"/.test(mail) && /which is \$\{esc\(data\.clock_gap\)\}/.test(mail));
+  check("one offered time: the applicant's email states it and says what to do if they can't make it", /if \(times\.length === 1\) \{/.test(mail) && /would like to interview you at this time:/.test(mail) && /Can't make it\? Tell them there which days you are free, and from what time to what time, and they will set another time\./.test(mail) && /"Book This Time"/.test(mail));
+  check("…and a new time after 'can't make it' is said as a new time", /const again = data\.again === "1";/.test(mail) && /set a new time for your interview:/.test(mail));
+  const access = await read("supabase/functions/_shared/notificationAccess.ts");
+  check("that mark is a mark, never text from the request", /kept\.again = asked\.again === "1" \|\| asked\.again === true \? "1" : undefined;/.test(access));
+}
+
 console.log("\nWas a time ever agreed?");
 {
   check("still choosing among offered times: no", A.noTimeAgreedYet("awaiting_pick", null) === true);
@@ -166,6 +210,47 @@ console.log("\nWhen a time becomes agreed: the two emails");
   check("the function words the applicant's time with the very same code the pages use (identical, byte for byte)", page === server);
 }
 
+console.log("\nOne time, one applicant");
+{
+  // The owner was about to offer the same few times to nine applicants, and
+  // nothing stopped two of them booking the same one.
+  const offered = [
+    { start: "2026-10-08T13:00:00.000Z", durationMinutes: 30 },
+    { start: "2026-10-08T13:30:00.000Z", durationMinutes: 30 },
+    { start: "2026-10-09T13:00:00.000Z", durationMinutes: 30 },
+  ];
+  const taken = (booked) => A.takenWindowStarts(offered, booked);
+  check("a time someone else has booked is taken", JSON.stringify(taken([{ scheduled_at: "2026-10-08T13:00:00.000Z", duration_minutes: 30 }])) === '["2026-10-08T13:00:00.000Z"]');
+  check("…however the database writes the same moment", JSON.stringify(taken([{ scheduled_at: "2026-10-08T13:00:00+00:00", duration_minutes: 30 }])) === '["2026-10-08T13:00:00.000Z"]');
+  check("the next time, straight after it, is still free", !taken([{ scheduled_at: "2026-10-08T13:00:00Z", duration_minutes: 30 }]).includes("2026-10-08T13:30:00.000Z"));
+  check("…and so is the one straight before it", taken([{ scheduled_at: "2026-10-08T13:30:00Z", duration_minutes: 30 }]).join() === "2026-10-08T13:30:00.000Z");
+  check("an overlap in the middle takes both times it touches", taken([{ scheduled_at: "2026-10-08T13:15:00Z", duration_minutes: 30 }]).length === 2);
+  check("a longer booking takes every offered time inside it", taken([{ scheduled_at: "2026-10-08T13:00:00Z", duration_minutes: 60 }]).length === 2);
+  check("a booking with no length on it counts as half an hour", taken([{ scheduled_at: "2026-10-08T13:00:00Z" }]).join() === "2026-10-08T13:00:00.000Z");
+  check("a booking on another day takes nothing", taken([{ scheduled_at: "2026-10-10T13:00:00Z", duration_minutes: 30 }]).length === 0);
+  check("nobody else booked: nothing is taken", taken([]).length === 0);
+  check("junk on either side takes nothing and breaks nothing", A.takenWindowStarts(null, [{ scheduled_at: "x" }]).length === 0 && A.takenWindowStarts([null, {}, { start: "nope" }], [{ scheduled_at: "2026-10-08T13:00:00Z" }]).length === 0 && taken([{ scheduled_at: "not a date" }]).length === 0);
+  const span = A.bookingSearchSpan(offered);
+  check("it looks for other bookings around every offered time, with room for a long one", span.from === "2026-10-08T09:00:00.000Z" && span.to === "2026-10-09T17:00:00.000Z");
+  check("no offered times: nothing to look for", A.bookingSearchSpan([]) === null && A.bookingSearchSpan(null) === null);
+
+  const fn = await read("supabase/functions/candidate-interview-response/index.ts");
+  check("booking a taken time is refused, with which times are gone", /const taken = await takenStartsFor\(supabaseAdmin, interview\.id as string, employerId, interview\.employer_windows\);\s*if \(taken\.includes\(matchedWindow\.start\)\) \{\s*return new Response\(JSON\.stringify\(\{ success: false, error: "slot_taken", taken \}\)/.test(fn));
+  check("…before anything is written", fn.indexOf('error: "slot_taken"') < fn.indexOf('.from("interviews")\n      .update(updateData)'));
+  check("the page can ask which times are gone, and that writes nothing", /if \(payload\.action === "open_slots"\) \{[\s\S]{0,360}return new Response\(JSON\.stringify\(\{ success: true, taken \}\)/.test(fn) && fn.indexOf('payload.action === "open_slots"') < fn.indexOf("let updateData"));
+  check("…only for the applicant on that interview", fn.indexOf("application?.candidate_id !== user.id") < fn.indexOf('payload.action === "open_slots"'));
+  const look = /async function takenStartsFor[\s\S]*?\n}\n/.exec(fn)?.[0] ?? "";
+  check("only booked interviews of the SAME hiring team count", /\.eq\("status", "scheduled"\)\s*\.eq\("candidate_response", "confirmed"\)\s*\.neq\("id", interviewId\)/.test(look) && /job\?\.employer_id === employerId/.test(look));
+  check("two plain look-ups, no join the database might refuse", /\.select\("id, application_id, scheduled_at, duration_minutes"\)/.test(look) && /\.select\("id, jobs\(employer_id\)"\)/.test(look) && !/profiles/.test(look));
+  check("when it cannot look, it blocks nobody", /\} catch \(lookupError\) \{[\s\S]{0,120}return \[\];/.test(look) && /if \(error \|\| !Array\.isArray\(near\) \|\| near\.length === 0\) return \[\];/.test(look));
+
+  const card = await read("src/components/CandidateInterviewConfirmationCard.tsx");
+  check("the applicant's page asks which times are gone, and does not show them", /body: \{ action: "open_slots", interviewId: interview\.id \}/.test(card) && /return openWindows\(windows, now\)\.filter\(\(w\) => !gone\.has\(new Date\(w\.start\)\.getTime\(\)\)\);/.test(card));
+  check("…on arrival, when the page is looked at again, and once a minute while choosing", /refetchOnWindowFocus: true,\s*refetchInterval: 60_000,/.test(card) && /localCandidateResponse !== "confirmed" \|\| showRepickSheet/.test(card));
+  check("two people tapping the same time: the second is told, and that time goes", /if \(data\?\.error === "slot_taken"\) \{[\s\S]{0,620}toast\.error\("That time was just taken"/.test(card) && /setJustTaken\(/.test(card) && /setLocalCandidateResponse\(previousResponse\);/.test(card));
+  check("the offered time taken: it says taken, not passed, and still offers a way to answer", /has just been taken\. Tell them when you are free\./.test(card) && /have all been taken\. Tell them when you are free\./.test(card));
+}
+
 console.log("\nThe function");
 {
   const fn = await read("supabase/functions/candidate-interview-response/index.ts");
@@ -179,8 +264,8 @@ console.log("\nThe function");
   check("who signs the applicant's email is looked up, not taken from the browser", /\.from\("profiles"\)\s*\.select\("company_name"\)\s*\.eq\("user_id", employerId\)/.test(fn));
   check("it words times through the helper, never the server's own clock", /sayTimeForTeam\(matchedWindow\.start, clock\)/.test(fn) && !/toLocaleString/.test(fn));
   check("the clock comes from the offered times, then the applicant's own zone", /const clock = clockForTeam\(interview\.employer_windows, payload\.timeZone\);/.test(fn));
-  check("suggested times are cleaned before they are stored", /suggested = cleanSuggestedTimes\(payload\.proposedTimes, Date\.now\(\)\);/.test(fn) && /proposed_times: suggestionToStore\(suggested, fromOffer\),/.test(fn) && !/proposed_times: payload\.proposedTimes/.test(fn));
-  check("no usable time: refused, nothing written", /if \(suggested\.length === 0\) \{\s*return new Response\(JSON\.stringify\(\{ error: "no_times" \}\), \{\s*status: 400/.test(fn));
+  check("times from a page left open since before are still cleaned before they are stored", /cleanSuggestedTimes\(payload\.proposedTimes, Date\.now\(\)\);/.test(fn) && /proposed_times: suggestionToStore\(suggested, fromOffer\),/.test(fn) && !/proposed_times: payload\.proposedTimes/.test(fn));
+  check("nothing usable: refused, nothing written", /if \(!availability && suggested\.length === 0\) \{\s*return new Response\(JSON\.stringify\(\{ error: "no_availability" \}\), \{\s*status: 400/.test(fn) && fn.indexOf('error: "no_availability"') < fn.indexOf('.from("interviews")\n      .update(updateData)'));
   check("the note is cleaned too", /suggestedNote = cleanNote\(payload\.candidateNote\);/.test(fn) && /candidate_note: suggestedNote,/.test(fn));
   check("an offer cannot be 'confirmed': a time has to be picked", /if \(payload\.action === "confirm"\) \{[\s\S]{0,360}if \(noTimeAgreedYet\(interview\.candidate_response, interview\.proposed_times\)\) \{\s*return new Response\(JSON\.stringify\(\{ error: "pick_a_time_first" \}\)/.test(fn));
   check("it reads the suggestion already on the row", /employer_windows,\s*proposed_times,\s*status,/.test(fn));
@@ -207,8 +292,9 @@ console.log("\nThe team's answer");
   check("the row says which it is", /"they can't make the times you offered and suggested others"/.test(page) && /s\.suggestedFromOffer \? "Suggested other times" : "Needs confirm"/.test(page));
   check("the dialog is told", /fromOffer=\{reviewing\.suggestedFromOffer\}\s*openOfferedTimes=\{reviewing\.openOfferedTimes\}/.test(page));
 
-  check("one reading of 'no time is agreed yet' on the page", /function noTimeYet\(s: Pick<Session, "response" \| "suggestedFromOffer">\): boolean \{\s*return s\.response === "awaiting_pick" \|\| \(s\.response === "reschedule_requested" && s\.suggestedFromOffer\);/.test(page));
-  check("a row with no agreed time shows no clock time as if it were set", /\{noTimeYet\(s\) \? \([\s\S]{0,700}No time yet[\s\S]{0,420}\{awaitingPick \? "They pick" : "Your call"\}/.test(page) && /data-interview-time="none"/.test(page));
+  check("one reading of 'no time is agreed yet' on the page", /function noTimeYet\(s: Pick<Session, "response" \| "suggestedFromOffer" \| "availabilityOnly">\): boolean \{\s*return s\.response === "awaiting_pick" \|\| \(s\.response === "reschedule_requested" && \(s\.suggestedFromOffer \|\| s\.availabilityOnly\)\);/.test(page));
+  check("a row with no agreed time shows no clock time as if it were set", /\) : noTimeYet\(s\) \? \([\s\S]{0,700}No time yet[\s\S]{0,420}\{awaitingPick \? "They pick" : "Your call"\}/.test(page) && /data-interview-time="none"/.test(page));
+  check("…and one offered time is shown as an offer, smaller and quieter than a booked one", /awaitingPick && s\.windowsOffered === 1 && s\.at \? \([\s\S]{0,420}data-interview-time="offered"[\s\S]{0,520}fontSize: 20, fontWeight: 600, color: "var\(--ink-2\)"/.test(page) && /data-interview-time="set"[\s\S]{0,620}fontSize: 28, fontWeight: 600, color: "var\(--ink\)"/.test(page));
   check("the brief does not say 'Set for' or 'ready for' a placeholder", /next\.at && !noTimeYet\(next\) \? \(isToday\(next\.at\)/.test(page) && /\{noTimeYet\(next\) \? \(\s*<Evidence icon=\{AlertCircle\} tone="var\(--amber-fg\)" label="No time yet:">/.test(page));
   check("answering an offer: no 'set now for' time is shown", /\{!fromOffer && \(\s*<Card className="bg-muted\/50">/.test(review));
   check("…and no 'keep': the other answer is back to the offered times", /\{fromOffer \? \(\s*<button[\s\S]{0,220}onClick=\{handleBackToOffer\}/.test(review) && /onClick=\{handleKeepOriginal\}/.test(review));

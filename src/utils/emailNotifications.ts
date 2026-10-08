@@ -40,6 +40,8 @@ interface NotificationData {
   rejection_reason?: string;
   proposed_times?: string;
   proposed_times_list?: string[];
+  /** interview_pick_time: "1" when it is a new time after they could not make an earlier one. */
+  again?: string;
   window_count?: string;
   candidate_note?: string;
   minutes_remaining?: string;
@@ -192,20 +194,24 @@ export async function notifyInterviewScheduled(
 }
 
 /**
- * Notify candidate that the employer proposed several interview windows
- * and they need to pick one
+ * Notify candidate of the time the employer offered for their interview
+ * (one time, since 2026-10-07), which they book or answer with when they
+ * are free. `again`: a new time, set after they said they could not make an
+ * earlier one.
  */
 export async function notifyInterviewPickTime(
   candidateId: string,
   jobTitle: string,
   proposedTimes: string[],
-  companyName?: string
+  companyName?: string,
+  again = false
 ): Promise<EmailStatus> {
   return sendNotificationEmail("interview_pick_time", candidateId, {
     job_title: jobTitle,
     proposed_times_list: proposedTimes,
     window_count: proposedTimes.length.toString(),
     company_name: companyName,
+    ...(again ? { again: "1" } : {}),
   });
 }
 

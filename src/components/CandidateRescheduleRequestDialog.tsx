@@ -9,35 +9,16 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { format } from "date-fns";
-import { CalendarIcon, Clock, Loader2, Plus, X, Globe } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Clock, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { getTimezoneAbbreviation, getTimezoneName } from "@/lib/timezone";
+import { interviewWhen } from "@/lib/candidateInterview";
 
-interface ProposedTime {
-  date: Date | undefined;
-  time: string;
-}
-
-interface RescheduleSuccessData {
-  proposedTimesCount: number;
-  candidateNote: string | null;
+interface AvailabilitySentData {
+  /** What they wrote, as sent. */
+  availability: string;
 }
 
 interface CandidateRescheduleRequestDialogProps {
@@ -46,25 +27,31 @@ interface CandidateRescheduleRequestDialogProps {
   interviewId: string;
   applicationId: string;
   /**
-   * The time that is set now, or null when none was ever agreed (the team
-   * offered times and the applicant is answering "none of these work").
+   * The time they are saying no to (the one offered, or the one that was
+   * set), or null when there is none on the table (it passed, or someone
+   * else booked it).
    */
   currentScheduledAt: string | null;
   /** The employer's public name, when it is on file. */
   employerName?: string | null;
-  onSuccess?: (data: RescheduleSuccessData) => void;
+  onSuccess?: (data: AvailabilitySentData) => void;
 }
 
-/** "13:30" as people say it: "1:30 PM". */
-function clockLabel(time: string): string {
-  const [h, m] = time.split(":").map(Number);
-  return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
-}
+/** The shortest answer taken ("Any day" is one) and the longest kept: the function's own limits. */
+const MIN_LENGTH = 3;
+const MAX_LENGTH = 500;
 
 /**
- * The applicant suggests times of their own: when none of the offered times
- * work, or to move a time that is already set. The hiring team answers on
- * the Interviews page (EmployerRescheduleReviewDialog).
+ * "I can't make it": the applicant writes when they are free, in their own
+ * words, and the hiring team sets the new time (Interviews page,
+ * EmployerRescheduleReviewDialog).
+ *
+ * There are no time pickers here, on purpose. The owner, 2026-10-07: "if
+ * they cannot make it on that time, don't let them just select times. Let
+ * them write a message ... type out your availability. Not like actual time,
+ * your availability ... because I don't want them to pick two times and then
+ * I can't do those two times. Then we have to do too much back and forth."
+ * Until then this pop-up asked for at least two exact times.
  */
 export function CandidateRescheduleRequestDialog({
   open,
@@ -76,97 +63,46 @@ export function CandidateRescheduleRequestDialog({
   onSuccess,
 }: CandidateRescheduleRequestDialogProps) {
   const team = employerName?.trim() || "the hiring team";
+  const Team = team === "the hiring team" ? "The hiring team" : team;
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [proposedTimes, setProposedTimes] = useState<ProposedTime[]>([
-    { date: undefined, time: "" },
-    { date: undefined, time: "" },
-  ]);
-  const [note, setNote] = useState("");
+  const [availability, setAvailability] = useState("");
 
-  const timeOptions = Array.from({ length: 24 }, (_, hour) => {
-    return ["00", "30"].map((min) => {
-      const h = hour.toString().padStart(2, "0");
-      return `${h}:${min}`;
-    });
-  }).flat();
-
-  const updateProposedTime = (index: number, field: "date" | "time", value: Date | string | undefined) => {
-    setProposedTimes((prev) => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
-      return updated;
-    });
-  };
-
-  const addTimeSlot = () => {
-    if (proposedTimes.length < 3) {
-      setProposedTimes((prev) => [...prev, { date: undefined, time: "" }]);
-    }
-  };
-
-  const removeTimeSlot = (index: number) => {
-    if (proposedTimes.length > 2) {
-      setProposedTimes((prev) => prev.filter((_, i) => i !== index));
-    }
-  };
+  const written = availability.trim();
+  const ready = written.length >= MIN_LENGTH;
 
   const handleSubmit = async () => {
-    // Validate at least 2 complete time slots
-    const validTimes = proposedTimes.filter((t) => t.date && t.time);
-    if (validTimes.length < 2) {
-      toast.error("Give at least 2 times that work for you");
+    if (!ready) {
+      toast.error("Write which days and times you are free");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      // Format proposed times as ISO strings
-      const formattedTimes = validTimes.map((t) => {
-        const [hours, minutes] = t.time.split(":");
-        const datetime = new Date(t.date!);
-        datetime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-        return { datetime: datetime.toISOString() };
-      });
-
-      // Call edge function for reschedule request
       const { data, error } = await supabase.functions.invoke("candidate-interview-response", {
         body: {
           action: "reschedule_requested",
           interviewId,
-          proposedTimes: formattedTimes,
-          candidateNote: note || null,
+          availability: written,
+          // Their own clock: the team is told how far it is from theirs.
           timeZone: getTimezoneName(),
         },
       });
 
       if (error) throw error;
-      
-      if (!data?.success) {
-        throw new Error(data?.error || "Failed to submit reschedule request");
-      }
+      if (!data?.success) throw new Error(data?.error || "Failed to send availability");
 
-      // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ["interview", "application", applicationId] });
       queryClient.invalidateQueries({ queryKey: ["candidate-interview", applicationId] });
       queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
 
-      toast.success(`Sent. ${team === "the hiring team" ? "The hiring team" : team} will reply with a time.`);
-      
-      // Call success callback with optimistic data
-      onSuccess?.({
-        proposedTimesCount: formattedTimes.length,
-        candidateNote: note || null,
-      });
-      
+      toast.success(`Sent. ${Team} will set a new time.`, { description: "You will be told here and by email." });
+      onSuccess?.({ availability: written });
       onOpenChange(false);
-      
-      // Reset form
-      setProposedTimes([{ date: undefined, time: "" }, { date: undefined, time: "" }]);
-      setNote("");
+      setAvailability("");
     } catch (error) {
-      console.error("Error requesting reschedule:", error);
-      toast.error("Couldn't send your times. Please try again.");
+      console.error("Error sending availability:", error);
+      toast.error("Couldn't send that. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -174,97 +110,45 @@ export function CandidateRescheduleRequestDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="hf-sheet sm:max-w-lg">
+      <DialogContent className="hf-sheet sm:max-w-lg" data-interview-availability>
         <DialogHeader>
-          <DialogTitle className="font-display text-[22px] font-semibold">{currentScheduledAt ? "Ask for another time" : "Suggest times that work for you"}</DialogTitle>
+          <DialogTitle className="font-display text-[22px] font-semibold">
+            {currentScheduledAt ? "Can't make it?" : "Tell them when you're free"}
+          </DialogTitle>
           <DialogDescription>
             {currentScheduledAt
-              ? `Set now for ${format(new Date(currentScheduledAt), "EEEE, MMMM d 'at' h:mm a")} (${getTimezoneAbbreviation()}).`
-              : `Give ${team} at least 2 times you can do.`}
+              ? `No problem. Instead of ${interviewWhen(currentScheduledAt)}, tell ${team} when you are free and they will set a new time.`
+              : `Tell ${team} when you are free and they will set a time.`}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          <p className="text-sm text-muted-foreground">
-            {currentScheduledAt
-              ? `Give at least 2 other times you can do. ${team === "the hiring team" ? "The hiring team" : team} picks one and you are told here and by email.`
-              : `${team === "the hiring team" ? "The hiring team" : team} picks one and you are told here and by email.`}
+        <div className="space-y-2.5 py-3">
+          <Label htmlFor="interview-availability" className="text-[14.5px] font-semibold text-foreground">
+            Your availability
+          </Label>
+          <p className="text-[14px] leading-snug" style={{ color: "var(--ink-2)" }}>
+            Which days are you free, and from what time to what time?
           </p>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Globe className="h-3 w-3" />
-            <span>Times are on your own clock ({getTimezoneAbbreviation()}).</span>
-          </div>
-
-          {proposedTimes.map((slot, index) => (
-            <div key={index} className="flex items-end gap-2">
-              <div className="flex-1 space-y-2">
-                <Label className="text-xs text-muted-foreground">Option {index + 1}</Label>
-                <div className="flex gap-2">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <button
-                        type="button"
-                        className={cn("hf-pill hf-pill--tonal hf-field flex-1", !slot.date && "hf-field--empty")}
-                      >
-                        <CalendarIcon />
-                        {slot.date ? format(slot.date, "EEE, MMM d") : "Pick date"}
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={slot.date}
-                        onSelect={(date) => updateProposedTime(index, "date", date)}
-                        disabled={(date) => date < new Date()}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-
-                  <Select
-                    value={slot.time}
-                    onValueChange={(value) => updateProposedTime(index, "time", value)}
-                  >
-                    <SelectTrigger className="hf-field hf-field--select w-36">
-                      <Clock className="mr-2 h-4 w-4" />
-                      <SelectValue placeholder="Time" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {timeOptions.map((time) => (
-                        <SelectItem key={time} value={time}>
-                          {clockLabel(time)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {proposedTimes.length > 2 && (
-                <button type="button" className="hf-pill hf-pill--text shrink-0" aria-label={`Remove option ${index + 1}`} onClick={() => removeTimeSlot(index)}>
-                  <X />
-                </button>
-              )}
-            </div>
-          ))}
-
-          {proposedTimes.length < 3 && (
-            <button type="button" className="hf-pill hf-pill--text hf-pill--link" onClick={addTimeSlot}>
-              <Plus />
-              Add another time
-            </button>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="note">Note to the team (optional)</Label>
-            <Textarea
-              id="note"
-              className="hf-field hf-field--area"
-              placeholder="Anything they should know, for example the hours you are free."
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              rows={3}
-            />
+          <Textarea
+            id="interview-availability"
+            className="hf-field hf-field--area"
+            style={{ minHeight: 132 }}
+            placeholder="For example: Monday to Wednesday, 9:00 AM to 2:00 PM. Friday any time after 4:00 PM."
+            value={availability}
+            maxLength={MAX_LENGTH}
+            onChange={(e) => setAvailability(e.target.value)}
+            rows={5}
+            autoFocus
+            data-interview-availability-text
+          />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="hf-chip" data-interview-clock>
+              <Clock />
+              Write times on your own clock · {getTimezoneAbbreviation()}
+            </span>
+            <span className="text-[12px] tabular-nums" style={{ color: "var(--ink-3)" }} aria-hidden>
+              {availability.length} / {MAX_LENGTH}
+            </span>
           </div>
         </div>
 
@@ -272,9 +156,15 @@ export function CandidateRescheduleRequestDialog({
           <button type="button" className="hf-pill hf-pill--tonal" onClick={() => onOpenChange(false)}>
             Cancel
           </button>
-          <button type="button" className="hf-pill hf-pill--jade" onClick={handleSubmit} disabled={isSubmitting}>
+          <button
+            type="button"
+            className="hf-pill hf-pill--jade"
+            onClick={handleSubmit}
+            disabled={isSubmitting || !ready}
+            data-interview-availability-send
+          >
             {isSubmitting && <Loader2 className="animate-spin" />}
-            Send my times
+            Send my availability
           </button>
         </DialogFooter>
       </DialogContent>

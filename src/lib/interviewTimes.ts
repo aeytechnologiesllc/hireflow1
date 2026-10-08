@@ -195,7 +195,7 @@ export function inviteEmailWords(
   const name = who.firstName || "them";
   if (status === "sent") {
     const to = who.email || name;
-    return who.exactTime ? `Email sent to ${to} with the date and time` : `Email sent to ${to} to pick a time`;
+    return who.exactTime ? `Email sent to ${to} with the date and time` : `Email sent to ${to} with the time to book`;
   }
   if (status === "skipped") {
     return `No email went out: ${name} has these emails turned off. They will see it when they open their application. Message them so they know to look.`;

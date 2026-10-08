@@ -9,13 +9,21 @@ whose clock its time is written on, and where the call happens.
 (`src/cockpit/pages/CandidateDetail.tsx`) opens
 `src/components/InterviewSchedulingWizard.tsx`:
 
-- **Offer times** (the default): up to six start times. The applicant gets
-  an email, picks one on their application page
+- **Offer a time** (the default): one start time, and only one. The
+  applicant gets an email, books it on their application page
   (`CandidateInterviewConfirmationCard`, server side
   `candidate-interview-response`), and it lands on the staff Interviews page
-  (`src/cockpit/pages/Interviews.tsx`).
-- **Book one exact time**: for a time already agreed some other way. The
-  applicant confirms it or asks for another.
+  (`src/cockpit/pages/Interviews.tsx`). If they cannot make it they write
+  when they are free and the owner sets a new time (see "When the applicant
+  can't make it"). Choosing another time on the wheel replaces the one
+  chosen. Until 2026-10-07 the wheel took up to six and the applicant picked
+  among them.
+- **Book it directly**: for a time already agreed some other way. The
+  applicant confirms it or says they cannot make it.
+- **A time that runs into another interview is said before it is sent**
+  (`src/lib/interviewClash.ts`): "You already have an interview with Ana at
+  this time", or "You offered this time to Ana as well. Whoever books first
+  gets it."
 - A first conversation is 30 minutes unless changed.
 - Setting one up moves the application to the interview stage.
 
@@ -64,9 +72,9 @@ cannot disagree. Four stages:
 
 | Stage | The row | What they are asked |
 |---|---|---|
-| **pick** | `candidate_response = 'awaiting_pick'` | Choose one of the offered times, or say none work and suggest their own. |
-| **confirm** | `pending` or empty, time still ahead | Confirm the one time the team set, or ask for another. |
-| **waiting** | `reschedule_requested` | Nothing: the team has their times. The offered times stay pickable. |
+| **pick** | `candidate_response = 'awaiting_pick'` | Book the offered time, or say they cannot make it and write when they are free. |
+| **confirm** | `pending` or empty, time still ahead | Confirm the one time the team set, or say they cannot make it. |
+| **waiting** | `reschedule_requested` | Nothing: the team has their message and will set a new time. The offered time stays bookable. |
 | **confirmed** | `confirmed`, time still ahead | The time, how to join, a calendar file, "Can't make it?". |
 
 - **Being selected is a celebration, and it is all they see.** The owner sent
@@ -108,9 +116,9 @@ cannot disagree. Four stages:
   the row's `scheduled_at` is only a placeholder (the earliest offered
   time): no date, and no link to join, is shown from it, on the card or in
   the pop-up (`CandidateStatusScreen`).
-- **Suggesting other times** ("None of these work?", "Ask for another
-  time", "Can't make it?") is one dialog, `CandidateRescheduleRequestDialog`:
-  at least two times, an optional note. The team answers on the Interviews
+- **"Can't make it?"** is one dialog, `CandidateRescheduleRequestDialog`:
+  a text box for when they are free, and no time pickers (see "When the
+  applicant can't make it"). The team sets the new time on the Interviews
   page.
 - **Every time is on the reader's own clock, and says so** ("Times are on
   your own clock (GMT+8)").
@@ -161,7 +169,85 @@ cannot disagree. Four stages:
 - **The applicant's menu has no "Enter Job Code"** (removed 2026-10-07 at the
   owner's word). `/apply` still answers an old link that carries a code.
 
+## One time, one applicant
+
+The owner offers the same handful of times to several applicants at once (on
+2026-10-07 he was about to invite nine). Until then nothing stopped two of
+them booking the same one. Now the first to book a time gets it.
+
+- **What counts as taken**: another interview of the SAME hiring team that
+  is booked (`status = scheduled`, `candidate_response = confirmed`) and
+  overlaps the offered time. Back to back is not an overlap. An offer nobody
+  has answered takes nothing. (`takenWindowStarts` in
+  `supabase/functions/_shared/interviewAnswer.ts`.)
+- **The applicant does not see a taken time.** Their page asks the function
+  which of its offered times are gone (`action: "open_slots"`, writes
+  nothing) when it opens, when they come back to it, and once a minute while
+  they are choosing.
+- **Two people tapping the same time**: the function looks again at the
+  moment of booking and refuses the second with `slot_taken`. That applicant
+  is told "That time was just taken", the time leaves their list, and nothing
+  about their interview changes.
+- **The offered time taken**: the page says so and they write when they are
+  free.
+- **If the look-up itself fails, nobody is blocked.** A double booking the
+  team can sort out is better than an applicant who cannot book at all.
+- **Not covered**: this is a look and then a write, not a database lock, so
+  two bookings inside the same split second could both land. It also only
+  knows interviews made in this tool, not the owner's own calendar.
+
+## When the applicant can't make it
+
+The owner, 2026-10-07: "I wanna just give them one time for the interview,
+not two, just one. And ... if they cannot make it on that time, don't let
+them just select times. Let them write a message ... type out your
+availability. Not like actual time, your availability ... And then I get to
+schedule it. Because I don't want them to pick two times and then I can't do
+those two times. Then we have to do too much back and forth."
+
+So there are no time pickers on the applicant's side any more.
+
+1. **The applicant** presses "Can't make it?" (on an offered time, a time
+   set for them, or one already booked) and writes which days they are free
+   and from what time to what time (`CandidateRescheduleRequestDialog`: one
+   text box, 3 to 500 characters). It is sent as
+   `reschedule_requested` with `availability` and their browser's time zone.
+2. **The function** keeps the words in `interviews.candidate_note` (one
+   line: a line break becomes "; "), keeps no times, and leaves only the
+   `fromOffer` mark in `proposed_times` when no time had been agreed
+   (`cleanAvailability`, `availabilityToStore`). The applicant's page moves
+   to "waiting" and shows them what they wrote.
+3. **The team is told** by bell and email ("X can't make the interview
+   time"): the time they cannot make on the team's clock, what they wrote,
+   and how far their clock is from the team's ("12 hours ahead of yours"),
+   because "9 to 2" is on the applicant's clock.
+4. **The team sets the new time** on the Interviews page ("Set a new time",
+   `EmployerRescheduleReviewDialog`): a day and a clock time, any half hour
+   of the day, each shown with the applicant's own time beside it. It goes
+   back to the applicant as an offered time to book (`awaiting_pick`, one
+   entry in `employer_windows` marked `again: true`), never booked for them
+   unseen. Their page says "A new time", their email "A new time for your
+   interview", and the team is told when they book it.
+5. If they still cannot make it, the same loop: they write, the team sets.
+
+On the Interviews page a time that is only offered reads "Offered · Sat 10 /
+9:00 pm · Not booked yet", smaller and quieter than a booked one; an
+availability answer reads "No time yet · Your call · Can't make it".
+
+An answer sent from a page left open since before this (a list of times of
+the applicant's own) is still read and answered the old way, below.
+
+Proof: `scripts/interview_answer.test.mjs` ("'I can't make it': their
+availability, in words"), `scripts/candidate_interview.test.mjs` ("One time
+from the team, and no times from the applicant"),
+`scripts/notification_access.test.mjs` (both emails through the real
+function). Preview: `__previewInterview=pick,own,one` (also `,again`,
+`,taken`) and `waiting` as the owner (`,manila` puts the applicant twelve
+hours away; `waiting,times` is the older answer).
+
 ## When the applicant suggests other times
+
+(Answers from before 2026-10-07, and from a page left open since.)
 
 Every answer an applicant gives is written by the
 `candidate-interview-response` function (their browser may only read the
@@ -343,6 +429,13 @@ outcome, the menu). A walk-through in the dev preview
 (`?__previewRole=candidate&__previewInterview=pick,own`, also `confirm`,
 `waiting`, `confirmed`) picked a time, suggested others and confirmed one,
 on a computer and a phone, and read back what was sent.
+
+One time, one applicant: `scripts/interview_answer.test.mjs` ("One time, one
+applicant": what overlaps and what does not, the refusal before anything is
+written, the same-team rule, the look-up that blocks nobody when it fails,
+the page). In the preview, `__previewInterview=pick,own,taken` hides a time
+someone else booked and `pick,own,race` loses the race at the moment of
+booking.
 
 The exchange: `scripts/interview_answer.test.mjs` (whose clock the team
 reads, what may be stored, whether a time was ever agreed, the bell's words,

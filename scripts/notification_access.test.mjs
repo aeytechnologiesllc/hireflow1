@@ -405,6 +405,17 @@ void quiet;
     ["document_sent", { document_name: "Offer letter" }, /Document: Offer letter/],
     ["document_requested", { document_name: "ID" }, /Document Type: ID/],
   ];
+  // One time is the rule since 2026-10-07: the email states it, says what to
+  // do if they cannot make it, and a new time after that is said as one.
+  r = await hush(async () => (reset(), ask("tok-team-all", { type: "interview_pick_time", recipient_user_id: ANA, data: { ...HOSTILE, job_title: TITLE_A, proposed_times_list: ["Sunday, October 11 · 2:00 PM Philippine Standard Time"], window_count: "1" } })));
+  mail = world.sent[0];
+  check("one offered time: the invitation states it, and how to answer if they can't make it", r.status === 200 && mail.subject === `You're invited to an interview: ${TITLE_A}` && /would like to interview you at this time:/.test(textOf(mail)) && textOf(mail).includes("Sunday, October 11 · 2:00 PM Philippine Standard Time") && /Can't make it\? Tell them there which days you are free, and from what time to what time/.test(textOf(mail)) && !/proposed|Pick whichever/.test(textOf(mail)), `${mail?.subject} ${textOf(mail).slice(0, 200)}`);
+  r = await hush(async () => (reset(), ask("tok-team-all", { type: "interview_pick_time", recipient_user_id: ANA, data: { job_title: TITLE_A, proposed_times_list: ["Monday, October 12 · 9:00 AM Philippine Standard Time"], again: "1" } })));
+  mail = world.sent[0];
+  check("a new time after 'can't make it' is said as a new time", r.status === 200 && mail.subject === `A new time for your interview: ${TITLE_A}` && /set a new time for your interview:/.test(textOf(mail)), mail?.subject);
+  r = await hush(async () => (reset(), ask("tok-team-all", { type: "interview_pick_time", recipient_user_id: ANA, data: { job_title: TITLE_A, proposed_times_list: ["Monday, October 12 · 9:00 AM"], again: "<b>yes</b>" } })));
+  check("…and that mark is only ever a mark: other words in its place do nothing", r.status === 200 && world.sent[0].subject === `You're invited to an interview: ${TITLE_A}` && !/<b>yes/.test(world.sent[0].html));
+
   for (const [kind, data, expect] of staffKinds) {
     r = await hush(async () => (reset(), ask("tok-team-all", { type: kind, recipient_user_id: ANA, data: { ...HOSTILE, ...data } })));
     mail = world.sent[0];
@@ -497,6 +508,8 @@ void quiet;
   check("another edge function (secret key in apikey, no Authorization) is the system: its email is sent", r.status === 200 && r.body?.success === true && show(world.sent[0]?.to) === show([emailOf(OWNER)]), show(r));
   r = await hush(async () => (reset(), asFunction({ type: "reschedule_requested", recipient_user_id: OWNER, data: { candidate_name: "Ana Reyes", job_title: TITLE_A, proposed_times: "Thursday, October 8 at 9:00 AM EDT; Friday, October 9 at 9:00 AM EDT", candidate_note: "Mornings are best." } })));
   check("…the 'they suggested other times' email among them, with the times as given", r.status === 200 && world.sent[0]?.subject === `Reschedule Request: Ana Reyes for ${TITLE_A}` && textOf(world.sent[0]).includes("Thursday, October 8 at 9:00 AM EDT; Friday, October 9 at 9:00 AM EDT"), world.sent[0]?.subject);
+  r = await hush(async () => (reset(), asFunction({ type: "reschedule_requested", recipient_user_id: OWNER, data: { candidate_name: "Ana Reyes", job_title: TITLE_A, availability: "Monday to Wednesday, 9:00 AM to 2:00 PM. <i>Friday</i> after 4", cannot_make: "Thursday, October 8 at 9:00 AM EDT", clock_gap: "12 hours ahead of yours" } })));
+  check("…and the 'can't make it' email: what they wrote, the time, whose clock, and to set a new time", r.status === 200 && world.sent[0]?.subject === `Ana Reyes can't make the interview time: ${TITLE_A}` && textOf(world.sent[0]).includes("can't make Thursday, October 8 at 9:00 AM EDT") && textOf(world.sent[0]).includes('When they are free: "Monday to Wednesday, 9:00 AM to 2:00 PM.') && textOf(world.sent[0]).includes("which is 12 hours ahead of yours") && /Set a New Time/i.test(world.sent[0].html) && !/<i>Friday<\/i>/.test(world.sent[0].html) && !/Proposed times|approve a new time or decline/.test(textOf(world.sent[0])), `${world.sent[0]?.subject} | ${textOf(world.sent[0] ?? { html: "" }).slice(0, 260)}`);
   r = await hush(async () => (reset(), askWith({ apikey: "sb_secret_the_other_form" }, { type: "interview_ready", recipient_user_id: OWNER, data: { candidate_name: "A", job_title: "B", score: "1" } })));
   check("the key's other form in apikey counts once the database itself accepts it", r.status === 200 && world.sent.length === 1, show(r));
 

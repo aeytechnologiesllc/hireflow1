@@ -97,6 +97,47 @@ export function cleanNote(raw: unknown): string | null {
   return text || null;
 }
 
+/* ── "I can't make it": their availability, in their own words ──────────── */
+
+/** The shortest availability kept ("Any day" is an answer). */
+export const MIN_AVAILABILITY_LENGTH = 3;
+
+/**
+ * What an applicant wrote when they cannot make the time: which days they
+ * are free, and from when to when. Plain text on one line (a line break
+ * becomes "; "), trimmed and bounded like a note. Null when there is nothing
+ * to keep.
+ *
+ * The owner, 2026-10-07: "if they cannot make it on that time, don't let them
+ * just select times. Let them write a message ... because I don't want them
+ * to pick two times and then I can't do those two times. Then we have to do
+ * too much back and forth." So the applicant no longer suggests times: they
+ * say when they are free and the team sets the time.
+ */
+export function cleanAvailability(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const oneLine = raw.trim().replace(/\s*[\r\n]+\s*/g, "; ");
+  const text = cleanNote(oneLine) ?? "";
+  return text.length >= MIN_AVAILABILITY_LENGTH ? text : null;
+}
+
+/**
+ * What is kept beside an availability message. No times: only the mark that
+ * no time had been agreed when they wrote it, so the team's side never reads
+ * the row's placeholder time as an appointment (noTimeAgreedYet).
+ */
+export function availabilityToStore(fromOffer: boolean): { fromOffer: true }[] | null {
+  return fromOffer ? [{ fromOffer: true as const }] : null;
+}
+
+/** A long message cut for a bell: whole words, with "…" when something was left out. */
+export function shortened(text: string, max = 160): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${(lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).replace(/[\s,;:.]+$/, "")}…`;
+}
+
 /**
  * Had the two sides agreed a time before this answer? Not while the applicant
  * was still choosing among offered times, and not while a suggestion made
@@ -115,9 +156,9 @@ export function suggestionToStore(times: readonly { datetime: string }[], fromOf
 
 /** What the team's bell says about an answer. */
 export function teamNoticeFor(
-  kind: "confirmed" | "picked" | "moved" | "suggested" | "countered",
+  kind: "confirmed" | "picked" | "moved" | "suggested" | "countered" | "availability",
   who: { name: string; jobTitle: string },
-  detail: { when?: string; count?: number } = {},
+  detail: { when?: string; count?: number; availability?: string; clockGap?: string } = {},
 ): { title: string; message: string } {
   const { name, jobTitle } = who;
   const count = detail.count ?? 0;
@@ -125,6 +166,14 @@ export function teamNoticeFor(
   if (kind === "confirmed") return { title: "Interview confirmed", message: `${name} confirmed their interview for ${jobTitle}${detail.when ? `: ${detail.when}` : ""}.` };
   if (kind === "picked") return { title: "Interview time picked", message: `${name} picked a time for their interview for ${jobTitle}: ${detail.when}.` };
   if (kind === "moved") return { title: "Interview moved", message: `${name} moved their interview for ${jobTitle} to ${detail.when}.` };
+  if (kind === "availability") {
+    // They cannot make the time and wrote when they are free. The team sets the new time.
+    const theirs = detail.availability ? ` They are free: "${shortened(detail.availability)}"${detail.clockGap ? ` (their clock, ${detail.clockGap})` : ""}.` : "";
+    return {
+      title: "Can't make the interview time",
+      message: `${name} can't make ${detail.when ? detail.when : "the interview time"} for ${jobTitle}.${theirs} Open Interviews to set a new time.`,
+    };
+  }
   if (kind === "countered") return { title: "Other interview times suggested", message: `${name} can't make the times you offered for ${jobTitle} and suggested ${times}. Open Interviews to answer.` };
   return { title: "Another interview time asked for", message: `${name} asked to move their interview for ${jobTitle} and suggested ${times}. Open Interviews to answer.` };
 }
@@ -227,4 +276,58 @@ export function agreedTimeEmails(input: {
     });
   }
   return out;
+}
+
+/* ── One time, one applicant ────────────────────────────────────────────── */
+
+/** A live, booked interview of the same hiring team (another applicant's). */
+export interface BookedInterview {
+  scheduled_at: string;
+  duration_minutes?: number | null;
+}
+
+/**
+ * Which of the offered times are no longer free: the ones that overlap an
+ * interview another applicant of the same team has already booked. First to
+ * book gets it. Before 2026-10-07 nothing checked: the owner was about to
+ * offer the same few times to nine applicants, and any two of them could
+ * have booked the same slot.
+ *
+ * Two interviews overlap when each starts before the other ends. Returns the
+ * `start` strings exactly as offered, so a caller can compare them as given.
+ */
+export function takenWindowStarts(windows: unknown, booked: readonly BookedInterview[], defaultMinutes = 30): string[] {
+  if (!Array.isArray(windows) || booked.length === 0) return [];
+  const others = booked
+    .map((b) => {
+      const start = new Date(b.scheduled_at).getTime();
+      const minutes = typeof b.duration_minutes === "number" && b.duration_minutes > 0 ? b.duration_minutes : defaultMinutes;
+      return { start, end: start + minutes * 60_000 };
+    })
+    .filter((b) => !Number.isNaN(b.start));
+  const taken: string[] = [];
+  for (const entry of windows) {
+    const startText = (entry as { start?: unknown } | null)?.start;
+    if (typeof startText !== "string") continue;
+    const start = new Date(startText).getTime();
+    if (Number.isNaN(start)) continue;
+    const raw = (entry as { durationMinutes?: unknown }).durationMinutes;
+    const minutes = typeof raw === "number" && raw > 0 ? raw : defaultMinutes;
+    const end = start + minutes * 60_000;
+    if (others.some((other) => start < other.end && other.start < end)) taken.push(startText);
+  }
+  return taken;
+}
+
+/** The span to look for other bookings in: every offered time, with room either side for a long interview. */
+export function bookingSearchSpan(windows: unknown, padMinutes = 240): { from: string; to: string } | null {
+  if (!Array.isArray(windows)) return null;
+  const starts = windows
+    .map((entry) => new Date(String((entry as { start?: unknown } | null)?.start ?? "")).getTime())
+    .filter((t) => !Number.isNaN(t));
+  if (starts.length === 0) return null;
+  return {
+    from: new Date(Math.min(...starts) - padMinutes * 60_000).toISOString(),
+    to: new Date(Math.max(...starts) + padMinutes * 60_000).toISOString(),
+  };
 }

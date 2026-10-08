@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,20 +10,34 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { format, isValid, parseISO } from "date-fns";
-import { Calendar, Clock, Loader2, MessageSquare, Check, X } from "lucide-react";
+import { Calendar as DayPicker } from "@/components/ui/calendar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format, isValid, parseISO, startOfDay } from "date-fns";
+import { ArrowRight, Calendar, CalendarIcon, Clock, Loader2, MessageSquare, Check, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { getTimezoneAbbreviation } from "@/lib/timezone";
-import { applicantEmailTime, localTimeZone } from "@/lib/interviewTimes";
-import { fetchApplicantTimeZone } from "@/hooks/useApplicantTimeZone";
+import { applicantEmailTime, clockGapWords, localTimeZone, shortTimeIn, zonePlace } from "@/lib/interviewTimes";
+import { fetchApplicantTimeZone, useApplicantTimeZone } from "@/hooks/useApplicantTimeZone";
+import { clashAt, clashWords, type BusyInterview } from "@/lib/interviewClash";
+import type { Json } from "@/integrations/supabase/types";
 
 /**
- * The hiring team's answer when an applicant suggests interview times of
- * their own (docs/INTERVIEWS.md, "When the applicant suggests other times").
+ * The hiring team's answer when an applicant cannot make the interview time
+ * (docs/INTERVIEWS.md, "When the applicant can't make it").
  *
- * Two different situations reach it, and they must not be confused:
+ * Since 2026-10-07 the applicant writes when they are free, in words, and
+ * the team sets the new time here: one time, which the applicant is asked to
+ * book. The owner: "don't let them just select times. Let them write a
+ * message ... and then I get to schedule it. Because I don't want them to
+ * pick two times and then I can't do those two times."
+ *
+ * An answer from before then lists times of the applicant's own, and is
+ * still answered the old way below. For those, two different situations
+ * reach it, and they must not be confused:
  *  - a time was agreed (or set) and the applicant asks to move it: there is
  *    a time to keep;
  *  - the applicant was still choosing among offered times and says none
@@ -66,7 +80,20 @@ interface EmployerRescheduleReviewDialogProps {
   fromOffer?: boolean;
   /** The offered times that have not passed (start instants), for sending them back to. */
   openOfferedTimes?: string[];
+  /** How long the interview runs: kept for the new time. */
+  durationMinutes?: number | null;
+  /** The team's other live interviews, to say so when the new time runs into one. */
+  busy?: readonly BusyInterview[];
 }
+
+/** "13:30" as people say it: "1:30 PM". */
+function clockLabel(time: string): string {
+  const [h, m] = time.split(":").map(Number);
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+}
+
+/** Every half hour of the day: the applicant may be half a world away, so the team's night is offered too. */
+const HALF_HOURS = Array.from({ length: 48 }, (_, i) => `${String(Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`);
 
 type JoinedApplication = { candidate_id?: string; jobs?: { title?: string } | null } | null;
 
@@ -82,11 +109,30 @@ export function EmployerRescheduleReviewDialog({
   candidateName,
   fromOffer = false,
   openOfferedTimes = [],
+  durationMinutes,
+  busy = [],
 }: EmployerRescheduleReviewDialogProps) {
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedTime, setSelectedTime] = useState<string>("");
-  const [action, setAction] = useState<"accept" | "keep" | null>(null);
+  const [action, setAction] = useState<"accept" | "keep" | "new" | null>(null);
+  // The new time the team is setting (availability answers).
+  const [newDay, setNewDay] = useState<Date | undefined>();
+  const [newClock, setNewClock] = useState("");
+  const [dayOpen, setDayOpen] = useState(false);
+
+  const teamZone = useMemo(() => localTimeZone(), []);
+  const applicantZone = useApplicantTimeZone(applicationId, open).data ?? null;
+  const minutes = durationMinutes && durationMinutes > 0 ? durationMinutes : 30;
+  const newStart = useMemo(() => {
+    if (!newDay || !newClock) return null;
+    const [h, m] = newClock.split(":").map(Number);
+    const at = new Date(newDay);
+    at.setHours(h, m, 0, 0);
+    return at;
+  }, [newDay, newClock]);
+  const newStartAhead = !!newStart && newStart.getTime() > Date.now();
+  const clash = newStart && newStartAhead ? clashAt(newStart, minutes, busy, interviewId) : null;
 
   const first = candidateName?.trim().split(/\s+/)[0] || "They";
   const them = candidateName?.trim().split(/\s+/)[0] || "them";
@@ -264,6 +310,77 @@ export function EmployerRescheduleReviewDialog({
     }
   };
 
+  /**
+   * They wrote when they are free: the team sets one new time. It goes back
+   * to the applicant as an offered time to book (never booked for them
+   * unseen), marked `again` so their page says it is a new time.
+   */
+  const handleSetNewTime = async () => {
+    if (!newStart) {
+      toast.error("Choose the day and the time first");
+      return;
+    }
+    if (!newStartAhead) {
+      toast.error("That time has already passed. Choose a later one.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setAction("new");
+    try {
+      const { candidateId, jobTitle, scheduledAt } = await lookUp();
+      const startIso = newStart.toISOString();
+      const { error } = await supabase
+        .from("interviews")
+        .update({
+          scheduled_at: startIso,
+          duration_minutes: minutes,
+          candidate_response: "awaiting_pick",
+          employer_windows: [{ start: startIso, durationMinutes: minutes, zone: teamZone, again: true }] as unknown as Json,
+          proposed_times: null,
+          candidate_note: null,
+        })
+        .eq("id", interviewId);
+
+      if (error) throw error;
+
+      if (candidateId) {
+        // The applicant's bell is the database's own when the time changed
+        // (notify_interview_scheduled_or_rescheduled). The same time offered
+        // again changes nothing there, so they are told here.
+        const sameTime = !!scheduledAt && new Date(scheduledAt).getTime() === newStart.getTime();
+        if (sameTime) {
+          await supabase.from("notifications").insert({
+            user_id: candidateId,
+            type: "interview",
+            title: "Your interview time",
+            message: `The hiring team offered a time for your interview for ${jobTitle}. Book it, or tell them when you are free.`,
+            link: `/applications/${applicationId}`,
+          });
+        }
+        try {
+          const theirZone = applicantZone ?? (await fetchApplicantTimeZone(applicationId));
+          const line = applicantEmailTime(newStart, theirZone, teamZone).line;
+          const { notifyInterviewPickTime } = await import("@/utils/emailNotifications");
+          await notifyInterviewPickTime(candidateId, jobTitle, [line], undefined, true);
+        } catch (emailErr) {
+          console.error("Failed to email the new time:", emailErr);
+        }
+      }
+
+      refresh();
+      toast.success(`New time sent to ${them}`, {
+        description: `${format(newStart, "EEE, MMM d 'at' h:mm a")}. ${first === "They" ? "They are" : `${first} is`} asked to book it, and you are told when they do.`,
+      });
+      onOpenChange(false);
+    } catch (error) {
+      console.error("Error setting a new time:", error);
+      toast.error("Couldn't send the new time. Try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleMessageCandidate = () => {
     onOpenChange(false);
     onMessageCandidate();
@@ -272,6 +389,137 @@ export function EmployerRescheduleReviewDialog({
   const theirTimes = (proposedTimes ?? []).filter((time) => time?.datetime);
   const zone = getTimezoneAbbreviation();
   const canGoBackToOffer = openOfferedTimes.length > 0;
+  // No times of their own: they wrote when they are free, and the team sets the time.
+  const availabilityAnswer = theirTimes.length === 0;
+  const theirClock = (at: Date): string | null => (applicantZone && applicantZone !== teamZone ? shortTimeIn(at, applicantZone) : null);
+  // The day the time list is worded for: the chosen one, or today.
+  const listDay = newDay ?? startOfDay(new Date());
+  const atOn = (day: Date, clock: string) => {
+    const [h, m] = clock.split(":").map(Number);
+    const at = new Date(day);
+    at.setHours(h, m, 0, 0);
+    return at;
+  };
+
+  if (availabilityAnswer) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="hf-sheet sm:max-w-xl max-h-[90vh] overflow-hidden flex flex-col" data-review-availability={fromOffer ? "offer" : "set"}>
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle className="font-display text-[22px] font-semibold">{first === "They" ? "They can't make it" : `${first} can't make it`}</DialogTitle>
+            <DialogDescription>
+              {fromOffer
+                ? `${first} can't make the time you offered and wrote when they are free. Set a new time below.`
+                : `${first} can't make ${safeFormatDate(currentScheduledAt, "EEE, MMM d 'at' h:mm a")} any more and wrote when they are free. Set a new time below.`}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* A little room at the sides, so a field's focus ring is not cut by the scrolling area. */}
+          <div className="-mx-1 space-y-5 overflow-y-auto px-1 py-4 flex-1 min-h-0">
+            <div className="rounded-xl border border-border bg-muted/40 p-4" data-review-availability-text>
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--brass)" }}>
+                When {them === "them" ? "they are" : `${them} is`} free
+              </p>
+              <p className="mt-2 break-words text-[15px] leading-relaxed text-foreground [overflow-wrap:anywhere]">
+                {candidateNote ? <>&ldquo;{candidateNote}&rdquo;</> : "They did not write anything. Message them to ask."}
+              </p>
+              {applicantZone && (
+                <p className="mt-2.5 text-[13px] leading-snug" style={{ color: "var(--ink-3)" }} data-review-clock-gap>
+                  {applicantZone === teamZone
+                    ? "They are on the same clock as you."
+                    : `Those times are on their own clock (${zonePlace(applicantZone)}), which is ${clockGapWords(newStart ?? new Date(), applicantZone, teamZone)}. Each time below shows theirs beside yours.`}
+                </p>
+              )}
+            </div>
+
+            <div data-review-new-time>
+              <p className="text-sm font-medium">
+                Set a new time <span className="font-normal text-muted-foreground">(your clock, {zone})</span>
+              </p>
+              <div className="mt-2.5 flex flex-wrap gap-2">
+                <Popover open={dayOpen} onOpenChange={setDayOpen}>
+                  <PopoverTrigger asChild>
+                    <button type="button" className={cn("hf-pill hf-pill--tonal hf-field min-w-[170px] flex-1", !newDay && "hf-field--empty")} data-review-new-day>
+                      <CalendarIcon />
+                      {newDay ? format(newDay, "EEE, MMM d") : "Pick the day"}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <DayPicker
+                      mode="single"
+                      selected={newDay}
+                      onSelect={(day) => {
+                        setNewDay(day);
+                        setDayOpen(false);
+                      }}
+                      disabled={(day) => day < startOfDay(new Date())}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                <Select value={newClock} onValueChange={setNewClock}>
+                  <SelectTrigger className="hf-field hf-field--select min-w-[170px] flex-1" data-review-new-clock>
+                    <Clock className="mr-2 h-4 w-4" />
+                    <SelectValue placeholder="Pick the time" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    {HALF_HOURS.map((clock) => {
+                      const theirs = theirClock(atOn(listDay, clock));
+                      return (
+                        <SelectItem key={clock} value={clock}>
+                          {clockLabel(clock)}
+                          {theirs ? ` · ${theirs} theirs` : ""}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {newStart && (
+                <p
+                  className="mt-3 text-[13.5px] leading-snug"
+                  style={{ color: newStartAhead ? "var(--ink-2)" : "var(--destructive, #b3261e)" }}
+                  data-review-new-summary
+                  aria-live="polite"
+                >
+                  {newStartAhead
+                    ? `${format(newStart, "EEEE, MMMM d 'at' h:mm a")} your time${theirClock(newStart) ? `, which is ${theirClock(newStart)} for ${them}` : ""}. ${minutes} minutes.`
+                    : "That time has already passed. Choose a later one."}
+                </p>
+              )}
+              {clash && (
+                <p className="mt-1.5 text-[13.5px] font-medium leading-snug" style={{ color: "var(--ink)" }} data-review-new-clash>
+                  {clashWords(clash)}
+                </p>
+              )}
+              <p className="mt-3 text-xs text-muted-foreground">
+                {first === "They" ? "They are" : `${first} is`} asked to book it, by email and in the app, and you are told when they do.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col gap-2 flex-shrink-0 pt-4 border-t border-border sm:flex-row sm:flex-wrap sm:justify-end sm:gap-2 sm:space-x-0">
+            <button type="button" className="hf-pill hf-pill--text" onClick={handleMessageCandidate}>
+              <MessageSquare />
+              Message {them}
+            </button>
+            <button
+              type="button"
+              className="hf-pill hf-pill--jade"
+              onClick={handleSetNewTime}
+              disabled={isSubmitting || !newStart || !newStartAhead}
+              data-review-send-new-time
+            >
+              {isSubmitting && action === "new" ? <Loader2 className="animate-spin" /> : <ArrowRight />}
+              Send this time
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -342,9 +590,7 @@ export function EmployerRescheduleReviewDialog({
                 ))}
               </RadioGroup>
             </div>
-          ) : (
-            <div className="text-sm text-muted-foreground italic p-4 bg-muted/30 rounded-lg">They did not suggest a time.</div>
-          )}
+          ) : null}
 
           {fromOffer && (
             <p className="text-xs text-muted-foreground" data-review-offer-note>

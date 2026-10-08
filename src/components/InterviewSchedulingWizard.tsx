@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect, memo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCreateInterview } from "@/hooks/useInterviews";
+import { useCreateInterview, useInterviews } from "@/hooks/useInterviews";
+import { clashAt, clashWords, type BusyInterview } from "@/lib/interviewClash";
 import { useUpdateApplication } from "@/hooks/useApplications";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -80,11 +81,14 @@ interface WindowSlot {
   time: string; // "HH:mm"
 }
 
-// The owner should never be forced into offering more than one time if
-// that's all they want — a single offered window is a perfectly valid,
-// fully supported path. This just gates how many the wheel accepts.
+// One time, and only one. The owner, 2026-10-07: "I wanna just give them one
+// time for the interview, not two, just one ... because I don't want them to
+// pick two times and then I can't do those two times." The applicant books
+// it, or writes when they are free and the owner sets a new time. (Until
+// then the wheel took up to six, and the applicant picked among them.)
+// Choosing another time replaces the one chosen.
 const MIN_WINDOWS = 1;
-const MAX_WINDOWS = 6;
+const MAX_WINDOWS = 1;
 // Interviews shouldn't run past this local time, so longer durations quietly
 // drop the last few start slots of the day instead of overflowing into night.
 const DAY_CUTOFF_HOUR = 20;
@@ -241,9 +245,9 @@ export default function InterviewSchedulingWizard({
   initialState,
 }: InterviewSchedulingWizardProps) {
   const [currentStep, setCurrentStep] = useState(0);
-  // Windows mode is the default: the employer offers a handful of times and
-  // the candidate picks. The toggle below drops back to today's single-slot
-  // behavior for phone/in-person or a time already agreed by other means.
+  // The default: the employer offers one time and the applicant books it (or
+  // says they cannot make it). The toggle below books a time outright, for a
+  // time already agreed by other means.
   const [exactTimeMode, setExactTimeMode] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedTime, setSelectedTime] = useState("");
@@ -283,11 +287,28 @@ export default function InterviewSchedulingWizard({
 
   const queryClient = useQueryClient();
   const createInterview = useCreateInterview();
+  // The team's other live interviews: a time that runs into one is said so
+  // before it is sent (src/lib/interviewClash.ts). This applicant's own
+  // earlier interview is left out: it is replaced by the one being set up.
+  const allInterviews = useInterviews().data;
+  const busy = useMemo<BusyInterview[]>(
+    () =>
+      (allInterviews ?? [])
+        .filter((row) => row.status === "scheduled" && row.application_id !== applicationId && row.candidate_response !== "reschedule_requested")
+        .map((row) => ({
+          id: row.id,
+          name: row.applications?.profiles?.full_name ?? row.applications?.profiles?.email ?? "another applicant",
+          start: row.scheduled_at,
+          minutes: row.duration_minutes,
+          booked: row.candidate_response === "confirmed",
+        })),
+    [allInterviews, applicationId],
+  );
   const updateApplication = useUpdateApplication();
   const isMobile = useIsMobile();
 
   const steps = [
-    { id: "calendar", title: "Offer Times", icon: CalendarIcon },
+    { id: "calendar", title: "Offer a Time", icon: CalendarIcon },
     { id: "details", title: "Interview Details", icon: Users },
     { id: "meeting", title: "Meeting Setup", icon: Video },
     { id: "review", title: "Review & Schedule", icon: CheckCircle },
@@ -327,6 +348,13 @@ export default function InterviewSchedulingWizard({
     [selectedWindows]
   );
 
+  // The chosen time runs into another interview of the team's: said before it is sent.
+  const offeredClash = useMemo(() => {
+    const chosen = sortedSelectedWindows[0];
+    if (!chosen) return null;
+    return clashAt(combineDayAndTime(chosen.day, chosen.time), durationMinutes, busy);
+  }, [sortedSelectedWindows, durationMinutes, busy]);
+
   const isWindowSelected = useCallback(
     (day: Date, time: string) => selectedWindows.some((w) => windowKey(w.day, w.time) === windowKey(day, time)),
     [selectedWindows]
@@ -338,11 +366,8 @@ export default function InterviewSchedulingWizard({
       if (prev.some((w) => windowKey(w.day, w.time) === key)) {
         return prev.filter((w) => windowKey(w.day, w.time) !== key);
       }
-      if (prev.length >= MAX_WINDOWS) {
-        toast.error(`Up to ${MAX_WINDOWS} times — remove one to add another.`);
-        return prev;
-      }
-      return [...prev, { day, time }];
+      // One time: a new choice takes the place of the last.
+      return [...prev.slice(0, MAX_WINDOWS - 1), { day, time }];
     });
   }, []);
 
@@ -910,7 +935,7 @@ export default function InterviewSchedulingWizard({
             <p className="text-muted-foreground mb-6">
               {exactTimeMode
                 ? `Your interview with ${candidateName} has been scheduled.`
-                : `${candidateName} picks whichever time works — you'll see it land on your calendar here.`}
+                : `${candidateName} is asked to book this time, and you are told when they do. If they can't make it, they write when they are free and you set a new time.`}
             </p>
 
             {/* Interview Details */}
@@ -934,7 +959,7 @@ export default function InterviewSchedulingWizard({
                 <div className="flex items-start gap-3">
                   <CalendarIcon className="h-5 w-5 text-muted-foreground mt-0.5" />
                   <div>
-                    <p className="text-sm text-muted-foreground">Times offered</p>
+                    <p className="text-sm text-muted-foreground">Time offered</p>
                     <div className="flex flex-wrap gap-1.5 mt-1.5">
                       {sortedSelectedWindows.map((w) => (
                         <span
@@ -1102,7 +1127,7 @@ export default function InterviewSchedulingWizard({
                         className="text-xs font-medium transition-opacity duration-150 ease-out active:opacity-60 motion-reduce:transition-none"
                         style={{ color: "var(--jade)" }}
                       >
-                        {exactTimeMode ? "Offer a few times instead" : "Book one exact time instead"}
+                        {exactTimeMode ? "Offer a time for them to book instead" : "Already agreed a time? Book it directly"}
                       </button>
                     </div>
 
@@ -1331,7 +1356,7 @@ export default function InterviewSchedulingWizard({
                             ) : null}
                             {daySlots[wheelCenterIndex]
                               ? `${
-                                  isWindowSelected(viewDay, daySlots[wheelCenterIndex].value) ? "Added" : "Add"
+                                  isWindowSelected(viewDay, daySlots[wheelCenterIndex].value) ? "Chosen:" : "Choose"
                                 } ${format(viewDay, "EEE")} ${formatTimeToAMPM(daySlots[wheelCenterIndex].value)}`
                               : "No times left today"}
                           </button>
@@ -1343,25 +1368,16 @@ export default function InterviewSchedulingWizard({
                             )}
                         </div>
 
-                        {/* Selected windows as removable chips */}
-                        <div className="space-y-2">
+                        {/* The one time on offer, as a removable chip */}
+                        <div className="space-y-2" data-testid="offered-time">
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-medium" style={{ color: "var(--ink-3)" }}>
-                              Times you're offering
-                            </span>
-                            <span
-                              className="text-xs font-medium"
-                              style={{
-                                color:
-                                  selectedWindows.length >= MIN_WINDOWS ? "var(--jade)" : "var(--ink-3)",
-                              }}
-                            >
-                              {selectedWindows.length} of {MAX_WINDOWS}
+                              The time you're offering
                             </span>
                           </div>
                           {sortedSelectedWindows.length === 0 ? (
                             <p className="text-sm" style={{ color: "var(--ink-3)" }}>
-                              Scroll the wheel and tap Add to offer a time.
+                              Scroll the wheel and tap Choose. You offer one time.
                             </p>
                           ) : (
                             <div className="flex flex-wrap gap-2">
@@ -1390,9 +1406,16 @@ export default function InterviewSchedulingWizard({
                             </div>
                           )}
                           {selectedWindows.length === 1 && (
-                            <p className="text-xs" style={{ color: "var(--ink-3)" }}>
-                              Tip: offering 2–3 times usually gets a faster pick.
-                            </p>
+                            <>
+                              {offeredClash && (
+                                <p className="text-xs font-medium" style={{ color: "var(--ink)" }} data-testid="offered-time-clash">
+                                  {clashWords(offeredClash)}
+                                </p>
+                              )}
+                              <p className="text-xs" style={{ color: "var(--ink-3)" }}>
+                                {firstName} books it, or writes when they are free if they can&apos;t make it. Then you set a new time.
+                              </p>
+                            </>
                           )}
                         </div>
                       </>
@@ -1666,7 +1689,7 @@ export default function InterviewSchedulingWizard({
                           <div className="flex items-start gap-3">
                             <CalendarIcon className="h-5 w-5 text-muted-foreground mt-0.5" />
                             <div>
-                              <p className="text-sm text-muted-foreground">Times offered</p>
+                              <p className="text-sm text-muted-foreground">Time offered</p>
                               <div className="flex flex-wrap gap-1.5 mt-1.5">
                                 {sortedSelectedWindows.map((w) => (
                                   <span
@@ -1774,7 +1797,7 @@ export default function InterviewSchedulingWizard({
                   ) : (
                     <CheckCircle className="h-4 w-4 mr-2" />
                   )}
-                  {exactTimeMode ? "Schedule Interview" : "Send Times"}
+                  {exactTimeMode ? "Schedule Interview" : "Send the Time"}
                 </Button>
               )}
             </div>

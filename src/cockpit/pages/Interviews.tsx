@@ -75,6 +75,11 @@ interface Session {
    * (candidate-interview-response marks each suggested time `fromOffer`).
    */
   suggestedFromOffer: boolean;
+  /**
+   * They said they cannot make it and wrote when they are free (no times of
+   * their own): the team sets the new time. The rule since 2026-10-07.
+   */
+  availabilityOnly: boolean;
   /** The offered times that have not passed (their start instants). */
   openOfferedTimes: string[];
   /** How many windows the employer offered when handing the pick to the candidate. */
@@ -104,13 +109,13 @@ function typeLabel(type: string | null) {
 }
 
 /**
- * No time is agreed yet: the applicant is still choosing among offered times,
- * or said none work and suggested their own. The row's own time is then only
- * a placeholder (the earliest offered time) and is never shown as the
- * appointment (docs/INTERVIEWS.md).
+ * No time is agreed yet: the applicant has not booked the offered time, or
+ * said they cannot make it (and wrote when they are free, or, before
+ * 2026-10-07, suggested times while still choosing). The row's own time is
+ * then not an appointment and is never shown as one (docs/INTERVIEWS.md).
  */
-function noTimeYet(s: Pick<Session, "response" | "suggestedFromOffer">): boolean {
-  return s.response === "awaiting_pick" || (s.response === "reschedule_requested" && s.suggestedFromOffer);
+function noTimeYet(s: Pick<Session, "response" | "suggestedFromOffer" | "availabilityOnly">): boolean {
+  return s.response === "awaiting_pick" || (s.response === "reschedule_requested" && (s.suggestedFromOffer || s.availabilityOnly));
 }
 
 function readResponse(value: string | null): Response {
@@ -145,6 +150,7 @@ function fromRow(row: InterviewWithDetails): Session {
       .filter((t) => !!t?.datetime)
       .map((t) => ({ datetime: t.datetime as string })),
     suggestedFromOffer: raw.some((t) => (t as { fromOffer?: unknown } | null)?.fromOffer === true),
+    availabilityOnly: row.candidate_response === "reschedule_requested" && !raw.some((t) => !!t?.datetime),
     openOfferedTimes: (windows as Array<{ start?: unknown }>)
       .map((w) => (typeof w?.start === "string" ? w.start : ""))
       .filter((start) => !!start && new Date(start).getTime() > Date.now()),
@@ -259,6 +265,7 @@ export default function CockpitInterviews() {
         candidateNote: null,
         proposedTimes: [],
         suggestedFromOffer: false,
+        availabilityOnly: false,
         openOfferedTimes: [],
         windowsOffered: 0,
         meetingProvider: null,
@@ -590,11 +597,11 @@ export default function CockpitInterviews() {
                               }}
                             >
                               {format(s.at as Date, "h:mm aaa")} &middot; {firstName(s.name)}
-                              {confirm ? (s.suggestedFromOffer ? " · suggested others" : " · confirm") : ""}
+                              {confirm ? (s.availabilityOnly ? " · can't make it" : s.suggestedFromOffer ? " · suggested others" : " · confirm") : ""}
                               {/* awaiting_pick shows the earliest offered window as a
                                   placeholder — the candidate has not chosen yet, so say
                                   so quietly rather than let it read as a confirmed time. */}
-                              {awaitingPick ? " · picks soon" : ""}
+                              {awaitingPick ? (s.windowsOffered === 1 ? " · not booked yet" : " · picks soon") : ""}
                             </button>
                           );
                         })
@@ -625,11 +632,15 @@ export default function CockpitInterviews() {
                       s.minutes ? `${s.minutes} min` : null,
                       typeLabel(s.type),
                       confirm
-                        ? s.suggestedFromOffer
-                          ? "they can't make the times you offered and suggested others"
-                          : "they asked for a different time — your slot is still held"
+                        ? s.availabilityOnly
+                          ? "they can't make it and wrote when they are free"
+                          : s.suggestedFromOffer
+                            ? "they can't make the times you offered and suggested others"
+                            : "they asked for a different time — your slot is still held"
                         : awaitingPick
-                          ? `${s.windowsOffered} ${s.windowsOffered === 1 ? "time" : "times"} offered`
+                          ? s.windowsOffered === 1
+                            ? "offered, not booked yet"
+                            : `${s.windowsOffered} times offered`
                           : s.response === "pending"
                             ? "I sent them the time by email"
                             : null,
@@ -643,7 +654,24 @@ export default function CockpitInterviews() {
                     className="ck-card ck-reveal flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3"
                     style={{ ["--ck-i" as string]: i, borderRadius: 10 }}
                   >
-                    {noTimeYet(s) ? (
+                    {awaitingPick && s.windowsOffered === 1 && s.at ? (
+                      /* The one time on offer, said as an offer: smaller and
+                         quieter than a booked time, so the two never read alike. */
+                      <div className="min-w-[104px] shrink-0" data-interview-time="offered">
+                        <div
+                          className="text-[10px] font-bold uppercase leading-[1.2] tracking-[0.1em]"
+                          style={{ color: "var(--brass)" }}
+                        >
+                          Offered &middot; {format(s.at, "EEE d")}
+                        </div>
+                        <div
+                          className="font-display tnum mt-[4px] whitespace-nowrap leading-none"
+                          style={{ fontSize: 20, fontWeight: 600, color: "var(--ink-2)", letterSpacing: "-0.01em" }}
+                        >
+                          {format(s.at, "h:mm aaa")}
+                        </div>
+                      </div>
+                    ) : noTimeYet(s) ? (
                       /* No time is agreed: no clock time is shown as if it were. */
                       <div className="min-w-[104px] shrink-0" data-interview-time="none">
                         <div
@@ -699,11 +727,11 @@ export default function CockpitInterviews() {
                             {s.name}
                           </span>
                           {confirm ? (
-                            <Chip tone="amber">{s.suggestedFromOffer ? "Suggested other times" : "Needs confirm"}</Chip>
+                            <Chip tone="amber">{s.availabilityOnly ? "Can't make it" : s.suggestedFromOffer ? "Suggested other times" : "Needs confirm"}</Chip>
                           ) : s.response === "confirmed" ? (
                             <Chip tone="live">Confirmed</Chip>
                           ) : awaitingPick ? (
-                            <Chip tone="mut">Awaiting pick</Chip>
+                            <Chip tone="mut">{s.windowsOffered === 1 ? "Not booked yet" : "Awaiting pick"}</Chip>
                           ) : (
                             <Chip tone="mut">Awaiting reply</Chip>
                           )}
@@ -730,8 +758,8 @@ export default function CockpitInterviews() {
                         </button>
                       )}
                       {confirm && (
-                        <button className="ck-btn ck-btn-primary !py-2 !text-[12px]" onClick={() => setReviewing(s)}>
-                          Review times
+                        <button className="ck-btn ck-btn-primary !py-2 !text-[12px]" onClick={() => setReviewing(s)} data-interview-answer>
+                          {s.availabilityOnly ? "Set a new time" : "Review times"}
                         </button>
                       )}
                       {s.response === "confirmed" && (
@@ -887,8 +915,12 @@ export default function CockpitInterviews() {
                     {noTimeYet(next) ? (
                       <Evidence icon={AlertCircle} tone="var(--amber-fg)" label="No time yet:">
                         {next.response === "awaiting_pick"
-                          ? `${next.windowsOffered} ${next.windowsOffered === 1 ? "time" : "times"} offered. I am waiting for them to pick one.`
-                          : "They can't make the times you offered and suggested others. Review times to answer."}
+                          ? next.windowsOffered === 1
+                            ? `You offered ${next.at ? format(next.at, "EEEE d MMM 'at' h:mm aaa") : "one time"}. I am waiting for them to book it.`
+                            : `${next.windowsOffered} times offered. I am waiting for them to pick one.`
+                          : next.availabilityOnly
+                            ? "They can't make it and wrote when they are free. Set a new time to answer."
+                            : "They can't make the times you offered and suggested others. Review times to answer."}
                         {next.minutes ? ` · ${next.minutes} min` : ""}
                         {typeLabel(next.type) ? ` · ${typeLabel(next.type)}` : ""}
                       </Evidence>
@@ -1010,7 +1042,7 @@ export default function CockpitInterviews() {
         onClose={() => setGuideFor(null)}
       />
 
-      {/* The candidate proposed other times; this is where you take the call. */}
+      {/* The applicant can't make it; this is where the new time is set. */}
       {reviewing && (
         <EmployerRescheduleReviewDialog
           open
@@ -1025,6 +1057,11 @@ export default function CockpitInterviews() {
           candidateName={reviewing.name}
           fromOffer={reviewing.suggestedFromOffer}
           openOfferedTimes={reviewing.openOfferedTimes}
+          durationMinutes={reviewing.minutes}
+          // The other live interviews: a new time that runs into one is said so.
+          busy={upcoming
+            .filter((s) => s.id !== reviewing.id && s.response !== "reschedule_requested" && !!s.at)
+            .map((s) => ({ id: s.id, name: s.name, start: s.at, minutes: s.minutes, booked: s.response === "confirmed" }))}
           // Land on this candidate's thread, not the inbox — a bare /messages
           // opened whichever thread was newest and left the owner to hunt.
           onMessageCandidate={() =>

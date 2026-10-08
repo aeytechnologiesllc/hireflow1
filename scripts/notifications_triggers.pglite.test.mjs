@@ -26,7 +26,7 @@
  *
  * Run with: node scripts/notifications_triggers.pglite.test.mjs
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
@@ -508,6 +508,73 @@ async function main() {
     afterOffered.length === 1 && afterOffered[0]?.title === "Offer extended",
     JSON.stringify(afterOffered),
   );
+
+  // ── One offered time (2026-10-07): the same triggers, reworded ──────────
+  // The owner now offers one time, and sets a new one himself when the
+  // applicant cannot make it. Found by its name, whatever version it is
+  // stamped with when applied (docs/MIGRATION-HISTORY.md).
+  const migrationsDir = path.join(__dirname, "..", "supabase/migrations");
+  const oneTimeFile = readdirSync(migrationsDir).find((name) => name.endsWith("_interview_bell_one_time.sql"));
+  check("the one-time wording migration is in the repo", !!oneTimeFile);
+  if (oneTimeFile) {
+    await db.exec(readFileSync(path.join(migrationsDir, oneTimeFile), "utf8"));
+    const offeredId = "50000000-0000-0000-0000-0000000000a1";
+    await db.query("delete from public.interviews where application_id = $1", [schedAppId2]);
+    await db.query("delete from public.notifications");
+    await asActor(employerId);
+    await db.query(
+      "insert into public.interviews (id, application_id, scheduled_at, candidate_response, employer_windows) values ($1,$2, now() + interval '3 days', 'awaiting_pick', '[]'::jsonb)",
+      [offeredId, schedAppId2],
+    );
+    let bell = await notifsFor(candidateId);
+    check(
+      "one offered time: 'You're invited to an interview', book it or say when they are free",
+      bell.length === 1 &&
+        bell[0]?.title === "You're invited to an interview" &&
+        /^The hiring team offered you a time for your interview for .+\. Book it, or tell them when you are free\.$/.test(bell[0]?.message ?? "") &&
+        !/a few times|Pick what works/.test(bell[0]?.message ?? ""),
+      JSON.stringify(bell),
+    );
+    check("…still linked through the applicant's sign-in", /^\/candidate\/auth\?redirect=%2Fapplications%2F/.test(bell[0]?.link ?? ""), bell[0]?.link);
+
+    // They said they cannot make it (the function, service_role): no bell for them.
+    await db.query("delete from public.notifications");
+    await asActor(null);
+    await db.query("update public.interviews set candidate_response = 'reschedule_requested' where id = $1", [offeredId]);
+    check("their own 'can't make it' is not announced back to them", (await notifsFor(candidateId)).length === 0);
+
+    // The team sets a new time: offered again, not booked.
+    await asActor(employerId);
+    await db.query(
+      "update public.interviews set scheduled_at = now() + interval '8 days', candidate_response = 'awaiting_pick' where id = $1",
+      [offeredId],
+    );
+    bell = await notifsFor(candidateId);
+    check(
+      "a new time set by the team: 'A new time for your interview', not 'moved'",
+      bell.length === 1 &&
+        bell[0]?.title === "A new time for your interview" &&
+        /^The hiring team set a new time for your interview for .+\. Book it, or tell them when you are free\.$/.test(bell[0]?.message ?? ""),
+      JSON.stringify(bell),
+    );
+
+    // They book it (the function): nothing for them. Then the team moves a booked time: 'changed'.
+    await db.query("delete from public.notifications");
+    await asActor(null);
+    await db.query("update public.interviews set scheduled_at = now() + interval '8 days 1 hour', candidate_response = 'confirmed' where id = $1", [offeredId]);
+    check("booking it themselves is not announced back to them", (await notifsFor(candidateId)).length === 0);
+    await asActor(employerId);
+    await db.query("update public.interviews set scheduled_at = now() + interval '9 days' where id = $1", [offeredId]);
+    bell = await notifsFor(candidateId);
+    check("a booked time the team moves still reads 'Interview time changed'", bell.length === 1 && bell[0]?.title === "Interview time changed", JSON.stringify(bell));
+
+    // A time booked outright is worded as before.
+    await db.query("delete from public.interviews where id = $1", [offeredId]);
+    await db.query("delete from public.notifications");
+    await db.query("insert into public.interviews (id, application_id, scheduled_at) values ($1,$2, now() + interval '4 days')", [offeredId, schedAppId2]);
+    bell = await notifsFor(candidateId);
+    check("a time booked outright still reads 'Interview scheduled'", bell.length === 1 && bell[0]?.title === "Interview scheduled", JSON.stringify(bell));
+  }
 
   await db.close();
 

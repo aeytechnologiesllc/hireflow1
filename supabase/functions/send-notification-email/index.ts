@@ -110,6 +110,8 @@ interface NotificationRequest {
     proposed_times?: string;
     proposed_times_list?: string[];
     window_count?: string;
+    /** interview_pick_time: "1" for a new time, set after they could not make an earlier one. */
+    again?: string;
     candidate_note?: string;
     minutes_remaining?: string;
     active_jobs_count?: string;
@@ -128,6 +130,12 @@ interface NotificationRequest {
     interview_when?: string;
     /** interview_time_picked: how it became agreed. */
     interview_change?: string;
+    /** reschedule_requested: when the applicant is free, in their own words. */
+    availability?: string;
+    /** reschedule_requested: the time they cannot make, on the team's clock. */
+    cannot_make?: string;
+    /** reschedule_requested: how far their clock is from the team's ("12 hours ahead of yours"). */
+    clock_gap?: string;
     /** continue_on_computer: the applicant's own application. The ONLY field
      *  that type reads from a request; everything it says is looked up. */
     application_id?: string;
@@ -317,23 +325,45 @@ const getEmailContent = (
     })(),
 
     // CANDIDATE-FACING
-    interview_pick_time: {
-      subject: `Pick a time for your interview — ${data.job_title}`,
-      html: wrapEmail(
-        "Pick a Time for Your Interview",
-        `<p>The hiring team for <strong>${esc(data.job_title)}</strong> has proposed ${esc(data.window_count) || "a few"} time${data.window_count === "1" ? "" : "s"} for your interview. Pick whichever works best for you:</p>
-         ${
-           data.proposed_times_list && data.proposed_times_list.length > 0
-             ? `<ul style="color: #333; padding-left: 20px; margin: 16px 0;">
-                 ${data.proposed_times_list.map((t) => `<li style="margin-bottom: 6px;">${esc(t)}</li>`).join("")}
-               </ul>`
-             : ""
-         }
-         <p style="color: #666;">Head to your application to choose a time — it only takes a second.</p>`,
-        "Pick a Time",
-        candidateLink("/applications")
-      ),
-    },
+    // One time is the rule since 2026-10-07 (the owner: "I wanna just give
+    // them one time for the interview, not two"): the email states it, and
+    // says what to do if they cannot make it. Several times read as before.
+    interview_pick_time: (() => {
+      const times = data.proposed_times_list ?? [];
+      const list = times.length > 0
+        ? `<ul style="color: #333; padding-left: 20px; margin: 16px 0;">
+             ${times.map((t) => `<li style="margin-bottom: 6px;">${esc(t)}</li>`).join("")}
+           </ul>`
+        : "";
+      if (times.length === 1) {
+        const again = data.again === "1";
+        return {
+          subject: again ? `A new time for your interview: ${data.job_title}` : `You're invited to an interview: ${data.job_title}`,
+          html: wrapEmail(
+            again ? "A New Time for Your Interview" : "You're Invited to an Interview",
+            `<p>${again
+              ? `The hiring team for <strong>${esc(data.job_title)}</strong> set a new time for your interview:`
+              : `The hiring team for <strong>${esc(data.job_title)}</strong> would like to interview you at this time:`}</p>
+             ${list}
+             <p>Open your application to book it.</p>
+             <p style="color: #666;">Can't make it? Tell them there which days you are free, and from what time to what time, and they will set another time.</p>`,
+            "Book This Time",
+            candidateLink("/applications")
+          ),
+        };
+      }
+      return {
+        subject: `Pick a time for your interview — ${data.job_title}`,
+        html: wrapEmail(
+          "Pick a Time for Your Interview",
+          `<p>The hiring team for <strong>${esc(data.job_title)}</strong> has proposed ${esc(data.window_count) || "a few"} times for your interview. Pick whichever works best for you:</p>
+           ${list}
+           <p style="color: #666;">Head to your application to choose a time — it only takes a second.</p>`,
+          "Pick a Time",
+          candidateLink("/applications")
+        ),
+      };
+    })(),
 
     // CANDIDATE-FACING
     interview_cancelled: {
@@ -453,18 +483,34 @@ const getEmailContent = (
     },
     
     // EMPLOYER-FACING
-    reschedule_requested: {
-      subject: `Reschedule Request: ${data.candidate_name} for ${data.job_title}`,
-      html: wrapEmail(
-        "Reschedule Requested",
-        `<p><strong>${esc(data.candidate_name)}</strong> has requested to reschedule their interview for <strong>${esc(data.job_title)}</strong>.</p>
-         ${data.candidate_note ? `<p style="color: #666;"><strong>Candidate's note:</strong> "${esc(data.candidate_note)}"</p>` : ''}
-         ${data.proposed_times ? `<p><strong>Proposed times:</strong> ${esc(data.proposed_times)}</p>` : ''}
-         <p style="color: #666;">Review the request and either approve a new time or decline.</p>`,
-        "Review Request",
-        `${baseUrl}/interviews`
-      ),
-    },
+    // They cannot make the time. Since 2026-10-07 they say when they are
+    // free, in words, and the team sets the new time; an answer from a page
+    // left open since before then still lists times of their own.
+    reschedule_requested: data.availability
+      ? {
+          subject: `${data.candidate_name} can't make the interview time: ${data.job_title}`,
+          html: wrapEmail(
+            "Can't Make the Interview Time",
+            `<p><strong>${esc(data.candidate_name)}</strong> can't make ${data.cannot_make ? esc(data.cannot_make) : "the interview time"} for <strong>${esc(data.job_title)}</strong>.</p>
+             <p><strong>When they are free:</strong> "${esc(data.availability)}"</p>
+             ${data.clock_gap ? `<p style="color: #666;">That is on their own clock, which is ${esc(data.clock_gap)}.</p>` : ""}
+             <p style="color: #666;">Open Interviews to set a new time. They are asked to book it, and you are told when they do.</p>`,
+            "Set a New Time",
+            `${baseUrl}/interviews`
+          ),
+        }
+      : {
+          subject: `Reschedule Request: ${data.candidate_name} for ${data.job_title}`,
+          html: wrapEmail(
+            "Reschedule Requested",
+            `<p><strong>${esc(data.candidate_name)}</strong> has requested to reschedule their interview for <strong>${esc(data.job_title)}</strong>.</p>
+             ${data.candidate_note ? `<p style="color: #666;"><strong>Candidate's note:</strong> "${esc(data.candidate_note)}"</p>` : ''}
+             ${data.proposed_times ? `<p><strong>Proposed times:</strong> ${esc(data.proposed_times)}</p>` : ''}
+             <p style="color: #666;">Review the request and either approve a new time or decline.</p>`,
+            "Review Request",
+            `${baseUrl}/interviews`
+          ),
+        },
     
     // EMPLOYER-FACING - Voice Minutes
     voice_minutes_low: {

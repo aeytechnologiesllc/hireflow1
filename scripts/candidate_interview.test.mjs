@@ -135,22 +135,27 @@ console.log("\nThe words, on the applicant's own clock");
   check("…and it is a moment to celebrate: 'Congratulations'", pick.selected === true && pick.eyebrow === "Congratulations");
   check("the same ask without the team's name, for where it was just said", pick.ask === "They offered 2 times. Pick the one that works for you.");
   const one = words(row({ employer_windows: [W1] }));
-  check("one offered time: take it or suggest another", one.body === "Zulu Support Team offered one time. Take it, or suggest another." && one.ask === "They offered one time. Take it, or suggest another.", one.body);
+  // One time is the rule since 2026-10-07 ("I wanna just give them one time for
+  // the interview, not two"): it is said outright, with the two ways to answer.
+  check("one offered time: the time itself, book it or say when they are free", one.body === "Zulu Support Team would like to meet you on Thursday, October 8 at 9:00 PM. Book it, or tell them when you are free." && one.ask === "They would like to meet you on Thursday, October 8 at 9:00 PM. Book it, or tell them when you are free." && one.action === "See your time" && one.chip === "Book your time" && one.selected === true, JSON.stringify(one));
+  check("the one way to answer 'I can't make it' is said the same everywhere", C.TELL_AVAILABILITY === "Tell them when you're free");
   const gone = words(row({ employer_windows: [PAST] }));
-  check("offered times all passed: tell them what works", gone.stage === "pick" && gone.theirMove && gone.body === "The times Zulu Support Team offered have passed. Tell them what works for you." && gone.action === "Suggest times", JSON.stringify(gone));
+  check("the offered time passed: tell them when they are free", gone.stage === "pick" && gone.theirMove && gone.body === "The time Zulu Support Team offered has passed. Tell them when you are free." && gone.action === C.TELL_AVAILABILITY, JSON.stringify(gone));
+  check("…several, from before the rule, said in the plural", words(row({ employer_windows: [PAST, { ...PAST, start: new Date(new Date(PAST.start).getTime() - 3600_000).toISOString() }] })).body === "The times Zulu Support Team offered have passed. Tell them when you are free.");
+  check("nowhere are they asked to suggest times of their own", ![pick, one, gone].some((w) => /suggest/i.test(JSON.stringify(w))));
   check("an offer counts only the times still open", words(row({ employer_windows: [PAST, W1, W2] })).body.includes("offered 2 times"));
   // The row's own scheduled_at is only a placeholder while they choose.
   check("an offered time is never said as the appointment", !/October|9:00|AM|PM/.test(`${pick.title} ${pick.body} ${pick.action} ${pick.chip}`), pick.body);
 
   const confirm = words(row({ candidate_response: "pending", employer_windows: null }));
-  check("a time to confirm is being selected too", confirm.selected === true && confirm.title === C.SELECTED_TITLE && confirm.ask === "They set it for Thursday, October 8 at 9:00 PM. Confirm it, or ask for another time.");
-  check("confirm: the time, and both ways out", confirm.stage === "confirm" && confirm.theirMove && confirm.body === "Zulu Support Team set it for Thursday, October 8 at 9:00 PM. Confirm it, or ask for another time." && confirm.action === "Confirm or change", JSON.stringify(confirm));
+  check("a time to confirm is being selected too", confirm.selected === true && confirm.title === C.SELECTED_TITLE && confirm.ask === "They set it for Thursday, October 8 at 9:00 PM. Confirm it, or tell them when you are free.");
+  check("confirm: the time, and both ways out", confirm.stage === "confirm" && confirm.theirMove && confirm.body === "Zulu Support Team set it for Thursday, October 8 at 9:00 PM. Confirm it, or tell them when you are free." && confirm.action === "Confirm or change", JSON.stringify(confirm));
   const waiting = words(row({ candidate_response: "reschedule_requested" }));
   check("waiting and confirmed are not the celebration", waiting.selected === false && words(row({ candidate_response: "confirmed", scheduled_at: W2.start })).selected === false && waiting.eyebrow === "Your interview");
-  check("waiting: not their move, and it says so", waiting.stage === "waiting" && !waiting.theirMove && waiting.body === "Zulu Support Team has your times and will reply. Nothing to do for now." && !/October/.test(waiting.body), JSON.stringify(waiting));
+  check("waiting: not their move, and it says so", waiting.stage === "waiting" && !waiting.theirMove && waiting.body === "Zulu Support Team has your message and will set a new time. Nothing to do for now." && !/October/.test(waiting.body), JSON.stringify(waiting));
   const confirmed = words(row({ candidate_response: "confirmed", scheduled_at: W2.start }));
   check("confirmed: the time and where the link is", confirmed.stage === "confirmed" && !confirmed.theirMove && confirmed.title === "Your interview is confirmed" && confirmed.body.startsWith("Friday, October 9 at 9:00 PM.") && confirmed.chip === "Interview confirmed", JSON.stringify(confirmed));
-  check("no company name on file: 'The hiring team', never 'null'", words(row(), null).body === "The hiring team offered 2 times. Pick the one that works for you." && words(row({ candidate_response: "reschedule_requested" }), "  ").body === "The hiring team has your times and will reply. Nothing to do for now." && words(row({ employer_windows: [PAST] }), null).body === "The times the hiring team offered have passed. Tell them what works for you.");
+  check("no company name on file: 'The hiring team', never 'null'", words(row(), null).body === "The hiring team offered 2 times. Pick the one that works for you." && words(row({ candidate_response: "reschedule_requested" }), "  ").body === "The hiring team has your message and will set a new time. Nothing to do for now." && words(row({ employer_windows: [PAST] }), null).body === "The time the hiring team offered has passed. Tell them when you are free." && words(row({ employer_windows: [W1] }), null).body.startsWith("The hiring team would like to meet you on "));
   check("nothing live: no words", words(null) === null && words(row({ status: "cancelled" })) === null);
   check("a live interview is known as one, from the same reading", C.hasLiveInterview(row(), NOW) && C.hasLiveInterview(row({ candidate_response: "confirmed" }), NOW) && !C.hasLiveInterview(null, NOW) && !C.hasLiveInterview(row({ status: "cancelled" }), NOW) && !C.hasLiveInterview(row({ candidate_response: "confirmed", scheduled_at: PAST.start }), NOW));
   for (const w of [pick, one, gone, confirm, waiting, confirmed]) {
@@ -203,16 +208,18 @@ console.log("\nThe application page and the card");
   check("…once only", page.split("<CandidateInterviewConfirmationCard").length === 2);
   check("the page lands on it when the link says so", /window\.location\.hash !== "#interview"/.test(page) && /document\.getElementById\("interview"\)\?\.scrollIntoView/.test(page) && /id="interview"/.test(card));
   check("the card reads the stage from the one place", /const stage = candidateInterviewStage\(/.test(card) && /if \(!stage\) return null;/.test(card));
-  check("pick: the open times, each a small ticket with its own Choose button", /stage === "pick" && \(/.test(card) && /slotList\("pick_slot", futureWindows\)/.test(card) && /data-interview-slot=\{w\.start\}/.test(card) && /aria-label=\{`Choose \$\{interviewWhen\(w\.start\)\}`\}/.test(card));
+  check("pick: the open time, a small ticket with its own button", /stage === "pick" && \(/.test(card) && /slotList\("pick_slot", futureWindows\)/.test(card) && /data-interview-slot=\{w\.start\}/.test(card) && /aria-label=\{`\$\{word\} \$\{interviewWhen\(w\.start\)\}`\}/.test(card));
+  check("one time is booked, not chosen among: its button says 'Book this time'", /slots\.length === 1 && action === "pick_slot" \? "Book this time" : "Choose"/.test(card) && /`\$\{team\} would like to meet you at this time\. Book it, or tell them when you are free\.`/.test(card));
+  check("a new time set after they could not make one is said as that", /const reoffered = useMemo\(/.test(card) && /again\?: unknown \} \| null\)\?\.again === true/.test(card) && /reoffered \? "A new time" : "Congratulations"/.test(card) && /`\$\{team\} set a new time for you\. Book it, or tell them when you are free\.`/.test(card));
   // "As soon as I clicked on the time, it just went ahead and did it."
   check("one tap never books: it only asks", /const ask = \(\) => \{\s*if \(!busy && action\) setAsking\(\{ window: w, action \}\);\s*\};/.test(card) && !/onClick=\{\(\) => handlePickSlot\(w, action\)\}/.test(card));
   check("'Book this time?' shows the time as its ticket, on their clock, and says the team is told", /"Book this time\?"/.test(card) && /data-interview-ask-when aria-label=\{interviewWhen\(asking\.window\.start\)\}>\s*\{miniTicket\(asking\.window, null\)\}/.test(card) && /minutes · your time \(\{zone\}\)/.test(card) && /is told right away\./.test(card));
   check("only 'Yes, book it' books; 'Go back' does nothing", /data-interview-ask-yes[\s\S]{0,220}if \(chosen\) void handlePickSlot\(chosen\.window, chosen\.action\);/.test(card) && /<AlertDialogCancel className="hf-pill hf-pill--tonal" data-interview-ask-back>\s*Go back\s*<\/AlertDialogCancel>/.test(card) && (card.match(/handlePickSlot\(/g) ?? []).length === 1);
   check("moving a booked time asks too", /"Move your interview to this time\?"/.test(card) && /"Yes, move it"/.test(card));
-  check("pick: 'None of these work?' with a way to suggest others", /"None of these work\?"/.test(card) && /Suggest other times/.test(card) && /data-interview-suggest/.test(card));
-  check("pick with every time passed: still a way to answer", /`The times \$\{teamLower\} offered have passed\. Tell them what works for you\.`/.test(card) && /Suggest times/.test(card));
-  check("confirm: the ticket, confirm, or ask for another", /stage === "confirm" &&\s*ticket\(\s*"selected",/.test(card) && /Confirm this time/.test(card) && /Ask for another time/.test(card));
-  check("waiting: the offered times stay pickable", /stage === "waiting" && \(/.test(card) && /Changed your mind\?/.test(card));
+  check("pick: 'Can't make it?' with the one way to answer, and no way to suggest times", /"Can't make it\?"/.test(card) && /\{TELL_AVAILABILITY\}/.test(card) && /data-interview-suggest/.test(card) && !/Suggest other times|Suggest times/.test(card));
+  check("pick with the time passed or taken: still a way to answer", /`The time \$\{teamLower\} offered has passed\. Tell them when you are free\.`/.test(card) && /`The time \$\{teamLower\} offered has just been taken\. Tell them when you are free\.`/.test(card));
+  check("confirm: the ticket, confirm, or say they can't make it", /stage === "confirm" &&\s*ticket\(\s*"selected",/.test(card) && /Confirm this time/.test(card) && /Can&apos;t make it\s*<\/button>/.test(card) && !/Ask for another time/.test(card));
+  check("waiting: what they wrote is shown back, and the offered time stays bookable", /stage === "waiting" && \(/.test(card) && /data-interview-availability-sent/.test(card) && /You wrote/.test(card) && /Can make it after all\?/.test(card) && /has your message and will set a new time\./.test(card));
   check("confirmed: the ticket, with join, calendar, and a way to change it for any interview", /stage === "confirmed" &&\s*ticket\(\s*"confirmed",/.test(card) && /Add to calendar/.test(card) && /data-interview-change/.test(card) && /canFreeRepick \? setShowRepickSheet\(true\) : setSuggestOpen\(true\)/.test(card));
   check("the ticket says its date in words for a screen reader (the stub is three short labels)", /aria-label=\{label\}/.test(card) && /`Your interview is confirmed: \$\{interviewWhen\(effectiveScheduledAt\)\}`/.test(card) && /className=\{mini \? "hf-mini__stub" : "hf-ticket__stub"\} aria-hidden/.test(card));
   // "Maybe allow them to click on a button. The button will just say it will be available a couple hours before."
@@ -223,13 +230,15 @@ console.log("\nThe application page and the card");
   check("their own pick is marked, so the page does not announce it back as 'rescheduled'", (card.match(/markOwnInterviewChange\(interview\.id\);/g) ?? []).length === 2 && /!isOwnInterviewChange\(newData\?\.id as string \| undefined\)/.test(page) && /oldData\?\.candidate_response !== "awaiting_pick"/.test(page));
   check("a cancelled interview is announced only when nothing took its place", /void refetchInterview\(\)\.then\(\(result\) => \{\s*if \(wasCancelled && !result\.data\) setStatusScreen\("interview_cancelled"\);/.test(page));
   check("every time says whose clock it is on", /<small>your time \(\{zone\}\)<\/small>/.test(card) && /Your time · \{zone\}/.test(card) && /minutes · your time \(\{zone\}\)/.test(card));
-  check("no 'current time' is claimed while none is agreed", /currentScheduledAt=\{stage === "pick" \|\| stage === "waiting" \? null : effectiveScheduledAt\}/.test(card));
+  check("the pop-up is told which time they are saying no to, and none while they wait", /stage === "waiting" \? null : stage === "pick" \? \(futureWindows\.length === 1 \? futureWindows\[0\]\.start : null\) : effectiveScheduledAt/.test(card));
   check("an answer refreshes the list too", /queryKey: \["applications", "candidate"\]/.test(card));
 
   const dialog = await read("src/components/CandidateRescheduleRequestDialog.tsx");
-  check("the dialog words both cases", /currentScheduledAt \? "Ask for another time" : "Suggest times that work for you"/.test(dialog) && /currentScheduledAt: string \| null;/.test(dialog));
-  check("times in it read as people say them", /function clockLabel\(time: string\): string/.test(dialog) && /\{clockLabel\(time\)\}/.test(dialog));
-  check("it still asks for at least two", /validTimes\.length < 2/.test(dialog));
+  // "Don't let them just select times. Let them write a message ... type out
+  // your availability. Not like actual time, your availability."
+  check("'can't make it' is a message, not a time picker", /currentScheduledAt \? "Can't make it\?" : "Tell them when you're free"/.test(dialog) && /currentScheduledAt: string \| null;/.test(dialog) && /<Textarea/.test(dialog) && !/Calendar|<Select|Popover|proposedTimes/.test(dialog));
+  check("it asks for days, and from what time to what time", /Which days are you free, and from what time to what time\?/.test(dialog) && /Monday to Wednesday, 9:00 AM to 2:00 PM/.test(dialog) && /Your availability/.test(dialog));
+  check("it sends their words and their own time zone, and nothing is sent empty", /action: "reschedule_requested",\s*interviewId,\s*availability: written,[\s\S]{0,160}timeZone: getTimezoneName\(\),/.test(dialog) && /const ready = written\.length >= MIN_LENGTH;/.test(dialog) && /disabled=\{isSubmitting \|\| !ready\}/.test(dialog) && /Write times on your own clock/.test(dialog));
 
   const popup = await read("src/components/CandidateStatusScreen.tsx");
   check("the pop-up shows no date and no link for an offer", /interviewDetails && localCandidateResponse !== "awaiting_pick" && <InterviewDetailsCard/.test(popup));
@@ -304,9 +313,9 @@ console.log("\nThe invitation email");
   check("each offered time records the clock it was picked on", /durationMinutes: parseInt\(duration\),\s*zone: teamZone,/.test(wizard));
 
   const who = { email: "a@example.com", firstName: "Maria", exactTime: false };
-  check("sent, offering times", T.inviteEmailWords("sent", who) === "Email sent to a@example.com to pick a time");
+  check("sent, offering a time", T.inviteEmailWords("sent", who) === "Email sent to a@example.com with the time to book");
   check("sent, one exact time", T.inviteEmailWords("sent", { ...who, exactTime: true }) === "Email sent to a@example.com with the date and time");
-  check("sent with no address on screen: by name", T.inviteEmailWords("sent", { ...who, email: null }) === "Email sent to Maria to pick a time");
+  check("sent with no address on screen: by name", T.inviteEmailWords("sent", { ...who, email: null }) === "Email sent to Maria with the time to book");
   const skipped = T.inviteEmailWords("skipped", who);
   const failedWords = T.inviteEmailWords("failed", who);
   const unknown = T.inviteEmailWords(null, who);
@@ -333,6 +342,59 @@ console.log("\nThe invitation email");
   }
   await walk("src");
   check("no screen embeds profiles in a select (the database has no such join)", offenders.length === 0, offenders.join(", "));
+}
+
+console.log("\nOne time from the team, and no times from the applicant");
+{
+  // The owner, 2026-10-07: "I wanna just give them one time for the
+  // interview, not two, just one. And ... if they cannot make it on that
+  // time, don't let them just select times. Let them write a message ...
+  // And then I get to schedule it. Because I don't want them to pick two
+  // times and then I can't do those two times. Then we have to do too much
+  // back and forth."
+  const wizard = await read("src/components/InterviewSchedulingWizard.tsx");
+  check("the set-up screen takes one time, and only one", /const MIN_WINDOWS = 1;\s*const MAX_WINDOWS = 1;/.test(wizard));
+  check("choosing another time replaces the one chosen (no 'remove one first')", /return \[\.\.\.prev\.slice\(0, MAX_WINDOWS - 1\), \{ day, time \}\];/.test(wizard) && !/remove one to add another/.test(wizard));
+  check("it no longer nudges toward offering several", !/offering 2.3 times/.test(wizard) && !/Offer a few times/.test(wizard) && !/of \{MAX_WINDOWS\}/.test(wizard));
+  check("its words are for one time", /title: "Offer a Time"/.test(wizard) && /The time you're offering/.test(wizard) && /"Send the Time"/.test(wizard) && (wizard.match(/>Time offered</g) ?? []).length === 2 && !/Times offered|Send Times/.test(wizard));
+  check("it says what happens next: they book it, or write when they are free", /books it, or writes when they are free if they can&apos;t make it\. Then you set a new time\./.test(wizard) && /If they can't make it, they write when they are free and you set a new time\./.test(wizard));
+
+  // The same time offered to two people: only one can have it.
+  const K = await import(pathToFileURL(path.join(ROOT, "src/lib/interviewClash.ts")).href);
+  const busy = [
+    { id: "a", name: "Ana Reyes", start: "2026-10-08T13:00:00.000Z", minutes: 30, booked: false },
+    { id: "b", name: "Ben Cruz", start: "2026-10-08T13:00:00.000Z", minutes: 30, booked: true },
+    { id: "c", name: "Cy", start: "2026-10-09T13:00:00.000Z", minutes: 30, booked: false },
+  ];
+  const at = (iso) => new Date(iso);
+  check("a time that runs into a booked interview: said, by first name", K.clashWords(K.clashAt(at("2026-10-08T13:00:00Z"), 30, busy)) === "You already have an interview with Ben at this time.");
+  check("…a booked one is named before one that is only offered", K.clashAt(at("2026-10-08T13:15:00Z"), 30, busy)?.id === "b");
+  check("a time only offered to someone else: said, and what happens", K.clashWords(K.clashAt(at("2026-10-09T13:00:00Z"), 30, busy)) === "You offered this time to Cy as well. Whoever books first gets it.");
+  check("back to back is not a clash, and a free time says nothing", K.clashAt(at("2026-10-08T13:30:00Z"), 30, busy) === null && K.clashAt(at("2026-10-08T12:30:00Z"), 30, busy) === null && K.clashWords(null) === "");
+  check("the interview being changed is not a clash with itself", K.clashAt(at("2026-10-09T13:00:00Z"), 30, busy, "c") === null);
+  check("junk breaks nothing", K.clashAt(new Date("nope"), 30, busy) === null && K.clashAt(at("2026-10-08T13:00:00Z"), 30, [{ id: "x", name: "", start: "nope", minutes: null, booked: true }]) === null);
+  check("the set-up screen says so before the time is sent", /const offeredClash = useMemo\(/.test(wizard) && /clashAt\(combineDayAndTime\(chosen\.day, chosen\.time\), durationMinutes, busy\)/.test(wizard) && /data-testid="offered-time-clash"/.test(wizard) && /row\.application_id !== applicationId/.test(wizard));
+
+  // The team's side of "I can't make it".
+  const review = await read("src/components/EmployerRescheduleReviewDialog.tsx");
+  check("the team reads what they wrote, and whose clock it is on", /data-review-availability-text/.test(review) && /clockGapWords\(newStart \?\? new Date\(\), applicantZone, teamZone\)/.test(review) && /Those times are on their own clock/.test(review));
+  check("the team sets one new time: a day and a clock time, any hour, theirs shown beside it", /data-review-new-day/.test(review) && /data-review-new-clock/.test(review) && /const HALF_HOURS = Array\.from\(\{ length: 48 \}/.test(review) && /\$\{theirs\} theirs/.test(review));
+  check("it goes back to the applicant as a time to book, marked as a new one", /candidate_response: "awaiting_pick",\s*employer_windows: \[\{ start: startIso, durationMinutes: minutes, zone: teamZone, again: true \}\]/.test(review) && /proposed_times: null,\s*candidate_note: null,/.test(review));
+  check("…never booked for them unseen", !/handleSetNewTime[\s\S]{0,1400}candidate_response: "confirmed"/.test(review));
+  check("a time that has passed cannot be sent", /if \(!newStartAhead\) \{\s*toast\.error\("That time has already passed\. Choose a later one\."\);/.test(review) && /disabled=\{isSubmitting \|\| !newStart \|\| !newStartAhead\}/.test(review));
+  check("they are emailed the new time on their own clock, as a new time", /notifyInterviewPickTime\(candidateId, jobTitle, \[line\], undefined, true\)/.test(review) && /applicantEmailTime\(newStart, theirZone, teamZone\)\.line/.test(review));
+  check("the same time offered again still reaches their bell (the database's own fires only on a change)", /if \(sameTime\) \{\s*await supabase\.from\("notifications"\)\.insert\(/.test(review));
+  check("a clash is said there too", /clashAt\(newStart, minutes, busy, interviewId\)/.test(review) && /data-review-new-clash/.test(review));
+  check("no select in it reaches through profiles", !/\.select\([^)]*profiles\s*[:!(]/.test(review));
+
+  const page = await read("src/cockpit/pages/Interviews.tsx");
+  check("the Interviews page knows an availability answer from a list of times", /availabilityOnly: row\.candidate_response === "reschedule_requested" && !raw\.some\(\(t\) => !!t\?\.datetime\),/.test(page));
+  check("…its button is 'Set a new time'", /\{s\.availabilityOnly \? "Set a new time" : "Review times"\}/.test(page) && /\{s\.availabilityOnly \? "Can't make it" :/.test(page));
+  check("a single offered time is shown as offered, never as booked", /data-interview-time="offered"/.test(page) && /Offered &middot; \{format\(s\.at, "EEE d"\)\}/.test(page) && /\{s\.windowsOffered === 1 \? "Not booked yet" : "Awaiting pick"\}/.test(page));
+  check("the dialog is told how long it runs and what else is on", /durationMinutes=\{reviewing\.minutes\}/.test(page) && /booked: s\.response === "confirmed"/.test(page));
+
+  const mail = await read("src/utils/emailNotifications.ts");
+  check("the invitation email can be marked as a new time", /\.\.\.\(again \? \{ again: "1" \} : \{\}\)/.test(mail));
 }
 
 console.log("\nThe applicant's menu");
