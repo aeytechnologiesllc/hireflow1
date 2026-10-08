@@ -683,6 +683,96 @@ function previewNotesHandlers(tables: FixtureTables, user: FixtureAuthUser, seed
 }
 
 /**
+ * Archive and delete on a chat, offline
+ * (supabase/migrations/*_chat_archive_and_delete.sql): the same marks the
+ * real function writes. `?__previewChats=some` starts with four chats: one
+ * with someone declined, one with someone invited to interview who has just
+ * written (unread), one caught up, and one already archived. Nothing here
+ * checks who may: the preview is one employer's own data.
+ *
+ * The real database stops sending a deleted chat's messages; the stand-in
+ * has no such rule, so deleting here takes them out of the fixture.
+ */
+function previewChatHandlers(tables: FixtureTables, user: FixtureAuthUser, seed: string | null): Record<string, (args: unknown) => unknown> {
+  const rows = (name: string): FixtureRow[] => (tables[name] ??= []);
+  rows("message_thread_state");
+  if (seed === "some") {
+    const apps = rows("applications");
+    const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+    const taken = new Set<unknown>();
+    const pick = (status: string) => {
+      const app = apps.find((a) => a.status === status && a.candidate_id !== user.id && !taken.has(a.candidate_id));
+      if (app) taken.add(app.candidate_id);
+      return app;
+    };
+    let n = 0;
+    const say = (app: FixtureRow, fromThem: boolean, content: string, minutes: number, read = true) => {
+      n += 1;
+      rows("messages").push({
+        id: `61000000-0000-4000-8000-${String(n).padStart(12, "0")}`,
+        application_id: app.id,
+        sender_id: fromThem ? app.candidate_id : user.id,
+        receiver_id: fromThem ? user.id : app.candidate_id,
+        content,
+        is_read: read,
+        file_name: null,
+        file_size: null,
+        file_type: null,
+        file_url: null,
+        created_at: ago(minutes),
+      });
+    };
+    const declined = pick("rejected");
+    const invited = pick("interview");
+    const caughtUp = pick("reviewing") ?? pick("offered");
+    const putAway = pick("hired") ?? pick("reviewing");
+    // Only these four: the scenario's own messages would crowd the picture.
+    rows("messages").length = 0;
+    if (declined) {
+      say(declined, true, "Good day,\n\nI just wanted to follow up on the status of my application and see if there have been any updates.\n\nThank you for the opportunity to be considered.", 5 * 60);
+      say(declined, false, "Thank you for the time you put into every step. We have decided not to move forward with your application this time.\n\nWe wish you the very best in your search.", 4 * 60 + 20);
+    }
+    if (invited) {
+      say(invited, false, "The video call is the final step: a 30-minute conversation with our team, not another test.", 3 * 60);
+      say(invited, true, "Thank you! I have booked the time. Should I join from my work computer?", 55, false);
+    }
+    if (caughtUp) {
+      say(caughtUp, true, "Hello, is the shift 3:00 AM to 11:00 AM Philippine time every day?", 26 * 60);
+      say(caughtUp, false, "Yes, five days a week, with two days off in a row.", 25 * 60);
+    }
+    if (putAway) {
+      say(putAway, true, "hello sir", 2 * 24 * 60);
+      rows("message_thread_state").push({ user_id: user.id, contact_id: putAway.candidate_id, archived_at: ago(24 * 60), cleared_at: null, updated_at: ago(24 * 60) });
+    }
+  }
+  return {
+    set_chat_state: (args) => {
+      const { p_contact_id: contactId, p_action: action } = (args ?? {}) as { p_contact_id?: string; p_action?: string };
+      if (!contactId || !action || !["archive", "unarchive", "delete"].includes(action)) return null;
+      const list = rows("message_thread_state");
+      const now = new Date().toISOString();
+      let mark = list.find((m) => m.user_id === user.id && m.contact_id === contactId);
+      if (!mark) {
+        mark = { user_id: user.id, contact_id: contactId, archived_at: null, cleared_at: null, updated_at: now };
+        list.push(mark);
+      }
+      mark.archived_at = action === "archive" ? now : null;
+      if (action === "delete") {
+        mark.cleared_at = now;
+        const messages = rows("messages");
+        for (let i = messages.length - 1; i >= 0; i -= 1) {
+          const m = messages[i];
+          const between = (m.sender_id === user.id && m.receiver_id === contactId) || (m.sender_id === contactId && m.receiver_id === user.id);
+          if (between) messages.splice(i, 1);
+        }
+      }
+      mark.updated_at = now;
+      return { contact_id: mark.contact_id, archived_at: mark.archived_at, cleared_at: mark.cleared_at };
+    },
+  };
+}
+
+/**
  * "Email me the link" on the Continue on your computer screen, offline
  * (supabase/functions/send-notification-email, type continue_on_computer):
  * no email is ever sent from the preview. It answers as the function would,
@@ -778,6 +868,7 @@ export function install(params: URLSearchParams): void {
       ...previewBlockHandlers(tables, ROLE_USERS[role]),
       ...previewShortlistHandlers(tables, ROLE_USERS[role]),
       ...previewNotesHandlers(tables, ROLE_USERS[role], params.get("__previewNotes")),
+      ...previewChatHandlers(tables, ROLE_USERS[role], params.get("__previewChats")),
     },
   });
   const realtime = liveRealtime(base, tables, params.get("__previewLive"));

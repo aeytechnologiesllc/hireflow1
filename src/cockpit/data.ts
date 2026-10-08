@@ -135,6 +135,12 @@ export interface Conversation {
   time: string;
   preview: string;
   unread?: number;
+  /** When the newest message in the chat was written, either way. */
+  lastAt?: string | null;
+  /** When the other person last wrote, or null when only this side has (lib/chatMarks.ts). */
+  lastIncomingAt?: string | null;
+  /** The applicant's application status as stored ("rejected", "interview"...), when the chat is with one. */
+  status?: string | null;
 }
 export interface ChatMessage {
   id: string;

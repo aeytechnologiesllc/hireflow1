@@ -22,6 +22,8 @@ export interface Conversation {
   contact_profile: Tables<"profiles"> | null;
   last_message: Message | null;
   unread_count: number;
+  /** When the other person last wrote in this chat, or null when only this side has. */
+  last_incoming_at?: string | null;
   job_title?: string;
   application_id?: string;
 }
@@ -216,18 +218,23 @@ export function useConversations() {
       }
 
       // Group by conversation partner
-      const conversationMap = new Map<string, { messages: Message[]; unread: number }>();
+      const conversationMap = new Map<string, { messages: Message[]; unread: number; lastIncomingAt: string | null }>();
       const effectiveUserId = teamMember?.employer_id || user!.id;
       
       for (const msg of messages) {
         const contactId = msg.sender_id === effectiveUserId ? msg.receiver_id : msg.sender_id;
         
         if (!conversationMap.has(contactId)) {
-          conversationMap.set(contactId, { messages: [], unread: 0 });
+          conversationMap.set(contactId, { messages: [], unread: 0, lastIncomingAt: null });
         }
         
         const conv = conversationMap.get(contactId)!;
         conv.messages.push(msg);
+        // Newest first, so the first one that came in is the latest: an
+        // archived chat comes back to the inbox when this is after the mark.
+        if (!conv.lastIncomingAt && msg.receiver_id === effectiveUserId) {
+          conv.lastIncomingAt = msg.created_at;
+        }
         
         // For team members, count unread based on employer's perspective
         if (!msg.is_read && msg.receiver_id === effectiveUserId) {
@@ -256,6 +263,7 @@ export function useConversations() {
           contact_profile: profileMap.get(contactId) || null,
           last_message: conv.messages[0],
           unread_count: conv.unread,
+          last_incoming_at: conv.lastIncomingAt,
         };
       });
 
@@ -430,29 +438,6 @@ export function useMarkAsRead() {
         .update({ is_read: true })
         .in("id", messageIds)
         .eq("receiver_id", user!.id);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
-      queryClient.invalidateQueries({ queryKey: ["conversations"] });
-    },
-  });
-}
-
-export function useDeleteConversation() {
-  const queryClient = useQueryClient();
-  const { user } = useAuth();
-
-  return useMutation({
-    mutationFn: async (contactId: string) => {
-      // Delete all messages between user and contact
-      const { error } = await supabase
-        .from("messages")
-        .delete()
-        .or(
-          `and(sender_id.eq.${user!.id},receiver_id.eq.${contactId}),and(sender_id.eq.${contactId},receiver_id.eq.${user!.id})`
-        );
 
       if (error) throw error;
     },

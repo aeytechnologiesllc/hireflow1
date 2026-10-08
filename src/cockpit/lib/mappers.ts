@@ -656,6 +656,9 @@ export function mapConversation(conv: Conversation, apps: ApplicationWithCandida
       : "",
     preview: conv.last_message?.content?.slice(0, 80) ?? "No messages yet",
     unread: conv.unread_count || undefined,
+    lastAt: conv.last_message?.created_at ?? null,
+    lastIncomingAt: conv.last_incoming_at ?? null,
+    status: app?.status ?? null,
   };
 }
 

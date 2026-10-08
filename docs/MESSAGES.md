@@ -40,3 +40,73 @@ Proof: `scripts/messages_composer.test.mjs`. In the preview:
 `/messages?candidate=<id>&__preview=1` (the stand-in client reads a thread's
 two-direction filter since this change; before it, the preview could not open
 a thread at all).
+
+## Declined, archive and delete (2026-10-08)
+
+The owner, looking at a chat with someone he had just declined: "at least on
+the messages should show ... it doesn't show that he has been declined here
+... there's no button for me to archive the chat, there's no filters of that
+either, and delete as well, permanently delete the chat." He wanted the chat
+itself left open ("I might want to see it").
+
+All three are on the hiring team's side only. An applicant's Messages has
+none of them.
+
+- **Where the applicant stands.** A chat shows the applicants list's own
+  chip once the application is decided: Interview, Offer, Hired or Declined
+  (`chatStatusChip`, `src/cockpit/lib/chatMarks.ts`). It is on the row in the
+  list and beside the name on the open chat. Nothing about the message box
+  depends on it: a declined applicant can still be read and written to.
+- **Archive.** A button on the open chat. The chat leaves the inbox and sits
+  under the **Archived** filter; All, Needs you and Caught up are the inbox
+  and do not count it. It comes back by itself when the other person writes
+  again (the page compares `archived_at` with the newest message that came
+  in), so an archived applicant who writes is never missed. "Move to inbox"
+  brings it back by hand; the toast after archiving offers Undo.
+- **Delete.** A button on the open chat, then a confirm that says what goes
+  and what stays. Every message in the chat up to that moment is gone from
+  the deleter's Messages for good: there is no undo, and nothing anywhere can
+  set it back. **The other person keeps their own copy**, as in every chat
+  app, so an applicant never loses what the team told them, and their
+  application is not touched. If they write again, a new chat starts from
+  that message.
+
+How it is kept (`supabase/migrations/*_chat_archive_and_delete.sql`):
+
+- `public.message_thread_state`: one row per (person, the other person in
+  the chat) with `archived_at` and `cleared_at`. Each person reads only their
+  own rows; nobody writes the table directly.
+- `set_chat_state(p_contact_id, p_action)`: `archive`, `unarchive` or
+  `delete`, on the caller's own view of a chat they are really in. `delete`
+  only ever moves `cleared_at` forwards.
+- One RESTRICTIVE select policy on `public.messages`: a message at or before
+  the moment its reader deleted that chat is not returned to them. So the
+  database does the hiding, not the page: the list, the open chat, the
+  unread count and the live feed all agree. It narrows the policies that let
+  a person read and replaces none of them; no row ever leaves
+  `public.messages` because of it.
+- The marks are each person's own. With a hiring team of several, one
+  person archiving or deleting a chat changes only their own Messages.
+
+**Nobody removes the other person's copy.** The owner, while this was being
+built: "Make sure that applicant cannot delete any messages. They can delete
+it from their side, but it will still show on my side." Before this change
+that was not true of the database: the policy "Users can delete their own
+messages" let either side of a chat remove any row in it through the API,
+the other person's messages included (no screen did it). The same migration
+replaces it with "Job owners can delete the messages of their own
+applications": an applicant can remove no message at all, neither can
+someone on a hiring team, and the job's owner can still clear the messages
+of an application they are deleting (`useDeleteApplication`, the one place
+the app ever did it). The unused `useDeleteConversation` hook, which removed
+a whole chat for both sides, is gone. An applicant's Messages has no delete
+button today; `set_chat_state` already lets a person delete their own side
+only, so one can be added without touching the database.
+
+Proof: `scripts/chat_marks.test.mjs` (the rules, the words, the wiring) and
+`scripts/chat_archive_delete.pglite.test.mjs` (a real Postgres with the live
+messages policies: who may, that a deleted chat stops coming back in every
+way it could be asked for, that the other person still reads all of it, and
+that an applicant can remove no message by any route). In the preview: `/messages?__preview=1&__previewScenario=zulu&__previewChats=some`
+starts with four chats: one declined, one invited to interview and unread,
+one caught up, one already archived.

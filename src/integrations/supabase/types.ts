@@ -1487,6 +1487,30 @@ export type Database = {
         }
         Relationships: []
       }
+      message_thread_state: {
+        Row: {
+          archived_at: string | null
+          cleared_at: string | null
+          contact_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          cleared_at?: string | null
+          contact_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          cleared_at?: string | null
+          contact_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           application_id: string | null
@@ -2770,6 +2794,10 @@ export type Database = {
       }
       set_applications_shortlisted: {
         Args: { p_application_ids: string[]; p_shortlisted: boolean }
+        Returns: Json
+      }
+      set_chat_state: {
+        Args: { p_action: string; p_contact_id: string }
         Returns: Json
       }
       start_assessment_session: {

@@ -306,6 +306,13 @@
 .ck-composer textarea:focus-visible { outline: none; box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .ck-composer { transition: none; } }
 
+/* Messages: the two quiet actions on a chat's header (archive, delete). Round
+   and borderless until the pointer is on them; delete turns red there, and
+   only there, so it never reads as the thing to press. */
+.ck-chat-action { border: 1px solid transparent; border-radius: 999px; }
+.ck-chat-action:not(:disabled):hover { border-color: var(--line); }
+.ck-chat-action--danger:not(:disabled):hover { color: var(--crit); background: var(--crit-bg); border-color: transparent; }
+
 /* ── Entrance motion (calm, staggered) ────────────────────── */
 @keyframes ck-rise {
   from { opacity: 0; transform: translate3d(0, 10px, 0); }

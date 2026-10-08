@@ -1,12 +1,15 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Paperclip } from "lucide-react";
+import { Archive, ArchiveRestore, Paperclip, Trash2 } from "lucide-react";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { useAuth } from "@/hooks/useAuth";
 import { useMessageableEmployers, type MessageableEmployer } from "@/hooks/useMessages";
 import { resolveCandidateMediaUrls } from "@/utils/candidateMediaUrl";
+import { ActionDialog } from "../components/ActionDialog";
+import { StatusChip } from "../components/ApplicantRow";
 import CkAvatar from "../components/Avatar";
+import type { Conversation } from "../data";
 import { CockpitErrorCard } from "../components/ErrorCard";
 import {
   useCockpitMessages,
@@ -14,6 +17,22 @@ import {
   useCockpitCandidates,
   useCockpitInterviews,
 } from "../hooks/useCockpitData";
+import { isRecordNotDeployed } from "../hooks/useAssessmentSessions";
+import { useChatMarks } from "../hooks/useChatMarks";
+import {
+  MOVED_BACK_WORDS,
+  archivedWords,
+  chatMarkFailureWords,
+  chatStatusChip,
+  chatsFor,
+  deleteChatWords,
+  emptyListWords,
+  isArchivedChat,
+  nextChatAfter,
+  splitChats,
+  type ChatFilter,
+  type ChatMark,
+} from "../lib/chatMarks";
 
 /**
  * Messages — every thread with the person on the other side, in one place.
@@ -27,6 +46,11 @@ import {
  * waiting on you, and the conversation on the right. No hero graphic; the
  * wax seal only appears where Ava has really done the reading.
  *
+ * The hiring team's side also says where each applicant stands (the same
+ * chip as the applicants list), and can archive a chat or delete it from
+ * their own side (lib/chatMarks.ts, docs/MESSAGES.md). An applicant's side
+ * has none of the three.
+ *
  * Ava's drafted-reply block from the mockup is deliberately absent: nothing in
  * the app produces a draft yet, and a fabricated one would be a message put in
  * the owner's mouth. The mockup's subhead ("Ava answers first · you approve
@@ -38,7 +62,11 @@ import {
 /** Real wax never sits square. A stable per-row tilt, so it does not jitter on re-render. */
 const TILTS = [-6, 4, -3, 5, -4];
 
-type ThreadItem = ReturnType<typeof useCockpitMessages>["conversations"][number];
+/** One chat in the list (the live shape; the showcase's rows fit it too). */
+type ThreadItem = Conversation;
+
+/** An applicant has no marks of their own here: nothing is archived for them. */
+const NO_MARKS: ReadonlyMap<string, ChatMark> = new Map();
 
 interface Attachment {
   url: string;
@@ -106,12 +134,15 @@ function ThreadRow({
   index,
   active,
   sealed,
+  chip,
   onPick,
 }: {
   conv: ThreadItem;
   index: number;
   active: boolean;
   sealed: boolean;
+  /** Where the applicant stands, once decided (the hiring team's side only). */
+  chip: ReturnType<typeof chatStatusChip>;
   onPick: () => void;
 }) {
   const unread = conv.unread ?? 0;
@@ -120,6 +151,7 @@ function ThreadRow({
       type="button"
       onClick={onPick}
       aria-current={active ? "true" : undefined}
+      data-thread-row={conv.id}
       className="flex w-[220px] shrink-0 items-start gap-[11px] rounded-[10px] border p-3 text-left transition-colors hover:border-[var(--line-soft)] hover:bg-[var(--surface)] min-[1120px]:w-full min-[1120px]:shrink"
       style={{
         background: active ? "var(--surface)" : "transparent",
@@ -151,21 +183,28 @@ function ThreadRow({
           {conv.preview}
         </span>
       </span>
-      <span className="flex shrink-0 items-start gap-1.5">
-        {conv.time && (
-          <span
-            className="text-[10px]"
-            style={{ color: unread ? "var(--brass)" : "var(--ink-3)", fontWeight: unread ? 600 : 400 }}
-          >
-            {shortWhen(conv.time)}
+      <span className="flex shrink-0 flex-col items-end gap-1.5">
+        <span className="flex items-start gap-1.5">
+          {conv.time && (
+            <span
+              className="text-[10px]"
+              style={{ color: unread ? "var(--brass)" : "var(--ink-3)", fontWeight: unread ? 600 : 400 }}
+            >
+              {shortWhen(conv.time)}
+            </span>
+          )}
+          {unread > 0 && (
+            <span
+              className="mt-1.5 h-[7px] w-[7px] shrink-0 rounded-full"
+              style={{ background: "var(--jade)" }}
+              aria-label={`${unread} unread`}
+            />
+          )}
+        </span>
+        {chip && (
+          <span data-thread-status>
+            <StatusChip chip={chip} />
           </span>
-        )}
-        {unread > 0 && (
-          <span
-            className="mt-1.5 h-[7px] w-[7px] shrink-0 rounded-full"
-            style={{ background: "var(--jade)" }}
-            aria-label={`${unread} unread`}
-          />
         )}
       </span>
     </button>
@@ -265,7 +304,8 @@ export default function CockpitMessages() {
   });
 
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "needs" | "quiet">("all");
+  const [filter, setFilter] = useState<ChatFilter>("all");
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [draft, setDraft] = useState("");
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const bubblesRef = useRef<HTMLDivElement>(null);
@@ -276,6 +316,14 @@ export default function CockpitMessages() {
   // is on screen it reads as "this conversation is still in flight".
   const { conversations, thread, rawThread, send, markRead, isLoading, isError, refetch, isSending } =
     useCockpitMessages(contactId);
+
+  // Archived, and deleted from this side: the hiring team's own marks.
+  const { byContact: teamMarks, everDeleted, deployed: marksDeployed, ready: marksReady, setChat, busy: markBusy } = useChatMarks({
+    enabled: !isCandidate,
+  });
+  const marks = isCandidate ? NO_MARKS : teamMarks;
+  const split = useMemo(() => splitChats<ThreadItem>(conversations, marks), [conversations, marks]);
+  const chatCount = split.inbox.length + split.archived.length;
 
   // A deep link may carry the other person's user id (what messaging addresses)
   // or an application id (what a list row has to hand). Accept either — but not
@@ -309,8 +357,21 @@ export default function CockpitMessages() {
       }
       return;
     }
-    if (!activeId && conversations[0]) setActiveId(conversations[0].id);
-  }, [linkParam, linkedContactId, location.key, conversations, activeId]);
+    // Never an archived chat: that one was put away on purpose.
+    if (!activeId && split.inbox[0]) setActiveId(split.inbox[0].id);
+  }, [linkParam, linkedContactId, location.key, split.inbox, activeId]);
+
+  // A chat opened from somewhere else ("Message" on an applicant's page) may
+  // be an archived one: show the list it is in. Once per chat opened, so the
+  // filter pills still work while it stays open.
+  const openChat = split.archived.find((c) => c.id === activeId) ?? split.inbox.find((c) => c.id === activeId);
+  const openChatArchived = !!openChat && split.archived.includes(openChat);
+  const listShownFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeId || !marksReady || !openChat || listShownFor.current === activeId) return;
+    listShownFor.current = activeId;
+    if (openChatArchived) setFilter("archived");
+  }, [activeId, marksReady, openChat, openChatArchived]);
 
   // Only the messages addressed to you can be marked read — marking your own
   // outbound ones would refetch forever, since the update can never take.
@@ -397,7 +458,7 @@ export default function CockpitMessages() {
     return map;
   }, [filesById, signedFileUrls]);
 
-  const activeConv = conversations.find((c) => c.id === contactId);
+  const activeConv: ThreadItem | undefined = conversations.find((c) => c.id === contactId);
   const activeCandidate = candidates.find((c) => c.avatar === contactId);
   const activeEmployer = isCandidate ? employers.find((e) => e.employer_id === contactId) : undefined;
   const employersById = useMemo(
@@ -436,16 +497,13 @@ export default function CockpitMessages() {
   // application it belongs to when we know it.
   const activeApplicationId = activeCandidate?.id ?? activeEmployer?.application_id;
 
-  const needsYou = conversations.filter((c) => (c.unread ?? 0) > 0).length;
-  const quiet = conversations.length - needsYou;
+  // The inbox's own counts: an archived chat is in neither.
+  const needsYou = split.inbox.filter((c) => (c.unread ?? 0) > 0).length;
+  const quiet = split.inbox.length - needsYou;
+  const archivedCount = split.archived.length;
 
-  const rows = useMemo(() => {
-    const list =
-      filter === "needs"
-        ? conversations.filter((c) => (c.unread ?? 0) > 0)
-        : filter === "quiet"
-          ? conversations.filter((c) => !(c.unread ?? 0))
-          : conversations;
+  const rows = useMemo<ThreadItem[]>(() => {
+    const list = chatsFor(filter, split);
 
     // A candidate's list also holds the hiring teams they have not written to
     // yet — with no applicant record to start from, this is their only door.
@@ -474,7 +532,9 @@ export default function CockpitMessages() {
     const all = [...named, ...openers];
 
     // A deep-linked applicant with no history yet still belongs in the list.
-    if (partner && !all.some((c) => c.id === partner.id)) {
+    // Only when there is no chat with them at all: one that is merely under
+    // another filter (archived, or caught up) is not "no messages yet".
+    if (partner && filter !== "archived" && !all.some((c) => c.id === partner.id) && !conversations.some((c) => c.id === partner.id)) {
       const pending: ThreadItem = {
         id: partner.id,
         avatar: partner.id,
@@ -487,7 +547,67 @@ export default function CockpitMessages() {
       return [pending, ...all];
     }
     return all;
-  }, [conversations, filter, partner, isCandidate, employers, employersById]);
+  }, [conversations, split, filter, partner, isCandidate, employers, employersById]);
+
+  // Where the applicant on screen stands, once decided. From their chat when
+  // there is one, else from their record (a first message to someone declined).
+  const partnerChip = isCandidate
+    ? null
+    : chatStatusChip(
+        activeConv?.status ??
+          (activeCandidate?.stage === "Rejected" ? "rejected" : activeCandidate?.stage === "Hired" ? "hired" : null),
+      );
+
+  // Archive and delete are offered on a real chat, to the hiring team, once
+  // the database has them.
+  const canMark = !isCandidate && marksDeployed && !!activeConv && !!contactId;
+
+  // The open chat leaves the list being looked at: open the one beside it.
+  const handleArchive = async (archive: boolean) => {
+    if (!contactId || markBusy) return;
+    const id = contactId;
+    const leaves = archive ? filter !== "archived" : filter === "archived";
+    const beside = nextChatAfter(rows, id);
+    try {
+      await setChat(id, archive ? "archive" : "unarchive");
+      if (leaves) setActiveId(beside);
+      if (!archive) {
+        toast.success(MOVED_BACK_WORDS);
+        return;
+      }
+      const words = archivedWords(partnerShort);
+      toast.success(words.title, {
+        description: words.body,
+        action: {
+          label: "Undo",
+          onClick: () => {
+            void setChat(id, "unarchive")
+              .then(() => setActiveId(id))
+              .catch(() => toast.error(chatMarkFailureWords(null, false)));
+          },
+        },
+      });
+    } catch (error) {
+      console.error("[set_chat_state]", error);
+      toast.error(chatMarkFailureWords(error as { code?: string }, isRecordNotDeployed(error as { code?: string })));
+    }
+  };
+
+  const deleteWords = deleteChatWords(partnerShort);
+  const handleDelete = async () => {
+    if (!contactId || markBusy) return;
+    const id = contactId;
+    const beside = nextChatAfter(rows, id);
+    try {
+      await setChat(id, "delete");
+      setConfirmDelete(false);
+      setActiveId(beside);
+      toast.success(deleteWords.done);
+    } catch (error) {
+      console.error("[set_chat_state]", error);
+      toast.error(chatMarkFailureWords(error as { code?: string }, isRecordNotDeployed(error as { code?: string })));
+    }
+  };
 
   const hasInterview = !!contactId && interviews.upcoming.some((i) => i.avatar === contactId);
   // `.analyzed` (not `overall > 0`) — a genuine finished score of 0 must still
@@ -504,6 +624,7 @@ export default function CockpitMessages() {
   // it across when the thread changes.
   useEffect(() => {
     setDraft("");
+    setConfirmDelete(false);
   }, [contactId]);
 
   // The box is as tall as what is in it, up to about half the window, then
@@ -590,7 +711,7 @@ export default function CockpitMessages() {
 
   // No threads, nobody deep-linked. Say so, and point at the one thing that
   // starts them — which differs by who is looking.
-  if (!conversations.length && !partner) {
+  if (!chatCount && !partner) {
     if (isCandidate) {
       return (
         <div className="space-y-5">
@@ -655,7 +776,7 @@ export default function CockpitMessages() {
         {header}
         <section className="ck-card ck-reveal p-6 md:p-8" style={{ ["--ck-i" as string]: 1 }}>
           <h2 className="font-display text-[20px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
-            Nobody has written to you yet.
+            {everDeleted ? "No chats in your Messages." : "Nobody has written to you yet."}
           </h2>
           <p className="mt-2 max-w-[54ch] text-[14px]" style={{ color: "var(--hf-text-soft)" }}>
             {candidates.length > 0
@@ -701,14 +822,23 @@ export default function CockpitMessages() {
               pressed={filter === "quiet"}
               onClick={() => setFilter("quiet")}
             />
+            {!isCandidate && marksDeployed && (
+              <FilterPill
+                label="Archived"
+                count={archivedCount}
+                tone="neutral"
+                pressed={filter === "archived"}
+                onClick={() => setFilter("archived")}
+              />
+            )}
           </div>
 
           {/* Narrow: a horizontal selector strip, so the conversation stays on
               screen. Wide: the full column. Neither scrolls the page sideways. */}
           <div className="flex gap-1.5 overflow-x-auto pb-1 min-[1120px]:min-h-0 min-[1120px]:flex-1 min-[1120px]:flex-col min-[1120px]:overflow-x-hidden min-[1120px]:overflow-y-auto min-[1120px]:pb-0">
             {rows.length === 0 ? (
-              <p className="px-1 py-3 text-[12px]" style={{ color: "var(--ink-3)" }}>
-                {filter === "needs" ? "Nothing is waiting on you." : "Nothing here."}
+              <p className="px-1 py-3 text-[12px] leading-[1.5]" style={{ color: "var(--ink-3)" }} data-thread-list-empty>
+                {emptyListWords(filter, archivedCount)}
               </p>
             ) : (
               rows.map((c, i) => {
@@ -720,6 +850,7 @@ export default function CockpitMessages() {
                     index={i}
                     active={c.id === contactId}
                     sealed={!!cand?.analyzed}
+                    chip={isCandidate ? null : chatStatusChip(c.status)}
                     onPick={() => setActiveId(c.id)}
                   />
                 );
@@ -727,7 +858,7 @@ export default function CockpitMessages() {
             )}
           </div>
 
-          {quiet > 0 && filter !== "needs" && (
+          {quiet > 0 && filter !== "needs" && filter !== "archived" && (
             <div
               className="mt-2 hidden items-center gap-2.5 rounded-[10px] border border-dashed px-3 py-2 text-[11px] min-[1120px]:flex"
               style={{ borderColor: "var(--line)", color: "var(--ink-3)" }}
@@ -750,8 +881,9 @@ export default function CockpitMessages() {
           {partner ? (
             <>
               <div
-                className="flex items-center gap-[11px] px-4 py-3 min-[1120px]:px-[18px]"
+                className="flex flex-wrap items-center gap-x-[11px] gap-y-2 px-4 py-3 min-[1120px]:px-[18px]"
                 style={{ borderBottom: "1px solid var(--line-soft)" }}
+                data-chat-header
               >
                 <span className="relative shrink-0">
                   <CkAvatar who={partner.name} size={34} />
@@ -759,9 +891,18 @@ export default function CockpitMessages() {
                     <AvaSeal size={19} tilt={-4} style={{ position: "absolute", right: -6, bottom: -6 }} />
                   )}
                 </span>
-                <div className="min-w-0">
-                  <div className="truncate text-[13px] font-semibold" style={{ color: "var(--ink)" }}>
-                    {partner.name}
+                {/* The name keeps its room: on a phone the actions drop to a
+                    line of their own instead of squeezing it to nothing. */}
+                <div className="min-w-[min(100%,170px)] flex-1">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="truncate text-[13px] font-semibold" style={{ color: "var(--ink)" }}>
+                      {partner.name}
+                    </span>
+                    {partnerChip && (
+                      <span className="shrink-0" data-chat-status>
+                        <StatusChip chip={partnerChip} />
+                      </span>
+                    )}
                   </div>
                   <div className="truncate text-[11px]" style={{ color: "var(--ink-3)" }}>
                     {partner.role}
@@ -769,22 +910,50 @@ export default function CockpitMessages() {
                     {hasInterview ? " · interview scheduled" : ""}
                   </div>
                 </div>
-                {activeCandidate && (
-                  <button
-                    className="ck-btn ck-btn-outline ml-auto shrink-0 !px-3 !py-1.5 !text-[12px]"
-                    onClick={() => navigate(`/applicants/${activeCandidate.id}`)}
-                  >
-                    View application
-                  </button>
-                )}
-                {!activeCandidate && activeEmployer && (
-                  <button
-                    className="ck-btn ck-btn-outline ml-auto shrink-0 !px-3 !py-1.5 !text-[12px]"
-                    onClick={() => navigate(`/applications/${activeEmployer.application_id}`)}
-                  >
-                    Your application
-                  </button>
-                )}
+                <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                  {canMark && (
+                    <>
+                      <button
+                        type="button"
+                        className="ck-btn ck-btn-ghost ck-chat-action !gap-1.5 !px-2.5 !py-1.5 !text-[12px] max-sm:!h-9 max-sm:!w-9 max-sm:!p-0"
+                        onClick={() => void handleArchive(!openChatArchived)}
+                        disabled={markBusy}
+                        title={openChatArchived ? "Move this chat back to your inbox" : "Move this chat out of your inbox"}
+                        data-chat-archive={openChatArchived ? "back" : "archive"}
+                      >
+                        {openChatArchived ? <ArchiveRestore className="h-[15px] w-[15px]" aria-hidden /> : <Archive className="h-[15px] w-[15px]" aria-hidden />}
+                        <span className="max-sm:sr-only">{openChatArchived ? "Move to inbox" : "Archive"}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="ck-btn ck-btn-ghost ck-chat-action ck-chat-action--danger !gap-1.5 !px-2.5 !py-1.5 !text-[12px] max-sm:!h-9 max-sm:!w-9 max-sm:!p-0"
+                        onClick={() => setConfirmDelete(true)}
+                        disabled={markBusy}
+                        title="Delete this chat from your Messages"
+                        data-chat-delete
+                      >
+                        <Trash2 className="h-[15px] w-[15px]" aria-hidden />
+                        <span className="max-sm:sr-only">Delete</span>
+                      </button>
+                    </>
+                  )}
+                  {activeCandidate && (
+                    <button
+                      className="ck-btn ck-btn-outline shrink-0 !px-3 !py-1.5 !text-[12px]"
+                      onClick={() => navigate(`/applicants/${activeCandidate.id}`)}
+                    >
+                      View application
+                    </button>
+                  )}
+                  {!activeCandidate && activeEmployer && (
+                    <button
+                      className="ck-btn ck-btn-outline shrink-0 !px-3 !py-1.5 !text-[12px]"
+                      onClick={() => navigate(`/applications/${activeEmployer.application_id}`)}
+                    >
+                      Your application
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* mt-auto, not justify-end: a short thread still hugs the
@@ -890,6 +1059,19 @@ export default function CockpitMessages() {
           )}
         </section>
       </div>
+
+      <ActionDialog
+        open={confirmDelete && canMark}
+        title={deleteWords.title}
+        description={deleteWords.body}
+        note={deleteWords.note}
+        confirmLabel={deleteWords.confirm}
+        tone="danger"
+        busy={markBusy}
+        busyLabel="Deleting…"
+        onConfirm={() => void handleDelete()}
+        onClose={() => setConfirmDelete(false)}
+      />
     </div>
   );
 }
