@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Paperclip } from "lucide-react";
@@ -172,6 +172,12 @@ function ThreadRow({
   );
 }
 
+/** The message box: one line tall when empty, and never taller than this (or about half the window, whichever is less). */
+const COMPOSER_MIN_PX = 26;
+const COMPOSER_MAX_PX = 460;
+const COMPOSER_SHARE = 0.46;
+const COMPOSER_SHARE_PHONE = 0.3;
+
 function Bubble({
   who,
   time,
@@ -191,24 +197,25 @@ function Bubble({
   const showText = !!text && !(file && /^Sent a file:/i.test(text));
   return (
     <div
-      className="max-w-[76%] rounded-xl px-[13px] py-2.5 text-[13px] leading-[1.5] sm:max-w-[70%]"
+      className="max-w-[86%] rounded-[18px] px-4 py-3 text-[14.5px] leading-[1.55] sm:max-w-[72%]"
+      data-message-bubble={mine ? "mine" : "theirs"}
       style={
         mine
           ? {
               alignSelf: "flex-end",
               background: "var(--jade-soft)",
               color: "var(--jade-soft-fg)",
-              borderBottomRightRadius: 4,
+              borderBottomRightRadius: 6,
             }
           : {
               alignSelf: "flex-start",
               background: "var(--surface-2)",
               color: "var(--ink)",
-              borderBottomLeftRadius: 4,
+              borderBottomLeftRadius: 6,
             }
       }
     >
-      <span className="mb-[3px] block text-[10px] font-bold uppercase leading-[1.2] tracking-[0.06em] opacity-75">
+      <span className="mb-1 block text-[10.5px] font-bold uppercase leading-[1.2] tracking-[0.06em] opacity-75">
         {who}
         {time ? ` · ${time}` : ""}
       </span>
@@ -234,7 +241,7 @@ function Bubble({
             <span className="truncate">{file.name}</span>
           </a>
         ))}
-      {showText && <span className="block whitespace-pre-wrap">{text}</span>}
+      {showText && <span className="block whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{text}</span>}
     </div>
   );
 }
@@ -497,8 +504,25 @@ export default function CockpitMessages() {
   // it across when the thread changes.
   useEffect(() => {
     setDraft("");
-    if (composerRef.current) composerRef.current.style.height = "auto";
   }, [contactId]);
+
+  // The box is as tall as what is in it, up to about half the window, then
+  // it scrolls. It used to stop at four lines: the owner pasted a
+  // twelve-line reply and could see three of them (2026-10-08: "wherever my
+  // message is being displayed looks kind of small ... make it more modern").
+  // Measured after every change to the words, however they got there
+  // (typing, a paste, a send, another thread).
+  useLayoutEffect(() => {
+    const box = composerRef.current;
+    if (!box) return;
+    box.style.height = "auto";
+    // A phone gets less of its screen: Send has to stay above the tab bar and the keyboard.
+    const share = window.innerWidth < 768 ? COMPOSER_SHARE_PHONE : COMPOSER_SHARE;
+    const most = Math.max(COMPOSER_MIN_PX, Math.min(Math.round(window.innerHeight * share), COMPOSER_MAX_PX));
+    box.style.height = `${Math.max(COMPOSER_MIN_PX, Math.min(box.scrollHeight, most))}px`;
+    box.style.overflowY = box.scrollHeight > most ? "auto" : "hidden";
+    // `partnerShort`: the box only exists once there is someone to write to.
+  }, [draft, contactId, partnerShort]);
 
   // Everywhere else in the cockpit a failed write says so; here the payload is
   // the owner's own words, so it is the one place where a silent failure costs
@@ -510,7 +534,6 @@ export default function CockpitMessages() {
     try {
       await send(text, contactId, activeApplicationId);
       setDraft("");
-      if (composerRef.current) composerRef.current.style.height = "auto";
     } catch {
       toast.error("I couldn't send that — your message is still in the box.");
     }
@@ -742,7 +765,7 @@ export default function CockpitMessages() {
                   </div>
                   <div className="truncate text-[11px]" style={{ color: "var(--ink-3)" }}>
                     {partner.role}
-                    {sealedScore != null ? ` · sealed ${sealedScore}` : ""}
+                    {sealedScore != null ? ` · final score ${sealedScore}/100` : ""}
                     {hasInterview ? " · interview scheduled" : ""}
                   </div>
                 </div>
@@ -812,43 +835,50 @@ export default function CockpitMessages() {
                 </div>
               </div>
 
-              <div
-                className="flex items-end gap-2 px-4 py-3 min-[1120px]:px-[18px]"
-                style={{ borderTop: "1px solid var(--line-soft)" }}
-              >
-                <textarea
-                  ref={composerRef}
-                  rows={1}
-                  value={draft}
-                  aria-label={`Write to ${partnerShort}`}
-                  placeholder={`Write to ${partnerShort}…`}
-                  onChange={(e) => {
-                    setDraft(e.target.value);
-                    e.target.style.height = "auto";
-                    e.target.style.height = `${Math.min(e.target.scrollHeight, 96)}px`;
+              <div className="px-4 pb-3 pt-3 min-[1120px]:px-[18px]" style={{ borderTop: "1px solid var(--line-soft)" }}>
+                {/* One rounded box: the words on top, and under them what Enter
+                    does and the Send button. Clicking anywhere in it writes. */}
+                <div
+                  className="ck-composer rounded-[18px] px-3.5 pb-2.5 pt-3"
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) composerRef.current?.focus();
                   }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      void handleSend();
-                    }
-                  }}
-                  className="min-h-[38px] max-h-24 flex-1 resize-none rounded-[10px] px-3 py-2.5 text-[13px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--jade)]"
-                  style={{
-                    background: "var(--surface)",
-                    border: "1px solid var(--line)",
-                    color: "var(--ink)",
-                  }}
-                />
-                <button
-                  type="button"
-                  className="ck-btn ck-btn-primary shrink-0 !px-4 !py-2.5 !text-[13px]"
-                  onClick={() => void handleSend()}
-                  disabled={isSending || !draft.trim()}
-                  style={isSending || !draft.trim() ? { opacity: 0.55 } : undefined}
+                  data-composer
                 >
-                  {isSending ? "Sending…" : "Send"}
-                </button>
+                  <textarea
+                    ref={composerRef}
+                    rows={1}
+                    value={draft}
+                    aria-label={`Write to ${partnerShort}`}
+                    placeholder={`Write to ${partnerShort}…`}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        void handleSend();
+                      }
+                    }}
+                    className="ck-scroll block w-full resize-none bg-transparent px-0.5 text-[14.5px] leading-[1.55] outline-none"
+                    style={{ color: "var(--ink)", minHeight: COMPOSER_MIN_PX }}
+                    data-composer-box
+                  />
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                    <p className="min-w-0 flex-1 text-[11.5px] leading-[1.4]" style={{ color: "var(--ink-3)" }} data-composer-hint>
+                      <span className="max-md:hidden">Enter sends · Shift+Enter for a new line. </span>
+                      {partnerShort} gets an email too, unless they turned those off.
+                    </p>
+                    <button
+                      type="button"
+                      className="ck-btn ck-btn-primary shrink-0 !rounded-full !px-5 !py-2 !text-[13.5px]"
+                      onClick={() => void handleSend()}
+                      disabled={isSending || !draft.trim()}
+                      style={isSending || !draft.trim() ? { opacity: 0.55 } : undefined}
+                      data-composer-send
+                    >
+                      {isSending ? "Sending…" : "Send"}
+                    </button>
+                  </div>
+                </div>
               </div>
             </>
           ) : (

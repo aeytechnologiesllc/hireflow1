@@ -68,6 +68,8 @@ interface PostgrestResult<T = unknown> {
  *  every call site in this app, without reimplementing PostgREST. */
 class FixtureQueryBuilder implements PromiseLike<PostgrestResult> {
   private filters: Array<{ col: string; op: FilterOp; val: unknown }> = [];
+  /** `.or(...)`: a row passes when ANY group matches, and a group when ALL its conditions do. */
+  private anyOf: Array<Array<{ col: string; val: string }>> | null = null;
   private singleMode = false;
   private maybeMode = false;
   private countMode: "exact" | "planned" | "estimated" | null = null;
@@ -100,6 +102,28 @@ class FixtureQueryBuilder implements PromiseLike<PostgrestResult> {
   /** Best-effort: real `.not(col, "is", null)` etc. — close enough for a
    *  read-only fixture to avoid over- or under-filtering visibly. */
   not(col: string, _op: string, val: unknown) { this.filters.push({ col, op: "neq", val }); return this; }
+  /**
+   * Only the two shapes the app writes with equality: `a.eq.x,b.eq.y` (either)
+   * and `and(a.eq.x,b.eq.y),and(...)` (either pair: the two directions of one
+   * message thread, src/hooks/useMessages.ts). Without it the Messages page
+   * could not open a thread in the preview at all. Anything it cannot read is
+   * ignored, as before.
+   */
+  or(filter: string) {
+    const condition = (text: string) => {
+      const found = /^([a-z_]+)\.eq\.(.+)$/i.exec(text.trim());
+      return found ? { col: found[1], val: found[2] } : null;
+    };
+    const groups: Array<Array<{ col: string; val: string }>> = [];
+    const pairs = [...filter.matchAll(/and\(([^()]*)\)/g)];
+    const parts = pairs.length > 0 ? pairs.map((m) => m[1].split(",")) : filter.split(",").map((one) => [one]);
+    for (const part of parts) {
+      const all = part.map(condition);
+      if (all.every((c): c is { col: string; val: string } => c !== null)) groups.push(all);
+    }
+    if (groups.length > 0) this.anyOf = groups;
+    return this;
+  }
   order(col: string, opts?: { ascending?: boolean }) { this.orderCol = col; this.orderAsc = opts?.ascending ?? true; return this; }
   limit(n: number) { this.limitN = n; return this; }
   range() { return this; }
@@ -112,7 +136,12 @@ class FixtureQueryBuilder implements PromiseLike<PostgrestResult> {
   delete() { this.mutation = { type: "delete" }; return this; }
 
   private applyFilters(rows: FixtureRow[]): FixtureRow[] {
-    return rows.filter((row) => this.filters.every((f) => matches(row, f.col, f.op, f.val)));
+    const anyOf = this.anyOf;
+    return rows.filter(
+      (row) =>
+        this.filters.every((f) => matches(row, f.col, f.op, f.val)) &&
+        (!anyOf || anyOf.some((group) => group.every((c) => String(row[c.col] ?? "") === c.val))),
+    );
   }
 
   private execute(): PostgrestResult {

@@ -290,6 +290,22 @@
 .ck-input::placeholder { color: var(--hf-text-muted); }
 .ck-input:focus { outline: none; border-color: var(--jade); box-shadow: 0 0 0 3px var(--jade-soft); }
 
+/* ── The message box (Messages): one rounded box holding the words, the
+   hint and Send. It lights up as a whole when the cursor is in it; the
+   textarea inside has no frame of its own. ────────────────────────── */
+.ck-composer {
+  background: var(--hf-surface);
+  border: 1px solid var(--hf-border-strong);
+  cursor: text;
+  transition: border-color 150ms ease-out, box-shadow 150ms ease-out;
+}
+.ck-composer:focus-within { border-color: var(--jade); box-shadow: 0 0 0 3px var(--jade-soft); }
+.ck-composer textarea::placeholder { color: var(--hf-text-muted); }
+/* The page's own focus ring would draw a second frame inside the box. */
+.ck-composer textarea:focus,
+.ck-composer textarea:focus-visible { outline: none; box-shadow: none; }
+@media (prefers-reduced-motion: reduce) { .ck-composer { transition: none; } }
+
 /* ── Entrance motion (calm, staggered) ────────────────────── */
 @keyframes ck-rise {
   from { opacity: 0; transform: translate3d(0, 10px, 0); }
