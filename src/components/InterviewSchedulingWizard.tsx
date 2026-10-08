@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect, mem
 import { useQueryClient } from "@tanstack/react-query";
 import { useCreateInterview, useInterviews } from "@/hooks/useInterviews";
 import { clashAt, clashWords, type BusyInterview } from "@/lib/interviewClash";
+import { atClock, firstDayWithTimes, timesLeftOn } from "@/lib/interviewOfferDays";
 import { useUpdateApplication } from "@/hooks/useApplications";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -91,8 +92,7 @@ const MIN_WINDOWS = 1;
 const MAX_WINDOWS = 1;
 // Interviews shouldn't run past this local time, so longer durations quietly
 // drop the last few start slots of the day instead of overflowing into night.
-const DAY_CUTOFF_HOUR = 20;
-const DAY_CUTOFF_MINUTE = 30;
+const DAY_CUTOFF = { hour: 20, minute: 30 };
 
 // iOS-style time wheel geometry — the drum is exactly this tall, each row
 // exactly this tall, and padded top/bottom so the first and last slot can
@@ -152,21 +152,29 @@ const timeSlots = [
   { value: "20:00", label: "8:00 PM" },
 ];
 
+// The same start times as plain "HH:mm", and the day's cutoff, for
+// src/lib/interviewOfferDays.ts (what is left of a day, and which day to open on).
+const SLOT_VALUES = timeSlots.map((slot) => slot.value);
+
 // Memoized time slot button for performance
 const TimeSlotButton = memo(({ 
   slot, 
   isSelected, 
-  onSelect 
+  onSelect,
+  disabled = false,
 }: { 
   slot: { value: string; label: string }; 
   isSelected: boolean; 
   onSelect: (value: string) => void;
+  /** A time on the chosen day that has already passed. */
+  disabled?: boolean;
 }) => (
   <Button
     type="button"
     variant={isSelected ? "default" : "outline"}
     size="sm"
     className="w-full"
+    disabled={disabled}
     onClick={() => onSelect(slot.value)}
   >
     {slot.label}
@@ -330,15 +338,29 @@ export default function InterviewSchedulingWizard({
   // 30-min slots for the viewed day that still fit the chosen duration before
   // the day's cutoff, and aren't already in the past.
   const daySlots = useMemo(() => {
-    const now = new Date();
-    const dayEndCutoff = setMinutes(setHours(viewDay, DAY_CUTOFF_HOUR), DAY_CUTOFF_MINUTE);
-    return timeSlots.filter((slot) => {
-      const start = combineDayAndTime(viewDay, slot.value);
-      if (start < now) return false;
-      if (addMinutes(start, durationMinutes) > dayEndCutoff) return false;
-      return true;
-    });
+    const left = new Set(timesLeftOn(viewDay, SLOT_VALUES, durationMinutes, new Date(), DAY_CUTOFF));
+    return timeSlots.filter((slot) => left.has(slot.value));
   }, [viewDay, durationMinutes]);
+
+  // Open on the first day that still has a time to offer. It used to open on
+  // today, always: late in the evening that is an empty wheel ("No 30-min
+  // slots left"), and the owner sets interviews up in the evening.
+  useEffect(() => {
+    if (!open) return;
+    setViewDayIndex(firstDayWithTimes(dayOptions, SLOT_VALUES, durationMinutes, new Date(), DAY_CUTOFF));
+    // Only when it opens: after that the day is the owner's own choice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Booking a time outright: a time of the chosen day that has passed is
+  // not offered, and one chosen before it passed is dropped.
+  const exactTimePassed = useCallback(
+    (clock: string) => !!selectedDate && atClock(selectedDate, clock).getTime() <= Date.now(),
+    [selectedDate],
+  );
+  useEffect(() => {
+    if (selectedTime && exactTimePassed(selectedTime)) setSelectedTime("");
+  }, [selectedTime, exactTimePassed]);
 
   const sortedSelectedWindows = useMemo(
     () =>
@@ -429,7 +451,7 @@ export default function InterviewSchedulingWizard({
   const canProceed = useCallback(() => {
     switch (currentStep) {
       case 0:
-        if (exactTimeMode) return !!(selectedDate && selectedTime);
+        if (exactTimeMode) return !!(selectedDate && selectedTime) && !exactTimePassed(selectedTime);
         return selectedWindows.length >= MIN_WINDOWS;
       case 1:
         return true;
@@ -458,6 +480,7 @@ export default function InterviewSchedulingWizard({
     exactTimeMode,
     selectedDate,
     selectedTime,
+    exactTimePassed,
     selectedWindows,
     interviewType,
     isGoogleConnected,
@@ -1170,6 +1193,7 @@ export default function InterviewSchedulingWizard({
                                 slot={slot}
                                 isSelected={selectedTime === slot.value}
                                 onSelect={setSelectedTime}
+                                disabled={exactTimePassed(slot.value)}
                               />
                             ))}
                           </div>

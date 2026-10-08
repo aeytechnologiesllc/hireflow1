@@ -397,6 +397,42 @@ console.log("\nOne time from the team, and no times from the applicant");
   check("the invitation email can be marked as a new time", /\.\.\.\(again \? \{ again: "1" \} : \{\}\)/.test(mail));
 }
 
+console.log("\nThe set-up screen opens on a day with times left");
+{
+  // It used to open on today, always. Late in the evening every one of
+  // today's times has passed: an empty wheel, and the owner (who sets
+  // interviews up in the evening) had to find tomorrow himself.
+  const D = await import(pathToFileURL(path.join(ROOT, "src/lib/interviewOfferDays.ts")).href);
+  const SLOTS = ["09:00", "09:30", "12:00", "19:00", "19:30", "20:00"];
+  const CUTOFF = { hour: 20, minute: 30 };
+  // Built on this machine's own clock, like the screen, so any time zone passes.
+  const day = (offset) => new Date(2026, 9, 7 + offset);
+  const at = (hour, minute = 0) => new Date(2026, 9, 7, hour, minute);
+  const days = [day(0), day(1), day(2)];
+  const left = (now, minutes = 30, d = day(0)) => D.timesLeftOn(d, SLOTS, minutes, now, CUTOFF);
+  const first = (now, minutes = 30) => D.firstDayWithTimes(days, SLOTS, minutes, now, CUTOFF);
+
+  check("mid-morning: today's later times are left, the earlier ones are not", left(at(10)).join() === "12:00,19:00,19:30,20:00");
+  check("…so it opens on today", first(at(10)) === 0);
+  check("9:30 in the evening: nothing is left of today", left(at(21, 30)).length === 0);
+  check("…so it opens on tomorrow", first(at(21, 30)) === 1);
+  check("…and tomorrow has every time", left(at(21, 30), 30, day(1)).length === SLOTS.length);
+  check("the last time of the day still counts until the minute it starts", left(at(20, 0)).join() === "20:00" && first(at(20, 0)) === 0 && left(at(20, 1)).length === 0 && first(at(20, 1)) === 1);
+  check("a longer interview has to end by the day's cutoff", left(at(8), 60).join() === "09:00,09:30,12:00,19:00,19:30" && left(at(8), 90).join() === "09:00,09:30,12:00,19:00");
+  check("…so an hour-long one at 7:45 PM opens on tomorrow, though a half-hour one still fits today", first(at(19, 45), 60) === 1 && first(at(19, 45), 30) === 0);
+  check("just before midnight it is still tomorrow by the calendar, not the day after", first(at(23, 59)) === 1);
+  check("no day has room (an interview longer than any day): the first day, as before", D.firstDayWithTimes(days, SLOTS, 24 * 60, at(10), CUTOFF) === 0 && D.firstDayWithTimes([], SLOTS, 30, at(10), CUTOFF) === 0);
+  check("junk is dropped, never offered", D.timesLeftOn(day(1), ["nope", "", "25:99x", "09:00"], 30, at(10), CUTOFF).join() === "09:00");
+  check("a clock time on a day is that moment on this machine's clock", D.atClock(day(1), "14:30").getTime() === new Date(2026, 9, 8, 14, 30).getTime());
+
+  const wizard = await read("src/components/InterviewSchedulingWizard.tsx");
+  check("the screen asks that one place which day to open on, each time it opens", /useEffect\(\(\) => \{\s*if \(!open\) return;\s*setViewDayIndex\(firstDayWithTimes\(dayOptions, SLOT_VALUES, durationMinutes, new Date\(\), DAY_CUTOFF\)\);[\s\S]{0,200}\}, \[open\]\);/.test(wizard));
+  check("…and what is left of the day it shows", /new Set\(timesLeftOn\(viewDay, SLOT_VALUES, durationMinutes, new Date\(\), DAY_CUTOFF\)\)/.test(wizard));
+  check("the same start times and cutoff are used for both", /const SLOT_VALUES = timeSlots\.map\(\(slot\) => slot\.value\);/.test(wizard) && /const DAY_CUTOFF = \{ hour: 20, minute: 30 \};/.test(wizard));
+  // Booking a time outright had the same hole: every time of today could be chosen, passed or not.
+  check("booking outright: a time that has passed is not offered, and Next waits for one that is ahead", /disabled=\{exactTimePassed\(slot\.value\)\}/.test(wizard) && /if \(exactTimeMode\) return !!\(selectedDate && selectedTime\) && !exactTimePassed\(selectedTime\);/.test(wizard) && /if \(selectedTime && exactTimePassed\(selectedTime\)\) setSelectedTime\(""\);/.test(wizard));
+}
+
 console.log("\nThe applicant's menu");
 {
   const sidebar = await read("src/components/AppSidebar.tsx");

@@ -20,6 +20,13 @@ whose clock its time is written on, and where the call happens.
   among them.
 - **Book it directly**: for a time already agreed some other way. The
   applicant confirms it or says they cannot make it.
+- **It opens on the first day that still has a time to offer**
+  (`src/lib/interviewOfferDays.ts`). It used to open on today, always: after
+  8:00 PM every one of today's times has passed, so the owner, who sets
+  interviews up in the evening, was met with an empty wheel and had to find
+  tomorrow himself. Today stays in the strip and says it has no times left.
+  Booking a time directly had the same hole (any time of today could be
+  chosen, passed or not): a passed time is now switched off there.
 - **A time that runs into another interview is said before it is sent**
   (`src/lib/interviewClash.ts`): "You already have an interview with Ana at
   this time", or "You offered this time to Ana as well. Whoever books first
