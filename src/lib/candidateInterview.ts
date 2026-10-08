@@ -160,6 +160,40 @@ export function interviewKindWords(type: string | null | undefined): string {
   return "Video call";
 }
 
+/** The same, inside a sentence: "video call", "phone call", "meeting in person". */
+export function interviewKindPhrase(type: string | null | undefined): string {
+  if (type === "phone") return "phone call";
+  if (type === "in_person" || type === "in-person" || type === "onsite") return "meeting in person";
+  return "video call";
+}
+
+/**
+ * What this interview IS, in one line, for someone who has just been
+ * invited: "This is the final step: a 30-minute video call with Zulu Support
+ * Team. It is a conversation, not another test."
+ *
+ * A finalist wrote to the owner on 2026-10-08, the morning after booking: "I
+ * previously completed the chat practice and written interview ... Could you
+ * please let me know what the upcoming 30-minute video interview will cover
+ * and whether this is the final interview stage?" Nothing had told him. The
+ * owner: "we should clarify ... chat interview has been done. Now you will
+ * have a video interview with the hiring team ... this is the final stage."
+ */
+export function interviewAboutWords(interview: CandidateInterviewLike | null | undefined, company?: string | null): string {
+  const minutes = typeof interview?.duration_minutes === "number" && interview.duration_minutes > 0 ? Math.round(interview.duration_minutes) : 0;
+  const kind = interviewKindPhrase(interview?.interview_type);
+  const article = /^(8|11|18)/.test(String(minutes)) ? "an" : "a";
+  const what = minutes > 0 ? `${article} ${minutes}-minute ${kind}` : `a ${kind}`;
+  const team = company?.trim() || "the hiring team";
+  return `This is the final step: ${what} with ${team}. It is a conversation, not another test.`;
+}
+
+/**
+ * Said to everyone who finishes the tests, before anyone is chosen: what
+ * being chosen leads to. So the interview is never a surprise.
+ */
+export const FINALIST_LINE = "Finalists are invited to one last step: a short interview with the hiring team, usually a video call.";
+
 export interface CandidateInterviewWords {
   stage: CandidateInterviewStage;
   /** True when the next move is the applicant's. */
@@ -183,6 +217,12 @@ export interface CandidateInterviewWords {
   ask: string;
   /** The button that opens it. */
   action: string;
+  /**
+   * What the interview is, in one line (interviewAboutWords): shown wherever
+   * they are told they were selected, and with a confirmed time. Empty while
+   * they wait for a new time.
+   */
+  about: string;
 }
 
 /** What an applicant who has just been chosen is told, everywhere. */
@@ -212,6 +252,7 @@ export function candidateInterviewWords(
   if (!interview || !stage) return null;
   const team = options.company?.trim() || "The hiring team";
   const when = interview.scheduled_at ? interviewWhen(interview.scheduled_at, options.timeZone) : "";
+  const about = interviewAboutWords(interview, options.company);
 
   if (stage === "pick") {
     const offered = offeredWindows(interview.employer_windows);
@@ -230,6 +271,7 @@ export function candidateInterviewWords(
         body: `The ${passed} ${team === "The hiring team" ? "the hiring team" : team} offered ${have} passed. Tell them when you are free.`,
         ask: `The ${passed} they offered ${have} passed. Tell them when you are free.`,
         action: TELL_AVAILABILITY,
+        about,
       };
     }
     if (open === 1) {
@@ -245,6 +287,7 @@ export function candidateInterviewWords(
         body: `${team} would like to meet you on ${offeredWhen}. Book it, or tell them when you are free.`,
         ask: `They would like to meet you on ${offeredWhen}. Book it, or tell them when you are free.`,
         action: "See your time",
+        about,
       };
     }
     return {
@@ -257,6 +300,7 @@ export function candidateInterviewWords(
       body: `${team} offered ${open} times. Pick the one that works for you.`,
       ask: `They offered ${open} times. Pick the one that works for you.`,
       action: "Pick your time",
+      about,
     };
   }
   if (stage === "confirm") {
@@ -270,6 +314,7 @@ export function candidateInterviewWords(
       body: `${team} set it for ${when}. Confirm it, or tell them when you are free.`,
       ask: `They set it for ${when}. Confirm it, or tell them when you are free.`,
       action: "Confirm or change",
+      about,
     };
   }
   if (stage === "waiting") {
@@ -283,6 +328,7 @@ export function candidateInterviewWords(
       body: `${team === "The hiring team" ? "The hiring team has" : `${team} has`} your message and will set a new time. Nothing to do for now.`,
       ask: "They have your message and will set a new time. Nothing to do for now.",
       action: "View",
+      about: "",
     };
   }
   return {
@@ -295,6 +341,7 @@ export function candidateInterviewWords(
     body: `${when}. Open it for how to join and to add it to your calendar.`,
     ask: `${when}. Open it for how to join and to add it to your calendar.`,
     action: "View details",
+    about,
   };
 }
 

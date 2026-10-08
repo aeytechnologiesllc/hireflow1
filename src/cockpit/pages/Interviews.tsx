@@ -1058,6 +1058,7 @@ export default function CockpitInterviews() {
           fromOffer={reviewing.suggestedFromOffer}
           openOfferedTimes={reviewing.openOfferedTimes}
           durationMinutes={reviewing.minutes}
+          interviewType={reviewing.type}
           // The other live interviews: a new time that runs into one is said so.
           busy={upcoming
             .filter((s) => s.id !== reviewing.id && s.response !== "reschedule_requested" && !!s.at)

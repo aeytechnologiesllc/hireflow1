@@ -223,9 +223,17 @@ function InterviewHero({
       </div>
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-x-5 gap-y-3.5 sm:pl-[78px]">
-        <p className="min-w-0 flex-1 basis-[240px] text-[15px] leading-snug" style={{ color: "var(--ink)" }}>
-          {words.body}
-        </p>
+        <div className="min-w-0 flex-1 basis-[240px]">
+          <p className="text-[15px] leading-snug" style={{ color: "var(--ink)" }}>
+            {words.body}
+          </p>
+          {/* What the interview is: the final step, and a conversation, not another test. */}
+          {words.about && (
+            <p className="mt-1.5 text-[13.5px] leading-snug" style={{ color: "var(--ink-3)" }} data-interview-about>
+              {words.about}
+            </p>
+          )}
+        </div>
         <button
           type="button"
           onClick={(e) => {
@@ -829,6 +837,7 @@ export default function Applications() {
         open={!!selectedMoment}
         companyName={selectedMoment?.company}
         jobTitle={selectedMoment?.application.jobs?.title}
+        about={selectedMoment?.words.about}
         detail={selectedMoment?.words.ask ?? ""}
         action={selectedMoment?.words.action ?? ""}
         onAction={() => {

@@ -843,7 +843,8 @@ export default function InterviewSchedulingWizard({
             resolvedJobTitle,
             proposedTimes,
             undefined,
-            earlierIds.length > 0
+            earlierIds.length > 0,
+            { interviewType, minutes: parseInt(duration) }
           );
           setCandidateEmailStatus(status);
         }

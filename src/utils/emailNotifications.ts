@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { mapEmailStatus, type EmailStatus } from "@/utils/emailStatus";
+import { interviewKindPhrase } from "@/lib/candidateInterview";
 
 export type { EmailStatus };
 
@@ -42,6 +43,10 @@ interface NotificationData {
   proposed_times_list?: string[];
   /** interview_pick_time: "1" when it is a new time after they could not make an earlier one. */
   again?: string;
+  /** interview_pick_time: "video call", "phone call" or "meeting in person". */
+  interview_kind?: string;
+  /** interview_pick_time: "30 minutes", "1 hour". */
+  interview_length?: string;
   window_count?: string;
   candidate_note?: string;
   minutes_remaining?: string;
@@ -193,6 +198,12 @@ export async function notifyInterviewScheduled(
   });
 }
 
+/** What an interview is, so its invitation can say so: its type as stored, and its length in minutes. */
+export interface InterviewAbout {
+  interviewType?: string | null;
+  minutes?: number | null;
+}
+
 /**
  * Notify candidate of the time the employer offered for their interview
  * (one time, since 2026-10-07), which they book or answer with when they
@@ -204,14 +215,21 @@ export async function notifyInterviewPickTime(
   jobTitle: string,
   proposedTimes: string[],
   companyName?: string,
-  again = false
+  again = false,
+  about?: InterviewAbout
 ): Promise<EmailStatus> {
+  const minutes = typeof about?.minutes === "number" && about.minutes > 0 ? Math.round(about.minutes) : 0;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  const length = [hours ? `${hours} hour${hours === 1 ? "" : "s"}` : "", rest ? `${rest} minutes` : ""].filter(Boolean).join(" ");
   return sendNotificationEmail("interview_pick_time", candidateId, {
     job_title: jobTitle,
     proposed_times_list: proposedTimes,
     window_count: proposedTimes.length.toString(),
     company_name: companyName,
     ...(again ? { again: "1" } : {}),
+    ...(about ? { interview_kind: interviewKindPhrase(about.interviewType) } : {}),
+    ...(length ? { interview_length: length } : {}),
   });
 }
 

@@ -27,6 +27,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 // Decoded, so a checkout whose path has a space in it works too.
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const A = await import(pathToFileURL(path.join(ROOT, "supabase/functions/_shared/interviewAnswer.ts")).href);
+// The applicant's page, for words the two must say the same way.
+const C = await import(pathToFileURL(path.join(ROOT, "src/lib/candidateInterview.ts")).href);
 const read = (rel) => readFile(path.join(ROOT, rel), "utf8");
 
 let passed = 0;
@@ -130,7 +132,7 @@ console.log("\n'I can't make it': their availability, in words");
   const mail = await read("supabase/functions/send-notification-email/index.ts");
   check("the team's email says they can't make it, what they wrote, and to set a new time", /reschedule_requested: data\.availability\s*\? \{/.test(mail) && /can't make the interview time: \$\{data\.job_title\}/.test(mail) && /<strong>When they are free:<\/strong> "\$\{esc\(data\.availability\)\}"/.test(mail) && /"Set a New Time"/.test(mail) && /which is \$\{esc\(data\.clock_gap\)\}/.test(mail));
   check("one offered time: the applicant's email states it and says what to do if they can't make it", /if \(times\.length === 1\) \{/.test(mail) && /would like to interview you at this time:/.test(mail) && /Can't make it\? Tell them there which days you are free, and from what time to what time, and they will set another time\./.test(mail) && /"Book This Time"/.test(mail));
-  check("…and a new time after 'can't make it' is said as a new time", /const again = data\.again === "1";/.test(mail) && /set a new time for your interview:/.test(mail));
+  check("…and a new time after 'can't make it' is said as a new time", /const again = data\.again === "1";/.test(mail) && /set a new time for your interview \(the final step: /.test(mail));
   const access = await read("supabase/functions/_shared/notificationAccess.ts");
   check("that mark is a mark, never text from the request", /kept\.again = asked\.again === "1" \|\| asked\.again === true \? "1" : undefined;/.test(access));
 }
@@ -199,6 +201,8 @@ console.log("\nWhen a time becomes agreed: the two emails");
   check("…the job, the length, how to join, who signs it, and which application to open", both[0].data.job_title === "Chat Support Team Leader" && both[0].data.interview_length === "30 minutes" && both[0].data.join_note === own && both[0].data.company_name === "Zulu Support Team" && both[0].data.application_id === "app-1");
   check("the notice goes to the job's owner, with the team's clock", both[1].recipient_user_id === "emp-1" && both[1].data.interview_when === "Thursday, October 8 at 9:00 AM EDT" && both[1].data.candidate_name === "Maria Santos" && both[1].data.interview_change === "picked");
   check("neither carries the meeting link", !/meet\.google/.test(JSON.stringify(both)));
+  check("the applicant's confirmation is told what kind of interview it is, so it can say what to expect", both[0].data.interview_kind === "video call" && A.agreedTimeEmails({ ...base, interview: { ...base.interview, interview_type: "phone" } })[0].data.interview_kind === "phone call" && !("interview_kind" in both[1].data));
+  check("…in the same words as the applicant's page", ["video", "phone", "in_person", "in-person", "onsite", null, undefined, "nonsense"].every((t) => A.interviewKindPhrase(t) === C.interviewKindPhrase(t)));
   check("how it became agreed is passed on", A.agreedTimeEmails({ ...base, change: "moved" })[1].data.interview_change === "moved" && A.agreedTimeEmails({ ...base, change: "confirmed" })[1].data.interview_change === "confirmed");
   check("nobody to send to: that email is left out, the other still goes", A.agreedTimeEmails({ ...base, candidateId: null }).map((e) => e.type).join() === "interview_time_picked" && A.agreedTimeEmails({ ...base, employerId: undefined }).map((e) => e.type).join() === "interview_confirmed");
   check("no time in words: nothing is sent rather than an empty time", A.agreedTimeEmails({ ...base, applicantTime: { date: "", time: "" }, teamWhen: "" }).length === 0);
@@ -301,7 +305,7 @@ console.log("\nThe team's answer");
   const back = /const handleBackToOffer = async \(\) => \{[\s\S]*?\n  \};\n/.exec(review)?.[0] ?? "";
   check("back to the offer puts them back to choosing", /candidate_response: "awaiting_pick",\s*proposed_times: null,\s*candidate_note: null,/.test(back));
   check("…never touching the time, and never 'pending'", !/scheduled_at:/.test(back) && !/"pending"/.test(back));
-  check("…tells them, in the app and by the invitation email with the times still open", /from\("notifications"\)\.insert/.test(back) && /notifyInterviewPickTime\(candidateId, jobTitle, lines, undefined\)/.test(back) && /openOfferedTimes\.map\(\(start\) => applicantEmailTime\(parseISO\(start\), theirZone, localTimeZone\(\)\)\.line\)/.test(back));
+  check("…tells them, in the app and by the invitation email with the times still open", /from\("notifications"\)\.insert/.test(back) && /notifyInterviewPickTime\(candidateId, jobTitle, lines, undefined, false, \{ interviewType, minutes \}\)/.test(back) && /openOfferedTimes\.map\(\(start\) => applicantEmailTime\(parseISO\(start\), theirZone, localTimeZone\(\)\)\.line\)/.test(back));
   check("…and is not offered once the offered times have passed", /disabled=\{isSubmitting \|\| !canGoBackToOffer\}/.test(review) && /The times you offered have passed\. Accept one of theirs, or message/.test(review));
 
   const accept = /const handleAcceptTime = async \(\) => \{[\s\S]*?\n  \};\n/.exec(review)?.[0] ?? "";

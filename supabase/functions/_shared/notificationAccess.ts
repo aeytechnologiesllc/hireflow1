@@ -133,6 +133,9 @@ export const NOTIFICATION_RULES: Readonly<Record<string, NotificationRule>> = {
 };
 
 /** The request's own text a kind may keep, each cut to one short plain line. */
+/** The kinds of interview an invitation may name: fixed phrases, never text from the request. */
+const INTERVIEW_KINDS: readonly string[] = ["video call", "phone call", "meeting in person"];
+
 const KEPT_TEXT: Readonly<Record<string, readonly string[]>> = {
   phase_advanced: ["phase_name"],
   phase_completed: ["phase_name"],
@@ -382,6 +385,10 @@ export async function decideNotification(
         kept.window_count = times.length > 0 ? String(times.length) : undefined;
         // A new time, set after they could not make an earlier one: a mark, never text.
         kept.again = asked.again === "1" || asked.again === true ? "1" : undefined;
+        // What kind of interview and how long, so the invitation can say what
+        // it is: one of three fixed phrases, and a short length ("30 minutes").
+        kept.interview_kind = INTERVIEW_KINDS.includes(asked.interview_kind as string) ? asked.interview_kind : undefined;
+        kept.interview_length = /^\d{1,3} (minutes|hour|hours)( \d{1,2} minutes)?$/.test(String(asked.interview_length ?? "")) ? asked.interview_length : undefined;
       }
       return {
         ok: true,

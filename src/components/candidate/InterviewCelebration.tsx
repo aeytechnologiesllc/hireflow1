@@ -187,6 +187,7 @@ export function InterviewSelectedMoment({
   open,
   companyName,
   jobTitle,
+  about,
   detail,
   action,
   onAction,
@@ -195,6 +196,8 @@ export function InterviewSelectedMoment({
   open: boolean;
   companyName?: string | null;
   jobTitle?: string | null;
+  /** What the interview is ("This is the final step: a 30-minute video call ..."). */
+  about?: string;
   /** What is asked of them ("They offered 2 times. Pick the one that works for you."). */
   detail: string;
   /** The button ("Pick your time"). */
@@ -255,6 +258,11 @@ export function InterviewSelectedMoment({
           ) : null}
           .
         </p>
+        {about && (
+          <p className="hf-rise mx-auto mt-4 max-w-sm text-[14.5px] font-medium leading-relaxed" style={{ color: "var(--ink)", ...rise(400) }} data-interview-about>
+            {about}
+          </p>
+        )}
         <p className="hf-rise mx-auto mt-4 max-w-sm text-[14px] leading-relaxed" style={{ color: "var(--ink-2)", ...rise(440) }}>
           {detail}
         </p>

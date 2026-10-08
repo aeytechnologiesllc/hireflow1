@@ -212,6 +212,18 @@ export function joinNoteFor(interview: { meeting_provider?: unknown; meeting_lin
   return "This is a video call. The hiring team will send you how to join.";
 }
 
+/**
+ * What kind of interview it is, inside a sentence: "video call", "phone
+ * call", "meeting in person". The same words as the applicant's page
+ * (interviewKindPhrase in src/lib/candidateInterview.ts;
+ * scripts/interview_answer.test.mjs fails if they drift apart).
+ */
+export function interviewKindPhrase(type: unknown): string {
+  if (type === "phone") return "phone call";
+  if (type === "in_person" || type === "in-person" || type === "onsite") return "meeting in person";
+  return "video call";
+}
+
 /** How a time became agreed, from the applicant's side. */
 export type AgreedChange = "picked" | "moved" | "confirmed";
 
@@ -256,6 +268,8 @@ export function agreedTimeEmails(input: {
         interview_date: input.applicantTime.date,
         interview_time: input.applicantTime.time,
         join_note: joinNoteFor(input.interview),
+        // What it is, so the email can say what to expect.
+        interview_kind: interviewKindPhrase(input.interview.interview_type),
         ...(length ? { interview_length: length } : {}),
         ...(company ? { company_name: company } : {}),
         ...(input.applicationId ? { application_id: input.applicationId } : {}),

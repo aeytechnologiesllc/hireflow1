@@ -383,7 +383,7 @@ console.log("\nOne time from the team, and no times from the applicant");
   check("it goes back to the applicant as a time to book, marked as a new one", /candidate_response: "awaiting_pick",\s*employer_windows: \[\{ start: startIso, durationMinutes: minutes, zone: teamZone, again: true \}\]/.test(review) && /proposed_times: null,\s*candidate_note: null,/.test(review));
   check("…never booked for them unseen", !/handleSetNewTime[\s\S]{0,1400}candidate_response: "confirmed"/.test(review));
   check("a time that has passed cannot be sent", /if \(!newStartAhead\) \{\s*toast\.error\("That time has already passed\. Choose a later one\."\);/.test(review) && /disabled=\{isSubmitting \|\| !newStart \|\| !newStartAhead\}/.test(review));
-  check("they are emailed the new time on their own clock, as a new time", /notifyInterviewPickTime\(candidateId, jobTitle, \[line\], undefined, true\)/.test(review) && /applicantEmailTime\(newStart, theirZone, teamZone\)\.line/.test(review));
+  check("they are emailed the new time on their own clock, as a new time", /notifyInterviewPickTime\(candidateId, jobTitle, \[line\], undefined, true, \{ interviewType, minutes \}\)/.test(review) && /applicantEmailTime\(newStart, theirZone, teamZone\)\.line/.test(review));
   check("the same time offered again still reaches their bell (the database's own fires only on a change)", /if \(sameTime\) \{\s*await supabase\.from\("notifications"\)\.insert\(/.test(review));
   check("a clash is said there too", /clashAt\(newStart, minutes, busy, interviewId\)/.test(review) && /data-review-new-clash/.test(review));
   check("no select in it reaches through profiles", !/\.select\([^)]*profiles\s*[:!(]/.test(review));
@@ -477,7 +477,50 @@ console.log("\nThe team's page for an applicant says where the interview stands"
   check("the card says it above its buttons, in every layout that has a card, and the older layout says it too", /\{interview && !outcome && <InterviewStatus status=\{interview\} className="mb-3" \/>\}/.test(cardFile) && (page.match(/interview=\{interviewLine\}/g) ?? []).length === 2 && /\{interviewLine && \(\s*<div className="ck-card p-4">\s*<InterviewStatus status=\{interviewLine\} \/>/.test(page));
   check("not once a decision is made (offered, hired, declined)", /const interviewStatus = isOffered \|\| isTerminal \? null : interviewRead;/.test(page));
   const wizard = await read_("src/components/InterviewSchedulingWizard.tsx");
-  check("a time that replaces a live interview is said to the applicant as a new time", /\.\.\.\(earlierIds\.length > 0 \? \{ again: true \} : \{\}\),/.test(wizard) && /undefined,\s*earlierIds\.length > 0\s*\);/.test(wizard));
+  check("a time that replaces a live interview is said to the applicant as a new time", /\.\.\.\(earlierIds\.length > 0 \? \{ again: true \} : \{\}\),/.test(wizard) && /undefined,\s*earlierIds\.length > 0,\s*\{ interviewType, minutes: parseInt\(duration\) \}\s*\);/.test(wizard));
+}
+
+console.log("\nWhat the interview is, said before anyone has to ask");
+{
+  // A finalist, the morning after booking (2026-10-08): "I previously
+  // completed the chat practice and written interview ... Could you please
+  // let me know what the upcoming 30-minute video interview will cover and
+  // whether this is the final interview stage?" The owner: "we should
+  // clarify ... chat interview has been done. Now you will have a video
+  // interview with the hiring team ... this is the final stage."
+  const about = (over, company = "Zulu Support Team") => C.interviewAboutWords({ duration_minutes: 30, interview_type: "video", ...over }, company);
+  check("it says the final step, how long, what kind, with whom, and that it is not another test", about({}) === "This is the final step: a 30-minute video call with Zulu Support Team. It is a conversation, not another test.");
+  check("a phone call and a meeting in person are said as what they are", about({ interview_type: "phone", duration_minutes: 45 }).includes("a 45-minute phone call") && about({ interview_type: "in-person" }).includes("a 30-minute meeting in person") && about({ interview_type: "in_person" }).includes("meeting in person"));
+  check("no length on file: no stray number", about({ duration_minutes: null }) === "This is the final step: a video call with Zulu Support Team. It is a conversation, not another test." && about({ duration_minutes: 0 }).includes("a video call"));
+  check("'an' before 8, 11 and 18", about({ duration_minutes: 18 }).includes("an 18-minute") && about({ duration_minutes: 8 }).includes("an 8-minute") && about({ duration_minutes: 80 }).includes("an 80-minute") && about({ duration_minutes: 15 }).includes("a 15-minute"));
+  check("no company name on file: 'the hiring team'", about({}, null).includes("video call with the hiring team.") && about({}, "  ").includes("with the hiring team."));
+  check("nothing known about it at all: still a sentence", C.interviewAboutWords(null, null) === "This is the final step: a video call with the hiring team. It is a conversation, not another test.");
+  check("the phrase for a kind, inside a sentence", C.interviewKindPhrase("video") === "video call" && C.interviewKindPhrase("phone") === "phone call" && C.interviewKindPhrase("onsite") === "meeting in person" && C.interviewKindPhrase(null) === "video call");
+
+  const invited = words(row({ employer_windows: [W1] }));
+  const toConfirm = words(row({ candidate_response: "pending", employer_windows: null }));
+  const booked = words(row({ candidate_response: "confirmed", scheduled_at: W2.start }));
+  const waitingNow = words(row({ candidate_response: "reschedule_requested" }));
+  check("everyone who is told they were selected is told what the interview is", [words(row()), invited, toConfirm, words(row({ employer_windows: [PAST] }))].every((w) => w.about === "This is the final step: a 30-minute video call with Zulu Support Team. It is a conversation, not another test."));
+  check("…and so is someone with a booked time", booked.about.startsWith("This is the final step:"));
+  check("…but not while they wait for a new time (nothing new to say)", waitingNow.about === "");
+
+  const fx = await read("src/components/candidate/InterviewCelebration.tsx");
+  const list = await read("src/pages/Applications.tsx");
+  const detail = await read("src/pages/CandidateApplicationDetail.tsx");
+  const card2 = await read("src/components/CandidateInterviewConfirmationCard.tsx");
+  check("the full-screen moment says it, between who wants to meet them and what to do", /\{about && \(\s*<p[^>]*data-interview-about>\s*\{about\}/.test(fx) && fx.indexOf("data-interview-about") < fx.indexOf("{detail}") && /about=\{selectedMoment\?\.words\.about\}/.test(list) && /about=\{interviewWords\?\.about\}/.test(detail));
+  check("the list's interview card says it", /\{words\.about && \(\s*<p[^>]*data-interview-about>\s*\{words\.about\}/.test(list));
+  check("the interview card says it in every stage that has a time: offered, to confirm, booked", /const about = interviewAboutWords\(\{ \.\.\.interview, duration_minutes: effectiveDurationMinutes \}, employerName\);/.test(card2) && (card2.match(/\{aboutLine\("/g) ?? []).length === 3);
+
+  // "From now on in the beginning": the screen after the last test.
+  check("everyone who finishes the tests is told what a yes leads to", C.FINALIST_LINE === "Finalists are invited to one last step: a short interview with the hiring team, usually a video call.");
+  const next = await read("src/components/candidate/NextStepCard.tsx");
+  check("…on the 'You've finished every step' screen", /you'll get a yes or no by email\. \$\{FINALIST_LINE\}`/.test(next));
+  check("…and on their application's own page", /`Everyone who finishes every step gets a yes or no by email\. \$\{FINALIST_LINE\}`/.test(detail));
+
+  const mail = await read("src/utils/emailNotifications.ts");
+  check("the invitation email is told the kind and the length, as fixed words", /\.\.\.\(about \? \{ interview_kind: interviewKindPhrase\(about\.interviewType\) \} : \{\}\),\s*\.\.\.\(length \? \{ interview_length: length \} : \{\}\),/.test(mail));
 }
 
 console.log("\nThe applicant's menu");

@@ -112,6 +112,8 @@ interface NotificationRequest {
     window_count?: string;
     /** interview_pick_time: "1" for a new time, set after they could not make an earlier one. */
     again?: string;
+    /** interview_pick_time, interview_confirmed: "video call", "phone call" or "meeting in person". */
+    interview_kind?: string;
     candidate_note?: string;
     minutes_remaining?: string;
     active_jobs_count?: string;
@@ -150,6 +152,28 @@ type RecipientRole = "employer" | "candidate" | "team_member";
  * HTML email bodies. Escape it so a hostile job title or message can't
  * inject markup into an email an employer or candidate opens.
  */
+/**
+ * A length as it reads before a noun: "30 minutes" -> "30-minute", "1 hour"
+ * -> "1-hour", "1 hour 30 minutes" -> "90-minute". Empty when it cannot be
+ * read (the sentence then simply leaves the length out).
+ */
+const lengthAdjective = (length: unknown): string => {
+  const found = /^(?:(\d{1,2}) hours?)?\s*(?:(\d{1,3}) minutes)?$/.exec(typeof length === "string" ? length.trim() : "");
+  if (!found || (!found[1] && !found[2])) return "";
+  const total = Number(found[1] ?? 0) * 60 + Number(found[2] ?? 0);
+  if (total <= 0) return "";
+  return total % 60 === 0 ? `${total / 60}-hour` : `${total}-minute`;
+};
+
+/**
+ * Where an applicant's question should go: the app's Messages, not a reply
+ * to the email. On 2026-10-08 a finalist replied to "Interview confirmed"
+ * with a question, and the owner had no way to answer from the hiring
+ * address. A message in the app reaches the team, stays on the applicant's
+ * record, and its answer is emailed back from the hiring address.
+ */
+const QUESTIONS_LINE = `<p style="color: #666;">Questions before then? Open Messages in your account and write to the hiring team. That is the quickest way to reach them.</p>`;
+
 const esc = (s: unknown): string =>
   String(s ?? "")
     .replace(/&/g, "&amp;")
@@ -289,8 +313,10 @@ const getEmailContent = (
         "Your interview is confirmed",
         `<p>Your interview for <strong>${esc(data.job_title)}</strong> is confirmed.</p>
          <p><strong>Date:</strong> ${esc(data.interview_date)}<br><strong>Time:</strong> ${esc(data.interview_time)}${data.interview_length ? `<br><strong>Length:</strong> ${esc(data.interview_length)}` : ""}</p>
+         <p><strong>What to expect:</strong> this is the final step, ${data.interview_kind ? `a ${esc(data.interview_kind)}` : "an interview"} with the hiring team. It is a conversation, not another test.</p>
          ${data.join_note ? `<p>${esc(data.join_note)}</p>` : ""}
-         <p style="color: #666;">Can't make it after all? Open your application and choose "Can't make it?" so the team knows.</p>`,
+         <p style="color: #666;">Can't make it after all? Open your application and choose "Can't make it?" so the team knows.</p>
+         ${QUESTIONS_LINE}`,
         "Open my application",
         candidateLink(
           /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.application_id ?? "")
@@ -335,18 +361,28 @@ const getEmailContent = (
              ${times.map((t) => `<li style="margin-bottom: 6px;">${esc(t)}</li>`).join("")}
            </ul>`
         : "";
+      // What the interview is, said before the time: a finalist wrote in on
+      // 2026-10-08 to ask what "the upcoming 30-minute video interview will
+      // cover and whether this is the final interview stage".
+      const kind = data.interview_kind || "interview";
+      const long = lengthAdjective(data.interview_length);
+      const what = long ? `${long} ${kind}` : kind;
+      const article = /^(8|11|18)/.test(what) || /^interview/.test(what) ? "an" : "a";
+      const finalStep = `<p>You have completed the online steps, and you have been selected for the final step: <strong>${esc(article)} ${esc(what)}</strong> with the hiring team. It is a conversation, not another test.</p>`;
       if (times.length === 1) {
         const again = data.again === "1";
         return {
           subject: again ? `A new time for your interview: ${data.job_title}` : `You're invited to an interview: ${data.job_title}`,
           html: wrapEmail(
             again ? "A New Time for Your Interview" : "You're Invited to an Interview",
-            `<p>${again
-              ? `The hiring team for <strong>${esc(data.job_title)}</strong> set a new time for your interview:`
+            `${again ? "" : finalStep}
+             <p>${again
+              ? `The hiring team for <strong>${esc(data.job_title)}</strong> set a new time for your interview (the final step: ${esc(article)} ${esc(what)} with the hiring team):`
               : `The hiring team for <strong>${esc(data.job_title)}</strong> would like to interview you at this time:`}</p>
              ${list}
              <p>Open your application to book it.</p>
-             <p style="color: #666;">Can't make it? Tell them there which days you are free, and from what time to what time, and they will set another time.</p>`,
+             <p style="color: #666;">Can't make it? Tell them there which days you are free, and from what time to what time, and they will set another time.</p>
+             ${QUESTIONS_LINE}`,
             "Book This Time",
             candidateLink("/applications")
           ),
@@ -356,7 +392,8 @@ const getEmailContent = (
         subject: `Pick a time for your interview — ${data.job_title}`,
         html: wrapEmail(
           "Pick a Time for Your Interview",
-          `<p>The hiring team for <strong>${esc(data.job_title)}</strong> has proposed ${esc(data.window_count) || "a few"} times for your interview. Pick whichever works best for you:</p>
+          `${finalStep}
+           <p>The hiring team for <strong>${esc(data.job_title)}</strong> has proposed ${esc(data.window_count) || "a few"} times for your interview. Pick whichever works best for you:</p>
            ${list}
            <p style="color: #666;">Head to your application to choose a time — it only takes a second.</p>`,
           "Pick a Time",

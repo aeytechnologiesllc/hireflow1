@@ -19,6 +19,7 @@ import {
   SELECTED_TITLE,
   TELL_AVAILABILITY,
   candidateInterviewStage,
+  interviewAboutWords,
   clockTime,
   interviewKindWords,
   interviewWhen,
@@ -287,6 +288,14 @@ export function CandidateInterviewConfirmationCard({
   const teamLower = employerName?.trim() || "the hiring team";
   const zone = getTimezoneAbbreviation();
   const kind = interviewKindWords(interview.interview_type);
+  // What the interview is, in one line: the final step, a conversation and
+  // not another test (a finalist had to write in to ask, 2026-10-08).
+  const about = interviewAboutWords({ ...interview, duration_minutes: effectiveDurationMinutes }, employerName);
+  const aboutLine = (className: string) => (
+    <p className={className} style={{ color: "var(--ink-2)" }} data-interview-about>
+      {about}
+    </p>
+  );
   const who = [jobTitle?.trim(), employerName?.trim()].filter(Boolean).join(" · ");
 
   // Joining: a link of the team's own opens two hours before the start, the
@@ -467,7 +476,8 @@ export function CandidateInterviewConfirmationCard({
                     : `${team} offered ${futureWindows.length} times. Pick the one that works for you.`,
                   true,
                 )}
-                <div className="mt-6">{slotList("pick_slot", futureWindows)}</div>
+                {aboutLine("mt-3 text-[14.5px] leading-snug sm:pl-[72px]")}
+                <div className="mt-5">{slotList("pick_slot", futureWindows)}</div>
                 {noneWork(futureWindows.length === 1 ? "Can't make it?" : "None of these work?")}
               </>
             ) : (
@@ -508,7 +518,8 @@ export function CandidateInterviewConfirmationCard({
             <h3 className="font-display mt-1.5 text-balance text-[22px] font-semibold leading-[1.15] text-foreground sm:text-[26px]">{SELECTED_TITLE}</h3>
             {timeLine}
             {facts}
-            <p className="mt-4 text-[14.5px]" style={{ color: "var(--ink-2)" }}>
+            {aboutLine("mt-4 text-[14.5px] leading-snug")}
+            <p className="mt-2 text-[14.5px]" style={{ color: "var(--ink-2)" }}>
               Confirm it if it works. If you can&apos;t make it, tell them when you are free.
             </p>
             <div className="hf-acts mt-4">
@@ -572,6 +583,7 @@ export function CandidateInterviewConfirmationCard({
             </div>
             {timeLine}
             {facts}
+            {aboutLine("mt-3.5 text-[14px] leading-snug")}
             <div className="hf-acts mt-5">
               {(hasBuiltInRoom || ownLink) && (
                 <button

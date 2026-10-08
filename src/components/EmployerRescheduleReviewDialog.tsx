@@ -82,6 +82,8 @@ interface EmployerRescheduleReviewDialogProps {
   openOfferedTimes?: string[];
   /** How long the interview runs: kept for the new time. */
   durationMinutes?: number | null;
+  /** Video, phone or in person, as stored: said in the email about the new time. */
+  interviewType?: string | null;
   /** The team's other live interviews, to say so when the new time runs into one. */
   busy?: readonly BusyInterview[];
 }
@@ -110,6 +112,7 @@ export function EmployerRescheduleReviewDialog({
   fromOffer = false,
   openOfferedTimes = [],
   durationMinutes,
+  interviewType,
   busy = [],
 }: EmployerRescheduleReviewDialogProps) {
   const queryClient = useQueryClient();
@@ -293,7 +296,7 @@ export function EmployerRescheduleReviewDialog({
           const theirZone = await fetchApplicantTimeZone(applicationId);
           const lines = openOfferedTimes.map((start) => applicantEmailTime(parseISO(start), theirZone, localTimeZone()).line);
           const { notifyInterviewPickTime } = await import("@/utils/emailNotifications");
-          await notifyInterviewPickTime(candidateId, jobTitle, lines, undefined);
+          await notifyInterviewPickTime(candidateId, jobTitle, lines, undefined, false, { interviewType, minutes });
         } catch (emailErr) {
           console.error("Failed to email the offered times again:", emailErr);
         }
@@ -362,7 +365,7 @@ export function EmployerRescheduleReviewDialog({
           const theirZone = applicantZone ?? (await fetchApplicantTimeZone(applicationId));
           const line = applicantEmailTime(newStart, theirZone, teamZone).line;
           const { notifyInterviewPickTime } = await import("@/utils/emailNotifications");
-          await notifyInterviewPickTime(candidateId, jobTitle, [line], undefined, true);
+          await notifyInterviewPickTime(candidateId, jobTitle, [line], undefined, true, { interviewType, minutes });
         } catch (emailErr) {
           console.error("Failed to email the new time:", emailErr);
         }

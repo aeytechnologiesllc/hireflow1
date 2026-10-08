@@ -14,6 +14,7 @@ import { parseApplicationNotes } from "@/utils/applicationNotes";
 import { standingWithServerDone } from "@/hooks/useAssessmentSession";
 import { cn } from "@/lib/utils";
 import type { StepAdvance } from "@/hooks/useStepAdvance";
+import { FINALIST_LINE } from "@/lib/candidateInterview";
 
 // A slim brass rule across the top of a card — the letterhead mark every
 // considered candidate card opens with.
@@ -171,7 +172,7 @@ export function NextStepCard({ applicationId, completedTitle, doneStepId }: Next
   } else if (standing?.kind === "finished") {
     finishedMark = true;
     heading = "You've finished every step";
-    body = "Sent — you can close this page. The hiring team reviews every finished application, and you'll get a yes or no by email.";
+    body = `Sent — you can close this page. The hiring team reviews every finished application, and you'll get a yes or no by email. ${FINALIST_LINE}`;
   } else if (standing?.kind === "closed") {
     heading = standing.outcome === "hired" ? "You're hired" : "The hiring team has made a decision";
     body =

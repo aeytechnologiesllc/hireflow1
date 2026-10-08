@@ -101,6 +101,8 @@ const SCHEMA_SQL = `
     application_id uuid not null references public.applications(id) on delete cascade,
     scheduled_at timestamptz not null,
     duration_minutes integer default 60,
+    -- As on production: 'video' | 'phone' | 'in-person'.
+    interview_type text default 'video',
     candidate_response text default 'pending',
     proposed_times jsonb,
     candidate_note text,
@@ -574,6 +576,62 @@ async function main() {
     await db.query("insert into public.interviews (id, application_id, scheduled_at) values ($1,$2, now() + interval '4 days')", [offeredId, schedAppId2]);
     bell = await notifsFor(candidateId);
     check("a time booked outright still reads 'Interview scheduled'", bell.length === 1 && bell[0]?.title === "Interview scheduled", JSON.stringify(bell));
+  }
+
+  // ── What the interview IS (2026-10-08): the same triggers, reworded ─────
+  // A finalist had to write in to ask what "the upcoming 30-minute video
+  // interview will cover and whether this is the final interview stage".
+  const finalStepFile = readdirSync(migrationsDir).find((name) => name.endsWith("_interview_bell_final_step.sql"));
+  check("the final-step wording migration is in the repo", !!finalStepFile);
+  if (finalStepFile) {
+    await db.exec(readFileSync(path.join(migrationsDir, finalStepFile), "utf8"));
+    const id = "50000000-0000-0000-0000-0000000000b1";
+    const invite = async (minutes, type, response = "awaiting_pick") => {
+      await db.query("delete from public.interviews where application_id = $1", [schedAppId2]);
+      await db.query("delete from public.notifications");
+      await asActor(employerId);
+      await db.query(
+        "insert into public.interviews (id, application_id, scheduled_at, duration_minutes, interview_type, candidate_response, employer_windows) values ($1,$2, now() + interval '3 days', $3, $4, $5, '[]'::jsonb)",
+        [id, schedAppId2, minutes, type, response],
+      );
+      return notifsFor(candidateId);
+    };
+    let bell = await invite(30, "video");
+    check(
+      "an offered time: they passed the online steps, and the final step is a 30-minute video call with the hiring team",
+      bell.length === 1 &&
+        bell[0]?.title === "You're invited to an interview" &&
+        /^You passed the online steps for .+\. The final step is a 30-minute video call with the hiring team: book the time they offered, or tell them when you are free\.$/.test(bell[0]?.message ?? ""),
+      JSON.stringify(bell),
+    );
+    check("…still linked through the applicant's sign-in", /^\/candidate\/auth\?redirect=%2Fapplications%2F/.test(bell[0]?.link ?? ""), bell[0]?.link);
+    bell = await invite(45, "phone");
+    check("a phone interview is said as a phone call", /The final step is a 45-minute phone call with the hiring team/.test(bell[0]?.message ?? ""), bell[0]?.message);
+    bell = await invite(null, "in-person");
+    check("in person, with no length on file: 'a meeting in person', no stray number", /The final step is a meeting in person with the hiring team/.test(bell[0]?.message ?? "") && !/null|-minute/.test(bell[0]?.message ?? ""), bell[0]?.message);
+    bell = await invite(18, "video");
+    check("'an' before 18", /The final step is an 18-minute video call/.test(bell[0]?.message ?? ""), bell[0]?.message);
+    bell = await invite(30, "video", "pending");
+    check(
+      "a time booked outright says the same: scheduled for the final step",
+      bell.length === 1 && bell[0]?.title === "Interview scheduled" && /^You passed the online steps for .+ and are scheduled for the final step: a 30-minute video call with the hiring team\. Check the details in HireFlow\.$/.test(bell[0]?.message ?? ""),
+      JSON.stringify(bell),
+    );
+    // What was right before stays right: a new time, a moved time, and the applicant's own answers.
+    await invite(30, "video");
+    await db.query("delete from public.notifications");
+    await asActor(null);
+    await db.query("update public.interviews set candidate_response = 'reschedule_requested' where id = $1", [id]);
+    check("their own 'can't make it' is still not announced back to them", (await notifsFor(candidateId)).length === 0);
+    await asActor(employerId);
+    await db.query("update public.interviews set scheduled_at = now() + interval '8 days', candidate_response = 'awaiting_pick' where id = $1", [id]);
+    bell = await notifsFor(candidateId);
+    check("a new time set by the team still reads 'A new time for your interview'", bell.length === 1 && bell[0]?.title === "A new time for your interview", JSON.stringify(bell));
+    await db.query("delete from public.notifications");
+    await db.query("update public.interviews set candidate_response = 'confirmed' where id = $1", [id]);
+    await db.query("update public.interviews set scheduled_at = now() + interval '9 days' where id = $1", [id]);
+    bell = await notifsFor(candidateId);
+    check("a booked time the team moves still reads 'Interview time changed'", bell.length === 1 && bell[0]?.title === "Interview time changed", JSON.stringify(bell));
   }
 
   await db.close();

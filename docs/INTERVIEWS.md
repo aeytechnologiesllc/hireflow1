@@ -264,6 +264,52 @@ them booking the same one. Now the first to book a time gets it.
   two bookings inside the same split second could both land. It also only
   knows interviews made in this tool, not the owner's own calendar.
 
+## What the interview is, said before anyone has to ask
+
+A finalist wrote to the owner on 2026-10-08, the morning after booking: "I
+previously completed the chat practice and written interview ... I understood
+from the previous communication that the position is fully remote and
+chat-only. Could you please let me know what the upcoming 30-minute video
+interview will cover and whether this is the final interview stage?" Nothing
+had told him. The owner: "we should clarify ... chat interview has been done.
+Now you will have a video interview with the hiring team ... this is the
+final stage ... so other [applicants] don't ever get confused."
+
+So one sentence is said everywhere an applicant learns they were selected:
+**"This is the final step: a 30-minute video call with {team}. It is a
+conversation, not another test."** (`interviewAboutWords`,
+`src/lib/candidateInterview.ts`: the length and the kind come from the
+interview itself; a phone call and a meeting in person are said as what they
+are.)
+
+- **The page**: the full-screen "selected" moment, the interview card on the
+  list, and the card on the application (offered, to confirm, booked).
+- **The invitation email** opens with it ("You have completed the online
+  steps, and you have been selected for the final step ..."), before the
+  time. The sender passes the kind and the length; the email function keeps
+  only one of three fixed phrases and a short length, never text from the
+  request.
+- **The confirmation email** has "What to expect" with the same.
+- **The bell** (`*_interview_bell_final_step.sql`): "You passed the online
+  steps for X. The final step is a 30-minute video call with the hiring
+  team ...".
+- **Before anyone is chosen**: the screen after the last test, and the
+  application's own page once every step is done, add "Finalists are invited
+  to one last step: a short interview with the hiring team, usually a video
+  call." (`FINALIST_LINE`), so a video call is never a surprise to someone
+  whose job post says chat only.
+- **Questions go to Messages.** Both interview emails end with "Questions
+  before then? Open Messages in your account and write to the hiring team."
+  The finalist had replied to the email, and the owner could not answer from
+  the hiring address. A message in the app stays on the applicant's record,
+  and its answer is emailed to them from the hiring address (`new_message`,
+  first 100 characters, with a button to read it).
+
+Proof: `scripts/candidate_interview.test.mjs` ("What the interview is, said
+before anyone has to ask"), `scripts/notification_access.test.mjs` (both
+emails through the real function, hostile kind and length left out),
+`scripts/notifications_triggers.pglite.test.mjs` (the bell).
+
 ## When the applicant can't make it
 
 The owner, 2026-10-07: "I wanna just give them one time for the interview,

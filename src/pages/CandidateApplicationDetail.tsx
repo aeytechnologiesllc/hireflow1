@@ -35,6 +35,7 @@ const BRASS_RULE = (
 
 import { CandidateInterviewConfirmationCard } from "@/components/CandidateInterviewConfirmationCard";
 import { InterviewSelectedMoment, hasCelebrated, markCelebrated } from "@/components/candidate/InterviewCelebration";
+import { FINALIST_LINE } from "@/lib/candidateInterview";
 import { candidateInterviewWords } from "@/lib/candidateInterview";
 import { isOwnInterviewChange } from "@/lib/ownInterviewChange";
 import { useDocumentRequests, DocumentRequestWithDetails } from "@/hooks/useDocumentRequests";
@@ -590,7 +591,9 @@ export default function CandidateApplicationDetail() {
 
   // What is true: a reply comes once every step is done (a form sent and
   // left there gets no promise of one).
-  let guidanceMessage = "Everyone who finishes every step gets a yes or no by email.";
+  // And what a yes looks like: the video call must never be a surprise to
+  // someone who was told the job is chat only (FINALIST_LINE).
+  let guidanceMessage = `Everyone who finishes every step gets a yes or no by email. ${FINALIST_LINE}`;
   let guidanceIcon: "clock" | null = null;
   if (standing.kind === "take") {
     const duration = phaseDurationEstimates[currentPhase.type];
@@ -644,6 +647,7 @@ export default function CandidateApplicationDetail() {
         open={!!celebrateId}
         companyName={employerBranding}
         jobTitle={job?.title}
+        about={interviewWords?.about}
         detail={interviewWords?.ask ?? ""}
         action={interviewWords?.action ?? ""}
         onAction={() => {
