@@ -82,8 +82,15 @@ const EMPLOYER_FACING: ReadonlySet<NotificationType> = new Set<NotificationType>
 /** Who an email reads as coming from. Candidates applied to the Zulu Support
  *  Team on its careers site, so that is who writes to them; the hiring team's
  *  own alerts come from HireFlow. Both addresses are on hireflownow.com, the
- *  domain verified in Resend. */
-const CANDIDATE_SENDER = "Zulu Support Team <hiring@hireflownow.com>";
+ *  domain verified in Resend.
+ *
+ *  An applicant's email comes from an address nobody reads, on purpose. It
+ *  was hiring@ until 2026-10-09: applicants replied to it, the replies landed
+ *  in the owner's own mail, and he could not answer from the hiring address.
+ *  The owner: "the applicant cannot email or reply to the email we sent them
+ *  ... they should only message us." So the address says it, and every
+ *  applicant's email says where to write instead (NO_REPLY_NOTE below). */
+const CANDIDATE_SENDER = "Zulu Support Team <no-reply@hireflownow.com>";
 const TEAM_SENDER = "HireFlow <notifications@hireflownow.com>";
 
 const isCandidateEmail = (type: NotificationType, recipientRole: RecipientRole) =>
@@ -200,6 +207,17 @@ const getEmailContent = (
   const candidateLink = (path: string) =>
     `${baseUrl}/candidate/auth?redirect=${encodeURIComponent(path)}`;
 
+  // On every email to an applicant, under what the email is about and above
+  // the signature: replies are not read, and where to write instead. The link
+  // opens Messages in their account (through sign-in when they are signed
+  // out). The hiring team's own alerts do not carry it.
+  const NO_REPLY_NOTE = isCandidateEmail(type, recipientRole)
+    ? `<p style="margin-top: 28px; padding: 12px 14px; background: #f4f6f5; border-radius: 8px; color: #444; font-size: 14px; line-height: 1.5;">
+        <strong>Have a question?</strong> Please do not reply to this email. Replies do not reach us.
+        <a href="${candidateLink("/messages")}" style="color: #0f7a5a; font-weight: 600;">Message us in your account</a> and we will answer you there.
+      </p>`
+    : "";
+
   // Simple, clean template wrapper. `signature` lets a message that comes from
   // the employer (a decision on an application) sign as the employer.
   const wrapEmail = (title: string, content: string, buttonText?: string, buttonUrl?: string, signature = defaultSignature) => `
@@ -211,6 +229,7 @@ const getEmailContent = (
           <a href="${buttonUrl}" style="display: inline-block; background: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500;">${buttonText}</a>
         </p>
       ` : ''}
+      ${NO_REPLY_NOTE}
       <p style="color: #666; font-size: 13px; margin-top: 32px; border-top: 1px solid #eee; padding-top: 16px;">
         ${signature}
       </p>

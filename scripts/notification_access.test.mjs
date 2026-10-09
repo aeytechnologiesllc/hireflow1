@@ -385,7 +385,11 @@ void quiet;
   let r = await hush(async () => (reset(), ask("tok-owner", { type: "status_hired", recipient_user_id: ANA, data: { ...HOSTILE, job_title: TITLE_A } })));
   let mail = world.sent[0];
   check("the owner hires their applicant: sent, to that applicant", r.status === 200 && r.body?.success === true && world.sent.length === 1 && show(mail.to) === show([emailOf(ANA)]), show(r));
-  check("…from the hiring address, signed by the owner's own business whatever the request said", mail.from === "Zulu Support Team <hiring@hireflownow.com>" && textOf(mail).endsWith("— The Zulu Support Team") && !/Some Other Company/.test(mail.html), textOf(mail).slice(-60));
+  check("…from the address nobody reads, signed by the owner's own business whatever the request said", mail.from === "Zulu Support Team <no-reply@hireflownow.com>" && textOf(mail).endsWith("— The Zulu Support Team") && !/Some Other Company/.test(mail.html), textOf(mail).slice(-60));
+  // The owner, 2026-10-09: "the applicant cannot email or reply to the email
+  // we sent them ... they should only message us."
+  check("…and it tells the applicant not to reply, with a link that opens Messages in their account", /Please do not reply to this email\. Replies do not reach us\./.test(textOf(mail)) && /href="[^"]*\/candidate\/auth\?redirect=%2Fmessages"[^>]*>Message us in your account<\/a>/.test(mail.html), textOf(mail).slice(-220));
+  check("…the note sits above the signature, so the email still ends with who wrote it", mail.html.indexOf("Please do not reply") < mail.html.lastIndexOf("The Zulu Support Team"));
   check("…naming the job the owner named", mail.subject === `Welcome aboard — ${TITLE_A}`, mail.subject);
 
   r = await hush(async () => (reset(), ask("tok-team-all", { type: "status_rejected", recipient_user_id: ANA, data: { company_name: "Rival Co" } })));
@@ -568,7 +572,7 @@ void quiet;
   let r = await hush(async () => (reset(), asFunction(confirmed())));
   let mail = world.sent[0];
   let text = textOf(mail);
-  check("the applicant's confirmation is sent to the applicant, from the hiring address", r.status === 200 && show(mail?.to) === show([emailOf(ANA)]) && /^Zulu Support Team <hiring@/.test(mail?.from ?? ""), show({ to: mail?.to, from: mail?.from }));
+  check("the applicant's confirmation is sent to the applicant, from the address nobody reads", r.status === 200 && show(mail?.to) === show([emailOf(ANA)]) && /^Zulu Support Team <no-reply@/.test(mail?.from ?? ""), show({ to: mail?.to, from: mail?.from }));
   check("it says it is confirmed, for which job", mail?.subject === `Interview confirmed: ${TITLE_A}` && text.includes("Your interview is confirmed") && text.includes(`Your interview for ${TITLE_A} is confirmed.`), mail?.subject);
   check("with the date, the time on a named clock, and the length", text.includes("Date: Thursday, October 8, 2026") && text.includes("Time: 9:00 PM Philippine Standard Time") && text.includes("Length: 30 minutes"), text.slice(0, 260));
   check("how to join, and what to do if they cannot make it", text.includes("The button to join is on your application page and opens 15 minutes before the start.") && text.includes(`choose "Can't make it?"`));

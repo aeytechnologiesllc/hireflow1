@@ -16,6 +16,19 @@ are read and written through `src/hooks/useMessages.ts`.
 - That email is why the app is the place to answer an applicant: the owner
   cannot reply from the hiring address in his own mail (2026-10-08), and both
   interview emails now send questions here (docs/INTERVIEWS.md).
+- **An applicant cannot reply by email (2026-10-09).** They kept replying to
+  the hiring address; the replies landed in the owner's own mail and he could
+  not answer from it. The owner: "the applicant cannot email or reply to the
+  email we sent them ... they should only message us." So every email to an
+  applicant now comes from `no-reply@hireflownow.com` and carries, above the
+  signature: "Have a question? Please do not reply to this email. Replies do
+  not reach us. Message us in your account and we will answer you there.",
+  where "Message us in your account" opens Messages (through sign-in when
+  they are signed out). The hiring team's own alerts do not carry it.
+  `scripts/notification_access.test.mjs` fails if the address or the note
+  goes. Mail for the domain is forwarded by the registrar
+  (`eforward*.registrar-servers.com`): a reply to `no-reply@` bounces unless
+  a catch-all forward is switched on there, which is the owner's to check.
 
 ## Tidied when you send (2026-10-09)
 
