@@ -8,6 +8,7 @@
 import { __setPreviewSupabaseClient } from "@/integrations/supabase/client";
 import { STAMP_TAIL_BYTES } from "@/lib/connectionTest";
 import { parseApplicationNotes } from "@/utils/applicationNotes";
+import { addDays, dayOf, encodeDocumentBody, offerDocumentBody, offerExpiry, offerLetterName, type OfferLetterFields } from "@/cockpit/lib/offerLetter";
 import { createFixtureSupabaseClient, type FixtureAuthUser, type FixtureRow, type FixtureTables } from "./fixtureClient";
 import { buildFixtureRpcHandlers, buildFixtureTables, FIXTURE_SCENARIOS, type FixtureScenario } from "./fixtures";
 import {
@@ -633,6 +634,126 @@ function previewShortlistHandlers(tables: FixtureTables, user: FixtureAuthUser):
  * checks who may: the preview is one employer's own data.
  */
 /**
+ * `?__previewDocs=offer`: an offer letter is waiting on the applicant's
+ * signature, so the applicant's "Documents to sign" and the owner's drawer
+ * can be looked at offline. `offer,signed` is the same letter once the
+ * applicant has signed (the owner's turn); `offer,done` is it countersigned.
+ *
+ * With or without the flag, a letter SENT in the preview is filed like a real
+ * one: the stand-in client does not follow a select's embeds, and both
+ * drawers keep only documents whose application is theirs, so every new
+ * document row is given its application and job as it is stored. And the
+ * `document-signing` function answers offline: view, sign, countersign,
+ * decline, withdraw and void move the row as the real function does (the
+ * hashes, the locked PDF and the certificate are the real function's alone).
+ */
+function previewDocuments(tables: FixtureTables, user: FixtureAuthUser, role: PreviewRole, spec: string | null) {
+  const flags = (spec ?? "").split(",").map((w) => w.trim()).filter(Boolean);
+  const documents: FixtureRow[] = [];
+  const dress = (row: FixtureRow): FixtureRow => {
+    if (!row.applications) {
+      const application = (tables.applications ?? []).find((a) => a.id === row.application_id);
+      row.applications = application
+        ? { id: application.id, candidate_id: application.candidate_id, jobs: (tables.jobs ?? []).find((j) => j.id === application.job_id) ?? null }
+        : null;
+    }
+    row.document_code ??= `DOC-PREVIEW${String(documents.length + 1).padStart(4, "0")}`;
+    row.is_voided ??= false;
+    row.is_locked ??= false;
+    return row;
+  };
+  for (const row of tables.documents ?? []) documents.push(dress(row));
+  documents.push = (...rows: FixtureRow[]) => Array.prototype.push.apply(documents, rows.map(dress));
+  tables.documents = documents;
+
+  if (flags.includes("offer")) {
+    const job = (tables.jobs ?? [])[0] ?? null;
+    const mine = (tables.applications ?? []).find((a) => a.candidate_id === user.id);
+    const interviewed = (tables.applications ?? []).find((a) => a.status === "interview") ?? (tables.applications ?? [])[0];
+    // The applicant's own drawer shows the letter as theirs; the owner's shows it against the person interviewed.
+    const application = role === "employer" || role === "team_member" ? interviewed : mine ?? interviewed;
+    const candidateId = role === "employer" || role === "team_member" ? String(application?.candidate_id ?? "") : user.id;
+    const profile = (tables.profiles ?? []).find((p) => p.user_id === candidateId);
+    const owner = (tables.profiles ?? []).find((p) => p.user_id === job?.employer_id);
+    const name = String(profile?.full_name ?? user.user_metadata?.full_name ?? "Ana Maria Reyes");
+    const today = dayOf(new Date());
+    const fields: OfferLetterFields = {
+      applicantName: name,
+      roleTitle: String(job?.title ?? "Chat Support Team Leader"),
+      companyName: String(owner?.company_name ?? "Zulu Support Team"),
+      signerName: String(owner?.full_name ?? "Zack"),
+      pay: "USD 500 a month",
+      hours: "40 hours a week, 5 days a week",
+      shift: "3:00 AM to 11:00 AM Philippine time",
+      startDate: addDays(today, 10),
+      replyBy: addDays(today, 5),
+      extra: "",
+      today,
+    };
+    const signedAt = new Date(Date.now() - 40 * 60_000).toISOString();
+    const signed = flags.includes("signed") || flags.includes("done");
+    const done = flags.includes("done");
+    documents.push({
+      id: "d0c00000-0000-4000-8000-000000000001",
+      application_id: application?.id ?? null,
+      applications: application ? { id: application.id, candidate_id: candidateId, jobs: job } : null,
+      name: offerLetterName(fields),
+      document_type: "offer_letter",
+      file_url: encodeDocumentBody(offerDocumentBody(fields, String(profile?.email ?? user.email ?? ""))),
+      status: done ? "signed" : "pending",
+      sender_id: job?.employer_id ?? null,
+      recipient_id: candidateId,
+      created_at: new Date(Date.now() - 3 * 3600_000).toISOString(),
+      updated_at: new Date(Date.now() - 3 * 3600_000).toISOString(),
+      expires_at: offerExpiry(fields.replyBy)?.toISOString() ?? null,
+      viewed_at: signed ? signedAt : null,
+      v1_hash: "preview".padEnd(64, "0"),
+      version_number: 1,
+      candidate_signature_data: signed ? JSON.stringify({ signatures: { recipient: name }, method: "typed", signerName: name, signerEmail: profile?.email ?? user.email }) : null,
+      candidate_signed_at: signed ? signedAt : null,
+      employer_signature_data: done ? JSON.stringify({ signatures: { employer: fields.signerName }, method: "typed", signerName: fields.signerName }) : null,
+      employer_signed_at: done ? new Date(Date.now() - 10 * 60_000).toISOString() : null,
+      signed_at: done ? new Date(Date.now() - 10 * 60_000).toISOString() : null,
+      is_locked: done,
+    });
+  }
+
+  return async (name: string, options?: InvokeOptions): Promise<{ data: unknown; error: unknown } | null> => {
+    if (name !== "document-signing") return null;
+    const body = (options?.body ?? {}) as { documentId?: string; action?: string; reason?: string; signature?: { method?: string; value?: string } };
+    const row = documents.find((d) => d.id === body.documentId);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    if (!row) return { data: { error: "not_found", message: "Document not found." }, error: null };
+    const now = new Date().toISOString();
+    const signer = String(user.user_metadata?.full_name ?? "");
+    if (body.action === "view") {
+      row.viewed_at ??= now;
+    } else if (body.action === "sign") {
+      if (row.candidate_signed_at) return { data: { error: "already_signed" }, error: null };
+      row.candidate_signature_data = JSON.stringify({ signatures: { recipient: body.signature?.value }, method: body.signature?.method, signerName: signer, signerEmail: user.email });
+      row.candidate_signed_at = now;
+    } else if (body.action === "countersign") {
+      if (!row.candidate_signed_at) return { data: { error: "candidate_has_not_signed" }, error: null };
+      row.employer_signature_data = JSON.stringify({ signatures: { employer: body.signature?.value }, method: body.signature?.method, signerName: signer });
+      row.employer_signed_at = now;
+      row.signed_at = now;
+      row.status = "signed";
+      row.is_locked = true;
+    } else if (body.action === "decline") {
+      row.status = "declined";
+    } else if (body.action === "withdraw" || body.action === "void") {
+      row.is_voided = true;
+      row.voided_at = now;
+      row.voided_reason = body.reason ?? null;
+    } else {
+      return { data: { error: "preview", message: "Not available in the dev preview." }, error: null };
+    }
+    row.updated_at = now;
+    return { data: { success: true }, error: null };
+  };
+}
+
+/**
  * `?__previewWhen=now,soon,later`: the scenario's interviews are moved to
  * fixed distances from this moment and marked agreed, so "Now" and "In 35
  * minutes" on the Interviews page, and today's count on the menu, can be
@@ -1070,6 +1191,7 @@ export function install(params: URLSearchParams): void {
   const interviewGuide = previewInterviewGuide(tables, params.get("__previewGuide"));
   previewInterviewClocks(tables, params.get("__previewTheirZone"), params.get("__previewShift"));
   const candidateInterview = previewCandidateInterview(tables, params.get("__previewInterview"));
+  const documentSigning = previewDocuments(tables, ROLE_USERS[role], role, params.get("__previewDocs"));
   const client = {
     ...base,
     ...realtime,
@@ -1104,6 +1226,8 @@ export function install(params: URLSearchParams): void {
         if (guide) return guide;
         const answered = candidateInterview(name, options);
         if (answered) return answered;
+        const signedOrViewed = await documentSigning(name, options);
+        if (signedOrViewed) return signedOrViewed;
         return base.functions.invoke(name, options);
       },
     },

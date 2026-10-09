@@ -53,6 +53,7 @@ import {
 import { generateV1Hash } from "@/lib/documentHash";
 import { generatePdfHash } from "@/lib/pdfSignatureBurner";
 import { notifyDocumentSent } from "@/utils/emailNotifications";
+import { encodeDocumentBody } from "@/cockpit/lib/offerLetter";
 
 interface CreatedDocumentData {
   id: string;
@@ -667,7 +668,10 @@ export function DocumentWizard({
             hasPositionedSignatures: isPdf,
           },
         };
-        fileUrl = `data:application/json;base64,${btoa(JSON.stringify(documentData))}`;
+        // Not btoa(JSON.stringify(...)): base64 in a browser refuses anything
+        // outside Latin-1, so a letter with a curly apostrophe or a long dash
+        // in it (an AI writes both) threw here and nothing was sent.
+        fileUrl = encodeDocumentBody(documentData);
         docName = documentName || uploadedFile?.name || "Uploaded Document";
         docType = "custom";
       } else {
@@ -688,7 +692,10 @@ export function DocumentWizard({
             recipientEmail: recipient.email || recipientEmail,
           },
         };
-        fileUrl = `data:application/json;base64,${btoa(JSON.stringify(documentData))}`;
+        // Not btoa(JSON.stringify(...)): base64 in a browser refuses anything
+        // outside Latin-1, so a letter with a curly apostrophe or a long dash
+        // in it (an AI writes both) threw here and nothing was sent.
+        fileUrl = encodeDocumentBody(documentData);
         docName = `${DOCUMENT_TYPES.find(t => t.value === documentType)?.label} - ${recipient.name || recipientName || "Draft"}`;
         docType = documentType;
       }

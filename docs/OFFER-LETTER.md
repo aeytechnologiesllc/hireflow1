@@ -1,0 +1,85 @@
+# The offer letter
+
+Built 2026-10-09, after the owner's first interview. He asked: "do you think we
+should send ... the offer letter through the portal or should we leave it?" and
+chose the portal after a test run.
+
+## What the test run found
+
+The signing engine (`docs/DOCUMENT-SIGNING.md`) was sound: a rolled-back
+rehearsal against the live database showed the owner may create a document,
+it gets its code and a 14-day expiry, the applicant can see it and gets a note
+in their bell, the `document_sent` email is his to set off, and the
+`document-signing` function answers. Nothing had ever been sent for real (0
+rows in `documents`).
+
+The screens in front of the engine were wrong for him:
+
+1. **An AI wrote the letter, as a United States office job.** The old screens
+   (`DocumentWizard.tsx`) asked for an "annual salary" and produced "employment
+   at-will" wording. His role is USD 500 a month, one fixed shift, remote, any
+   country.
+2. **A letter could fail to save at all.** The body was stored with
+   `btoa(JSON.stringify(...))`. Base64 in a browser refuses every character
+   outside Latin-1, so a curly apostrophe or a long dash (an AI writes both)
+   threw and nothing was sent.
+3. **Pay and start date could be left empty** and the letter still went on.
+4. **The person was picked from everyone who had applied**, with no search.
+5. **On a phone the applicant read the letter through a 390px window**,
+   between a two-row header and four buttons squeezed into one row.
+
+## What there is now
+
+**One screen, no AI** (`src/cockpit/components/OfferLetterDialog.tsx`, opened
+from Documents by "Offer letter", by "Write an offer letter" on an empty
+drawer, and by the hire prompt's `/documents?action=create&applicant_id=`).
+
+- Who: the people he has interviewed are listed first; anyone in review can be
+  searched for.
+- Pay is filled in from the job when the job states one figure. Hours and
+  shift are remembered on the device per job, as a convenience only.
+- The letter beside the boxes is the letter they will read, word for word
+  (`offerLetterText` in `src/cockpit/lib/offerLetter.ts`). Every line comes
+  from a box; an empty optional box leaves its line out. It promises nothing he
+  did not type: no "at-will", no benefits, no contractor or employee wording.
+  That belongs in "Anything else", in his own words.
+- It cannot be sent without a person, pay, a start date and a day the offer
+  ends; the start date cannot be in the past and the offer cannot end after it.
+- Sending emails the applicant, so the button is pressed twice.
+
+**Sending** (`src/cockpit/hooks/useOfferLetter.ts`) is the engine's own way in:
+a `documents` row (`offer_letter`, `pending`, expiring at the end of the
+reply-by day), the first audit line, a bell note, the `document_sent` email.
+One thing is added: the applicant moves to Offer.
+
+**Characters.** The engine draws the final PDF in Helvetica, which has Western
+European letters only. `letterSafe` turns typographic quotes and dashes into
+plain ones and takes an accent off a letter the font lacks; a name or a
+currency sign it cannot print at all (`unprintable`) stops the send and says
+what to type instead. `encodeDocumentBody` writes the stored JSON in plain
+ASCII (`\u` escapes), so it always saves, and `JSON.parse` gives every reader
+back the exact text. The old screens use it too now.
+
+**The applicant's side on a phone** (`SignedDocumentViewer.tsx`): the letter
+has the whole screen, the copies to download appear once the document is
+finished, and a "Sign" button in the bar goes straight to the place to sign.
+
+## Not done
+
+- The first real letter has still never been signed on the live site. Before
+  the first real offer, send one to an account of his own and sign it.
+- The final PDF step (countersign) has not been exercised with a name outside
+  Western European letters; the letter itself is kept printable, a typed
+  signature is not checked.
+- "+ New document" still opens the old AI screens for every other kind of
+  document.
+
+## Looking at it offline
+
+`/documents?__preview=1&__previewRole=employer&__previewScenario=zulu`: send a
+letter; it is filed as a real one would be. `&__previewDocs=offer` starts with
+one waiting on the applicant, `offer,signed` with it waiting on the owner,
+`offer,done` with it finished. The applicant's side:
+`/my-documents?__preview=1&__previewRole=candidate&__previewScenario=zulu&__previewDocs=offer`.
+
+Tests: `scripts/offer_letter.test.mjs`.

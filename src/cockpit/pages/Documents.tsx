@@ -9,6 +9,7 @@ import { DocumentWizard } from "@/components/documents/DocumentWizard";
 import { SignedDocumentViewer } from "@/components/documents/SignedDocumentViewer";
 import { CockpitErrorCard } from "../components/ErrorCard";
 import { ActionDialog } from "../components/ActionDialog";
+import { OfferLetterDialog } from "../components/OfferLetterDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { invokeDocumentSigning } from "@/lib/documentSigningErrors";
@@ -283,6 +284,10 @@ export default function CockpitDocuments() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: appsForDocs = [] } = useApplicationsForDocuments();
   const [wizard, setWizard] = useState<{ type?: string; appId?: string; mode?: "generate" | "upload" } | null>(null);
+  // The plain offer letter (components/OfferLetterDialog.tsx): one screen, no
+  // AI. The older six-step screens stay behind "+ New document" for every
+  // other kind of document and for uploading a file of his own.
+  const [offer, setOffer] = useState<{ appId?: string } | null>(null);
   // Same underlying useDocuments() query useCockpitDocuments() already
   // calls (shared react-query cache, no extra fetch) — kept here too
   // because useCockpitDocuments only exposes the flattened DocRow shape,
@@ -384,7 +389,7 @@ export default function CockpitDocuments() {
   // Opened from the hire prompt → /documents?applicant_id=…&action=create.
   useEffect(() => {
     if (searchParams.get("action") === "create") {
-      setWizard({ type: "offer_letter", appId: searchParams.get("applicant_id") ?? undefined });
+      setOffer({ appId: searchParams.get("applicant_id") ?? undefined });
       const next = new URLSearchParams(searchParams);
       next.delete("action");
       next.delete("applicant_id");
@@ -405,6 +410,9 @@ export default function CockpitDocuments() {
     />
   ) : null;
 
+  // Mounted only while open, so every offer starts from empty boxes.
+  const offerEl = offer ? <OfferLetterDialog open applicationId={offer.appId} onClose={() => setOffer(null)} /> : null;
+
   const head = (
     <header className="ck-rise flex flex-wrap items-center gap-x-3.5 gap-y-2">
       <h1
@@ -417,7 +425,10 @@ export default function CockpitDocuments() {
         Every offer, form and file you send &mdash; one drawer
       </span>
       <div className="ml-auto flex gap-2 max-md:w-full max-md:[&>button]:flex-1">
-        <button className="ck-btn ck-btn-outline !py-2 !text-[12.5px]" onClick={() => setWizard({})}>
+        <button className="ck-btn ck-btn-outline !py-2 !text-[12.5px]" onClick={() => setOffer({})} data-offer-open>
+          Offer letter
+        </button>
+        <button className="ck-btn ck-btn-ghost !py-2 !text-[12.5px]" onClick={() => setWizard({})}>
           + New document
         </button>
       </div>
@@ -459,7 +470,7 @@ export default function CockpitDocuments() {
             I&rsquo;ll keep track of who has signed what.
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
-            <button className="ck-btn ck-btn-primary" onClick={() => setWizard({ type: "offer_letter" })}>
+            <button className="ck-btn ck-btn-primary" onClick={() => setOffer({})} data-offer-open>
               Write an offer letter
             </button>
             <button className="ck-btn ck-btn-outline" onClick={() => setWizard({ mode: "upload" })}>
@@ -468,6 +479,7 @@ export default function CockpitDocuments() {
           </div>
         </section>
         {wizardEl}
+        {offerEl}
       </div>
     );
   }
@@ -540,6 +552,7 @@ export default function CockpitDocuments() {
       ))}
 
       {wizardEl}
+      {offerEl}
 
       <SignedDocumentViewer
         document={viewerDocument}

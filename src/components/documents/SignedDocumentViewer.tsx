@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +34,8 @@ import {
   Award,
   AlertTriangle,
   Loader2,
-  Ban
+  Ban,
+  ChevronDown,
 } from "lucide-react";
 import { format } from "date-fns";
 import type { DocumentWithApplication } from "@/hooks/useDocuments";
@@ -81,6 +82,24 @@ interface DocumentData {
   uploadedFileUrl?: string;
   uploadedFileName?: string;
   uploadedFileType?: string;
+}
+
+/** A drawn signature is stored as a picture; a typed one is stored as the name itself. */
+const isDrawnSignature = (value: string) => /^data:image\//.test(value);
+
+/**
+ * A signature as it was made. A typed name used to be handed to <img> like a
+ * drawing and showed as a broken picture, on both sides, and "Type" is the
+ * tab the signing box opens on (seen in the offer-letter test run,
+ * 2026-10-09).
+ */
+function SignatureMark({ value, alt, className, style }: { value: string; alt: string; className?: string; style?: CSSProperties }) {
+  if (isDrawnSignature(value)) return <img src={value} alt={alt} className={className} style={style} />;
+  return (
+    <span className="px-2 text-[22px] italic leading-none text-foreground" style={{ fontFamily: '"Fraunces", Georgia, "Times New Roman", serif' }} aria-label={alt} data-typed-signature>
+      {value}
+    </span>
+  );
 }
 
 interface SignedDocumentViewerProps {
@@ -167,7 +186,9 @@ const DOCUMENT_STATUS_META: Record<
     iconClass: "text-warning",
     stripBgClass: "bg-warning/5",
     bannerTitle: "Awaiting Signature",
-    bannerSubtitle: "Not yet verified",
+    // Was "Not yet verified": to someone reading their own job offer that
+    // sounded like something was wrong with it.
+    bannerSubtitle: "Not signed by everyone yet",
   },
   withdrawn: {
     icon: Ban,
@@ -658,7 +679,15 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
       pdf.setFontSize(10);
       pdf.text("Candidate:", margin, yPosition);
       try {
-        pdf.addImage(candidateSignature, "PNG", margin, yPosition + 2, 50, 15);
+        if (isDrawnSignature(candidateSignature)) {
+          pdf.addImage(candidateSignature, "PNG", margin, yPosition + 2, 50, 15);
+        } else {
+          pdf.setFont("times", "italic");
+          pdf.setFontSize(16);
+          pdf.text(candidateSignature, margin, yPosition + 12);
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(10);
+        }
       } catch {
         /* Signature image embedding is non-critical; PDF still generates without it */
       }
@@ -669,7 +698,15 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
       pdf.setFontSize(10);
       pdf.text("Employer:", margin, yPosition);
       try {
-        pdf.addImage(employerSignature, "PNG", margin, yPosition + 2, 50, 15);
+        if (isDrawnSignature(employerSignature)) {
+          pdf.addImage(employerSignature, "PNG", margin, yPosition + 2, 50, 15);
+        } else {
+          pdf.setFont("times", "italic");
+          pdf.setFontSize(16);
+          pdf.text(employerSignature, margin, yPosition + 12);
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(10);
+        }
       } catch {
         /* Signature image embedding is non-critical; PDF still generates without it */
       }
@@ -735,12 +772,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
               <div className="flex-1">
                 <span className="text-foreground">{label}</span>
                 <div className="mt-2 border-b-2 border-foreground/30 pb-1">
-                  <img 
-                    src={candidateSignature} 
-                    alt="Candidate signature" 
-                    className="h-12 object-contain"
-                    style={{ filter: 'brightness(0) saturate(100%) invert(15%) sepia(70%) saturate(5000%) hue-rotate(220deg)' }}
-                  />
+                  <SignatureMark value={candidateSignature} alt="Candidate signature" className="h-12 object-contain" style={{ filter: 'brightness(0) saturate(100%) invert(15%) sepia(70%) saturate(5000%) hue-rotate(220deg)' }} />
                 </div>
               </div>
               <div className="w-40">
@@ -768,12 +800,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
               <div className="flex-1">
                 <span className="text-foreground">{label}</span>
                 <div className="mt-2 border-b-2 border-foreground/30 pb-1">
-                  <img 
-                    src={employerSignature} 
-                    alt="Employer signature" 
-                    className="h-12 object-contain"
-                    style={{ filter: 'brightness(0) saturate(100%) invert(15%) sepia(70%) saturate(5000%) hue-rotate(220deg)' }}
-                  />
+                  <SignatureMark value={employerSignature} alt="Employer signature" className="h-12 object-contain" style={{ filter: 'brightness(0) saturate(100%) invert(15%) sepia(70%) saturate(5000%) hue-rotate(220deg)' }} />
                 </div>
               </div>
               <div className="w-40">
@@ -818,7 +845,10 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[90vh] flex flex-col overflow-hidden p-0">
+      {/* On a phone the letter gets the whole screen. It used to be a 390px
+          window between a two-row header and a row of four squeezed buttons
+          (seen in the offer-letter test run, 2026-10-09). */}
+      <DialogContent className="max-w-4xl h-[90vh] flex flex-col overflow-hidden p-0 max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:border-0">
         {/* Hidden QR Code for PDF generation */}
         <div className="hidden">
           <QRCodeCanvas 
@@ -840,15 +870,15 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
               className="flex flex-col h-full overflow-hidden"
             >
               {/* Header */}
-              <DialogHeader className="p-6 pb-4 border-b border-border shrink-0">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-12 h-12 rounded-xl ${statusMeta.iconBoxClass} flex items-center justify-center`}>
+              <DialogHeader className="p-4 pb-3 pr-12 sm:p-6 sm:pb-4 border-b border-border shrink-0">
+                <div className="flex items-center justify-between gap-3 max-sm:flex-col max-sm:items-start max-sm:gap-2">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className={`hidden sm:flex w-12 h-12 shrink-0 rounded-xl ${statusMeta.iconBoxClass} items-center justify-center`}>
                       <statusMeta.icon className={`h-6 w-6 ${statusMeta.iconClass}`} />
                     </div>
-                    <div>
-                      <DialogTitle className="text-xl">{document.name}</DialogTitle>
-                      <p className="text-sm text-muted-foreground">
+                    <div className="min-w-0 text-left">
+                      <DialogTitle className="text-lg sm:text-xl text-left">{document.name}</DialogTitle>
+                      <p className="hidden sm:block text-sm text-muted-foreground">
                         {document.document_type?.replace(/_/g, " ")}
                         {document.status === "signed" && document.signed_at
                           ? ` • Completed ${format(new Date(document.signed_at), "MMM d, yyyy")}`
@@ -856,7 +886,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                       </p>
                     </div>
                   </div>
-                  <Badge className={`${statusMeta.badgeClass} px-3 py-1.5`}>
+                  <Badge className={`${statusMeta.badgeClass} shrink-0 whitespace-nowrap px-3 py-1.5`}>
                     <statusMeta.icon className="h-4 w-4 mr-1.5" />
                     {statusMeta.badgeLabel}
                   </Badge>
@@ -864,7 +894,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
               </DialogHeader>
 
               {/* Document Identity Bar */}
-              <div className="px-6 py-3 bg-muted/50 border-b border-border">
+              <div className="hidden sm:block px-6 py-3 bg-muted/50 border-b border-border">
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-6">
                     <div className="flex items-center gap-2">
@@ -894,11 +924,11 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
               </div>
 
               {/* Document Content */}
-              <ScrollArea className="flex-1 min-h-0 p-6">
+              <ScrollArea className="flex-1 min-h-0 p-3 sm:p-6">
                 <div className="bg-white dark:bg-zinc-900 rounded-xl border border-border shadow-lg overflow-hidden">
                   {/* Document Header */}
-                  <div className="bg-gradient-to-r from-primary/10 to-accent/10 p-6 border-b border-border">
-                    <div className="flex items-center justify-between">
+                  <div className="bg-gradient-to-r from-primary/10 to-accent/10 p-4 sm:p-6 border-b border-border">
+                    <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <Shield className={`h-6 w-6 ${statusMeta.iconClass}`} />
                         <div>
@@ -906,7 +936,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                           <p className="text-xs text-muted-foreground">{statusMeta.bannerSubtitle}</p>
                         </div>
                       </div>
-                      <div className="text-right text-xs text-muted-foreground">
+                      <div className="hidden sm:block text-right text-xs text-muted-foreground">
                         <p>Document ID: {getDocumentCode()}</p>
                         <p>Status: {statusMeta.badgeLabel}</p>
                       </div>
@@ -914,8 +944,8 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                   </div>
 
                   {/* Document Body with Embedded Signatures */}
-                  <div className="p-8">
-                    <div className="font-serif text-sm leading-relaxed text-foreground">
+                  <div className="p-5 sm:p-8">
+                    <div className="font-serif text-[15px] sm:text-sm leading-relaxed text-foreground">
                       {renderDocumentWithSignatures()}
                     </div>
                   </div>
@@ -944,7 +974,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                         </div>
                         {candidateSignature ? (
                           <div className="h-16 bg-white dark:bg-zinc-800 rounded border border-border flex items-center justify-center overflow-hidden">
-                            <img src={candidateSignature} alt="Candidate signature" className="max-h-full max-w-full object-contain" />
+                            <SignatureMark value={candidateSignature} alt="Candidate signature" className="max-h-full max-w-full object-contain" />
                           </div>
                         ) : (
                           <div className="h-16 bg-muted/50 rounded border border-dashed border-border flex items-center justify-center">
@@ -978,7 +1008,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                         </div>
                         {employerSignature ? (
                           <div className="h-16 bg-white dark:bg-zinc-800 rounded border border-border flex items-center justify-center overflow-hidden">
-                            <img src={employerSignature} alt="Employer signature" className="max-h-full max-w-full object-contain" />
+                            <SignatureMark value={employerSignature} alt="Employer signature" className="max-h-full max-w-full object-contain" />
                           </div>
                         ) : (
                           <div className="h-16 bg-muted/50 rounded border border-dashed border-border flex items-center justify-center">
@@ -1047,6 +1077,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                   )}
 
                   {(canSignAsCandidate || canCountersignAsEmployer) && (
+                    <div id="document-signing-place" data-signing-place>
                     <DocumentSigningPanel
                       documentId={document.id}
                       mode={canSignAsCandidate ? "sign" : "countersign"}
@@ -1055,14 +1086,17 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                         onOpenChange(false);
                       }}
                     />
+                    </div>
                   )}
                 </div>
               </ScrollArea>
 
               {/* Footer Actions */}
-              <div className="p-4 border-t border-border bg-card shrink-0">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+              {/* The copies to keep belong to a finished document. Until then,
+                  on a phone, they would only squeeze the place to sign. */}
+              <div className="p-3 sm:p-4 border-t border-border bg-card shrink-0">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className={`flex-wrap items-center gap-2 [&>button]:whitespace-nowrap ${document.status === "signed" ? "flex" : "hidden sm:flex"}`}>
                     <Button variant="outline" size="sm" onClick={handleDownload}>
                       <Download className="h-4 w-4 mr-2" />
                       Signed PDF
@@ -1076,10 +1110,23 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                       Audit PDF
                     </Button>
                   </div>
-                  <Button onClick={() => setShowAuditTrail(true)} className="gap-2">
+                  <Button onClick={() => setShowAuditTrail(true)} variant={document.status === "signed" ? "default" : "outline"} size="sm" className="gap-2 whitespace-nowrap">
                     <History className="h-4 w-4" />
                     View Audit Trail
                   </Button>
+                  {/* The place to sign is at the end of the letter. On a phone
+                      that is a long way down: one press takes them there. */}
+                  {(canSignAsCandidate || canCountersignAsEmployer) && (
+                    <Button
+                      size="sm"
+                      className="gap-2 whitespace-nowrap sm:hidden"
+                      data-go-to-sign
+                      onClick={() => window.document.getElementById("document-signing-place")?.scrollIntoView({ block: "start" })}
+                    >
+                      {canSignAsCandidate ? "Sign" : "Countersign"}
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
             </motion.div>
