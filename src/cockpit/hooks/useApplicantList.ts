@@ -69,6 +69,7 @@ import {
 
 /** Shared empty inputs, so a failed load does not rebuild every row each render. */
 const NO_SESSIONS: AssessmentSessionRow[] = [];
+const NO_APPS: ApplicantListApp[] = [];
 const NO_REOPENS: StepReopenRow[] = [];
 
 /** PostgREST's max_rows on this project: a select returns at most this many, with no error. */
@@ -266,6 +267,10 @@ export async function fetchListInterviews(applicationIds: readonly string[]): Pr
 export interface ApplicantListData {
   /** Every applicant of the employer's jobs, newest first, worked out once per change. */
   rows: ApplicantListRow[];
+  /** The applications and attempts the rows were built from, as loaded: for
+   *  Analytics, which counts from the same download (lib/analyticsView.ts). */
+  apps: ApplicantListApp[];
+  sessions: AssessmentSessionRow[];
   jobs: ApplicantListJob[];
   /** Each job's journey, for "Where they are" (whereOptions) and step titles. */
   journeys: Map<string, CandidateJourneyStep[]>;
@@ -360,6 +365,8 @@ export function useApplicantList(): ApplicantListData {
   const isError = jobsQuery.isError || apps.isError;
   return {
     rows,
+    apps: apps.data ?? NO_APPS,
+    sessions: sessions.data ?? NO_SESSIONS,
     jobs,
     journeys,
     now,
