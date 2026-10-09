@@ -537,8 +537,10 @@ question."
   a time, and they start the way a person talks: "Can you tell me about...",
   "Let's say...", "Let me tell you what this job is really like." Never the
   bare "Tell me about..." or "Walk me through...". The welcome is words to
-  say, not an instruction: it tells the applicant how the call goes and that
-  he will take notes, so looking at the screen does not feel like a script.
+  say, not an instruction, and two short sentences: how long the call is and
+  that he will take notes (which is why he is looking at the screen). The
+  first version was five sentences; the same day: "keep the welcoming message
+  very small ... so I'm not reading off of here".
 - **Nothing they have already answered.** By the call a team lead has
   written about the team they led and about a sudden change TWICE (the
   application form, then the written interview's MUST COVER plan), and about

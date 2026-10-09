@@ -633,6 +633,49 @@ function previewShortlistHandlers(tables: FixtureTables, user: FixtureAuthUser):
  * checks who may: the preview is one employer's own data.
  */
 /**
+ * `?__previewCrowd=40`: forty more made-up people who finished every step
+ * and are waiting on a decision, with scores spread from the low teens to
+ * the nineties, so a screen that works on a crowd (Pass by score,
+ * docs/APPLICANTS-LIST.md) can be looked at with one. Each is a copy of a
+ * finished applicant of the scenario under a new id, name and score. Every
+ * eighth is already invited to interview, to show who is left alone.
+ */
+function previewCrowd(tables: FixtureTables, count: string | null): void {
+  const n = Math.min(200, Math.max(0, Math.round(Number(count ?? 0)) || 0));
+  if (n === 0) return;
+  const applications = (tables.applications ??= []);
+  const profiles = (tables.profiles ??= []);
+  const template = applications.find((a) => a.status === "reviewing" && typeof a.ai_score === "number");
+  const templateProfile = template ? profiles.find((p) => p.user_id === template.candidate_id) : null;
+  if (!template || !templateProfile) return;
+  const first = ["Amara", "Bao", "Carmen", "Dmitri", "Esi", "Farid", "Grace", "Hiro", "Imani", "Joaquin", "Kalinda", "Lars", "Mei", "Nadia", "Oluwaseun", "Paloma", "Quentin", "Rania", "Sione", "Tala"];
+  const last = ["Adeyemi", "Bautista", "Castillo", "Dlamini", "Espinoza", "Fofanah", "Gunawardena", "Halvorsen", "Ibarra", "Jovanovic"];
+  const sessions = (tables.assessment_sessions ??= []);
+  const templateSessions = sessions.filter((x) => x.application_id === template.id);
+  for (let i = 0; i < n; i += 1) {
+    const hex = String(i + 1).padStart(12, "0");
+    const id = `3c000000-0000-4000-8000-${hex}`;
+    const candidateId = `1c000000-0000-4000-8000-${hex}`;
+    const name = `${first[i % first.length]} ${last[(i * 7) % last.length]}`;
+    // A spread with more people in the middle than at the ends.
+    const score = Math.max(8, Math.min(96, Math.round(52 + 30 * Math.sin(i * 2.399) + 14 * Math.cos(i * 0.71))));
+    const card = template.ai_scorecard && typeof template.ai_scorecard === "object" ? (template.ai_scorecard as Record<string, unknown>) : {};
+    applications.push({
+      ...template,
+      id,
+      candidate_id: candidateId,
+      status: i % 8 === 7 ? "interview" : "reviewing",
+      ai_score: score,
+      ai_scorecard: { ...card, overallScore: score, recommendedAction: score >= 60 ? "advance" : "review", decisionState: "ready_for_decision" },
+      created_at: new Date(Date.now() - (i + 3) * 47 * 60_000).toISOString(),
+      updated_at: new Date(Date.now() - (i + 2) * 41 * 60_000).toISOString(),
+    });
+    profiles.push({ ...templateProfile, id: `2c000000-0000-4000-8000-${hex}`, user_id: candidateId, full_name: name, email: `${name.toLowerCase().replace(/[^a-z]+/g, ".")}@example.com` });
+    templateSessions.forEach((x, k) => sessions.push({ ...x, id: `4c${String(k).padStart(6, "0")}-0000-4000-8000-${hex}`, application_id: id }));
+  }
+}
+
+/**
  * The interviewer's own ratings in the interview guide, offline
  * (supabase/migrations/*_interview_ratings.sql): the stand-in keeps what the
  * real function keeps, one row per applicant for this person, and drops an
@@ -928,6 +971,7 @@ export function install(params: URLSearchParams): void {
   }
 
   const tables = buildFixtureTables(scenario);
+  previewCrowd(tables, params.get("__previewCrowd"));
   const base = createFixtureSupabaseClient({
     user: ROLE_USERS[role],
     tables,

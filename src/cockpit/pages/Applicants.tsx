@@ -27,6 +27,7 @@ import { mapJobRow } from "../lib/mappers";
 import { ActionsMenu, ApplicantActionDialogs, applicantMenuItems, type ApplicantActionRequest } from "../components/ApplicantRowMenu";
 import { ApplicantBulkBar, ApplicantRowFrame, SelectMark } from "../components/ApplicantBulkBar";
 import { bulkPassPlan } from "../lib/bulkPass";
+import { PassByScoreDialog } from "../components/PassByScoreDialog";
 import { useBlockedApplicants } from "../hooks/useApplicantBlocks";
 import { markBlocked } from "../lib/blockedApplicants";
 // The team's shortlist: a bookmark on the row, a tab that gathers them.
@@ -278,6 +279,7 @@ export default function CockpitApplicants() {
   const wide = useFitsTable(rootEl);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [passByScoreOpen, setPassByScoreOpen] = useState(false);
   // The sheet is the phone's; a window widened past it closes it for good.
   useEffect(() => {
     if (!isPhone) setSheetOpen(false);
@@ -882,6 +884,14 @@ export default function CockpitApplicants() {
               Share job
             </button>
           )}
+          {/* Pass on everyone under a score, in one go (lib/passByScore.ts).
+              Offered once anyone has applied; it says itself when nobody
+              finished has scored under the line. */}
+          {people.length > 0 && (
+            <button type="button" className="ck-btn ck-btn-outline shrink-0 !py-2 !text-[12.5px] max-md:min-h-[36px]" onClick={() => setPassByScoreOpen(true)} data-pass-by-score-open>
+              Pass by score
+            </button>
+          )}
           <SearchInput
             placeholder="Search a name, email or country"
             className="min-w-0 flex-1 lg:w-[300px] lg:flex-none"
@@ -1075,6 +1085,13 @@ export default function CockpitApplicants() {
         </>
       )}
       <ApplicantActionDialogs request={actionRequest} onClose={() => setActionRequest(null)} onStart={onActionStart} onDone={onActionDone} />
+      <PassByScoreDialog
+        open={passByScoreOpen}
+        rows={people}
+        jobLabel={shownJob?.title ?? "All your jobs"}
+        onClose={() => setPassByScoreOpen(false)}
+        onDone={() => clearPicks()}
+      />
 
       <ApplicantFilterSheet
         open={sheetOpen && isPhone}

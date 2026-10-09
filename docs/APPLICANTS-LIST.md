@@ -601,3 +601,48 @@ Code: `src/cockpit/lib/applicantNotes.ts` (pure), `hooks/useApplicantNotes.ts`,
 wiring) and `scripts/applicant_notes.pglite.test.mjs` (against a real
 Postgres: who may write and read, the applicant never, nobody directly).
 Preview: `?__previewNotes=some`.
+
+## 10. Pass by score (2026-10-09)
+
+The owner, with about seventy finished applicants waiting on a decision:
+"there should be a way for us to pretty much reject applicants in bulk. You
+could maybe select a score ... it'll show like a clear transparency how many
+people will be and ask me to confirm and then that's it ... and then they
+would be notified. Otherwise ... they'd be waiting ... it's not good."
+
+The bulk Pass (section 8) works on rows picked by hand, a page at a time.
+"Pass by score", a button beside the search, reaches the same Pass from a
+score line instead (`src/cockpit/lib/passByScore.ts`,
+`components/PassByScoreDialog.tsx`).
+
+**One screen, and it moves as the line moves**: the line itself (type it,
+step it by 5, or drag it), a picture of where everyone who finished scored
+with the part under the line marked, how many it reaches, every one of them
+by name and score (lowest first), who is left alone and why, and the note
+each will read.
+
+**Who it reaches**: only people who finished every step, have a FINAL score,
+are still waiting on a decision (`pending`, `reviewing`), and scored under
+the line. **Who it never reaches**, each counted on the screen:
+
+- someone still testing, or scored only "so far": there is no score to judge
+  by, and they are not waiting on him;
+- someone on the shortlist: he put them there himself;
+- someone invited to interview, holding an offer, hired, already declined or
+  blocked;
+- everyone at or above the line.
+
+It works on everyone on the list for the job in view, not only the rows
+drawn, and is not narrowed by the tab or the search.
+
+**Two presses**, because it emails every one of them and cannot be undone:
+"Pass on 37", then "Yes, pass on 37 and email each one". Moving the line takes
+the second press back. Nothing is sent before the second press.
+
+**The passing is section 8's, unchanged** (`hooks/useBulkPass.ts`): one
+person at a time, declined then emailed, someone who moved on in the meantime
+left alone, a stop after three failures in a row, and an honest count at the
+end.
+
+Proof: `scripts/pass_by_score.test.mjs` (who it reaches and never reaches,
+the picture, the words, the wiring), and a walk-through in the dev preview.

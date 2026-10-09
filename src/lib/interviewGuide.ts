@@ -110,10 +110,11 @@ const STAGES: GuideStage[] = [
   { title: "Their questions and next steps", minutes: 4, note: "What they ask tells you what they care about." },
 ];
 
-// Said, not read out: it tells them how the call goes, and it explains the
-// note-taking, so looking at the screen does not feel like reading a script.
-const WELCOME =
-  "Thanks for joining, and thank you for the time you put into the tests. This call is about half an hour. I have a few questions I ask everyone, and a few just for you. I will take some notes while we talk. There are no trick questions, and you can ask me anything at the end.";
+// Said, not read out, and short enough to keep in his head after one look
+// (2026-10-09, on the longer first version: "keep the welcoming message very
+// small ... so I'm not reading off of here"). It says how long, and that he
+// will take notes, which is why he is looking at the screen.
+const WELCOME = "Thanks for joining. This will take about half an hour, and I will take a few notes as we talk.";
 
 const OPENER: GuideQuestion = {
   id: "good_candidate",

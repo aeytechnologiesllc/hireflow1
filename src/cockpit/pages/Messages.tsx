@@ -19,6 +19,7 @@ import {
 } from "../hooks/useCockpitData";
 import { isRecordNotDeployed } from "../hooks/useAssessmentSessions";
 import { useChatMarks } from "../hooks/useChatMarks";
+import { quickRepliesFor } from "../lib/quickReplies";
 import {
   MOVED_BACK_WORDS,
   archivedWords,
@@ -576,6 +577,41 @@ export default function CockpitMessages() {
           (activeCandidate?.stage === "Rejected" ? "rejected" : activeCandidate?.stage === "Hired" ? "hired" : null),
       );
 
+  // Ready-made replies for the hiring team, chosen by where this applicant
+  // stands (lib/quickReplies.ts). Written by hand, not by AI: a tap puts one
+  // in the box, to be read and changed before it is sent.
+  const quickReplies = useMemo(
+    () =>
+      isCandidate || !partner
+        ? []
+        : quickRepliesFor({
+            status: activeConv?.status,
+            stage: activeCandidate?.stage,
+            stillTesting: activeCandidate?.stillTesting,
+            name: partner.name,
+            jobTitle: partner.role,
+          }),
+    [isCandidate, partner, activeConv?.status, activeCandidate?.stage, activeCandidate?.stillTesting],
+  );
+  const fillReply = (text: string) => {
+    setDraft(text);
+    // After the box has grown to fit it: the cursor at the end, ready to edit.
+    window.requestAnimationFrame(() => {
+      const box = composerRef.current;
+      if (!box) return;
+      box.focus();
+      box.setSelectionRange(text.length, text.length);
+      // On a phone the page scrolls and the box has just grown by several
+      // lines: keep Send above the tab bar.
+      const el = bubblesRef.current;
+      if (el && el.scrollHeight <= el.clientHeight + 1) {
+        const page = pageScroller(el);
+        if (page) page.scrollTo({ top: page.scrollHeight });
+        else window.scrollTo({ top: document.documentElement.scrollHeight });
+      }
+    });
+  };
+
   // Archive and delete are offered on a real chat, to the hiring team, once
   // the database has them.
   const canMark = !isCandidate && marksDeployed && !!activeConv && !!contactId;
@@ -1056,6 +1092,28 @@ export default function CockpitMessages() {
               </div>
 
               <div className="px-4 pb-3 pt-3 min-[1120px]:px-[18px]" style={{ borderTop: "1px solid var(--line-soft)" }}>
+                {/* Ready-made replies: offered while the box is empty, gone
+                    once there are words in it (his own, or one of these). */}
+                {quickReplies.length > 0 && !draft.trim() && (
+                  <div className="mb-2 flex flex-wrap items-center gap-1.5" data-quick-replies>
+                    <span className="mr-0.5 text-[11px]" style={{ color: "var(--ink-3)" }}>
+                      Ready-made replies
+                    </span>
+                    {quickReplies.map((reply) => (
+                      <button
+                        key={reply.id}
+                        type="button"
+                        onClick={() => fillReply(reply.text)}
+                        title={reply.text}
+                        className="rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors hover:border-[var(--jade)] hover:bg-[var(--jade-soft)] hover:text-[var(--jade-soft-fg)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--jade)]"
+                        style={{ borderColor: "var(--line)", color: "var(--ink-2)" }}
+                        data-quick-reply={reply.id}
+                      >
+                        {reply.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {/* One rounded box: the words on top, and under them what Enter
                     does and the Send button. Clicking anywhere in it writes. */}
                 <div

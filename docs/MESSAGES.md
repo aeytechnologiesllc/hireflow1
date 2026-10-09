@@ -17,6 +17,29 @@ are read and written through `src/hooks/useMessages.ts`.
   cannot reply from the hiring address in his own mail (2026-10-08), and both
   interview emails now send questions here (docs/INTERVIEWS.md).
 
+## Ready-made replies (2026-10-09)
+
+The owner, looking at a declined applicant asking when they would hear back:
+"without using AI so we don't burn credits, is it possible to allow employers
+to draft a message to answer basic questions like that ... she's already
+been declined maybe."
+
+- **No AI, no request, no cost.** A few replies written once, by hand
+  (`src/cockpit/lib/quickReplies.ts`), chosen by where the applicant stands:
+  declined ("Tell them the decision"), finished and waiting ("Still
+  reviewing"), tests still to do ("Steps still to do"), invited ("About the
+  interview"), and always "Got your message".
+- **A tap fills the message box and sends nothing.** The buttons sit above
+  the box while it is empty and go away once there are words in it; the reply
+  can be changed before Send, which is the ordinary Send.
+- The decision is told in the decline note's own words
+  (`src/lib/declineNote.ts`), so someone told twice is told the same thing:
+  no reason, a door left open. No reply promises a date; what is true for
+  everyone is "everyone who finishes every step gets a yes or no by email".
+- Only the hiring team sees them. An applicant's Messages has none.
+
+Proof: `scripts/quick_replies.test.mjs`.
+
 ## On a phone (2026-10-09)
 
 The owner, on his Android phone: "the biggest bug on the phone, the
