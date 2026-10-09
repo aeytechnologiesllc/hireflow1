@@ -558,7 +558,7 @@ function previewInterviewGuide(tables: FixtureTables, mode: string | null): (nam
         ],
         questions: [
           {
-            question: "In the practice chat you told the player the cash-out would arrive. Talk me through what you knew at that point, and how you would word it now.",
+            question: "In the practice chat, you told the player the cash-out would arrive. Can you tell me what you knew at that point, and how you would say it now?",
             why: "The reviewer read one line of the practice chat as a new promise to the player.",
             listenFor: "They separate what is known from what is not, give only the real next step, and promise no date or amount.",
             redFlag: "They repeat that the money will arrive, or defend the wording.",
@@ -566,7 +566,7 @@ function previewInterviewGuide(tables: FixtureTables, mode: string | null): (nam
             quote: "Rest assured your cash-out will reflect on your end.",
           },
           {
-            question: "Tell me about one week when you led that team of eight. What did you personally do each day?",
+            question: "You wrote that you led a team of eight. Can you tell me about one normal week with them? What did you do each day?",
             why: "The application gives the size of the team but no example of leading it day to day.",
             listenFor: "A real week: who reported to them, what they checked, one thing they fixed.",
             redFlag: "Only titles and duties, with nothing they did themselves.",
@@ -574,7 +574,7 @@ function previewInterviewGuide(tables: FixtureTables, mode: string | null): (nam
             quote: null,
           },
           {
-            question: "The written interview ended before the last topics. Which days can you reliably cover, and how much notice do you need to cover for a teammate?",
+            question: "The written interview ended before we got to your hours. Can you tell me which days you can always cover?",
             why: "They ended the written interview before it reached the hours they can cover.",
             listenFor: "Specific days, a clear limit, and how they would say no early.",
             redFlag: "Vague availability, or days that do not fit the fixed shift.",
@@ -632,6 +632,57 @@ function previewShortlistHandlers(tables: FixtureTables, user: FixtureAuthUser):
  * first applicant and every third applicant already opened. Nothing here
  * checks who may: the preview is one employer's own data.
  */
+/**
+ * The interviewer's own ratings in the interview guide, offline
+ * (supabase/migrations/*_interview_ratings.sql): the stand-in keeps what the
+ * real function keeps, one row per applicant for this person, and drops an
+ * entry with neither a score nor a note. `?__previewGuide=rated` starts with
+ * two answers already rated for every applicant, so a guide can be opened as
+ * it looks the day after a call; `?__previewGuide=ratedown` refuses every
+ * save, to see what the guide says then.
+ */
+function previewRatingHandlers(tables: FixtureTables, user: FixtureAuthUser, mode: string | null): Record<string, (args: unknown) => unknown> {
+  const flags = (mode ?? "").split(",");
+  const list = (tables.interview_ratings ??= []);
+  if (flags.includes("rated")) {
+    for (const application of tables.applications ?? []) {
+      list.push({
+        application_id: application.id,
+        rated_by: user.id,
+        job_id: application.job_id,
+        answers: {
+          good_candidate: { score: 8, note: "Gave a real example: took over a night shift that kept missing replies.", question: "To start, what makes you a good candidate for this role?" },
+          hard_day: { score: 6, note: "", question: "Can you tell me about a really hard day at work? What happened, and how did you get through it?" },
+        },
+        overall_note: "Easy to talk to. Check the start date again.",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    }
+  }
+  return {
+    save_interview_ratings: (args) => {
+      const { p_application_id: applicationId, p_answers: answers, p_overall_note: overall } = (args ?? {}) as { p_application_id?: string; p_answers?: Record<string, { score?: number | null; note?: string; question?: string }>; p_overall_note?: string };
+      if (flags.includes("ratedown")) throw Object.assign(new Error("save_interview_ratings: the stand-in refuses"), { code: "XX000" });
+      const application = (tables.applications ?? []).find((a) => a.id === applicationId);
+      if (!application) throw Object.assign(new Error("save_interview_ratings: not allowed"), { code: "42501" });
+      const kept: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(answers ?? {})) {
+        const score = typeof value?.score === "number" ? value.score : null;
+        const note = typeof value?.note === "string" ? value.note : "";
+        if (score === null && !note.trim()) continue;
+        kept[key] = { score, note, question: typeof value?.question === "string" ? value.question : "" };
+      }
+      const now = new Date().toISOString();
+      const row = { application_id: applicationId, rated_by: user.id, job_id: application.job_id, answers: kept, overall_note: overall ?? "", updated_at: now };
+      const at = list.findIndex((r) => r.application_id === applicationId && r.rated_by === user.id);
+      if (at >= 0) list[at] = { ...list[at], ...row };
+      else list.push({ ...row, created_at: now });
+      return { application_id: applicationId, answers: kept, overall_note: row.overall_note, updated_at: now };
+    },
+  };
+}
+
 function previewNotesHandlers(tables: FixtureTables, user: FixtureAuthUser, seed: string | null): Record<string, (args: unknown) => unknown> {
   const rows = (name: string): FixtureRow[] => (tables[name] ??= []);
   rows("applicant_notes");
@@ -886,6 +937,7 @@ export function install(params: URLSearchParams): void {
       ...previewShortlistHandlers(tables, ROLE_USERS[role]),
       ...previewNotesHandlers(tables, ROLE_USERS[role], params.get("__previewNotes")),
       ...previewChatHandlers(tables, ROLE_USERS[role], params.get("__previewChats")),
+      ...previewRatingHandlers(tables, ROLE_USERS[role], params.get("__previewGuide")),
     },
   });
   const realtime = liveRealtime(base, tables, params.get("__previewLive"));

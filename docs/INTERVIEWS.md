@@ -478,14 +478,17 @@ whole app, AI, there's a lot of bugs ... team leadership."
 It has two parts.
 
 **The plan, the same for every applicant** (`src/lib/interviewGuide.ts`,
-written by hand, nothing stored, no AI): how the half hour runs, the opening
-question ("Why should we hire you for this role?"), five questions everyone
-gets, two to close, five things to mark from 1 to 5 straight after, and one
-question to answer for yourself. Everyone gets the same ones so the answers
-can be compared. A team lead job (the scorer's own `inferJobFamily`) gets
-questions built on the owner's concerns: the team they led, working the chats
-while leading six people, tools and rules that change or break mid-shift, an
-agent's wrong promise about money, and an agent who is struggling. Any other
+written by hand, nothing stored, no AI): words to say as a welcome, the
+opening question ("To start, what makes you a good candidate for this
+role?"), five questions everyone gets, two to close, one thing to rate for
+the whole call (how they speak), and one question to answer for yourself.
+Everyone gets the same ones so the answers can be compared. A team lead job
+(the scorer's own `inferJobFamily`) gets questions built on the owner's
+concerns, from angles the applicant has not already answered (see "How the
+questions sound"): the honest picture of the job (they answer players
+themselves, lead six agents, and the tools and rules change and have bugs),
+a really hard day, someone on their team who disagreed, an agent who is
+struggling, and something going wrong when they cannot reach him. Any other
 job gets a general set. Every question says what to listen for and what is a
 red flag. Nothing is folded away: the page is read during a call.
 
@@ -520,18 +523,92 @@ or four questions only this person should be asked, and facts to confirm.
   stores nothing; the plan is still on the page.
 
 "Copy all" gives the whole guide as plain text, numbered in the order it is
-asked. Marks are not stored: they are for the owner's own notes.
+asked, with the interviewer's own ratings and notes under each question.
+
+### How the questions sound (2026-10-09)
+
+The owner, after his first calls: "this looks a little bit too ...
+straightforward. Why should we hire you ... I want it to sound more like a
+human instead of sounding like I'm reading from a paper ... simple English
+... we don't want to ask things we have already asked ... unless it raises a
+question."
+
+- **Written to be said.** Short sentences (none over 18 words), one thing at
+  a time, and they start the way a person talks: "Can you tell me about...",
+  "Let's say...", "Let me tell you what this job is really like." Never the
+  bare "Tell me about..." or "Walk me through...". The welcome is words to
+  say, not an instruction: it tells the applicant how the call goes and that
+  he will take notes, so looking at the screen does not feel like a script.
+- **Nothing they have already answered.** By the call a team lead has
+  written about the team they led and about a sudden change TWICE (the
+  application form, then the written interview's MUST COVER plan), and about
+  splitting a shift between players and leading. The old plan asked all
+  three a third time. The plan now lists them (`alreadyAsked`), the page
+  shows that list above "Ask everyone", and the questions come at his
+  concerns from the other side: what the job is really like and how that
+  sounds to them, not "tell me about a time".
+- **Going back to something they wrote is the personal part's job**, and
+  only where an answer left a question. The `interview-guide` function's
+  request (version `interview-guide-2`, `guideMaterial.ts`) is told how a
+  question must sound, what was already answered in writing, and to return
+  to one of those only when the written answer was vague, had no example,
+  did not fit another answer, or the written interview never reached it;
+  then to say what they wrote and ask for the missing piece.
+- If the form or the written interview's plan changes, `alreadyAsked` is out
+  of date: `scripts/interview_guide.test.mjs` fails on the written
+  interview's four topics for that reason.
+
+### Rating the answers (2026-10-09)
+
+"Give me a button that I could rate all of these answers from 1 to 10. Here
+in the interview guide, that way I don't need a separate piece of paper or
+something, and I could probably write extra notes here as well."
+
+- Under every question: ten numbers and a notes box. The number chosen is
+  solid and the ones under it tinted; tapping it again takes the rating
+  away. Two rows of five on a phone. After the call: one rating for how they
+  speak, the average of the answers rated, and a box for overall notes under
+  the question to answer for yourself.
+- **There is no Save button** (it is used during a call). A tap or a word is
+  on the screen at once and is sent 0.7 seconds after he stops; the foot of
+  the guide says "Ratings and notes saved". Closing the guide, switching
+  tabs or apps, or opening another applicant sends whatever has not gone
+  yet. Nothing is sent on open, and never before what was saved earlier has
+  been read. A save that fails says so, keeps the screen as it is, and does
+  not try again by itself: it goes out with the next change
+  (`src/cockpit/hooks/useInterviewRatings.ts`).
+- They are kept in `public.interview_ratings`, one row per application and
+  person who rated, written only through `save_interview_ratings`
+  (`supabase/migrations/*_interview_ratings.sql`): the job's owner or an
+  active team member on that job, the job taken from the application and the
+  rater from the caller. Every entry is read and bounded (a whole number
+  from 1 to 10 or none, a note of at most 2000 characters, at most 40
+  entries); anything malformed is refused whole. **Only the job's hiring
+  team can read that table.** Like the guide itself it is not in
+  `applications.notes`, because an applicant can read their own application.
+- Each rating keeps the question as it was asked. A question written for one
+  applicant has no id, so its rating is kept under a fingerprint of its
+  words; when "Write again" replaces the question, the rating is still shown
+  at the end of the guide with the question it was given for.
+- They decide nothing: no status change, no email, no bell, and the
+  applicant's score is not touched.
+- In the preview: `&__previewGuide=lead` (a team lead plan),
+  `lead,rated` (opens with two answers already rated), `lead,ratedown`
+  (every save is refused).
 
 The old "Interview Questions" dialog (generic, sales-flavoured, tied to a
 scheduled interview, and opened by no screen) was removed.
 
 ## Proof
 
-The guide: `scripts/interview_guide.test.mjs` (the plan, the reader, what the
-writer is and is not given, the request, the reading of the answer, the
-function's access rule, the wiring) and
-`scripts/interview_guides.pglite.test.mjs` (against a real Postgres: the
-applicant cannot read their own guide, nobody writes the table from a client).
+The guide: `scripts/interview_guide.test.mjs` (the plan and how its questions
+sound, the reader, what the writer is and is not given, the request, the
+reading of the answer, the function's access rule, the ratings and how they
+are saved, the wiring), `scripts/interview_guides.pglite.test.mjs` (against a
+real Postgres: the applicant cannot read their own guide, nobody writes the
+table from a client) and `scripts/interview_ratings.pglite.test.mjs` (against
+a real Postgres: who may save and read ratings, what is kept and what is
+refused, and that the applicant can never read how they were rated).
 Before it shipped, a private trial copy of the function wrote guides for
 three real applicants; every quote it offered checked out as their own words.
 

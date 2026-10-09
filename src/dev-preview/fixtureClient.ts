@@ -309,8 +309,16 @@ export function createFixtureSupabaseClient(opts: FixtureClientOptions) {
     },
     rpc(name: string, args?: unknown) {
       const handler = opts.rpc?.[name];
-      const data = handler ? handler(args) : null;
-      return Promise.resolve({ data, error: null }) as unknown as PromiseLike<PostgrestResult> & Promise<PostgrestResult>;
+      // A stand-in that refuses throws, as a database function raises; the
+      // real client hands that back as `error`, never as a thrown promise.
+      try {
+        const data = handler ? handler(args) : null;
+        return Promise.resolve({ data, error: null }) as unknown as PromiseLike<PostgrestResult> & Promise<PostgrestResult>;
+      } catch (thrown) {
+        const refused = thrown as { code?: string; message?: string };
+        const error = { code: refused?.code ?? "XX000", message: refused?.message ?? "refused", details: null, hint: null };
+        return Promise.resolve({ data: null, error }) as unknown as PromiseLike<PostgrestResult> & Promise<PostgrestResult>;
+      }
     },
     channel,
     removeChannel: async () => "ok" as const,

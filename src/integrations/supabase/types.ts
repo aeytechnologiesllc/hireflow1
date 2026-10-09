@@ -1179,6 +1179,51 @@ export type Database = {
           },
         ]
       }
+      interview_ratings: {
+        Row: {
+          answers: Json
+          application_id: string
+          created_at: string
+          job_id: string
+          overall_note: string
+          rated_by: string
+          updated_at: string
+        }
+        Insert: {
+          answers?: Json
+          application_id: string
+          created_at?: string
+          job_id: string
+          overall_note?: string
+          rated_by: string
+          updated_at?: string
+        }
+        Update: {
+          answers?: Json
+          application_id?: string
+          created_at?: string
+          job_id?: string
+          overall_note?: string
+          rated_by?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_ratings_application_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_ratings_job_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       interviews: {
         Row: {
           ai_feedback: string | null
@@ -2794,6 +2839,14 @@ export type Database = {
       }
       set_applications_shortlisted: {
         Args: { p_application_ids: string[]; p_shortlisted: boolean }
+        Returns: Json
+      }
+      save_interview_ratings: {
+        Args: {
+          p_answers: Json
+          p_application_id: string
+          p_overall_note: string
+        }
         Returns: Json
       }
       set_chat_state: {
