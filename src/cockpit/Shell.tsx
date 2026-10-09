@@ -8,7 +8,6 @@ import {
   CalendarDays,
   MessageSquare,
   FileText,
-  UsersRound,
   BarChart3,
   ChevronDown,
   Bell,
@@ -40,7 +39,10 @@ const NAV: NavItem[] = [
   { label: "Interviews", to: "/interviews", icon: CalendarDays },
   { label: "Messages", to: "/messages", icon: MessageSquare },
   { label: "Documents", to: "/documents", icon: FileText },
-  { label: "Team", to: "/team", icon: UsersRound },
+  // Team is off the menu (the owner, 2026-10-09: "definitely remove the team
+  // tab ... I think it just complicates things"). Nobody had been invited.
+  // The page, its invitations and its access rules are all still there at
+  // /team, so a hiring team with more than one person can have it back.
   { label: "Analytics", to: "/analytics", icon: BarChart3 },
 ];
 

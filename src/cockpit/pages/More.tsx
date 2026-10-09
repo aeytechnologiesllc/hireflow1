@@ -2,7 +2,6 @@ import { useNavigate } from "react-router-dom";
 import {
   CalendarDays,
   FileText,
-  UsersRound,
   BarChart3,
   Settings,
   User as UserIcon,
@@ -18,7 +17,6 @@ import { useAuth } from "@/hooks/useAuth";
 const ITEMS = [
   { label: "Interviews", to: "/interviews", icon: CalendarDays },
   { label: "Documents", to: "/documents", icon: FileText },
-  { label: "Team", to: "/team", icon: UsersRound },
   { label: "Analytics", to: "/analytics", icon: BarChart3 },
   { label: "Profile", to: "/profile", icon: UserIcon },
   { label: "Settings", to: "/settings", icon: Settings },
