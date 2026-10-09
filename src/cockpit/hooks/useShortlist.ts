@@ -97,7 +97,10 @@ function failureWords(error: RpcError, many: boolean): string {
 export function useShortlistActions() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const key = shortlistKeys.list(user?.id);
+  // The same array from one render to the next (see useApplicantViews: a key built
+  // afresh each render once made a page write to the server ten times a second).
+  const uid = user?.id;
+  const key = useMemo(() => shortlistKeys.list(uid), [uid]);
 
   /** The cached list with these applications on it, or off it. */
   const apply = useCallback(

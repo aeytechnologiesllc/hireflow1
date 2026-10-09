@@ -98,7 +98,10 @@ function blockFailureWords(error: RpcError, many: boolean): string {
 export function useApplicantBlockActions() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const key = blockedKeys.list(user?.id);
+  // The same array from one render to the next (see useApplicantViews: a key built
+  // afresh each render once made a page write to the server ten times a second).
+  const uid = user?.id;
+  const key = useMemo(() => blockedKeys.list(uid), [uid]);
 
   // Just the block list: the applications themselves change through the live
   // sync's in-place merge. Invalidating every ["applications"] query here

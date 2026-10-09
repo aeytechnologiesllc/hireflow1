@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -87,7 +87,10 @@ function noteFailureWords(error: RpcError): string {
 export function useApplicantNoteActions() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const key = applicantNoteKeys.notes(user?.id);
+  // The same array from one render to the next: a key built afresh each
+  // time makes every callback below new on every render.
+  const uid = user?.id;
+  const key = useMemo(() => applicantNoteKeys.notes(uid), [uid]);
 
   const add = useMutation({
     mutationFn: async ({ applicationId, body }: { applicationId: string; body: string }) => {
@@ -173,6 +176,9 @@ interface ViewList {
   rows: ApplicantView[];
   deployed: boolean;
 }
+
+/** One look at an applicant's page writes its mark once: any further call inside this window does nothing. */
+export const MARK_VIEWED_ONCE_MS = 60_000;
 const NO_VIEWS: ViewList = { rows: [], deployed: true };
 
 /** Which applicants this person has opened, and when (their own marks only). */
@@ -180,7 +186,18 @@ export function useApplicantViews() {
   const { user } = useAuth();
   const { data: mode } = useSchemaMode();
   const queryClient = useQueryClient();
-  const key = applicantNoteKeys.views(user?.id);
+  // The same array from one render to the next. Built afresh each render it
+  // made `markViewed` a new function every time, the page's "mark on open"
+  // effect ran again on every render, and each run wrote the mark, which
+  // rendered the page again: an applicant's page told the server "viewed"
+  // around ten times a second for as long as it was open (2026-10-08, the
+  // feature's first day: about 170,000 calls, and "Save note" stuck behind
+  // them. The owner: "saving the note is not working. It's just getting stuck
+  // on loading.").
+  const uid = user?.id;
+  const key = useMemo(() => applicantNoteKeys.views(uid), [uid]);
+  /** When each applicant was last marked from this page, so one visit is one write whatever calls it. */
+  const lastMarked = useRef(new Map<string, number>());
   const query = useQuery({
     queryKey: key,
     queryFn: async (): Promise<ViewList> => {
@@ -206,6 +223,10 @@ export function useApplicantViews() {
   const markViewed = useCallback(
     async (applicationId: string | null | undefined) => {
       if (!applicationId || !user || !data.deployed) return;
+      // Once per visit: a second call inside the window is the same look.
+      const last = lastMarked.current.get(applicationId);
+      if (last != null && Date.now() - last < MARK_VIEWED_ONCE_MS) return;
+      lastMarked.current.set(applicationId, Date.now());
       const now = new Date().toISOString();
       queryClient.setQueryData<ViewList>(key, (was) => {
         const before = was ?? NO_VIEWS;

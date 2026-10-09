@@ -39,7 +39,10 @@ export function useChatMarks(options: { enabled?: boolean } = {}) {
   const { user } = useAuth();
   const { data: mode } = useSchemaMode();
   const queryClient = useQueryClient();
-  const key = chatMarkKeys.marks(user?.id);
+  // The same array from one render to the next (see useApplicantViews: a key built
+  // afresh each render once made a page write to the server ten times a second).
+  const uid = user?.id;
+  const key = useMemo(() => chatMarkKeys.marks(uid), [uid]);
 
   const query = useQuery({
     queryKey: key,
