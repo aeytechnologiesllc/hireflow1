@@ -520,11 +520,54 @@ shown word for word, and nothing is sent until one is pressed.
 The interview is marked first, whatever was chosen. If the message then
 cannot be sent, the mark stays and the page says to write from Messages.
 
-An interview whose time has passed **today** now offers "Mark completed" and
-"No-show" on its own row, without waiting until tomorrow to turn up under
-"Needs attention".
+An interview whose time has passed **today** is answered on its own row,
+without waiting until tomorrow to turn up under "Needs attention" (see "How
+did it go?" below; it used to offer "Mark completed" and "No-show" there).
 
 Proof: `scripts/no_show.test.mjs`.
+
+## How did it go? (2026-10-09)
+
+The owner finished his first interview and it went on saying "scheduled":
+nothing asked what happened, and nothing led to the decision the interview was
+for. Live that evening: 0 interviews marked completed, 1 rated.
+
+Once an interview's time has passed, its row has one button, **How did it
+go?** (`InterviewOutcomeDialog.tsx`, words in `lib/interviewOutcome.ts`):
+
+- **We talked** marks the interview done, and the same card becomes **What
+  next?**: his own rating of the interview (or that he has not scored the
+  answers yet, with the guide one press away), then "Write the offer letter"
+  (the letter opens with that person chosen, docs/OFFER-LETTER.md), "Open
+  their profile" (where Pass is), or "Decide later". The card only moves on
+  once the mark is saved.
+- **They did not show up** opens the no-show choices above.
+
+Nothing on the card decides for him and nothing is sent to the applicant
+from it.
+
+## The rating, outside the guide (2026-10-09)
+
+He rates each answer from 1 to 10 in the guide. That number used to stay
+inside the guide, so comparing two people he had interviewed meant opening
+each guide in turn. It is now shown wherever he decides:
+
+- the applicant's profile, under where their interview stands ("You rated the
+  interview 7.8 out of 10"), and on its own once the interview is over;
+- the applicants list, as a small "Interview 7.8" tag beside the stage;
+- the Interviews page, beside the people already interviewed, and on the
+  "What next?" card.
+
+One rule everywhere, the guide's own "Your average" included
+(`lib/interviewScore.ts`): the average of every answer scored for that
+person. "How they speak" is not an answer and is left out; an answer rated
+under a question he later replaced still counts. Two people rating the same
+applicant are pooled. It is read once per page from `interview_ratings`
+(`hooks/useInterviewScores.ts`, the team's own rows only) and refreshed after
+each save in the guide.
+
+Proof: `scripts/interview_score.test.mjs`, `scripts/interview_outcome.test.mjs`.
+`/interviews?__preview=1&__previewScenario=zulu&__previewWhen=over&__previewGuide=rated`
 
 ## The interview guide
 

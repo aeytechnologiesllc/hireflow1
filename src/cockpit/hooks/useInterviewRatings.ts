@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { GUIDE_RATING_MAX, NO_RATINGS, RATING_LIMITS, readGuideRatings, type GuideRatings } from "@/lib/interviewGuide";
+import { INTERVIEW_SCORES_KEY } from "./useInterviewScores";
 import { isRecordNotDeployed } from "./useAssessmentSessions";
 
 /**
@@ -144,6 +145,8 @@ export function useInterviewRatings(applicationId: string | null | undefined, en
           ratings: readGuideRatings(row?.answers ?? job.data.answers, row?.overall_note ?? job.data.overallNote),
           deployed: true,
         });
+        // The profile, the list and the Interviews page show this rating too.
+        void queryClient.invalidateQueries({ queryKey: INTERVIEW_SCORES_KEY });
         if (showing()) setState(owed.current || dirty.current ? "saving" : "saved");
       }
     } finally {

@@ -848,6 +848,26 @@ function previewCrowd(tables: FixtureTables, count: string | null): void {
 function previewRatingHandlers(tables: FixtureTables, user: FixtureAuthUser, mode: string | null): Record<string, (args: unknown) => unknown> {
   const flags = (mode ?? "").split(",");
   const list = (tables.interview_ratings ??= []);
+  // `interviewed`: only the people an interview has reached are rated, each a
+  // little differently, which is how the list looks for real (lib/interviewScore.ts).
+  if (flags.includes("interviewed")) {
+    const reached = (tables.applications ?? []).filter((a) => ["interview", "offered", "hired"].includes(String(a.status)));
+    reached.forEach((application, i) => {
+      list.push({
+        application_id: application.id,
+        rated_by: user.id,
+        job_id: application.job_id,
+        answers: {
+          good_candidate: { score: [8, 9, 6][i % 3], note: "Gave a real example.", question: "To start, what makes you a good candidate for this role?" },
+          hard_day: { score: [7, 9, 5][i % 3], note: "", question: "Can you tell me about a really hard day at work? What happened, and how did you get through it?" },
+          weak_agent: { score: [8, 8, 7][i % 3], note: "", question: "One of your agents is slow and makes mistakes. What do you do in the first week?" },
+        },
+        overall_note: "Easy to talk to.",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    });
+  }
   if (flags.includes("rated")) {
     for (const application of tables.applications ?? []) {
       list.push({

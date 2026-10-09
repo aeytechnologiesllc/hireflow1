@@ -21,6 +21,8 @@ import {
 import AvaSeal from "@/components/ava/AvaSeal";
 import InterviewSchedulingWizard from "@/components/InterviewSchedulingWizard";
 import { InterviewGuideDialog } from "../components/InterviewGuideDialog";
+import { useInterviewScores } from "../hooks/useInterviewScores";
+import { interviewScoreWords } from "../lib/interviewScore";
 import { CandidateMark } from "../components/CandidateMark";
 import { CockpitErrorCard } from "../components/ErrorCard";
 import { HiringDocumentPromptDialog } from "@/components/HiringDocumentPromptDialog";
@@ -468,6 +470,7 @@ function CandidateProfile({
   const [resumeOpen, setResumeOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
+  const interviewScoresByApplication = useInterviewScores();
   // The guided moment after a move to Interview — "want to propose times now?"
   const [interviewMoment, setInterviewMoment] = useState(false);
   // A brief pulse on "Set up interview" after "Later" — the visible hint for
@@ -764,13 +767,20 @@ function CandidateProfile({
   // Where their interview stands, in words (null when none is live).
   const interviewRead = teamInterviewStatus(liveInterview, new Date(), { firstName: first, theirZone });
   const interviewStatus = isOffered || isTerminal ? null : interviewRead;
+  // His own rating of the interview (lib/interviewScore.ts): under the
+  // interview's status while one is live, and on its own once it is over, so
+  // the number he gave is beside the decision he is about to make.
+  const ratingWords = isTerminal ? null : interviewScoreWords(interviewScoresByApplication.get(c.id));
   const interviewLine: DecisionInterviewStatus | null = interviewStatus
     ? {
         title: interviewStatus.title,
         detail: interviewStatus.detail,
         tone: interviewStatus.state === "booked" ? "ok" : interviewStatus.action === "change" ? "wait" : "act",
+        rating: ratingWords?.title,
       }
-    : null;
+    : ratingWords
+      ? { title: ratingWords.title, detail: ratingWords.detail, tone: "ok" }
+      : null;
 
   // The decision bar, in the order it reads. On a phone the first buttons
   // stay and the rest go behind "More" (at most three on screen); from md up

@@ -35,6 +35,7 @@ import {
   type PlanEdits,
   type QuestionPart,
 } from "@/lib/interviewGuide";
+import { interviewScore } from "../lib/interviewScore";
 import { GUIDE_WRITE_WORDS, PLAN_SAVE_WORDS, useInterviewGuide, type PlanSaveFailure } from "../hooks/useInterviewGuide";
 import { RATINGS_SAVE_WORDS, useInterviewRatings } from "../hooks/useInterviewRatings";
 
@@ -459,6 +460,9 @@ export function InterviewGuideDialog({
   }, [open, applicationId]);
   const stageMinutes = (title: string) => plan.stages.find((s) => s.title === title)?.minutes;
   const summary = useMemo(() => ratingsSummary(ratings, guideAnswerKeys(plan, personal)), [ratings, plan, personal]);
+  // The same number the profile, the list and the Interviews page show
+  // (lib/interviewScore.ts): every answer scored for this person.
+  const average = useMemo(() => interviewScore(ratings).average, [ratings]);
   const earlier = useMemo(() => earlierRatings(ratings, plan, personal), [ratings, plan, personal]);
   // Closing is also "send what I have not sent yet".
   const close = () => {
@@ -742,7 +746,7 @@ export function InterviewGuideDialog({
               Your average
             </span>
             <span className="font-display text-[26px] leading-none tabular-nums" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
-              {summary.average !== null ? summary.average.toFixed(1) : "–"}
+              {average !== null ? average.toFixed(1) : "–"}
               <span className="text-[13px]" style={{ color: "var(--ink-3)" }}>
                 {" "}
                 / {GUIDE_RATING_MAX}

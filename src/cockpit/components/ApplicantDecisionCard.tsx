@@ -66,6 +66,8 @@ export interface DecisionInterviewStatus {
   detail: string;
   /** "ok": booked. "wait": the applicant's move. "act": the team's move. */
   tone: "ok" | "wait" | "act";
+  /** His own interview rating of this applicant, in words (lib/interviewScore.ts), under the status. */
+  rating?: string;
 }
 
 export function InterviewStatus({ status, className = "" }: { status: DecisionInterviewStatus; className?: string }) {
@@ -83,6 +85,11 @@ export function InterviewStatus({ status, className = "" }: { status: DecisionIn
       <p className="mt-1 text-[12.5px] leading-[1.45]" style={{ color: "var(--ink-2)" }}>
         {status.detail}
       </p>
+      {status.rating && (
+        <p className="mt-1.5 text-[12.5px] font-semibold leading-[1.45]" style={{ color: "var(--ink)" }} data-interview-rating>
+          {status.rating}
+        </p>
+      )}
     </div>
   );
 }

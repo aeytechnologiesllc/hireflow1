@@ -164,6 +164,20 @@ const CHIP_LOOK: Record<string, CSSProperties> = {
   crit: { color: "var(--crit)", background: "var(--crit-bg)" },
 };
 
+/** His interview rating of them, beside the stage: quiet, because the stage is the state and this is a note of his. */
+export function InterviewScoreChip({ words }: { words: string }) {
+  return (
+    <span
+      className="shrink-0 whitespace-nowrap rounded-[5px] border px-[6px] py-[2px] text-[11px] font-semibold leading-none tabular-nums"
+      style={{ borderColor: "var(--line)", color: "var(--ink-2)", background: "var(--surface)" }}
+      title="Your rating of their interview, out of 10"
+      data-interview-chip
+    >
+      {words}
+    </span>
+  );
+}
+
 /** Needs review, Interview, Offer, Hired, Declined. */
 export function StatusChip({ chip }: { chip: NonNullable<ApplicantListRow["chip"]> }) {
   return (
@@ -342,6 +356,8 @@ export function ApplicantTableHeader({ lead }: { lead?: ReactNode } = {}) {
 
 interface RowProps {
   row: ApplicantListRow;
+  /** "Interview 7.8": his own rating of their interview (lib/interviewScore.ts), when he has given one. */
+  interviewChip?: string | null;
   /** Called before the link navigates (the page keeps its scroll). */
   onOpen?: (row: ApplicantListRow, event: MouseEvent) => void;
   index?: number;
@@ -352,7 +368,7 @@ interface RowProps {
   reveal?: boolean;
 }
 
-export function ApplicantTableRow({ row, onOpen, index = 0, reveal = true }: RowProps) {
+export function ApplicantTableRow({ row, onOpen, index = 0, reveal = true, interviewChip }: RowProps) {
   return (
     <Link
       to={`/applicants/${row.id}`}
@@ -382,6 +398,7 @@ export function ApplicantTableRow({ row, onOpen, index = 0, reveal = true }: Row
             {row.shortlisted && <ShortlistMark />}
             {row.note && <NoteMark note={row.note} />}
             {row.chip && <StatusChip chip={row.chip} />}
+            {interviewChip && <InterviewScoreChip words={interviewChip} />}
             {row.sameBlockedPhoneAs && <SamePhoneChip name={row.sameBlockedPhoneAs} />}
           </span>
           {/* Wraps rather than cuts: the applied age is the part that matters. */}
@@ -443,7 +460,7 @@ function CardLine({ row }: { row: ApplicantListRow }) {
   );
 }
 
-export function ApplicantCard({ row, onOpen, index = 0, reveal = true }: RowProps) {
+export function ApplicantCard({ row, onOpen, index = 0, reveal = true, interviewChip }: RowProps) {
   return (
     <Link
       to={`/applicants/${row.id}`}
@@ -489,6 +506,11 @@ export function ApplicantCard({ row, onOpen, index = 0, reveal = true }: RowProp
           {row.sameBlockedPhoneAs && (
             <>
               <SamePhoneChip name={row.sameBlockedPhoneAs} />{" "}
+            </>
+          )}
+          {interviewChip && (
+            <>
+              <InterviewScoreChip words={interviewChip} />{" "}
             </>
           )}
           <CardLine row={row} />

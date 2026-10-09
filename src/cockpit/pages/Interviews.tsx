@@ -6,6 +6,10 @@ import { toast } from "sonner";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { EmployerRescheduleReviewDialog } from "@/components/EmployerRescheduleReviewDialog";
 import { InterviewGuideDialog } from "../components/InterviewGuideDialog";
+import { InterviewOutcomeDialog } from "../components/InterviewOutcomeDialog";
+import { InterviewScoreChip } from "../components/ApplicantRow";
+import { useInterviewScores } from "../hooks/useInterviewScores";
+import { interviewScoreWords } from "../lib/interviewScore";
 import { useInterviews, useUpdateInterview, type InterviewWithDetails } from "@/hooks/useInterviews";
 import { supabase } from "@/integrations/supabase/client";
 import { notifyInterviewCancelled } from "@/utils/emailNotifications";
@@ -230,6 +234,11 @@ export default function CockpitInterviews() {
   const [cancelling, setCancelling] = useState<Session | null>(null);
   // What to ask them: the guide for one row's applicant (InterviewGuideDialog).
   const [guideFor, setGuideFor] = useState<Session | null>(null);
+  // "How did it go?" for one row whose time has passed (InterviewOutcomeDialog).
+  const [outcomeFor, setOutcomeFor] = useState<{ session: Session; stage: "ask" | "next" } | null>(null);
+  // His own interview ratings (lib/interviewScore.ts), shown beside the people he has interviewed.
+  const interviewScoresByApplication = useInterviewScores();
+  const scoreOf = (s: Session) => (s.applicationId ? interviewScoresByApplication.get(s.applicationId) ?? null : null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [markingId, setMarkingId] = useState<string | null>(null);
   // "They did not show up": asked about one interview at a time (lib/noShow.ts).
@@ -465,7 +474,7 @@ export default function CockpitInterviews() {
 
   /* For an overdue row: the employer says what actually happened rather
      than letting it sit unresolved. */
-  const markOutcome = async (target: Session, status: "completed" | "no_show") => {
+  const markOutcome = async (target: Session, status: "completed" | "no_show"): Promise<boolean> => {
     setMarkingId(target.id);
     try {
       await updateInterview.mutateAsync({ id: target.id, status });
@@ -474,13 +483,26 @@ export default function CockpitInterviews() {
           ? `Marked as no-show — ${firstName(target.name)}`
           : `Marked completed — ${firstName(target.name)}`,
       );
+      return true;
     } catch (err) {
       console.error("Error marking interview outcome:", err);
       toast.error("Could not update that interview");
+      return false;
     } finally {
       setMarkingId(null);
     }
   };
+
+  /* "How did it go?" (lib/interviewOutcome.ts). "We talked" marks it done and
+     the same card then asks what next; it only moves on once the mark is
+     saved, so the card never says "What next?" about an interview still
+     standing as scheduled. */
+  const answerTalked = async () => {
+    if (!outcomeFor) return;
+    const target = outcomeFor.session;
+    if (await markOutcome(target, "completed")) setOutcomeFor({ session: target, stage: "next" });
+  };
+  const outcomeWhen = (s: Session) => (s.at ? `${isSameDay(s.at, new Date()) ? "today" : format(s.at, "EEEE")} at ${format(s.at, "h:mm aaa")}` : null);
 
   const subtitle =
     needsCall > 0
@@ -863,14 +885,9 @@ export default function CockpitInterviews() {
                           without waiting for it to turn up under "Needs
                           attention" tomorrow. */}
                       {when?.tone === "over" && (
-                        <>
-                          <button className="ck-btn ck-btn-outline !py-2 !text-[12px]" disabled={markingId === s.id} onClick={() => void markOutcome(s, "completed")}>
-                            Mark completed
-                          </button>
-                          <button className="ck-btn ck-btn-outline !py-2 !text-[12px]" disabled={markingId === s.id} onClick={() => setNoShowFor(s)} data-no-show-open>
-                            No-show
-                          </button>
-                        </>
+                        <button className="ck-btn ck-btn-primary !py-2 !text-[12px]" disabled={markingId === s.id} onClick={() => setOutcomeFor({ session: s, stage: "ask" })} data-outcome-open>
+                          How did it go?
+                        </button>
                       )}
                       {/* Quiet on purpose — this is the one irreversible move on the page. */}
                       <button
@@ -934,7 +951,7 @@ export default function CockpitInterviews() {
                         <Chip tone="amber">Time passed</Chip>
                       </span>
                       <span className="mt-0.5 block text-[12px] leading-[1.35]" style={{ color: "var(--ink-3)" }}>
-                        {s.role} · time passed — mark what happened
+                        {s.role} · time passed — say how it went
                       </span>
                     </span>
                   </button>
@@ -944,19 +961,12 @@ export default function CockpitInterviews() {
                       Details
                     </button>
                     <button
-                      className="ck-btn ck-btn-outline !py-2 !text-[12px]"
+                      className="ck-btn ck-btn-primary !py-2 !text-[12px]"
                       disabled={markingId === s.id}
-                      onClick={() => void markOutcome(s, "completed")}
+                      onClick={() => setOutcomeFor({ session: s, stage: "ask" })}
+                      data-outcome-open
                     >
-                      Mark completed
-                    </button>
-                    <button
-                      className="ck-btn ck-btn-outline !py-2 !text-[12px]"
-                      disabled={markingId === s.id}
-                      onClick={() => setNoShowFor(s)}
-                      data-no-show-open
-                    >
-                      No-show
+                      How did it go?
                     </button>
                     {/* Quiet on purpose — this is the one irreversible move on the page. */}
                     <button
@@ -1084,6 +1094,10 @@ export default function CockpitInterviews() {
                             ) : (
                               <Chip tone="mut">Interviewed</Chip>
                             )}
+                            {(() => {
+                              const chip = interviewScoreWords(scoreOf(s))?.chip;
+                              return chip ? <InterviewScoreChip words={chip} /> : null;
+                            })()}
                           </span>
                           <span
                             className="mt-0.5 block truncate text-[12px] leading-[1.35]"
@@ -1112,6 +1126,38 @@ export default function CockpitInterviews() {
           </div>
         </>
       )}
+
+      <InterviewOutcomeDialog
+        open={!!outcomeFor}
+        stage={outcomeFor?.stage ?? "ask"}
+        name={outcomeFor?.session.name ?? ""}
+        whenLabel={outcomeFor ? outcomeWhen(outcomeFor.session) : null}
+        score={outcomeFor ? scoreOf(outcomeFor.session) : null}
+        busy={!!outcomeFor && markingId === outcomeFor.session.id}
+        canOffer={!!outcomeFor?.session.applicationId}
+        onTalked={() => void answerTalked()}
+        onNoShow={() => {
+          const target = outcomeFor?.session ?? null;
+          setOutcomeFor(null);
+          if (target) setNoShowFor(target);
+        }}
+        onGuide={() => {
+          const target = outcomeFor?.session ?? null;
+          setOutcomeFor(null);
+          if (target) setGuideFor(target);
+        }}
+        onOffer={() => {
+          const id = outcomeFor?.session.applicationId;
+          setOutcomeFor(null);
+          if (id) navigate(`/documents?action=create&applicant_id=${id}`);
+        }}
+        onProfile={() => {
+          const target = outcomeFor?.session ?? null;
+          setOutcomeFor(null);
+          if (target) openRecord(target);
+        }}
+        onClose={() => setOutcomeFor(null)}
+      />
 
       <InterviewGuideDialog
         open={!!guideFor}

@@ -66,14 +66,18 @@ console.log("\nThe wiring");
   const lib = code(await read("src/cockpit/lib/noShow.ts"));
   check("the words are plain code: no imports, no request", !/^import /m.test(lib) && !/supabase|fetch\(|functions\.invoke/.test(lib));
   const page = code(await read("src/cockpit/pages/Interviews.tsx"));
-  check("pressing No-show asks first: it no longer marks straight away", (page.match(/onClick=\{\(\) => setNoShowFor\(s\)\}/g) ?? []).length === 2 && !/markOutcome\(s, "no_show"\)/.test(page));
+  check("nothing marks a no-show straight away: both kinds of passed row ask how it went first", (page.match(/onClick=\{\(\) => setOutcomeFor\(\{ session: s, stage: "ask" \}\)\}/g) ?? []).length === 2 && !/markOutcome\(s, "no_show"\)/.test(page) && !/markOutcome\(s, "completed"\)/.test(page));
   const resolve = /const resolveNoShow = async \(choice: NoShowChoice\) => \{([\s\S]*?)\n  \};/.exec(page)?.[1] ?? "";
   check("the interview is marked first, whatever was chosen", resolve.indexOf('updateInterview.mutateAsync({ id: target.id, status: "no_show" })') > 0 && resolve.indexOf("updateInterview.mutateAsync") < resolve.indexOf("sendMessage.mutateAsync") && resolve.indexOf("updateInterview.mutateAsync") < resolve.indexOf("reject("));
   check("one more chance sends the note as an ordinary message (which emails them), to the applicant of that interview", /if \(choice === "chance"\) \{[\s\S]*?sendMessage\.mutateAsync\(\{ receiver_id: target\.candidateId, content: secondChanceNote\(target\.name\), application_id: target\.applicationId \?\? undefined \}\);/.test(resolve));
   check("…and a message that fails does not undo the mark; it is said", /sent = false;/.test(resolve) && /noShowDoneWords\(target\.name, choice, sent\)/.test(resolve));
   check("pass is the ordinary Pass, on that interview's own application", /else if \(choice === "pass" && target\.applicationId\) \{\s*await reject\(target\.applicationId\);/.test(resolve));
   check("only marking sends nothing", !/choice === "mark"[\s\S]*?(sendMessage|reject)\(/.test(resolve) && (resolve.match(/sendMessage\.mutateAsync/g) ?? []).length === 1 && (resolve.match(/reject\(/g) ?? []).length === 1);
-  check("an interview whose time has passed today can be marked the same day", /when\?\.tone === "over" && \(/.test(page) && /Mark completed/.test(page));
+  // Since 2026-10-09 the row asks one question, "How did it go?", and the
+  // no-show choices are reached through its answer (lib/interviewOutcome.ts).
+  check("an interview whose time has passed today can be answered the same day", /when\?\.tone === "over" && \(/.test(page) && /How did it go\?/.test(page) && /data-outcome-open/.test(page));
+  check("answering 'did not show up' opens these same choices, for that interview", /onNoShow=\{\(\) => \{\s*const target = outcomeFor\?\.session \?\? null;\s*setOutcomeFor\(null\);\s*if \(target\) setNoShowFor\(target\);/.test(page));
+  check("'We talked' only moves on once the interview is saved as done", /if \(await markOutcome\(target, "completed"\)\) setOutcomeFor\(\{ session: target, stage: "next" \}\);/.test(page) && /return false;/.test(page));
   check("the dialog is told how many interviews this same applicant already missed", /earlierNoShows=\{noShowFor \? sessions\.filter\(\(x\) => x\.status === "no_show" && x\.id !== noShowFor\.id && !!x\.applicationId && x\.applicationId === noShowFor\.applicationId\)\.length : 0\}/.test(page));
   const dialog = code(await read("src/cockpit/components/NoShowDialog.tsx"));
   check("the dialog shows both notes word for word before anything is sent", /secondChanceNote\(name\)/.test(dialog) && /<DeclineNotePreview jobTitle=\{jobTitle\} \/>/.test(dialog));

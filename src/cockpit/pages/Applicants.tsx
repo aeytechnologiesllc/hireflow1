@@ -26,6 +26,8 @@ import { mapJobRow } from "../lib/mappers";
 // Remove and block, and picking several at once (docs/APPLICANTS-LIST.md §6).
 import { ActionsMenu, ApplicantActionDialogs, applicantMenuItems, type ApplicantActionRequest } from "../components/ApplicantRowMenu";
 import { ApplicantBulkBar, ApplicantRowFrame, SelectMark } from "../components/ApplicantBulkBar";
+import { useInterviewScores } from "../hooks/useInterviewScores";
+import { interviewScoreWords } from "../lib/interviewScore";
 import { bulkPassPlan } from "../lib/bulkPass";
 import { PassByScoreDialog } from "../components/PassByScoreDialog";
 import { useBlockedApplicants } from "../hooks/useApplicantBlocks";
@@ -223,7 +225,10 @@ const ApplicantListItem = memo(function ApplicantListItem({
   selecting,
   reveal,
   actions,
+  interviewChip,
 }: {
+  /** "Interview 7.8", when he has rated their interview. A string, so the memo still holds. */
+  interviewChip: string | null;
   row: ApplicantListRow;
   index: number;
   wide: boolean;
@@ -256,7 +261,11 @@ const ApplicantListItem = memo(function ApplicantListItem({
   );
   return (
     <ApplicantRowFrame variant={wide ? "table" : "card"} menu={menu} select={select} selecting={selecting} selected={picked} reveal={reveal} index={index}>
-      {wide ? <ApplicantTableRow row={row} index={index} onOpen={actions.open} reveal={false} /> : <ApplicantCard row={row} index={index} onOpen={actions.open} reveal={false} />}
+      {wide ? (
+        <ApplicantTableRow row={row} index={index} onOpen={actions.open} reveal={false} interviewChip={interviewChip} />
+      ) : (
+        <ApplicantCard row={row} index={index} onOpen={actions.open} reveal={false} interviewChip={interviewChip} />
+      )}
     </ApplicantRowFrame>
   );
 });
@@ -340,6 +349,8 @@ export default function CockpitApplicants() {
   const live = useMemo(() => applyListState(rows, state, now, stepTitle), [rows, state, now, stepTitle]);
   const held = useHeldApplicantList(rows, live, state, !isLoading);
   const view = held.view;
+  // His own interview ratings, shown as a small tag on the rows that have one.
+  const interviewScoresByApplication = useInterviewScores();
   // The rows rise in once, as the list first lands; after that, never: the
   // browser replays a CSS animation on any node React moves, so on Show a row
   // that changed place would blink out and fade back in.
@@ -846,7 +857,17 @@ export default function CockpitApplicants() {
   // (ApplicantListItem, memoised). On cards in Select mode a tap picks
   // rather than opens.
   const renderRow = (row: ApplicantListRow, i: number) => (
-    <ApplicantListItem key={row.id} row={row} index={i} wide={wide} picked={picked.has(row.id)} selecting={selecting} reveal={reveal} actions={rowActions} />
+    <ApplicantListItem
+      key={row.id}
+      row={row}
+      index={i}
+      wide={wide}
+      picked={picked.has(row.id)}
+      selecting={selecting}
+      reveal={reveal}
+      actions={rowActions}
+      interviewChip={interviewScoreWords(interviewScoresByApplication.get(row.id))?.chip ?? null}
+    />
   );
   // What is waiting (new applicants, rows that would move): one quiet bar,
   // under the tabs on a phone, at the top of the list on a computer.
