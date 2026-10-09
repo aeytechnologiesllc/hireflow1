@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useCockpitAccount } from "../hooks/useCockpitData";
+import { useInterviewsLeftToday } from "../hooks/useInterviewsLeftToday";
 import { useAuth } from "@/hooks/useAuth";
 
 const ITEMS = [
@@ -28,6 +29,7 @@ export default function CockpitMore() {
   const navigate = useNavigate();
   const { account } = useCockpitAccount();
   const { signOut } = useAuth();
+  const interviewsToday = useInterviewsLeftToday();
 
   const handleLogout = async () => {
     try {
@@ -62,6 +64,11 @@ export default function CockpitMore() {
           >
             <it.icon className="h-5 w-5 shrink-0" style={{ color: "var(--hf-text-muted)" }} />
             <span className="flex-1 text-[15px]" style={{ color: "var(--hf-text)" }}>{it.label}</span>
+            {it.to === "/interviews" && interviewsToday > 0 && (
+              <span className="rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: "var(--jade-soft)", color: "var(--jade-soft-fg)" }} data-interviews-today>
+                {interviewsToday} today
+              </span>
+            )}
             <ChevronRight className="h-4 w-4" style={{ color: "var(--hf-text-muted)" }} />
           </button>
         ))}

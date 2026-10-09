@@ -16,7 +16,11 @@ import CkAvatar from "../components/Avatar";
 import { ActionDialog } from "../components/ActionDialog";
 import { PageHeader } from "../components/PageHeader";
 import { CockpitErrorCard } from "../components/ErrorCard";
-import { useCockpitAccount, useCockpitCandidates, useCockpitInterviews, useCockpitJobsData } from "../hooks/useCockpitData";
+import { interviewWhen } from "../lib/interviewWhen";
+import { useCockpitAccount, useCockpitActions, useCockpitCandidates, useCockpitInterviews, useCockpitJobsData } from "../hooks/useCockpitData";
+import { useSendMessage } from "@/hooks/useMessages";
+import { NoShowDialog } from "../components/NoShowDialog";
+import { noShowDoneWords, secondChanceNote, type NoShowChoice } from "../lib/noShow";
 import { ShareJobCompact } from "../components/ShareJobCard";
 import type { CandidateStage } from "../data";
 
@@ -228,6 +232,10 @@ export default function CockpitInterviews() {
   const [guideFor, setGuideFor] = useState<Session | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [markingId, setMarkingId] = useState<string | null>(null);
+  // "They did not show up": asked about one interview at a time (lib/noShow.ts).
+  const [noShowFor, setNoShowFor] = useState<Session | null>(null);
+  const sendMessage = useSendMessage();
+  const { reject } = useCockpitActions();
   const updateInterview = useUpdateInterview();
 
   const today = useMemo(() => startOfDay(new Date()), []);
@@ -327,6 +335,40 @@ export default function CockpitInterviews() {
   );
 
   const noShows = useMemo(() => sessions.filter((s) => s.status === "no_show").length, [sessions]);
+
+  /* A no-show is marked, and then whatever was chosen happens: a message
+     asking which times work, the usual Pass, or nothing more. The interview
+     is marked first, so a message that fails to send never leaves the row
+     looking as if nothing was decided. */
+  const resolveNoShow = async (choice: NoShowChoice) => {
+    const target = noShowFor;
+    if (!target) return;
+    setMarkingId(target.id);
+    try {
+      await updateInterview.mutateAsync({ id: target.id, status: "no_show" });
+      let sent = true;
+      if (choice === "chance") {
+        try {
+          if (!target.candidateId) throw new Error("no applicant to write to");
+          await sendMessage.mutateAsync({ receiver_id: target.candidateId, content: secondChanceNote(target.name), application_id: target.applicationId ?? undefined });
+        } catch (error) {
+          console.error("[no-show] could not send the second-chance message", error);
+          sent = false;
+        }
+      } else if (choice === "pass" && target.applicationId) {
+        // The ordinary Pass: declined in the owner's name, the usual note by email. It says how it went itself.
+        await reject(target.applicationId);
+      }
+      const said = noShowDoneWords(target.name, choice, sent);
+      (said.ok ? toast.success : toast.error)(said.title, said.description ? { description: said.description } : undefined);
+      setNoShowFor(null);
+    } catch (err) {
+      console.error("Error marking a no-show:", err);
+      toast.error("Could not update that interview");
+    } finally {
+      setMarkingId(null);
+    }
+  };
   const needsCall = useMemo(
     () => upcoming.filter((s) => s.response === "reschedule_requested").length,
     [upcoming],
@@ -621,6 +663,8 @@ export default function CockpitInterviews() {
                 const awaitingPick = s.response === "awaiting_pick";
                 const picked = s.response === "confirmed" && justPicked.has(s.id);
                 const joinable = canJoinDaily(s);
+                // "In 30 minutes" / "Now", for a time that is agreed.
+                const when = s.response === "confirmed" ? interviewWhen(s.at, now, s.minutes) : null;
                 /* The chip beside the name already carries the state, so the
                    line under it says what happens next instead of saying the
                    same word twice. A confirmed time needs nothing further from
@@ -652,7 +696,9 @@ export default function CockpitInterviews() {
                   <div
                     key={s.id}
                     className="ck-card ck-reveal flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3"
-                    style={{ ["--ck-i" as string]: i, borderRadius: 10 }}
+                    // The one that is on now is ringed, so it is the first thing seen.
+                    style={{ ["--ck-i" as string]: i, borderRadius: 10, ...(when?.tone === "now" ? { boxShadow: "0 0 0 2px var(--jade)" } : null) }}
+                    data-interview-row={when?.tone ?? "unset"}
                   >
                     {awaitingPick && s.windowsOffered === 1 && s.at ? (
                       /* The one time on offer, said as an offer: smaller and
@@ -701,6 +747,25 @@ export default function CockpitInterviews() {
                         >
                           {s.at ? format(s.at, "h:mm aaa") : s.timeLabel}
                         </div>
+                        {/* How soon, so the time does not have to be worked out
+                            against the clock: "In 30 minutes", "Now". Only for
+                            a time the applicant has agreed to. */}
+                        {when && (
+                          <div
+                            className="mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] text-[10.5px] font-bold uppercase tracking-[0.06em]"
+                            style={
+                              when.tone === "now"
+                                ? { background: "var(--jade)", color: "var(--btn-fg)" }
+                                : when.tone === "soon"
+                                  ? { background: "var(--jade-soft)", color: "var(--jade-soft-fg)" }
+                                  : { background: "var(--surface-2)", color: "var(--ink-2)" }
+                            }
+                            data-interview-when={when.tone}
+                          >
+                            {when.tone === "now" && <span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--btn-fg)" }} />}
+                            {when.label}
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -780,7 +845,7 @@ export default function CockpitInterviews() {
                           onClick={() => navigate(`/interviews/${s.id}/room`)}
                         >
                           <Video className="mr-1 inline h-3.5 w-3.5" aria-hidden />
-                          Join interview
+                          {when?.tone === "now" ? "Join now" : "Join interview"}
                         </button>
                       )}
                       {s.response === "confirmed" && s.meetingProvider !== "daily" && s.meetingLink && (
@@ -791,8 +856,21 @@ export default function CockpitInterviews() {
                           rel="noopener noreferrer"
                         >
                           <Video className="mr-1 inline h-3.5 w-3.5" aria-hidden />
-                          Join interview
+                          {when?.tone === "now" ? "Join now" : "Join interview"}
                         </a>
+                      )}
+                      {/* Its time has passed today: say what happened now,
+                          without waiting for it to turn up under "Needs
+                          attention" tomorrow. */}
+                      {when?.tone === "over" && (
+                        <>
+                          <button className="ck-btn ck-btn-outline !py-2 !text-[12px]" disabled={markingId === s.id} onClick={() => void markOutcome(s, "completed")}>
+                            Mark completed
+                          </button>
+                          <button className="ck-btn ck-btn-outline !py-2 !text-[12px]" disabled={markingId === s.id} onClick={() => setNoShowFor(s)} data-no-show-open>
+                            No-show
+                          </button>
+                        </>
                       )}
                       {/* Quiet on purpose — this is the one irreversible move on the page. */}
                       <button
@@ -875,7 +953,8 @@ export default function CockpitInterviews() {
                     <button
                       className="ck-btn ck-btn-outline !py-2 !text-[12px]"
                       disabled={markingId === s.id}
-                      onClick={() => void markOutcome(s, "no_show")}
+                      onClick={() => setNoShowFor(s)}
+                      data-no-show-open
                     >
                       No-show
                     </button>
@@ -1084,6 +1163,17 @@ export default function CockpitInterviews() {
         busy={isCancelling}
         onConfirm={() => void confirmCancel()}
         onClose={() => !isCancelling && setCancelling(null)}
+      />
+
+      <NoShowDialog
+        open={!!noShowFor}
+        name={noShowFor?.name ?? ""}
+        jobTitle={noShowFor?.role ?? null}
+        // Interviews this same applicant has already missed.
+        earlierNoShows={noShowFor ? sessions.filter((x) => x.status === "no_show" && x.id !== noShowFor.id && !!x.applicationId && x.applicationId === noShowFor.applicationId).length : 0}
+        busy={!!noShowFor && markingId === noShowFor.id}
+        onChoose={(choice) => void resolveNoShow(choice)}
+        onClose={() => setNoShowFor(null)}
       />
     </div>
   );

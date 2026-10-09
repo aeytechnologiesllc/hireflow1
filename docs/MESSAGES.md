@@ -17,6 +17,31 @@ are read and written through `src/hooks/useMessages.ts`.
   cannot reply from the hiring address in his own mail (2026-10-08), and both
   interview emails now send questions here (docs/INTERVIEWS.md).
 
+## Tidied when you send (2026-10-09)
+
+The owner, with "Hey john, let me know if you have any trouble joining the
+interview" typed in the box: "can you also make it like autocorrect grammar
+and spelling mistakes here? That could be good as well."
+
+- **What is tidied, with no AI and no request** (`src/cockpit/lib/tidyMessage.ts`):
+  a capital at the start of each sentence and line, the applicant's own name
+  capitalised, "i" as "I", doubled spaces, a space before a comma, and a full
+  stop on a sentence left open at the end of a paragraph. That message goes
+  out as "Hey John, let me know if you have any trouble joining the
+  interview."
+- **It never changes a word.** A misspelt word or a wrong tense is not
+  touched: that needs a dictionary or a model, and this must never guess. The
+  box does switch on the browser's own spell-check (the red underline) and a
+  phone keyboard's autocorrect, which are free and already there.
+- **Every rule does nothing when unsure**: a link, an email address, a time,
+  a number, "e.g.", a word in capitals, a list and a short sign-off line are
+  left exactly as typed. A name that is also an ordinary word ("May",
+  "Grace", "Will") is capitalised only straight after a greeting.
+- Only the hiring team's messages are tidied. An applicant's message is sent
+  exactly as they wrote it. The line under the box says it is done.
+
+Proof: `scripts/tidy_message.test.mjs`.
+
 ## Ready-made replies (2026-10-09)
 
 The owner, looking at a declined applicant asking when they would hear back:

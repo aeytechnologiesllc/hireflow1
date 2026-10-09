@@ -20,6 +20,7 @@ import {
 import { isRecordNotDeployed } from "../hooks/useAssessmentSessions";
 import { useChatMarks } from "../hooks/useChatMarks";
 import { quickRepliesFor } from "../lib/quickReplies";
+import { tidyMessage } from "../lib/tidyMessage";
 import {
   MOVED_BACK_WORDS,
   archivedWords,
@@ -736,7 +737,10 @@ export default function CockpitMessages() {
   // something that cannot be recovered. Empty the box only once the insert has
   // landed — offline, or on a policy refusal, the line stays where they typed it.
   const handleSend = async () => {
-    const text = draft.trim();
+    // The hiring team's message is tidied as it goes (lib/tidyMessage.ts):
+    // capitals, the applicant's name, spacing, a closing full stop. Never a
+    // different word. An applicant's own message is sent exactly as written.
+    const text = isCandidate ? draft.trim() : tidyMessage(draft, { recipientName: partner?.name });
     if (!text || !contactId) return;
     try {
       sentAt.current = Date.now();
@@ -1129,6 +1133,11 @@ export default function CockpitMessages() {
                     value={draft}
                     aria-label={`Write to ${partnerShort}`}
                     placeholder={`Write to ${partnerShort}…`}
+                    // The browser's own spell-check (the red underline) and a
+                    // phone keyboard's autocorrect: free, and already there.
+                    spellCheck
+                    autoCorrect="on"
+                    autoCapitalize="sentences"
                     onChange={(e) => setDraft(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
@@ -1146,6 +1155,7 @@ export default function CockpitMessages() {
                     <p className="min-w-0 flex-1 text-[11.5px] leading-[1.4]" style={{ color: "var(--ink-3)" }} data-composer-hint>
                       <span className="max-md:hidden">Enter sends · Shift+Enter for a new line. </span>
                       {partnerShort} gets an email too, unless they turned those off.
+                      {!isCandidate && <span data-composer-tidy> Capital letters and full stops are tidied when you send.</span>}
                     </p>
                     <button
                       type="button"

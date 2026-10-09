@@ -22,6 +22,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useCockpitAccount } from "./hooks/useCockpitData";
 import { useUnreadCount } from "@/hooks/useNotifications";
 import { useUnreadMessagesCount } from "@/hooks/useUnreadMessagesCount";
+import { useInterviewsLeftToday } from "./hooks/useInterviewsLeftToday";
 import { Wordmark } from "./components/Wordmark";
 import { AccountMenu } from "./components/AccountMenu";
 
@@ -95,6 +96,8 @@ function AccountChip({ compact }: { compact?: boolean }) {
 
 function Sidebar() {
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
+  // Interviews still ahead today (lib/interviewWhen.ts): "you have one today".
+  const interviewsToday = useInterviewsLeftToday();
   const { pathname } = useLocation();
   const { account } = useCockpitAccount();
   return (
@@ -158,6 +161,17 @@ function Sidebar() {
                   style={{ minWidth: 16, height: 16, background: "var(--jade)", color: "var(--btn-fg)" }}
                 >
                   {unreadMessages > 9 ? "9+" : unreadMessages}
+                </span>
+              )}
+              {item.to === "/interviews" && interviewsToday > 0 && (
+                <span
+                  aria-label={`${interviewsToday} today`}
+                  title={`${interviewsToday} interview${interviewsToday === 1 ? "" : "s"} still to come today`}
+                  className="ml-auto flex items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums"
+                  style={{ minWidth: 16, height: 16, background: "var(--jade)", color: "var(--btn-fg)" }}
+                  data-interviews-today
+                >
+                  {interviewsToday > 9 ? "9+" : interviewsToday}
                 </span>
               )}
             </Link>
@@ -305,6 +319,8 @@ function MobileTopBar() {
 
 function MobileTabBar() {
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
+  // Interviews live under More on a phone, so today's count rides on More.
+  const interviewsToday = useInterviewsLeftToday();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const moreActive = ["/interviews", "/documents", "/team", "/analytics", "/more", "/settings"].some((p) => isActive(pathname, p));
@@ -342,6 +358,16 @@ function MobileTabBar() {
                   style={{ minWidth: 16, height: 16, background: "var(--jade)", color: "var(--btn-fg)" }}
                 >
                   {unreadMessages > 9 ? "9+" : unreadMessages}
+                </span>
+              )}
+              {tab.to === "/more" && interviewsToday > 0 && (
+                <span
+                  aria-label={`${interviewsToday} interview${interviewsToday === 1 ? "" : "s"} today`}
+                  className="absolute -right-1.5 -top-1.5 flex items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums"
+                  style={{ minWidth: 16, height: 16, background: "var(--jade)", color: "var(--btn-fg)" }}
+                  data-interviews-today
+                >
+                  {interviewsToday > 9 ? "9+" : interviewsToday}
                 </span>
               )}
             </span>

@@ -465,6 +465,67 @@ carries (docs/NOTIFICATION-EMAILS.md).
   `google-calendar` function needs `GOOGLE_CLIENT_ID` and
   `GOOGLE_CLIENT_SECRET`, which are not set.
 
+## Today, and how soon (2026-10-09)
+
+The owner, with two interviews that afternoon: "it would be nice if the
+interview tab, let's say it's today, so you should have a one count or two
+count depending on how many interviews you have today. And also right here
+where it says 4 p.m. it should be a button that says in 30 minutes or now ...
+so kind of like they know that oh right now is the time to do the interview."
+
+- **A count on the menu.** The Interviews item shows how many agreed
+  interviews are still ahead, or under way, today
+  (`src/cockpit/lib/interviewWhen.ts`, `interviewsLeftToday`). On a phone,
+  where Interviews is under More, it rides on More and sits beside Interviews
+  on the More page. It falls as each one ends and is gone when the day's
+  interviews are over. One the applicant has not agreed a time for, or one
+  cancelled or finished, is not counted.
+- **How soon, under each time.** "In 3 h", "In 2 h 10 min", "In 30 minutes"
+  (an hour or less is said in minutes), **"Now"** from five minutes before
+  the start until the call's length has passed, then "Earlier today";
+  "Tomorrow" and "In 3 days" further off. Only for a time the applicant has
+  agreed to. The row that is on now is ringed and its button reads "Join
+  now".
+- It runs off the page's own 30-second clock (the menu's count checks once a
+  minute) and reads the list the page already reads: no new request.
+
+Proof: `scripts/interview_when.test.mjs`. In the preview:
+`/interviews?__preview=1&__previewScenario=zulu&__previewWhen=now,soon,later`
+puts made-up interviews two minutes, 35 minutes and three hours from now.
+
+## When they do not show up (2026-10-09)
+
+The owner: "what should we do when an applicant doesn't show up for the
+interview? What do you think is a good way to do that?" Until then "No-show"
+only put a label on the interview: the applicant was told nothing and stayed
+at the interview stage for good.
+
+Pressing **No-show** now asks what happens next
+(`src/cockpit/components/NoShowDialog.tsx`, `lib/noShow.ts`). Both notes are
+shown word for word, and nothing is sent until one is pressed.
+
+- **Give one more chance.** The interview is marked, and the applicant gets
+  an ordinary message (so its email too): "Hi Ana, we missed you at your
+  interview. If something came up, that is okay. Reply here with the days and
+  times that work for you, and we will set a new time." They stay at the
+  interview stage; the answer arrives in Messages, and a new time is set from
+  their page. Suggested the first time: power and internet cuts are common
+  where most applicants are.
+- **Pass.** The interview is marked and the application is declined with the
+  usual note (the ordinary Pass). Suggested when this applicant has already
+  missed one, which the dialog says.
+- **Only mark it as a no-show.** For when they have already spoken another
+  way. Nothing is sent.
+
+The interview is marked first, whatever was chosen. If the message then
+cannot be sent, the mark stays and the page says to write from Messages.
+
+An interview whose time has passed **today** now offers "Mark completed" and
+"No-show" on its own row, without waiting until tomorrow to turn up under
+"Needs attention".
+
+Proof: `scripts/no_show.test.mjs`.
+
 ## The interview guide
 
 "Interview guide" on an applicant's profile, and on each row of the

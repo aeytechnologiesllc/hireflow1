@@ -633,6 +633,44 @@ function previewShortlistHandlers(tables: FixtureTables, user: FixtureAuthUser):
  * checks who may: the preview is one employer's own data.
  */
 /**
+ * `?__previewWhen=now,soon,later`: the scenario's interviews are moved to
+ * fixed distances from this moment and marked agreed, so "Now" and "In 35
+ * minutes" on the Interviews page, and today's count on the menu, can be
+ * looked at whatever the time is (docs/INTERVIEWS.md, "Today, and how
+ * soon"). One made-up interview per word, copied from the scenario's own:
+ * now = in 2 minutes, soon = in 35 minutes, later = in 3 hours, over = an
+ * hour ago, tomorrow = this time tomorrow.
+ */
+function previewInterviewTimes(tables: FixtureTables, spec: string | null): void {
+  const words = (spec ?? "").split(",").map((w) => w.trim()).filter(Boolean);
+  const minutesFromNow: Record<string, number> = { now: 2, soon: 35, later: 180, over: -60, tomorrow: 24 * 60 };
+  const interviews = (tables.interviews ??= []);
+  const template = interviews[0];
+  const applications = (tables.applications ?? []).filter((a) => a.status === "interview" || a.status === "reviewing");
+  if (words.length === 0 || !template) return;
+  interviews.length = 0;
+  words.forEach((word, i) => {
+    if (!(word in minutesFromNow)) return;
+    const application = applications[i % Math.max(1, applications.length)];
+    // The page lists an interview only for someone at the interview stage.
+    if (application) application.status = "interview";
+    interviews.push({
+      ...template,
+      id: `5c000000-0000-4000-8000-${String(i + 1).padStart(12, "0")}`,
+      application_id: application?.id ?? template.application_id,
+      // The stand-in client does not follow a select's embeds, and the page
+      // keeps only interviews whose job is this employer's: carry the
+      // application and its job on the row, as the real answer does.
+      applications: application ? { id: application.id, candidate_id: application.candidate_id, jobs: (tables.jobs ?? []).find((j) => j.id === application.job_id) ?? null } : null,
+      scheduled_at: new Date(Date.now() + minutesFromNow[word] * 60_000).toISOString(),
+      status: "scheduled",
+      candidate_response: "confirmed",
+      duration_minutes: 30,
+    });
+  });
+}
+
+/**
  * `?__previewCrowd=40`: forty more made-up people who finished every step
  * and are waiting on a decision, with scores spread from the low teens to
  * the nineties, so a screen that works on a crowd (Pass by score,
@@ -1010,6 +1048,7 @@ export function install(params: URLSearchParams): void {
 
   const tables = buildFixtureTables(scenario);
   previewCrowd(tables, params.get("__previewCrowd"));
+  previewInterviewTimes(tables, params.get("__previewWhen"));
   const base = createFixtureSupabaseClient({
     user: ROLE_USERS[role],
     tables,
