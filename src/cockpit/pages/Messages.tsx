@@ -216,6 +216,22 @@ const COMPOSER_MIN_PX = 26;
 const COMPOSER_MAX_PX = 460;
 const COMPOSER_SHARE = 0.46;
 const COMPOSER_SHARE_PHONE = 0.3;
+/** How long after a send the page keeps following the end of the chat (the
+    sent line arrives a moment after the request finishes). */
+const SENT_FOLLOW_MS = 4000;
+/** How long after a chat is drawn its end is followed while the page settles
+    (the real font arriving, a picture loading). */
+const SETTLE_MS = 2500;
+
+/** What scrolls the page a box sits in: the staff shell's <main>, whatever
+ *  ancestor scrolls in another shell, or null when the window does. */
+function pageScroller(el: HTMLElement): HTMLElement | null {
+  for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) {
+    const { overflowY } = window.getComputedStyle(n);
+    if ((overflowY === "auto" || overflowY === "scroll") && n.scrollHeight > n.clientHeight + 1) return n;
+  }
+  return null;
+}
 
 function Bubble({
   who,
@@ -309,6 +325,8 @@ export default function CockpitMessages() {
   const [draft, setDraft] = useState("");
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const bubblesRef = useRef<HTMLDivElement>(null);
+  /** When the last message was sent from this screen (see SENT_FOLLOW_MS). */
+  const sentAt = useRef(0);
 
   const contactId = activeId;
   // `isLoading` is the conversations fetch OR the thread fetch. Coarse, but the
@@ -617,7 +635,39 @@ export default function CockpitMessages() {
   // Land at the newest message whenever the conversation changes or grows.
   useEffect(() => {
     const el = bubblesRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    // On a phone the card is as tall as the conversation and the PAGE scrolls,
+    // so the line above moves nothing there: the message just sent pushes the
+    // reply box down under the tab bar. After a send, keep the end in view.
+    if (el.scrollHeight <= el.clientHeight + 1 && Date.now() - sentAt.current < SENT_FOLLOW_MS) {
+      const page = pageScroller(el);
+      if (page) page.scrollTo({ top: page.scrollHeight });
+      else window.scrollTo({ top: document.documentElement.scrollHeight });
+    }
+    // The chat can get taller a moment after it is drawn: the first paint is
+    // in the stand-in font and the lines wrap again when the real one arrives,
+    // and a picture has no height until it loads. The scroll above was aimed
+    // at the old end, so the newest message sat cut off under the reply box.
+    // For a short while, follow the end, unless the reader has taken hold.
+    const inner = el.firstElementChild;
+    if (!inner || typeof ResizeObserver === "undefined") return;
+    const until = Date.now() + SETTLE_MS;
+    let held = false;
+    const hold = () => { held = true; };
+    const watch = new ResizeObserver(() => {
+      if (!held && Date.now() < until) el.scrollTop = el.scrollHeight;
+    });
+    watch.observe(inner);
+    el.addEventListener("wheel", hold, { passive: true });
+    el.addEventListener("touchstart", hold, { passive: true });
+    el.addEventListener("keydown", hold);
+    return () => {
+      watch.disconnect();
+      el.removeEventListener("wheel", hold);
+      el.removeEventListener("touchstart", hold);
+      el.removeEventListener("keydown", hold);
+    };
   }, [contactId, thread.length]);
 
   // A half-written line belongs to the person it was written to — never carry
@@ -653,6 +703,7 @@ export default function CockpitMessages() {
     const text = draft.trim();
     if (!text || !contactId) return;
     try {
+      sentAt.current = Date.now();
       await send(text, contactId, activeApplicationId);
       setDraft("");
     } catch {
@@ -1027,7 +1078,9 @@ export default function CockpitMessages() {
                         void handleSend();
                       }
                     }}
-                    className="ck-scroll block w-full resize-none bg-transparent px-0.5 text-[14.5px] leading-[1.55] outline-none"
+                    // 16px on a phone, like components/ui/textarea.tsx: an iPhone
+                    // zooms the whole page in when a field's text is smaller.
+                    className="ck-scroll block w-full resize-none bg-transparent px-0.5 text-[16px] leading-[1.55] outline-none md:text-[14.5px]"
                     style={{ color: "var(--ink)", minHeight: COMPOSER_MIN_PX }}
                     data-composer-box
                   />

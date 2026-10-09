@@ -17,6 +17,46 @@ are read and written through `src/hooks/useMessages.ts`.
   cannot reply from the hiring address in his own mail (2026-10-08), and both
   interview emails now send questions here (docs/INTERVIEWS.md).
 
+## On a phone (2026-10-09)
+
+The owner, on his Android phone: "the biggest bug on the phone, the
+messaging tab. You can't scroll, doesn't work."
+
+- **Why.** On a wide screen the chat card has a fixed height and the messages
+  scroll inside it. On a phone the card is as tall as the conversation and the
+  page scrolls. The message area wore `.ck-scroll`, which told the browser
+  "hold a swipe to yourself" (`overscroll-behavior-y: contain`). Since Chrome
+  144 a box holds swipes even when it has nothing of its own to scroll, so a
+  finger that started on a message, most of the screen, moved nothing. The
+  same component is the applicant's Messages, so they had it too.
+- **The fix is in the class, not the page**: `.ck-scroll` no longer holds
+  swipes. Only the shell's own `<main>` and a dialog's body do
+  (`cockpit.css`). `.scroll-perf` (the sign-in pages, "New job") had the same
+  cause and the same fix. The rule, the list of the few places allowed to hold
+  swipes, and what else the sweep found are in
+  `scripts/guards/no-scroll-traps.mjs`.
+- **After a send, the page follows the end of the chat** for a few seconds, so
+  the line just sent does not push the reply box down under the tab bar. Only
+  after a send: a message arriving while you read further up moves nothing.
+- **A chat stays on its newest message while the page settles.** The first
+  paint is in the stand-in font; when the real one arrives the lines wrap
+  again and the chat gets taller, which left the newest message cut off under
+  the reply box on a computer (a picture loading late does the same). For
+  2.5 seconds after a chat is drawn its end is followed, unless the reader has
+  already scrolled.
+- **The reply box has 16px text on a phone** (14.5px from tablet width up): an
+  iPhone zooms the whole page in when you tap a field with smaller text. The
+  note box and the applicant search follow the same rule.
+
+Still true, and not changed here: on a phone a chat opens at its **oldest**
+message and the reply box is at the end of the page, after every message.
+That wants its own design (a list, then a full-screen chat), shown to the
+owner first.
+
+Proof: the "On a phone" block of `scripts/messages_composer.test.mjs`, and the
+guard above. In the preview, a chat taller than a phone screen:
+`/messages?__preview=1&__previewRole=employer&__previewScenario=zulu&__previewChats=long`.
+
 ## The message box (2026-10-08)
 
 The owner pasted a twelve-line reply and could see three lines of it: the

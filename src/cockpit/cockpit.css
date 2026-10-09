@@ -266,9 +266,20 @@
 /* ── Scrollbars + buttery scroll (cockpit main content) ───── */
 .ck-scroll {
   overflow-x: hidden;
-  overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
+}
+/* Holding a swipe (not passing it on to whatever is behind) is only for a box
+   with nothing scrollable behind it that should move: the shell's own <main>,
+   and the body of a dialog. It used to be on every .ck-scroll. Since Chrome
+   144 a scroll box holds swipes even when it has nothing to scroll, so on a
+   phone, where the chat card is as tall as the conversation and the PAGE
+   scrolls, a finger that started on a message moved nothing (2026-10-09, the
+   owner on Android: "the messaging tab. You can't scroll"). Same cause as
+   .cand-root on 2026-10-04. scripts/guards/no-scroll-traps.mjs holds this. */
+main.ck-scroll,
+[role="dialog"] .ck-scroll {
+  overscroll-behavior-y: contain;
 }
 @media (prefers-reduced-motion: no-preference) {
   .ck-scroll { scroll-behavior: smooth; }

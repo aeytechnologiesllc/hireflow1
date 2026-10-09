@@ -636,7 +636,7 @@ function previewNotesHandlers(tables: FixtureTables, user: FixtureAuthUser, seed
   const rows = (name: string): FixtureRow[] => (tables[name] ??= []);
   rows("applicant_notes");
   rows("applicant_views");
-  if (seed === "some") {
+  if (seed === "some" || seed === "long") {
     const apps = rows("applications");
     const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
     if (apps[0]) {
@@ -689,6 +689,9 @@ function previewNotesHandlers(tables: FixtureTables, user: FixtureAuthUser, seed
  * with someone declined, one with someone invited to interview who has just
  * written (unread), one caught up, and one already archived. Nothing here
  * checks who may: the preview is one employer's own data.
+ * `?__previewChats=long` is the same four with a long back-and-forth in the
+ * open one, so the chat is taller than a phone screen (the 2026-10-09
+ * "can't scroll" report only showed with a real conversation).
  *
  * The real database stops sending a deleted chat's messages; the stand-in
  * has no such rule, so deleting here takes them out of the fixture.
@@ -696,7 +699,7 @@ function previewNotesHandlers(tables: FixtureTables, user: FixtureAuthUser, seed
 function previewChatHandlers(tables: FixtureTables, user: FixtureAuthUser, seed: string | null): Record<string, (args: unknown) => unknown> {
   const rows = (name: string): FixtureRow[] => (tables[name] ??= []);
   rows("message_thread_state");
-  if (seed === "some") {
+  if (seed === "some" || seed === "long") {
     const apps = rows("applications");
     const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
     const taken = new Set<unknown>();
@@ -733,6 +736,20 @@ function previewChatHandlers(tables: FixtureTables, user: FixtureAuthUser, seed:
       say(declined, false, "Thank you for the time you put into every step. We have decided not to move forward with your application this time.\n\nWe wish you the very best in your search.", 4 * 60 + 20);
     }
     if (invited) {
+      if (seed === "long") {
+        const talk = [
+          "Hello Hiring Team,\n\nI would like to kindly ask how long it usually takes to receive the results of the application screening. May I know when I can expect to hear back regarding my application?\n\nThank you for your time and consideration. I look forward to your response.",
+          "Thank you for writing. We read every application within two working days.",
+          "That is good to hear. Is the schedule fixed, or does it rotate between morning and night?",
+          "Fixed: 3:00 AM to 11:00 AM Philippine time, five days a week, with two days off in a row.",
+          "Understood. I have a backup internet line and a power bank for my router, in case that is asked.",
+          "It is, thank you. We ask everyone the same thing before the final step.",
+          "May I also ask whether training is paid?",
+          "Yes. Two weeks, paid at the full rate.",
+          "Thank you so much. I am very interested in the role.",
+        ];
+        talk.forEach((line, i) => say(invited, i % 2 === 0, line, 9 * 60 - i * 20));
+      }
       say(invited, false, "The video call is the final step: a 30-minute conversation with our team, not another test.", 3 * 60);
       say(invited, true, "Thank you! I have booked the time. Should I join from my work computer?", 55, false);
     }

@@ -50,7 +50,7 @@ console.log("\nThe box grows with what is in it");
   check("it is measured from the words themselves, after every change to them", /useLayoutEffect\(\(\) => \{\s*const box = composerRef\.current;\s*if \(!box\) return;\s*box\.style\.height = "auto";[\s\S]{0,420}box\.style\.height = `\$\{Math\.max\(COMPOSER_MIN_PX, Math\.min\(box\.scrollHeight, most\)\)\}px`;/.test(page) && /\}, \[draft, contactId, partnerShort\]\);/.test(page));
   check("…so typing no longer does its own measuring (a paste, a send and a new thread are covered the same way)", /onChange=\{\(e\) => setDraft\(e\.target\.value\)\}/.test(page) && (page.match(/style\.height = /g) ?? []).length === 2);
   check("past the cap it scrolls inside; under it there is no inner scrollbar", /box\.style\.overflowY = box\.scrollHeight > most \? "auto" : "hidden";/.test(page));
-  check("the words are a readable size", /className="ck-scroll block w-full resize-none bg-transparent px-0\.5 text-\[14\.5px\] leading-\[1\.55\] outline-none"/.test(page));
+  check("the words are a readable size: 14.5px on a computer, 16px on a phone (an iPhone zooms the page in on a field with smaller text)", /className="ck-scroll block w-full resize-none bg-transparent px-0\.5 text-\[16px\] leading-\[1\.55\] outline-none md:text-\[14\.5px\]"/.test(page));
 }
 
 console.log("\nOne box, with Send inside it");
@@ -79,6 +79,22 @@ console.log("\nThe preview can open a thread");
   check("…and the stand-in client reads that filter (it used to have no such thing, and a thread never loaded)", /or\(filter: string\) \{/.test(client) && /anyOf\.some\(\(group\) => group\.every\(\(c\) => String\(row\[c\.col\] \?\? ""\) === c\.val\)\)/.test(client));
   const doc = await read("docs/MESSAGES.md");
   check("docs/MESSAGES.md explains it and names this test", doc.includes("## The message box") && doc.includes("scripts/messages_composer.test.mjs"));
+}
+
+console.log("\nOn a phone (2026-10-09: \"the messaging tab. You can't scroll\")");
+{
+  // The cause and the rule are in scripts/guards/no-scroll-traps.mjs; these
+  // pin the page's own part.
+  const cssCode = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const scrollRule = /(^|\n)\.ck-scroll \{([^}]*)\}/.exec(cssCode)?.[2] ?? "";
+  check("a box wearing .ck-scroll does not hold a finger's swipe to itself (the chat is as tall as the conversation there, the page scrolls)", scrollRule.includes("overflow-x: hidden") && !/overscroll-behavior/.test(scrollRule), scrollRule.trim());
+  check("only the shell's own scroller and a dialog's body do", /main\.ck-scroll,\s*\[role="dialog"\] \.ck-scroll \{\s*overscroll-behavior-y: contain;\s*\}/.test(cssCode));
+  check("after a send, the page follows the end of the chat, so Send does not slide under the tab bar", /sentAt\.current = Date\.now\(\);\s*await send\(text, contactId, activeApplicationId\);/.test(page) && /if \(el\.scrollHeight <= el\.clientHeight \+ 1 && Date\.now\(\) - sentAt\.current < SENT_FOLLOW_MS\) \{\s*const page = pageScroller\(el\);\s*if \(page\) page\.scrollTo\(\{ top: page\.scrollHeight \}\);\s*else window\.scrollTo\(\{ top: document\.documentElement\.scrollHeight \}\);/.test(page));
+  check("only after a send: a message arriving while you read further up does not move the page", !/thread\.length[^\n]*scrollIntoView/.test(page) && /const SENT_FOLLOW_MS = 4000;/.test(page));
+  check("a chat that gets taller just after it is drawn (the real font arriving, a picture loading) stays on its newest message", /const watch = new ResizeObserver\(\(\) => \{\s*if \(!held && Date\.now\(\) < until\) el\.scrollTop = el\.scrollHeight;\s*\}\);\s*watch\.observe\(inner\);/.test(page) && /const SETTLE_MS = 2500;/.test(page));
+  check("…unless the reader has already taken hold of it, and the watching stops with the chat", /el\.addEventListener\("wheel", hold, \{ passive: true \}\);\s*el\.addEventListener\("touchstart", hold, \{ passive: true \}\);/.test(page) && /watch\.disconnect\(\);\s*el\.removeEventListener\("wheel", hold\);/.test(page));
+  const preview = await read("src/dev-preview/install.ts");
+  check("the preview has a chat taller than a phone screen to try this on (?__previewChats=long)", /if \(seed === "some" \|\| seed === "long"\) \{/.test(preview) && /if \(seed === "long"\) \{/.test(preview));
 }
 
 console.log(`\n${passed} passed, ${failed} failed.`);

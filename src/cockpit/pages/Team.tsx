@@ -218,7 +218,11 @@ export default function CockpitTeam() {
           <div className="font-display text-[16px]" style={{ color: "var(--hf-text)", fontWeight: 600, lineHeight: 1.15, letterSpacing: "-0.01em" }}>Permissions at a glance</div>
           <p className="mt-0.5 text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>See what each role can do in Hireflow.</p>
 
-          <div className="ck-scroll mt-4 overflow-x-auto">
+          {/* Not .ck-scroll: that class is for a box that scrolls up and down
+              (it sets overflow-x: hidden and takes only up-and-down swipes), so
+              on a phone it cut this table off after the third column with no
+              way to reach the rest. This one scrolls sideways. */}
+          <div className="mt-4 overflow-x-auto pb-1" data-permissions-scroll>
             <div style={{ minWidth: 520 }}>
               <div className="grid items-end gap-2 pb-3" style={{ gridTemplateColumns: "1.6fr repeat(5, 1fr)", borderBottom: "1px solid var(--hf-border-strong)" }}>
                 <div className="text-[12px]" style={{ color: "var(--hf-text-muted)" }}>Permissions</div>

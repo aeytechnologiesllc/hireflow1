@@ -52,7 +52,8 @@ export function ApplicantNotesPanel({ applicationId, firstName, className = "" }
         rows={2}
         placeholder={`Add a note about ${firstName || "this applicant"}: why you like them, what to ask.`}
         aria-label={`A note about ${firstName || "this applicant"}`}
-        className="ck-input w-full resize-y px-3 py-2 !text-[13.5px] leading-[1.45]"
+        // 16px on a phone: an iPhone zooms the page in on a field with smaller text.
+        className="ck-input w-full resize-y px-3 py-2 !text-[16px] leading-[1.45] md:!text-[13.5px]"
         style={{ minHeight: 62 }}
         data-applicant-note-box
       />

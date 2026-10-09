@@ -22,7 +22,8 @@ export function SearchInput({
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange?.(e.target.value)}
-        className="w-full bg-transparent text-[14px] outline-none placeholder:text-[color:var(--hf-text-muted)]"
+        // 16px on a phone: an iPhone zooms the page in on a field with smaller text.
+        className="w-full bg-transparent text-[16px] outline-none placeholder:text-[color:var(--hf-text-muted)] md:text-[14px]"
         style={{ color: "var(--hf-text)" }}
       />
     </div>

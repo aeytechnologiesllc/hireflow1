@@ -16,10 +16,16 @@
   }
 }
 
-/* Reusable buttery scroll container (cockpit main, auth, candidate long pages) */
+/* Reusable buttery scroll container (auth, the Ava job pages).
+   It must NOT hold a swipe to itself (no overscroll-behavior here). Every page
+   that wears this is a wrapper as tall as its own content: the browser's page
+   scrolls, not this box. Since Chrome 144 a box that holds swipes holds them
+   even when it has nothing to scroll, so on a phone the applicant sign-in page
+   and "New job" could not be scrolled at all with a finger (found 2026-10-09
+   in the sweep after the owner's "can't scroll" on Messages; same cause as
+   .cand-root on 2026-10-04). scripts/guards/no-scroll-traps.mjs holds this. */
 .scroll-perf {
   overflow-x: hidden;
-  overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
 }
