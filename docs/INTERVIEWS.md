@@ -560,6 +560,40 @@ question."
   of date: `scripts/interview_guide.test.mjs` fails on the written
   interview's four topics for that reason.
 
+### Changing the questions (2026-10-09)
+
+"Why don't you also allow me to edit the interview guide so people can also
+make some changes here?"
+
+- **"Edit questions"** at the foot of the guide turns the same page into
+  boxes: the welcome, and every question with what to listen for and the red
+  flag. A question of his own can be added (up to ten, asked after the
+  built-in ones everyone gets); one he does not use can be taken out ("Do not
+  ask this one") and put back; a reworded one can go "Back to the original
+  words". The opening question can be reworded but not removed. Nothing
+  changes until **Save questions**; "Back to the original questions" drops
+  every change and takes two presses.
+- **The changes belong to the job, not the applicant.** Everyone interviewed
+  for the job is asked the same set, which is what lets the ratings be
+  compared. The editor says so.
+- **Only what was changed is kept** (`PlanEdits` in
+  `src/lib/interviewGuide.ts`), laid over the plan when the guide is shown
+  (`applyPlanEdits`). A built-in question nobody touched still follows the
+  code when its wording is improved there. A reworded question keeps its id,
+  so its ratings stay with it; one of his own is rated under its own id; a
+  rating on a question since taken out is still shown at the end of the guide.
+- Kept in `public.interview_plans`, one row per job, written only through
+  `save_interview_plan` (`supabase/migrations/*_interview_plans.sql`): the
+  job's owner, or a team member on that job who may manage the pipeline.
+  Every part is read and bounded; anything malformed is refused whole. **Only
+  the job's hiring team can read the table**: an applicant must never see
+  what they will be asked.
+- The `interview-guide` function reads the job's changes too, so the
+  questions it writes for one person never repeat one of his.
+- In the preview: `&__previewGuide=lead,planned` (starts with a reworded
+  opener, one question not asked and one added), `lead,plandown` (saving is
+  refused).
+
 ### Rating the answers (2026-10-09)
 
 "Give me a button that I could rate all of these answers from 1 to 10. Here
@@ -610,7 +644,10 @@ are saved, the wiring), `scripts/interview_guides.pglite.test.mjs` (against a
 real Postgres: the applicant cannot read their own guide, nobody writes the
 table from a client) and `scripts/interview_ratings.pglite.test.mjs` (against
 a real Postgres: who may save and read ratings, what is kept and what is
-refused, and that the applicant can never read how they were rated).
+refused, and that the applicant can never read how they were rated) and
+`scripts/interview_plans.pglite.test.mjs` (against a real Postgres: who may
+change a job's questions, what is kept and refused, and that an applicant can
+never read them).
 Before it shipped, a private trial copy of the function wrote guides for
 three real applicants; every quote it offered checked out as their own words.
 

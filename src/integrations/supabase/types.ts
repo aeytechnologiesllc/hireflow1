@@ -1179,6 +1179,35 @@ export type Database = {
           },
         ]
       }
+      interview_plans: {
+        Row: {
+          edits: Json
+          job_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          edits: Json
+          job_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          edits?: Json
+          job_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_plans_job_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       interview_ratings: {
         Row: {
           answers: Json
@@ -2839,6 +2868,10 @@ export type Database = {
       }
       set_applications_shortlisted: {
         Args: { p_application_ids: string[]; p_shortlisted: boolean }
+        Returns: Json
+      }
+      save_interview_plan: {
+        Args: { p_edits: Json; p_job_id: string }
         Returns: Json
       }
       save_interview_ratings: {

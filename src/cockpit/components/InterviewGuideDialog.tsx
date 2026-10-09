@@ -1,26 +1,41 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { format } from "date-fns";
-import { Copy, Loader2, RefreshCw, X } from "lucide-react";
+import { Copy, Loader2, Pencil, Plus, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 import AvaSeal from "@/components/ava/AvaSeal";
 import {
   GUIDE_RATING_MAX,
   GUIDE_SOURCE_LABELS,
   INTERVIEW_GUIDE_MINUTES,
+  NO_PLAN_EDITS,
+  PLAN_EDIT_LIMITS,
   RATING_LIMITS,
+  applyPlanEdits,
   earlierRatings,
+  editedPart,
   guideAnswerKeys,
   guideAsText,
   guideMarkKey,
   guideQuestionKey,
   interviewPlanFor,
+  planEditsAreEmpty,
   ratingsSummary,
+  removedQuestions,
+  withNewQuestion,
+  withOriginalWords,
+  withQuestionBack,
+  withQuestionPart,
+  withWelcome,
+  withoutQuestion,
   type GuideQuestion,
   type GuideRating,
+  type InterviewPlan,
   type PersonalQuestion,
+  type PlanEdits,
+  type QuestionPart,
 } from "@/lib/interviewGuide";
-import { GUIDE_WRITE_WORDS, useInterviewGuide } from "../hooks/useInterviewGuide";
+import { GUIDE_WRITE_WORDS, PLAN_SAVE_WORDS, useInterviewGuide, type PlanSaveFailure } from "../hooks/useInterviewGuide";
 import { RATINGS_SAVE_WORDS, useInterviewRatings } from "../hooks/useInterviewRatings";
 
 /**
@@ -45,6 +60,13 @@ import { RATINGS_SAVE_WORDS, useInterviewRatings } from "../hooks/useInterviewRa
  * numbers and a notes box. There is no Save button: a tap or a word is kept
  * a moment after he stops (hooks/useInterviewRatings.ts), and the foot of
  * the guide says so. Only the hiring team can ever read them.
+ *
+ * And it can be changed (2026-10-09: "why don't you also allow me to edit the
+ * interview guide"): "Edit questions" turns the same page into boxes: the
+ * welcome, every question with what to listen for and the red flag, a
+ * question of his own added, one he does not use taken out and put back.
+ * The changes are the JOB's (public.interview_plans), so everyone interviewed
+ * for it is asked the same set and the ratings can still be compared.
  *
  * Portalled to <body> like the cockpit's other dialogs: the entrance
  * animations leave a transform on an ancestor, which would trap a fixed
@@ -204,27 +226,196 @@ function QuestionCard({ n, q, rating }: { n: number; q: GuideQuestion | Personal
                 </dd>
               </div>
             )}
-            <div>
-              <dt className="inline font-semibold" style={{ color: "var(--jade)" }}>
-                Listen for:{" "}
-              </dt>
-              <dd className="inline" style={{ color: "var(--hf-text-soft)" }}>
-                {q.listenFor}
-              </dd>
-            </div>
-            <div>
-              <dt className="inline font-semibold" style={{ color: "var(--amber-fg)" }}>
-                Red flag:{" "}
-              </dt>
-              <dd className="inline" style={{ color: "var(--hf-text-soft)" }}>
-                {q.redFlag}
-              </dd>
-            </div>
+            {q.listenFor && (
+              <div>
+                <dt className="inline font-semibold" style={{ color: "var(--jade)" }}>
+                  Listen for:{" "}
+                </dt>
+                <dd className="inline" style={{ color: "var(--hf-text-soft)" }}>
+                  {q.listenFor}
+                </dd>
+              </div>
+            )}
+            {q.redFlag && (
+              <div>
+                <dt className="inline font-semibold" style={{ color: "var(--amber-fg)" }}>
+                  Red flag:{" "}
+                </dt>
+                <dd className="inline" style={{ color: "var(--hf-text-soft)" }}>
+                  {q.redFlag}
+                </dd>
+              </div>
+            )}
           </dl>
         </div>
       </div>
       <MyRating rating={rating} label={q.question} />
     </li>
+  );
+}
+
+/** A box as tall as what is in it, for changing a line of the plan. */
+function EditBox({ label, value, max, placeholder, strong, onChange }: { label: string; value: string; max: number; placeholder?: string; strong?: boolean; onChange: (text: string) => void }) {
+  const ref = useRef<HTMLTextAreaElement | null>(null);
+  useLayoutEffect(() => {
+    const box = ref.current;
+    if (!box) return;
+    box.style.height = "auto";
+    box.style.height = `${Math.max(box.scrollHeight, 38)}px`;
+  }, [value]);
+  return (
+    <label className="block">
+      <span className="text-[10.5px] font-bold uppercase tracking-[0.08em]" style={{ color: "var(--ink-3)" }}>
+        {label}
+      </span>
+      <textarea
+        ref={ref}
+        rows={1}
+        value={value}
+        maxLength={max}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        // 16px on a phone: an iPhone zooms the page in on a field with smaller text.
+        className={`ck-input mt-1 block w-full resize-none px-3 py-2 leading-[1.45] !text-[16px] ${strong ? "font-semibold md:!text-[14px]" : "md:!text-[13px]"}`}
+        data-plan-box={label}
+      />
+    </label>
+  );
+}
+
+/** One question while the plan is being changed: its words, what to listen for, the red flag. */
+function QuestionEditor({
+  id,
+  base,
+  edits,
+  removable,
+  onEdits,
+}: {
+  id: string;
+  base: InterviewPlan;
+  edits: PlanEdits;
+  /** False for the opening question: it can be reworded, not taken out. */
+  removable: boolean;
+  onEdits: (next: PlanEdits) => void;
+}) {
+  const own = edits.added.some((a) => a.id === id);
+  const reworded = !own && !!edits.changed[id];
+  const box = (part: QuestionPart, label: string, strong = false, placeholder?: string) => (
+    <EditBox
+      label={label}
+      strong={strong}
+      placeholder={placeholder}
+      max={part === "question" ? PLAN_EDIT_LIMITS.question : PLAN_EDIT_LIMITS.line}
+      value={editedPart(base, edits, id, part)}
+      onChange={(text) => onEdits(withQuestionPart(base, edits, id, part, text))}
+    />
+  );
+  return (
+    <li className="space-y-2.5 rounded-[12px] border px-3.5 py-3" style={{ borderColor: own ? "var(--jade)" : "var(--line)" }} data-plan-question={own ? "own" : "plan"} data-plan-id={id}>
+      {box("question", own ? "Your question" : "Question", true, "Write it the way you would say it")}
+      {box("listenFor", "Listen for", false, own ? "Optional: what a good answer sounds like" : undefined)}
+      {box("redFlag", "Red flag", false, own ? "Optional: what should worry you" : undefined)}
+      {(removable || reworded) && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px]">
+          {reworded && (
+            <button type="button" className="underline underline-offset-2" style={{ color: "var(--ink-2)" }} onClick={() => onEdits(withOriginalWords(edits, id))} data-plan-original>
+              Back to the original words
+            </button>
+          )}
+          {removable && (
+            <button type="button" className="underline underline-offset-2" style={{ color: "var(--hf-danger)" }} onClick={() => onEdits(withoutQuestion(base, edits, id))} data-plan-remove>
+              {own ? "Delete this question" : "Do not ask this one"}
+            </button>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
+/** The built-in questions taken out of a section, each with a way back. */
+function TakenOut({ questions, edits, onEdits }: { questions: GuideQuestion[]; edits: PlanEdits; onEdits: (next: PlanEdits) => void }) {
+  if (questions.length === 0) return null;
+  return (
+    <div className="mt-2 rounded-[10px] px-3 py-2.5 text-[12.5px] leading-snug" style={{ background: "var(--surface-2)", color: "var(--hf-text-soft)" }} data-plan-taken-out>
+      <p className="font-semibold" style={{ color: "var(--ink-2)" }}>
+        Not asked for this job
+      </p>
+      <ul className="mt-1 space-y-1.5">
+        {questions.map((q) => (
+          <li key={q.id} className="flex items-start justify-between gap-3">
+            <span className="min-w-0">{q.question}</span>
+            <button type="button" className="shrink-0 underline underline-offset-2" style={{ color: "var(--jade)" }} onClick={() => onEdits(withQuestionBack(edits, q.id))} data-plan-back>
+              Put back
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * The plan as boxes. Everything typed is in `edits` (lib/interviewGuide.ts,
+ * PlanEdits) and nothing is saved until "Save questions".
+ */
+function PlanEditor({ base, edits, jobName, onEdits }: { base: InterviewPlan; edits: PlanEdits; jobName: string; onEdits: (next: PlanEdits) => void }) {
+  const asked = (q: GuideQuestion) => !edits.removed.includes(q.id);
+  const taken = removedQuestions(base, edits);
+  const add = () => {
+    const next = withNewQuestion(edits);
+    if (!next) return;
+    onEdits(next.edits);
+    // Once it is drawn, the cursor goes in it.
+    window.requestAnimationFrame(() => {
+      document.querySelector<HTMLTextAreaElement>(`[data-plan-id="${next.id}"] textarea`)?.focus();
+    });
+  };
+  return (
+    <div data-plan-editor>
+      <p className="mt-4 rounded-[10px] px-3 py-2.5 text-[12.5px] leading-snug" style={{ background: "var(--surface-2)", color: "var(--hf-text-soft)" }}>
+        These are the questions for <span style={{ color: "var(--hf-text)", fontWeight: 600 }}>{jobName}</span>. Everyone you interview for it is asked the same ones, so your ratings can be compared. The questions
+        written for one person, and your ratings, are not changed here.
+      </p>
+
+      <SectionTitle>Welcome</SectionTitle>
+      <div className="mt-2">
+        <EditBox label="Say something like" max={PLAN_EDIT_LIMITS.welcome} value={edits.welcome ?? base.welcome} onChange={(text) => onEdits(withWelcome(base, edits, text))} />
+        {edits.welcome !== null && (
+          <button type="button" className="mt-1.5 text-[12px] underline underline-offset-2" style={{ color: "var(--ink-2)" }} onClick={() => onEdits({ ...edits, welcome: null })}>
+            Back to the original words
+          </button>
+        )}
+      </div>
+
+      <SectionTitle>Open with</SectionTitle>
+      <ol className="mt-2 space-y-2">
+        <QuestionEditor id={base.opener.id} base={base} edits={edits} removable={false} onEdits={onEdits} />
+      </ol>
+
+      <SectionTitle>Ask everyone</SectionTitle>
+      <ol className="mt-2 space-y-2">
+        {base.core.filter(asked).map((q) => (
+          <QuestionEditor key={q.id} id={q.id} base={base} edits={edits} removable onEdits={onEdits} />
+        ))}
+        {edits.added.map((q) => (
+          <QuestionEditor key={q.id} id={q.id} base={base} edits={edits} removable onEdits={onEdits} />
+        ))}
+      </ol>
+      <button type="button" className="ck-btn ck-btn-outline mt-2 !py-2 !text-[12.5px]" onClick={add} disabled={edits.added.length >= PLAN_EDIT_LIMITS.added} data-plan-add>
+        <Plus className="mr-1 inline h-3.5 w-3.5" aria-hidden />
+        Add a question of your own
+      </button>
+      <TakenOut questions={taken.filter((q) => base.core.some((c) => c.id === q.id))} edits={edits} onEdits={onEdits} />
+
+      <SectionTitle>Before you finish</SectionTitle>
+      <ol className="mt-2 space-y-2">
+        {base.close.filter(asked).map((q) => (
+          <QuestionEditor key={q.id} id={q.id} base={base} edits={edits} removable onEdits={onEdits} />
+        ))}
+      </ol>
+      <TakenOut questions={taken.filter((q) => base.close.some((c) => c.id === q.id))} edits={edits} onEdits={onEdits} />
+    </div>
   );
 }
 
@@ -241,12 +432,31 @@ export function InterviewGuideDialog({
   jobTitle?: string | null;
   onClose: () => void;
 }) {
-  const { record, isLoading, write, isWriting, writeFailure } = useInterviewGuide(applicationId, open);
+  const { record, isLoading, write, isWriting, writeFailure, savePlan, isSavingPlan } = useInterviewGuide(applicationId, open);
   const { ratings, ready, loadFailed, state: saveState, setScore, setNote, setOverallNote, flush } = useInterviewRatings(applicationId, open);
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const first = applicantName.trim().split(/\s+/)[0] || "them";
-  const plan = useMemo(() => interviewPlanFor(record?.family), [record?.family]);
+  // The plan as written here, and the plan this job is actually asked: the
+  // same with the job's own changes laid over it.
+  const basePlan = useMemo(() => interviewPlanFor(record?.family), [record?.family]);
+  const plan = useMemo(() => applyPlanEdits(basePlan, record?.planEdits), [basePlan, record?.planEdits]);
   const personal = record?.personal ?? null;
+  // Changing the questions: `draft` holds what is being typed; null = reading.
+  const [draft, setDraft] = useState<PlanEdits | null>(null);
+  const [planFailure, setPlanFailure] = useState<PlanSaveFailure | null>(null);
+  const [resetArmed, setResetArmed] = useState(false);
+  const editing = draft !== null;
+  const stopEditing = () => {
+    setDraft(null);
+    setPlanFailure(null);
+    setResetArmed(false);
+  };
+  // Another applicant, or the guide closed: never carry a half-made change over.
+  useEffect(() => {
+    setDraft(null);
+    setPlanFailure(null);
+    setResetArmed(false);
+  }, [open, applicationId]);
   const stageMinutes = (title: string) => plan.stages.find((s) => s.title === title)?.minutes;
   const summary = useMemo(() => ratingsSummary(ratings, guideAnswerKeys(plan, personal)), [ratings, plan, personal]);
   const earlier = useMemo(() => earlierRatings(ratings, plan, personal), [ratings, plan, personal]);
@@ -262,6 +472,23 @@ export function InterviewGuideDialog({
     onNote: (note: string) => setNote(key, note, question),
   });
   const rate = (q: GuideQuestion | PersonalQuestion) => ratingFor(guideQuestionKey(q), q.question);
+  const startEditing = () => {
+    flush();
+    setDraft(record?.planEdits ?? NO_PLAN_EDITS);
+    setPlanFailure(null);
+    setResetArmed(false);
+  };
+  // Save what was typed, or (null) go back to the questions as written.
+  const savePlanEdits = async (edits: PlanEdits | null) => {
+    setPlanFailure(null);
+    try {
+      await savePlan(edits);
+      stopEditing();
+      toast.success(edits ? "Questions saved for this job" : "Back to the original questions");
+    } catch (error) {
+      setPlanFailure((error as { reason?: PlanSaveFailure }).reason ?? "failed");
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -338,6 +565,16 @@ export function InterviewGuideDialog({
               <Loader2 className="h-4 w-4 animate-spin" style={{ color: "var(--jade)" }} aria-hidden />
               Opening the guide…
             </p>
+          ) : editing && draft ? (
+            <PlanEditor
+              base={basePlan}
+              edits={draft}
+              jobName={jobTitle?.trim() || "this job"}
+              onEdits={(next) => {
+                setDraft(next);
+                setResetArmed(false);
+              }}
+            />
           ) : (
           <>
           {/* The half hour at a glance. */}
@@ -549,6 +786,33 @@ export function InterviewGuideDialog({
         </div>
 
         {/* ── Foot ── */}
+        {editing && draft ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t px-5 py-3" style={{ borderColor: "var(--line)" }} data-plan-foot>
+            <span className="min-w-0 flex-1 text-[11.5px] leading-snug" style={{ color: planFailure ? "var(--amber-fg)" : "var(--ink-3)" }} role="status" data-plan-status>
+              {planFailure ? PLAN_SAVE_WORDS[planFailure] : resetArmed ? "This drops every change made to this job's questions." : "Nothing changes until you save."}
+            </span>
+            <span className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              {!planEditsAreEmpty(record?.planEdits) && (
+                <button
+                  type="button"
+                  className="ck-btn ck-btn-ghost !py-2 !text-[12px]"
+                  style={resetArmed ? { color: "var(--hf-danger)" } : undefined}
+                  onClick={() => (resetArmed ? void savePlanEdits(null) : setResetArmed(true))}
+                  disabled={isSavingPlan}
+                  data-plan-reset={resetArmed ? "armed" : "idle"}
+                >
+                  {resetArmed ? "Yes, back to the original" : "Back to the original questions"}
+                </button>
+              )}
+              <button type="button" className="ck-btn ck-btn-ghost !py-2 !text-[12px]" onClick={stopEditing} disabled={isSavingPlan} data-plan-cancel>
+                Cancel
+              </button>
+              <button type="button" className="ck-btn ck-btn-primary !py-2 !text-[12.5px]" onClick={() => void savePlanEdits(draft)} disabled={isSavingPlan} data-plan-save>
+                {isSavingPlan ? "Saving…" : "Save questions"}
+              </button>
+            </span>
+          </div>
+        ) : (
         <div className="flex flex-wrap items-center justify-between gap-2 border-t px-5 py-3" style={{ borderColor: "var(--line)" }}>
           {saveState !== "idle" ? (
             <span
@@ -573,12 +837,19 @@ export function InterviewGuideDialog({
                 {isWriting ? "Writing…" : `Write ${first}'s again`}
               </button>
             )}
+            {record?.jobId && record.plansDeployed && (
+              <button type="button" className="ck-btn ck-btn-ghost !py-2 !text-[12px]" onClick={startEditing} disabled={isLoading} data-guide-edit>
+                <Pencil className="mr-1 inline h-3.5 w-3.5" aria-hidden />
+                Edit questions
+              </button>
+            )}
             <button type="button" className="ck-btn ck-btn-outline !py-2 !text-[12px]" onClick={copyAll} disabled={isLoading} data-guide-copy>
               <Copy className="mr-1 inline h-3.5 w-3.5" aria-hidden />
               Copy all
             </button>
           </span>
         </div>
+        )}
       </div>
     </div>,
     document.body,

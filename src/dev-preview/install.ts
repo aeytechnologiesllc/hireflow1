@@ -682,7 +682,9 @@ function previewCrowd(tables: FixtureTables, count: string | null): void {
  * entry with neither a score nor a note. `?__previewGuide=rated` starts with
  * two answers already rated for every applicant, so a guide can be opened as
  * it looks the day after a call; `?__previewGuide=ratedown` refuses every
- * save, to see what the guide says then.
+ * save, to see what the guide says then. The same stand-in keeps a job's own
+ * changes to the questions: `planned` starts with some, `plandown` refuses
+ * to save them.
  */
 function previewRatingHandlers(tables: FixtureTables, user: FixtureAuthUser, mode: string | null): Record<string, (args: unknown) => unknown> {
   const flags = (mode ?? "").split(",");
@@ -703,7 +705,43 @@ function previewRatingHandlers(tables: FixtureTables, user: FixtureAuthUser, mod
       });
     }
   }
+  // A job's own changes to the guide's questions (*_interview_plans.sql):
+  // kept as sent, taken away when there is nothing in them. `planned` starts
+  // every job with a reworded opener, one question not asked and one added.
+  const plans = (tables.interview_plans ??= []);
+  if (flags.includes("planned")) {
+    for (const job of tables.jobs ?? []) {
+      plans.push({
+        job_id: job.id,
+        edits: {
+          version: 1,
+          welcome: null,
+          changed: { good_candidate: { question: "To start, what made you apply for this job?" } },
+          removed: ["disagreement"],
+          added: [{ id: "custom_demo000001", question: "Can you tell me about the best team you ever worked in?", listenFor: "What made it good, in their own words.", redFlag: "" }],
+        },
+        updated_by: user.id,
+        updated_at: new Date().toISOString(),
+      });
+    }
+  }
   return {
+    save_interview_plan: (args) => {
+      const { p_job_id: jobId, p_edits: edits } = (args ?? {}) as { p_job_id?: string; p_edits?: Record<string, unknown> | null };
+      if (flags.includes("plandown")) throw Object.assign(new Error("save_interview_plan: the stand-in refuses"), { code: "XX000" });
+      if (!jobId || !(tables.jobs ?? []).some((j) => j.id === jobId)) throw Object.assign(new Error("save_interview_plan: not allowed"), { code: "42501" });
+      const at = plans.findIndex((r) => r.job_id === jobId);
+      const e = edits ?? null;
+      const nothing = !e || (!e.welcome && Object.keys((e.changed as object) ?? {}).length === 0 && ((e.removed as unknown[]) ?? []).length === 0 && ((e.added as unknown[]) ?? []).length === 0);
+      if (nothing) {
+        if (at >= 0) plans.splice(at, 1);
+        return null;
+      }
+      const row = { job_id: jobId, edits: e, updated_by: user.id, updated_at: new Date().toISOString() };
+      if (at >= 0) plans[at] = row;
+      else plans.push(row);
+      return e;
+    },
     save_interview_ratings: (args) => {
       const { p_application_id: applicationId, p_answers: answers, p_overall_note: overall } = (args ?? {}) as { p_application_id?: string; p_answers?: Record<string, { score?: number | null; note?: string; question?: string }>; p_overall_note?: string };
       if (flags.includes("ratedown")) throw Object.assign(new Error("save_interview_ratings: the stand-in refuses"), { code: "XX000" });

@@ -36,7 +36,7 @@
  * reads the skills check and the chat practice the one way every scorer does).
  */
 import { flattenForReview, quoteIsApplicants } from "../_shared/reviewText.ts";
-import { interviewPlanFor, planQuestions, readPersonalGuide, GUIDE_SOURCES, type PersonalGuide } from "../_shared/interviewGuide.ts";
+import { applyPlanEdits, interviewPlanFor, planQuestions, readPersonalGuide, readPlanEdits, GUIDE_SOURCES, type PersonalGuide } from "../_shared/interviewGuide.ts";
 import {
   buildServerCandidateContext,
   candidateWrittenBlock,
@@ -73,6 +73,13 @@ export interface GuideRecord {
   interview: GuideTurn[];
   /** The applicant's own lines from their latest practice chat (for checking quotes only). */
   practiceLines: string[];
+  /**
+   * The job's own changes to the plan, as stored (public.interview_plans):
+   * questions reworded, not asked, or added by the hiring team. The writer
+   * is told the questions this job is ACTUALLY asked, so it does not repeat
+   * one of theirs. Absent or unreadable: the plan as written.
+   */
+  planEdits?: unknown;
 }
 
 const MAX_INTERVIEW_TURNS = 60;
@@ -237,7 +244,7 @@ function interviewForRequest(turns: GuideTurn[]): string {
  */
 export function buildGuideMessages(record: GuideRecord): Array<{ role: "system" | "user"; content: string }> {
   const { job } = record;
-  const plan = interviewPlanFor(record.family);
+  const plan = applyPlanEdits(interviewPlanFor(record.family), readPlanEdits(record.planEdits));
   const context = buildServerCandidateContext(record.notes, { quizQuestions: job.quizQuestions });
   const wrote = candidateWrittenBlock(context);
   const facts = recordLines(record);

@@ -385,6 +385,212 @@ export function readPersonalGuide(raw: unknown, quoteAllowed?: (quote: string) =
 }
 
 // ============================================================================
+// The owner's own changes to a job's plan
+// ============================================================================
+//
+// The owner, 2026-10-09, the day the plan was reworded: "why don't you also
+// allow me to edit the interview guide so people can also make some changes
+// here?" A plan is the same for every applicant to a job so that answers can
+// be compared; so are the changes: they are kept per JOB
+// (public.interview_plans, supabase/migrations/*_interview_plans.sql), and
+// every applicant for that job is asked the edited set.
+//
+// What is kept is only what was changed, laid over the plan above: a welcome
+// of his own, built-in questions reworded or not asked, and questions of his
+// own. So a built-in question nobody touched still follows this file when its
+// wording is improved here. The opener can be reworded but not removed.
+
+export const PLAN_EDIT_LIMITS = { welcome: 400, question: 320, line: 220, added: 10, changed: 20, removed: 20 } as const;
+
+/** A built-in question's id, or one of the owner's own ("custom_" and 6 to 16 letters or digits). */
+export const PLAN_QUESTION_ID = /^[a-z0-9_]{1,40}$/;
+export const CUSTOM_QUESTION_ID = /^custom_[a-z0-9]{6,16}$/;
+
+export interface QuestionEdit {
+  question?: string;
+  listenFor?: string;
+  redFlag?: string;
+}
+
+export interface PlanEdits {
+  version: number;
+  /** Said instead of the plan's welcome; null keeps the plan's own. */
+  welcome: string | null;
+  /** Built-in questions reworded, by id. Only the parts given replace the plan's. */
+  changed: Record<string, QuestionEdit>;
+  /** Built-in questions not asked for this job, by id. */
+  removed: string[];
+  /** The owner's own questions, asked after the built-in ones everyone gets. Listen-for and red flag may be empty. */
+  added: GuideQuestion[];
+}
+
+export const NO_PLAN_EDITS: PlanEdits = { version: 1, welcome: null, changed: {}, removed: [], added: [] };
+
+/** One plain line of at most `max` characters, or null when there is nothing in it. */
+function editText(value: unknown, max: number): string | null {
+  const line = plainText(typeof value === "string" ? value.slice(0, max * 2) : null, max * 2);
+  if (!line) return null;
+  return line.length > max ? line.slice(0, max).trimEnd() : line;
+}
+
+/**
+ * A job's stored changes, made safe to lay over a plan and to send back:
+ * known keys only, plain bounded single lines, ids of the right shape. Always
+ * returns changes (possibly none); anything unreadable is simply not there.
+ */
+export function readPlanEdits(raw: unknown): PlanEdits {
+  const out: PlanEdits = { version: 1, welcome: null, changed: {}, removed: [], added: [] };
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
+  const r = raw as Record<string, unknown>;
+  out.welcome = editText(r.welcome, PLAN_EDIT_LIMITS.welcome);
+  if (r.changed && typeof r.changed === "object" && !Array.isArray(r.changed)) {
+    for (const [id, value] of Object.entries(r.changed as Record<string, unknown>)) {
+      if (!PLAN_QUESTION_ID.test(id) || !value || typeof value !== "object" || Array.isArray(value)) continue;
+      const v = value as Record<string, unknown>;
+      const edit: QuestionEdit = {};
+      const question = editText(v.question, PLAN_EDIT_LIMITS.question);
+      const listenFor = editText(v.listenFor, PLAN_EDIT_LIMITS.line);
+      const redFlag = editText(v.redFlag, PLAN_EDIT_LIMITS.line);
+      if (question) edit.question = question;
+      if (listenFor) edit.listenFor = listenFor;
+      if (redFlag) edit.redFlag = redFlag;
+      if (Object.keys(edit).length === 0) continue;
+      out.changed[id] = edit;
+      if (Object.keys(out.changed).length >= PLAN_EDIT_LIMITS.changed) break;
+    }
+  }
+  if (Array.isArray(r.removed)) {
+    for (const id of r.removed) {
+      if (typeof id !== "string" || !PLAN_QUESTION_ID.test(id) || out.removed.includes(id)) continue;
+      out.removed.push(id);
+      if (out.removed.length >= PLAN_EDIT_LIMITS.removed) break;
+    }
+  }
+  if (Array.isArray(r.added)) {
+    for (const item of r.added) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+      const q = item as Record<string, unknown>;
+      const id = typeof q.id === "string" && CUSTOM_QUESTION_ID.test(q.id) ? q.id : null;
+      const question = editText(q.question, PLAN_EDIT_LIMITS.question);
+      if (!id || !question || out.added.some((a) => a.id === id)) continue;
+      out.added.push({ id, question, listenFor: editText(q.listenFor, PLAN_EDIT_LIMITS.line) ?? "", redFlag: editText(q.redFlag, PLAN_EDIT_LIMITS.line) ?? "" });
+      if (out.added.length >= PLAN_EDIT_LIMITS.added) break;
+    }
+  }
+  return out;
+}
+
+/** Nothing was changed: the job is asked the plan as written here. */
+export function planEditsAreEmpty(edits: PlanEdits | null | undefined): boolean {
+  return !edits || (!edits.welcome && Object.keys(edits.changed).length === 0 && edits.removed.length === 0 && edits.added.length === 0);
+}
+
+/**
+ * The plan a job is actually asked: the plan above with the job's changes
+ * laid over it. A change that names a question this plan does not have (it
+ * was made for another kind of job, or the question has since gone) does
+ * nothing. The opener is never removed.
+ */
+export function applyPlanEdits(base: InterviewPlan, edits: PlanEdits | null | undefined): InterviewPlan {
+  if (planEditsAreEmpty(edits)) return base;
+  const e = edits as PlanEdits;
+  const reword = (q: GuideQuestion): GuideQuestion => {
+    const change = e.changed[q.id];
+    return change ? { ...q, question: change.question || q.question, listenFor: change.listenFor || q.listenFor, redFlag: change.redFlag || q.redFlag } : q;
+  };
+  const asked = (q: GuideQuestion) => !e.removed.includes(q.id);
+  const builtIn = new Set([base.opener, ...base.core, ...base.close].map((q) => q.id));
+  return {
+    ...base,
+    welcome: e.welcome || base.welcome,
+    opener: reword(base.opener),
+    core: [...base.core.filter(asked).map(reword), ...e.added.filter((a) => !builtIn.has(a.id))],
+    close: base.close.filter(asked).map(reword),
+  };
+}
+
+/** The built-in questions a job's changes took out, in the plan's own order (so each can be put back). */
+export function removedQuestions(base: InterviewPlan, edits: PlanEdits | null | undefined): GuideQuestion[] {
+  if (!edits) return [];
+  return [...base.core, ...base.close].filter((q) => edits.removed.includes(q.id));
+}
+
+/** An id for a question the owner adds. */
+export function newCustomQuestionId(): string {
+  let tail = "";
+  while (tail.length < 10) tail += Math.random().toString(36).slice(2);
+  return `custom_${tail.slice(0, 10)}`;
+}
+
+// While the owner is editing, the changes hold exactly what is typed (a
+// half-written line, a box emptied to start again). They are read through
+// readPlanEdits before they are saved, which is where an empty box falls
+// back to the plan's own words and an added question with no words is dropped.
+
+export type QuestionPart = "question" | "listenFor" | "redFlag";
+
+/** What a question's box shows while editing: what was typed, else the plan's own words. */
+export function editedPart(base: InterviewPlan, edits: PlanEdits, id: string, part: QuestionPart): string {
+  const own = edits.added.find((a) => a.id === id);
+  if (own) return own[part];
+  const typed = edits.changed[id]?.[part];
+  if (typeof typed === "string") return typed;
+  return [base.opener, ...base.core, ...base.close].find((q) => q.id === id)?.[part] ?? "";
+}
+
+/** Type into one part of a question. Typing a built-in question back to the plan's own words un-changes it. */
+export function withQuestionPart(base: InterviewPlan, edits: PlanEdits, id: string, part: QuestionPart, text: string): PlanEdits {
+  const limit = part === "question" ? PLAN_EDIT_LIMITS.question : PLAN_EDIT_LIMITS.line;
+  const value = text.replace(/[\r\n]+/g, " ").slice(0, limit);
+  if (edits.added.some((a) => a.id === id)) {
+    return { ...edits, added: edits.added.map((a) => (a.id === id ? { ...a, [part]: value } : a)) };
+  }
+  const original = [base.opener, ...base.core, ...base.close].find((q) => q.id === id);
+  if (!original) return edits;
+  const change: QuestionEdit = { ...(edits.changed[id] ?? {}) };
+  if (value === original[part]) delete change[part];
+  else change[part] = value;
+  const changed = { ...edits.changed };
+  if (Object.keys(change).length === 0) delete changed[id];
+  else changed[id] = change;
+  return { ...edits, changed };
+}
+
+/** Say something else as the welcome. The plan's own words, typed back, un-change it. */
+export function withWelcome(base: InterviewPlan, edits: PlanEdits, text: string): PlanEdits {
+  const value = text.replace(/[\r\n]+/g, " ").slice(0, PLAN_EDIT_LIMITS.welcome);
+  return { ...edits, welcome: value === base.welcome ? null : value };
+}
+
+/** Stop asking a question: one of the owner's own goes for good, a built-in one can be put back. Never the opener. */
+export function withoutQuestion(base: InterviewPlan, edits: PlanEdits, id: string): PlanEdits {
+  if (edits.added.some((a) => a.id === id)) return { ...edits, added: edits.added.filter((a) => a.id !== id) };
+  if (id === base.opener.id || ![...base.core, ...base.close].some((q) => q.id === id) || edits.removed.includes(id)) return edits;
+  const changed = { ...edits.changed };
+  delete changed[id];
+  return { ...edits, changed, removed: [...edits.removed, id] };
+}
+
+/** Ask a built-in question again, in the plan's own words. */
+export function withQuestionBack(edits: PlanEdits, id: string): PlanEdits {
+  return { ...edits, removed: edits.removed.filter((r) => r !== id) };
+}
+
+/** A built-in question back to the plan's own words. */
+export function withOriginalWords(edits: PlanEdits, id: string): PlanEdits {
+  const changed = { ...edits.changed };
+  delete changed[id];
+  return { ...edits, changed };
+}
+
+/** One more question of the owner's own, empty, at the end of the ones everyone gets. Null when there are already ten. */
+export function withNewQuestion(edits: PlanEdits): { edits: PlanEdits; id: string } | null {
+  if (edits.added.length >= PLAN_EDIT_LIMITS.added) return null;
+  const id = newCustomQuestionId();
+  return { edits: { ...edits, added: [...edits.added, { id, question: "", listenFor: "", redFlag: "" }] }, id };
+}
+
+// ============================================================================
 // Ratings: what the interviewer thought of each answer
 // ============================================================================
 
@@ -494,7 +700,8 @@ export function guideAsText(plan: InterviewPlan, personal: PersonalGuide | null,
     lines.push(`${n}. ${q.question}`);
     if ("quote" in q && q.quote) lines.push(`   Their words: "${q.quote}"`);
     if ("why" in q) lines.push(`   Why ask: ${q.why}`);
-    lines.push(`   Listen for: ${q.listenFor}`, `   Red flag: ${q.redFlag}`);
+    if (q.listenFor) lines.push(`   Listen for: ${q.listenFor}`);
+    if (q.redFlag) lines.push(`   Red flag: ${q.redFlag}`);
     mine(guideQuestionKey(q));
     lines.push("");
   };

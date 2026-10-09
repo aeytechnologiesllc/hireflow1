@@ -322,7 +322,7 @@ console.log("\nWhere it is kept, and where it shows\n");
   check("the page sends the application's id and nothing else", /supabase\.functions\.invoke\("interview-guide", \{ body: \{ applicationId \} \}\)/.test(hook) && (hook.match(/functions\.invoke\(/g) ?? []).length === 1);
   check("the page only reads the table", /\.from\("interview_guides"\)\.select\("guide, generated_at"\)/.test(hook) && !/\.from\("interview_guides"\)[\s\S]{0,60}\.(insert|update|upsert|delete)\(/.test(hook));
   check("what it reads back goes through the same reader", /personal: readPersonalGuide\(guide\.data\?\.guide\)/.test(hook) && /const personal = readPersonalGuide\(\(data as/.test(hook));
-  check("a missing table or function reads as 'not switched on yet', never an error card", /if \(isRecordNotDeployed\(guide\.error\)\) return \{ family, personal: null, generatedAt: null, deployed: false \};/.test(hook) && /not_deployed: "Personal questions are not switched on yet\."/.test(hook));
+  check("a missing table or function reads as 'not switched on yet', never an error card", /if \(isRecordNotDeployed\(guide\.error\)\) return \{ family, personal: null, generatedAt: null, deployed: false, jobId, planEdits, plansDeployed \};/.test(hook) && /not_deployed: "Personal questions are not switched on yet\."/.test(hook));
   check("each way it can fail has plain words", ["ai_unavailable", "nothing_yet", "rate_limited", "not_deployed", "failed"].every((k) => new RegExp(`${k}: "[A-Z]`).test(hook)));
 
   const dialog = await read("src/cockpit/components/InterviewGuideDialog.tsx");
@@ -447,6 +447,110 @@ console.log("\nRatings: what the interviewer thought of each answer (2026-10-09)
   check("the preview can rate, start rated, and refuse a save, offline", /save_interview_ratings: \(args\) => \{/.test(install) && /flags\.includes\("rated"\)/.test(install) && /flags\.includes\("ratedown"\)/.test(install));
   const doc = await read("docs/INTERVIEWS.md");
   check("docs/INTERVIEWS.md explains the wording, the ratings and names the tests", doc.includes("### How the questions sound") && doc.includes("### Rating the answers") && doc.includes("interview_ratings") && doc.includes("scripts/interview_ratings.pglite.test.mjs"));
+}
+
+// ============================================================================
+console.log("\nThe owner's own changes to a job's questions (2026-10-09)\n");
+{
+  const base = G.interviewPlanFor("team_lead");
+  const none = G.readPlanEdits(null);
+  check("nothing stored, or something unreadable: no changes, and the plan is the plan", G.planEditsAreEmpty(none) && G.applyPlanEdits(base, none) === base && G.applyPlanEdits(base, null) === base && G.planEditsAreEmpty(G.readPlanEdits("x")) && G.planEditsAreEmpty(G.readPlanEdits([1])));
+
+  const stored = {
+    version: 1,
+    welcome: "Thanks for joining. About half an hour.",
+    changed: { good_candidate: { question: "To start, what made you apply?" }, hard_day: { listenFor: "One real day, told calmly." }, no_such_question: { question: "Ignored." } },
+    removed: ["disagreement", "their_questions", "good_candidate"],
+    added: [{ id: "custom_ab12cd34", question: "Can you tell me about your best team?", listenFor: "", redFlag: "" }],
+  };
+  const edits = G.readPlanEdits(stored);
+  const plan = G.applyPlanEdits(base, edits);
+  check("a welcome of his own is said instead of the plan's", plan.welcome === stored.welcome && base.welcome !== stored.welcome);
+  check("a reworded question keeps its id (so its ratings stay with it) and its untouched parts", plan.opener.id === "good_candidate" && plan.opener.question === "To start, what made you apply?" && plan.opener.listenFor === base.opener.listenFor);
+  check("one part can be changed alone", plan.core.find((q) => q.id === "hard_day").listenFor === "One real day, told calmly." && plan.core.find((q) => q.id === "hard_day").question === base.core.find((q) => q.id === "hard_day").question);
+  check("a question not asked is gone from where it was", !plan.core.some((q) => q.id === "disagreement") && !plan.close.some((q) => q.id === "their_questions") && plan.close.length === base.close.length - 1);
+  check("the opening question can be reworded but never removed", plan.opener.id === "good_candidate");
+  check("his own question is asked after the built-in ones everyone gets", plan.core[plan.core.length - 1].id === "custom_ab12cd34" && plan.core.length === base.core.length - 1 + 1);
+  check("a change that names a question this plan does not have does nothing", !JSON.stringify(plan).includes("Ignored."));
+  check("the rest of the plan is as written: the half hour, what is not asked again, what is rated after", plan.stages === base.stages && plan.alreadyAsked === base.alreadyAsked && plan.marks === base.marks && plan.verdict === base.verdict && plan.family === "team_lead");
+  check("the base plan itself is never changed by laying edits over it", G.interviewPlanFor("team_lead").opener.question === "To start, what makes you a good candidate for this role?" && G.interviewPlanFor("team_lead").core.length === 5);
+  check("his own question is rated under its own id, which the database accepts as a key", G.guideQuestionKey(plan.core[plan.core.length - 1]) === "custom_ab12cd34" && G.RATING_KEY.test("custom_ab12cd34"));
+  check("the questions taken out can be listed, in the plan's order, so each can be put back", show(G.removedQuestions(base, edits).map((q) => q.id)) === show(["disagreement", "their_questions"]));
+
+  const dirty = G.readPlanEdits({
+    welcome: "  Hello\nthere <b>you</b>  ",
+    changed: { "Bad Id": { question: "x" }, good_candidate: { question: "   ", listenFor: 7 }, hard_day: { question: "q".repeat(900) } },
+    removed: ["weak_agent", "weak_agent", "Not An Id", 5],
+    added: [{ id: "good_candidate", question: "posing as a built-in" }, { id: "custom_ab12cd34", question: "  Mine?  " }, { id: "custom_ab12cd34", question: "Twice?" }, { id: "custom_zz99yy88", question: "" }],
+    verdict: "No Hire",
+  });
+  check("what is read back is plain single lines, known keys, ids of the right shape", dirty.welcome === "Hello there b you /b" && show(Object.keys(dirty).sort()) === show(["added", "changed", "removed", "version", "welcome"]) && !("Bad Id" in dirty.changed) && !("good_candidate" in dirty.changed), show(dirty));
+  check("an over-long question is cut to the limit the database holds", dirty.changed.hard_day.question.length === G.PLAN_EDIT_LIMITS.question);
+  check("a question not asked is listed once, by a real id", show(dirty.removed) === show(["weak_agent"]));
+  check("an added question needs an id of its own kind and some words; a repeat is kept once", dirty.added.length === 1 && dirty.added[0].id === "custom_ab12cd34" && dirty.added[0].question === "Mine?" && dirty.added[0].listenFor === "" && dirty.added[0].redFlag === "");
+  const many = G.readPlanEdits({ added: Array.from({ length: 30 }, (_, i) => ({ id: `custom_aaaaaa${String(i).padStart(2, "0")}`, question: "Q?" })) });
+  check("at most ten of his own", many.added.length === G.PLAN_EDIT_LIMITS.added && G.PLAN_EDIT_LIMITS.added === 10);
+
+  // Editing, one keystroke at a time.
+  let e = G.NO_PLAN_EDITS;
+  e = G.withQuestionPart(base, e, "good_candidate", "question", "To start, why this job?");
+  check("typing into a built-in question records only that part", show(e.changed) === show({ good_candidate: { question: "To start, why this job?" } }) && G.editedPart(base, e, "good_candidate", "question") === "To start, why this job?" && G.editedPart(base, e, "good_candidate", "listenFor") === base.opener.listenFor);
+  check("typing it back to the plan's own words un-changes it", G.planEditsAreEmpty(G.withQuestionPart(base, e, "good_candidate", "question", base.opener.question)));
+  check("a box emptied to start again stays empty while typing, and falls back to the plan's words when read for saving", G.editedPart(base, G.withQuestionPart(base, e, "good_candidate", "question", ""), "good_candidate", "question") === "" && G.planEditsAreEmpty(G.readPlanEdits(G.withQuestionPart(base, G.NO_PLAN_EDITS, "good_candidate", "question", ""))));
+  check("line breaks cannot be typed into a question", G.withQuestionPart(base, G.NO_PLAN_EDITS, "hard_day", "question", "One\ntwo").changed.hard_day.question === "One two");
+  check("'Back to the original words' drops the change", G.planEditsAreEmpty(G.withOriginalWords(e, "good_candidate")));
+  const added = G.withNewQuestion(G.NO_PLAN_EDITS);
+  check("'Add a question' appends an empty one of his own with a fresh id", added && G.CUSTOM_QUESTION_ID.test(added.id) && added.edits.added.length === 1 && added.edits.added[0].question === "" && G.NO_PLAN_EDITS.added.length === 0);
+  const typed = G.withQuestionPart(base, added.edits, added.id, "question", "Can you tell me about your best team?");
+  check("…typed into like any other", typed.added[0].question === "Can you tell me about your best team?" && Object.keys(typed.changed).length === 0);
+  check("…and dropped when saved with no words in it", G.readPlanEdits(added.edits).added.length === 0);
+  let full = G.NO_PLAN_EDITS;
+  for (let i = 0; i < 10; i += 1) full = G.withNewQuestion(full).edits;
+  check("an eleventh is not offered", G.withNewQuestion(full) === null && new Set(full.added.map((a) => a.id)).size === 10);
+  const out = G.withoutQuestion(base, e, "hard_day");
+  check("'Do not ask this one' takes a built-in question out, and its rewording with it", show(out.removed) === show(["hard_day"]) && !("hard_day" in out.changed) && show(G.withQuestionBack(out, "hard_day").removed) === "[]");
+  check("the opening question cannot be taken out", G.withoutQuestion(base, G.NO_PLAN_EDITS, "good_candidate") === G.NO_PLAN_EDITS);
+  check("deleting his own question removes it for good", G.withoutQuestion(base, typed, added.id).added.length === 0 && G.withoutQuestion(base, typed, added.id).removed.length === 0);
+  check("the welcome is changed the same way, and typed back it is un-changed", G.withWelcome(base, G.NO_PLAN_EDITS, "Hello.").welcome === "Hello." && G.withWelcome(base, G.NO_PLAN_EDITS, base.welcome).welcome === null);
+
+  const text = G.guideAsText(plan, null, "Ana Reyes");
+  check("Copy all gives the job's own questions, and no empty 'Listen for' line for one of his own", /^1\. To start, what made you apply\?$/m.test(text) && /Can you tell me about your best team\?\n\n/.test(text) && text.startsWith("Interview guide: Ana Reyes") && text.includes(stored.welcome));
+
+  // The writer of the personal questions is told what THIS job is asked.
+  const jobRow = { title: "Chat Support Team Leader", description: "Lead six agents.", quizQuestions: [] };
+  const rec = { job: jobRow, family: "team_lead", notes: { applicationAnswers: [{ question: "q", answer: "a" }] }, interview: [], practiceLines: [], planEdits: stored };
+  const ask = M.buildGuideMessages(rec)[0].content;
+  check("the writer is told the job's edited questions, so it does not repeat one of his", ask.includes("1. To start, what made you apply?") && ask.includes("Can you tell me about your best team?") && !ask.includes("did not agree with you"));
+  check("…and a job with no changes is told the plan as written", M.buildGuideMessages({ ...rec, planEdits: null })[0].content.includes("1. To start, what makes you a good candidate for this role?"));
+  check("the guide's fingerprint moves when the job's questions do", M.guideFingerprint(rec) !== M.guideFingerprint({ ...rec, planEdits: null }));
+
+  const migrations = (await readdir(path.join(ROOT, "supabase/migrations"))).filter((n) => /^\d+_interview_plans\.sql$/.test(n));
+  check("one migration creates the plans table and its save function", migrations.length === 1, show(migrations));
+  const sql = migrations.length === 1 ? await read(`supabase/migrations/${migrations[0]}`) : "";
+  check("the page's limits are the database's limits", sql.includes(`char_length(v_welcome) > ${G.PLAN_EDIT_LIMITS.welcome}`) && sql.includes(`THEN ${G.PLAN_EDIT_LIMITS.question} ELSE ${G.PLAN_EDIT_LIMITS.line} END`) && sql.includes(`jsonb_array_length(p_edits -> 'added') > ${G.PLAN_EDIT_LIMITS.added}`) && sql.includes(`jsonb_array_length(p_edits -> 'removed') > ${G.PLAN_EDIT_LIMITS.removed}`) && sql.includes(`v_count > ${G.PLAN_EDIT_LIMITS.changed}`) && sql.includes("'^custom_[a-z0-9]{6,16}$'") && String(G.CUSTOM_QUESTION_ID) === "/^custom_[a-z0-9]{6,16}$/");
+  check("only the owner or a team member who manages the pipeline may change what everyone is asked", /public\.is_job_owner\(p_job_id, v_uid\) OR public\.is_active_team_member_for_job\(p_job_id, v_uid, true\)/.test(sql));
+  check("row level security on; read only, for the job's hiring team; no client role may write it", /ALTER TABLE public\.interview_plans ENABLE ROW LEVEL SECURITY;/.test(sql) && /REVOKE ALL ON public\.interview_plans FROM PUBLIC, anon, authenticated;/.test(sql) && /GRANT SELECT ON public\.interview_plans TO authenticated;/.test(sql) && !/GRANT (INSERT|UPDATE|DELETE|ALL)[^;]*ON public\.interview_plans[^;]*\b(authenticated|anon)\b/.test(sql));
+
+  const code = (src) => src.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  const hook = code(await read("src/cockpit/hooks/useInterviewGuide.ts"));
+  check("the page reads the job's changes for the applicant's own job, and only reads", /\.from\("applications"\)\.select\("ai_scorecard, job_id"\)/.test(hook) && /\.from\("interview_plans"\)\.select\("edits"\)\.eq\("job_id", jobId\)\.maybeSingle\(\)/.test(hook) && !/\.from\("interview_plans"\)[\s\S]{0,80}\.(insert|update|upsert|delete)\(/.test(hook));
+  check("a plans table that is not there yet reads as no changes; any other failure is a failure (never the wrong questions)", /if \(!isRecordNotDeployed\(plan\.error\)\) throw plan\.error;\s*plansDeployed = false;/.test(hook));
+  check("changes are saved through the one function, cleaned first, and what comes back is what is shown", /supabase\.rpc\("save_interview_plan", \{ p_job_id: jobId, p_edits: \(edits \? readPlanEdits\(edits\) : null\) as never \}\)/.test(hook) && /return readPlanEdits\(data\);/.test(hook));
+  check("each way saving can fail has plain words", ["not_allowed", "too_long", "not_deployed", "failed"].every((k) => new RegExp(`${k}: "[A-Z]`).test(hook)));
+  const fn = code(await read("supabase/functions/interview-guide/index.ts"));
+  check("the function reads the job's changes itself, by the job it took from the application", /admin\.from\("interview_plans"\)\.select\("edits"\)\.eq\("job_id", jobId\)\.maybeSingle\(\)/.test(fn) && /planEdits: \(planRow\.data as \{ edits\?: unknown \} \| null\)\?\.edits \?\? null,/.test(fn));
+
+  const dialog = code(await read("src/cockpit/components/InterviewGuideDialog.tsx"));
+  check("the guide shows the job's own plan: the plan as written with the changes laid over it", /const basePlan = useMemo\(\(\) => interviewPlanFor\(record\?\.family\), \[record\?\.family\]\);\s*const plan = useMemo\(\(\) => applyPlanEdits\(basePlan, record\?\.planEdits\), \[basePlan, record\?\.planEdits\]\);/.test(dialog));
+  check("'Edit questions' opens the editor on a copy; nothing changes until Save", /setDraft\(record\?\.planEdits \?\? NO_PLAN_EDITS\);/.test(dialog) && dialog.includes("data-guide-edit") && /Nothing changes until you save\./.test(dialog) && (dialog.match(/savePlan\(/g) ?? []).length === 1);
+  check("the opener can be reworded, not removed; the others can be taken out and put back", /<QuestionEditor id=\{base\.opener\.id\} base=\{base\} edits=\{edits\} removable=\{false\}/.test(dialog) && dialog.includes("data-plan-remove") && dialog.includes("data-plan-back") && /Do not ask this one/.test(dialog));
+  check("'Back to the original questions' takes two presses", /resetArmed \? void savePlanEdits\(null\) : setResetArmed\(true\)/.test(dialog) && /Yes, back to the original/.test(dialog));
+  check("a half-made change is never carried to another applicant or kept after closing", /useEffect\(\(\) => \{\s*setDraft\(null\);\s*setPlanFailure\(null\);\s*setResetArmed\(false\);\s*\}, \[open, applicationId\]\);/.test(dialog));
+  check("it says whose questions these are", /These are the questions for/.test(dialog) && /Everyone you interview for it is asked the same ones/.test(dialog));
+  const types = await read("src/integrations/supabase/types.ts");
+  check("the app's types know the table and the function", /interview_plans: \{\s+Row: \{\s+edits: Json/.test(types) && /save_interview_plan: \{\s+Args: \{ p_edits: Json; p_job_id: string \}/.test(types));
+  const doc = await read("docs/INTERVIEWS.md");
+  check("docs/INTERVIEWS.md explains it and names the tests", doc.includes("### Changing the questions") && doc.includes("interview_plans") && doc.includes("scripts/interview_plans.pglite.test.mjs"));
 }
 
 console.log(`\n${passed} passed, ${failed} failed.`);

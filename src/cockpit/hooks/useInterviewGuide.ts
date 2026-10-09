@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { readPersonalGuide, type PersonalGuide } from "@/lib/interviewGuide";
+import { NO_PLAN_EDITS, readPersonalGuide, readPlanEdits, type PersonalGuide, type PlanEdits } from "@/lib/interviewGuide";
 import { isRecordNotDeployed } from "./useAssessmentSessions";
 
 /**
@@ -19,6 +19,11 @@ import { isRecordNotDeployed } from "./useAssessmentSessions";
  *
  * Until the migration is applied the table does not exist: that reads as "not
  * written yet", and writing says it is not switched on yet.
+ *
+ * It also reads the job's own changes to the plan (public.interview_plans,
+ * PlanEdits): a welcome of their own, questions reworded, not asked, or
+ * added. They are per job, so every applicant for the job is asked the same
+ * set, and they are saved through save_interview_plan and nothing else.
  */
 
 export const interviewGuideKeys = {
@@ -32,6 +37,29 @@ export interface InterviewGuideRecord {
   generatedAt: string | null;
   /** False when the table is not there yet (the migration is not applied). */
   deployed: boolean;
+  /** The applicant's job: a plan's changes are kept per job. */
+  jobId: string | null;
+  /** The job's own changes to the plan (none when nothing was changed). */
+  planEdits: PlanEdits;
+  /** False when public.interview_plans is not there yet. */
+  plansDeployed: boolean;
+}
+
+/** Why a job's changes could not be saved, in the words the dialog shows. */
+export type PlanSaveFailure = "not_allowed" | "too_long" | "not_deployed" | "failed";
+
+export const PLAN_SAVE_WORDS: Record<PlanSaveFailure, string> = {
+  not_allowed: "Only the owner, or a teammate who manages applicants, can change the questions.",
+  too_long: "One of the boxes holds too much. Shorten it and save again.",
+  not_deployed: "Changing the questions is not switched on yet.",
+  failed: "Your changes could not be saved just now. They are still on this screen: try again.",
+};
+
+function planFailureFrom(error: { code?: string | null; message?: string | null } | null | undefined): PlanSaveFailure {
+  if (isRecordNotDeployed(error)) return "not_deployed";
+  if (error?.code === "42501") return "not_allowed";
+  if (error?.code === "22023") return "too_long";
+  return "failed";
 }
 
 /** Why a personal part could not be written, in the words the dialog shows. */
@@ -74,15 +102,31 @@ export function useInterviewGuide(applicationId: string | null | undefined, enab
     queryFn: async (): Promise<InterviewGuideRecord> => {
       const [guide, application] = await Promise.all([
         supabase.from("interview_guides").select("guide, generated_at").eq("application_id", applicationId!).maybeSingle(),
-        supabase.from("applications").select("ai_scorecard").eq("id", applicationId!).maybeSingle(),
+        supabase.from("applications").select("ai_scorecard, job_id").eq("id", applicationId!).maybeSingle(),
       ]);
+      const jobId = typeof application.data?.job_id === "string" ? application.data.job_id : null;
+      // The job's own changes to the plan. A table that is not there yet
+      // reads as "nothing changed"; any other failure is a failure, because
+      // showing the plan without his changes would put the wrong questions
+      // in front of him.
+      let planEdits: PlanEdits = NO_PLAN_EDITS;
+      let plansDeployed = true;
+      if (jobId) {
+        const plan = await supabase.from("interview_plans").select("edits").eq("job_id", jobId).maybeSingle();
+        if (plan.error) {
+          if (!isRecordNotDeployed(plan.error)) throw plan.error;
+          plansDeployed = false;
+        } else {
+          planEdits = readPlanEdits(plan.data?.edits);
+        }
+      }
       const scorecard = application.data?.ai_scorecard;
       const family =
         scorecard && typeof scorecard === "object" && !Array.isArray(scorecard) && typeof (scorecard as Record<string, unknown>).jobFamily === "string"
           ? ((scorecard as Record<string, unknown>).jobFamily as string)
           : null;
       if (guide.error) {
-        if (isRecordNotDeployed(guide.error)) return { family, personal: null, generatedAt: null, deployed: false };
+        if (isRecordNotDeployed(guide.error)) return { family, personal: null, generatedAt: null, deployed: false, jobId, planEdits, plansDeployed };
         throw guide.error;
       }
       return {
@@ -90,6 +134,9 @@ export function useInterviewGuide(applicationId: string | null | undefined, enab
         personal: readPersonalGuide(guide.data?.guide),
         generatedAt: guide.data?.generated_at ?? null,
         deployed: true,
+        jobId,
+        planEdits,
+        plansDeployed,
       };
     },
   });
@@ -118,7 +165,30 @@ export function useInterviewGuide(applicationId: string | null | undefined, enab
         personal,
         generatedAt,
         deployed: true,
+        jobId: previous?.jobId ?? null,
+        planEdits: previous?.planEdits ?? NO_PLAN_EDITS,
+        plansDeployed: previous?.plansDeployed ?? true,
       }));
+    },
+  });
+
+  // Save the job's changes to the plan (null: back to the plan as written).
+  // What comes back is what the database kept, and that is what is shown.
+  const savePlan = useMutation({
+    // Said at once: a refusal (not allowed, too long) is not something a
+    // second try a second later would change.
+    retry: false,
+    mutationFn: async (edits: PlanEdits | null): Promise<PlanEdits> => {
+      const jobId = query.data?.jobId;
+      if (!jobId) throw Object.assign(new Error("no job"), { reason: "failed" as PlanSaveFailure });
+      const { data, error } = await supabase.rpc("save_interview_plan", { p_job_id: jobId, p_edits: (edits ? readPlanEdits(edits) : null) as never });
+      if (error) throw Object.assign(new Error(error.message), { reason: planFailureFrom(error) });
+      return readPlanEdits(data);
+    },
+    onSuccess: (planEdits) => {
+      queryClient.setQueryData<InterviewGuideRecord>(interviewGuideKeys.one(applicationId), (previous) => (previous ? { ...previous, planEdits, plansDeployed: true } : previous));
+      // Other applicants of the same job are asked the same questions.
+      void queryClient.invalidateQueries({ queryKey: ["interview-guide"] });
     },
   });
 
@@ -130,5 +200,8 @@ export function useInterviewGuide(applicationId: string | null | undefined, enab
     isWriting: write.isPending,
     /** Why the last write failed, or null. Cleared by the next write. */
     writeFailure: write.error instanceof GuideWriteError ? write.error.reason : write.error ? ("failed" as const) : null,
+    /** Save the job's changes to the plan; null puts the plan back as written. Rejects with `reason` (PlanSaveFailure). */
+    savePlan: (edits: PlanEdits | null) => savePlan.mutateAsync(edits),
+    isSavingPlan: savePlan.isPending,
   };
 }

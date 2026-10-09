@@ -194,9 +194,13 @@ Deno.serve(async (req) => {
 
     const job = interviewJobFrom(jobRow);
     if (!job) return jsonResponse({ error: "not_found", message: "That applicant could not be found." }, 404);
-    const [interview, practice] = await Promise.all([
+    const [interview, practice, planRow] = await Promise.all([
       latestConversation(admin, applicationId, "chat_interview"),
       latestConversation(admin, applicationId, "chat_simulation"),
+      // The job's own changes to the questions everyone is asked. A table
+      // that is not there, or a failed read, is "no changes": the plan as
+      // written is still a true list of questions not to repeat.
+      admin.from("interview_plans").select("edits").eq("job_id", jobId).maybeSingle(),
     ]);
     const record: GuideRecord = {
       job,
@@ -204,6 +208,7 @@ Deno.serve(async (req) => {
       notes: parseNotes((application as { notes?: unknown }).notes),
       interview,
       practiceLines: practice.filter((t) => t.role === "user").map((t) => t.content),
+      planEdits: (planRow.data as { edits?: unknown } | null)?.edits ?? null,
     };
     if (!enoughToWriteFrom(record)) {
       return jsonResponse({ error: "nothing_yet", message: "They have not sent their application yet, so there is nothing to write from." }, 409);
