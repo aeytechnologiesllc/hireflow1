@@ -5,6 +5,7 @@ import { useDocuments, type DocumentWithApplication } from "@/hooks/useDocuments
 import { DocumentRequestCard } from "@/components/documents/DocumentRequestCard";
 import { DocumentUploadDialog } from "@/components/documents/DocumentUploadDialog";
 import { SignedDocumentViewer } from "@/components/documents/SignedDocumentViewer";
+import { ApplicantDocumentSheet, isWrittenDocument } from "@/components/documents/ApplicantDocumentSheet";
 import { EmptyStateCard } from "@/components/EmptyStateCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,8 @@ function signStatusChip(doc: DocumentWithApplication): { label: string; bg: stri
 
 function SignDocumentRow({ doc, onView }: { doc: DocumentWithApplication; onView: () => void }) {
   const chip = signStatusChip(doc);
+  // Waiting on them: the button says what to do.
+  const theirTurn = doc.status === "pending" && !doc.candidate_signed_at && !doc.is_voided;
   return (
     <div className="ck-card flex flex-wrap items-center gap-x-3.5 gap-y-2.5 px-4 py-3.5">
       <span
@@ -60,9 +63,9 @@ function SignDocumentRow({ doc, onView }: { doc: DocumentWithApplication; onView
       >
         {chip.label}
       </span>
-      <Button size="sm" variant="outline" className="h-8 shrink-0 text-xs sm:text-sm" onClick={onView}>
-        <Eye className="mr-1 h-3.5 w-3.5" />
-        View
+      <Button size="sm" variant={theirTurn ? "default" : "outline"} className="h-8 shrink-0 text-xs sm:text-sm" onClick={onView} data-sign-open>
+        {theirTurn ? null : <Eye className="mr-1 h-3.5 w-3.5" />}
+        {theirTurn ? "Read and sign" : "View"}
       </Button>
     </div>
   );
@@ -80,7 +83,11 @@ export default function MyDocuments() {
   const { data: signDocuments = [], isLoading: signLoading } = useDocuments();
 
   const [uploadDialogRequest, setUploadDialogRequest] = useState<DocumentRequestWithDetails | null>(null);
+  // A written document (an offer letter) opens the applicant's signing
+  // screen; an uploaded PDF, or "Signing record", opens the full viewer.
+  const [sheetDocument, setSheetDocument] = useState<DocumentWithApplication | null>(null);
   const [viewerDocument, setViewerDocument] = useState<DocumentWithApplication | null>(null);
+  const openDocument = (doc: DocumentWithApplication) => (isWrittenDocument(doc.file_url) ? setSheetDocument(doc) : setViewerDocument(doc));
 
   if (isEmployer) {
     return (
@@ -139,7 +146,7 @@ export default function MyDocuments() {
               </h2>
               <div className="space-y-3">
                 {signDocuments.map((doc) => (
-                  <SignDocumentRow key={doc.id} doc={doc} onView={() => setViewerDocument(doc)} />
+                  <SignDocumentRow key={doc.id} doc={doc} onView={() => openDocument(doc)} />
                 ))}
               </div>
             </section>
@@ -174,6 +181,18 @@ export default function MyDocuments() {
           }
         }}
         request={uploadDialogRequest}
+      />
+
+      <ApplicantDocumentSheet
+        document={sheetDocument ? signDocuments.find((d) => d.id === sheetDocument.id) ?? sheetDocument : null}
+        open={!!sheetDocument}
+        onOpenChange={(open) => {
+          if (!open) setSheetDocument(null);
+        }}
+        onShowRecord={(doc) => {
+          setSheetDocument(null);
+          setViewerDocument(doc);
+        }}
       />
 
       <SignedDocumentViewer
