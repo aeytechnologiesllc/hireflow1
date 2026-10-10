@@ -1,45 +1,32 @@
 # HireFlow — App Icon & Brand Mark
 
-## Current app icon (LOCKED) — "Direction 4: Ivory tile + jade orb"
+## Current app icon — "A: the logo's own mark" (chosen 2026-10-11)
 
-The HireFlow app icon is a **warm ivory/cream tile** with the **deep-jade dotted-mesh Ava orb** centered, plus a single thin **brass arc**. It was chosen for prominence — a light tile stands out on a busy iPhone/Android home screen where almost every other icon is dark or saturated — while keeping the Ava orb as the brand mark and staying inside the Deep Jade + brass palette.
+The owner, 2026-10-10: "I'm not really loving this HireFlow app icon ... Logo
+is fine. The app icon and the favicon, we need to [change]." Of four options
+(https://claude.ai/artifact/8bREyawrQQqTqrggg94dtL) he chose **A**: the very
+mark beside the name in the app (`src/cockpit/components/Wordmark.tsx`): a
+**dark jade tile `#0C2A21`** with the **bright jade rising line `#3FCE97`**
+(applications come in flat; the good ones rise). The app, the browser tab and
+the phone now match.
 
-- **Master (source of truth):** [`branding/app-icon-master.png`](branding/app-icon-master.png) — 1024×1024, **full-bleed** (cream bleeds to all four edges, no rounded corners, no margin). Platforms apply their own corner mask, so the master MUST stay a plain square.
-- **Original concept render:** `branding/direction-4-original-render.png` (the squircle concept the master was rebuilt from).
+- **One drawing makes every size:** `node scripts/make-app-icons.mjs` (then the
+  two Pillow lines at its foot for `favicon.ico` and the in-app copy). The
+  line is the logo's path on a 64 grid, stroke 7.
+- **Rounded** (as a tab or launcher shows it): `favicon.svg`, `favicon-16/32`,
+  `favicon.ico`, `icon-192/512`, `favicon.png`.
+- **Full-bleed square** (the platform rounds it): `branding/app-icon-master.png`
+  (1024), `apple-touch-icon.png`, `app-icon.png`, `src/assets/app-icon-new.png`.
+- **Maskable** (Android): `maskable-512.png`, the line at 72% so it stays in
+  the safe circle.
+- Icon links use `?v=6` (`index.html`, `public/landing.html`,
+  `public/site.webmanifest`); bump them whenever the icon changes. The
+  manifest's install name is "HireFlow" (it was "Zulu Support Team").
 
-## Where it's wired (every surface)
-
-| Asset | Size | Path | Referenced by |
-|-------|------|------|---------------|
-| favicon (multi) | 16/32/48 | `public/favicon.ico` | `index.html` |
-| favicon png | 16, 32 | `public/favicon-16.png`, `public/favicon-32.png` | `index.html` |
-| inline logo | 512 | `public/favicon.png` | `src/pages/Terms.tsx`, `src/pages/Privacy.tsx` |
-| Apple touch | 180 | `public/apple-touch-icon.png` | `index.html` |
-| PWA any | 192, 512 | `public/icon-192.png`, `public/icon-512.png` | `public/site.webmanifest` |
-| PWA maskable | 512 | `public/maskable-512.png` | `public/site.webmanifest` (Android adaptive) |
-| general/store | 512 | `public/app-icon.png` | general use / store listing |
-| in-app logo | 512 | `src/assets/app-icon-new.png` | `src/components/AppSidebar.tsx`, `src/pages/CandidateAuth.tsx` (CSS-rounded in the UI) |
-
-PWA manifest: `public/site.webmanifest` (linked from `index.html`). `theme_color`/`background_color` = `#0a0f0d` (Deep Jade near-black, matches the app).
-
-Icon links in `index.html` use a `?v=4` cache-bust — **bump to v5+ whenever you change the icon** so browsers/installed PWAs refresh.
-
-## How to regenerate every asset from the master
-
-All sizes are derived from `branding/app-icon-master.png` (no AI needed to re-export):
-
-```python
-from PIL import Image
-m = Image.open('branding/app-icon-master.png').convert('RGB')
-for size, name in [(16,'favicon-16.png'),(32,'favicon-32.png'),(180,'apple-touch-icon.png'),
-                   (192,'icon-192.png'),(512,'icon-512.png'),(512,'maskable-512.png'),
-                   (512,'app-icon.png'),(512,'favicon.png')]:
-    m.resize((size,size), Image.LANCZOS).save('public/'+name)
-Image.open('branding/app-icon-master.png').convert('RGBA').save('public/favicon.ico', sizes=[(16,16),(32,32),(48,48)])
-m.resize((512,512), Image.LANCZOS).save('src/assets/app-icon-new.png')
-```
-
-Then bump the `?v=` query in `index.html` + `site.webmanifest`.
+The previous icon, "Direction 4" (an ivory tile with the jade Ava orb, chosen
+for home-screen prominence), is retired with it: it did not match the logo and
+read as a dot at tab size. Its render is kept at
+`branding/direction-4-original-render.png` for the record only.
 
 ## Backup direction (do not delete) — "Direction 5: Brass flow ribbon"
 
@@ -56,4 +43,4 @@ The previous icon was the **Ava orb on a dark near-black jade tile**. It and all
 
 **Update (2026-09-16): the orb is now retired in the product UI too.** There is no more `AvaOrb` component, and the `src/assets/ava-*.png` cartoon/orb renders and `src/assets/hireflow-logo.png` (the old neon wordmark, used only by the now-retired `/marketing-demo` page) have been deleted as unused. Ava's in-app mark today is **`AvaSeal`** (`src/components/ava/AvaSeal.tsx`) — a small code-drawn wax seal (jade disc, brass ring) used at badge scale (roughly 12–32px) next to her name or on work she produced. It is not a hero graphic; nothing in the product renders Ava at large scale anymore.
 
-This app-icon page is unaffected by that change — **per owner decision (2026-09-16), the launcher/app icon stays exactly as-is** (still "Direction 4: ivory tile + jade orb", unchanged). The icon is a separate asset from the in-app mark and was never wired to the retired `AvaOrb`/`AvaGlyph` components, so nothing above needs to change.
+On 2026-09-16 the owner kept the launcher icon as it was ("Direction 4"). On 2026-10-11 he replaced it with icon **A**, the logo's own mark (top of this page). Neither the old dark-tile orb nor the ivory-tile orb is to be brought back.

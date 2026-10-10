@@ -49,7 +49,7 @@
 
 ## Branding / App Icon
 
-The app icon is **"Direction 4" — an ivory tile with the jade Ava orb**. Master + full docs in [`BRANDING.md`](BRANDING.md). All web/Apple/PWA/Android-maskable assets live in `public/` and are derived from `branding/app-icon-master.png`. **Do NOT revive the old dark-tile orb icon** (removed 2026-06-30) — see the "DO NOT REVIVE" section in BRANDING.md. Direction 5 (brass flow) is kept as a backup at `branding/backup-icon-flow.png`.
+The app icon is **"A" — the logo's own mark**: a dark jade tile `#0C2A21` with the bright jade rising line `#3FCE97`, the same mark as `Wordmark.tsx` (chosen by the owner 2026-10-11; it replaced "Direction 4", the ivory tile with the jade orb). Every size is made by `node scripts/make-app-icons.mjs`; docs in [`BRANDING.md`](BRANDING.md). **Do NOT revive the old dark-tile orb icon** (removed 2026-06-30) — see the "DO NOT REVIVE" section in BRANDING.md. Direction 5 (brass flow) is kept as a backup at `branding/backup-icon-flow.png`.
 
 ## Distribution & billing state (updated 2026-09-16, first set 2026-09-04)
 
