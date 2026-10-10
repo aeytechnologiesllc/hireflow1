@@ -218,9 +218,13 @@ export default async function handler(req, res) {
       // describe an "AI-powered hiring platform" to an employer audience, and
       // anything preferring twitter:* over og:* — X among them — was serving
       // that to candidates with no job title in it at all.
-      // A shared job link shows the Zulu Support Team careers picture (the
-      // shell's og:image stays; twitter:* is stripped above, so it is named
-      // again here). Never HireFlow's landing image: this is the applicants' link.
+      // A shared job link shows the Zulu Support Team careers picture, named
+      // here rather than taken from the shell (the shell's og:* and twitter:*
+      // are stripped above). Never HireFlow's landing image: this is the
+      // applicants' link.
+      `<meta property="og:image" content="${origin}/share/zulu-careers.jpg" />` +
+      `<meta property="og:image:width" content="1200" />` +
+      `<meta property="og:image:height" content="630" />` +
       `<meta name="twitter:card" content="summary_large_image" />` +
       `<meta name="twitter:title" content="${esc(title)}" />` +
       `<meta name="twitter:description" content="${esc(desc)}" />` +
@@ -234,7 +238,7 @@ export default async function handler(req, res) {
       // job page carries EXACTLY ONE canonical — conflicting canonicals can make
       // Google index the homepage instead of the job.
       .replace(/<link\s+rel="canonical"[^>]*>\s*/gi, "")
-      .replace(/<meta\s+property="og:(title|description|url)"[^>]*>\s*/gi, "")
+      .replace(/<meta\s+property="og:(title|description|url|image(:[a-z]+)?)"[^>]*>\s*/gi, "")
       // The shell's twitter:* and plain description were being left in place, so
       // a prerendered job page still shipped the employer marketing line — and a
       // duplicated twitter:card alongside the one injected above.

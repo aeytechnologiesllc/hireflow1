@@ -73,7 +73,7 @@ console.log("\nApplicant links show the applicants' picture, never HireFlow's");
 const shell = await read("index.html");
 check("the app's shell (careers, job links): the Zulu Support Team picture", /<meta property="og:image" content="https:\/\/hireflownow\.com\/share\/zulu-careers\.jpg" \/>/.test(shell) && !/hireflow\.jpg/.test(shell));
 const prerender = await read("api/job-prerender.mjs");
-check("a job page's server render: the same, large", /<meta name="twitter:card" content="summary_large_image" \/>/.test(prerender) && /share\/zulu-careers\.jpg/.test(prerender) && !/hireflow\.jpg/.test(prerender));
+check("a job page's server render: the same, large, named by the render itself (not left to the shell)", /<meta name="twitter:card" content="summary_large_image" \/>/.test(prerender) && /<meta property="og:image" content="\$\{origin\}\/share\/zulu-careers\.jpg" \/>/.test(prerender) && /og:\(title\|description\|url\|image\(:\[a-z\]\+\)\?\)/.test(prerender) && !/hireflow\.jpg/.test(prerender));
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
