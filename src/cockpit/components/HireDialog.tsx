@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Lock, X } from "lucide-react";
 import { toast } from "sonner";
 import { useProfile } from "@/hooks/useProfile";
-import { DUE_CHOICES, REQUEST_KINDS, SIGN_OFFER_LINE, todoLine } from "@/lib/documentRequests";
+import { DUE_CHOICES, ID_DELETE_HOURS_AFTER_OPENED, REQUEST_KINDS, SIGN_OFFER_LINE, todoLine } from "@/lib/documentRequests";
 import { addDays, dayOf, longDate } from "../lib/offerLetter";
 import { useApplicantRequests, type NewRequest } from "../hooks/useApplicantRequests";
 import { useHireWithDocuments, useOfferLetterState } from "../hooks/useHire";
@@ -234,7 +234,7 @@ export function HireDialog({
                   {dueInDays && <p className="mt-2">Please do this within {dueInDays} {dueInDays === 1 ? "day" : "days"}.</p>}
                   {asksForDocuments && (
                     <p className="mt-2 text-[12px]" style={{ color: "var(--ink-3)" }}>
-                      Only {company || "your team"} can see what you send.{deletesIds ? " ID papers are deleted 30 days after they are approved." : ""}
+                      Only {company || "your team"} can see what you send.{deletesIds ? ` ID papers are deleted ${ID_DELETE_HOURS_AFTER_OPENED} hours after ${company || "your team"} first opens them.` : ""}
                     </p>
                   )}
                 </>

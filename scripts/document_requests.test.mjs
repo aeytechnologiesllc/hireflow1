@@ -42,8 +42,10 @@ eq("the list, in order", keys.join(","), "government_id,nbi_clearance,proof_of_a
 check("every kind has a name and a line to the applicant", lib.REQUEST_KINDS.every((k) => k.label && k.ask.length > 10));
 check("no bank account numbers are ever asked for", !lib.REQUEST_KINDS.some((k) => /bank account|account number|routing|iban|swift/i.test(`${k.label} ${k.ask}`)) && !keys.includes("bank_details"));
 eq("the payment email names Wise and PayPal", lib.requestKind("payment_email").ask, "The email you use on Wise or PayPal, so we can pay you there.");
-check("IDs are files, deleted after the set days; typed answers are kept", ["government_id", "nbi_clearance", "proof_of_address"].every((k) => lib.requestKind(k).answer === "file" && lib.requestKind(k).deleteAfterDays === lib.ID_KEEP_DAYS) && ["tin", "payment_email"].every((k) => lib.requestKind(k).answer === "text" && lib.requestKind(k).deleteAfterDays === null));
-eq("ID_KEEP_DAYS", lib.ID_KEEP_DAYS, 30);
+check("IDs are files and identity papers; typed answers are kept", ["government_id", "nbi_clearance", "proof_of_address"].every((k) => lib.requestKind(k).answer === "file" && lib.requestKind(k).idPaper === true) && ["tin", "payment_email"].every((k) => lib.requestKind(k).answer === "text" && lib.requestKind(k).idPaper === false));
+eq("an ID goes 24 hours after the team first opens it (the owner, 2026-10-10)", lib.ID_DELETE_HOURS_AFTER_OPENED, 24);
+eq("…or 7 days after it is sent if nobody opens it", lib.ID_DELETE_DAYS_UNOPENED, 7);
+eq("the promise, in one sentence", lib.idDeletionPromise("Zulu Support Team"), "HireFlow deletes it 24 hours after Zulu Support Team first opens it, and after 7 days if they never do.");
 eq("an older key still reads", lib.requestKind("drivers_license").label, "Driver's license");
 eq("…as a file", lib.requestKind("drivers_license").answer, "file");
 eq("an unknown key reads as a document", lib.requestKind("whatever").label, "Document");
@@ -69,19 +71,26 @@ eq("team: received", lib.statusWords("submitted", "team"), "Received");
 eq("team: asked again", lib.statusWords("rejected", "team"), "Asked again");
 eq("team: waiting", lib.statusWords("pending", "team"), "Waiting for them");
 eq("applicant: to send again", lib.statusWords("rejected", "applicant"), "Please send it again");
-const approved = "2026-10-10T08:00:00.000Z";
-eq("an ID is deleted 30 days after approval", lib.deletesOn("government_id", approved)?.toISOString(), "2026-11-09T08:00:00.000Z");
-eq("a TIN is not deleted", lib.deletesOn("tin", approved), null);
-eq("not approved: no date", lib.deletesOn("government_id", null), null);
-eq("a bad date: no date", lib.deletesOn("government_id", "soon"), null);
+const sentAt = "2026-10-10T08:00:00.000Z";
+const idSent = { document_type: "government_id", file_url: "ana/r1/id.jpg", submitted_at: sentAt, created_at: sentAt };
+eq("an ID nobody opened goes 7 days after it was sent", JSON.stringify(lib.idDeletion(idSent)), JSON.stringify({ at: new Date("2026-10-17T08:00:00.000Z"), opened: false, deleted: false }));
+eq("…once opened, 24 hours after the first opening", JSON.stringify(lib.idDeletion({ ...idSent, team_opened_at: "2026-10-10T09:30:00.000Z" })), JSON.stringify({ at: new Date("2026-10-11T09:30:00.000Z"), opened: true, deleted: false }));
+eq("…and once gone, the day it went", lib.idDeletion({ ...idSent, file_url: null, team_opened_at: "2026-10-10T09:30:00.000Z", file_deleted_at: "2026-10-11T10:17:00.000Z" })?.deleted, true);
+eq("a TIN is not deleted", lib.idDeletion({ document_type: "tin", file_url: null, submitted_at: sentAt }), null);
+eq("nothing sent: no date", lib.idDeletion({ document_type: "government_id", file_url: null }), null);
+eq("time left reads plainly", [lib.timeLeft(new Date("2026-10-11T09:30:00Z"), new Date("2026-10-10T10:30:00Z")), lib.timeLeft(new Date("2026-10-10T11:00:00Z"), new Date("2026-10-10T10:30:00Z")), lib.timeLeft(new Date("2026-10-17T08:00:00Z"), new Date("2026-10-10T10:00:00Z"))].join(" | "), "23 h | 30 min | 7 days");
 eq("due choices", lib.DUE_CHOICES.join(","), "3,5,7");
 
 // --- the cleanup function keeps the same list ------------------------------------
 {
   const cleanup = read("supabase/functions/document-cleanup/index.ts");
   const listed = JSON.parse((cleanup.match(/const DELETED_KINDS = (\[[^\]]*\]);/) ?? [])[1] ?? "[]");
-  eq("the cleanup function deletes the same kinds", listed.join(","), lib.DELETED_AFTER_APPROVAL.join(","));
-  eq("…after the same number of days", Number((cleanup.match(/const KEEP_DAYS = (\d+);/) ?? [])[1]), lib.ID_KEEP_DAYS);
+  eq("the cleanup function deletes the same kinds", listed.join(","), lib.ID_PAPER_KINDS.join(","));
+  eq("…24 hours after the first opening", Number((cleanup.match(/const HOURS_AFTER_OPENED = (\d+);/) ?? [])[1]), lib.ID_DELETE_HOURS_AFTER_OPENED);
+  eq("…or after the same days unopened", Number((cleanup.match(/const DAYS_UNOPENED = (\d+);/) ?? [])[1]), lib.ID_DELETE_DAYS_UNOPENED);
+  check("…reading the first opening, and when it was sent", /lte\("team_opened_at", openedBefore\)/.test(cleanup) && /is\("team_opened_at", null\)\.lte\("submitted_at", sentBefore\)/.test(cleanup));
+  const hourly = read("supabase/migrations/20261011130000_id_papers_deleted_after_opening.sql");
+  check("…every hour, so 24 hours means 24 hours", /'document-cleanup',\s*'17 \* \* \* \*'/.test(hourly));
   check("…only with the secret from Vault, checked by the database", /x-cleanup-secret/.test(cleanup) && /document_cleanup_secret_matches/.test(cleanup) && /401/.test(cleanup));
   check("…and only files in the applicant's own folder", /startsWith\(`\$\{request\.candidate_id\}\/`\)/.test(cleanup) && /includes\("\.\."\)/.test(cleanup));
   const schedule = read("supabase/migrations/20261010150100_document_cleanup_schedule.sql");
@@ -98,7 +107,9 @@ eq("due choices", lib.DUE_CHOICES.join(","), "3,5,7");
   check("the function signs a link of five minutes", /const LINK_SECONDS = 300;/.test(fn));
   check("…only for the applicant, the job's owner or its team", /user\.id === request\.candidate_id/.test(fn) && /is_job_owner/.test(fn) && /is_active_team_member_for_job/.test(fn));
   check("…records every opening", /action: "opened"/.test(fn));
-  check("…and answers 410 once a file was deleted", /file_deleted_at\) return jsonResponse\([^)]*410\)/.test(fn));
+  check("…and answers 410 once a file was deleted", /file_deleted_at && !request\.file_url\) return jsonResponse\([^)]*410\)/.test(fn));
+  check("…records the hiring side's first opening, only while unset (opening again never moves the deletion)", /user\.id !== request\.candidate_id && !teamOpenedAt/.test(fn) && /\.is\("team_opened_at", null\)/.test(fn));
+  check("…and can save the file instead of showing it", /download \? \{ download:/.test(fn));
   const hook = read("src/cockpit/hooks/useApplicantRequests.ts");
   const panel = read("src/cockpit/components/ApplicantDocumentsPanel.tsx");
   check("the team's screens open files through the function, never the bucket", /functions\.invoke\("requested-document-url"/.test(hook) && !/requested-documents/.test(hook + panel) && !/createSignedUrl/.test(hook + panel));
@@ -109,7 +120,7 @@ eq("due choices", lib.DUE_CHOICES.join(","), "3,5,7");
 {
   const dialog = read("src/components/documents/DocumentUploadDialog.tsx");
   check("the applicant types a TIN or payment email instead of uploading", /answerProblem\(/.test(dialog) && /answer_text: answer\.trim\(\)/.test(dialog));
-  check("…is told who sees it and when an ID is deleted", /Only the hiring team can see it/.test(dialog) && /days after they approve it/.test(dialog));
+  check("…is told who sees it and when an ID is deleted", /Only the hiring team can see it/.test(dialog) && /idDeletionPromise\("the hiring team"\)/.test(dialog));
   check("…and the team's bell names them, never their email", !/user\.email/.test(dialog));
   check("a file sent again replaces the earlier one", /remove\(\[previous\]\)/.test(dialog));
 }

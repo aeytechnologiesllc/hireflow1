@@ -12,6 +12,10 @@ import { TeamDocumentSheet } from "../components/TeamDocumentSheet";
 import { CockpitErrorCard } from "../components/ErrorCard";
 import { ActionDialog } from "../components/ActionDialog";
 import { OfferLetterDialog } from "../components/OfferLetterDialog";
+import { RequestDocumentsDialog } from "../components/RequestDocumentsDialog";
+import { RequestRow } from "../components/ApplicantDocumentsPanel";
+import { useAllRequests } from "../hooks/useApplicantRequests";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { invokeDocumentSigning } from "@/lib/documentSigningErrors";
@@ -289,9 +293,16 @@ export default function CockpitDocuments() {
   const { data: appsForDocs = [] } = useApplicationsForDocuments();
   const [wizard, setWizard] = useState<{ type?: string; appId?: string; mode?: "generate" | "upload" } | null>(null);
   // The plain offer letter (components/OfferLetterDialog.tsx): one screen, no
-  // AI. The older six-step screens stay behind "+ New document" for every
-  // other kind of document and for uploading a file of his own.
+  // AI. Anything else to sign is a file of his own ("Upload a file to sign");
+  // the six AI-written types are gone (the owner, 2026-10-10: "too much").
   const [offer, setOffer] = useState<{ appId?: string } | null>(null);
+  // "Ask for ID or papers": the request box, with its own applicant picker,
+  // and everything asked and sent listed here (the owner, 2026-10-10: "I
+  // still don't know how do I request ... a government ID").
+  const { role } = useAuth();
+  const canAsk = role === "employer";
+  const [asking, setAsking] = useState(false);
+  const { data: papers = [] } = useAllRequests();
   // Same underlying useDocuments() query useCockpitDocuments() already
   // calls (shared react-query cache, no extra fetch) — kept here too
   // because useCockpitDocuments only exposes the flattened DocRow shape,
@@ -418,11 +429,27 @@ export default function CockpitDocuments() {
       preSelectedApplicationId={wizard.appId}
       initialMode={wizard.mode ?? "generate"}
       preSelectedDocumentType={wizard.type}
+      uploadOnly
     />
   ) : null;
 
   // Mounted only while open, so every offer starts from empty boxes.
   const offerEl = offer ? <OfferLetterDialog open applicationId={offer.appId} onClose={() => setOffer(null)} /> : null;
+  const askEl = asking ? <RequestDocumentsDialog open onClose={() => setAsking(false)} /> : null;
+
+  // What was asked of whom, newest first: an ID waiting, one sent with its
+  // deletion clock, typed answers.
+  const papersEl =
+    papers.length > 0 ? (
+      <section className="mb-1" data-papers-list>
+        <SectionTitle flush>ID &amp; papers</SectionTitle>
+        <ul className="ck-card px-4 py-1">
+          {papers.map((request) => (
+            <RequestRow key={request.id} request={request} person={request.personName} />
+          ))}
+        </ul>
+      </section>
+    ) : null;
 
   const head = (
     <header className="ck-rise flex flex-wrap items-center gap-x-3.5 gap-y-2">
@@ -435,12 +462,17 @@ export default function CockpitDocuments() {
       <span className="text-[13px]" style={{ color: "var(--ink-3)" }}>
         Every offer, form and file you send &mdash; one drawer
       </span>
-      <div className="ml-auto flex gap-2 max-md:w-full max-md:[&>button]:flex-1">
+      <div className="ml-auto flex flex-wrap gap-2 max-md:w-full max-md:[&>button]:flex-1">
         <button className="ck-btn ck-btn-outline !py-2 !text-[12.5px]" onClick={() => setOffer({})} data-offer-open>
           Offer letter
         </button>
-        <button className="ck-btn ck-btn-ghost !py-2 !text-[12.5px]" onClick={() => setWizard({})}>
-          + New document
+        {canAsk && (
+          <button className="ck-btn ck-btn-outline !py-2 !text-[12.5px]" onClick={() => setAsking(true)} data-ask-papers>
+            Ask for ID or papers
+          </button>
+        )}
+        <button className="ck-btn ck-btn-ghost !py-2 !text-[12.5px]" onClick={() => setWizard({ mode: "upload" })} data-upload-to-sign>
+          Upload a file to sign
         </button>
       </div>
     </header>
@@ -484,13 +516,20 @@ export default function CockpitDocuments() {
             <button className="ck-btn ck-btn-primary" onClick={() => setOffer({})} data-offer-open>
               Write an offer letter
             </button>
+            {canAsk && (
+              <button className="ck-btn ck-btn-outline" onClick={() => setAsking(true)}>
+                Ask for ID or papers
+              </button>
+            )}
             <button className="ck-btn ck-btn-outline" onClick={() => setWizard({ mode: "upload" })}>
-              Upload a document
+              Upload a file to sign
             </button>
           </div>
         </section>
+        {papersEl}
         {wizardEl}
         {offerEl}
+        {askEl}
       </div>
     );
   }
@@ -540,9 +579,11 @@ export default function CockpitDocuments() {
         </span>
       </div>
 
+      {papersEl}
+
       {packet.length > 0 && (
         <>
-          <SectionTitle flush>Hiring packet</SectionTitle>
+          <SectionTitle flush={!papersEl}>Hiring packet</SectionTitle>
           <div className="flex flex-col gap-2">
             {packet.map((row, i) => (
               <DocRowItem key={row.id} row={row} index={i} primary={row.id === urgentId} onOpenViewer={openRow} onWithdraw={(r) => setActionDialog({ type: "withdraw", row: r })} onVoid={(r) => setActionDialog({ type: "void", row: r })} />
@@ -553,7 +594,7 @@ export default function CockpitDocuments() {
 
       {people.map((group, g) => (
         <div key={group.key}>
-          <SectionTitle flush={g === 0 && packet.length === 0}>{group.title}</SectionTitle>
+          <SectionTitle flush={g === 0 && packet.length === 0 && !papersEl}>{group.title}</SectionTitle>
           <div className="flex flex-col gap-2">
             {group.rows.map((row, i) => (
               <DocRowItem key={row.id} row={row} index={i} primary={row.id === urgentId} onOpenViewer={openRow} onWithdraw={(r) => setActionDialog({ type: "withdraw", row: r })} onVoid={(r) => setActionDialog({ type: "void", row: r })} />
@@ -564,6 +605,7 @@ export default function CockpitDocuments() {
 
       {wizardEl}
       {offerEl}
+      {askEl}
 
       <TeamDocumentSheet
         document={sheetDocument}

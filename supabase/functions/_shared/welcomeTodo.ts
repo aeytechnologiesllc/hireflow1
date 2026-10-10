@@ -23,7 +23,7 @@ export interface WelcomeTodo {
   items: string[];
   /** Whole days until the earliest due date still ahead, or null. */
   dueInDays: number | null;
-  /** True when an identity paper is asked for (deleted 30 days after approval). */
+  /** True when an identity paper is asked for (deleted 24 hours after the team first opens it). */
   deletesIds: boolean;
   /** True when at least one document is asked for (not only a signature). */
   asksForDocuments: boolean;
@@ -39,7 +39,7 @@ const LINES: Record<string, string> = {
   payment_email: "Type the email you use on Wise or PayPal",
 };
 
-/** The same kinds as DELETED_AFTER_APPROVAL in src/lib/documentRequests.ts. */
+/** The same kinds as ID_PAPER_KINDS in src/lib/documentRequests.ts. */
 const DELETED_KINDS = ["government_id", "nbi_clearance", "proof_of_address"];
 
 const OLDER: Record<string, string> = {

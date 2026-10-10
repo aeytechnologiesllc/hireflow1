@@ -69,6 +69,8 @@ export const SITE_PATHS: readonly string[] = [
   "jooble.xml",
   "robots.txt",
   "favicon.ico",
+  // The signature font (public/fonts, 2026-10-10).
+  "fonts",
   "manifest.webmanifest",
   "site.webmanifest",
   "index.html",

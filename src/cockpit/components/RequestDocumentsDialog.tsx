@@ -4,7 +4,7 @@ import { Lock, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { useOfferPeople, type OfferPerson } from "../hooks/useOfferLetter";
 import { useApplicantRequests, useSendRequests, type NewRequest } from "../hooks/useApplicantRequests";
-import { DUE_CHOICES, ID_KEEP_DAYS, REQUEST_KINDS } from "@/lib/documentRequests";
+import { DUE_CHOICES, ID_DELETE_HOURS_AFTER_OPENED, REQUEST_KINDS } from "@/lib/documentRequests";
 import { addDays, dayOf, longDate } from "../lib/offerLetter";
 
 /**
@@ -197,9 +197,9 @@ export function RequestDocumentsDialog({ open, applicationId, onClose }: { open:
                           <span className="mt-0.5 block text-[12.5px] leading-snug" style={{ color: "var(--ink-3)" }}>
                             {kind.ask}
                           </span>
-                          {kind.deleteAfterDays !== null && (
+                          {kind.idPaper && (
                             <span className="mt-1 block text-[11.5px] leading-snug" style={{ color: "var(--jade-soft-fg)" }}>
-                              Deleted {ID_KEEP_DAYS} days after you approve it.
+                              Deleted {ID_DELETE_HOURS_AFTER_OPENED} hours after you first open it.
                             </span>
                           )}
                         </span>
@@ -247,7 +247,7 @@ export function RequestDocumentsDialog({ open, applicationId, onClose }: { open:
           </div>
 
           <div className="min-w-0 md:sticky md:top-0 md:self-start">
-            <div className="mb-1.5 text-[12.5px] font-semibold" style={{ color: "var(--hf-text)" }}>What {first} will be asked</div>
+            <div className="mb-1.5 text-[12.5px] font-semibold" style={{ color: "var(--hf-text)" }}>What {person ? first : "they"} will be asked</div>
             <div className="rounded-[12px] border px-4 py-4 text-[13.5px] leading-[1.55]" style={{ borderColor: "var(--line)", background: "var(--hf-surface)", color: "var(--hf-text)", opacity: person ? 1 : 0.55 }} data-request-preview>
               {count === 0 ? (
                 <p style={{ color: "var(--ink-3)" }}>Tick what you need, and it shows here as they will see it.</p>
@@ -266,7 +266,7 @@ export function RequestDocumentsDialog({ open, applicationId, onClose }: { open:
             </div>
             <div className="mt-3 flex gap-2.5 rounded-[12px] px-3 py-2.5 text-[12.5px] leading-snug" style={{ background: "var(--surface-2)", color: "var(--ink-2)" }}>
               <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-              <span>Files are private: only you and {first} can open them, through a link that lasts five minutes, and every opening is recorded. IDs are deleted {ID_KEEP_DAYS} days after you approve them. Never ask for bank account numbers here; the payment email is enough to pay them on Wise or PayPal.</span>
+              <span>Files are private: only you and {person ? first : "the applicant"} can open them, through a link that lasts five minutes, and every opening is recorded. IDs are deleted {ID_DELETE_HOURS_AFTER_OPENED} hours after you first open them (download a copy if you need to keep one), or after 7 days if you never do. Never ask for bank account numbers here; the payment email is enough to pay them on Wise or PayPal.</span>
             </div>
           </div>
         </div>

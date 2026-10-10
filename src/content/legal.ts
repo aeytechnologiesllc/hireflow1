@@ -171,7 +171,8 @@ export const PRIVACY_POLICY: LegalDocument = {
       title: "How long we keep it",
       body: [
         "Most things are not deleted on a timer. We keep your account and your applications until you delete them, you ask us to, or the hiring team removes them.",
-        "The one exception is identity papers. A government ID, NBI clearance or proof of address you send when the hiring team asks for it is deleted 30 days after they approve it. If they ask you to send one again and you do not, the earlier file is deleted 30 days after they asked.",
+        "The one exception is identity papers. A government ID, NBI clearance or proof of address you send when the hiring team asks for it is deleted 24 hours after someone on the hiring team first opens it, or 7 days after you send it if nobody opens it.",
+        "In that time the hiring team may download a copy. A copy they keep is theirs to look after, under their own duties to protect it.",
         "When you delete your account, your profile, your applications, your test records and your files are deleted with it.",
         "A few technical records stay behind: a count of your test attempts, the start times of typing tests, a block-list entry if the account was blocked, and error reports. Signed documents and their records may also be kept where both sides may still need them or the law requires it.",
       ],

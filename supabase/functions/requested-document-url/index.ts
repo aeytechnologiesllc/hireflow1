@@ -2,7 +2,10 @@
  * requested-document-url: a five-minute link to the file an applicant sent
  * for a document request (docs/DOCUMENT-REQUESTS.md).
  *
- *   POST { requestId }  ->  { signedUrl, fileName, expiresIn }
+ *   POST { requestId, download? }  ->  { signedUrl, fileName, expiresIn, teamOpenedAt }
+ *
+ * `download: true` makes the link save the file instead of showing it
+ * ("Download a copy", for a team that wants to keep one past the deletion).
  *
  * The files live in the private `requested-documents` bucket, each in its
  * applicant's own folder. Since 2026-10-10 the hiring team can open one ONLY
@@ -16,8 +19,12 @@
  *
  * What is signed: only that request's own file_url, and only when it sits in
  * that applicant's folder (the database's guard already refuses anything
- * else; this checks again). A deleted file (an identity paper removed after
- * approval) answers 410.
+ * else; this checks again). A deleted file answers 410.
+ *
+ * The first time someone on the hiring side opens a file, this records it
+ * (document_requests.team_opened_at, which only the service role can write):
+ * an identity paper is deleted 24 hours after that (the owner, 2026-10-10;
+ * the document-cleanup function).
  *
  * verify_jwt = true (config.toml), plus auth.getUser() here.
  */
@@ -65,7 +72,7 @@ Deno.serve(async (req) => {
     const limited = await guardAuthenticatedAiCall("requested-document-url", user.id, corsHeaders, 300, 3600);
     if (limited) return limited;
 
-    let body: { requestId?: unknown };
+    let body: { requestId?: unknown; download?: unknown };
     try {
       body = await req.json();
     } catch {
@@ -77,7 +84,7 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, supabaseServiceKey);
     const { data: request, error: requestError } = await admin
       .from("document_requests")
-      .select("id, application_id, candidate_id, file_url, file_name, file_deleted_at, applications(job_id)")
+      .select("id, application_id, candidate_id, file_url, file_name, file_deleted_at, team_opened_at, applications(job_id)")
       .eq("id", requestId)
       .maybeSingle();
     if (requestError || !request) return jsonResponse({ error: "Request not found" }, 404);
@@ -96,10 +103,13 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "You do not have access to this file" }, 403);
     }
 
-    if (request.file_deleted_at) return jsonResponse({ error: "This file was deleted after it was approved" }, 410);
+    if (request.file_deleted_at && !request.file_url) return jsonResponse({ error: "This file has been deleted. Ask for it again if you need it." }, 410);
     if (!inOwnFolder(request.file_url, request.candidate_id)) return jsonResponse({ error: "Nothing has been sent for this request" }, 404);
 
-    const { data: signed, error: signError } = await admin.storage.from(BUCKET).createSignedUrl(request.file_url, LINK_SECONDS);
+    const download = body?.download === true;
+    const { data: signed, error: signError } = await admin.storage
+      .from(BUCKET)
+      .createSignedUrl(request.file_url, LINK_SECONDS, download ? { download: (request.file_name ?? "").trim() || true } : undefined);
     if (signError || !signed?.signedUrl) {
       console.error("[requested-document-url] could not sign", { requestId, error: signError });
       return jsonResponse({ error: "That file could not be opened" }, 404);
@@ -110,7 +120,22 @@ Deno.serve(async (req) => {
     const { error: logError } = await admin.from("document_request_events").insert({ request_id: request.id, user_id: user.id, action: "opened" });
     if (logError) console.error("[requested-document-url] could not record the opening", { requestId, error: logError.message });
 
-    return jsonResponse({ signedUrl: signed.signedUrl, fileName: request.file_name ?? "", expiresIn: LINK_SECONDS });
+    // The hiring side's first look starts the 24-hour clock. Only while it is
+    // unset, so opening it again never pushes the deletion back.
+    let teamOpenedAt = (request.team_opened_at as string | null) ?? null;
+    if (user.id !== request.candidate_id && !teamOpenedAt) {
+      const now = new Date().toISOString();
+      const { data: stamped, error: stampError } = await admin
+        .from("document_requests")
+        .update({ team_opened_at: now })
+        .eq("id", request.id)
+        .is("team_opened_at", null)
+        .select("team_opened_at");
+      if (stampError) console.error("[requested-document-url] could not record the first opening", { requestId, error: stampError.message });
+      teamOpenedAt = (stamped?.[0]?.team_opened_at as string | undefined) ?? now;
+    }
+
+    return jsonResponse({ signedUrl: signed.signedUrl, fileName: request.file_name ?? "", expiresIn: LINK_SECONDS, teamOpenedAt });
   } catch (error) {
     console.error("[requested-document-url] Unhandled error:", error instanceof Error ? error.message : "unknown");
     return jsonResponse({ error: "Internal error" }, 500);

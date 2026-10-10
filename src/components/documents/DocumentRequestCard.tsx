@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SecurityBadge } from "./SecurityBadge";
 import { DocumentRequestWithDetails } from "@/hooks/useDocumentRequests";
-import { deletesOn, requestKind, requestTitle } from "@/lib/documentRequests";
+import { idDeletion, requestKind, requestTitle, timeLeft } from "@/lib/documentRequests";
 import { cn } from "@/lib/utils";
 
 interface DocumentRequestCardProps {
@@ -96,9 +96,9 @@ export function DocumentRequestCard({
     .slice(0, 2);
 
   const isOverdue = request.due_date && new Date(request.due_date) < new Date() && request.status === "pending";
-  // A TIN or payment email is typed; an approved ID says when it is deleted.
+  // A TIN or payment email is typed; an ID says when it is deleted.
   const typed = requestKind(request.document_type).answer === "text";
-  const deleteDay = request.status === "approved" ? deletesOn(request.document_type, request.reviewed_at) : null;
+  const deletion = idDeletion(request);
 
   return (
     <motion.div
@@ -180,11 +180,13 @@ export function DocumentRequestCard({
                   </div>
                 )}
 
-                {!isEmployer && request.status === "approved" && (deleteDay || request.file_deleted_at) && (
+                {!isEmployer && deletion && (
                   <p className="mt-2 text-xs text-muted-foreground" data-request-deleted-note>
-                    {request.file_deleted_at
-                      ? `Your file was deleted on ${format(new Date(request.file_deleted_at), "MMM d")}, as promised.`
-                      : `Your file will be deleted on ${format(deleteDay as Date, "MMM d")}.`}
+                    {deletion.deleted
+                      ? `Your file was deleted on ${format(deletion.at, "MMM d")}, as promised.`
+                      : deletion.opened
+                        ? `The hiring team has seen it. HireFlow deletes your file in ${timeLeft(deletion.at)}.`
+                        : `HireFlow deletes your file 24 hours after the hiring team first opens it, and in ${timeLeft(deletion.at)} if they don't.`}
                   </p>
                 )}
               </div>

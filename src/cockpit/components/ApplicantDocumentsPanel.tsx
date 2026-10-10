@@ -1,18 +1,22 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { PanelLabel } from "./ProfileSection";
 import { isTypedAnswer, openRequestFile, useApplicantRequests, useReviewRequest, type ApplicantRequest } from "../hooks/useApplicantRequests";
-import { deletesOn, requestKind, requestTitle, shownAnswer, statusWords } from "@/lib/documentRequests";
+import { idDeletion, requestKind, requestTitle, shownAnswer, statusWords, timeLeft } from "@/lib/documentRequests";
 
 /**
  * The documents asked of one applicant, on their page
  * (docs/DOCUMENT-REQUESTS.md). Each line says what was asked and where it
  * stands; what they sent opens through the requested-document-url function
  * (a five-minute link, the opening recorded), and is approved or asked for
- * again here. An approved ID says the day it will be deleted.
+ * again here. An ID says when it goes: 24 hours after the team first opens
+ * it, or 7 days after it was sent (the owner, 2026-10-10), with "Download a
+ * copy" for a team that needs to keep one.
  */
 
 const DAY_FORMAT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+const TIME_FORMAT = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
 /** "Oct 10"; "today" while a row just sent has no date back yet. */
 const DAY = {
   format(value: Date): string {
@@ -27,28 +31,35 @@ function tone(status: string): { background: string; color: string } {
   return { background: "var(--surface-2)", color: "var(--ink-2)" };
 }
 
-function RequestRow({ request }: { request: ApplicantRequest }) {
+/** One request: what was asked, where it stands, what came back. `person` names the applicant (the Documents page's list). */
+export function RequestRow({ request, person }: { request: ApplicantRequest; person?: string }) {
   const review = useReviewRequest();
+  const queryClient = useQueryClient();
   const [asking, setAsking] = useState(false);
   const [reason, setReason] = useState("");
-  const [opening, setOpening] = useState(false);
+  const [opening, setOpening] = useState<"open" | "download" | null>(null);
   const typed = isTypedAnswer(request);
   const received = request.status === "submitted" || request.status === "reviewed";
-  const deleteDay = request.status === "approved" ? deletesOn(request.document_type, request.reviewed_at) : null;
+  const deletion = idDeletion(request);
 
-  const open = async () => {
-    setOpening(true);
+  const open = async (download: boolean) => {
+    setOpening(download ? "download" : "open");
     // Opened before the request finishes, so a phone's pop-up rule does not stop it.
-    const tab = window.open("", "_blank");
+    const tab = download ? null : window.open("", "_blank");
     try {
-      const url = await openRequestFile(request.id);
+      const url = await openRequestFile(request.id, download);
       if (tab) tab.location.href = url;
       else window.location.href = url;
+      // The first opening starts an ID's 24 hours: show it.
+      if (!request.team_opened_at) {
+        void queryClient.invalidateQueries({ queryKey: ["applicant-requests", request.application_id] });
+        void queryClient.invalidateQueries({ queryKey: ["all-requests"] });
+      }
     } catch (error) {
       tab?.close();
       toast.error((error as Error).message);
     } finally {
-      setOpening(false);
+      setOpening(null);
     }
   };
 
@@ -68,18 +79,16 @@ function RequestRow({ request }: { request: ApplicantRequest }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[13.5px] font-medium" style={{ color: "var(--hf-text)" }}>
-            {requestTitle(request)}
+            {person ? `${person} · ${requestTitle(request)}` : requestTitle(request)}
           </div>
           <div className="mt-0.5 text-[12px] leading-snug" style={{ color: "var(--ink-3)" }}>
             {request.status === "pending" && `Asked ${DAY.format(new Date(request.created_at))}${request.due_date ? `, due ${DAY.format(new Date(request.due_date))}` : ""}`}
             {received && request.submitted_at && `Sent ${DAY.format(new Date(request.submitted_at))}`}
             {request.status === "rejected" && (request.rejection_reason ? `Asked again: ${request.rejection_reason}` : "Asked again")}
-            {request.status === "approved" &&
-              (request.file_deleted_at
-                ? `Deleted ${DAY.format(new Date(request.file_deleted_at))}, after approval`
-                : deleteDay
-                  ? `Approved. Deleted on ${DAY.format(deleteDay)}`
-                  : "Approved")}
+            {request.status === "approved" && "Approved"}
+            {deletion && !deletion.deleted && deletion.opened && request.team_opened_at && ` · opened ${DAY.format(new Date(request.team_opened_at))}, ${TIME_FORMAT.format(new Date(request.team_opened_at))}`}
+            {deletion && !deletion.deleted && !deletion.opened && " · deleted 24 hours after you first open it"}
+            {deletion?.deleted && ` · file deleted ${DAY.format(deletion.at)}`}
           </div>
           {typed && request.answer_text && (
             <div className="mt-1 text-[13px] font-medium" style={{ color: "var(--hf-text)" }} data-request-answer>
@@ -87,17 +96,29 @@ function RequestRow({ request }: { request: ApplicantRequest }) {
             </div>
           )}
         </div>
-        <span className="shrink-0 rounded-[6px] px-2 py-[3px] text-[10.5px] font-semibold uppercase tracking-[0.05em]" style={tone(request.status)}>
-          {statusWords(request.status, "team")}
+        <span className="flex shrink-0 flex-col items-end gap-1">
+          <span className="rounded-[6px] px-2 py-[3px] text-[10.5px] font-semibold uppercase tracking-[0.05em]" style={tone(request.status)}>
+            {statusWords(request.status, "team")}
+          </span>
+          {deletion && !deletion.deleted && deletion.opened && (
+            <span className="rounded-[6px] px-2 py-[3px] text-[10.5px] font-semibold" style={{ background: "var(--crit-bg)", color: "var(--crit)" }} data-request-deletes>
+              Deleted in {timeLeft(deletion.at)}
+            </span>
+          )}
         </span>
       </div>
 
-      {(received || (request.status === "approved" && !typed && !request.file_deleted_at)) && !asking && (
+      {(received || (request.status === "approved" && !typed && !!request.file_url)) && !asking && (
         <div className="mt-2 flex flex-wrap gap-2">
           {!typed && request.file_url && (
-            <button type="button" className="ck-btn ck-btn-outline !px-2.5 !py-1.5 !text-[12.5px]" onClick={() => void open()} disabled={opening} data-request-open>
-              {opening ? "Opening..." : "Open"}
-            </button>
+            <>
+              <button type="button" className="ck-btn ck-btn-outline !px-2.5 !py-1.5 !text-[12.5px]" onClick={() => void open(false)} disabled={!!opening} data-request-open>
+                {opening === "open" ? "Opening..." : "Open"}
+              </button>
+              <button type="button" className="ck-btn ck-btn-ghost !px-2.5 !py-1.5 !text-[12.5px]" onClick={() => void open(true)} disabled={!!opening} data-request-download>
+                {opening === "download" ? "Getting it..." : "Download a copy"}
+              </button>
+            </>
           )}
           {received && (
             <>

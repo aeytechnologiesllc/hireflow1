@@ -75,11 +75,21 @@ check("it says most things are not deleted on a timer, and names what stays afte
   // document-cleanup function. The page's number and kinds must be the code's.
   const kinds = read("src/lib/documentRequests.ts");
   const cleanup = read("supabase/functions/document-cleanup/index.ts");
-  const days = Number((kinds.match(/export const ID_KEEP_DAYS = (\d+);/) ?? [])[1]);
+  // Since 2026-10-10 (the owner): 24 hours after the team first opens it, or
+  // 7 days after it is sent if nobody does.
+  const hours = Number((kinds.match(/export const ID_DELETE_HOURS_AFTER_OPENED = (\d+);/) ?? [])[1]);
+  const days = Number((kinds.match(/export const ID_DELETE_DAYS_UNOPENED = (\d+);/) ?? [])[1]);
   check(
-    "it says identity papers are deleted after the same number of days the cleanup function uses",
-    days > 0 && new RegExp(`is deleted ${days} days after they approve it`).test(privacy) && new RegExp(`const KEEP_DAYS = ${days};`).test(cleanup) && /government ID, NBI clearance or proof of address/.test(privacy) && /\["government_id", "nbi_clearance", "proof_of_address"\]/.test(cleanup),
+    "it says identity papers are deleted when the cleanup function deletes them",
+    hours > 0 &&
+      days > 0 &&
+      new RegExp(`is deleted ${hours} hours after someone on the hiring team first opens it, or ${days} days after you send it if nobody opens it`).test(privacy) &&
+      new RegExp(`const HOURS_AFTER_OPENED = ${hours};`).test(cleanup) &&
+      new RegExp(`const DAYS_UNOPENED = ${days};`).test(cleanup) &&
+      /government ID, NBI clearance or proof of address/.test(privacy) &&
+      /\["government_id", "nbi_clearance", "proof_of_address"\]/.test(cleanup),
   );
+  check("…and that a copy the team downloads is theirs to look after", /A copy they keep is theirs to look after/.test(privacy));
   check("it says opening a requested file is recorded, which the function does", /we record who opened it and when/.test(privacy) && /action: "opened"/.test(read("supabase/functions/requested-document-url/index.ts")));
 }
 check("it tells people how to delete their account, by the button's own name", /open Settings and choose Delete Account/.test(privacy) && /Delete Account/.test(read("src/pages/Settings.tsx")));
@@ -89,7 +99,7 @@ check("it does not claim a provider the site does not use", !/Stripe|ElevenLabs|
 check("it says we do not sell information and show no advertising", /We do not sell your information\. We do not use it for advertising\./.test(privacy) && /no advertising cookies/.test(privacy));
 check(
   "it does not promise a retention period or a security guarantee the site cannot keep (the identity-paper timer, checked above, is the only one)",
-  !/\b\d+\s+(days|months|years)\b/.test(privacy.replace(/is deleted \d+ days after they (approve it|asked)/g, "")) && !/guarantee|100%|completely secure|never be/i.test(privacy),
+  !/\b\d+\s+(days|months|years)\b/.test(privacy.replace(/is deleted \d+ hours after someone on the hiring team first opens it, or \d+ days after you send it if nobody opens it/g, "")) && !/guarantee|100%|completely secure|never be/i.test(privacy),
 );
 
 // --- the terms -------------------------------------------------------------------------

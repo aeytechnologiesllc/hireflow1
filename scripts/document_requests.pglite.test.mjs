@@ -31,6 +31,9 @@
  *   6. Storage: the employers' LIKE rule is gone (they open files only
  *      through requested-document-url); the applicant's own-folder rules
  *      stay, and an employer reads no file straight from the bucket.
+ *   7. *_id_papers_deleted_after_opening.sql: when the team first opened a
+ *      file (the 24-hour clock) is set only by the service role; no client
+ *      sets or clears it; a new file from the applicant starts it over.
  *
  * anon / authenticated / service_role are real, separate roles, so RLS and
  * GRANT/REVOKE are genuinely in force.
@@ -340,6 +343,47 @@ async function main() {
   check("6. an employer reads no file straight from the bucket", ownerFiles.ok && ownerFiles.rows.length === 0, show(ownerFiles));
   const anaFiles = await as(ANA, "authenticated", `select name from storage.objects`);
   check("6. the applicant reads their own, and only their own", anaFiles.ok && anaFiles.rows.length === 1 && anaFiles.rows[0].name.startsWith(ANA), show(anaFiles));
+
+  // 7 ──────────────────────────────────────────────────────────────────────
+  // Identity papers go 24 hours after the team first opens them (the owner,
+  // 2026-10-10): *_id_papers_deleted_after_opening.sql.
+  const later = (await readdir(MIGRATIONS)).filter((n) => /^\d+_id_papers_deleted_after_opening\.sql$/.test(n));
+  check("7. the 24-hour migration is there, once", later.length === 1);
+  if (later.length !== 1) return;
+  const sql7 = await readFile(path.join(MIGRATIONS, later[0]), "utf8");
+  // The job's command is only a string here; the scheduler itself is live-only.
+  await db.exec(`create schema if not exists cron; create or replace function cron.schedule(a text, b text, c text) returns bigint language sql as $$ select 1::bigint $$;`);
+  let applied7 = true;
+  try {
+    await db.exec(sql7);
+    await db.exec(sql7);
+  } catch (e) {
+    applied7 = false;
+    console.log(e.message);
+  }
+  check("7. it applies, and applies again", applied7);
+  const fresh = await as(OWNER, "authenticated", `insert into public.document_requests (application_id, employer_id, candidate_id, document_type, team_opened_at) values ($1, $2, $3, 'nbi_clearance', now()) returning id, team_opened_at`, [APP_ANA, OWNER, ANA]);
+  check("7. a new request starts unopened, whatever was sent", fresh.ok && fresh.rows[0].team_opened_at === null, show(fresh));
+  const nbi = fresh.rows[0].id;
+  await as(ANA, "authenticated", `update public.document_requests set file_url = $2, file_name = 'nbi.jpg', status = 'submitted' where id = $1`, [nbi, `${ANA}/${nbi}/nbi.jpg`]);
+  const ownerStamps = await as(OWNER, "authenticated", `update public.document_requests set team_opened_at = '2001-01-01' where id = $1 returning team_opened_at`, [nbi]);
+  check("7. the hiring side cannot set when it was opened (that would move the deletion)", ownerStamps.ok && ownerStamps.rows[0]?.team_opened_at === null, show(ownerStamps));
+  const anaStamps = await as(ANA, "authenticated", `update public.document_requests set team_opened_at = now() where id = $1 returning team_opened_at`, [nbi]);
+  check("7. …nor can the applicant", anaStamps.ok && anaStamps.rows[0]?.team_opened_at === null, show(anaStamps));
+  const opened = await as(null, "service_role", `update public.document_requests set team_opened_at = now() where id = $1 returning team_opened_at`, [nbi]);
+  check("7. the function that opens files (service role) records the first opening", opened.ok && opened.rows[0]?.team_opened_at !== null, show(opened));
+  const ownerClears = await as(OWNER, "authenticated", `update public.document_requests set team_opened_at = null, file_deleted_at = null where id = $1 returning team_opened_at`, [nbi]);
+  check("7. the hiring side cannot clear it to keep the file longer", ownerClears.ok && ownerClears.rows[0]?.team_opened_at !== null, show(ownerClears));
+  const anaClears = await as(ANA, "authenticated", `update public.document_requests set team_opened_at = null where id = $1 returning team_opened_at`, [nbi]);
+  check("7. …nor can the applicant, without sending a new file", anaClears.ok && anaClears.rows[0]?.team_opened_at !== null, show(anaClears));
+  await as(null, "service_role", `update public.document_requests set file_url = null, file_deleted_at = now() where id = $1`, [nbi]);
+  await as(OWNER, "authenticated", `update public.document_requests set status = 'rejected', rejection_reason = 'Please send a clearer one' where id = $1`, [nbi]);
+  const again = await as(ANA, "authenticated", `update public.document_requests set file_url = $2, file_name = 'nbi2.jpg', status = 'submitted' where id = $1 returning team_opened_at, file_deleted_at, status`, [nbi, `${ANA}/${nbi}/nbi2.jpg`]);
+  check(
+    "7. a new file starts its own clock: not opened, not deleted",
+    again.ok && again.rows[0]?.team_opened_at === null && again.rows[0]?.file_deleted_at === null && again.rows[0]?.status === "submitted",
+    show(again),
+  );
 }
 
 await main();

@@ -11,8 +11,10 @@
  *
  * Some answers are a file (a photo or a PDF, kept in the private
  * `requested-documents` bucket), some are a short typed answer. Identity
- * papers are deleted on their own a set number of days after the team approves
- * them (the document-cleanup function), so nobody is left holding copies of IDs.
+ * papers are deleted on their own 24 hours after the team first opens them,
+ * or 7 days after they are sent if nobody does (the owner, 2026-10-10: "we
+ * take it, we pass it to the employer, and then we delete it within 24
+ * hours"; the document-cleanup function), so nobody is left holding IDs.
  *
  * Pure: no React, no Supabase. The Deno side keeps its own copy of the kinds
  * it deletes (supabase/functions/document-cleanup); scripts/document_requests.test.mjs
@@ -29,12 +31,14 @@ export interface RequestKind {
   /** One line to the applicant on what to send. */
   ask: string;
   answer: RequestAnswer;
-  /** A file is deleted this many days after it is approved. Null: kept. */
-  deleteAfterDays: number | null;
+  /** An identity paper: deleted 24 hours after the team first opens it. */
+  idPaper: boolean;
 }
 
-/** Days after approval before an identity paper is deleted. */
-export const ID_KEEP_DAYS = 30;
+/** Hours after the hiring team first opens an identity paper before it is deleted. */
+export const ID_DELETE_HOURS_AFTER_OPENED = 24;
+/** Days after it is sent before an identity paper nobody opened is deleted. */
+export const ID_DELETE_DAYS_UNOPENED = 7;
 
 export const REQUEST_KINDS: readonly RequestKind[] = [
   {
@@ -42,43 +46,48 @@ export const REQUEST_KINDS: readonly RequestKind[] = [
     label: "Government ID",
     ask: "A clear photo of your passport, PhilSys national ID, UMID or driver's license. Both sides if it has two.",
     answer: "file",
-    deleteAfterDays: ID_KEEP_DAYS,
+    idPaper: true,
   },
   {
     key: "nbi_clearance",
     label: "NBI clearance",
     ask: "A photo or PDF of your NBI clearance.",
     answer: "file",
-    deleteAfterDays: ID_KEEP_DAYS,
+    idPaper: true,
   },
   {
     key: "proof_of_address",
     label: "Proof of address",
     ask: "A recent bill or bank statement with your name and address on it.",
     answer: "file",
-    deleteAfterDays: ID_KEEP_DAYS,
+    idPaper: true,
   },
   {
     key: "tin",
     label: "TIN",
     ask: "Your Tax Identification Number.",
     answer: "text",
-    deleteAfterDays: null,
+    idPaper: false,
   },
   {
     key: "payment_email",
     label: "Payment email",
     ask: "The email you use on Wise or PayPal, so we can pay you there.",
     answer: "text",
-    deleteAfterDays: null,
+    idPaper: false,
   },
 ] as const;
 
 /** Anything the team names itself: always a file, kept. */
-export const CUSTOM_KIND: RequestKind = { key: "custom", label: "Something else", ask: "", answer: "file", deleteAfterDays: null };
+export const CUSTOM_KIND: RequestKind = { key: "custom", label: "Something else", ask: "", answer: "file", idPaper: false };
 
-/** The kinds whose approved files are deleted (the cleanup function keeps the same list). */
-export const DELETED_AFTER_APPROVAL: readonly string[] = REQUEST_KINDS.filter((k) => k.deleteAfterDays !== null).map((k) => k.key);
+/** The identity papers, deleted after they are seen (the cleanup function keeps the same list). */
+export const ID_PAPER_KINDS: readonly string[] = REQUEST_KINDS.filter((k) => k.idPaper).map((k) => k.key);
+
+/** The promise, said the same way on every screen, email and the privacy page. */
+export function idDeletionPromise(team: string): string {
+  return `HireFlow deletes it ${ID_DELETE_HOURS_AFTER_OPENED} hours after ${team} first opens it, and after ${ID_DELETE_DAYS_UNOPENED} days if they never do.`;
+}
 
 /** Older requests (the first request screens) used these keys; they read and behave as files. */
 const LEGACY_LABELS: Record<string, string> = {
@@ -142,13 +151,49 @@ export function statusWords(status: string, side: "team" | "applicant"): string 
   return side === "team" ? "Waiting for them" : "To send";
 }
 
-/** "Deleted on November 13" for an identity paper, from the day it was approved. */
-export function deletesOn(kindKey: string, approvedAt: string | null | undefined): Date | null {
-  const kind = requestKind(kindKey);
-  if (kind.deleteAfterDays === null || !approvedAt) return null;
-  const at = new Date(approvedAt);
-  if (Number.isNaN(at.getTime())) return null;
-  return new Date(at.getTime() + kind.deleteAfterDays * 86_400_000);
+export interface IdDeletion {
+  /** When HireFlow deletes the file (or did). */
+  at: Date;
+  /** Whether the hiring team has opened it (the 24-hour clock), or it waits on the 7 days. */
+  opened: boolean;
+  deleted: boolean;
+}
+
+/**
+ * When an identity paper's file goes: 24 hours after the team first opened
+ * it, or 7 days after it was sent. Null for anything else, or with no file.
+ */
+export function idDeletion(request: {
+  document_type: string;
+  file_url?: string | null;
+  submitted_at?: string | null;
+  created_at?: string | null;
+  team_opened_at?: string | null;
+  file_deleted_at?: string | null;
+}): IdDeletion | null {
+  if (!requestKind(request.document_type).idPaper) return null;
+  const when = (value: string | null | undefined) => {
+    const d = value ? new Date(value) : null;
+    return d && !Number.isNaN(d.getTime()) ? d : null;
+  };
+  const deleted = when(request.file_deleted_at);
+  if (deleted && !request.file_url) return { at: deleted, opened: !!request.team_opened_at, deleted: true };
+  if (!request.file_url) return null;
+  const opened = when(request.team_opened_at);
+  if (opened) return { at: new Date(opened.getTime() + ID_DELETE_HOURS_AFTER_OPENED * 3_600_000), opened: true, deleted: false };
+  const sent = when(request.submitted_at) ?? when(request.created_at);
+  if (!sent) return null;
+  return { at: new Date(sent.getTime() + ID_DELETE_DAYS_UNOPENED * 86_400_000), opened: false, deleted: false };
+}
+
+/** "23 h", "45 min", "6 days": how long until a moment, rounded up. */
+export function timeLeft(at: Date, now: Date = new Date()): string {
+  const ms = Math.max(0, at.getTime() - now.getTime());
+  const minutes = Math.ceil(ms / 60_000);
+  if (minutes < 60) return `${Math.max(1, minutes)} min`;
+  const hours = Math.ceil(ms / 3_600_000);
+  if (hours < 48) return `${hours} h`;
+  return `${Math.ceil(ms / 86_400_000)} days`;
 }
 
 export const DUE_CHOICES = [3, 5, 7] as const;

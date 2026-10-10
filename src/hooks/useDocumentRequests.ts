@@ -21,8 +21,10 @@ export interface DocumentRequest {
   file_name: string | null;
   /** A typed answer (a TIN, a payment email) in place of a file. */
   answer_text?: string | null;
-  /** When an approved identity paper's file was deleted (document-cleanup). */
+  /** When an identity paper's file was deleted (document-cleanup). */
   file_deleted_at?: string | null;
+  /** When the hiring team first opened the file now there: an ID is deleted 24 hours later. */
+  team_opened_at?: string | null;
   submitted_at: string | null;
   reviewed_at: string | null;
   reviewed_by: string | null;

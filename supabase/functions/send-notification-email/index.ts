@@ -553,7 +553,7 @@ const getEmailContent = (
              ? `<ol style="padding-left: 20px;">${items.map((line) => `<li style="margin-bottom: 4px;">${esc(line)}</li>`).join("")}</ol>`
              : `<p><strong>${esc(data.document_name || "Send a document")}</strong></p>`}
            ${todo?.dueInDays ? `<p>Please do this within ${todo.dueInDays} ${todo.dueInDays === 1 ? "day" : "days"}.</p>` : ""}
-           <p style="color: #666; font-size: 13px;">Only ${esc(companyName || "the hiring team")} can see what you send.${todo?.deletesIds ? " ID papers are deleted 30 days after they are approved." : ""}</p>`,
+           <p style="color: #666; font-size: 13px;">Only ${esc(companyName || "the hiring team")} can see what you send.${todo?.deletesIds ? ` ID papers are deleted 24 hours after ${esc(companyName || "the hiring team")} first opens them.` : ""}</p>`,
           "Send them in HireFlow",
           candidateLink("/my-documents"),
           `— ${teamLabel}`
@@ -609,7 +609,7 @@ const getEmailContent = (
              ? `<p>Before your first day, please:</p>
                 <ol style="padding-left: 20px;">${items.map((line) => `<li style="margin-bottom: 4px;">${esc(line)}</li>`).join("")}</ol>
                 ${todo?.dueInDays ? `<p>Please do this within ${todo.dueInDays} ${todo.dueInDays === 1 ? "day" : "days"}.</p>` : ""}
-                ${todo?.asksForDocuments ? `<p style="color: #666; font-size: 13px;">Only ${companyName || "the hiring team"} can see what you send.${todo.deletesIds ? " ID papers are deleted 30 days after they are approved." : ""}</p>` : ""}`
+                ${todo?.asksForDocuments ? `<p style="color: #666; font-size: 13px;">Only ${companyName || "the hiring team"} can see what you send.${todo.deletesIds ? ` ID papers are deleted 24 hours after ${companyName || "the hiring team"} first opens them.` : ""}</p>` : ""}`
              : `<p style="color: #666;">We'll follow up with your start date and next steps. Your messages are in your account.</p>`}`,
           items.length > 0 ? "Open HireFlow" : "Open your application",
           candidateLink(items.length > 0 ? "/my-documents" : "/applications"),

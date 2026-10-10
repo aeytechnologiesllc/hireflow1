@@ -7,6 +7,32 @@ The owner, that day: "how do I ask them for things like their driver license
 or a government ID? And banking information for salary ... and have it
 encrypted in some way?"
 
+## IDs are deleted 24 hours after you first open them (2026-10-10)
+
+The owner: "the best thing is we don't save it ... we take it, we pass it to
+the employer, and then we delete it within 24 hours." Chosen from a mock-up:
+a government ID, NBI clearance or proof of address is deleted **24 hours after
+someone on the hiring side first opens it**, or **7 days after it was sent**
+if nobody does. Before this, an ID was kept 30 days after approval, and one
+never approved was kept for good.
+
+- `document_requests.team_opened_at` (migration
+  `20261011130000_id_papers_deleted_after_opening.sql`): set by
+  `requested-document-url` the first time the hiring side opens the file, only
+  while unset (opening it again never moves the deletion). No client can set
+  or clear it; a new file from the applicant starts it over.
+- `document-cleanup` runs **every hour** (was daily), so 24 hours means 24.
+- The team sees "Deleted in 23 h" and **Download a copy** (a link that saves
+  the file). The applicant is told the same rule when they upload, and how
+  long is left once it has been seen. The privacy page says it, and that a
+  copy the team keeps is theirs to look after.
+
+**Asking from the Documents page.** "Ask for ID or papers" opens the same
+request box with its own applicant picker, and an **ID & papers** list shows
+everything asked of anyone (the owner: "I still don't know how do I request
+... a government ID"). The six AI-written types behind "+ New document" are
+gone; "Upload a file to sign" takes a PDF of his own (an NDA, a contract).
+
 ## What each side sees
 
 **The hiring team**, on an applicant's page (`src/cockpit/pages/CandidateDetail.tsx`):
@@ -15,7 +41,7 @@ encrypted in some way?"
 - A **Documents** section from the interview stage on (earlier only if
   something was already asked): each request, where it stands, **Open** for a
   file, **Approve** / **Ask again** (with a reason) for anything sent. A TIN
-  shows only its last four digits. An approved ID says the day it is deleted.
+  shows only its last four digits. An ID says when it is deleted.
 - The dialog (`RequestDocumentsDialog.tsx`): a short Philippines-first list
   (`src/lib/documentRequests.ts`), "Something else", due in 3/5/7 days, a note,
   a preview of what the applicant will be asked, and two presses to send.
@@ -36,11 +62,11 @@ Wise or PayPal and is paid there. A test fails if a bank kind is added.
 | Files | Private bucket `requested-documents`, in the applicant's own folder (`<applicant id>/<request id>/…`). |
 | Opening a file | Only through the `requested-document-url` function: signed-in caller must be the applicant, the job's owner or an active team member on that job; a five-minute link to that request's own file; every opening is written to `document_request_events`. The old employers' storage rule (a `LIKE` match that could be pointed at another folder) is dropped. |
 | Who may change what | `document_requests_guard_insert` / `_update` (migration `20261010150000_document_requests_safe.sql`). A new request is always pending and empty, for the application's applicant, filed under the job's owner. The applicant may only send their file or typed answer and mark it sent, never once approved. The hiring side may only approve or ask again, once something is sent, and never changes what the applicant sent. |
-| Deletion | `document-cleanup`, daily at 03:17 UTC (pg_cron, migration `20261010150100`). An approved government ID, NBI clearance or proof of address loses its file 30 days after approval (the request keeps `file_deleted_at`); anything else in that request's folder goes with it; an ID asked for again and never re-sent loses its file 30 days after the ask. A file sent again replaces the earlier one at once. Typed answers are kept. |
+| Deletion | `document-cleanup`, every hour at :17 (pg_cron; daily until 2026-10-10). A government ID, NBI clearance or proof of address loses its file 24 hours after the hiring side first opened it (`team_opened_at`), or 7 days after it was sent if nobody did (the request keeps `file_deleted_at`); anything else in that request's folder goes with it. A file sent again replaces the earlier one at once and starts its own clock. Typed answers are kept. |
 | The cleanup's secret | Made inside the database, kept only in Vault (`document_cleanup_secret`), checked by `document_cleanup_secret_matches` (service role only). Not in the repo or any function setting. |
 
 The Privacy Policy says all of this (`src/content/legal.ts`), and
-`scripts/legal_pages.test.mjs` fails if the days or kinds drift from the code.
+`scripts/legal_pages.test.mjs` fails if the hours, days or kinds drift from the code.
 
 ## Tests
 

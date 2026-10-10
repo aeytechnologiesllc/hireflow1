@@ -52,6 +52,7 @@ function request(application: FixtureRow, fields: Partial<FixtureRow> & { id: st
     rejection_reason: null,
     candidate_viewed_at: null,
     file_deleted_at: null,
+    team_opened_at: null,
     package_id: null,
     created_at: created,
     updated_at: created,
@@ -85,9 +86,11 @@ export function previewRequests(tables: FixtureTables, user: FixtureAuthUser, hi
         );
       }
       if (hired) {
-        const at = new Date(Date.now() - 2 * DAY).toISOString();
+        // Opened an hour ago: HireFlow deletes it in 23 hours (the owner, 2026-10-10).
+        const at = new Date(Date.now() - 3 * 3600_000).toISOString();
+        const opened = new Date(Date.now() - 3600_000).toISOString();
         rows.push(
-          request(hired, { id: "d7000000-0000-4000-8000-000000000005", document_type: "government_id", description: ID_ASK, status: "approved", file_url: `${hired.candidate_id}/d7000000-0000-4000-8000-000000000005/id.jpg`, file_name: "passport.jpg", submitted_at: at, reviewed_at: at, employer_id: employerOf(hired) }),
+          request(hired, { id: "d7000000-0000-4000-8000-000000000005", document_type: "government_id", description: ID_ASK, status: "approved", file_url: `${hired.candidate_id}/d7000000-0000-4000-8000-000000000005/id.jpg`, file_name: "passport.jpg", submitted_at: at, reviewed_at: opened, team_opened_at: opened, employer_id: employerOf(hired) }),
         );
       }
     } else {
@@ -117,6 +120,8 @@ export function previewRequests(tables: FixtureTables, user: FixtureAuthUser, hi
     const id = String((options?.body as { requestId?: unknown } | undefined)?.requestId ?? "");
     const row = rows.find((r) => r.id === id);
     if (!row || !row.file_url) return { data: null, error: new Error("Nothing has been sent for this request") };
+    // The hiring side's first look starts an ID's 24 hours, as the function does.
+    if (hiringSide && !row.team_opened_at) row.team_opened_at = new Date().toISOString();
     const title = row.document_type === "nbi_clearance" ? "NBI clearance" : row.document_type === "proof_of_address" ? "Proof of address" : "Government ID";
     return { data: { signedUrl: previewIdPicture(title), fileName: String(row.file_name ?? ""), expiresIn: 300 }, error: null };
   };

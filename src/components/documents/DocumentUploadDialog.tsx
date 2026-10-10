@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SecurityBadge } from "./SecurityBadge";
 import { DocumentRequestWithDetails, useUpdateDocumentRequest } from "@/hooks/useDocumentRequests";
-import { ANSWER_MAX, answerProblem, requestKind, requestTitle } from "@/lib/documentRequests";
+import { ANSWER_MAX, answerProblem, idDeletionPromise, requestKind, requestTitle } from "@/lib/documentRequests";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -277,7 +277,7 @@ export function DocumentUploadDialog({
         </div>
         <p className="text-center text-xs leading-snug text-muted-foreground" data-request-privacy>
           Only the hiring team can see it, and every time they open it is recorded.
-          {kind.deleteAfterDays !== null && ` It is deleted ${kind.deleteAfterDays} days after they approve it.`}
+          {kind.idPaper && ` ${idDeletionPromise("the hiring team")}`}
         </p>
 
         {/* Request info */}

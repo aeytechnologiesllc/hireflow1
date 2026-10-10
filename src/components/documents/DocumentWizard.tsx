@@ -71,6 +71,13 @@ interface DocumentWizardProps {
   preSelectedDocumentType?: string;
   embedded?: boolean; // When true, won't show its own Dialog wrapper
   onDocumentCreated?: (document: CreatedDocumentData) => void; // Callback when document is created
+  /**
+   * Only "upload a file of your own to sign": no AI-written types (the owner,
+   * 2026-10-10, on the six-type list: "I would remove all of that for the
+   * public version ... It's too much"). Opens at the recipient; Back from
+   * there closes it.
+   */
+  uploadOnly?: boolean;
 }
 
 const DOCUMENT_TYPES = [
@@ -152,6 +159,7 @@ export function DocumentWizard({
   preSelectedDocumentType,
   embedded = false,
   onDocumentCreated,
+  uploadOnly = false,
 }: DocumentWizardProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [documentSource, setDocumentSource] = useState<"generate" | "upload" | "">("");
@@ -395,6 +403,10 @@ export function DocumentWizard({
   };
 
   const handleBack = () => {
+    if (uploadOnly && currentStep <= 1) {
+      onOpenChange(false);
+      return;
+    }
     if (currentStep > 0) {
       // If going back from first step after source selection, reset source
       if (currentStep === 1) {
@@ -1634,20 +1646,23 @@ export function DocumentWizard({
             </div>
           </div>
           <span className="text-xs md:text-sm text-muted-foreground">
-            Step {currentStep + 1} of {WIZARD_STEPS.length}
+            {uploadOnly ? `Step ${Math.max(1, currentStep)} of ${WIZARD_STEPS.length - 1}` : `Step ${currentStep + 1} of ${WIZARD_STEPS.length}`}
           </span>
         </div>
         
         {/* Progress Bar */}
         <div className="flex gap-1 md:gap-2">
-          {WIZARD_STEPS.map((step, index) => (
+          {(uploadOnly ? WIZARD_STEPS.slice(1) : WIZARD_STEPS).map((step, i) => {
+            const index = uploadOnly ? i + 1 : i;
+            return (
             <div
               key={step.id}
               className={`h-1 flex-1 rounded-full transition-colors ${
                 index <= currentStep ? "bg-primary" : "bg-border"
               }`}
             />
-          ))}
+            );
+          })}
         </div>
       </div>
 

@@ -30,11 +30,13 @@ export interface ApplicantRequest {
   reviewed_at: string | null;
   rejection_reason: string | null;
   file_deleted_at: string | null;
+  /** When someone on the hiring side first opened the file now there (an ID goes 24 hours later). */
+  team_opened_at: string | null;
   created_at: string;
 }
 
 const COLUMNS =
-  "id, application_id, candidate_id, document_type, custom_document_name, description, due_date, status, file_url, file_name, answer_text, submitted_at, reviewed_at, rejection_reason, file_deleted_at, created_at";
+  "id, application_id, candidate_id, document_type, custom_document_name, description, due_date, status, file_url, file_name, answer_text, submitted_at, reviewed_at, rejection_reason, file_deleted_at, team_opened_at, created_at";
 
 /** Everything asked of one applicant, oldest first. */
 export function useApplicantRequests(applicationId: string | null | undefined) {
@@ -46,6 +48,41 @@ export function useApplicantRequests(applicationId: string | null | undefined) {
       const { data, error } = await supabase.from("document_requests").select(COLUMNS).eq("application_id", applicationId!).order("created_at", { ascending: true });
       if (error) throw error;
       return (data ?? []) as unknown as ApplicantRequest[];
+    },
+  });
+}
+
+export interface RequestWithPerson extends ApplicantRequest {
+  /** The applicant's name, for the Documents page's list. */
+  personName: string;
+}
+
+/**
+ * Everything asked of anyone, newest first, with each applicant's name: the
+ * "ID & papers" list on the Documents page (the owner, 2026-10-10: one place
+ * to ask for an ID and see it come in). What a caller may read is the
+ * table's own rules.
+ */
+export function useAllRequests(enabled = true) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["all-requests", user?.id],
+    enabled: enabled && !!user,
+    staleTime: 15_000,
+    queryFn: async (): Promise<RequestWithPerson[]> => {
+      const { data, error } = await supabase
+        .from("document_requests")
+        .select(COLUMNS)
+        .neq("candidate_id", user!.id)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      const rows = (data ?? []) as unknown as ApplicantRequest[];
+      if (rows.length === 0) return [];
+      const ids = [...new Set(rows.map((r) => r.candidate_id))];
+      const { data: people } = await supabase.from("profiles").select("user_id, full_name").in("user_id", ids);
+      const nameOf = new Map((people ?? []).map((p) => [p.user_id, (p.full_name ?? "").trim()]));
+      return rows.map((r) => ({ ...r, personName: nameOf.get(r.candidate_id) || "Applicant" }));
     },
   });
 }
@@ -127,6 +164,7 @@ export function useSendRequests() {
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: ["applicant-requests", variables.applicationId] });
       queryClient.invalidateQueries({ queryKey: ["document-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["all-requests"] });
     },
   });
 }
@@ -161,13 +199,18 @@ export function useReviewRequest() {
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: ["applicant-requests", variables.request.application_id] });
+      queryClient.invalidateQueries({ queryKey: ["all-requests"] });
     },
   });
 }
 
-/** A five-minute link to the file they sent, through the function that checks and records it. */
-export async function openRequestFile(requestId: string): Promise<string> {
-  const { data, error } = await supabase.functions.invoke("requested-document-url", { body: { requestId } });
+/**
+ * A five-minute link to the file they sent, through the function that checks
+ * and records it. The hiring side's first opening starts an ID's 24 hours.
+ * `download`: the link saves the file ("Download a copy").
+ */
+export async function openRequestFile(requestId: string, download = false): Promise<string> {
+  const { data, error } = await supabase.functions.invoke("requested-document-url", { body: download ? { requestId, download: true } : { requestId } });
   const url = (data as { signedUrl?: string } | null)?.signedUrl;
   if (error || !url) throw new Error("That file could not be opened. Try again.");
   return url;
