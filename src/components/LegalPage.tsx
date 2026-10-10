@@ -26,9 +26,10 @@ function Block({ block }: { block: LegalBlock }) {
 }
 
 export function LegalPage({ document: doc, other }: { document: LegalDocument; other: { label: string; to: string } }) {
-  // Listed under its own address ("/privacy", "/terms"), not folded into the homepage.
+  // Listed under its own address ("/privacy", "/terms"), not folded into the
+  // homepage. The title is the document's own: no name in the frame (above).
   const { pathname } = useLocation();
-  usePageHead({ title: `${doc.title} | HireFlow`, path: pathname, description: doc.intro[0] });
+  usePageHead({ title: doc.title, path: pathname, description: doc.intro[0] });
   const navigate = useNavigate();
   return (
     <div className="min-h-screen bg-[#faf8f3] text-[#17231f]" data-legal-page>

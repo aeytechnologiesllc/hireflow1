@@ -58,7 +58,7 @@ const head = await read("src/components/seo/usePageHead.ts");
 check("a page sets its title, robots rule, canonical and share title, and puts them back when left", /document\.title = title;/.test(head) && /setMeta\("name", "robots", noindex \? "noindex, follow" : "index, follow"\)/.test(head) && /setCanonical\(url\)/.test(head) && /cleanups\.forEach\(\(cleanup\) => cleanup\(\)\);/.test(head));
 check("…no canonical on a page kept out of search", /if \(path && !noindex\)/.test(head));
 const legal = await read("src/components/LegalPage.tsx");
-check("Privacy and Terms: their own title and address", /usePageHead\(\{ title: `\$\{doc\.title\} \| HireFlow`, path: pathname, description: doc\.intro\[0\] \}\);/.test(legal));
+check("Privacy and Terms: their own title and address (no name in the frame, docs/LEGAL-PAGES.md)", /usePageHead\(\{ title: doc\.title, path: pathname, description: doc\.intro\[0\] \}\);/.test(legal));
 check("an address that does not exist: kept out of search", /usePageHead\(\{ title: "Page not found", noindex: true \}\);/.test(await read("src/pages/NotFound.tsx")));
 check("a one-word address that is no open job (/nope, a closed role): kept out of search", /<PageHeadTags title=\{"This role isn\\u2019t open"\} noindex \/>/.test(await read("src/pages/JobDetails.tsx")));
 check("the applicants' sign-in: its own title, kept out of search", /usePageHead\(\{ title: "Sign in \| Zulu Support Team", noindex: true \}\);/.test(await read("src/pages/CandidateAuth.tsx")));
