@@ -7,6 +7,8 @@ import { useApplicationsForDocuments } from "@/hooks/useApplicationsForDocuments
 import { useDocuments } from "@/hooks/useDocuments";
 import { DocumentWizard } from "@/components/documents/DocumentWizard";
 import { SignedDocumentViewer } from "@/components/documents/SignedDocumentViewer";
+import { isWrittenDocument } from "@/components/documents/ApplicantDocumentSheet";
+import { TeamDocumentSheet } from "../components/TeamDocumentSheet";
 import { CockpitErrorCard } from "../components/ErrorCard";
 import { ActionDialog } from "../components/ActionDialog";
 import { OfferLetterDialog } from "../components/OfferLetterDialog";
@@ -221,8 +223,10 @@ function DocRowItem({
             className={`ck-btn !py-2 !text-[12.5px] ${primary ? "ck-btn-primary" : "ck-btn-outline"}`}
             onClick={() => onOpenViewer(row)}
             aria-label={`Open ${row.title}${person ? ` for ${person}` : ""}`}
+            data-doc-open
           >
-            Open
+            {/* They signed and it waits on you: the button says so. */}
+            {row.status === "Pending" && row.candidateSignedAt && !row.isVoided ? "Sign" : "Open"}
           </button>
         ) : row.fileUrl ? (
           <button
@@ -294,6 +298,11 @@ export default function CockpitDocuments() {
   // and SignedDocumentViewer needs the full DocumentWithApplication.
   const { data: fullDocuments = [] } = useDocuments();
   const [viewerDocId, setViewerDocId] = useState<string | null>(null);
+  // A written document (an offer letter) opens the team's own screen: what
+  // stands, and the one thing to do (TeamDocumentSheet). An uploaded PDF, or
+  // "Signing record", opens the full viewer.
+  const [sheetDocId, setSheetDocId] = useState<string | null>(null);
+  const sheetDocument = fullDocuments.find((d) => d.id === sheetDocId) ?? null;
   const viewerDocument = fullDocuments.find((d) => d.id === viewerDocId) ?? null;
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -336,8 +345,10 @@ export default function CockpitDocuments() {
     // Showcase/demo rows have no matching real `documents` row to open in
     // the viewer — fall back to the raw-file behavior rather than opening
     // an empty dialog.
-    if (fullDocuments.some((d) => d.id === row.id)) {
-      setViewerDocId(row.id);
+    const full = fullDocuments.find((d) => d.id === row.id);
+    if (full) {
+      if (isWrittenDocument(full.file_url)) setSheetDocId(row.id);
+      else setViewerDocId(row.id);
     } else if (row.fileUrl) {
       openDocument(row.fileUrl);
     }
@@ -553,6 +564,21 @@ export default function CockpitDocuments() {
 
       {wizardEl}
       {offerEl}
+
+      <TeamDocumentSheet
+        document={sheetDocument}
+        open={!!sheetDocId}
+        onClose={() => setSheetDocId(null)}
+        onWithdraw={(doc) => {
+          const row = rows.find((r) => r.id === doc.id);
+          setSheetDocId(null);
+          if (row) setActionDialog({ type: "withdraw", row });
+        }}
+        onShowRecord={(doc) => {
+          setSheetDocId(null);
+          setViewerDocId(doc.id);
+        }}
+      />
 
       <SignedDocumentViewer
         document={viewerDocument}
