@@ -157,3 +157,40 @@ Deno.test("renderSignedUploadedPdf mixing one typed and one drawn signature does
     throw new Error("renderSignedUploadedPdf returned no bytes for a mixed typed/drawn pair");
   }
 });
+
+// 2026-10-10, rehearsing the first live countersign: a blank page sat
+// between the letter and the certificate, and a letter with a peso sign or
+// an emoji in it could not be rendered at all (the countersign failed).
+Deno.test("renderTextDocumentPdf: the letter, then the certificate, no blank page between", async () => {
+  const bytes = await renderTextDocumentPdf("Dear Ana,\n\nShort letter.", null, null, FIXED_CERT);
+  const doc = await PDFDocument.load(bytes);
+  if (doc.getPageCount() !== 2) throw new Error(`expected 2 pages (letter + certificate), got ${doc.getPageCount()}`);
+});
+
+Deno.test("renderTextDocumentPdf: a peso sign, an emoji and another script do not stop the render", async () => {
+  const peso = String.fromCharCode(0x20b1);
+  const content = `PAY\n${peso}25,000 a month \u{1F389}\r\nWelcome, José 张伟 — see you Monday.`;
+  const typed: SignatureOverlay = { signatureDataUrl: "张伟 Reyes", x: 10, y: 80, width: 25, height: 8, page: 1, signerName: "张伟 Reyes", signedAt: "2026-09-15T10:00:00.000Z", signerRole: "candidate" };
+  const bytes = await renderTextDocumentPdf(content, typed, null, { ...FIXED_CERT, candidateName: "张伟 Reyes", documentName: `Offer ${peso}` });
+  if (bytes.length < 1000) throw new Error("render produced no real PDF");
+});
+
+Deno.test("utcStamp reads UTC whatever the server's zone", async () => {
+  const { utcStamp } = await import("./renderFinalPdf.ts");
+  const got = utcStamp("2026-10-10T19:00:13.875+00:00");
+  if (got !== "October 10, 2026 at 7:00:13 PM UTC") throw new Error(`got "${got}"`);
+  const noon = utcStamp("2026-10-10T00:05:00Z", false);
+  if (noon !== "October 10, 2026 at 12:05 AM UTC") throw new Error(`got "${noon}"`);
+});
+
+Deno.test("pdfSafe spells out the peso sign and replaces what the font cannot draw", async () => {
+  const { pdfSafe } = await import("./renderFinalPdf.ts");
+  const doc = await PDFDocument.create();
+  const { StandardFonts } = await import("https://esm.sh/pdf-lib@1.17.1");
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const out = pdfSafe(font, `${String.fromCharCode(0x20b1)}500 — café \u{1F389}`);
+  if (out !== "PHP 500 — café ?") throw new Error(`got "${out}"`);
+  // The first version of this turned every line break into "?" and ran the
+  // whole letter into one paragraph.
+  if (pdfSafe(font, "Dear Ana,\n\nWelcome.") !== "Dear Ana,\n\nWelcome.") throw new Error("line breaks must survive");
+});

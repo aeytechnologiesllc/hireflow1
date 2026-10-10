@@ -8,6 +8,30 @@ below for what changed from the original design during implementation, and
 why — read it before the rest of this document, since several sections below
 now describe the pre-revision design and are superseded by the log.
 
+## The first live countersign (2026-10-10)
+
+No document had ever been countersigned on production. The first try, the
+owner's test letter, was refused as "chain_broken" ("This document's signature
+chain no longer reconciles"), though nothing had been altered:
+
+- **The check compared two spellings of one moment.** sign() hashes
+  `new Date().toISOString()` ("…13.875Z"); the countersign check read
+  `candidate_signed_at` back from the database ("…13.875+00:00") and hashed
+  that. `_shared/countersignReconciliation.ts` now rewrites the stored time the
+  way sign() wrote it before hashing. Its test uses that letter's real values.
+- **The final PDF, rehearsed with the real letter before the retry**, had a
+  blank page before the certificate, the certificate's rule drawn through its
+  title, signatures as small grey text, and times from the server's own zone
+  under a "UTC" label. `_shared/renderFinalPdf.ts` now puts the two
+  signatures side by side (the drawn image, or the typed name in a script
+  face, over a line, then the name and the time), prints every time in UTC
+  (`utcStamp`), and puts characters the built-in PDF fonts cannot draw (a peso
+  sign, an emoji, another script) through `pdfSafe` instead of failing the
+  whole countersign on them.
+- The database half (reserve, finalize, the three record rows, the
+  applicant's notice) was rehearsed on production as the service role inside a
+  transaction that rolled back: every write was accepted.
+
 ## Signing record and who sees it (2026-10-11)
 
 The owner, asked whether a signature captures location, IP and device

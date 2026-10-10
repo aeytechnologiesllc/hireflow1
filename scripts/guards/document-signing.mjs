@@ -491,22 +491,31 @@ export default [
       if (!fnMatch) {
         bad.push("overlaySignature(...) not found in renderSignedUploadedPdf");
       } else {
-        const body = fnMatch[0];
+        let body = fnMatch[0];
+        let call = "dataUrlToBytes(sig.signatureDataUrl)";
+        // Since 2026-10-10 both renderers load the image through one helper,
+        // signatureImage(pdfDoc, value); hold that helper to the same rule.
+        if (/signatureImage\(pdfDoc,\s*sig\.signatureDataUrl\)/.test(body)) {
+          const helper = /async function signatureImage\([\s\S]*?\n\}/.exec(src);
+          if (!helper) bad.push("overlaySignature calls signatureImage(...) but the helper was not found");
+          body = helper ? helper[0] : "";
+          call = "dataUrlToBytes(value)";
+        }
         // The fixed shape: an outer `try {` whose first real statement is
         // the dataUrlToBytes call (with embedPng/embedJpg's own try/catch
         // nested inside it) — i.e. no `}` between `try {` and the
         // dataUrlToBytes call.
         const tryIdx = body.search(/try\s*\{/);
-        const dataUrlIdx = body.indexOf("dataUrlToBytes(sig.signatureDataUrl)");
+        const dataUrlIdx = body.indexOf(call);
         if (dataUrlIdx === -1) {
-          bad.push("dataUrlToBytes(sig.signatureDataUrl) call not found");
+          bad.push(`${call} call not found`);
         } else if (tryIdx === -1 || tryIdx > dataUrlIdx || body.slice(tryIdx, dataUrlIdx).includes("}")) {
           bad.push(
             "dataUrlToBytes(sig.signatureDataUrl) is not itself inside a try block — a typed signature's " +
               "plain-string value will throw an unhandled TypeError out of fetch(), uncaught",
           );
         }
-        if (!/if\s*\(\s*sigImage\s*\)/.test(body)) {
+        if (!/if\s*\(\s*sigImage\s*\)/.test(fnMatch[0])) {
           bad.push("no `if (sigImage)` guard found before drawImage — a null/undefined sigImage from a failed embed must not reach page.drawImage");
         }
       }

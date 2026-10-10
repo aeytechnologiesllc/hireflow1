@@ -141,3 +141,39 @@ Deno.test("parseCandidateSignatureData: round-trips the exact JSON shape sign() 
     throw new Error(`unexpected parse result: ${JSON.stringify(parsed)}`);
   }
 });
+
+// The live failure of 2026-10-10: sign() hashed "…Z", the database handed
+// the same instant back as "…+00:00", and countersign refused a letter
+// nobody had touched. These are that letter's real values.
+Deno.test("reconcileCandidateSignatureChain: accepts the signed-at time in the form the database returns it", async () => {
+  const result = await reconcileCandidateSignatureChain({
+    v1HashAtSign: "e287eb94f860da2f291794d68bcc9946cb953b1d54c313f1685ca0ddb70ecf65",
+    candidateSignatureDataRaw: candidateSignatureDataJson({ method: "typed", value: "candidate 4", signerEmail: "candidate4@yahoo.com" }),
+    candidateSignedAt: "2026-10-10T19:00:13.875+00:00",
+    storedV2Hash: "62e5cb443ca03a670beffbdf9fd35154ced02fe80200cd6c335d4f93967c7c43",
+  });
+  if (!result.ok) throw new Error(`expected ok, got refused: ${JSON.stringify(result)}`);
+  const sameMomentOtherShape = await reconcileCandidateSignatureChain({
+    v1HashAtSign: V1_AT_SIGN,
+    candidateSignatureDataRaw: candidateSignatureDataJson({ ...TYPED_SIGNATURE, signerEmail: CANDIDATE_EMAIL }),
+    candidateSignedAt: "2026-09-15 10:00:00+00",
+    storedV2Hash: await realV2Hash(V1_AT_SIGN),
+  });
+  if (!sameMomentOtherShape.ok) throw new Error(`expected ok for "2026-09-15 10:00:00+00", got ${JSON.stringify(sameMomentOtherShape)}`);
+  const otherMoment = await reconcileCandidateSignatureChain({
+    v1HashAtSign: V1_AT_SIGN,
+    candidateSignatureDataRaw: candidateSignatureDataJson({ ...TYPED_SIGNATURE, signerEmail: CANDIDATE_EMAIL }),
+    candidateSignedAt: "2026-09-15T10:00:00.001+00:00",
+    storedV2Hash: await realV2Hash(V1_AT_SIGN),
+  });
+  if (otherMoment.ok || otherMoment.reason !== "hash_mismatch") {
+    throw new Error(`a different moment must still be refused, got ${JSON.stringify(otherMoment)}`);
+  }
+  const garbage = await reconcileCandidateSignatureChain({
+    v1HashAtSign: V1_AT_SIGN,
+    candidateSignatureDataRaw: candidateSignatureDataJson({ ...TYPED_SIGNATURE, signerEmail: CANDIDATE_EMAIL }),
+    candidateSignedAt: "not a time",
+    storedV2Hash: await realV2Hash(V1_AT_SIGN),
+  });
+  if (garbage.ok) throw new Error("an unreadable signed-at time must be refused");
+});

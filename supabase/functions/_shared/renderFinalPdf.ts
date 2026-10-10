@@ -3,7 +3,7 @@
  * countersigned document — see docs/DOCUMENT-SIGNING.md §2.
  *
  * Ported from src/lib/pdfSignatureBurner.ts's `burnSignaturesIntoPdf`
- * (framework-agnostic already — pdf-lib, date-fns, fetch, no DOM — so it
+ * (framework-agnostic already — pdf-lib, fetch, no DOM — so it
  * runs unchanged under Deno via the same esm.sh import style every other
  * function in this repo already uses for @supabase/supabase-js), with one
  * deliberate change: the footer's `Generated: ${format(new Date(), ...)}`
@@ -17,8 +17,7 @@
  * PDF library instead of two, and jsPDF doesn't need to exist inside the
  * edge function.
  */
-import { PDFDocument, PDFFont, rgb, StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
-import { format } from "https://esm.sh/date-fns@3.6.0";
+import { PDFDocument, PDFFont, PDFImage, rgb, StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
 
 export interface SignatureOverlay {
   signatureDataUrl: string;
@@ -77,6 +76,74 @@ async function dataUrlToBytes(dataUrl: string): Promise<Uint8Array> {
   return new Uint8Array(await blob.arrayBuffer());
 }
 
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/**
+ * "October 10, 2026 at 7:00:13 PM UTC". Read in UTC whatever zone the
+ * server's clock is set to: date-fns' format() used the machine's own zone
+ * while the label said UTC, so a render anywhere but a UTC server printed a
+ * wrong time under a UTC label.
+ */
+export function utcStamp(iso: string, withSeconds = true): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const hours = d.getUTCHours();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const time = `${hours % 12 || 12}:${pad(d.getUTCMinutes())}${withSeconds ? `:${pad(d.getUTCSeconds())}` : ""} ${hours >= 12 ? "PM" : "AM"}`;
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()} at ${time} UTC`;
+}
+
+// The built-in PDF fonts only know Western European letters. Anything else
+// (a peso sign in the pay line, an emoji, a name in another script) made
+// drawText throw, and the whole countersign failed with it. Common ones are
+// spelled out; the rest become "?". Built with fromCharCode so no editor
+// can turn the escapes into look-alike characters.
+const SPELLED_OUT: Record<string, string> = {
+  [String.fromCharCode(0x20b1)]: "PHP ",
+  [String.fromCharCode(0x20b9)]: "INR ",
+  [String.fromCharCode(0x2192)]: "->",
+  [String.fromCharCode(0x2190)]: "<-",
+  [String.fromCharCode(0x2713)]: "*",
+  [String.fromCharCode(0x2714)]: "*",
+  [String.fromCharCode(0x00a0)]: " ",
+  [String.fromCharCode(0x202f)]: " ",
+  [String.fromCharCode(0x2009)]: " ",
+  "\t": "    ",
+  "\r": "",
+};
+const characterSets = new WeakMap<PDFFont, Set<number>>();
+
+/** The text, with every character this font cannot draw replaced. */
+export function pdfSafe(font: PDFFont, text: string): string {
+  let known = characterSets.get(font);
+  if (!known) {
+    known = new Set(font.getCharacterSet());
+    characterSets.set(font, known);
+  }
+  let out = "";
+  for (const char of text) {
+    if (char === "\n") out += char; // line breaks are the caller's to lay out
+    else if (char in SPELLED_OUT) out += SPELLED_OUT[char];
+    else out += known.has(char.codePointAt(0) ?? 0) ? char : "?";
+  }
+  return out;
+}
+
+/** A drawn signature's image, or null for a typed one (its value is the name itself). */
+async function signatureImage(pdfDoc: PDFDocument, value: string): Promise<PDFImage | null> {
+  if (!value.startsWith("data:image/")) return null;
+  try {
+    const bytes = await dataUrlToBytes(value);
+    try {
+      return await pdfDoc.embedPng(bytes);
+    } catch {
+      return await pdfDoc.embedJpg(bytes);
+    }
+  } catch {
+    return null;
+  }
+}
+
 /** Burn both signatures into an uploaded PDF and append a certificate page. */
 export async function renderSignedUploadedPdf(
   originalPdfBytes: ArrayBuffer,
@@ -89,6 +156,7 @@ export async function renderSignedUploadedPdf(
   const pages = pdfDoc.getPages();
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const signatureFont = await pdfDoc.embedFont(StandardFonts.TimesRomanBoldItalic);
 
   const footerText = "Electronically signed and verified via HireFlow.";
   for (const page of pages) {
@@ -122,17 +190,7 @@ export async function renderSignedUploadedPdf(
     // rendering the rest of the canonical PDF — the DB columns remain the
     // source of truth, and the signer's name/timestamp still get drawn
     // below regardless.
-    let sigImage;
-    try {
-      const sigBytes = await dataUrlToBytes(sig.signatureDataUrl);
-      try {
-        sigImage = await pdfDoc.embedPng(sigBytes);
-      } catch {
-        sigImage = await pdfDoc.embedJpg(sigBytes);
-      }
-    } catch {
-      sigImage = null;
-    }
+    const sigImage = await signatureImage(pdfDoc, sig.signatureDataUrl);
 
     const sigWidth = (sig.width / 100) * pageWidth;
     const sigHeight = (sig.height / 100) * pageHeight;
@@ -142,24 +200,27 @@ export async function renderSignedUploadedPdf(
     if (sigImage) {
       page.drawImage(sigImage, { x: sigX, y: sigY, width: sigWidth, height: sigHeight });
     } else {
-      // Typed signature (or any non-image value): render the typed name
-      // itself as the visual mark in the signature box, in a bold/italic
-      // hand-off font, rather than silently leaving the box blank — the
-      // design doc's should-consider item 6 requires the canonical PDF to
-      // visually contain the actual signature, not just body text.
-      page.drawText(sig.signerName || "Signed", {
+      // Typed signature (or any non-image value): render what they typed as
+      // the visual mark in the signature box, in a script-like face, rather
+      // than silently leaving the box blank — the design doc's
+      // should-consider item 6 requires the canonical PDF to visually
+      // contain the actual signature, not just body text.
+      const typed = pdfSafe(signatureFont, sig.signatureDataUrl.trim() || sig.signerName || "Signed");
+      let size = Math.min(18, sigHeight);
+      while (size > 8 && signatureFont.widthOfTextAtSize(typed, size) > sigWidth) size -= 1;
+      page.drawText(typed, {
         x: sigX,
-        y: sigY + sigHeight / 2 - 5,
-        size: Math.min(16, sigHeight),
-        font: helveticaBold,
-        color: rgb(0.1, 0.1, 0.4),
+        y: sigY + sigHeight / 2 - size / 3,
+        size,
+        font: signatureFont,
+        color: rgb(0.08, 0.1, 0.3),
       });
     }
 
     const infoY = sigY - 12;
-    page.drawText(sig.signerName, { x: sigX, y: infoY, size: 7, font: helvetica, color: rgb(0.3, 0.3, 0.3) });
+    page.drawText(pdfSafe(helvetica, sig.signerName), { x: sigX, y: infoY, size: 7, font: helvetica, color: rgb(0.3, 0.3, 0.3) });
     if (sig.signedAt) {
-      page.drawText(format(new Date(sig.signedAt), "MM/dd/yyyy 'at' h:mm a"), {
+      page.drawText(utcStamp(sig.signedAt, false), {
         x: sigX,
         y: infoY - 9,
         size: 6,
@@ -192,6 +253,7 @@ export async function renderTextDocumentPdf(
   setDeterministicMetadata(pdfDoc, certificateData);
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const signatureFont = await pdfDoc.embedFont(StandardFonts.TimesRomanBoldItalic);
 
   const pageSize: [number, number] = [612, 792];
   const margin = 50;
@@ -224,7 +286,7 @@ export async function renderTextDocumentPdf(
     return wrapped;
   };
 
-  for (const rawLine of content.split("\n")) {
+  for (const rawLine of content.replace(/\r\n?/g, "\n").split("\n").map((line) => pdfSafe(helvetica, line))) {
     for (const line of wrapLine(rawLine)) {
       if (y < margin + lineHeight) newPage();
       page.drawText(line, { x: margin, y, size: fontSize, font: helvetica, color: rgb(0, 0, 0) });
@@ -232,49 +294,45 @@ export async function renderTextDocumentPdf(
     }
   }
 
-  // Signature block, laid out below the body content on the last page (or a
-  // fresh one if there isn't room) — the same visual intent as the client's
-  // jsPDF handleDownloadGeneratedPdf, one library instead of two.
-  if (y < margin + 140) newPage();
-  y -= 20;
-  page.drawText("Electronic Signatures", { x: margin, y, size: 12, font: helveticaBold, color: rgb(0, 0, 0) });
-  y -= 20;
+  // The signatures, side by side under the letter: each one the mark
+  // itself (the drawn image, or the typed name in a script-like face) on a
+  // line, then who signed and when. Moved to a fresh page only when it
+  // does not fit under the text.
+  const grey = rgb(0.42, 0.42, 0.42);
+  const gap = 28;
+  const columnWidth = (maxWidth - gap) / 2;
+  if (y < margin + 120) newPage();
+  y -= 26;
+  page.drawText("SIGNATURES", { x: margin, y, size: 8, font: helveticaBold, color: grey });
+  const top = y - 22;
 
-  const drawSignatureBlock = async (label: string, sig: SignatureOverlay | null) => {
-    page.drawText(label, { x: margin, y, size: 9, font: helveticaBold, color: rgb(0.3, 0.3, 0.3) });
-    y -= 14;
+  const drawColumn = async (x: number, label: string, sig: SignatureOverlay | null) => {
+    page.drawText(label, { x, y: top, size: 8, font: helveticaBold, color: grey });
+    const lineY = top - 46;
     if (sig) {
-      try {
-        const sigBytes = await dataUrlToBytes(sig.signatureDataUrl);
-        let sigImage;
-        try {
-          sigImage = await pdfDoc.embedPng(sigBytes);
-        } catch {
-          sigImage = await pdfDoc.embedJpg(sigBytes);
-        }
-        const h = 30;
-        const w = Math.min(160, (sigImage.width / sigImage.height) * h);
-        page.drawImage(sigImage, { x: margin, y: y - h, width: w, height: h });
-        y -= h + 4;
-      } catch {
-        // Missing/corrupt signature image never blocks rendering the rest
-        // of the canonical PDF — the DB columns remain the source of truth.
+      const image = await signatureImage(pdfDoc, sig.signatureDataUrl);
+      if (image) {
+        const h = 34;
+        const w = Math.min(columnWidth, (image.width / image.height) * h);
+        page.drawImage(image, { x, y: lineY + 4, width: w, height: h });
+      } else {
+        const typed = pdfSafe(signatureFont, sig.signatureDataUrl.trim() || sig.signerName);
+        let size = 22;
+        while (size > 10 && signatureFont.widthOfTextAtSize(typed, size) > columnWidth) size -= 1;
+        page.drawText(typed, { x, y: lineY + 8, size, font: signatureFont, color: rgb(0.08, 0.1, 0.3) });
       }
-      page.drawText(
-        `${sig.signerName} — ${format(new Date(sig.signedAt), "MMM d, yyyy 'at' h:mm a")}`,
-        { x: margin, y, size: 7, font: helvetica, color: rgb(0.4, 0.4, 0.4) },
-      );
-      y -= 16;
-    } else {
-      page.drawText("Not signed", { x: margin, y, size: 8, font: helvetica, color: rgb(0.6, 0.6, 0.6) });
-      y -= 16;
+    }
+    page.drawLine({ start: { x, y: lineY }, end: { x: x + columnWidth, y: lineY }, thickness: 0.75, color: rgb(0.7, 0.7, 0.7) });
+    page.drawText(pdfSafe(helvetica, sig ? sig.signerName : "Not signed"), { x, y: lineY - 14, size: 9, font: helvetica, color: rgb(0, 0, 0) });
+    if (sig?.signedAt) {
+      page.drawText(`Signed electronically, ${utcStamp(sig.signedAt, false)}`, { x, y: lineY - 27, size: 7.5, font: helvetica, color: grey });
     }
   };
 
-  await drawSignatureBlock("Candidate", candidateSignature);
-  await drawSignatureBlock("Employer", employerSignature);
+  await drawColumn(margin, "CANDIDATE", candidateSignature);
+  await drawColumn(margin + columnWidth + gap, "EMPLOYER", employerSignature);
 
-  if (y < margin + 260) newPage();
+  // The certificate always starts its own page.
   appendCertificatePage(pdfDoc, helvetica, helveticaBold, certificateData);
 
   return pdfDoc.save();
@@ -286,13 +344,6 @@ function appendCertificatePage(pdfDoc: PDFDocument, helvetica: PDFFont, helvetic
   const margin = 50;
   let y = certHeight - margin;
 
-  certPage.drawRectangle({
-    x: margin,
-    y: y + 5,
-    width: certWidth - margin * 2,
-    height: 3,
-    color: rgb(0.13, 0.55, 0.13),
-  });
   certPage.drawText("CERTIFICATE OF COMPLETION", {
     x: margin,
     y,
@@ -300,11 +351,19 @@ function appendCertificatePage(pdfDoc: PDFDocument, helvetica: PDFFont, helvetic
     font: helveticaBold,
     color: rgb(0.13, 0.55, 0.13),
   });
-  y -= 30;
+  // The rule sits under the title (it used to be drawn through it).
+  certPage.drawRectangle({
+    x: margin,
+    y: y - 10,
+    width: certWidth - margin * 2,
+    height: 2,
+    color: rgb(0.13, 0.55, 0.13),
+  });
+  y -= 36;
 
   const drawLabelValue = (label: string, value: string) => {
     certPage.drawText(label, { x: margin, y, size: 9, font: helveticaBold, color: rgb(0.4, 0.4, 0.4) });
-    certPage.drawText(value, { x: margin + 130, y, size: 9, font: helvetica, color: rgb(0, 0, 0) });
+    certPage.drawText(pdfSafe(helvetica, value), { x: margin + 130, y, size: 9, font: helvetica, color: rgb(0, 0, 0) });
     y -= 14;
   };
 
@@ -314,7 +373,7 @@ function appendCertificatePage(pdfDoc: PDFDocument, helvetica: PDFFont, helvetic
   drawLabelValue("Status:", "FULLY EXECUTED");
   drawLabelValue(
     "Completed:",
-    format(new Date(cert.completionTimestampUtc), "MMMM d, yyyy 'at' h:mm:ss a 'UTC'"),
+    utcStamp(cert.completionTimestampUtc),
   );
   y -= 10;
 
@@ -325,7 +384,7 @@ function appendCertificatePage(pdfDoc: PDFDocument, helvetica: PDFFont, helvetic
   y -= 14;
   drawLabelValue("Name:", cert.candidateName);
   if (cert.candidateEmail) drawLabelValue("Email:", cert.candidateEmail);
-  drawLabelValue("Signed At:", format(new Date(cert.candidateSignedAt), "MMMM d, yyyy 'at' h:mm:ss a 'UTC'"));
+  drawLabelValue("Signed At:", utcStamp(cert.candidateSignedAt));
   // The address the server saw (bestEffortIp.ts: Cloudflare's, not the
   // caller's to choose), the place the network put it in, and the device.
   drawLabelValue("IP Address:", cert.candidateIp || "Unavailable");
@@ -337,7 +396,7 @@ function appendCertificatePage(pdfDoc: PDFDocument, helvetica: PDFFont, helvetic
   y -= 14;
   drawLabelValue("Name:", cert.employerName);
   if (cert.employerEmail) drawLabelValue("Email:", cert.employerEmail);
-  drawLabelValue("Signed At:", format(new Date(cert.employerSignedAt), "MMMM d, yyyy 'at' h:mm:ss a 'UTC'"));
+  drawLabelValue("Signed At:", utcStamp(cert.employerSignedAt));
   // No address, place or device for the team: this page is the applicant's
   // copy too (the owner, 2026-10-11). They are in the team's audit record.
   y -= 16;
@@ -395,7 +454,7 @@ function appendCertificatePage(pdfDoc: PDFDocument, helvetica: PDFFont, helvetic
   // function of stored data: two renders of the same completed document
   // produce byte-identical PDFs. See renderFinalPdf.test.ts.
   certPage.drawText(
-    `Completed: ${format(new Date(cert.completionTimestampUtc), "MMMM d, yyyy 'at' h:mm:ss a 'UTC'")}`,
+    `Completed: ${utcStamp(cert.completionTimestampUtc)}`,
     { x: margin, y: footerY, size: 7, font: helvetica, color: rgb(0.5, 0.5, 0.5) },
   );
 }

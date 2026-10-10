@@ -93,12 +93,20 @@ export async function reconcileCandidateSignatureChain(
   const signature = parseCandidateSignatureData(candidateSignatureDataRaw);
   if (!signature) return { ok: false, reason: "missing_candidate_signature" };
 
+  // sign() hashes `new Date().toISOString()` ("…13.875Z"), but the same
+  // instant comes back from the database as "…13.875+00:00". Same moment,
+  // different text, different hash: every countersign was refused as
+  // "chain_broken" until 2026-10-10. Rewrite it the way sign() wrote it.
+  const signedAtMs = Date.parse(candidateSignedAt);
+  if (Number.isNaN(signedAtMs)) return { ok: false, reason: "missing_candidate_signed_at" };
+  const signedAtAsHashed = new Date(signedAtMs).toISOString();
+
   const signatureValue = await signatureHashInput({ method: signature.method, value: signature.value });
   const recomputedV2Hash = await computeV2Hash({
     v1Hash: v1HashAtSign,
     signatureValue,
     candidateEmail: signature.signerEmail,
-    timestampUtc: candidateSignedAt,
+    timestampUtc: signedAtAsHashed,
   });
 
   if (recomputedV2Hash !== storedV2Hash) {
