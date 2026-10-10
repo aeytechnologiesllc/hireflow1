@@ -491,18 +491,23 @@ const getEmailContent = (
     })(),
     
     // CANDIDATE-FACING
-    // An offer letter reads as a job offer from the business (the owner,
-    // 2026-10-10: what each step sends must be clear); any other document
-    // as a document to sign.
+    // An offer letter is the news that they were chosen, said first (the
+    // owner, 2026-10-10: "if I'm sending an offer letter, they don't know
+    // they have been selected. So they need that email. Congratulations, you
+    // have been selected for the position"); then the letter to sign. Any
+    // other document reads as a document to sign.
     document_sent: data.offer
       ? {
-          subject: data.company_name?.trim() ? `You have a job offer from ${data.company_name.trim()}` : "You have a job offer",
+          subject: data.company_name?.trim()
+            ? `Congratulations, you've been selected! Your offer from ${data.company_name.trim()}`
+            : "Congratulations, you've been selected!",
           html: wrapEmail(
-            "You have a job offer",
-            `<p>${data.first_name ? `Hi ${esc(data.first_name)}, ` : ""}${companyName || "The hiring team"} would like you to join as <strong>${esc(data.job_title)}</strong>.</p>
-             <p>Read your offer and sign it in your account.</p>
-             ${data.offer.replyInDays ? `<p>Please answer within ${data.offer.replyInDays} ${data.offer.replyInDays === 1 ? "day" : "days"}.</p>` : ""}`,
-            "Read and sign your offer",
+            "Congratulations, you've been selected!",
+            `<p>${data.first_name ? `Hi ${esc(data.first_name)},` : "Hi,"}</p>
+             <p>Great news: ${companyName || "the hiring team"} has selected you for the position of <strong>${esc(data.job_title)}</strong>.</p>
+             <p>Your offer letter is ready. Please read it and sign it to accept the job.</p>
+             ${data.offer.replyInDays ? `<p>Please sign within ${data.offer.replyInDays} ${data.offer.replyInDays === 1 ? "day" : "days"}.</p>` : ""}`,
+            "Read and sign your offer letter",
             candidateLink("/my-documents"),
             `— ${teamLabel}`
           ),

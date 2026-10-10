@@ -402,6 +402,30 @@ void quiet;
   r = await hush(async () => (reset((w) => { w.profiles.find((p) => p.user_id === OWNER).company_name = null; }), ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: { job_title: TITLE_A, company_name: "This employer" } })));
   check("an owner with no business name on file signs as 'The hiring team', not as words from the request", r.status === 200 && textOf(world.sent[0]).endsWith("— The hiring team"), textOf(world.sent[0]).slice(-40));
 
+  // An offer letter is the news that they were chosen (the owner,
+  // 2026-10-10: "they need that email. Congratulations, you have been
+  // selected for the position"), then the letter to sign.
+  r = await hush(async () => (reset((w) => {
+    w.documents = [{ application_id: id(201), recipient_id: ANA, document_type: "offer_letter", expires_at: new Date(Date.now() + 3.5 * 86_400_000).toISOString(), created_at: "2026-10-10T10:00:00Z" }];
+  }), ask("tok-owner", { type: "document_sent", recipient_user_id: ANA, data: { document_name: "Offer letter - Ana Reyes", job_title: TITLE_A, application_id: id(201) } })));
+  mail = world.sent[0];
+  globalThis.__offerEmail = mail;
+  check(
+    "an offer letter's email opens with 'you've been selected', names the job, then asks them to sign",
+    r.status === 200 &&
+      mail.subject === "Congratulations, you've been selected! Your offer from Zulu Support Team" &&
+      textOf(mail).startsWith("Congratulations, you've been selected!") &&
+      textOf(mail).replace(/ \./g, ".").includes(`Hi Ana, Great news: Zulu Support Team has selected you for the position of ${TITLE_A}.`) &&
+      textOf(mail).includes("Your offer letter is ready. Please read it and sign it to accept the job.") &&
+      textOf(mail).includes("Please sign within 3 days.") &&
+      textOf(mail).includes("Read and sign your offer letter"),
+    `${mail?.subject} | ${textOf(mail ?? { html: "" }).slice(0, 320)}`,
+  );
+  r = await hush(async () => (reset((w) => {
+    w.documents = [{ application_id: id(201), recipient_id: ANA, document_type: "nda", expires_at: null, created_at: "2026-10-10T10:00:00Z" }];
+  }), ask("tok-owner", { type: "document_sent", recipient_user_id: ANA, data: { document_name: "NDA", job_title: TITLE_A, application_id: id(201) } })));
+  check("…any other document is still just a document to sign, never 'selected'", r.status === 200 && !/selected/i.test(textOf(world.sent[0])) && /Document: NDA/.test(textOf(world.sent[0])), textOf(world.sent[0]).slice(0, 160));
+
   const staffKinds = [
     ["phase_advanced", { phase_name: "Chat practice\r\nBcc: x@y.example", job_title: TITLE_A }, /Chat practice Bcc: x@y\.example/],
     ["interview_scheduled", { job_title: TITLE_A, interview_date: "Friday, October 9", interview_time: "3:00 PM" }, /Friday, October 9/],

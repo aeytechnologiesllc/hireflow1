@@ -149,7 +149,7 @@ eq("due choices", lib.DUE_CHOICES.join(","), "3,5,7");
   const access = read("supabase/functions/_shared/notificationAccess.ts");
   check("…and only for an application that links the sender to that applicant", /kept\.application_id = links\.find\(\(l\) => l\.id === wanted\)\?\.id \?\? links\[0\]\.id;/.test(access));
   check("the welcome email asks them to sign and send, in one email", /"You're hired!"/.test(fn) && /Before your first day, please:/.test(fn) && /"Open HireFlow"/.test(fn));
-  check("an offer letter's email says it is a job offer", /"You have a job offer"/.test(fn) && /"Read and sign your offer"/.test(fn) && /doc\?\.document_type === "offer_letter"/.test(fn));
+  check("an offer letter's email says they were selected, then asks them to sign", /"Congratulations, you've been selected!"/.test(fn) && /has selected you for the position of/.test(fn) && /"Read and sign your offer letter"/.test(fn) && /doc\?\.document_type === "offer_letter"/.test(fn));
 
   const hire = read("src/cockpit/hooks/useHire.ts");
   check("hired once: the update only touches someone not already hired or declined", /\.not\("status", "in", "\(hired,rejected\)"\)/.test(hire) && /if \(!moved \|\| moved\.length === 0\) return \{ already: true/.test(hire));

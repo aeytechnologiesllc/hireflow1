@@ -68,7 +68,7 @@ mock-up.
 
 | You press | What happens | They get |
 |---|---|---|
-| **Send offer letter** (the main button once the interview is done; replaces "Move to Offer" on the applicant page and the Dashboard) | The guided offer letter opens; sending it moves them to Offer | "You have a job offer from {business}", a link to read and sign it |
+| **Send offer letter** (the main button once the interview is done; replaces "Move to Offer" on the applicant page and the Dashboard) | The guided offer letter opens; sending it moves them to Offer | "Congratulations, you've been selected! Your offer from {business}" (since 2026-10-10: the email says first that they were chosen, then asks them to sign), a link to read and sign it |
 | **Hire** (at Offer) | `HireDialog`: ID, NBI clearance and payment email ticked; due in 3/5/7 days; the welcome email shown as it will read | ONE email, "Welcome to {business}": congratulations, then "Before your first day, please:" with *Sign your offer letter* (only if unsigned) and each document |
 
 - **Never twice.** The button locks before anything is awaited; the hire is a
