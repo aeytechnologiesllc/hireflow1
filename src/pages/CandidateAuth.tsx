@@ -16,6 +16,7 @@ import { AFTER_SIGN_IN_STATE } from "@/lib/resumeOnComputer";
 import { getPasswordErrorMessage } from "@/lib/authErrorMessages";
 import { HeroBackground } from "@/components/ava/HeroBackground";
 import { Wordmark } from "@/cockpit/components/Wordmark";
+import { usePageHead } from "@/components/seo/usePageHead";
 import { GlyphLetter } from "@/components/candidate/glyphs";
 import { GOOGLE_AUTH_ENABLED } from "@/lib/googleAuth";
 import { staffSignInHref } from "@/lib/hosts";
@@ -108,6 +109,8 @@ const PasswordRequirements = ({ password }: { password: string }) => {
 };
 
 export default function CandidateAuth() {
+  // A sign-in screen: its own title, and kept out of search.
+  usePageHead({ title: "Sign in | Zulu Support Team", noindex: true });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();

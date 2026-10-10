@@ -19,14 +19,6 @@ import { routeImporters } from "@/lib/prefetchRoutes";
 import { usePageViewTracking } from "@/hooks/usePageViewTracking";
 import { useAutoUpdate } from "@/hooks/useAutoUpdate";
 
-// Core pages loaded eagerly for instant navigation
-import Dashboard from "./pages/Dashboard";
-import Jobs from "./pages/Jobs";
-import Applicants from "./pages/Applicants";
-import ApplicantDetails from "./pages/ApplicantDetails";
-import Messages from "./pages/Messages";
-import Documents from "./pages/Documents";
-import More from "./cockpit/pages/More";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 
@@ -47,6 +39,32 @@ function lazyWithReload(factory: Parameters<typeof lazy>[0]) {
         throw err;
       }),
   );
+}
+
+// The hiring team's core pages. They used to be loaded eagerly "for instant
+// navigation", so every applicant who opened the careers page or a job also
+// downloaded the whole staff side, PDF tools included: about 1.1 MB
+// compressed before the job appeared (2026-10-09, on phones in the
+// Philippines). Now they are lazy, and on the staff host they are fetched as
+// soon as the app starts, so the team's navigation is still instant.
+const staffPageImporters = {
+  dashboard: () => import("./pages/Dashboard"),
+  jobs: () => import("./pages/Jobs"),
+  applicants: () => import("./pages/Applicants"),
+  applicantDetails: () => import("./pages/ApplicantDetails"),
+  messages: () => import("./pages/Messages"),
+  documents: () => import("./pages/Documents"),
+  more: () => import("./cockpit/pages/More"),
+};
+const Dashboard = lazyWithReload(staffPageImporters.dashboard);
+const Jobs = lazyWithReload(staffPageImporters.jobs);
+const Applicants = lazyWithReload(staffPageImporters.applicants);
+const ApplicantDetails = lazyWithReload(staffPageImporters.applicantDetails);
+const Messages = lazyWithReload(staffPageImporters.messages);
+const Documents = lazyWithReload(staffPageImporters.documents);
+const More = lazyWithReload(staffPageImporters.more);
+if (typeof window !== "undefined" && isStaffHost()) {
+  for (const load of Object.values(staffPageImporters)) load().catch(() => {});
 }
 
 // All other pages lazy-loaded to reduce initial bundle.

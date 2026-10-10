@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { detectSchemaMode } from "@/cockpit/data/showcaseSource";
 import { fetchRoleById } from "@/lib/showcaseApply";
 import { JobPageHead } from "@/components/seo/JobPageHead";
+import { PageHeadTags } from "@/components/seo/usePageHead";
 import { isStaffHost } from "@/lib/hosts";
 import { jobPagePath, shortLinkFor, slugFromParam, withApplyAsk } from "@/lib/jobSlug";
 import { jobLevelLabel, jobTypeLabel } from "@/lib/jobLabels";
@@ -418,6 +419,9 @@ export default function JobDetails() {
   if (!activeRole) {
     return (
       <div className={`flex min-h-[70vh] items-center justify-center ${pagePad}`}>
+        {/* A closed role, or any one-word address that is no job's short link
+            (/nope, a typo): nothing here for search engines to list. */}
+        <PageHeadTags title={"This role isn\u2019t open"} noindex />
         <Card className="bg-card border-border max-w-md">
           <CardContent className="p-8 text-center sm:p-8">
             <GlyphJobPost size={48} className="mx-auto mb-4 opacity-60" style={{ color: "var(--hf-text-muted)" }} />

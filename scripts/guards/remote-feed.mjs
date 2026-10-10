@@ -72,23 +72,23 @@ export default [
     },
   },
   {
-    id: "sitemap-selects-and-exempts-is-remote",
+    // 2026-10-09: the sitemap no longer mirrors the Google Jobs gate (Google Jobs
+    // was removed on 2026-10-05). It lists every open job page, remote ones
+    // included, with no country, city or company-name rule. This check keeps it
+    // that way: the owner's worldwide remote role has no country.
+    id: "sitemap-lists-every-open-job",
     why:
-      "supabase/functions/sitemap/index.ts must SELECT is_remote from the jobs table " +
-      "and let it stand in for a missing city in its indexableJobs gate — otherwise a " +
-      "fully-remote job's page is never listed in sitemap.xml for search engines to find.",
+      "supabase/functions/sitemap/index.ts must list every published, unexpired job page " +
+      "(exclude_from_feed aside) with no country, city or company-name gate: Google Jobs is " +
+      "removed, every live job page is indexable, and a worldwide remote role has no country.",
     run: async ({ read }) => {
       const src = (await read("supabase/functions/sitemap/index.ts")) ?? "";
       const bad = [];
-      if (!/select:\s*"[^"]*\bis_remote\b[^"]*"/.test(src)) {
-        bad.push("sitemap/index.ts jobs query no longer SELECTs is_remote");
+      if (/hasCountry|cityOf|fetchCompanyNames|employer_public_branding/.test(src)) {
+        bad.push("sitemap/index.ts gates jobs on a country, a city or a company name again");
       }
-      if (!/!!cityOf\(job\)\s*\|\|\s*!!job\.is_remote/.test(src)) {
-        bad.push("sitemap/index.ts indexableJobs gate no longer exempts is_remote jobs from the city requirement");
-      }
-      if (!/if\s*\(\s*!hasCountry\(job\)\s*\)\s*return false;/.test(src)) {
-        bad.push("sitemap/index.ts no longer requires a country on every job (remote included)");
-      }
+      if (!/status:\s*"eq\.published"/.test(src)) bad.push("sitemap/index.ts no longer asks for published jobs only");
+      if (!/\$\{SITE\}\/candidate\/job\/\$\{j\.id\}/.test(src)) bad.push("sitemap/index.ts no longer lists jobs under /candidate/job/<id>");
       return bad.length ? { ok: false, detail: bad } : { ok: true };
     },
   },

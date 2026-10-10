@@ -1,8 +1,10 @@
 import { Link } from "react-router-dom";
 import { ArrowRight, MessageSquare, ClipboardCheck, KeyRound, UserRound } from "lucide-react";
 import { CandidateShell } from "@/components/candidate/CandidateShell";
+import { usePageHead } from "@/components/seo/usePageHead";
 
 export default function CandidatePortalLanding() {
+  usePageHead({ title: "Applicants | Zulu Support Team", path: "/candidate" });
   const features = [
     {
       icon: ClipboardCheck,

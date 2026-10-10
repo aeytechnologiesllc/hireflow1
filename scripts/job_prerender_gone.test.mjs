@@ -28,7 +28,8 @@ const LIVE_JOB = {
 function stubFetch({ jobRows, jobStatus = 200, branding = [{ company_name: "Maria's Café", company_logo: null }] }) {
   globalThis.fetch = async (url) => {
     const u = String(url);
-    if (u === "https://hireflownow.com/") return new Response(SHELL, { status: 200 });
+    // The app's shell, from /index.html: "/" is the HireFlow landing page, not the app.
+    if (u === "https://hireflownow.com/index.html") return new Response(SHELL, { status: 200 });
     if (u.includes("/published_jobs_public?")) {
       return jobStatus === 200
         ? new Response(JSON.stringify(jobRows), { status: 200 })

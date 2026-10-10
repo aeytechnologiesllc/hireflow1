@@ -30,7 +30,8 @@
  * typo) answers the plain shell with 200, exactly what a person gets, never
  * a 404: only an id link can say for certain that a listing is gone.
  *
- * SAFETY: fetches the current build's shell from "/" (never itself → no loop);
+ * SAFETY: fetches the current build's shell from "/index.html" (never itself →
+ * no loop; not "/", which is the HireFlow landing page once that goes live);
  * on ANY error serves the plain shell so a visitor's page never breaks.
  */
 
@@ -106,7 +107,7 @@ export default async function handler(req, res) {
 
   let shell = "";
   try {
-    const shellRes = await fetch(`${origin}/`, { headers: { "user-agent": "hireflow-prerender" } });
+    const shellRes = await fetch(`${origin}/index.html`, { headers: { "user-agent": "hireflow-prerender" } });
     shell = shellRes.ok ? await shellRes.text() : "";
     if (!shell || !/<div id="root"/i.test(shell)) {
       res.statusCode = 200;

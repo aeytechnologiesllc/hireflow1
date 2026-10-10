@@ -10,8 +10,7 @@
  * right on in-app navigation.
  */
 import { useEffect } from "react";
-
-const CANONICAL_ORIGIN = "https://hireflownow.com";
+import { SITE_ORIGIN as CANONICAL_ORIGIN, setCanonical, setMeta } from "@/lib/headTags";
 
 export interface JobPageHeadJob {
   id: string;
@@ -28,36 +27,6 @@ function textSummary(job: JobPageHeadJob, company?: string | null): string {
   const summary = pieces.join(" ").slice(0, 155);
   if (summary) return summary;
   return `Apply for ${job.title}${company ? ` at ${company}` : ""}.`;
-}
-
-function setMeta(attribute: "name" | "property", key: string, content: string) {
-  let tag = document.head.querySelector<HTMLMetaElement>(`meta[${attribute}="${key}"]`);
-  if (!tag) {
-    tag = document.createElement("meta");
-    tag.setAttribute(attribute, key);
-    document.head.appendChild(tag);
-  }
-  const previous = tag.getAttribute("content");
-  tag.setAttribute("content", content);
-  return () => {
-    if (previous == null) tag.remove();
-    else tag.setAttribute("content", previous);
-  };
-}
-
-function setCanonical(href: string) {
-  let tag = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
-  if (!tag) {
-    tag = document.createElement("link");
-    tag.setAttribute("rel", "canonical");
-    document.head.appendChild(tag);
-  }
-  const previous = tag.getAttribute("href");
-  tag.setAttribute("href", href);
-  return () => {
-    if (previous == null) tag.remove();
-    else tag.setAttribute("href", previous);
-  };
 }
 
 export function JobPageHead({ job, company }: { job: JobPageHeadJob; company?: string | null }) {

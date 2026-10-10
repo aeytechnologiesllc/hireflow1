@@ -1,6 +1,7 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import type { LegalBlock, LegalDocument } from "@/content/legal";
+import { usePageHead } from "@/components/seo/usePageHead";
 
 /**
  * One legal page: the Privacy Policy or the Terms and Conditions
@@ -25,6 +26,9 @@ function Block({ block }: { block: LegalBlock }) {
 }
 
 export function LegalPage({ document: doc, other }: { document: LegalDocument; other: { label: string; to: string } }) {
+  // Listed under its own address ("/privacy", "/terms"), not folded into the homepage.
+  const { pathname } = useLocation();
+  usePageHead({ title: `${doc.title} | HireFlow`, path: pathname, description: doc.intro[0] });
   const navigate = useNavigate();
   return (
     <div className="min-h-screen bg-[#faf8f3] text-[#17231f]" data-legal-page>

@@ -1,8 +1,12 @@
 import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
+import { usePageHead } from "@/components/seo/usePageHead";
 
 const NotFound = () => {
   const location = useLocation();
+  // The app answers every address with 200, so this page tells search engines
+  // itself that there is nothing here to list.
+  usePageHead({ title: "Page not found", noindex: true });
 
   useEffect(() => {
     console.error("404 Error: User attempted to access non-existent route:", location.pathname);
