@@ -149,6 +149,7 @@ export function DocumentSigningPanel({ documentId, mode, onComplete }: DocumentS
             onChange={(e) => setTypedValue(e.target.value)}
             placeholder={defaultName || "Your full legal name"}
             maxLength={120}
+            className="h-12 font-signature text-[28px]"
           />
         </TabsContent>
         <TabsContent value="drawn" className="pt-2">

@@ -94,7 +94,7 @@ function Mark({ value }: { value: string | null }) {
   return value.startsWith("data:image") ? (
     <img src={value} alt="" className="mt-1 h-12 max-w-full object-contain dark:invert" />
   ) : (
-    <div className="mt-1 truncate font-display text-[22px] italic" style={{ color: "var(--hf-text)" }}>
+    <div className="mt-1 truncate font-signature text-[32px] leading-tight" style={{ color: "var(--hf-text)" }}>
       {value}
     </div>
   );
@@ -370,7 +370,7 @@ export function TeamDocumentSheet({
                       </label>
                       <input
                         id="ck-teamdoc-name"
-                        className="ck-input mt-1 w-full px-3 py-2.5 font-display !text-[20px] italic"
+                        className="ck-input mt-1 w-full px-3 py-1.5 font-signature !text-[30px] leading-snug"
                         value={typed}
                         maxLength={120}
                         onChange={(e) => setTyped(e.target.value)}

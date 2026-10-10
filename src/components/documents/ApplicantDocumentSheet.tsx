@@ -86,7 +86,7 @@ function SignatureLine({ who, at, sig }: { who: string; at: string | null | unde
         sig.value.startsWith("data:image") ? (
           <img src={sig.value} alt={`${who} signature`} className="mt-1 h-12 max-w-full object-contain dark:invert" />
         ) : (
-          <div className="mt-1 truncate font-display text-[22px] italic text-foreground">{sig.value}</div>
+          <div className="mt-1 truncate font-signature text-[32px] leading-tight text-foreground">{sig.value}</div>
         )
       ) : (
         <div className="mt-1 text-sm text-muted-foreground">Not signed yet</div>
@@ -301,7 +301,7 @@ export function ApplicantDocumentSheet({
                       </label>
                       <input
                         id="sign-name"
-                        className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 font-display text-[20px] italic text-foreground outline-none focus:ring-2 focus:ring-primary/40"
+                        className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-1.5 font-signature text-[30px] leading-snug text-foreground outline-none focus:ring-2 focus:ring-primary/40"
                         value={typed}
                         maxLength={120}
                         onChange={(e) => setTyped(e.target.value)}

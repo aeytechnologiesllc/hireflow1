@@ -28,6 +28,12 @@ chain no longer reconciles"), though nothing had been altered:
   (`utcStamp`), and puts characters the built-in PDF fonts cannot draw (a peso
   sign, an emoji, another script) through `pdfSafe` instead of failing the
   whole countersign on them.
+- **Typed signatures are written in Allura** (the owner's pick from five
+  scripts, 2026-10-10), on the signing screens (`font-signature`,
+  `public/fonts/allura-latin.woff2`) and in the final PDF
+  (`_shared/fonts/allura.ts`, embedded with fontkit). Both are cut to Latin
+  letters; a name with a letter outside that is drawn in the built-in italic.
+  Licence: `public/fonts/Allura-OFL.txt` (SIL Open Font License 1.1).
 - The database half (reserve, finalize, the three record rows, the
   applicant's notice) was rehearsed on production as the service role inside a
   transaction that rolled back: every write was accepted.

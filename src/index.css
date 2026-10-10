@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* A typed signature's face: Allura (SIL Open Font License, public/fonts/
+   Allura-OFL.txt), cut to Latin letters. The signed PDF draws it from the
+   same font (supabase/functions/_shared/fonts/allura.ts). */
+@font-face {
+  font-family: "Allura";
+  src: url("/fonts/allura-latin.woff2") format("woff2");
+  font-display: swap;
+  unicode-range: U+0020-007E, U+00A0-017F, U+2010-2027, U+2030-203A, U+20AC;
+}
+
 @layer base {
   /* ══════════════════════════════════════════════════════════════════════════
      HireFlow — one token system.

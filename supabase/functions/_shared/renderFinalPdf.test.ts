@@ -194,3 +194,39 @@ Deno.test("pdfSafe spells out the peso sign and replaces what the font cannot dr
   // whole letter into one paragraph.
   if (pdfSafe(font, "Dear Ana,\n\nWelcome.") !== "Dear Ana,\n\nWelcome.") throw new Error("line breaks must survive");
 });
+
+/** The PDF's font names (its objects are compressed, so the raw bytes do not show them). */
+async function fontNames(bytes: Uint8Array): Promise<string[]> {
+  const doc = await PDFDocument.load(bytes);
+  const names: string[] = [];
+  for (const [, object] of doc.context.enumerateIndirectObjects()) {
+    const text = object.toString();
+    const match = /\/BaseFont\s*\/(\S+)/.exec(text);
+    if (match && text.includes("/Type /Font")) names.push(match[1]);
+  }
+  return names;
+}
+
+// The owner's pick, 2026-10-10: a typed signature is written in Allura, the
+// script the signing screens show it in.
+Deno.test("renderTextDocumentPdf: a typed signature is written in Allura, and the render stays byte-identical", async () => {
+  const typed = (name: string, role: "candidate" | "employer"): SignatureOverlay => ({ signatureDataUrl: name, x: 10, y: 80, width: 25, height: 8, page: 1, signerName: name, signedAt: "2026-09-15T10:00:00.000Z", signerRole: role });
+  const a = await renderTextDocumentPdf("Dear Ana,", typed("Ana Reyes", "candidate"), typed("Emp Y", "employer"), FIXED_CERT);
+  const b = await renderTextDocumentPdf("Dear Ana,", typed("Ana Reyes", "candidate"), typed("Emp Y", "employer"), FIXED_CERT);
+  const fonts = await fontNames(a);
+  if (!fonts.some((name) => name.includes("Allura"))) throw new Error(`no Allura font in the PDF: ${fonts.join(", ")}`);
+  if (a.length !== b.length || a.some((byte, i) => byte !== b[i])) throw new Error("two renders of the same signed letter differ");
+});
+
+Deno.test("renderTextDocumentPdf: a drawn-only letter does not carry the signature font", async () => {
+  const drawn: SignatureOverlay = { signatureDataUrl: MINIMAL_PNG_DATA_URL, x: 10, y: 80, width: 25, height: 8, page: 1, signerName: "Ana", signedAt: "2026-09-15T10:00:00.000Z", signerRole: "candidate" };
+  const bytes = await renderTextDocumentPdf("Dear Ana,", drawn, null, FIXED_CERT);
+  if ((await fontNames(bytes)).some((name) => name.includes("Allura"))) throw new Error("Allura embedded with no typed signature");
+});
+
+Deno.test("renderSignedUploadedPdf: a typed signature is written in Allura", async () => {
+  const typed: SignatureOverlay = { signatureDataUrl: "Ana Reyes", x: 10, y: 80, width: 25, height: 8, page: 1, signerName: "Ana Reyes", signedAt: "2026-09-15T10:00:00.000Z", signerRole: "candidate" };
+  const bytes = await renderSignedUploadedPdf(await makeMinimalPdfBytes(), typed, null, FIXED_CERT);
+  const fonts = await fontNames(bytes);
+  if (!fonts.some((name) => name.includes("Allura"))) throw new Error(`no Allura font in the PDF: ${fonts.join(", ")}`);
+});

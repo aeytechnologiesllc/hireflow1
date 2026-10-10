@@ -25,6 +25,7 @@ export default {
       fontFamily: {
         sans: ["'Inter'", "system-ui", "sans-serif"],
         display: ["'Fraunces'", "Georgia", "serif"],
+        signature: ["'Allura'", "'Fraunces'", "Georgia", "serif"],
       },
       colors: {
         jade: "hsl(var(--ck-jade))",

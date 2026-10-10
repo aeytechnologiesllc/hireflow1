@@ -18,6 +18,11 @@
  * edge function.
  */
 import { PDFDocument, PDFFont, PDFImage, rgb, StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
+import * as fontkitModule from "https://esm.sh/@pdf-lib/fontkit@1.1.1";
+import { ALLURA_TTF_BASE64 } from "./fonts/allura.ts";
+
+// esm.sh serves fontkit as a default export; its types declare named ones only.
+const fontkit = (fontkitModule as unknown as { default?: typeof fontkitModule }).default ?? fontkitModule;
 
 export interface SignatureOverlay {
   signatureDataUrl: string;
@@ -144,6 +149,37 @@ async function signatureImage(pdfDoc: PDFDocument, value: string): Promise<PDFIm
   }
 }
 
+let alluraBytes: Uint8Array | null = null;
+
+/** Every character of the text is one this font can draw. */
+function canDraw(font: PDFFont, text: string): boolean {
+  const known = new Set(font.getCharacterSet());
+  for (const char of text) if (!known.has(char.codePointAt(0) ?? 0)) return false;
+  return true;
+}
+
+/**
+ * The face a typed signature is drawn in: Allura, the script the signing
+ * screens show it in (the owner's pick, 2026-10-10), or the built-in bold
+ * italic for a name with a letter Allura does not have. Both are embedded
+ * only when a typed signature is actually drawn.
+ */
+function typedSignatureFonts(pdfDoc: PDFDocument): (text: string) => Promise<{ font: PDFFont; script: boolean }> {
+  let allura: Promise<PDFFont> | null = null;
+  let fallback: Promise<PDFFont> | null = null;
+  return async (text: string) => {
+    if (!allura) {
+      pdfDoc.registerFontkit(fontkit);
+      if (!alluraBytes) alluraBytes = Uint8Array.from(atob(ALLURA_TTF_BASE64), (c) => c.charCodeAt(0));
+      allura = pdfDoc.embedFont(alluraBytes, { subset: true });
+    }
+    const script = await allura;
+    if (canDraw(script, text)) return { font: script, script: true };
+    fallback ??= pdfDoc.embedFont(StandardFonts.TimesRomanBoldItalic);
+    return { font: await fallback, script: false };
+  };
+}
+
 /** Burn both signatures into an uploaded PDF and append a certificate page. */
 export async function renderSignedUploadedPdf(
   originalPdfBytes: ArrayBuffer,
@@ -156,7 +192,7 @@ export async function renderSignedUploadedPdf(
   const pages = pdfDoc.getPages();
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const signatureFont = await pdfDoc.embedFont(StandardFonts.TimesRomanBoldItalic);
+  const signatureFont = typedSignatureFonts(pdfDoc);
 
   const footerText = "Electronically signed and verified via HireFlow.";
   for (const page of pages) {
@@ -201,18 +237,20 @@ export async function renderSignedUploadedPdf(
       page.drawImage(sigImage, { x: sigX, y: sigY, width: sigWidth, height: sigHeight });
     } else {
       // Typed signature (or any non-image value): render what they typed as
-      // the visual mark in the signature box, in a script-like face, rather
+      // the visual mark in the signature box, in Allura, rather
       // than silently leaving the box blank — the design doc's
       // should-consider item 6 requires the canonical PDF to visually
       // contain the actual signature, not just body text.
-      const typed = pdfSafe(signatureFont, sig.signatureDataUrl.trim() || sig.signerName || "Signed");
-      let size = Math.min(18, sigHeight);
-      while (size > 8 && signatureFont.widthOfTextAtSize(typed, size) > sigWidth) size -= 1;
+      const raw = sig.signatureDataUrl.trim() || sig.signerName || "Signed";
+      const { font } = await signatureFont(raw);
+      const typed = pdfSafe(font, raw);
+      let size = Math.min(24, sigHeight * 1.4);
+      while (size > 8 && font.widthOfTextAtSize(typed, size) > sigWidth) size -= 1;
       page.drawText(typed, {
         x: sigX,
         y: sigY + sigHeight / 2 - size / 3,
         size,
-        font: signatureFont,
+        font,
         color: rgb(0.08, 0.1, 0.3),
       });
     }
@@ -253,7 +291,7 @@ export async function renderTextDocumentPdf(
   setDeterministicMetadata(pdfDoc, certificateData);
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const signatureFont = await pdfDoc.embedFont(StandardFonts.TimesRomanBoldItalic);
+  const signatureFont = typedSignatureFonts(pdfDoc);
 
   const pageSize: [number, number] = [612, 792];
   const margin = 50;
@@ -295,7 +333,7 @@ export async function renderTextDocumentPdf(
   }
 
   // The signatures, side by side under the letter: each one the mark
-  // itself (the drawn image, or the typed name in a script-like face) on a
+  // itself (the drawn image, or the typed name in Allura) on a
   // line, then who signed and when. Moved to a fresh page only when it
   // does not fit under the text.
   const grey = rgb(0.42, 0.42, 0.42);
@@ -316,10 +354,12 @@ export async function renderTextDocumentPdf(
         const w = Math.min(columnWidth, (image.width / image.height) * h);
         page.drawImage(image, { x, y: lineY + 4, width: w, height: h });
       } else {
-        const typed = pdfSafe(signatureFont, sig.signatureDataUrl.trim() || sig.signerName);
-        let size = 22;
-        while (size > 10 && signatureFont.widthOfTextAtSize(typed, size) > columnWidth) size -= 1;
-        page.drawText(typed, { x, y: lineY + 8, size, font: signatureFont, color: rgb(0.08, 0.1, 0.3) });
+        const raw = sig.signatureDataUrl.trim() || sig.signerName;
+        const { font, script } = await signatureFont(raw);
+        const typed = pdfSafe(font, raw);
+        let size = script ? 32 : 22;
+        while (size > 10 && font.widthOfTextAtSize(typed, size) > columnWidth) size -= 1;
+        page.drawText(typed, { x, y: lineY + 7, size, font, color: rgb(0.08, 0.1, 0.3) });
       }
     }
     page.drawLine({ start: { x, y: lineY }, end: { x: x + columnWidth, y: lineY }, thickness: 0.75, color: rgb(0.7, 0.7, 0.7) });

@@ -97,7 +97,7 @@ const isDrawnSignature = (value: string) => /^data:image\//.test(value);
 function SignatureMark({ value, alt, className, style }: { value: string; alt: string; className?: string; style?: CSSProperties }) {
   if (isDrawnSignature(value)) return <img src={value} alt={alt} className={className} style={style} />;
   return (
-    <span className="px-2 text-[22px] italic leading-none text-foreground" style={{ fontFamily: '"Fraunces", Georgia, "Times New Roman", serif' }} aria-label={alt} data-typed-signature>
+    <span className="px-2 font-signature text-[30px] leading-none text-foreground" aria-label={alt} data-typed-signature>
       {value}
     </span>
   );
