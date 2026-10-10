@@ -258,7 +258,7 @@ console.log("\nThe wiring:\n");
   const employerFacing = /const EMPLOYER_FACING[\s\S]*?\]\);/.exec(fn)?.[0] ?? "";
   check("…signed by the hiring team, not sent as a team alert", employerFacing.length > 0 && !/continue_on_computer/.test(employerFacing));
   const gateAt = fn.indexOf("if (type === CONTINUE_ON_COMPUTER_TYPE) {");
-  const profileAt = fn.indexOf('.from("profiles")\n      .select("email, email_notifications_enabled');
+  const profileAt = fn.indexOf('.from("profiles")\n      .select("email, full_name, email_notifications_enabled');
   const sendAt = fn.indexOf("resend.emails.send(");
   check("it is decided BEFORE the recipient is read and long before anything is sent", gateAt > 0 && profileAt > gateAt && sendAt > profileAt, `${gateAt} ${profileAt} ${sendAt}`);
   const gate = fn.slice(gateAt, profileAt);

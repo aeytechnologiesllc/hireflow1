@@ -115,7 +115,9 @@ console.log("\n'Today' or 'tomorrow', on the applicant's own clock");
 
 console.log("\nThe email's words");
 const send = await read("supabase/functions/send-notification-email/index.ts");
-const template = send.slice(send.indexOf("interview_reminder: (() => {"), send.indexOf("document_sent: {"));
+// To the next template (document_sent, an offer letter or a document to
+// sign since 2026-10-10, so its key is no longer followed by "{").
+const template = send.slice(send.indexOf("interview_reminder: (() => {"), send.indexOf("\n    document_sent:"));
 check("the hour one says so, in the subject and the heading", /soon \? `Your interview starts in about an hour: \$\{data\.job_title\}`/.test(template) && /soon \? "Your interview starts in about an hour"/.test(template));
 check("the day one says today or tomorrow as sent, and 'coming up' rather than a guess", /const when = data\.day_word === "today" \|\| data\.day_word === "tomorrow" \? data\.day_word : "coming up";/.test(template) && /`Reminder: your interview is \$\{when\}: \$\{data\.job_title\}`/.test(template) && /`Your interview is \$\{when\}`/.test(template) && !/is tomorrow/.test(template));
 check("the sender works the word out on the same clock the time is written on", /const clock = knownTimeZone\(theirZone\) \?\? knownTimeZone\(teamZone\) \?\? "UTC";/.test(await read("supabase/functions/interview-reminders/index.ts")) && /dayWord: dayWord\(start, now, clock\)/.test(await read("supabase/functions/interview-reminders/index.ts")));
