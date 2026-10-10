@@ -46,7 +46,6 @@ import {
   type AdvanceAfterStepOutcome,
   type AdvanceSnapshot,
 } from "../_shared/trustedResults.ts";
-import { hasSubscriptionBypassForUser } from "../_shared/subscriptionBypass.ts";
 import { isScopedTeamMemberFromRpc } from "../_shared/teamMemberRpcAccess.ts";
 import { connectionEvidenceLine, recordedEquipmentCheck } from "../_shared/connectionStamps.ts";
 
@@ -909,80 +908,30 @@ Purpose: This is a supplementary document for the above question. It is NOT a re
       };
     }
 
-    // ========== AI ANALYSES LIMIT CHECK ==========
+    // ========== WHO MAY HAVE AVA SCORE ==========
+    // Until 2026-10-11 a leftover of the old trial plan stopped scoring after
+    // 15 applicants for every business but the owner's, with an "Upgrade your
+    // plan" message for a plan that no longer exists. Opening HireFlow to
+    // other businesses (docs/BUSINESS-TRUST.md): scoring is never silently
+    // capped; how many applicants a job takes is billing's, by job. Only a
+    // paused (suspended) business gets no scoring.
     if (employerId) {
-      const subscriptionBypass = await hasSubscriptionBypassForUser(supabaseAdmin, employerId);
-
-      if (subscriptionBypass) {
-        console.log("[trigger-ava-analysis] Internal test account bypass active", { employerId });
-      } else {
-        const { data: subscription } = await supabaseAdmin
-          .from("subscriptions")
-          .select("plan_type, status, trial_end")
-          .eq("user_id", employerId)
-          .maybeSingle();
-
-        const hasActiveSubscriptionAccess =
-          !subscription ||
-          subscription.status === "active" ||
-          (subscription.status === "trialing" &&
-            (!subscription.trial_end || new Date(subscription.trial_end) > new Date()));
-
-        if (!hasActiveSubscriptionAccess) {
-          return {
-            ok: false,
-            status: 403,
-            body: {
-              error: "Subscription inactive",
-              message: "This employer's subscription is not active, so Ava analysis is unavailable.",
-            },
-            profile,
-          };
-        }
-
-        const planType = subscription?.plan_type || "trial";
-        const aiAnalysesLimits: Record<string, number> = {
-          trial: 15,
-          growth: 100,
-          business: -1,
-          enterprise: -1,
+      const { data: standing } = await supabaseAdmin
+        .from("business_standing")
+        .select("status")
+        .eq("employer_id", employerId)
+        .maybeSingle();
+      if (standing?.status === "suspended") {
+        console.log("[trigger-ava-analysis] Business paused, no scoring", { employerId });
+        return {
+          ok: false,
+          status: 403,
+          body: { error: "Business paused", message: "This business is paused, so Ava analysis is unavailable." },
+          profile,
         };
-        const aiLimit = aiAnalysesLimits[planType] ?? 15;
-
-        if (aiLimit !== -1) {
-          const { data: employerJobs } = await supabaseAdmin
-            .from("jobs")
-            .select("id")
-            .eq("employer_id", employerId);
-
-          const jobIds = (employerJobs || []).map((entry: any) => entry.id);
-          if (jobIds.length > 0) {
-            const { count: analysisCount } = await supabaseAdmin
-              .from("applications")
-              .select("*", { count: "exact", head: true })
-              .in("job_id", jobIds)
-              .not("ai_score", "is", null);
-
-            const currentCount = analysisCount || 0;
-            if (currentCount >= aiLimit) {
-              console.log(`[trigger-ava-analysis] AI analysis limit reached for employer ${employerId}: ${currentCount}/${aiLimit}`);
-              return {
-                ok: false,
-                status: 403,
-                body: {
-                  error: "AI analysis limit reached",
-                  message: `You've reached your AI analysis limit (${currentCount}/${aiLimit}). Upgrade your plan for more analyses.`,
-                  limitReached: true,
-                },
-                profile,
-              };
-            }
-            console.log(`[trigger-ava-analysis] AI analysis count: ${currentCount}/${aiLimit}`);
-          }
-        }
       }
     }
-    // ========== END LIMIT CHECK ==========
+    // ========== END ==========
 
     // The skills check lives in jobs.quiz_questions, not workflow_steps, so it
     // was never on this list, and the judge was told to leave out phases that
