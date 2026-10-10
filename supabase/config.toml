@@ -135,6 +135,7 @@ verify_jwt = true
 [functions.interview-reminders]
 # Called every five minutes by pg_cron through pg_net, which has no JWT
 # (supabase/migrations/*_interview_reminders_schedule.sql). The function
-# answers only a caller holding INTERVIEW_REMINDERS_SECRET, and takes no
-# input: it sends only reminders that are due, each at most once.
+# answers only a caller holding the secret kept in Vault (checked through
+# interview_reminders_secret_matches), and takes no input: it sends only
+# reminders that are due, each at most once.
 verify_jwt = false

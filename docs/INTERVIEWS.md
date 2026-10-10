@@ -559,8 +559,10 @@ How it runs:
   reminder is due, and the email it asks for).
 - `supabase/functions/interview-reminders` is the sender. The database's own
   scheduler (pg_cron, job `interview-reminders`) calls it every five minutes
-  through pg_net. It answers only a caller holding `INTERVIEW_REMINDERS_SECRET`
-  and takes no input. It claims each reminder before sending it (sets
+  through pg_net. It answers only a caller holding the secret kept in Vault
+  (`interview_reminders_secret`; the function asks the database whether it
+  matches, through `interview_reminders_secret_matches`, which only the
+  service role may call) and takes no input. It claims each reminder before sending it (sets
   `reminder_day_sent_at` / `reminder_hour_sent_at` only where still empty),
   so two overlapping looks never send one twice; if the email fails, the
   claim is given back and the next look tries again while the reminder is
@@ -573,12 +575,11 @@ How it runs:
   reminder or make one go again. Writing only these does not move
   `updated_at`.
 
-Setting it up (once, by hand; the secret is never in the repo): make a random
-value of at least 32 characters, set it as the edge function secret
-`INTERVIEW_REMINDERS_SECRET`, and store the same value in Vault:
-`select vault.create_secret('<value>', 'interview_reminders_secret');`.
-Until both hold it, every look is refused (401) and nothing is sent. To stop
-the reminders: `select cron.unschedule('interview-reminders');`.
+Nothing to set up by hand: the migration makes the secret inside the
+database (32 random bytes) and keeps it only in Vault, so it is never in the
+repo, in a function setting, or on anyone's screen. To change it, delete the
+Vault entry and re-run the schedule migration. To stop the reminders:
+`select cron.unschedule('interview-reminders');`.
 
 Proof: `scripts/interview_reminders.test.mjs` (the windows, once each, only
 agreed times, the wait after a booking, the email's fields and words, the

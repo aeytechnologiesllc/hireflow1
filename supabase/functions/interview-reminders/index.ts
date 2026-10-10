@@ -2,9 +2,12 @@
 // their interview (docs/INTERVIEWS.md, "Reminders").
 //
 // Called every five minutes by the database's own scheduler (pg_cron, the
-// `interview-reminders` job), never by a browser. It carries a secret only
-// the scheduler and this function hold (INTERVIEW_REMINDERS_SECRET); without
-// it the answer is 401 and nothing is read.
+// `interview-reminders` job), never by a browser. The job sends a secret it
+// reads from Vault ('interview_reminders_secret'), and this function asks the
+// database whether it matches (interview_reminders_secret_matches, callable
+// by the service role only). The secret was made inside the database and is
+// kept only in Vault: it is never in the repo, in a function setting, or seen
+// by anyone. Without it the answer is 401 and no interview is read.
 //
 // Each look: find the booked interviews in the next day, decide which
 // reminder each is due (_shared/interviewReminders.ts), and for each one
@@ -21,20 +24,15 @@ import { interviewKindPhrase, joinNoteFor, lengthWords, teamZoneOf } from "../_s
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-/** Compared in full, so the time it takes says nothing about where they differ. */
-function sameSecret(given: string, held: string): boolean {
-  if (!given || !held || given.length !== held.length) return false;
-  let diff = 0;
-  for (let i = 0; i < held.length; i += 1) diff |= given.charCodeAt(i) ^ held.charCodeAt(i);
-  return diff === 0;
-}
-
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
-  const held = Deno.env.get("INTERVIEW_REMINDERS_SECRET") ?? "";
-  if (held.length < 32 || !sameSecret(req.headers.get("x-reminders-secret") ?? "", held)) return json({ error: "unauthorized" }, 401);
+  const given = req.headers.get("x-reminders-secret") ?? "";
+  if (given.length < 32 || given.length > 256) return json({ error: "unauthorized" }, 401);
 
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
+  const { data: matches, error: secretError } = await admin.rpc("interview_reminders_secret_matches", { p_given: given });
+  if (secretError || matches !== true) return json({ error: "unauthorized" }, 401);
+
   const now = new Date();
   const until = new Date(now.getTime() + REMINDER_LOOKAHEAD_MINUTES * 60_000);
 

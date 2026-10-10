@@ -127,8 +127,9 @@ check("an applicant who turned interview emails off is not sent it", /interview_
 
 console.log("\nThe sender");
 const fn = await read("supabase/functions/interview-reminders/index.ts");
-check("refuses anyone without the secret, before reading anything", fn.indexOf('json({ error: "unauthorized" }, 401)') > 0 && fn.indexOf('json({ error: "unauthorized" }, 401)') < fn.indexOf('.from("interviews")'));
-check("…and a secret shorter than 32 characters counts as none", /held\.length < 32/.test(fn));
+check("refuses anyone without the secret, before reading any interview", fn.indexOf('json({ error: "unauthorized" }, 401)') > 0 && fn.lastIndexOf('json({ error: "unauthorized" }, 401)') < fn.indexOf('.from("interviews")'));
+check("…a secret shorter than 32 characters counts as none, without asking the database", /given\.length < 32/.test(fn) && fn.indexOf("given.length < 32") < fn.indexOf("admin.rpc("));
+check("…and the database says whether it matches (the secret lives only in Vault)", /admin\.rpc\("interview_reminders_secret_matches", \{ p_given: given \}\)/.test(fn) && /if \(secretError \|\| matches !== true\) return json\(\{ error: "unauthorized" \}, 401\);/.test(fn) && !/Deno\.env\.get\("INTERVIEW_REMINDERS_SECRET"\)/.test(fn));
 check("claims a reminder before sending it: only where its sent-at is still empty", /\.update\(\{ \[column\]: now\.toISOString\(\) \}\)\.eq\("id", interview\.id\)\.is\(column, null\)/.test(fn));
 check("gives the claim back when the email could not be sent", (fn.match(/await giveBack\(\);/g) ?? []).length === 2);
 check("answers with counts only", /return json\(\{ ok: true, \.\.\.counts \}\);/.test(fn));
@@ -159,6 +160,8 @@ const scheduleFile = migrations.find((n) => /_interview_reminders_schedule\.sql$
 const schedule = scheduleFile ? await read(`supabase/migrations/${scheduleFile}`) : "";
 check("every five minutes", /cron\.schedule\(\s*'interview-reminders',\s*'\*\/5 \* \* \* \*'/.test(schedule));
 check("the secret is read from Vault when each look runs, never written in the file", /vault\.decrypted_secrets WHERE name = 'interview_reminders_secret'/.test(schedule) && !/x-reminders-secret', '[^']{8,}'/.test(schedule));
+check("…made inside the database on the first run, 32 random bytes, and kept on a re-run", /IF NOT EXISTS \(SELECT 1 FROM vault\.secrets WHERE name = 'interview_reminders_secret'\)/.test(schedule) && /encode\(extensions\.gen_random_bytes\(32\), 'hex'\)/.test(schedule));
+check("…and only the service role may ask whether a secret matches", /REVOKE ALL ON FUNCTION public\.interview_reminders_secret_matches\(text\) FROM anon, authenticated;/.test(schedule) && /GRANT EXECUTE ON FUNCTION public\.interview_reminders_secret_matches\(text\) TO service_role;/.test(schedule) && /length\(p_given\) >= 32/.test(schedule));
 check("…to this project's own address", /https:\/\/yqklrkpptnhubsnijqze\.supabase\.co\/functions\/v1\/interview-reminders/.test(schedule));
 
 console.log(`\n${passed} passed, ${failed} failed`);
