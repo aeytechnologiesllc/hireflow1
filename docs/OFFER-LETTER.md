@@ -64,6 +64,45 @@ back the exact text. The old screens use it too now.
 has the whole screen, the copies to download appear once the document is
 finished, and a "Sign" button in the bar goes straight to the place to sign.
 
+## Guided, and the parts a real offer has (2026-10-10)
+
+The owner, with his first real letter on screen: "the offer letter feels
+incomplete ... I can't put the company name there ... I don't know if I should
+put hours because they can change ... Offer ends date, I don't know if I should
+put it there. Basically be a guided ... so that somebody's just hiring for the
+first time, they understand how to write this ... make it more legit ... don't
+overcomplicate it ... we're not doing it like Google or Microsoft."
+
+The screen is four numbered steps, each box with one line on what to write:
+
+1. **The job**: their name, the job title (now editable), the **company name**
+   (always shown; it was hidden behind "Change"), the start date, full or part
+   time, hours and shift (optional; if hours can change, keep it general, and
+   the letter says hours may change with notice).
+2. **Pay**: amount, currency and "a month / a week / an hour" as three boxes,
+   how often (twice a month by default: usual for remote workers in the
+   Philippines) and how (optional: "Wise or bank transfer").
+3. **Terms**, filled in with the usual choices for a remote support role and
+   shown as one line until he presses Change: independent contractor (or
+   employee), a 30-day trial (none, 2 weeks, 30, 60 or 90 days), 14 days'
+   notice to end (7, 14 or 30), remote, their own computer and internet,
+   keeping company and customer information private, and who they report to.
+4. **Sending**: "Time to sign" as 3, 5 or 7 days (5 by default) instead of a
+   date picker, with the day it ends spelled out; anything else; and who signs
+   it (name, and a title such as Owner).
+
+The letter now reads like an offer: a short welcome, then THE ROLE, PAY, TRIAL
+PERIOD (when there is one), GOOD TO KNOW (the expectations chosen in Terms and
+how either side can end it), anything else, TO ACCEPT, and "Sincerely, Zack,
+Owner, Zulu Support Team". A name typed in small letters ("zack") signs with a
+capital. Every word is still on the screen beside the boxes before it is sent,
+and it is still not AI. The screen says it is a plain-language letter, not
+legal advice. What stays the same for a job (hours, shift, how they are paid,
+the terms, his title) is remembered on the device for the next offer.
+
+The stored body says `writtenBy: "offer-letter-2"` and keeps the arrangement,
+trial and notice beside the pay and start date.
+
 ## Not done
 
 - The first real letter has still never been signed on the live site. Before

@@ -13,8 +13,9 @@ import {
   offerLetterName,
   offerLetterText,
   offerProblems,
-  payFromJob,
+  payPartsFromJob,
   type OfferLetterFields,
+  type PayPer,
 } from "../lib/offerLetter";
 
 /**
@@ -38,8 +39,10 @@ export interface OfferPerson {
   status: string;
   jobId: string;
   jobTitle: string;
-  /** The job's pay in words, when the job states one figure. */
-  jobPay: string;
+  /** The job's pay as the screen's boxes, when the job states one figure a month, a week or an hour. */
+  jobPay: { payAmount: string; payCurrency: string; payPer: PayPer } | null;
+  /** The job is done from home. */
+  jobRemote: boolean;
 }
 
 /** The stages an offer can go out from, the likeliest first. */
@@ -55,7 +58,7 @@ export function useOfferPeople(enabled: boolean) {
     queryFn: async (): Promise<OfferPerson[]> => {
       const { data: jobs, error: jobsError } = await supabase
         .from("jobs")
-        .select("id, title, salary_min, salary_max, salary_currency, salary_period")
+        .select("id, title, salary_min, salary_max, salary_currency, salary_period, is_remote")
         .eq("employer_id", user!.id);
       if (jobsError) throw jobsError;
       if (!jobs || jobs.length === 0) return [];
@@ -86,7 +89,8 @@ export function useOfferPeople(enabled: boolean) {
             status: String(application.status),
             jobId: application.job_id,
             jobTitle: job?.title ?? "",
-            jobPay: payFromJob(job),
+            jobPay: payPartsFromJob(job),
+            jobRemote: job?.is_remote !== false,
           };
         })
         .sort((a, b) => OFFER_STAGES.indexOf(a.status) - OFFER_STAGES.indexOf(b.status) || a.name.localeCompare(b.name));

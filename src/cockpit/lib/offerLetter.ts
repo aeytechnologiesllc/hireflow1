@@ -12,29 +12,69 @@
  * apostrophe or a long dash.
  *
  * So the letter is a fixed one, in words he would say aloud, built only from
- * what he typed: who, the role, the pay, the hours, the shift, the start
- * date, and the day the offer ends. Nothing is invented and nothing is
- * promised that he did not type. It is stored in the same shape the signing
- * engine already reads (a JSON body with `content`), so signing,
+ * what he typed or chose on the screen. It is stored in the same shape the
+ * signing engine already reads (a JSON body with `content`), so signing,
  * countersigning, the locked PDF and the audit trail are the engine's own,
  * unchanged.
  *
+ * 2026-10-10, the owner on the first real letter: "the offer letter feels
+ * incomplete ... I can't put the company name there ... I don't know if I
+ * should put hours because they can change ... Offer ends date, I don't know
+ * if I should put it there. Basically be a guided ... so that somebody's just
+ * hiring for the first time, they understand how to write this offer letter
+ * ... make it more legit ... don't overcomplicate it ... we're not doing it
+ * like Google or Microsoft." So the letter now has the parts a small remote
+ * team's offer usually has (the role, the pay and how it is paid, a trial
+ * period, how either side can end it, the usual expectations, how to accept)
+ * and the screen fills each with the usual choice for a remote support role,
+ * which he can change. Still no AI, and nothing he cannot see: every line is
+ * on the screen beside the boxes before it is sent.
+ *
  * Pure: no React, no Supabase.
  */
+
+export type WorkerType = "contractor" | "employee";
+export type WorkSchedule = "full" | "part";
+export type PayPer = "month" | "week" | "hour";
+export type PayEvery = "twice-monthly" | "monthly" | "biweekly" | "weekly" | "";
 
 export interface OfferLetterFields {
   /** The applicant's name as the letter will carry it. */
   applicantName: string;
   roleTitle: string;
+  /** The business they will work for, as it should read on the letter. */
   companyName: string;
   /** Who signs for the company. */
   signerName: string;
-  /** In his words: "USD 500 a month". */
-  pay: string;
-  /** "40 hours a week, 5 days a week". Optional. */
+  /** "Owner". Optional. */
+  signerTitle: string;
+  /** "500" or "28,000". */
+  payAmount: string;
+  /** "USD", "PHP". */
+  payCurrency: string;
+  payPer: PayPer;
+  /** How often they are paid. Optional. */
+  payEvery: PayEvery;
+  /** "Wise or bank transfer". Optional. */
+  payMethod: string;
+  workerType: WorkerType;
+  schedule: WorkSchedule;
+  /** "40 hours a week, Monday to Friday". Optional. */
   hours: string;
   /** "3:00 AM to 11:00 AM Philippine time". Optional. */
   shift: string;
+  /** True for a role done from home. */
+  remote: boolean;
+  /** "Zack, Owner". Optional. */
+  reportsTo: string;
+  /** 0 for none. */
+  trialDays: number;
+  /** Days of notice either side gives to end it. */
+  noticeDays: number;
+  /** They work from their own computer and internet. */
+  ownEquipment: boolean;
+  /** They keep company and customer information private. */
+  privateInfo: boolean;
   /** yyyy-mm-dd. */
   startDate: string;
   /** yyyy-mm-dd: the last day the offer can be signed. */
@@ -43,6 +83,39 @@ export interface OfferLetterFields {
   extra: string;
   /** yyyy-mm-dd: the day the letter is written. */
   today: string;
+}
+
+/** The usual choices for a remote chat support role; every one can be changed on the screen. */
+export const OFFER_DEFAULTS = {
+  payCurrency: "USD",
+  payPer: "month" as PayPer,
+  payEvery: "twice-monthly" as PayEvery,
+  workerType: "contractor" as WorkerType,
+  schedule: "full" as WorkSchedule,
+  remote: true,
+  trialDays: 30,
+  noticeDays: 14,
+  ownEquipment: true,
+  privateInfo: true,
+} as const;
+
+export const TRIAL_CHOICES = [0, 14, 30, 60, 90] as const;
+export const NOTICE_CHOICES = [7, 14, 30] as const;
+export const REPLY_CHOICES = [3, 5, 7] as const;
+export const CURRENCIES = ["USD", "PHP", "EUR", "GBP", "CAD", "AUD"] as const;
+
+const PER_WORDS: Record<PayPer, string> = { month: "a month", week: "a week", hour: "an hour" };
+export const EVERY_WORDS: Record<Exclude<PayEvery, "">, string> = {
+  "twice-monthly": "twice a month",
+  monthly: "once a month",
+  biweekly: "every two weeks",
+  weekly: "every week",
+};
+
+/** "30 days", "2 weeks". */
+export function periodWords(days: number): string {
+  if (days > 0 && days % 7 === 0 && days < 28) return days === 7 ? "1 week" : `${days / 7} weeks`;
+  return days === 1 ? "1 day" : `${days} days`;
 }
 
 export const OFFER_LIMITS = { name: 120, line: 200, extra: 1500 } as const;
@@ -128,16 +201,54 @@ export function unprintable(text: string): boolean {
 
 const oneLine = (text: string, limit: number) => letterSafe(text).replace(/\s+/g, " ").trim().slice(0, limit);
 
+/** An amount as the letter writes it: "500", "28,000", "4.50". Empty when it is not a positive number. */
+export function payAmountWords(amount: string): string {
+  const raw = (amount ?? "").replace(/[,\s]/g, "");
+  if (!/^\d+(\.\d{1,2})?$/.test(raw)) return "";
+  const value = Number(raw);
+  if (!(value > 0)) return "";
+  return value.toLocaleString("en-US", { minimumFractionDigits: raw.includes(".") ? 2 : 0, maximumFractionDigits: 2 });
+}
+
+/** "USD 500 a month". Empty without a usable amount. */
+export function payWords(fields: Pick<OfferLetterFields, "payAmount" | "payCurrency" | "payPer">): string {
+  const amount = payAmountWords(fields.payAmount);
+  if (!amount) return "";
+  const currency = oneLine(fields.payCurrency, 8).toUpperCase() || "USD";
+  return `${currency} ${amount} ${PER_WORDS[fields.payPer] ?? PER_WORDS.month}`;
+}
+
+/** "Zack" for a name typed all in small letters; anything else as typed. */
+export function nameCase(name: string): string {
+  const clean = (name ?? "").trim();
+  if (!clean || clean !== clean.toLowerCase()) return clean;
+  return clean.replace(/(^|[\s'-])([a-z])/g, (_m, before: string, letter: string) => before + letter.toUpperCase());
+}
+
 /** The fields as the letter will carry them. */
 export function cleanFields(fields: OfferLetterFields): OfferLetterFields {
+  const pick = (value: number, choices: readonly number[], fallback: number): number => (choices.includes(value) ? value : fallback);
   return {
     applicantName: oneLine(fields.applicantName, OFFER_LIMITS.name),
     roleTitle: oneLine(fields.roleTitle, OFFER_LIMITS.line),
     companyName: oneLine(fields.companyName, OFFER_LIMITS.name),
     signerName: oneLine(fields.signerName, OFFER_LIMITS.name),
-    pay: oneLine(fields.pay, OFFER_LIMITS.line),
+    signerTitle: oneLine(fields.signerTitle, OFFER_LIMITS.name),
+    payAmount: payAmountWords(fields.payAmount),
+    payCurrency: oneLine(fields.payCurrency, 8).toUpperCase() || OFFER_DEFAULTS.payCurrency,
+    payPer: fields.payPer in PER_WORDS ? fields.payPer : OFFER_DEFAULTS.payPer,
+    payEvery: fields.payEvery && fields.payEvery in EVERY_WORDS ? fields.payEvery : "",
+    payMethod: oneLine(fields.payMethod, OFFER_LIMITS.line),
+    workerType: fields.workerType === "employee" ? "employee" : "contractor",
+    schedule: fields.schedule === "part" ? "part" : "full",
     hours: oneLine(fields.hours, OFFER_LIMITS.line),
     shift: oneLine(fields.shift, OFFER_LIMITS.line),
+    remote: fields.remote !== false,
+    reportsTo: oneLine(fields.reportsTo, OFFER_LIMITS.name),
+    trialDays: pick(Number(fields.trialDays), TRIAL_CHOICES, 0),
+    noticeDays: pick(Number(fields.noticeDays), NOTICE_CHOICES, OFFER_DEFAULTS.noticeDays),
+    ownEquipment: !!fields.ownEquipment,
+    privateInfo: !!fields.privateInfo,
     startDate: readDay(fields.startDate) ? fields.startDate.trim() : "",
     replyBy: readDay(fields.replyBy) ? fields.replyBy.trim() : "",
     extra: letterSafe(fields.extra)
@@ -167,6 +278,15 @@ export function payFromJob(job: { salary_min?: number | null; salary_max?: numbe
   return `${currency} ${amount.toLocaleString("en-US")} ${per}`;
 }
 
+/** The job's pay as the screen's three boxes, when the job states one figure a month, a week or an hour. */
+export function payPartsFromJob(job: { salary_min?: number | null; salary_max?: number | null; salary_currency?: string | null; salary_period?: string | null } | null | undefined): { payAmount: string; payCurrency: string; payPer: PayPer } | null {
+  if (!job || !payFromJob(job)) return null;
+  const per = (job.salary_period ?? "").trim().toLowerCase();
+  if (per !== "month" && per !== "week" && per !== "hour") return null;
+  const amount = typeof job.salary_min === "number" && job.salary_min > 0 ? job.salary_min : (job.salary_max as number);
+  return { payAmount: amount.toLocaleString("en-US"), payCurrency: (job.salary_currency ?? "USD").trim().toUpperCase() || "USD", payPer: per };
+}
+
 export interface OfferProblem {
   field: keyof OfferLetterFields;
   text: string;
@@ -178,48 +298,89 @@ export function offerProblems(fields: OfferLetterFields): OfferProblem[] {
   const problems: OfferProblem[] = [];
   if (!clean.applicantName) problems.push({ field: "applicantName", text: "Choose who the offer is for." });
   else if (unprintable(fields.applicantName)) problems.push({ field: "applicantName", text: "Type their name in English letters: the signed copy cannot print some of these." });
-  if (!clean.roleTitle) problems.push({ field: "roleTitle", text: "Say which role." });
+  if (!clean.roleTitle) problems.push({ field: "roleTitle", text: "Add the job title." });
   if (!clean.companyName) problems.push({ field: "companyName", text: "Add your company name." });
   if (!clean.signerName) problems.push({ field: "signerName", text: "Add your own name, as you will sign it." });
-  if (!clean.pay) problems.push({ field: "pay", text: "Add the pay." });
-  else if (unprintable(fields.pay)) problems.push({ field: "pay", text: 'Write the currency in letters ("PHP 28,000 a month"): the signed copy cannot print that sign.' });
+  if (!clean.payAmount) problems.push({ field: "payAmount", text: (fields.payAmount ?? "").trim() ? "Write the pay as a number, like 500." : "Add the pay." });
   if (!clean.startDate) problems.push({ field: "startDate", text: "Pick a start date." });
   else if (clean.today && clean.startDate < clean.today) problems.push({ field: "startDate", text: "The start date is in the past." });
-  if (!clean.replyBy) problems.push({ field: "replyBy", text: "Pick the day the offer ends." });
+  if (!clean.replyBy) problems.push({ field: "replyBy", text: "Choose how long they have to sign." });
   else if (clean.today && clean.replyBy < clean.today) problems.push({ field: "replyBy", text: "The offer would already have ended." });
-  else if (clean.startDate && !(clean.today && clean.startDate < clean.today) && clean.replyBy > clean.startDate) problems.push({ field: "replyBy", text: "They must sign on or before the start date." });
+  else if (clean.startDate && !(clean.today && clean.startDate < clean.today) && clean.replyBy > clean.startDate) problems.push({ field: "replyBy", text: "They must sign on or before the start date. Give them fewer days, or start later." });
+  for (const field of ["roleTitle", "companyName", "signerTitle", "payMethod", "hours", "shift", "reportsTo"] as const) {
+    if (unprintable(String(fields[field] ?? ""))) problems.push({ field, text: "Use plain letters there: the signed copy cannot print some of them." });
+  }
   if (unprintable(fields.extra)) problems.push({ field: "extra", text: "Something in the extra lines cannot be printed on the signed copy. Use plain letters." });
   return problems;
 }
 
 const firstName = (full: string) => full.trim().split(/\s+/)[0] || full.trim();
 
+/** How the work is arranged, in a few words: "Full-time, independent contractor". */
+export function arrangementWords(fields: Pick<OfferLetterFields, "schedule" | "workerType">): string {
+  return `${fields.schedule === "part" ? "Part-time" : "Full-time"}, ${fields.workerType === "employee" ? "employee" : "independent contractor"}`;
+}
+
+/** The usual terms, as the screen's one-line summary. */
+export function termsSummary(fields: OfferLetterFields): string {
+  const f = cleanFields(fields);
+  return [
+    f.workerType === "employee" ? "Employee" : "Independent contractor",
+    f.trialDays ? `${periodWords(f.trialDays)} trial` : "No trial period",
+    `${f.noticeDays} days' notice to end`,
+    f.ownEquipment ? "Own computer and internet" : "",
+    f.privateInfo ? "Keeps information private" : "",
+  ]
+    .filter(Boolean)
+    .join(" \u00B7 ");
+}
+
 /**
- * The letter. Every line comes from a field; a field left empty leaves its
- * line out. Nothing here is a legal term he did not type.
+ * The letter. Every line comes from a box or a choice on the screen; an
+ * optional box left empty leaves its line out. Nothing is in it that is not
+ * on the screen beside the boxes.
  */
 export function offerLetterText(fields: OfferLetterFields): string {
   const f = cleanFields(fields);
-  const terms: string[] = [];
-  if (f.roleTitle) terms.push(`Role: ${f.roleTitle}`);
-  if (f.pay) terms.push(`Pay: ${f.pay}`);
-  if (f.hours) terms.push(`Hours: ${f.hours}`);
-  if (f.shift) terms.push(`Shift: ${f.shift}`);
-  if (f.startDate) terms.push(`Start date: ${longDate(f.startDate)}`);
+  const company = f.companyName || "our team";
+
+  const role: string[] = [];
+  if (f.roleTitle) role.push(`Position: ${f.roleTitle}`);
+  if (f.startDate) role.push(`Start date: ${longDate(f.startDate)}`);
+  role.push(`Type: ${arrangementWords(f)}`);
+  if (f.remote) role.push("Where: Remote, working from home");
+  if (f.hours) role.push(`Hours: ${f.hours}`);
+  if (f.shift) role.push(`Shift: ${f.shift}`);
+  if (f.reportsTo) role.push(`Reports to: ${f.reportsTo}`);
+
+  const pay = payWords(f);
+  const payLine = pay ? `${pay}${f.payEvery ? `, paid ${EVERY_WORDS[f.payEvery]}` : ""}${f.payMethod ? `, by ${f.payMethod}` : ""}.` : "";
+
+  const good: string[] = [];
+  if (f.ownEquipment) good.push("You will work from your own computer, with a stable internet connection.");
+  if (f.hours || f.shift) good.push("Your hours may change as the team's needs change. We will always tell you ahead of time.");
+  if (f.privateInfo) good.push("Please keep company and customer information private, during and after your time with us.");
+  if (f.workerType === "contractor") good.push("As an independent contractor, you are responsible for your own taxes.");
+  good.push(`${f.trialDays ? "After the trial period, either" : "Either"} of us can end this arrangement with ${f.noticeDays} days' notice.`);
 
   const parts: string[] = [];
   parts.push([f.companyName, f.today ? longDate(f.today) : ""].filter(Boolean).join("\n"));
   parts.push(`Dear ${f.applicantName ? firstName(f.applicantName) : "applicant"},`);
-  parts.push(`We would like to offer you the role of ${f.roleTitle || "the role we discussed"}${f.companyName ? ` with ${f.companyName}` : ""}. Thank you for the time you gave to the application and the interview.`);
-  parts.push(["THE OFFER", ...terms].join("\n"));
+  parts.push(`We are happy to offer you the position of ${f.roleTitle || "the role we discussed"} with ${company}. Thank you for the time you put into your application, the tests and the interview. We would love to have you on the team.`);
+  parts.push(["THE ROLE", ...role].join("\n"));
+  if (payLine) parts.push(["PAY", payLine].join("\n"));
+  if (f.trialDays) parts.push(["TRIAL PERIOD", `Your first ${periodWords(f.trialDays)} are a trial period. During this time either of us can end the arrangement at any time.`].join("\n"));
+  parts.push(["GOOD TO KNOW", ...good.map((line) => `- ${line}`)].join("\n"));
   if (f.extra) parts.push(f.extra);
   parts.push(
-    f.replyBy
-      ? `To accept, sign this letter on or before ${longDate(f.replyBy)}. After that day the offer ends.`
-      : "To accept, sign this letter.",
+    [
+      "TO ACCEPT",
+      f.replyBy ? `Sign this letter on or before ${longDate(f.replyBy)}. After that day, the offer expires.` : "Sign this letter to accept.",
+      "If anything here is different from what we talked about, message me before you sign.",
+    ].join("\n"),
   );
-  parts.push("If anything here is different from what we talked about, message me before you sign.");
-  parts.push([f.signerName, f.companyName].filter(Boolean).join("\n"));
+  parts.push("We are looking forward to working with you.");
+  parts.push(["Sincerely,", nameCase(f.signerName), [f.signerTitle, f.companyName].filter(Boolean).join(", ")].filter(Boolean).join("\n"));
   return parts.filter((part) => part.trim()).join("\n\n");
 }
 
@@ -259,11 +420,14 @@ export function offerDocumentBody(fields: OfferLetterFields, recipientEmail: str
     metadata: {
       companyName: f.companyName,
       jobTitle: f.roleTitle,
-      salary: f.pay,
+      salary: payWords(f),
       startDate: f.startDate ? longDate(f.startDate) : "",
+      arrangement: arrangementWords(f),
+      trialDays: f.trialDays,
+      noticeDays: f.noticeDays,
       recipientName: f.applicantName,
       recipientEmail,
-      writtenBy: "offer-letter-1",
+      writtenBy: "offer-letter-2",
     },
   };
 }

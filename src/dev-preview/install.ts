@@ -8,7 +8,7 @@
 import { __setPreviewSupabaseClient } from "@/integrations/supabase/client";
 import { STAMP_TAIL_BYTES } from "@/lib/connectionTest";
 import { parseApplicationNotes } from "@/utils/applicationNotes";
-import { addDays, dayOf, encodeDocumentBody, offerDocumentBody, offerExpiry, offerLetterName, type OfferLetterFields } from "@/cockpit/lib/offerLetter";
+import { OFFER_DEFAULTS, addDays, dayOf, encodeDocumentBody, offerDocumentBody, offerExpiry, offerLetterName, type OfferLetterFields } from "@/cockpit/lib/offerLetter";
 import { createFixtureSupabaseClient, type FixtureAuthUser, type FixtureRow, type FixtureTables } from "./fixtureClient";
 import { buildFixtureRpcHandlers, buildFixtureTables, FIXTURE_SCENARIOS, type FixtureScenario } from "./fixtures";
 import {
@@ -682,9 +682,13 @@ function previewDocuments(tables: FixtureTables, user: FixtureAuthUser, role: Pr
       roleTitle: String(job?.title ?? "Chat Support Team Leader"),
       companyName: String(owner?.company_name ?? "Zulu Support Team"),
       signerName: String(owner?.full_name ?? "Zack"),
-      pay: "USD 500 a month",
+      signerTitle: "Owner",
+      ...OFFER_DEFAULTS,
+      payAmount: "500",
+      payMethod: "Wise or bank transfer",
       hours: "40 hours a week, 5 days a week",
       shift: "3:00 AM to 11:00 AM Philippine time",
+      reportsTo: "",
       startDate: addDays(today, 10),
       replyBy: addDays(today, 5),
       extra: "",
