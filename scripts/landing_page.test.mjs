@@ -65,6 +65,10 @@ check("no near-black button slab on the light section", /\.end \.btn\.solid \{ b
 check("…and one already signed in here is offered their applications", /localStorage\.getItem\("sb-yqklrkpptnhubsnijqze-auth-token"\)/.test(page) && /jobLink\.setAttribute\("href", "\/applications"\)/.test(page));
 check("the three numbers are the real ones, and the story says it is a story", /<b>153<\/b>/.test(page) && /<b>71<\/b>/.test(page) && /<b>3<\/b>/.test(page) && /Maria, Jun and Ana are not real applicants/.test(page));
 check("no mock-up leftovers", !/mock-up|Mock-up|__LAND__|Post a role/.test(page));
+// The owner, 2026-10-10: he could not find a way to sign in once "Get early access"
+// took the bar's button; there is no early-access offer.
+check("the bar's button is Sign in, to the hiring team's sign-in", /<a class="btn solid" href="https:\/\/staff\.hireflownow\.com\/auth" id="signIn">Sign in<\/a>/.test(page));
+check("no early-access wording or buttons anywhere", !/early access|data-cta/i.test(page));
 check("Privacy, Terms and Team sign in are linked", /<a href="\/privacy">Privacy<\/a>/.test(page) && /<a href="\/terms">Terms<\/a>/.test(page) && /href="https:\/\/staff\.hireflownow\.com\/auth">Team sign in<\/a>/.test(page));
 check("nothing moves forever (docs: no endless animations)", !/infinite/.test(page));
 check("the Earth is drawn only while something changes", /if \(moving\) loop = requestAnimationFrame\(frame\);/.test(page));

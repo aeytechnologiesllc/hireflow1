@@ -53,8 +53,12 @@ any page. The Earth is drawn only while something moves; nothing loops.
   3 were worth a call (`interviews`). The mock-up's 141 / 56 hours / 16 were
   not backed by the data. The story's people (Maria, Jun, Ana) are an
   illustration, and the page says so.
-- The main button, "Get early access": where it leads is the owner's call
-  (employer sign-up is closed). Until then it moves to the last section.
+- The bar's button is **Sign in** (staff.hireflownow.com/auth). On
+  2026-10-10 the owner could not find a way to sign in: "Get early access"
+  had taken that place, and there is no early-access offer, so it and its
+  wording are gone. The opening's main button is "Watch one night". When
+  pricing ships, the pricing section and its "Post your first job" button
+  come in here.
 
 Source of the Earth: a hand-drawn land outline (half a degree a cell),
 inlined as base64. To edit the page, edit `public/landing.html` directly.
