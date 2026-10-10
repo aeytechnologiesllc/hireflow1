@@ -25,7 +25,7 @@ function randomId(): string {
   return `fixture-${Math.random().toString(36).slice(2)}-${Date.now()}`;
 }
 
-type FilterOp = "eq" | "neq" | "in" | "gt" | "gte" | "lt" | "lte" | "is" | "like" | "ilike";
+type FilterOp = "eq" | "neq" | "in" | "nin" | "gt" | "gte" | "lt" | "lte" | "is" | "like" | "ilike";
 
 function matches(row: FixtureRow, col: string, op: FilterOp, val: unknown): boolean {
   const rowVal = row[col];
@@ -36,6 +36,8 @@ function matches(row: FixtureRow, col: string, op: FilterOp, val: unknown): bool
       return rowVal !== val;
     case "in":
       return Array.isArray(val) && (val as unknown[]).includes(rowVal);
+    case "nin":
+      return Array.isArray(val) && !(val as unknown[]).includes(rowVal);
     case "gt":
       return (rowVal as never) > (val as never);
     case "gte":
@@ -101,7 +103,17 @@ class FixtureQueryBuilder implements PromiseLike<PostgrestResult> {
   ilike(col: string, val: unknown) { this.filters.push({ col, op: "ilike", val }); return this; }
   /** Best-effort: real `.not(col, "is", null)` etc. — close enough for a
    *  read-only fixture to avoid over- or under-filtering visibly. */
-  not(col: string, _op: string, val: unknown) { this.filters.push({ col, op: "neq", val }); return this; }
+  not(col: string, op: string, val: unknown) {
+    // `.not(col, "in", "(a,b)")` (the hire's "not already hired or declined") is
+    // kept as a real not-in, so a second hire changes nothing here too.
+    if (op === "in" && typeof val === "string") {
+      const list = val.replace(/^\(|\)$/g, "").split(",").map((v) => v.trim()).filter(Boolean);
+      this.filters.push({ col, op: "nin", val: list });
+      return this;
+    }
+    this.filters.push({ col, op: "neq", val });
+    return this;
+  }
   /**
    * Only the two shapes the app writes with equality: `a.eq.x,b.eq.y` (either)
    * and `and(a.eq.x,b.eq.y),and(...)` (either pair: the two directions of one

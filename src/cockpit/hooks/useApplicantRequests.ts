@@ -58,6 +58,37 @@ export interface NewRequest {
   ask: string;
 }
 
+/** The request rows alone: no bell, no email. The database's guard files them under the job's owner. */
+export async function insertRequestRows({
+  userId,
+  applicationId,
+  candidateId,
+  items,
+  note,
+  dueDate,
+}: {
+  userId: string;
+  applicationId: string;
+  candidateId: string;
+  items: NewRequest[];
+  note: string;
+  dueDate: string | null;
+}) {
+  const extra = note.trim();
+  const rows = items.map((item) => ({
+    application_id: applicationId,
+    employer_id: userId,
+    candidate_id: candidateId,
+    document_type: item.documentType,
+    custom_document_name: item.customName?.trim() || null,
+    description: [item.ask.trim(), extra].filter(Boolean).join("\n\n") || null,
+    is_required: true,
+    due_date: dueDate,
+  }));
+  const { error } = await supabase.from("document_requests").insert(rows as never);
+  if (error) throw new Error("The request could not be sent. Nothing went out; try again.");
+}
+
 /** Sends one or more requests to one applicant: the rows, a note in their bell, one email. */
 export function useSendRequests() {
   const { user } = useAuth();
@@ -67,19 +98,7 @@ export function useSendRequests() {
     mutationFn: async ({ applicationId, candidateId, items, note, dueDate }: { applicationId: string; candidateId: string; items: NewRequest[]; note: string; dueDate: string | null }) => {
       if (!user) throw new Error("Sign in again to send this.");
       if (items.length === 0) throw new Error("Choose at least one thing to ask for.");
-      const extra = note.trim();
-      const rows = items.map((item) => ({
-        application_id: applicationId,
-        employer_id: user.id,
-        candidate_id: candidateId,
-        document_type: item.documentType,
-        custom_document_name: item.customName?.trim() || null,
-        description: [item.ask.trim(), extra].filter(Boolean).join("\n\n") || null,
-        is_required: true,
-        due_date: dueDate,
-      }));
-      const { error } = await supabase.from("document_requests").insert(rows as never);
-      if (error) throw new Error("The request could not be sent. Nothing went out; try again.");
+      await insertRequestRows({ userId: user.id, applicationId, candidateId, items, note, dueDate });
 
       // From here the requests exist; telling them must not fail the send.
       const what = items.length === 1 ? requestTitle({ document_type: items[0].documentType, custom_document_name: items[0].customName }) : `${items.length} documents`;
@@ -102,7 +121,7 @@ export function useSendRequests() {
       } catch {
         companyName = undefined;
       }
-      void notifyDocumentRequested(candidateId, what, companyName);
+      void notifyDocumentRequested(candidateId, what, companyName, applicationId);
       return { count: items.length };
     },
     onSettled: (_data, _error, variables) => {

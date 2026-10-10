@@ -390,7 +390,9 @@ void quiet;
   // we sent them ... they should only message us."
   check("…and it tells the applicant not to reply, with a link that opens Messages in their account", /Please do not reply to this email\. Replies do not reach us\./.test(textOf(mail)) && /href="[^"]*\/candidate\/auth\?redirect=%2Fmessages"[^>]*>Message us in your account<\/a>/.test(mail.html), textOf(mail).slice(-220));
   check("…the note sits above the signature, so the email still ends with who wrote it", mail.html.indexOf("Please do not reply") < mail.html.lastIndexOf("The Zulu Support Team"));
-  check("…naming the job the owner named", mail.subject === `Welcome aboard — ${TITLE_A}`, mail.subject);
+  // Since 2026-10-10 the welcome names the business in the subject and the
+  // job in the first line (docs/DOCUMENT-REQUESTS.md, "Hiring").
+  check("…naming the owner's business in the subject and the job the owner named in the first line", mail.subject.startsWith("Welcome to Zulu Support Team") && textOf(mail).includes(`You're joining Zulu Support Team as ${TITLE_A}`), `${mail.subject} | ${textOf(mail).slice(0, 160)}`);
 
   r = await hush(async () => (reset(), ask("tok-team-all", { type: "status_rejected", recipient_user_id: ANA, data: { company_name: "Rival Co" } })));
   mail = world.sent[0];
@@ -407,7 +409,7 @@ void quiet;
     ["interview_cancelled", { job_title: TITLE_A, original_date: "Friday" }, /Original date: Friday/],
     ["interview_rescheduled", { job_title: TITLE_A, new_date: "Monday", new_time: "9 AM" }, /New Date: Monday/],
     ["document_sent", { document_name: "Offer letter" }, /Document: Offer letter/],
-    ["document_requested", { document_name: "ID" }, /Document Type: ID/],
+    ["document_requested", { document_name: "ID" }, /Zulu Support Team asked you to: ID /],
   ];
   // One time is the rule since 2026-10-07: the email states it, says what to
   // do if they cannot make it, and a new time after that is said as one.
@@ -676,7 +678,7 @@ console.log("\nC. The wiring\n");
   const body = code(fn);
   const identifyAt = body.indexOf("const caller = await identifyCaller(req, supabase, supabaseUrl, supabaseServiceKey);");
   const decideAt = body.indexOf("const access = await decideNotification(");
-  const profileAt = body.indexOf('.select("email, email_notifications_enabled');
+  const profileAt = body.indexOf('.select("email, full_name, email_notifications_enabled');
   const sendAt = body.indexOf("resend.emails.send(");
   check("whose request it is is settled before the recipient is read, long before anything is sent", identifyAt > 0 && decideAt > identifyAt && profileAt > decideAt && sendAt > profileAt, `${identifyAt} ${decideAt} ${profileAt} ${sendAt}`);
   check("only the service key skips the decision, compared whole in either header, or proven by the database itself", /if \(sameSecret\(token, serviceKey\) \|\| sameSecret\(apikey, serviceKey\)\) return \{ kind: "service" \};/.test(body) && /for \(const candidate of new Set\(\[token, apikey\]\)\) \{\s*if \(!candidate \|\| !looksLikeServiceKey\(candidate\)\) continue;[\s\S]*?rpc\/check_rate_limit[\s\S]*?if \(proof\.ok\) return \{ kind: "service" \};/.test(body));

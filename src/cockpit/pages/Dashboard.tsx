@@ -22,6 +22,7 @@ import { useCareersTraffic, visitsInLast } from "@/hooks/useCareersTraffic";
 import CkAvatar from "../components/Avatar";
 import { CountUp } from "../components/CountUp";
 import { ActionDialog } from "../components/ActionDialog";
+import { OfferLetterDialog } from "../components/OfferLetterDialog";
 import { CockpitErrorCard } from "../components/ErrorCard";
 import { ShareJobCompact, ShareJobHero } from "../components/ShareJobCard";
 import {
@@ -598,6 +599,9 @@ export default function CockpitDashboard() {
      skims half-awake, so neither one goes through on a single stray click —
      same confirm, same words, as the Applicants page. */
   const [actionDialog, setActionDialog] = useState<{ type: "pass" | "advance"; cand: Candidate } | null>(null);
+  // Into Offer is the offer letter itself (as on the applicant's page): the
+  // letter opens, and sending it moves them to Offer.
+  const [offerFor, setOfferFor] = useState<string | null>(null);
 
   const liveJob = jobs.find((j) => j.status === "live") ?? null;
   const liveJobsCount = useMemo(() => jobs.filter((j) => j.status === "live").length, [jobs]);
@@ -1090,11 +1094,11 @@ export default function CockpitDashboard() {
                   candidate={c}
                   index={i}
                   showRole={multiRole}
-                  advanceLabel={advanceTargetLabel(statusOf(c.id))}
+                  advanceLabel={advanceTargetLabel(statusOf(c.id)) === "Offer" ? "Send offer letter" : advanceTargetLabel(statusOf(c.id))}
                   busy={isUpdating}
                   onOpen={() => navigate(`/applicants/${c.id}`)}
                   onPass={() => setActionDialog({ type: "pass", cand: c })}
-                  onAdvance={() => setActionDialog({ type: "advance", cand: c })}
+                  onAdvance={() => (advanceTargetLabel(statusOf(c.id)) === "Offer" ? setOfferFor(c.id) : setActionDialog({ type: "advance", cand: c }))}
                 />
               ))}
             </div>
@@ -1243,6 +1247,7 @@ export default function CockpitDashboard() {
         </>
       )}
 
+      {offerFor && <OfferLetterDialog open applicationId={offerFor} onClose={() => setOfferFor(null)} />}
       {actionDialog?.type === "advance" && (() => {
         const cand = actionDialog.cand;
         const label = advanceTargetLabel(statusOf(cand.id));

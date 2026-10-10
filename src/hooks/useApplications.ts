@@ -343,7 +343,7 @@ export function useUpdateApplication() {
               // Status changed to hired — same DB trigger already covers
               // the in-app notification.
               if (updates.status === "hired" && currentApp?.status !== "hired") {
-                notifyStatusHired(snap.candidate_id, job.title, job.companyName);
+                notifyStatusHired(snap.candidate_id, job.title, job.companyName, id);
               }
 
               // Phase notifications need the previous phase, so they only run when

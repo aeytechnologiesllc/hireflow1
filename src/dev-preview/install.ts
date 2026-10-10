@@ -11,7 +11,7 @@ import { parseApplicationNotes } from "@/utils/applicationNotes";
 import { OFFER_DEFAULTS, addDays, dayOf, encodeDocumentBody, offerDocumentBody, offerExpiry, offerLetterName, type OfferLetterFields } from "@/cockpit/lib/offerLetter";
 import { createFixtureSupabaseClient, type FixtureAuthUser, type FixtureRow, type FixtureTables } from "./fixtureClient";
 import { buildFixtureRpcHandlers, buildFixtureTables, FIXTURE_SCENARIOS, type FixtureScenario } from "./fixtures";
-import { previewRequests } from "./previewRequests";
+import { previewHiring, previewRequests } from "./previewRequests";
 import {
   APP_QUIZ_ID,
   APP_ZULU_RETAKE_ID,
@@ -1218,6 +1218,7 @@ export function install(params: URLSearchParams): void {
   const candidateInterview = previewCandidateInterview(tables, params.get("__previewInterview"));
   const documentSigning = previewDocuments(tables, ROLE_USERS[role], role, params.get("__previewDocs"));
   const requestedFiles = previewRequests(tables, ROLE_USERS[role], role === "employer" || role === "team_member", params.get("__previewRequests"));
+  previewHiring(tables, params.get("__previewHiring"));
   const client = {
     ...base,
     ...realtime,

@@ -390,6 +390,13 @@ export async function decideNotification(
         kept.interview_kind = INTERVIEW_KINDS.includes(asked.interview_kind as string) ? asked.interview_kind : undefined;
         kept.interview_length = /^\d{1,3} (minutes|hour|hours)( \d{1,2} minutes)?$/.test(String(asked.interview_length ?? "")) ? asked.interview_length : undefined;
       }
+      // The hire, documents and offer emails read what is waiting on one
+      // application: the one asked for when it is one of these, else the
+      // newest. Only an id; the function looks up the rest.
+      if (type === "status_hired" || type === "document_requested" || type === "document_sent") {
+        const wanted = typeof asked.application_id === "string" && UUID.test(asked.application_id) ? asked.application_id : null;
+        kept.application_id = links.find((l) => l.id === wanted)?.id ?? links[0].id;
+      }
       return {
         ok: true,
         recipientUserId: named,

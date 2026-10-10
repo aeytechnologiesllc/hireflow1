@@ -18,6 +18,10 @@ const dir = mkdtempSync(resolve(tmpdir(), "document-requests-"));
 const outfile = resolve(dir, "documentRequests.mjs");
 await build({ entryPoints: [resolve(root, "src/lib/documentRequests.ts")], bundle: true, format: "esm", platform: "node", outfile, logLevel: "silent" });
 const lib = await import(pathToFileURL(outfile).href);
+// The email function's own list maker (Deno), built the same way: plain TS.
+const welcomeOut = resolve(dir, "welcomeTodo.mjs");
+await build({ entryPoints: [resolve(root, "supabase/functions/_shared/welcomeTodo.ts")], bundle: true, format: "esm", platform: "node", outfile: welcomeOut, logLevel: "silent" });
+const welcome = await import(pathToFileURL(welcomeOut).href);
 rmSync(dir, { recursive: true, force: true });
 const read = (p) => readFileSync(resolve(root, p), "utf8");
 
@@ -108,6 +112,56 @@ eq("due choices", lib.DUE_CHOICES.join(","), "3,5,7");
   check("…is told who sees it and when an ID is deleted", /Only the hiring team can see it/.test(dialog) && /days after they approve it/.test(dialog));
   check("…and the team's bell names them, never their email", !/user\.email/.test(dialog));
   check("a file sent again replaces the earlier one", /remove\(\[previous\]\)/.test(dialog));
+}
+
+// --- hiring: one welcome email, never twice (approved 2026-10-10) ------------------
+{
+  // The dialog's preview and the real email use the same words.
+  eq("the offer line is the same in the app and the email", lib.SIGN_OFFER_LINE, welcome.SIGN_OFFER_LINE);
+  for (const kind of [...keys, "custom", "drivers_license", "id_card", "ssn_card", "nonsense"]) {
+    eq(`"${kind}" reads the same in the dialog and the email`, lib.todoLine(kind), welcome.todoLine(kind));
+  }
+  eq("a named document reads the same too", lib.todoLine("custom", "  House rules,  signed "), welcome.todoLine("custom", "  House rules,  signed "));
+  eq("…as a plain line", welcome.todoLine("custom", "House rules, signed"), "Send: House rules, signed");
+  eq("the payment email line names Wise and PayPal", welcome.todoLine("payment_email"), "Type the email you use on Wise or PayPal");
+
+  const now = new Date("2026-10-10T10:00:00Z");
+  const fiveDays = new Date("2026-10-15T23:59:59Z").toISOString();
+  const list = welcome.welcomeTodo({
+    offerUnsigned: true,
+    requests: [
+      { document_type: "government_id", due_date: fiveDays },
+      { document_type: "payment_email", due_date: fiveDays },
+      { document_type: "government_id", due_date: fiveDays },
+    ],
+    now,
+  });
+  eq("the welcome list: sign the offer first, then each document once", list.items.join(" | "), "Sign your offer letter | Send a photo of your government ID | Type the email you use on Wise or PayPal");
+  eq("…'within 5 days' for five days ending late on the fifth", list.dueInDays, 5);
+  check("…and it says IDs are deleted when one is asked for", list.deletesIds === true && list.asksForDocuments === true);
+  const onlyOffer = welcome.welcomeTodo({ offerUnsigned: true, requests: [], now });
+  check("an unsigned offer alone: one line, no due date, no privacy line", onlyOffer.items.length === 1 && onlyOffer.dueInDays === null && onlyOffer.asksForDocuments === false);
+  const nothing = welcome.welcomeTodo({ offerUnsigned: false, requests: [{ document_type: "tin", due_date: "2026-10-01T00:00:00Z" }], now });
+  check("a due date already past is not promised", nothing.dueInDays === null && nothing.deletesIds === false);
+
+  const fn = read("supabase/functions/send-notification-email/index.ts");
+  check("the email function builds the list from the application, never from the request", /from\("document_requests"\)[\s\S]{0,300}\.eq\("application_id", data\.application_id\)[\s\S]{0,120}\.eq\("candidate_id", recipient_user_id\)/.test(fn) && /welcomeTodo\(\{ offerUnsigned, requests: requests\.data \?\? \[\] \}\)/.test(fn));
+  const access = read("supabase/functions/_shared/notificationAccess.ts");
+  check("…and only for an application that links the sender to that applicant", /kept\.application_id = links\.find\(\(l\) => l\.id === wanted\)\?\.id \?\? links\[0\]\.id;/.test(access));
+  check("the welcome email asks them to sign and send, in one email", /"You're hired!"/.test(fn) && /Before your first day, please:/.test(fn) && /"Open HireFlow"/.test(fn));
+  check("an offer letter's email says it is a job offer", /"You have a job offer"/.test(fn) && /"Read and sign your offer"/.test(fn) && /doc\?\.document_type === "offer_letter"/.test(fn));
+
+  const hire = read("src/cockpit/hooks/useHire.ts");
+  check("hired once: the update only touches someone not already hired or declined", /\.not\("status", "in", "\(hired,rejected\)"\)/.test(hire) && /if \(!moved \|\| moved\.length === 0\) return \{ already: true/.test(hire));
+  check("…the documents are asked for before the one welcome email, so it lists them", hire.indexOf("insertRequestRows(") > 0 && hire.indexOf("insertRequestRows(") < hire.indexOf("notifyStatusHired("));
+  check("…and no automatic retry", /retry: false/.test(hire));
+  const dialog = read("src/cockpit/components/HireDialog.tsx");
+  check("the Hire button locks before anything is awaited", /if \(locked \|\| !candidateId\) return;\s*\/\/[^\n]*\n\s*setLocked\(true\);\s*try \{\s*const result = await hire\.mutateAsync/.test(dialog));
+  check("…the usual documents are ticked to start", /DEFAULT_KINDS = \["government_id", "nbi_clearance", "payment_email"\]/.test(dialog));
+  const page = read("src/cockpit/pages/CandidateDetail.tsx");
+  check("the applicant page hires through that box only", /setHireOpen\(true\)/.test(page) && !/HiringDocumentPromptDialog/.test(page) && !/onHire=/.test(page));
+  check("into Offer is the offer letter itself, on the page and the dashboard", /advanceLabel === "Offer"\s*\? \{ key: "offer", text: "Send offer letter"/.test(page) && /=== "Offer" \? setOfferFor\(c\.id\)/.test(read("src/cockpit/pages/Dashboard.tsx")));
+  check("after the interview, the offer letter leads", /const offerLeads = status === "interview" && !!interviewDone && !interviewStatus/.test(page));
 }
 
 console.log(`document requests: ${passed} passed, ${failed} failed`);

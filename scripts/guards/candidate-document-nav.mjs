@@ -114,14 +114,21 @@ export default [
         detail.push("supabase/functions/send-notification-email/index.ts is missing");
       } else {
         for (const type of ["document_sent", "document_requested"]) {
-          const idx = emailFn.indexOf(`${type}: {`);
+          // Since 2026-10-10 both templates are built (an offer letter reads
+          // as a job offer; the documents email lists what is waiting), so
+          // the template runs to the next one at the same indent, and EVERY
+          // link in it must go to the applicant's documents.
+          const idx = emailFn.indexOf(`\n    ${type}:`);
           if (idx === -1) {
             detail.push(`send-notification-email is missing the ${type} template — can't verify its link`);
             continue;
           }
-          const window = emailFn.slice(idx, idx + 500);
-          if (!/candidateLink\("\/my-documents"\)/.test(window)) {
-            detail.push(`send-notification-email's ${type} template doesn't link to candidateLink("/my-documents")`);
+          const rest = emailFn.slice(idx + 1);
+          const next = rest.slice(1).search(/\n    [a-z_]+: /);
+          const window = next === -1 ? rest.slice(0, 3000) : rest.slice(0, next + 1);
+          const links = [...window.matchAll(/candidateLink\("([^"]+)"\)/g)].map((m) => m[1]);
+          if (links.length === 0 || links.some((link) => link !== "/my-documents")) {
+            detail.push(`send-notification-email's ${type} template doesn't link only to candidateLink("/my-documents") (found ${JSON.stringify(links)})`);
           }
         }
       }

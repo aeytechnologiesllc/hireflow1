@@ -6,6 +6,7 @@ import { Resend } from "https://esm.sh/resend@2.0.0";
 // function was already running on in production (what "@2" meant until then).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { declineNoteLines } from "../_shared/declineNote.ts";
+import { welcomeTodo, type WelcomeTodo } from "../_shared/welcomeTodo.ts";
 import { CONTINUE_ON_COMPUTER_TYPE, continueOnComputerEmail, decideContinueLinkEmail } from "../_shared/continueOnComputerEmail.ts";
 import { checkRateLimit } from "../_shared/rateLimit.ts";
 import {
@@ -150,8 +151,18 @@ interface NotificationRequest {
     /** reschedule_requested: how far their clock is from the team's ("12 hours ahead of yours"). */
     clock_gap?: string;
     /** continue_on_computer: the applicant's own application. The ONLY field
-     *  that type reads from a request; everything it says is looked up. */
+     *  that type reads from a request; everything it says is looked up.
+     *  status_hired, document_requested: the application the email is about,
+     *  kept only when it is one the sender hires for (notificationAccess). */
     application_id?: string;
+    /** status_hired, document_requested: what is waiting for them, looked up
+     *  here from the application (never from the request). */
+    todo?: WelcomeTodo;
+    /** The recipient's first name, looked up here. */
+    first_name?: string;
+    /** document_sent: the document is an offer letter (looked up here), and
+     *  how many whole days they have to answer it. */
+    offer?: { replyInDays: number | null };
   };
 }
 
@@ -480,16 +491,32 @@ const getEmailContent = (
     })(),
     
     // CANDIDATE-FACING
-    document_sent: {
-      subject: `Document to Sign: ${data.document_name}`,
-      html: wrapEmail(
-        "Document Awaiting Signature",
-        `<p>The hiring team has sent you a document to review and sign.</p>
-         <p><strong>Document:</strong> ${esc(data.document_name)}</p>`,
-        "Review & Sign",
-        candidateLink("/my-documents")
-      ),
-    },
+    // An offer letter reads as a job offer from the business (the owner,
+    // 2026-10-10: what each step sends must be clear); any other document
+    // as a document to sign.
+    document_sent: data.offer
+      ? {
+          subject: data.company_name?.trim() ? `You have a job offer from ${data.company_name.trim()}` : "You have a job offer",
+          html: wrapEmail(
+            "You have a job offer",
+            `<p>${data.first_name ? `Hi ${esc(data.first_name)}, ` : ""}${companyName || "The hiring team"} would like you to join as <strong>${esc(data.job_title)}</strong>.</p>
+             <p>Read your offer and sign it in your account.</p>
+             ${data.offer.replyInDays ? `<p>Please answer within ${data.offer.replyInDays} ${data.offer.replyInDays === 1 ? "day" : "days"}.</p>` : ""}`,
+            "Read and sign your offer",
+            candidateLink("/my-documents"),
+            `— ${teamLabel}`
+          ),
+        }
+      : {
+          subject: `Document to Sign: ${data.document_name}`,
+          html: wrapEmail(
+            "Document Awaiting Signature",
+            `<p>The hiring team has sent you a document to review and sign.</p>
+             <p><strong>Document:</strong> ${esc(data.document_name)}</p>`,
+            "Review & Sign",
+            candidateLink("/my-documents")
+          ),
+        },
     
     // EMPLOYER-FACING
     document_signed: {
@@ -504,17 +531,30 @@ const getEmailContent = (
     },
     
     // CANDIDATE-FACING
-    document_requested: {
-      subject: `Document Requested: ${data.document_name || 'New Document'}`,
-      html: wrapEmail(
-        "Document Requested",
-        `<p>The hiring team has requested you to upload a document.</p>
-         ${data.document_name ? `<p><strong>Document Type:</strong> ${esc(data.document_name)}</p>` : ''}
-         <p style="color: #666;">Please upload the requested document in your dashboard.</p>`,
-        "Upload Document",
-        candidateLink("/my-documents")
-      ),
-    },
+    document_requested: (() => {
+      // What they are asked to send, as a list (looked up from the
+      // application), with the team's name, so an ID request never reads
+      // like it came from nowhere. Without the list: the one line the
+      // request named.
+      const todo = data.todo;
+      const items = todo?.items ?? [];
+      const from = companyName || "The hiring team";
+      return {
+        subject: companyName ? `Please send your documents to ${data.company_name?.trim()}` : "Please send your documents",
+        html: wrapEmail(
+          "Please send your documents",
+          `<p>Hi${data.first_name ? ` ${esc(data.first_name)}` : ""}, ${from} asked you to:</p>
+           ${items.length > 0
+             ? `<ol style="padding-left: 20px;">${items.map((line) => `<li style="margin-bottom: 4px;">${esc(line)}</li>`).join("")}</ol>`
+             : `<p><strong>${esc(data.document_name || "Send a document")}</strong></p>`}
+           ${todo?.dueInDays ? `<p>Please do this within ${todo.dueInDays} ${todo.dueInDays === 1 ? "day" : "days"}.</p>` : ""}
+           <p style="color: #666; font-size: 13px;">Only ${esc(companyName || "the hiring team")} can see what you send.${todo?.deletesIds ? " ID papers are deleted 30 days after they are approved." : ""}</p>`,
+          "Send them in HireFlow",
+          candidateLink("/my-documents"),
+          `— ${teamLabel}`
+        ),
+      };
+    })(),
     
     // EMPLOYER-FACING
     phase_completed: {
@@ -545,17 +585,33 @@ const getEmailContent = (
     },
     
     // CANDIDATE-FACING — also from the employer.
-    status_hired: {
-      subject: `Welcome aboard — ${data.job_title}`,
-      html: wrapEmail(
-        `You've got the job${companyName ? ` at ${companyName}` : ''}`,
-        `<p>We'd like to offer you the <strong>${esc(data.job_title)}</strong> role. Congratulations.</p>
-         <p style="color: #666;">We'll follow up with your start date and next steps. Your messages and any documents to sign are in your account.</p>`,
-        "Open your application",
-        candidateLink("/applications"),
-        `— ${teamLabel}`
-      ),
-    },
+    status_hired: (() => {
+      // The owner, 2026-10-10: "she will actually get a nice congratulations
+      // email and it will say things like documents requested, please log in
+      // to your HireFlow to submit those documentation and sign stuff". One
+      // email: the congratulations, then what is really waiting for them
+      // (an unsigned offer letter, the documents asked for), looked up from
+      // the application by the function (_shared/welcomeTodo.ts).
+      const todo = data.todo;
+      const items = todo?.items ?? [];
+      const company = data.company_name?.trim() || "";
+      return {
+        subject: company ? `Welcome to ${company}${data.first_name ? `, ${data.first_name}` : ""}` : `You're hired: ${data.job_title}`,
+        html: wrapEmail(
+          "You're hired!",
+          `<p>Congratulations${data.first_name ? `, ${esc(data.first_name)}` : ""}. You're joining ${companyName || "the team"} as <strong>${esc(data.job_title)}</strong>.</p>
+           ${items.length > 0
+             ? `<p>Before your first day, please:</p>
+                <ol style="padding-left: 20px;">${items.map((line) => `<li style="margin-bottom: 4px;">${esc(line)}</li>`).join("")}</ol>
+                ${todo?.dueInDays ? `<p>Please do this within ${todo.dueInDays} ${todo.dueInDays === 1 ? "day" : "days"}.</p>` : ""}
+                ${todo?.asksForDocuments ? `<p style="color: #666; font-size: 13px;">Only ${companyName || "the hiring team"} can see what you send.${todo.deletesIds ? " ID papers are deleted 30 days after they are approved." : ""}</p>` : ""}`
+             : `<p style="color: #666;">We'll follow up with your start date and next steps. Your messages are in your account.</p>`}`,
+          items.length > 0 ? "Open HireFlow" : "Open your application",
+          candidateLink(items.length > 0 ? "/my-documents" : "/applications"),
+          `— ${teamLabel}`
+        ),
+      };
+    })(),
     
     // EMPLOYER-FACING
     // They cannot make the time. Since 2026-10-07 they say when they are
@@ -916,7 +972,7 @@ const handler = async (req: Request): Promise<Response> => {
     // Get user's email and preferences
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("email, email_notifications_enabled, email_new_applications, email_messages, email_interview_reminders, email_document_updates, email_phase_updates, email_voice_minutes")
+      .select("email, full_name, email_notifications_enabled, email_new_applications, email_messages, email_interview_reminders, email_document_updates, email_phase_updates, email_voice_minutes")
       .eq("user_id", recipient_user_id)
       .single();
 
@@ -951,6 +1007,65 @@ const handler = async (req: Request): Promise<Response> => {
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
+
+    // The hire and documents emails list what is really waiting for them:
+    // the application's open requests and (for the hire) an unsigned offer
+    // letter. Looked up here, never taken from the request. A failed look-up
+    // sends the email without the list.
+    if ((type === "status_hired" || type === "document_requested") && typeof data?.application_id === "string") {
+      try {
+        const [requests, letters] = await Promise.all([
+          supabase
+            .from("document_requests")
+            .select("document_type, custom_document_name, due_date")
+            .eq("application_id", data.application_id)
+            .eq("candidate_id", recipient_user_id)
+            .in("status", ["pending", "rejected"])
+            .order("created_at", { ascending: true })
+            .limit(20),
+          type === "status_hired"
+            ? supabase
+                .from("documents")
+                .select("candidate_signed_at, is_voided, status")
+                .eq("application_id", data.application_id)
+                .eq("document_type", "offer_letter")
+                .order("created_at", { ascending: false })
+                .limit(1)
+            : Promise.resolve({ data: [], error: null }),
+        ]);
+        if (requests.error) throw requests.error;
+        if (letters.error) throw letters.error;
+        const letter = (letters.data ?? [])[0] as { candidate_signed_at?: string | null; is_voided?: boolean | null; status?: string | null } | undefined;
+        const offerUnsigned = !!letter && !letter.candidate_signed_at && !letter.is_voided && letter.status === "pending";
+        data = { ...data, todo: welcomeTodo({ offerUnsigned, requests: requests.data ?? [] }) };
+      } catch (lookupError) {
+        console.error(`[send-notification-email] ${type}: could not read what is waiting:`, lookupError instanceof Error ? lookupError.message : lookupError);
+      }
+    }
+    // An offer letter: said as a job offer. The newest document on that
+    // application for this recipient, and only when it is an offer letter.
+    if (type === "document_sent" && typeof data?.application_id === "string") {
+      try {
+        const { data: docs, error: docError } = await supabase
+          .from("documents")
+          .select("document_type, expires_at")
+          .eq("application_id", data.application_id)
+          .eq("recipient_id", recipient_user_id)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        if (docError) throw docError;
+        const doc = (docs ?? [])[0] as { document_type?: string | null; expires_at?: string | null } | undefined;
+        if (doc?.document_type === "offer_letter") {
+          const ends = doc.expires_at ? new Date(doc.expires_at).getTime() : NaN;
+          const left = Number.isNaN(ends) ? null : Math.floor((ends - Date.now()) / 86_400_000);
+          data = { ...data, offer: { replyInDays: left !== null && left >= 1 ? left : null } };
+        }
+      } catch (lookupError) {
+        console.error("[send-notification-email] document_sent: could not read the document:", lookupError instanceof Error ? lookupError.message : lookupError);
+      }
+    }
+    const recipientFirst = String((profile as { full_name?: string | null }).full_name ?? "").trim().split(/\s+/)[0];
+    if (recipientFirst && isCandidateEmail(type, recipientRole)) data = { ...data, first_name: recipientFirst.slice(0, 40) };
 
     const emailContent = getEmailContent(type, data, recipientRole);
 

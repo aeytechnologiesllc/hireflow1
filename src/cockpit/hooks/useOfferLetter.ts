@@ -164,7 +164,7 @@ export function useSendOfferLetter() {
       } catch {
         // The email below says the same.
       }
-      void notifyDocumentSent(person.candidateId, name, cleanFields(fields).companyName);
+      void notifyDocumentSent(person.candidateId, name, cleanFields(fields).companyName, person.applicationId);
 
       let moved = true;
       if (person.status === "interview" || person.status === "reviewing") {

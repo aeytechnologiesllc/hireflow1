@@ -32,7 +32,7 @@ export function DeclineNotePreview({ jobTitle }: { jobTitle?: string | null }) {
  * transformed ancestor (the cockpit's ck-rise / ck-reveal entrances leave one
  * behind) would centre it on the page column instead of the screen.
  */
-export type ApplicantDecision = "advance" | "continue" | "hire" | "reject";
+export type ApplicantDecision = "advance" | "continue" | "reject";
 
 export function ApplicantDecisionDialogs({
   open,
@@ -43,7 +43,6 @@ export function ApplicantDecisionDialogs({
   onClose,
   onAdvance,
   onContinue,
-  onHire,
   onReject,
 }: {
   open: ApplicantDecision | null;
@@ -56,7 +55,6 @@ export function ApplicantDecisionDialogs({
   onClose: () => void;
   onAdvance: () => void;
   onContinue: () => void;
-  onHire: () => void;
   onReject: (reason?: string) => void;
 }) {
   const who = candidate ? firstName(candidate.name) : "";
@@ -105,16 +103,7 @@ export function ApplicantDecisionDialogs({
           onClose={onClose}
         />
       )}
-      <ActionDialog
-        open={open === "hire" && !!candidate}
-        title={candidate ? `Hire ${who}?` : ""}
-        description={candidate ? `I'll mark ${who} as hired for ${candidate.role} and let them know today. You can send the offer letter next.` : ""}
-        confirmLabel="Confirm hire"
-        tone="brass"
-        busy={busy}
-        onConfirm={onHire}
-        onClose={onClose}
-      />
+      {/* Hire is its own box since 2026-10-10 (HireDialog): the documents ticked and one welcome email. */}
       <ActionDialog
         open={open === "reject" && !!candidate}
         title={candidate ? (offered ? `Take back ${who}'s offer?` : `Pass on ${who}?`) : ""}

@@ -121,3 +121,40 @@ export function previewRequests(tables: FixtureTables, user: FixtureAuthUser, hi
     return { data: { signedUrl: previewIdPicture(title), fileName: String(row.file_name ?? ""), expiresIn: 300 }, error: null };
   };
 }
+
+/**
+ * The hiring flow, offline (`?__previewHiring=done,offer`). `done`: the
+ * applicant at Interview had their interview yesterday (completed), so the
+ * page leads with "Send offer letter". `offer`: the applicant at Offer has an
+ * offer letter waiting for their signature, so the Hire box says the welcome
+ * email asks them to sign it.
+ */
+export function previewHiring(tables: FixtureTables, spec: string | null) {
+  const flags = (spec ?? "").split(",").map((w) => w.trim()).filter(Boolean);
+  if (flags.includes("done")) {
+    const atInterview = (tables.applications ?? []).find((a) => a.status === "interview");
+    for (const row of tables.interviews ?? []) {
+      if (atInterview && row.application_id === atInterview.id) {
+        row.status = "completed";
+        row.scheduled_at = new Date(Date.now() - DAY).toISOString();
+      }
+    }
+  }
+  if (flags.includes("offer")) {
+    const offered = (tables.applications ?? []).find((a) => a.status === "offered");
+    if (offered) {
+      (tables.documents ??= []).push({
+        id: "d0c00000-0000-4000-8000-0000000000f1",
+        application_id: offered.id,
+        name: "Offer letter",
+        document_type: "offer_letter",
+        status: "pending",
+        is_voided: false,
+        candidate_signed_at: null,
+        recipient_id: offered.candidate_id,
+        created_at: new Date(Date.now() - 2 * DAY).toISOString(),
+        updated_at: new Date(Date.now() - 2 * DAY).toISOString(),
+      });
+    }
+  }
+}

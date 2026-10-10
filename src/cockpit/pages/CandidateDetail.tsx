@@ -25,7 +25,6 @@ import { useInterviewScores } from "../hooks/useInterviewScores";
 import { interviewScoreWords } from "../lib/interviewScore";
 import { CandidateMark } from "../components/CandidateMark";
 import { CockpitErrorCard } from "../components/ErrorCard";
-import { HiringDocumentPromptDialog } from "@/components/HiringDocumentPromptDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile, useMinWidth } from "@/hooks/use-mobile";
 import { useCockpitCandidate, useCockpitActions, nextAdvanceStatus, advanceTargetLabel } from "../hooks/useCockpitData";
@@ -48,6 +47,9 @@ import { teamInterviewStatus } from "@/lib/teamInterviewStatus";
 import { ApplicantNotesPanel } from "../components/ApplicantNotesPanel";
 import { ApplicantDocumentsPanel } from "../components/ApplicantDocumentsPanel";
 import { RequestDocumentsDialog } from "../components/RequestDocumentsDialog";
+import { HireDialog } from "../components/HireDialog";
+import { OfferLetterDialog } from "../components/OfferLetterDialog";
+import { useInterviewDone } from "../hooks/useHire";
 import { useApplicantViews } from "../hooks/useApplicantNotes";
 // Remove and block on the profile too (its ⋯ menu; the phone's More).
 import { ActionsMenu, ApplicantActionDialogs, BlockedNote, applicantMenuItems, type ApplicantActionRequest } from "../components/ApplicantRowMenu";
@@ -455,10 +457,13 @@ function CandidateProfile({
   const navigate = useNavigate();
   const { isTeamMember } = useAuth();
   const { candidate: c, application, isLoading, isError, refetch } = useCockpitCandidate(id);
-  const { advance, hire, reject, letContinue, isUpdating } = useCockpitActions();
+  const { advance, reject, letContinue, isUpdating } = useCockpitActions();
   // Their live interview, if one has been set up: the decision card says
   // where it stands instead of offering "Set up interview" as if none had.
   const liveInterview = useLiveInterviewForApplication(id).data ?? null;
+  // Their interview with the team, once it has been held: the offer letter is
+  // then the next thing, not another interview.
+  const interviewDone = useInterviewDone(id).data ?? null;
   const theirZone = useApplicantTimeZone(id, !!liveInterview).data ?? null;
   // Opening this page is "I have looked at this one": the list then shows
   // "Viewed" in place of "Needs review" for this reader (their own mark).
@@ -468,7 +473,10 @@ function CandidateProfile({
     if (openedId) void markViewed(openedId);
   }, [openedId, markViewed]);
   const [dialog, setDialog] = useState<ApplicantDecision | null>(null);
-  const [hirePrompt, setHirePrompt] = useState(false);
+  // Hire: one box, the documents ticked, one welcome email (HireDialog).
+  const [hireOpen, setHireOpen] = useState(false);
+  // "Send offer letter": the guided letter, for this applicant.
+  const [offerOpen, setOfferOpen] = useState(false);
   const [resumeOpen, setResumeOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
@@ -710,11 +718,6 @@ function CandidateProfile({
     if (nextStep) await letContinue(c.id, nextStep.id, nextStep.title);
     setDialog(null);
   };
-  const doHire = async () => {
-    await hire(c.id);
-    setDialog(null);
-    setHirePrompt(true);
-  };
   const doReject = async (reason?: string) => {
     await reject(c.id, reason);
     setDialog(null);
@@ -775,6 +778,8 @@ function CandidateProfile({
   // interview's status while one is live, and on its own once it is over, so
   // the number he gave is beside the decision he is about to make.
   const ratingWords = isTerminal ? null : interviewScoreWords(interviewScoresByApplication.get(c.id));
+  const heldOn = interviewDone?.at ? new Date(interviewDone.at) : null;
+  const heldWords = heldOn && !Number.isNaN(heldOn.getTime()) ? heldOn.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }) : "";
   const interviewLine: DecisionInterviewStatus | null = interviewStatus
     ? {
         title: interviewStatus.title,
@@ -784,7 +789,9 @@ function CandidateProfile({
       }
     : ratingWords
       ? { title: ratingWords.title, detail: ratingWords.detail, tone: "ok" }
-      : null;
+      : interviewDone && status === "interview"
+        ? { title: "Interview done", detail: heldWords || "Send the offer letter when you're ready.", tone: "ok" }
+        : null;
 
   // The decision bar, in the order it reads. On a phone the first buttons
   // stay and the rest go behind "More" (at most three on screen); from md up
@@ -798,7 +805,7 @@ function CandidateProfile({
   // two beside each other, anything else, and the quiet danger-toned one.
   let cardActions: DecisionCardActions;
   if (isOffered) {
-    const hireAction: BarAction = { key: "hire", text: "Hire", icon: <CheckCircle2 className="h-4 w-4" />, variant: "primary", onClick: () => setDialog("hire"), disabled: isUpdating };
+    const hireAction: BarAction = { key: "hire", text: "Hire", icon: <CheckCircle2 className="h-4 w-4" />, variant: "primary", onClick: () => setHireOpen(true), disabled: isUpdating };
     // Same words as the dialog it opens, so the decision reads the same twice.
     const takeBack: BarAction = { key: "takeBack", text: "Take back offer", variant: "danger", onClick: () => setDialog("reject"), disabled: isUpdating };
     actions = [hireAction, takeBack, messageAction, ...(requestAction ? [requestAction] : [])];
@@ -810,16 +817,21 @@ function CandidateProfile({
     actions = [messageAction];
     cardActions = { primary: null, pair: [messageAction], extra: [], quiet: null };
   } else {
-    const advanceAction: BarAction | null = canAdvance
-      ? {
-          key: "advance",
-          text: advanceLabel ? `Move to ${advanceLabel}` : "Move forward",
-          cardText: advanceLabel ? `Move to ${advanceLabel.toLowerCase()}` : undefined,
-          variant: "outline",
-          onClick: () => setDialog("advance"),
-          disabled: isUpdating,
-        }
-      : null;
+    // Into Offer is the offer letter itself (the owner, 2026-10-10: "there's
+    // not a clear indication what will it do when I do move her"): sending
+    // the letter moves them to Offer, never a stage change with nothing sent.
+    const advanceAction: BarAction | null = !canAdvance
+      ? null
+      : advanceLabel === "Offer"
+        ? { key: "offer", text: "Send offer letter", variant: "outline", onClick: () => setOfferOpen(true), disabled: isUpdating }
+        : {
+            key: "advance",
+            text: advanceLabel ? `Move to ${advanceLabel}` : "Move forward",
+            cardText: advanceLabel ? `Move to ${advanceLabel.toLowerCase()}` : undefined,
+            variant: "outline",
+            onClick: () => setDialog("advance"),
+            disabled: isUpdating,
+          };
     // With an interview already live, the button changes that one's time
     // (the wizard replaces it); after "I can't make it" it goes to the
     // Interviews page, where what they wrote is and the new time is set.
@@ -828,13 +840,18 @@ function CandidateProfile({
         ? { key: "setup", text: "Set a new time", variant: "outline", onClick: () => navigate("/interviews") }
         : interviewStatus?.action === "change"
           ? { key: "setup", text: "Change interview time", cardText: "Change the time", variant: "outline", onClick: () => setScheduleOpen(true) }
-          : { key: "setup", text: "Set up interview", variant: "outline", onClick: () => setScheduleOpen(true), pulse: scheduleHint };
+          : interviewDone && status === "interview"
+            ? { key: "setup", text: "Another interview", variant: "outline", onClick: () => setScheduleOpen(true) }
+            : { key: "setup", text: "Set up interview", variant: "outline", onClick: () => setScheduleOpen(true), pulse: scheduleHint };
     // Once they are in the interview stage, booking the time is the next
     // thing; before that, moving them on is. The human still decides — both
     // stay live, never disabled or hidden — but when Ava recommends declining
     // neither is filled, so the page is not nudging toward what she warned against.
+    // Once the interview has been held (and no new one is booked), the offer
+    // letter leads and another interview steps back.
+    const offerLeads = status === "interview" && !!interviewDone && !interviewStatus && !!advanceAction;
     const [lead, other]: [BarAction, BarAction | null] =
-      status === "interview" || !advanceAction ? [setupAction, advanceAction] : [advanceAction, setupAction];
+      offerLeads ? [advanceAction as BarAction, setupAction] : status === "interview" || !advanceAction ? [setupAction, advanceAction] : [advanceAction, setupAction];
     // An interview that stands needs nothing pressed: no button is filled.
     const nothingToPress = lead === setupAction && interviewStatus?.action === "change";
     if (!declineRecommended && !nothingToPress) lead.variant = "primary";
@@ -945,18 +962,19 @@ function CandidateProfile({
           onClose={() => setDialog(null)}
           onAdvance={() => void doAdvance()}
           onContinue={() => void doContinue()}
-          onHire={() => void doHire()}
           onReject={(reason) => void doReject(reason)}
         />
 
-        <HiringDocumentPromptDialog
-          open={hirePrompt}
-          onOpenChange={setHirePrompt}
-          candidateName={c.name}
-          jobTitle={c.role}
+        <HireDialog
+          open={hireOpen}
           applicationId={c.id}
-          onSkip={() => setHirePrompt(false)}
+          candidateId={candidateId}
+          name={c.name}
+          jobTitle={c.role}
+          onClose={() => setHireOpen(false)}
         />
+
+        {offerOpen && <OfferLetterDialog open applicationId={c.id} onClose={() => setOfferOpen(false)} />}
 
         {scheduleOpen && (
           <InterviewSchedulingWizard

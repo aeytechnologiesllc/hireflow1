@@ -152,3 +152,35 @@ export function deletesOn(kindKey: string, approvedAt: string | null | undefined
 }
 
 export const DUE_CHOICES = [3, 5, 7] as const;
+
+/* ── What the welcome and documents emails list ─────────────────────────── */
+// The same lines as supabase/functions/_shared/welcomeTodo.ts, which builds
+// the real email; the Hire dialog shows them as its preview, word for word
+// (scripts/document_requests.test.mjs holds the two together).
+
+export const SIGN_OFFER_LINE = "Sign your offer letter";
+
+const TODO_LINES: Record<string, string> = {
+  government_id: "Send a photo of your government ID",
+  nbi_clearance: "Send your NBI clearance",
+  proof_of_address: "Send a proof of address",
+  tin: "Type your TIN",
+  payment_email: "Type the email you use on Wise or PayPal",
+};
+
+const TODO_OLDER: Record<string, string> = {
+  drivers_license: "driver's license",
+  ssn_card: "Social Security card",
+  passport: "passport",
+  work_authorization: "work authorization",
+  tax_form: "tax form",
+  id_card: "government ID",
+  bank_details: "bank details",
+};
+
+/** One request as a line of the email ("Send your NBI clearance"). */
+export function todoLine(kindKey: string, customName?: string | null): string {
+  const named = (customName ?? "").replace(/\s+/g, " ").trim().slice(0, 80).trim();
+  if (named) return `Send: ${named}`;
+  return TODO_LINES[kindKey] ?? `Send your ${TODO_OLDER[kindKey] ?? "document"}`;
+}

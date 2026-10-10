@@ -56,3 +56,33 @@ The Privacy Policy says all of this (`src/content/legal.ts`), and
   (the applicant's). Emails are kept on `window.__previewEmails`.
 - **For real:** make a second account of your own as an applicant, apply to
   your own job, move it to Offer, and send the request to yourself.
+
+## Hiring: the offer letter, then one welcome email (2026-10-10)
+
+The owner, the same day: "there's not a clear indication what will it do when
+I do move her ... we're not dual click on hiring her ... when I say hire, she
+will actually get a nice congratulations email and it will say things like
+documents requested, please log in to your HireFlow to submit those
+documentation and sign stuff." Approved from the "Interview to First Day"
+mock-up.
+
+| You press | What happens | They get |
+|---|---|---|
+| **Send offer letter** (the main button once the interview is done; replaces "Move to Offer" on the applicant page and the Dashboard) | The guided offer letter opens; sending it moves them to Offer | "You have a job offer from {business}", a link to read and sign it |
+| **Hire** (at Offer) | `HireDialog`: ID, NBI clearance and payment email ticked; due in 3/5/7 days; the welcome email shown as it will read | ONE email, "Welcome to {business}": congratulations, then "Before your first day, please:" with *Sign your offer letter* (only if unsigned) and each document |
+
+- **Never twice.** The button locks before anything is awaited; the hire is a
+  conditional update (`status not in (hired, rejected)`), so a second press,
+  a second tab or a retry changes nothing and sends nothing
+  (`src/cockpit/hooks/useHire.ts`).
+- **The list is the database's.** `send-notification-email` reads the
+  application's open requests and its newest offer letter
+  (`_shared/welcomeTodo.ts`) for `status_hired`, `document_requested` and
+  `document_sent`; the request may only name the application, and only one
+  that links the sender to that applicant (`_shared/notificationAccess.ts`).
+  The dialog's preview uses the same lines (`todoLine` in
+  `src/lib/documentRequests.ts`); a test holds the two together.
+- After the interview, "Set up interview" becomes "Another interview"; the
+  decision card says "Interview done" with the day.
+- Offline: `?__previewHiring=done,offer` (the interview held yesterday; an
+  unsigned offer letter on the applicant at Offer).

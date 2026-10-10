@@ -26,6 +26,8 @@ type NotificationType =
   | "interview_ready";
 
 interface NotificationData {
+  /** status_hired, document_requested, continue_on_computer: the application the email is about. */
+  application_id?: string;
   candidate_name?: string;
   job_title?: string;
   phase_name?: string;
@@ -273,11 +275,14 @@ export async function notifyInterviewRescheduled(
 export async function notifyDocumentSent(
   candidateId: string,
   documentName: string,
-  companyName?: string
+  companyName?: string,
+  /** The application it is for: an offer letter then reads as a job offer. */
+  applicationId?: string
 ): Promise<EmailStatus> {
   return sendNotificationEmail("document_sent", candidateId, {
     document_name: documentName,
     company_name: companyName,
+    ...(applicationId ? { application_id: applicationId } : {}),
   });
 }
 
@@ -287,11 +292,14 @@ export async function notifyDocumentSent(
 export async function notifyDocumentRequested(
   candidateId: string,
   documentName: string,
-  companyName?: string
+  companyName?: string,
+  /** The application asked on: the email lists everything still waiting on it. */
+  applicationId?: string
 ): Promise<EmailStatus> {
   return sendNotificationEmail("document_requested", candidateId, {
     document_name: documentName,
     company_name: companyName,
+    ...(applicationId ? { application_id: applicationId } : {}),
   });
 }
 
@@ -315,11 +323,14 @@ export async function notifyStatusRejected(
 export async function notifyStatusHired(
   candidateId: string,
   jobTitle: string,
-  companyName?: string
+  companyName?: string,
+  /** The application hired for: the email lists what is waiting on it (an unsigned offer, documents asked for). */
+  applicationId?: string
 ): Promise<EmailStatus> {
   return sendNotificationEmail("status_hired", candidateId, {
     job_title: jobTitle,
     company_name: companyName,
+    ...(applicationId ? { application_id: applicationId } : {}),
   });
 }
 
