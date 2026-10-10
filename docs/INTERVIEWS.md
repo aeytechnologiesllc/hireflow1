@@ -74,9 +74,8 @@ for the same applicant and both sat on the Interviews page, one "No time
 yet" and one confirmed.
 
 The applicant can ask to reschedule, and either side can save a calendar file
-(`src/lib/calendarInvite.ts`). No reminder email is sent: the
-`interview_reminder` kind exists in `send-notification-email` but nothing
-asks for it.
+(`src/lib/calendarInvite.ts`). The applicant is emailed a reminder the day
+before and an hour before an agreed time (see "Reminders" below).
 
 **The invitation email was never sent before 2026-10-07.** After making the
 interview the wizard looked the applicant up with a select that also asked
@@ -525,6 +524,87 @@ without waiting until tomorrow to turn up under "Needs attention" (see "How
 did it go?" below; it used to offer "Mark completed" and "No-show" there).
 
 Proof: `scripts/no_show.test.mjs`.
+
+## Reminders (2026-10-09)
+
+The owner, after his first week of interviews (one no-show, nobody reminded
+on either side): email the applicant the day before and an hour before.
+
+- **The day before**: sent between 24 and 22 hours before the start.
+  "Reminder: your interview is tomorrow", or "is today": the word is worked
+  out on the applicant's own clock (their country's date, not the server's),
+  so an 11:30 PM interview reminded at 12:30 AM that day says "today". A day
+  that cannot be said plainly reads "coming up", never a wrong "tomorrow".
+- **An hour before**: sent between 60 and 10 minutes before the start.
+  "Your interview starts in about an hour".
+
+Each says the date and time on the applicant's own clock (as the
+confirmation does, "Whose clock a time is written on"), how long it is, how
+to join, and points to "Can't make it?" and to Messages. It is a no-reply
+email like every other applicant email. An applicant who turned off
+interview emails in Settings is not sent it.
+
+Only for a time both sides agreed (`candidate_response` "confirmed",
+`status` "scheduled"). An offered time nobody booked, a time the applicant
+said they cannot make, a cancelled or finished interview: nothing. And not
+straight after a booking: an interview must have been left unchanged for 30
+minutes first, so someone who books 50 minutes ahead gets "confirmed" and
+then one reminder, not two emails at once. A time set or agreed less than
+a day ahead (the owner's example: six hours) gets no day-before email at all,
+since they have just been told the time; the hour-before one still goes.
+
+How it runs:
+
+- `supabase/functions/_shared/interviewReminders.ts` is the rule (which
+  reminder is due, and the email it asks for).
+- `supabase/functions/interview-reminders` is the sender. The database's own
+  scheduler (pg_cron, job `interview-reminders`) calls it every five minutes
+  through pg_net. It answers only a caller holding `INTERVIEW_REMINDERS_SECRET`
+  and takes no input. It claims each reminder before sending it (sets
+  `reminder_day_sent_at` / `reminder_hour_sent_at` only where still empty),
+  so two overlapping looks never send one twice; if the email fails, the
+  claim is given back and the next look tries again while the reminder is
+  still worth sending. The windows are wide so a missed look or two does not
+  lose a reminder.
+- `interviews_reminder_bookkeeping` (a trigger) clears both when the time
+  changes or a time is agreed afresh, so the new time is reminded too; when
+  that time is less than 24 hours away it marks the day-before one done. Only
+  the service role writes them: an employer or applicant cannot stop a
+  reminder or make one go again. Writing only these does not move
+  `updated_at`.
+
+Setting it up (once, by hand; the secret is never in the repo): make a random
+value of at least 32 characters, set it as the edge function secret
+`INTERVIEW_REMINDERS_SECRET`, and store the same value in Vault:
+`select vault.create_secret('<value>', 'interview_reminders_secret');`.
+Until both hold it, every look is refused (401) and nothing is sent. To stop
+the reminders: `select cron.unschedule('interview-reminders');`.
+
+Proof: `scripts/interview_reminders.test.mjs` (the windows, once each, only
+agreed times, the wait after a booking, the email's fields and words, the
+sender's secret, claim and give-back, the schedule) and
+`scripts/interview_reminders.pglite.test.mjs` (against a real Postgres: the
+claim, a client cannot set or clear them, a new time clears them,
+`updated_at` left alone, short notice, no passed times).
+
+## Never a time that has already passed (2026-10-09)
+
+The owner: "make sure ... they can't do a time interview before or
+something in past". The screens already switched passed times off, and the
+applicant's booking was refused on the server once its time had passed. But
+the team's screens write the time straight to the table, so a wizard left
+open overnight, or a time the applicant suggested days ago and accepted
+later, could still set a time in the past.
+
+Now the database refuses it for everyone (`interviews_refuse_past_time`):
+setting a live interview to a time more than two minutes ago fails with
+"That time has already passed. Choose a later one." Only when a time is set;
+marking a passed interview completed or a no-show, a note, a rating are
+untouched. The wizard, "Change the time", and accepting or setting a time
+from the applicant's answer check before saving and say the same words
+(`PASSED_TIME_WORDS`, `timeStillAhead`, `isPassedTimeError` in
+`src/lib/interviewTimes.ts`). Proof: `scripts/interview_reminders.test.mjs`
+and `scripts/interview_reminders.pglite.test.mjs`.
 
 ## How did it go? (2026-10-09)
 

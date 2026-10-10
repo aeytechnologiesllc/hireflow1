@@ -131,7 +131,11 @@ interface NotificationRequest {
     recipient_role?: RecipientRole;
     /** steps_reopened: the steps to redo, in words ("the chat practice and the interview"). */
     retake_steps?: string;
-    /** interview_confirmed, interview_time_picked: "30 minutes". */
+    /** interview_reminder: which one, "day" (the day before) or "hour" (an hour before). */
+    reminder?: string;
+    /** interview_reminder, the day-before one: "today" or "tomorrow" on the applicant's clock. */
+    day_word?: string;
+    /** interview_confirmed, interview_time_picked, interview_reminder: "30 minutes". */
     interview_length?: string;
     /** interview_confirmed: how the applicant joins, in one line. Never the meeting link itself. */
     join_note?: string;
@@ -448,17 +452,32 @@ const getEmailContent = (
     },
     
     // CANDIDATE-FACING
-    interview_reminder: {
-      subject: `Reminder: Interview Tomorrow - ${data.job_title}`,
-      html: wrapEmail(
-        "Interview Reminder",
-        `<p>This is a friendly reminder about your upcoming interview for <strong>${esc(data.job_title)}</strong>.</p>
-         <p><strong>Date:</strong> ${esc(data.interview_date)}<br><strong>Time:</strong> ${esc(data.interview_time)}</p>
-         <p style="color: #666;">Make sure you're prepared and have the meeting link ready!</p>`,
-        "View Details",
-        candidateLink("/applications")
-      ),
-    },
+    // CANDIDATE-FACING. Sent by interview-reminders (the scheduler), the day
+    // before and an hour before a time both sides agreed
+    // (_shared/interviewReminders.ts). `reminder` says which; anything else
+    // reads as the day-before one. The time is on the applicant's own clock.
+    interview_reminder: (() => {
+      const soon = data.reminder === "hour";
+      // "today" or "tomorrow" on the applicant's own clock (dayWord); a day
+      // not said plainly reads "coming up", never a wrong "tomorrow".
+      const when = data.day_word === "today" || data.day_word === "tomorrow" ? data.day_word : "coming up";
+      return {
+        subject: soon ? `Your interview starts in about an hour: ${data.job_title}` : `Reminder: your interview is ${when}: ${data.job_title}`,
+        html: wrapEmail(
+          soon ? "Your interview starts in about an hour" : `Your interview is ${when}`,
+          `<p>A reminder that your interview for <strong>${esc(data.job_title)}</strong> ${soon ? "starts in about an hour" : `is ${when}`}.</p>
+           <p><strong>Date:</strong> ${esc(data.interview_date)}<br><strong>Time:</strong> ${esc(data.interview_time)}${data.interview_length ? `<br><strong>Length:</strong> ${esc(data.interview_length)}` : ""}</p>
+           ${data.join_note ? `<p>${esc(data.join_note)}</p>` : ""}
+           <p style="color: #666;">Can't make it after all? Open your application and choose "Can't make it?" so the team knows.</p>`,
+          "Open my application",
+          candidateLink(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.application_id ?? "")
+              ? `/applications/${data.application_id}`
+              : "/applications"
+          )
+        ),
+      };
+    })(),
     
     // CANDIDATE-FACING
     document_sent: {

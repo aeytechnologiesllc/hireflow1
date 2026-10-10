@@ -50,7 +50,7 @@ import { hapticLight } from "@/lib/haptics";
 import type { Json } from "@/integrations/supabase/types";
 import type { EmailStatus } from "@/utils/emailNotifications";
 import { candidateOrigin } from "@/lib/hosts";
-import { applicantEmailTime, clockGapWords, inviteEmailWords, localTimeZone, shortTimeIn, zonePlace } from "@/lib/interviewTimes";
+import { PASSED_TIME_WORDS, applicantEmailTime, clockGapWords, inviteEmailWords, isPassedTimeError, localTimeZone, shortTimeIn, timeStillAhead, zonePlace } from "@/lib/interviewTimes";
 import { fetchApplicantTimeZone, useApplicantTimeZone } from "@/hooks/useApplicantTimeZone";
 
 interface InterviewSchedulingWizardProps {
@@ -714,6 +714,18 @@ export default function InterviewSchedulingWizard({
     } else if (sortedSelectedWindows.length < MIN_WINDOWS) {
       return;
     }
+    // Never a time that has already passed (a wizard left open overnight).
+    // The database refuses one too (interviews_refuse_past_time).
+    const firstStart = exactTimeMode
+      ? (() => {
+          const [h, m] = selectedTime.split(":").map(Number);
+          return setMinutes(setHours(selectedDate!, h), m);
+        })()
+      : combineDayAndTime(sortedSelectedWindows[0].day, sortedSelectedWindows[0].time);
+    if (!timeStillAhead(firstStart)) {
+      toast.error(PASSED_TIME_WORDS);
+      return;
+    }
 
     setIsCreating(true);
     try {
@@ -876,7 +888,7 @@ export default function InterviewSchedulingWizard({
       // Raw Supabase/Postgres messages mean nothing to the owner — keep them in
       // the console for us and give them the one thing they can act on.
       console.error("Interview scheduling failed:", error);
-      toast.error("I couldn't book that time. Try again, or pick another slot.");
+      toast.error(isPassedTimeError(error) ? PASSED_TIME_WORDS : "I couldn't book that time. Try again, or pick another slot.");
     } finally {
       setIsCreating(false);
     }

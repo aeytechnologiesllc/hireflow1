@@ -202,3 +202,24 @@ export function inviteEmailWords(
   }
   return `The invitation email could not be sent. ${name === "them" ? "They" : name} will see it when they open their application. Message them so they know to look.`;
 }
+
+/**
+ * An interview time can never be one that has already passed (the owner,
+ * 2026-10-09). The screens check before saving and say this; the database
+ * refuses it too (interviews_refuse_past_time), for a screen left open
+ * overnight or a suggested time accepted days later.
+ */
+export const PASSED_TIME_WORDS = "That time has already passed. Choose a later one.";
+
+/** Whether `at` can still be set as an interview time. */
+export function timeStillAhead(at: Date | string | null | undefined, now: Date = new Date()): boolean {
+  if (!at) return false;
+  const ms = (at instanceof Date ? at : new Date(at)).getTime();
+  return !Number.isNaN(ms) && ms > now.getTime();
+}
+
+/** The database's refusal of a passed time (interviews_refuse_past_time), from any Supabase error. */
+export function isPassedTimeError(error: unknown): boolean {
+  const message = error && typeof error === "object" && "message" in error ? String((error as { message: unknown }).message) : String(error ?? "");
+  return message.includes("interview_time_passed");
+}

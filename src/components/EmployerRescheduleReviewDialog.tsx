@@ -20,7 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { getTimezoneAbbreviation } from "@/lib/timezone";
-import { applicantEmailTime, clockGapWords, localTimeZone, shortTimeIn, zonePlace } from "@/lib/interviewTimes";
+import { PASSED_TIME_WORDS, applicantEmailTime, clockGapWords, isPassedTimeError, localTimeZone, shortTimeIn, timeStillAhead, zonePlace } from "@/lib/interviewTimes";
 import { fetchApplicantTimeZone, useApplicantTimeZone } from "@/hooks/useApplicantTimeZone";
 import { clashAt, clashWords, type BusyInterview } from "@/lib/interviewClash";
 import type { Json } from "@/integrations/supabase/types";
@@ -165,6 +165,11 @@ export function EmployerRescheduleReviewDialog({
       toast.error("Choose one of their times first");
       return;
     }
+    // A time they suggested days ago may have passed since (the database refuses one too).
+    if (!timeStillAhead(selectedTime)) {
+      toast.error(PASSED_TIME_WORDS);
+      return;
+    }
 
     setIsSubmitting(true);
     setAction("accept");
@@ -207,7 +212,7 @@ export function EmployerRescheduleReviewDialog({
       onOpenChange(false);
     } catch (error) {
       console.error("Error accepting a suggested time:", error);
-      toast.error("Couldn't set that time. Try again.");
+      toast.error(isPassedTimeError(error) ? PASSED_TIME_WORDS : "Couldn't set that time. Try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -324,7 +329,7 @@ export function EmployerRescheduleReviewDialog({
       return;
     }
     if (!newStartAhead) {
-      toast.error("That time has already passed. Choose a later one.");
+      toast.error(PASSED_TIME_WORDS);
       return;
     }
 
@@ -378,7 +383,7 @@ export function EmployerRescheduleReviewDialog({
       onOpenChange(false);
     } catch (error) {
       console.error("Error setting a new time:", error);
-      toast.error("Couldn't send the new time. Try again.");
+      toast.error(isPassedTimeError(error) ? PASSED_TIME_WORDS : "Couldn't send the new time. Try again.");
     } finally {
       setIsSubmitting(false);
     }

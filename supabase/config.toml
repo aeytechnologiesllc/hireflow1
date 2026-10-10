@@ -131,3 +131,10 @@ verify_jwt = true
 # their own record (docs/INTERVIEWS.md). The function also checks the caller
 # is the job's owner or an active team member scoped to the job.
 verify_jwt = true
+
+[functions.interview-reminders]
+# Called every five minutes by pg_cron through pg_net, which has no JWT
+# (supabase/migrations/*_interview_reminders_schedule.sql). The function
+# answers only a caller holding INTERVIEW_REMINDERS_SECRET, and takes no
+# input: it sends only reminders that are due, each at most once.
+verify_jwt = false

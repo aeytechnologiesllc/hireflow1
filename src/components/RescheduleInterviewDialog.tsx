@@ -25,7 +25,7 @@ import { format } from "date-fns";
 import { Calendar as CalendarIcon, Clock, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/integrations/supabase/types";
-import { applicantEmailTime, localTimeZone } from "@/lib/interviewTimes";
+import { PASSED_TIME_WORDS, applicantEmailTime, isPassedTimeError, localTimeZone, timeStillAhead } from "@/lib/interviewTimes";
 import { fetchApplicantTimeZone } from "@/hooks/useApplicantTimeZone";
 
 interface RescheduleInterviewDialogProps {
@@ -65,12 +65,18 @@ export function RescheduleInterviewDialog({
       return;
     }
 
+    // Combine date and time
+    const [hours, minutes] = time.split(":").map(Number);
+    const scheduledAt = new Date(date);
+    scheduledAt.setHours(hours, minutes, 0, 0);
+    // Never a time that has already passed (the database refuses one too).
+    if (!timeStillAhead(scheduledAt)) {
+      toast.error(PASSED_TIME_WORDS);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      // Combine date and time
-      const [hours, minutes] = time.split(":").map(Number);
-      const scheduledAt = new Date(date);
-      scheduledAt.setHours(hours, minutes, 0, 0);
 
       const { error } = await supabase
         .from("interviews")
@@ -108,7 +114,7 @@ export function RescheduleInterviewDialog({
       onOpenChange(false);
     } catch (error) {
       console.error("Failed to reschedule interview:", error);
-      toast.error("Failed to reschedule interview");
+      toast.error(isPassedTimeError(error) ? PASSED_TIME_WORDS : "Failed to reschedule interview");
     } finally {
       setIsSubmitting(false);
     }
