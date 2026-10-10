@@ -25,6 +25,7 @@ import { reconcileCandidateSignatureChain } from "../_shared/countersignReconcil
 import { buildCompletionCertificate, type CertificateAuditEntry } from "../_shared/completionCertificateServer.ts";
 import { renderSignedUploadedPdf, renderTextDocumentPdf, type SignatureOverlay } from "../_shared/renderFinalPdf.ts";
 import { bestEffortIp } from "../_shared/bestEffortIp.ts";
+import { cleanSignerContext, deviceLine, placeLine, type SignerPlace } from "../_shared/signerContext.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -182,6 +183,9 @@ Deno.serve(async (req) => {
       declineReason?: string;
       /** withdraw/void only — same 3-500 char rule as declineReason. */
       reason?: string;
+      /** sign/countersign: the device and the place it was signed from
+       *  (_shared/signerContext.ts); cleaned, never trusted as-is. */
+      signerContext?: unknown;
     };
     try {
       payload = await req.json();
@@ -267,6 +271,14 @@ Deno.serve(async (req) => {
     const nowIso = new Date().toISOString();
     const ip = bestEffortIp(req);
     const userAgent = req.headers.get("user-agent") ?? "unknown";
+    // The signer's device and place (sign/countersign send them). The team
+    // reads all of it; the applicant never reads the team's
+    // (public.document_audit_log).
+    const signer = cleanSignerContext(payload.signerContext, ip);
+    const signerDetails = {
+      device: signer.device,
+      ...(signer.place ? { place_source: "network", place_ip_matches: signer.placeIpMatches } : {}),
+    };
 
     async function insertAuditLog(entry: {
       action: string;
@@ -279,6 +291,8 @@ Deno.serve(async (req) => {
       postSignatureHash?: string | null;
       signingOrderPosition?: number | null;
       details?: Record<string, unknown>;
+      /** Where it was signed from (the network's answer, _shared/signerContext.ts). */
+      place?: SignerPlace | null;
       // Explicit created_at so a row written AFTER a countersign's
       // render/upload finishes can still carry the exact moment the action
       // logically happened (nowIso, captured before any I/O) — see the
@@ -303,6 +317,9 @@ Deno.serve(async (req) => {
         signing_order_position: entry.signingOrderPosition ?? null,
         ip_address: ip,
         user_agent: userAgent,
+        location_city: entry.place?.city ?? null,
+        location_region: entry.place?.region ?? null,
+        location_country: entry.place?.country ?? null,
         details: entry.details ?? {},
         ...(entry.createdAt ? { created_at: entry.createdAt } : {}),
       });
@@ -424,7 +441,8 @@ Deno.serve(async (req) => {
         preSignatureHash: document.v1_hash,
         postSignatureHash: v2Hash,
         signingOrderPosition: 1,
-        details: { event: "Candidate signed document", version_transition: "v1 -> v2" },
+        place: signer.place,
+        details: { event: "Candidate signed document", version_transition: "v1 -> v2", ...signerDetails },
       });
 
       if (job.employer_id) {
@@ -580,6 +598,25 @@ Deno.serve(async (req) => {
         // succeeded. A failed-then-retried attempt now leaves no audit rows
         // behind at all, instead of leaving orphaned ones with no way to
         // remove them.
+        // The applicant's own signing place and device, for the certificate.
+        // The team's are recorded in its audit rows only: the certificate is
+        // the applicant's copy too (the owner, 2026-10-11).
+        const { data: candidateSignRow } = await admin
+          .from("document_audit_logs")
+          .select("location_city, location_region, location_country, details")
+          .eq("document_id", documentId)
+          .eq("action", "candidate_signed")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const candidatePlace: SignerPlace | null = candidateSignRow
+          ? {
+              ...(candidateSignRow.location_city ? { city: candidateSignRow.location_city } : {}),
+              ...(candidateSignRow.location_region ? { region: candidateSignRow.location_region } : {}),
+              ...(candidateSignRow.location_country ? { country: candidateSignRow.location_country } : {}),
+            }
+          : null;
+        const candidateDevice = deviceLine(((candidateSignRow?.details ?? {}) as { device?: Record<string, unknown> }).device ?? null);
         const { data: priorAuditRows } = await admin
           .from("document_audit_logs")
           .select("action, created_at, user_id, document_hash")
@@ -609,10 +646,11 @@ Deno.serve(async (req) => {
           candidateEmail: candidateParsed?.signerEmail || undefined,
           candidateSignedAt: reserved.candidate_signed_at ?? nowIso,
           candidateIp: reserved.ip_address ?? undefined,
+          candidatePlace: placeLine(candidatePlace) ?? undefined,
+          candidateDevice: candidateDevice ?? undefined,
           employerName: callerName,
           employerEmail: callerEmail || undefined,
           employerSignedAt: nowIso,
-          employerIp: ip,
           v1Hash: reserved.v1_hash,
           v2Hash: reserved.v2_hash,
           v3Hash,
@@ -648,11 +686,14 @@ Deno.serve(async (req) => {
           candidateEmail: candidateParsed?.signerEmail ?? "",
           candidateSignedAt: reserved.candidate_signed_at ?? nowIso,
           candidateIp: reserved.ip_address ?? "unknown",
+          candidateLocation: candidatePlace && Object.keys(candidatePlace).length
+            ? { city: candidatePlace.city ?? "Unknown", region: candidatePlace.region ?? "Unknown", country: candidatePlace.country ?? "Unknown" }
+            : undefined,
+          candidateDevice: candidateDevice ?? undefined,
           employerName: callerName,
           employerEmail: callerEmail,
           employerSignedAt: nowIso,
           employerReviewConfirmedAt: nowIso,
-          employerIp: ip,
           finalPdfHash,
           completionTimestampUtc: nowIso,
           auditEntries,
@@ -673,8 +714,9 @@ Deno.serve(async (req) => {
             locked_at: nowIso,
             completion_certificate: certificate,
             signed_at: nowIso,
-            ip_address: ip,
-            user_agent: userAgent,
+            // ip_address / user_agent stay the applicant's, from their
+            // signature: the applicant can read this row, and never the
+            // team's address or device (the owner, 2026-10-11).
           })
           .eq("id", documentId)
           .eq("employer_signed_at", nowIso)
@@ -708,7 +750,8 @@ Deno.serve(async (req) => {
             preSignatureHash: reserved.v2_hash,
             postSignatureHash: v3Hash,
             signingOrderPosition: 2,
-            details: { event: "Employer countersigned document", version_transition: "v2 -> v3" },
+            place: signer.place,
+            details: { event: "Employer countersigned document", version_transition: "v2 -> v3", ...signerDetails },
             createdAt: nowIso,
           });
           await insertAuditLog({

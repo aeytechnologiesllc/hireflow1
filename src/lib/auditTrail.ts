@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { Json, TablesInsert } from "@/integrations/supabase/types";
+import type { Json, Tables, TablesInsert } from "@/integrations/supabase/types";
 import { 
   generateDocumentHash, 
   generateV1Hash, 
@@ -557,18 +557,16 @@ export async function logDocumentVoided(
  * Fetch audit trail for a document
  */
 export async function fetchAuditTrail(documentId: string): Promise<AuditLogEntry[]> {
-  const { data, error } = await supabase
-    .from('document_audit_logs')
-    .select('*')
-    .eq('document_id', documentId)
-    .order('created_at', { ascending: true });
+  // Through document_audit_log (2026-10-11): the team reads every row whole;
+  // the applicant never reads the team's IP address, device, place or email.
+  const { data, error } = await supabase.rpc('document_audit_log' as never, { p_document_id: documentId } as never);
   
   if (error) {
     console.error('Failed to fetch audit trail:', error);
     return [];
   }
   
-  return (data || []).map(item => ({
+  return ((data as unknown as Array<Tables<"document_audit_logs">>) || []).map(item => ({
     id: item.id,
     document_id: item.document_id,
     user_id: item.user_id,

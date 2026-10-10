@@ -32,8 +32,9 @@ export interface CompletionCertificate {
     title?: string;
     email: string;
     timestamp_utc: string;
-    ip_address: string;
-    location: { city: string; region: string; country: string; };
+    /** Never on the certificate since 2026-10-11 (the applicant reads it too). */
+    ip_address?: string;
+    location?: { city: string; region: string; country: string; };
     signature_hash: string;
     consent_confirmed_at: string;
     review_confirmed_at: string;
@@ -132,12 +133,6 @@ export async function generateCompletionCertificate(
       name: employerSignedEntry.signer_name || 'Unknown',
       email: employerSignedEntry.signer_email || '',
       timestamp_utc: employerSignedEntry.timestamp_utc || employerSignedEntry.created_at || '',
-      ip_address: employerSignedEntry.ip_address || 'Unknown',
-      location: {
-        city: employerSignedEntry.location_city || 'Unknown',
-        region: employerSignedEntry.location_region || 'Unknown',
-        country: employerSignedEntry.location_country || 'Unknown'
-      },
       signature_hash: employerSignedEntry.post_signature_hash || employerSignedEntry.document_hash || '',
       consent_confirmed_at: employerConsentEntry?.created_at || employerSignedEntry.created_at || '',
       review_confirmed_at: employerReviewEntry?.created_at || employerSignedEntry.created_at || '',
@@ -237,7 +232,7 @@ CANDIDATE (Signing Position: ${cert.candidate_signature.signing_order_position})
   Name: ${cert.candidate_signature.name}
   Email: ${cert.candidate_signature.email}
   Signed At: ${cert.candidate_signature.timestamp_utc} (UTC)
-  IP Address (self-reported): ${cert.candidate_signature.ip_address}
+  IP Address: ${cert.candidate_signature.ip_address}
   Location: ${cert.candidate_signature.location.city}, ${cert.candidate_signature.location.region}, ${cert.candidate_signature.location.country}
   Signature Hash: ${cert.candidate_signature.signature_hash}
   Consent Confirmed: ${cert.candidate_signature.consent_confirmed_at}
@@ -250,8 +245,6 @@ EMPLOYER (Signing Position: ${cert.employer_signature.signing_order_position})
   Name: ${cert.employer_signature.name}
   Email: ${cert.employer_signature.email}
   Signed At: ${cert.employer_signature.timestamp_utc} (UTC)
-  IP Address (self-reported): ${cert.employer_signature.ip_address}
-  Location: ${cert.employer_signature.location.city}, ${cert.employer_signature.location.region}, ${cert.employer_signature.location.country}
   Signature Hash: ${cert.employer_signature.signature_hash}
   Review Confirmed: ${cert.employer_signature.review_confirmed_at}
   Consent Confirmed: ${cert.employer_signature.consent_confirmed_at}

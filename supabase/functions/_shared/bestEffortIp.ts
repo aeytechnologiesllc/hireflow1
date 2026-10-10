@@ -1,33 +1,30 @@
 /**
- * Best-effort network-address capture for the document-signing edge
- * function's audit trail / completion certificate.
+ * The caller's network address, for the document-signing record and the
+ * computer check.
  *
- * NOT a verified, spoof-proof client IP — see docs/DOCUMENT-SIGNING.md's
- * revision log (item 2) for the full reasoning. X-Forwarded-For is not a
- * browser-forbidden header, so any caller of this (or any) public HTTPS
- * endpoint can set it to an arbitrary value via devtools/curl/a modified
- * client — trusting the first hop verbatim (the original design, and the
- * pattern `_shared/rateLimit.ts`'s `callerId()` already uses for its own,
- * explicitly best-effort, non-authorization purpose) is exactly as
- * spoofable as accepting a client-supplied body field would be.
- *
- * This session could not independently verify what, if anything, Supabase's
- * Edge Runtime guarantees about appending (rather than passing through
- * untouched) a caller's X-Forwarded-For header, so rather than assert a
- * platform guarantee this code can't prove, it takes the LAST hop — the
- * position a reverse proxy chain conventionally appends to, not the
- * position the client itself writes into first — as a marginally more
- * trustworthy signal than the first hop, while still treating the result as
- * best-effort. Every surface that displays this value (completionCertificate.ts,
- * AuditCertificate.tsx, certificatePDF.ts) labels it "self-reported" rather
- * than presenting it as independently verified — see those files' "IP
- * Address (self-reported)" labels.
+ * Since 2026-10-11 this is CF-Connecting-IP: Cloudflare, in front of every
+ * edge function, sets it to the address the request really came from, and
+ * refuses (error 1000) any request that tries to send its own, so a caller
+ * cannot choose it. Proved live with a throwaway probe the same day: the
+ * header carried the caller's address (99.74.0.227), while the last
+ * X-Forwarded-For hop, which this used to take, was the hosting provider's
+ * own proxy (3.2.52.20) on every request. X-Forwarded-For (any hop of which
+ * a caller CAN write) is only the fallback when CF-Connecting-IP is missing.
  */
 export function bestEffortIp(req: Request): string {
+  // 2026-10-11, proved live with a throwaway probe: CF-Connecting-IP reaches
+  // every edge function and is the caller's real address (Cloudflare sets
+  // it, and refuses outright, error 1000, a request that tries to send its
+  // own). The LAST X-Forwarded-For hop this used to prefer is the hosting
+  // provider's own proxy (3.2.52.20 when the caller was 99.74.0.227), so
+  // every signature and computer check had been recording that proxy, not
+  // the person. X-Forwarded-For stays only as the fallback.
+  const cf = req.headers.get("cf-connecting-ip")?.trim();
+  if (cf) return cf;
   const fwd = req.headers.get("x-forwarded-for");
   if (fwd) {
     const hops = fwd.split(",").map((h) => h.trim()).filter(Boolean);
     if (hops.length > 0) return hops[hops.length - 1];
   }
-  return req.headers.get("cf-connecting-ip") ?? req.headers.get("x-real-ip") ?? "unknown";
+  return req.headers.get("x-real-ip") ?? "unknown";
 }

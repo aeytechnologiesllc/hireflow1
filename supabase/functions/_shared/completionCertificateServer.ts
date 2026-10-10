@@ -72,6 +72,8 @@ export interface CompletionCertificate {
     timestamp_utc: string;
     ip_address: string;
     location: SignerLocation;
+    /** "Phone, iOS, 390x844, Asia/Manila": the device they signed on. */
+    device?: string;
     signature_hash: string;
     consent_confirmed_at: string;
     signing_order_position: number;
@@ -80,8 +82,10 @@ export interface CompletionCertificate {
     name: string;
     email: string;
     timestamp_utc: string;
-    ip_address: string;
-    location: SignerLocation;
+    /** Never on the certificate since 2026-10-11: the applicant reads it too.
+     *  The team's address and place are in its own audit rows. */
+    ip_address?: string;
+    location?: SignerLocation;
     signature_hash: string;
     consent_confirmed_at: string;
     review_confirmed_at: string;
@@ -111,12 +115,11 @@ export interface BuildCertificateParams {
   candidateSignedAt: string;
   candidateIp: string;
   candidateLocation?: SignerLocation;
+  candidateDevice?: string;
   employerName: string;
   employerEmail: string;
   employerSignedAt: string;
   employerReviewConfirmedAt: string;
-  employerIp: string;
-  employerLocation?: SignerLocation;
   finalPdfHash: string;
   completionTimestampUtc: string;
   auditEntries: CertificateAuditEntry[];
@@ -146,6 +149,7 @@ export async function buildCompletionCertificate(
       timestamp_utc: params.candidateSignedAt,
       ip_address: params.candidateIp,
       location: params.candidateLocation ?? UNKNOWN_LOCATION,
+      ...(params.candidateDevice ? { device: params.candidateDevice } : {}),
       signature_hash: params.v2Hash,
       consent_confirmed_at: params.candidateSignedAt,
       signing_order_position: 1,
@@ -154,8 +158,6 @@ export async function buildCompletionCertificate(
       name: params.employerName,
       email: params.employerEmail,
       timestamp_utc: params.employerSignedAt,
-      ip_address: params.employerIp,
-      location: params.employerLocation ?? UNKNOWN_LOCATION,
       signature_hash: params.v3Hash,
       consent_confirmed_at: params.employerSignedAt,
       review_confirmed_at: params.employerReviewConfirmedAt,

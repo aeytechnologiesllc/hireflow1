@@ -8,6 +8,51 @@ below for what changed from the original design during implementation, and
 why — read it before the rest of this document, since several sections below
 now describe the pre-revision design and are superseded by the log.
 
+## Signing record and who sees it (2026-10-11)
+
+The owner, asked whether a signature captures location, IP and device
+details: "whatever is free to add, go ahead ... the employer will see all of
+the applicant detail stuff, but the applicant, when they see the signature,
+they don't get to see device fingerprinting, IP addresses of the employer."
+
+**What each signature records** (`document_audit_logs`, one row per sign or
+countersign): the signer's name and email, the time, the consent, the hash
+chain (as before), plus:
+
+- **The real IP address.** `_shared/bestEffortIp.ts` now reads
+  CF-Connecting-IP, which Cloudflare sets in front of every edge function and
+  refuses to let a caller send (error 1000), both proved live with a throwaway
+  probe. The last X-Forwarded-For hop the function used before was the hosting
+  provider's own proxy on every request (3.2.52.20 while the caller was
+  99.74.0.227), so earlier records hold that proxy, not the person. The
+  "self-reported" labels below are gone: the address is the server's, not the
+  caller's to choose.
+- **The approximate place** (`location_city/region/country`): hireflownow.com's
+  host (Vercel) knows the connection's country, region and city for free;
+  `api/where.mjs` returns them, with the address it saw, to the signing screen
+  (`src/lib/signerContext.ts`), which sends them with the signature. The
+  function cleans them (`_shared/signerContext.ts`) and records in `details`
+  whether that address matches the one it saw itself (`place_ip_matches`).
+- **The device** (`details.device`): phone, tablet or computer, system, screen
+  size, time zone, languages, and an ID the browser keeps for HireFlow
+  (`localStorage` `hf-device-id`).
+
+**Who sees what.** Migration `20261011120000_signing_record_privacy.sql`: the
+private columns (IP, browser, place, details, email) can no longer be selected
+from a client at all; `document_audit_log(document_id)` returns the record to
+the sender (the hiring team, every column of every row) and the recipient (the
+applicant: their own rows whole, the team's rows without IP, browser, place,
+details or email). The countersign no longer overwrites the document's
+`ip_address`/`user_agent` (the applicant's) with the team's; the completion
+certificate and the final PDF's certificate page carry the applicant's IP,
+place and device and none of the team's. Proof:
+`scripts/signing_record_privacy.pglite.test.mjs`.
+
+**The applicant's screen** (`src/components/documents/ApplicantDocumentSheet.tsx`,
+same day): the letter, then "Sign to accept"; no PDF, certificate or audit
+buttons until both have signed. The full viewer
+(`SignedDocumentViewer.tsx`) stays for uploaded PDFs and the "Signing record".
+
 ## Revision log (2026-09-16)
 
 A pre-implementation review raised six must-change findings and nine

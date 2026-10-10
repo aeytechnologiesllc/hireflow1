@@ -62,6 +62,11 @@ check("it says what the fairness checks record, and that the screen is not recor
 check("…which is what the integrity hook records", ["paste", "contextmenu", "visibilitychange"].every((word) => read("src/hooks/useTestIntegrity.ts").includes(word)));
 check("it says the connection check keeps IP addresses and device details", /the IP addresses seen during the check/.test(privacy) && /operating system, browser, screen size/.test(privacy));
 check("it says signing keeps the IP address and browser", /your IP address and your browser type/.test(privacy));
+check(
+  "it says signing keeps the approximate place and the device, which the signing record does (2026-10-11)",
+  /the approximate place your internet connection is in/.test(privacy) && /an ID your browser keeps for this site/.test(privacy) &&
+    /location_city: entry\.place\?\.city/.test(read("supabase/functions/document-signing/index.ts")) && /hf-device-id/.test(read("src/lib/signerContext.ts")),
+);
 check("it says the page counter uses no cookie and honours Do Not Track", /no cookie and no visitor number, stores no IP address/.test(privacy) && /Do Not Track or Global Privacy Control/.test(privacy));
 check("…which the beacon still does", /doNotTrack/.test(read("public/beacon.js")) && /globalPrivacyControl/.test(read("public/beacon.js")) && !/document\.cookie\s*=/.test(read("public/beacon.js")));
 check("it says most things are not deleted on a timer, and names what stays after an account is deleted", /Most things are not deleted on a timer\./.test(privacy) && /a count of your test attempts, the start times of typing tests, a block-list entry/.test(privacy));

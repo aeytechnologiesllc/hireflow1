@@ -21,6 +21,7 @@ import {
   Building2,
   Calendar,
   Globe,
+  MapPin,
   Monitor,
   Clock,
   Eye,
@@ -222,7 +223,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
   const [isDownloading, setIsDownloading] = useState(false);
   const qrRef = useRef<HTMLCanvasElement>(null);
   const { toast } = useToast();
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const queryClient = useQueryClient();
 
   // A candidate may sign their own pending, not-yet-signed document; an
@@ -242,14 +243,14 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
   const fetchAuditLogs = useCallback(async () => {
     if (!document) return;
 
-    const { data, error } = await supabase
-      .from("document_audit_logs")
-      .select("*")
-      .eq("document_id", document.id)
-      .order("created_at", { ascending: true });
+    // Through document_audit_log (2026-10-11): the team reads every row
+    // whole; the applicant reads their own rows whole and the team's without
+    // its IP address, device, place or email. The table no longer hands
+    // those columns to a client at all.
+    const { data, error } = await supabase.rpc("document_audit_log" as never, { p_document_id: document.id } as never);
 
     if (!error && data) {
-      setAuditLogs(data as AuditLog[]);
+      setAuditLogs(data as unknown as AuditLog[]);
     }
   }, [document]);
 
@@ -1253,21 +1254,39 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                           
                           <div className="mt-3 p-3 rounded-lg bg-muted/50 border border-border">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                              {/* Always show IP - never silently omit */}
-                              <div className="flex items-center gap-2 text-muted-foreground">
-                                <Globe className="h-3 w-3" />
-                                <span>
-                                  {log.ip_address && log.ip_address !== 'unknown' 
-                                    ? `IP: ${log.ip_address}` 
-                                    : 'IP unavailable at time of signing'}
-                                </span>
-                              </div>
-                              {log.location_city && log.location_city !== 'Unknown' && (
+                              {/* The IP, place and device: the team sees everyone's; an
+                                  applicant sees only their own (document_audit_log
+                                  leaves the team's out, 2026-10-11). */}
+                              {(role !== "candidate" || log.user_id === user?.id) && (
                                 <div className="flex items-center gap-2 text-muted-foreground">
                                   <Globe className="h-3 w-3" />
-                                  <span>{log.location_city}, {log.location_region}, {log.location_country}</span>
+                                  <span>
+                                    {log.ip_address && log.ip_address !== 'unknown'
+                                      ? `IP: ${log.ip_address}`
+                                      : 'IP unavailable at time of signing'}
+                                  </span>
                                 </div>
                               )}
+                              {[log.location_city, log.location_region, log.location_country].some((part) => part && part !== 'Unknown') && (
+                                <div className="flex items-center gap-2 text-muted-foreground">
+                                  <MapPin className="h-3 w-3" />
+                                  <span>{[log.location_city, log.location_region, log.location_country].filter((part) => part && part !== 'Unknown').join(", ")}</span>
+                                </div>
+                              )}
+                              {(() => {
+                                const device = (log.details as { device?: { deviceType?: string; platform?: string; screen?: string; timeZone?: string; languages?: string[]; deviceId?: string } } | null)?.device;
+                                if (!device) return null;
+                                const line = [device.deviceType, device.platform, device.screen, device.timeZone, device.languages?.[0]].filter(Boolean).join(" · ");
+                                return line ? (
+                                  <div className="flex items-center gap-2 text-muted-foreground col-span-2" data-audit-device>
+                                    <Monitor className="h-3 w-3 shrink-0" />
+                                    <span>
+                                      {line}
+                                      {device.deviceId ? ` · device ${device.deviceId.slice(0, 8)}` : ""}
+                                    </span>
+                                  </div>
+                                ) : null;
+                              })()}
                               {/* VPN/Proxy Warning - Informational Only */}
                               {(log.details as Record<string, unknown>)?.connectionWarning && (
                                 <div className="flex items-center gap-2 text-[var(--warning)] col-span-2">

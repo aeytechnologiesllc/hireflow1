@@ -42,10 +42,13 @@ export interface FinalCertificateData {
   candidateEmail?: string;
   candidateSignedAt: string;
   candidateIp?: string;
+  /** "Manila, Metro Manila, PH" (the network's answer at signing). */
+  candidatePlace?: string;
+  /** "Phone, iOS, 390x844, Asia/Manila". */
+  candidateDevice?: string;
   employerName: string;
   employerEmail?: string;
   employerSignedAt: string;
-  employerIp?: string;
   v1Hash?: string | null;
   v2Hash?: string | null;
   v3Hash?: string | null;
@@ -323,8 +326,11 @@ function appendCertificatePage(pdfDoc: PDFDocument, helvetica: PDFFont, helvetic
   drawLabelValue("Name:", cert.candidateName);
   if (cert.candidateEmail) drawLabelValue("Email:", cert.candidateEmail);
   drawLabelValue("Signed At:", format(new Date(cert.candidateSignedAt), "MMMM d, yyyy 'at' h:mm:ss a 'UTC'"));
-  // Self-reported — see bestEffortIp.ts. Never presented as independently verified.
-  drawLabelValue("IP Address (self-reported):", cert.candidateIp || "Unavailable");
+  // The address the server saw (bestEffortIp.ts: Cloudflare's, not the
+  // caller's to choose), the place the network put it in, and the device.
+  drawLabelValue("IP Address:", cert.candidateIp || "Unavailable");
+  if (cert.candidatePlace) drawLabelValue("Location:", cert.candidatePlace);
+  if (cert.candidateDevice) drawLabelValue("Device:", cert.candidateDevice);
   y -= 10;
 
   certPage.drawText("2. EMPLOYER", { x: margin, y, size: 10, font: helveticaBold, color: rgb(0.2, 0.2, 0.2) });
@@ -332,7 +338,8 @@ function appendCertificatePage(pdfDoc: PDFDocument, helvetica: PDFFont, helvetic
   drawLabelValue("Name:", cert.employerName);
   if (cert.employerEmail) drawLabelValue("Email:", cert.employerEmail);
   drawLabelValue("Signed At:", format(new Date(cert.employerSignedAt), "MMMM d, yyyy 'at' h:mm:ss a 'UTC'"));
-  drawLabelValue("IP Address (self-reported):", cert.employerIp || "Unavailable");
+  // No address, place or device for the team: this page is the applicant's
+  // copy too (the owner, 2026-10-11). They are in the team's audit record.
   y -= 16;
 
   certPage.drawText("DOCUMENT INTEGRITY", { x: margin, y, size: 12, font: helveticaBold, color: rgb(0, 0, 0) });

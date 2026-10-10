@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { SignaturePad } from "./SignaturePad";
 import { Loader2, PenTool, XCircle } from "lucide-react";
 import { invokeDocumentSigning } from "@/lib/documentSigningErrors";
+import { collectSignerContext } from "@/lib/signerContext";
 
 // Same wording as src/lib/auditTrail.ts's electronic_consent_confirmed
 // audit entry — one consent statement, reused, not invented twice.
@@ -64,6 +65,8 @@ export function DocumentSigningPanel({ documentId, mode, onComplete }: DocumentS
         documentId,
         action: mode,
         signature: { method: tab, value: signatureValue, consentAccepted: true },
+        // The device and the place it is signed from (src/lib/signerContext.ts).
+        signerContext: await collectSignerContext(),
         ...(mode === "countersign" ? { reviewConfirmed: true } : {}),
       });
       toast({

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeDocumentSigning } from "@/lib/documentSigningErrors";
+import { collectSignerContext } from "@/lib/signerContext";
 import type { DocumentWithApplication } from "@/hooks/useDocuments";
 import { LetterText } from "./LetterText";
 import { SignaturePad } from "./SignaturePad";
@@ -169,7 +170,9 @@ export function ApplicantDocumentSheet({
     setBusy(true);
     setError(null);
     try {
-      await invokeDocumentSigning(supabase, { documentId: document.id, action: "sign", signature: { method: how, value: signature, consentAccepted: true } });
+      // The device and the place it is signed from (the team sees it; the applicant never sees the team's).
+      const signerContext = await collectSignerContext();
+      await invokeDocumentSigning(supabase, { documentId: document.id, action: "sign", signature: { method: how, value: signature, consentAccepted: true }, signerContext });
       setJustSigned(true);
       refresh();
     } catch (e) {

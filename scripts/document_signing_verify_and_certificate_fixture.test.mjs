@@ -165,7 +165,6 @@ const certificate = await buildCompletionCertificate({
   employerEmail: "employer@example.com",
   employerSignedAt: document.employer_signed_at,
   employerReviewConfirmedAt: document.employer_signed_at,
-  employerIp: "203.0.113.9",
   finalPdfHash: document.final_pdf_hash,
   completionTimestampUtc: document.employer_signed_at,
   auditEntries: auditLogs.map((a) => ({ action: a.action, created_at: a.created_at, user_id: a.user_id, document_hash: a.document_hash })),
@@ -197,7 +196,7 @@ check("certificate.final_document_hash is the real final_pdf_hash, not a v1/v2/v
 check("certificate.audit_entries_count matches the fixture's audit trail", certificate.audit_entries_count === auditLogs.length);
 check("certificate.compliance_statement is non-empty legal boilerplate, reused not invented", typeof certificate.compliance_statement === "string" && certificate.compliance_statement.includes("ESIGN"));
 check("certificate.candidate_signature.ip_address is the candidate's OWN ip, not overwritten by the employer's later one", certificate.candidate_signature.ip_address === "203.0.113.5");
-check("certificate.employer_signature.ip_address is the employer's own ip", certificate.employer_signature.ip_address === "203.0.113.9");
+check("certificate.employer_signature has no IP address or location (2026-10-11: the applicant never sees the team's)", !("ip_address" in certificate.employer_signature) && !("location" in certificate.employer_signature));
 
 console.log(`\n${passed} passed, ${failed} failed.`);
 if (failed > 0) process.exit(1);

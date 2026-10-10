@@ -148,7 +148,6 @@ const cert = await buildCompletionCertificate({
   employerEmail: "empy@example.com",
   employerSignedAt: "2026-09-03T00:00:00Z",
   employerReviewConfirmedAt: "2026-09-03T00:00:00Z",
-  employerIp: "203.0.113.9",
   finalPdfHash: "finalpdfhash",
   completionTimestampUtc: "2026-09-03T00:00:01Z",
   auditEntries,
@@ -165,9 +164,12 @@ check(
   "candidate_signature.ip_address preserves the candidate's OWN sign-time IP, not the employer's later one",
   cert.candidate_signature?.ip_address === "203.0.113.5",
 );
+// The owner, 2026-10-11: the applicant never sees the team's IP address,
+// device or place. The certificate is the applicant's copy too, so the team's
+// side carries none of them (they stay in the team's own audit rows).
 check(
-  "employer_signature.ip_address is the employer's own IP, independent of the candidate's",
-  cert.employer_signature?.ip_address === "203.0.113.9",
+  "employer_signature carries no IP address and no location (the applicant reads the certificate too)",
+  cert.employer_signature && !("ip_address" in cert.employer_signature) && !("location" in cert.employer_signature),
 );
 check("signing_order is always 'candidate_first'", cert.signing_order === "candidate_first");
 check(
@@ -202,7 +204,6 @@ check(
     employerEmail: "e@example.com",
     employerSignedAt: "2026-09-04T00:00:00Z", // before the candidate — should never happen given server-enforced order, but the field must reflect reality
     employerReviewConfirmedAt: "2026-09-04T00:00:00Z",
-    employerIp: "2.2.2.2",
     finalPdfHash: "f",
     completionTimestampUtc: "2026-09-04T00:00:01Z",
     auditEntries: [],

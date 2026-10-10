@@ -38,7 +38,7 @@ export interface LegalDocument {
   sections: LegalSection[];
 }
 
-export const LEGAL_UPDATED = "October 10, 2026";
+export const LEGAL_UPDATED = "October 11, 2026";
 
 export const PRIVACY_POLICY: LegalDocument = {
   title: "Privacy Policy",
@@ -93,7 +93,7 @@ export const PRIVACY_POLICY: LegalDocument = {
         { sub: "Messages" },
         "Messages between you and the hiring team, and any files attached to them.",
         { sub: "Documents and signatures" },
-        "Documents sent to you, such as an offer letter. When you sign one we keep your signature (typed or drawn), the date and time, your name and email address, your IP address and your browser type. This record is kept with the signed document so that both sides can show what was signed and when.",
+        "Documents sent to you, such as an offer letter. When you sign one we keep your signature (typed or drawn), the date and time, your name and email address, your IP address and your browser type. We also keep the approximate place your internet connection is in (city, region and country). And we keep details of the device you sign on: phone, tablet or computer, its system, screen size, time zone and language, and an ID your browser keeps for this site. This record is kept with the signed document so that both sides can show what was signed and when. The hiring team can see this record of your signature. You see the record of theirs without their address, place or device.",
         { sub: "Documents the hiring team asks you for" },
         "Once you are near a job offer, the hiring team may ask you to send documents, such as a photo of a government ID, an NBI clearance or proof of address, or to type your TIN or the email you use on Wise or PayPal to be paid. Files are kept in private storage. Each time someone on the hiring team opens one, we record who opened it and when. We never ask for bank account numbers.",
         { sub: "Technical information" },
