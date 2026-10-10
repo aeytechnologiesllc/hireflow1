@@ -11,6 +11,7 @@ import { parseApplicationNotes } from "@/utils/applicationNotes";
 import { OFFER_DEFAULTS, addDays, dayOf, encodeDocumentBody, offerDocumentBody, offerExpiry, offerLetterName, type OfferLetterFields } from "@/cockpit/lib/offerLetter";
 import { createFixtureSupabaseClient, type FixtureAuthUser, type FixtureRow, type FixtureTables } from "./fixtureClient";
 import { buildFixtureRpcHandlers, buildFixtureTables, FIXTURE_SCENARIOS, type FixtureScenario } from "./fixtures";
+import { previewRequests } from "./previewRequests";
 import {
   APP_QUIZ_ID,
   APP_ZULU_RETAKE_ID,
@@ -1216,6 +1217,7 @@ export function install(params: URLSearchParams): void {
   previewInterviewClocks(tables, params.get("__previewTheirZone"), params.get("__previewShift"));
   const candidateInterview = previewCandidateInterview(tables, params.get("__previewInterview"));
   const documentSigning = previewDocuments(tables, ROLE_USERS[role], role, params.get("__previewDocs"));
+  const requestedFiles = previewRequests(tables, ROLE_USERS[role], role === "employer" || role === "team_member", params.get("__previewRequests"));
   const client = {
     ...base,
     ...realtime,
@@ -1252,6 +1254,8 @@ export function install(params: URLSearchParams): void {
         if (answered) return answered;
         const signedOrViewed = await documentSigning(name, options);
         if (signedOrViewed) return signedOrViewed;
+        const requestedFile = requestedFiles(name, options);
+        if (requestedFile) return requestedFile;
         return base.functions.invoke(name, options);
       },
     },

@@ -44,7 +44,8 @@ On 2026-10-09, against the repo and the live project.
 | Who sees an applicant | live policies on `profiles`: the person themselves, the hiring team for their application, and a developer role held by 0 accounts |
 | Applicants cannot see scoring or recorded events | `docs/ASSESSMENT-RECORD.md` |
 | The companies named | Supabase, Vercel, OpenAI, Resend are in use; OneSignal only inside the mobile app; the built-in video call needs a key that may not be set (said as "if") |
-| Nothing is deleted on a timer | no scheduled job exists |
+| Most things are not deleted on a timer | the only scheduled deletion is `document-cleanup` (below) |
+| Identity papers asked for are deleted 30 days after approval (or 30 days after "send it again", if never re-sent); openings are recorded; no bank numbers asked | `supabase/functions/document-cleanup` (pg_cron `document-cleanup`, daily), `supabase/functions/requested-document-url`, `src/lib/documentRequests.ts`; checked 2026-10-10, see `docs/DOCUMENT-REQUESTS.md` |
 | What Delete Account removes, and what stays | `supabase/functions/delete-account`: not in its list are the quiz attempt ledger, typing-test starts, the block list and error reports |
 | Emails can be turned off; an application can be withdrawn | `src/pages/Settings.tsx`, `src/pages/Applications.tsx` |
 | Free at the moment | billing was removed; no price is shown anywhere |
@@ -56,9 +57,9 @@ On 2026-10-09, against the repo and the live project.
 2. **Which country's law applies** to the terms. It follows from (1).
 3. **Agreement at sign-up.** Neither sign-up screen asks anyone to agree to
    these or links to them; the only links are in the careers page's footer.
-4. **How long information is kept.** The policy says, truthfully, that nothing
-   is deleted on a timer. A set period would be better, and needs a job that
-   enforces it.
+4. **How long information is kept.** Apart from identity papers (deleted 30
+   days after approval since 2026-10-10), nothing is deleted on a timer. A set
+   period for the rest would be better, and needs a job that enforces it.
 5. **Delete Account leaves four technical records behind.** The policy says
    so. Removing them with the account would be cleaner.
 6. **A profile photo is at a public address.** The policy says so. A private

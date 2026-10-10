@@ -38,7 +38,7 @@ export interface LegalDocument {
   sections: LegalSection[];
 }
 
-export const LEGAL_UPDATED = "October 9, 2026";
+export const LEGAL_UPDATED = "October 10, 2026";
 
 export const PRIVACY_POLICY: LegalDocument = {
   title: "Privacy Policy",
@@ -94,6 +94,8 @@ export const PRIVACY_POLICY: LegalDocument = {
         "Messages between you and the hiring team, and any files attached to them.",
         { sub: "Documents and signatures" },
         "Documents sent to you, such as an offer letter. When you sign one we keep your signature (typed or drawn), the date and time, your name and email address, your IP address and your browser type. This record is kept with the signed document so that both sides can show what was signed and when.",
+        { sub: "Documents the hiring team asks you for" },
+        "Once you are near a job offer, the hiring team may ask you to send documents, such as a photo of a government ID, an NBI clearance or proof of address, or to type your TIN or the email you use on Wise or PayPal to be paid. Files are kept in private storage. Each time someone on the hiring team opens one, we record who opened it and when. We never ask for bank account numbers.",
         { sub: "Technical information" },
         {
           list: [
@@ -168,7 +170,8 @@ export const PRIVACY_POLICY: LegalDocument = {
       id: "keep",
       title: "How long we keep it",
       body: [
-        "Nothing is deleted on a timer. We keep your account and your applications until you delete them, you ask us to, or the hiring team removes them.",
+        "Most things are not deleted on a timer. We keep your account and your applications until you delete them, you ask us to, or the hiring team removes them.",
+        "The one exception is identity papers. A government ID, NBI clearance or proof of address you send when the hiring team asks for it is deleted 30 days after they approve it. If they ask you to send one again and you do not, the earlier file is deleted 30 days after they asked.",
         "When you delete your account, your profile, your applications, your test records and your files are deleted with it.",
         "A few technical records stay behind: a count of your test attempts, the start times of typing tests, a block-list entry if the account was blocked, and error reports. Signed documents and their records may also be kept where both sides may still need them or the law requires it.",
       ],

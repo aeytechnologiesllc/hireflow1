@@ -17,7 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SecurityBadge } from "./SecurityBadge";
-import { DocumentRequestWithDetails, getDocumentTypeLabel } from "@/hooks/useDocumentRequests";
+import { DocumentRequestWithDetails } from "@/hooks/useDocumentRequests";
+import { deletesOn, requestKind, requestTitle } from "@/lib/documentRequests";
 import { cn } from "@/lib/utils";
 
 interface DocumentRequestCardProps {
@@ -38,29 +39,31 @@ const getStatusConfig = (status: string, isEmployer: boolean): { color: string; 
       color: "bg-[var(--warning)]/20 text-[var(--warning)]",
       icon: Clock,
       label: "Pending Upload",
+      candidateLabel: "To send",
     },
     submitted: {
       color: "bg-success/20 text-success",
       icon: CheckCircle,
       label: "Received",
-      candidateLabel: "Completed",
+      candidateLabel: "Sent",
     },
     reviewed: {
       color: "bg-success/20 text-success",
       icon: CheckCircle,
       label: "Reviewed",
-      candidateLabel: "Completed",
+      candidateLabel: "Sent",
     },
     approved: {
       color: "bg-success/20 text-success",
       icon: CheckCircle,
       label: "Approved",
-      candidateLabel: "Completed",
+      candidateLabel: "Approved",
     },
     rejected: {
       color: "bg-destructive/20 text-destructive",
       icon: XCircle,
       label: "Rejected",
+      candidateLabel: "Send it again",
     },
   };
   
@@ -93,6 +96,9 @@ export function DocumentRequestCard({
     .slice(0, 2);
 
   const isOverdue = request.due_date && new Date(request.due_date) < new Date() && request.status === "pending";
+  // A TIN or payment email is typed; an approved ID says when it is deleted.
+  const typed = requestKind(request.document_type).answer === "text";
+  const deleteDay = request.status === "approved" ? deletesOn(request.document_type, request.reviewed_at) : null;
 
   return (
     <motion.div
@@ -116,7 +122,7 @@ export function DocumentRequestCard({
               <div className="flex-1 min-w-0">
                 {/* Document type and name */}
                 <p className="font-medium text-foreground text-sm sm:text-base truncate">
-                  {request.custom_document_name || getDocumentTypeLabel(request.document_type)}
+                  {requestTitle(request)}
                 </p>
                 
                 {/* Badges row - separate from title */}
@@ -160,7 +166,7 @@ export function DocumentRequestCard({
 
                 {/* Description - only on larger screens or if short */}
                 {request.description && (
-                  <p className="text-xs sm:text-sm text-muted-foreground mt-2 line-clamp-2">
+                  <p className="text-xs sm:text-sm text-muted-foreground mt-2 line-clamp-3 whitespace-pre-line">
                     {request.description}
                   </p>
                 )}
@@ -169,9 +175,17 @@ export function DocumentRequestCard({
                 {request.status === "rejected" && request.rejection_reason && (
                   <div className="mt-2 p-2 rounded-md bg-destructive/10 border border-destructive/20">
                     <p className="text-xs sm:text-sm text-destructive">
-                      <strong>Reason:</strong> {request.rejection_reason}
+                      <strong>What to fix:</strong> {request.rejection_reason}
                     </p>
                   </div>
+                )}
+
+                {!isEmployer && request.status === "approved" && (deleteDay || request.file_deleted_at) && (
+                  <p className="mt-2 text-xs text-muted-foreground" data-request-deleted-note>
+                    {request.file_deleted_at
+                      ? `Your file was deleted on ${format(new Date(request.file_deleted_at), "MMM d")}, as promised.`
+                      : `Your file will be deleted on ${format(deleteDay as Date, "MMM d")}.`}
+                  </p>
                 )}
               </div>
             </div>
@@ -187,15 +201,15 @@ export function DocumentRequestCard({
               <div className="flex items-center gap-1">
                 {/* Candidate actions */}
                 {!isEmployer && request.status === "pending" && onUpload && (
-                  <Button size="sm" onClick={() => onUpload(request)} className="h-8 text-xs sm:text-sm">
-                    <Upload className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                    Upload
+                  <Button size="sm" onClick={() => onUpload(request)} className="h-8 text-xs sm:text-sm" data-request-send>
+                    {!typed && <Upload className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />}
+                    {typed ? "Type it" : "Upload"}
                   </Button>
                 )}
                 {!isEmployer && request.status === "rejected" && onUpload && (
-                  <Button size="sm" variant="outline" onClick={() => onUpload(request)} className="h-8 text-xs sm:text-sm">
-                    <Upload className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                    Re-upload
+                  <Button size="sm" variant="outline" onClick={() => onUpload(request)} className="h-8 text-xs sm:text-sm" data-request-send>
+                    {!typed && <Upload className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />}
+                    Send again
                   </Button>
                 )}
 

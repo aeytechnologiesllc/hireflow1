@@ -48,11 +48,11 @@ export interface OfferPerson {
 /** The stages an offer can go out from, the likeliest first. */
 const OFFER_STAGES = ["interview", "offered", "reviewing"];
 
-/** Everyone an offer could go to: interviewed first, then people still in review. */
-export function useOfferPeople(enabled: boolean) {
+/** Everyone an offer could go to: interviewed first, then people still in review. Document requests also reach people already hired. */
+export function useOfferPeople(enabled: boolean, stages: readonly string[] = OFFER_STAGES) {
   const { user, role } = useAuth();
   return useQuery({
-    queryKey: ["offer-people", user?.id],
+    queryKey: ["offer-people", user?.id, stages.join(",")],
     enabled: enabled && !!user && role === "employer",
     staleTime: 30_000,
     queryFn: async (): Promise<OfferPerson[]> => {
@@ -68,7 +68,7 @@ export function useOfferPeople(enabled: boolean) {
         .from("applications")
         .select("id, candidate_id, job_id, status, updated_at")
         .in("job_id", [...jobById.keys()])
-        .in("status", OFFER_STAGES as never[]);
+        .in("status", stages as never[]);
       if (appsError) throw appsError;
       if (!applications || applications.length === 0) return [];
 
@@ -93,7 +93,7 @@ export function useOfferPeople(enabled: boolean) {
             jobRemote: job?.is_remote !== false,
           };
         })
-        .sort((a, b) => OFFER_STAGES.indexOf(a.status) - OFFER_STAGES.indexOf(b.status) || a.name.localeCompare(b.name));
+        .sort((a, b) => stages.indexOf(a.status) - stages.indexOf(b.status) || a.name.localeCompare(b.name));
     },
   });
 }

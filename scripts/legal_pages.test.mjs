@@ -64,13 +64,28 @@ check("it says the connection check keeps IP addresses and device details", /the
 check("it says signing keeps the IP address and browser", /your IP address and your browser type/.test(privacy));
 check("it says the page counter uses no cookie and honours Do Not Track", /no cookie and no visitor number, stores no IP address/.test(privacy) && /Do Not Track or Global Privacy Control/.test(privacy));
 check("…which the beacon still does", /doNotTrack/.test(read("public/beacon.js")) && /globalPrivacyControl/.test(read("public/beacon.js")) && !/document\.cookie\s*=/.test(read("public/beacon.js")));
-check("it says nothing is deleted on a timer, and names what stays after an account is deleted", /Nothing is deleted on a timer\./.test(privacy) && /a count of your test attempts, the start times of typing tests, a block-list entry/.test(privacy));
+check("it says most things are not deleted on a timer, and names what stays after an account is deleted", /Most things are not deleted on a timer\./.test(privacy) && /a count of your test attempts, the start times of typing tests, a block-list entry/.test(privacy));
+{
+  // The one timer (docs/DOCUMENT-REQUESTS.md): identity papers, deleted by the
+  // document-cleanup function. The page's number and kinds must be the code's.
+  const kinds = read("src/lib/documentRequests.ts");
+  const cleanup = read("supabase/functions/document-cleanup/index.ts");
+  const days = Number((kinds.match(/export const ID_KEEP_DAYS = (\d+);/) ?? [])[1]);
+  check(
+    "it says identity papers are deleted after the same number of days the cleanup function uses",
+    days > 0 && new RegExp(`is deleted ${days} days after they approve it`).test(privacy) && new RegExp(`const KEEP_DAYS = ${days};`).test(cleanup) && /government ID, NBI clearance or proof of address/.test(privacy) && /\["government_id", "nbi_clearance", "proof_of_address"\]/.test(cleanup),
+  );
+  check("it says opening a requested file is recorded, which the function does", /we record who opened it and when/.test(privacy) && /action: "opened"/.test(read("supabase/functions/requested-document-url/index.ts")));
+}
 check("it tells people how to delete their account, by the button's own name", /open Settings and choose Delete Account/.test(privacy) && /Delete Account/.test(read("src/pages/Settings.tsx")));
 check("it says a profile photo sits at a public address", /A photo you add is stored at a public web address/.test(privacy));
 check("it names the companies that handle the information", ["Supabase", "Vercel", "OpenAI", "Resend", "OneSignal", "Google Fonts"].every((name) => privacy.includes(name)));
 check("it does not claim a provider the site does not use", !/Stripe|ElevenLabs|Google Analytics|Facebook|Meta Pixel|Mixpanel|Segment/.test(privacy));
 check("it says we do not sell information and show no advertising", /We do not sell your information\. We do not use it for advertising\./.test(privacy) && /no advertising cookies/.test(privacy));
-check("it does not promise a retention period or a security guarantee the site cannot keep", !/\b\d+\s+(days|months|years)\b/.test(privacy) && !/guarantee|100%|completely secure|never be/i.test(privacy));
+check(
+  "it does not promise a retention period or a security guarantee the site cannot keep (the identity-paper timer, checked above, is the only one)",
+  !/\b\d+\s+(days|months|years)\b/.test(privacy.replace(/is deleted \d+ days after they (approve it|asked)/g, "")) && !/guarantee|100%|completely secure|never be/i.test(privacy),
+);
 
 // --- the terms -------------------------------------------------------------------------
 check("applying promises nothing, and the hiring team decides", /Applying does not guarantee an interview, an offer or a job\./.test(terms) && /made by the hiring team for that job/.test(terms));

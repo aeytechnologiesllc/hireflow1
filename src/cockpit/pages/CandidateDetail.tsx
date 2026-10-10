@@ -46,6 +46,8 @@ import { useLiveInterviewForApplication } from "@/hooks/useLiveInterviewForAppli
 import { useApplicantTimeZone } from "@/hooks/useApplicantTimeZone";
 import { teamInterviewStatus } from "@/lib/teamInterviewStatus";
 import { ApplicantNotesPanel } from "../components/ApplicantNotesPanel";
+import { ApplicantDocumentsPanel } from "../components/ApplicantDocumentsPanel";
+import { RequestDocumentsDialog } from "../components/RequestDocumentsDialog";
 import { useApplicantViews } from "../hooks/useApplicantNotes";
 // Remove and block on the profile too (its ⋯ menu; the phone's More).
 import { ActionsMenu, ApplicantActionDialogs, BlockedNote, applicantMenuItems, type ApplicantActionRequest } from "../components/ApplicantRowMenu";
@@ -470,6 +472,8 @@ function CandidateProfile({
   const [resumeOpen, setResumeOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
+  // "Request documents": an ID, NBI clearance, the email they are paid on.
+  const [requestOpen, setRequestOpen] = useState(false);
   const interviewScoresByApplication = useInterviewScores();
   // The guided moment after a move to Interview — "want to propose times now?"
   const [interviewMoment, setInterviewMoment] = useState(false);
@@ -786,6 +790,9 @@ function CandidateProfile({
   // stay and the rest go behind "More" (at most three on screen); from md up
   // every one is on the bar.
   const messageAction: BarAction = { key: "message", text: "Message", icon: <MessageSquare className="h-4 w-4" />, variant: "outline", onClick: message };
+  // Once they are offered or hired: their ID, NBI clearance, payment email.
+  // The owner's to send (the dialog lists the owner's own applicants).
+  const requestAction: BarAction | null = isTeamMember ? null : { key: "request", text: "Request documents", variant: "outline", onClick: () => setRequestOpen(true) };
   let actions: BarAction[];
   // The same actions on the desktop's decision card: the one to press, the
   // two beside each other, anything else, and the quiet danger-toned one.
@@ -794,8 +801,11 @@ function CandidateProfile({
     const hireAction: BarAction = { key: "hire", text: "Hire", icon: <CheckCircle2 className="h-4 w-4" />, variant: "primary", onClick: () => setDialog("hire"), disabled: isUpdating };
     // Same words as the dialog it opens, so the decision reads the same twice.
     const takeBack: BarAction = { key: "takeBack", text: "Take back offer", variant: "danger", onClick: () => setDialog("reject"), disabled: isUpdating };
-    actions = [hireAction, takeBack, messageAction];
-    cardActions = { primary: hireAction, pair: [messageAction], extra: [], quiet: takeBack };
+    actions = [hireAction, takeBack, messageAction, ...(requestAction ? [requestAction] : [])];
+    cardActions = { primary: hireAction, pair: [messageAction], extra: requestAction ? [requestAction] : [], quiet: takeBack };
+  } else if (isHired && requestAction) {
+    actions = [messageAction, requestAction];
+    cardActions = { primary: null, pair: [messageAction, requestAction], extra: [], quiet: null };
   } else if (isTerminal) {
     actions = [messageAction];
     cardActions = { primary: null, pair: [messageAction], extra: [], quiet: null };
@@ -960,6 +970,8 @@ function CandidateProfile({
             jobTitle={c.role}
           />
         )}
+
+        <RequestDocumentsDialog open={requestOpen} applicationId={c.id} onClose={() => setRequestOpen(false)} />
 
         <InterviewGuideDialog
           open={guideOpen}
@@ -1181,6 +1193,11 @@ function CandidateProfile({
     const glancePanel = <ApplicantAtAGlance rows={glance} phone={contact.phone} email={contact.email} />;
     // The team's own notes on this applicant (never shown to the applicant).
     const notesPanel = <ApplicantNotesPanel applicationId={c.id} firstName={first} />;
+    // What has been asked of them and what came back; shown from the
+    // interview on, and earlier only when something was already asked.
+    const documentsPanel = (
+      <ApplicantDocumentsPanel applicationId={c.id} firstName={first} show={isOffered || isHired || status === "interview"} onRequest={isTeamMember ? undefined : () => setRequestOpen(true)} />
+    );
     const integrityPanel = <ApplicantIntegrityPanel record={record} onOpen={openRecord} />;
     const timelinePanel = record && record.entries.length > 0 && (
       <section aria-label="Timeline">
@@ -1218,6 +1235,7 @@ function CandidateProfile({
                 </div>
               </div>
               <div ref={setPanelsEl} className="ckp-panels">
+                {documentsPanel}
                 {notesPanel}
                 {glancePanel}
                 {integrityPanel}
@@ -1247,6 +1265,7 @@ function CandidateProfile({
           <div className="ckp-sec">
             <div className={`grid gap-8 ${!measured || width >= 680 ? "grid-cols-2" : "grid-cols-1"}`}>
               <div className="ckp-panels">
+                {documentsPanel}
                 {notesPanel}
                 {glancePanel}
               </div>

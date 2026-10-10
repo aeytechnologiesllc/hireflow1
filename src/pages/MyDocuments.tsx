@@ -114,7 +114,7 @@ export default function MyDocuments() {
           Your documents
         </h1>
         <p className="mt-1.5 text-sm" style={{ color: "var(--ink-3)" }}>
-          Anything an employer has sent you to sign, or asked you to upload, lives here.
+          Anything an employer has sent you to sign, or asked you to send, lives here.
         </p>
       </div>
 
@@ -148,7 +148,7 @@ export default function MyDocuments() {
           {documentRequests.length > 0 && (
             <section className="space-y-3">
               <h2 className="px-1 text-xs font-medium uppercase tracking-wide" style={{ color: "var(--ink-3)" }}>
-                To upload{pendingUpload > 0 ? ` — ${pendingUpload} waiting on you` : ""}
+                To send{pendingUpload > 0 ? ` — ${pendingUpload} waiting on you` : ""}
               </h2>
               <div className="space-y-3">
                 {documentRequests.map((request) => (

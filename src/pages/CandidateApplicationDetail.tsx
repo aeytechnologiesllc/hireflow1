@@ -806,9 +806,9 @@ export default function CandidateApplicationDetail() {
           </CardContent>
         </Card>
 
-        {/* Document Requests Section for Hired Candidates */}
-        {isHired &&
-          (() => {
+        {/* What the hiring team has asked them to send: from an offer (or
+            even the interview) on, so not only once hired. */}
+        {(() => {
             const applicationDocRequests = documentRequests.filter(
               (req) => req.application_id === id
             );
@@ -824,10 +824,10 @@ export default function CandidateApplicationDetail() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <FileUp className="h-5 w-5 text-primary" />
-                    Required Documents
+                    Documents to send
                     {pendingRequests.length > 0 && (
                       <Badge variant="destructive" className="ml-2">
-                        {pendingRequests.length} pending
+                        {pendingRequests.length} to send
                       </Badge>
                     )}
                   </CardTitle>
@@ -836,7 +836,7 @@ export default function CandidateApplicationDetail() {
                   {pendingRequests.length > 0 && (
                     <div className="mb-4 rounded-lg border border-primary/20 bg-primary/10 p-3">
                       <p className="text-sm text-foreground">
-                        <strong>Action needed:</strong> upload these to finish your onboarding.
+                        The hiring team asked you for these. Only they can see what you send.
                       </p>
                     </div>
                   )}

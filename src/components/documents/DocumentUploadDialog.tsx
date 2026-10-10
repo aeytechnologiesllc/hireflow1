@@ -10,7 +10,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SecurityBadge } from "./SecurityBadge";
-import { DocumentRequestWithDetails, getDocumentTypeLabel, useUpdateDocumentRequest } from "@/hooks/useDocumentRequests";
+import { DocumentRequestWithDetails, useUpdateDocumentRequest } from "@/hooks/useDocumentRequests";
+import { ANSWER_MAX, answerProblem, requestKind, requestTitle } from "@/lib/documentRequests";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -39,7 +40,7 @@ type UploadPhase = "idle" | "uploading" | "complete";
 
 const phaseConfig: Record<UploadPhase, { icon: React.ElementType; label: string; color: string }> = {
   idle: { icon: Upload, label: "Ready to upload", color: "text-muted-foreground" },
-  uploading: { icon: Loader2, label: "Uploading securely…", color: "text-primary" },
+  uploading: { icon: Loader2, label: "Sending securely…", color: "text-primary" },
   complete: { icon: Check, label: "Upload complete", color: "text-success" },
 };
 
@@ -67,6 +68,8 @@ export function DocumentUploadDialog({
   const [phase, setPhase] = useState<UploadPhase>("idle");
   const [isDragOver, setIsDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A TIN or a payment email is typed, not uploaded (src/lib/documentRequests.ts).
+  const [answer, setAnswer] = useState("");
 
   const validateFile = (file: File): string | null => {
     if (!ACCEPTED_TYPES.includes(file.type)) {
@@ -124,6 +127,52 @@ export function DocumentUploadDialog({
     }
   };
 
+  // Into the hiring team's bell, pointing at this applicant's page. Their
+  // name, never their email.
+  const tellTheTeam = async (what: string) => {
+    if (!request) return;
+    try {
+      await supabase.from("notifications").insert({
+        user_id: request.employer_id,
+        type: "system",
+        title: "Document received",
+        message: `${what} came in. Open the applicant to review it.`,
+        link: `/applicants/${request.application_id}`,
+        is_read: false,
+      });
+    } catch (notifError) {
+      console.error("Failed to create employer notification:", notifError);
+    }
+  };
+
+  const handleSendAnswer = async () => {
+    if (!request || !user) return;
+    const problem = answerProblem(request.document_type, answer);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    setError(null);
+    try {
+      setPhase("uploading");
+      await updateRequest.mutateAsync({
+        id: request.id,
+        answer_text: answer.trim(),
+        status: "submitted",
+        submitted_at: new Date().toISOString(),
+      });
+      await tellTheTeam(`Their ${documentLabel}`);
+      setPhase("complete");
+      setTimeout(() => {
+        toast({ title: "Sent", description: "The hiring team will look at it soon." });
+        handleClose();
+      }, 1200);
+    } catch (err) {
+      setError(getErrorMessage(err, "It could not be sent. Please try again."));
+      setPhase("idle");
+    }
+  };
+
   const handleUpload = async () => {
     if (!selectedFile || !request || !user) return;
 
@@ -147,6 +196,7 @@ export function DocumentUploadDialog({
       const storagePath = fileName;
 
       // Update document request with the storage path
+      const previous = request.file_url;
       await updateRequest.mutateAsync({
         id: request.id,
         file_url: storagePath,
@@ -155,19 +205,13 @@ export function DocumentUploadDialog({
         submitted_at: new Date().toISOString(),
       });
 
-      // Create notification for employer
-      try {
-        await supabase.from("notifications").insert({
-          user_id: request.employer_id,
-          type: "system",
-          title: "Document Received",
-          message: `${user.email} has uploaded their ${documentLabel}.`,
-          link: "/documents",
-          is_read: false,
-        });
-      } catch (notifError) {
-        console.error("Failed to create employer notification:", notifError);
+      // Sent again after "please send it again": the earlier file goes, so
+      // no second copy of an ID is left behind (their own folder only).
+      if (previous && previous !== storagePath && previous.startsWith(`${user.id}/`)) {
+        void supabase.storage.from("requested-documents").remove([previous]);
       }
+
+      await tellTheTeam(`Their ${documentLabel}`);
 
       setPhase("complete");
 
@@ -187,6 +231,7 @@ export function DocumentUploadDialog({
   };
 
   const handleClose = () => {
+    setAnswer("");
     setSelectedFile(null);
     setPreviewUrl(null);
     setPhase("idle");
@@ -209,7 +254,9 @@ export function DocumentUploadDialog({
   const phaseInfo = phaseConfig[phase];
   const PhaseIcon = phaseInfo.icon;
   const isUploading = phase !== "idle" && phase !== "complete";
-  const documentLabel = request.custom_document_name || getDocumentTypeLabel(request.document_type);
+  const kind = requestKind(request.document_type);
+  const typed = kind.answer === "text";
+  const documentLabel = requestTitle(request);
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -217,7 +264,7 @@ export function DocumentUploadDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-primary" />
-            Upload Document
+            {typed ? "Type your answer" : "Upload document"}
           </DialogTitle>
           <DialogDescription>
             {documentLabel}
@@ -228,11 +275,15 @@ export function DocumentUploadDialog({
         <div className="flex justify-center">
           <SecurityBadge variant="protected" size="md" />
         </div>
+        <p className="text-center text-xs leading-snug text-muted-foreground" data-request-privacy>
+          Only the hiring team can see it, and every time they open it is recorded.
+          {kind.deleteAfterDays !== null && ` It is deleted ${kind.deleteAfterDays} days after they approve it.`}
+        </p>
 
         {/* Request info */}
         <div className="p-3 rounded-lg bg-secondary/50 border border-border space-y-2">
           {request.description && (
-            <p className="text-sm text-foreground">{request.description}</p>
+            <p className="whitespace-pre-line text-sm text-foreground">{request.description}</p>
           )}
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
             {request.due_date && (
@@ -247,9 +298,40 @@ export function DocumentUploadDialog({
           </div>
         </div>
 
+        {/* A typed answer */}
+        {typed && phase === "idle" && (
+          <div className="space-y-3" data-request-answer-form>
+            <input
+              className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-base outline-none focus:ring-2 focus:ring-primary/40 sm:text-sm"
+              value={answer}
+              maxLength={ANSWER_MAX}
+              inputMode={request.document_type === "tin" ? "numeric" : "email"}
+              autoComplete={request.document_type === "payment_email" ? "email" : "off"}
+              placeholder={request.document_type === "tin" ? "123-456-789-000" : request.document_type === "payment_email" ? "you@example.com" : "Your answer"}
+              aria-label={documentLabel}
+              onChange={(e) => {
+                setAnswer(e.target.value);
+                setError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void handleSendAnswer();
+              }}
+            />
+            {error && (
+              <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-destructive">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <p className="text-sm">{error}</p>
+              </div>
+            )}
+            <Button className="w-full" onClick={() => void handleSendAnswer()}>
+              Send
+            </Button>
+          </div>
+        )}
+
         {/* Upload area */}
         <AnimatePresence mode="wait">
-          {phase === "idle" && !selectedFile && (
+          {!typed && phase === "idle" && !selectedFile && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -290,7 +372,7 @@ export function DocumentUploadDialog({
             </motion.div>
           )}
 
-          {phase === "idle" && selectedFile && (
+          {!typed && phase === "idle" && selectedFile && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -383,7 +465,7 @@ export function DocumentUploadDialog({
               {/* Security message */}
               <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                 <Shield className="h-4 w-4" />
-                <span>Your document is stored securely in private storage</span>
+                <span>Kept in private storage</span>
               </div>
             </motion.div>
           )}
@@ -402,9 +484,9 @@ export function DocumentUploadDialog({
               >
                 <Check className="h-10 w-10 text-success" />
               </motion.div>
-              <p className="font-medium text-success">Document Uploaded Successfully!</p>
+              <p className="font-medium text-success">{typed ? "Sent" : "Uploaded"}</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Your document is securely stored and awaiting review.
+                The hiring team will look at it soon.
               </p>
             </motion.div>
           )}

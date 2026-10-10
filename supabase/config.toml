@@ -139,3 +139,16 @@ verify_jwt = true
 # interview_reminders_secret_matches), and takes no input: it sends only
 # reminders that are due, each at most once.
 verify_jwt = false
+
+[functions.requested-document-url]
+# A five-minute link to a file an applicant sent for a document request, for
+# that applicant or the job's own hiring team; every opening is recorded
+# (docs/DOCUMENT-REQUESTS.md). The function checks who is asking itself too.
+verify_jwt = true
+
+[functions.document-cleanup]
+# Called once a day by pg_cron through pg_net, which has no JWT
+# (supabase/migrations/*_document_cleanup_schedule.sql). It answers only a
+# caller holding the secret kept in Vault (document_cleanup_secret_matches)
+# and takes no input: it deletes approved identity papers 30 days on.
+verify_jwt = false

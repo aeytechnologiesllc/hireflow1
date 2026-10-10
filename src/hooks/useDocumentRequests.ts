@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect } from "react";
 import { notifyDocumentRequested } from "@/utils/emailNotifications";
+import { requestKind } from "@/lib/documentRequests";
 
 export interface DocumentRequest {
   id: string;
@@ -18,6 +19,10 @@ export interface DocumentRequest {
   status: "pending" | "submitted" | "reviewed" | "approved" | "rejected";
   file_url: string | null;
   file_name: string | null;
+  /** A typed answer (a TIN, a payment email) in place of a file. */
+  answer_text?: string | null;
+  /** When an approved identity paper's file was deleted (document-cleanup). */
+  file_deleted_at?: string | null;
   submitted_at: string | null;
   reviewed_at: string | null;
   reviewed_by: string | null;
@@ -44,20 +49,9 @@ export interface DocumentRequestWithDetails extends DocumentRequest {
   } | null;
 }
 
-const DOCUMENT_TYPE_LABELS: Record<string, string> = {
-  drivers_license: "Driver's License",
-  ssn_card: "Social Security Card",
-  passport: "Passport",
-  work_authorization: "Work Authorization",
-  tax_form: "Tax Form (W-9/1099)",
-  id_card: "Government ID",
-  proof_of_address: "Proof of Address",
-  bank_details: "Bank Details",
-  custom: "Custom Document",
-};
-
+/** The kind's name (src/lib/documentRequests.ts, which also reads the older keys). */
 export function getDocumentTypeLabel(type: string): string {
-  return DOCUMENT_TYPE_LABELS[type] || type.replace(/_/g, " ");
+  return requestKind(type).label;
 }
 
 export function useDocumentRequests(statusFilter?: string) {
