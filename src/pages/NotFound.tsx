@@ -1,6 +1,7 @@
 import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { usePageHead } from "@/components/seo/usePageHead";
+import { CAREERS_PATH, isStaffHost } from "@/lib/hosts";
 
 const NotFound = () => {
   const location = useLocation();
@@ -17,8 +18,10 @@ const NotFound = () => {
       <div className="text-center">
         <h1 className="mb-4 text-4xl font-bold">404</h1>
         <p className="mb-4 text-xl text-muted-foreground">Oops! Page not found</p>
-        <a href="/" className="text-primary underline hover:text-primary/90">
-          Return to Home
+        {/* An applicant who followed a broken link wants the open roles, not
+            HireFlow's landing page; the hiring team wants home. */}
+        <a href={isStaffHost() ? "/" : CAREERS_PATH} className="text-primary underline hover:text-primary/90">
+          {isStaffHost() ? "Return to Home" : "See open roles"}
         </a>
       </div>
     </div>

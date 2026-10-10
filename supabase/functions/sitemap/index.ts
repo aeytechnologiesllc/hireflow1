@@ -15,6 +15,7 @@ const SITE = Deno.env.get("PUBLIC_SITE_URL") || "https://hireflownow.com";
 /** Pages that are not jobs, in the order they matter. */
 const STATIC_PAGES: Array<{ path: string; priority: string }> = [
   { path: "/", priority: "1.0" },
+  { path: "/careers", priority: "0.7" },
   { path: "/privacy", priority: "0.3" },
   { path: "/terms", priority: "0.3" },
 ];

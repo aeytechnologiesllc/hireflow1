@@ -31,6 +31,17 @@ keep it right. Proof: `scripts/seo_pages.test.mjs`.
   link shows) are `noindex`. Everything is put back when the page is left.
 - Stale `keywords` tag removed from the shell.
 
+## Since the landing page (docs/LANDING.md)
+
+- hireflownow.com/ is HireFlow's landing page (`public/landing.html`), with
+  its own title, description, canonical, share picture and Organization data.
+- The careers page is listed as `/careers`. The app's shell no longer names a
+  canonical or `og:url` of its own: every page sets its own, and the shell is
+  never "/".
+- The sitemap lists `/`, `/careers`, Privacy, Terms and every open job.
+- Share pictures: HireFlow's on the landing page; the Zulu Support Team
+  careers picture on the careers site and every job link.
+
 ## Rules
 
 - Google Jobs stays removed: no JobPosting data (see

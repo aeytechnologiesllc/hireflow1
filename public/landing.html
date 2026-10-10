@@ -1,0 +1,692 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>HireFlow: hire remote chat support agents while you sleep</title>
+<meta name="description" content="Post a chat support role tonight. By morning every applicant has taken a real customer chat test, been scored and ranked, and you only meet the best. Free while in early access.">
+<link rel="canonical" href="https://hireflownow.com/">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#05070B">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="HireFlow">
+<meta property="og:url" content="https://hireflownow.com/">
+<meta property="og:title" content="HireFlow: hire chat agents while you sleep">
+<meta property="og:description" content="Post the role tonight. By morning every applicant has been tested on a real customer chat, scored and ranked. You only meet the best.">
+<meta property="og:image" content="https://hireflownow.com/share/hireflow.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="HireFlow: hire chat agents while you sleep">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="HireFlow: hire chat agents while you sleep">
+<meta name="twitter:description" content="Post the role tonight. By morning every applicant has been tested on a real customer chat, scored and ranked.">
+<meta name="twitter:image" content="https://hireflownow.com/share/hireflow.jpg">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=5">
+<link rel="alternate icon" href="/favicon.ico?v=5" sizes="any">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=5">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"HireFlow","url":"https://hireflownow.com/","logo":"https://hireflownow.com/icon-512.png"}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap">
+<!-- HireFlow's front page (docs/LANDING.md). Served at hireflownow.com/ by
+     middleware.js; the app (careers, job pages, applying) is unchanged and
+     lives at its own addresses. Its own look on purpose, not the app's. -->
+<style>
+  /* One visual world on purpose: the Earth, seen from space, through one
+     night. Near-black, ivory, and one accent (the gold of sunlight). The
+     page does not follow a theme: the darkness is the story. */
+  :root {
+    color-scheme: dark;
+    --bg: #05070B;
+    --ink: #F4F0E6;
+    --ink-2: rgba(244, 240, 230, 0.7);
+    --ink-3: rgba(244, 240, 230, 0.44);
+    --line: rgba(244, 240, 230, 0.16);
+    --gold: #E8C37E;
+    --day-ink: #101613; --day-bg: #F6F1E6;
+    --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  html { scroll-behavior: smooth; }
+  body { background: var(--bg); color: var(--ink); font: 400 17px/1.6 "Geist", system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+  h1, h2, h3, p { margin: 0; }
+  em { font-family: "Instrument Serif", Georgia, serif; font-style: italic; color: var(--gold); }
+  .btn { display: inline-flex; align-items: center; gap: 10px; font: 600 15.5px/1 "Geist", system-ui, sans-serif; letter-spacing: -0.005em; text-decoration: none; cursor: pointer; border-radius: 10px; padding: 16px 22px; border: 1px solid transparent; white-space: nowrap; transition: transform .18s var(--ease), background .18s, border-color .18s, color .18s; }
+  .btn:active { transform: translateY(1px); }
+  .btn.solid { background: var(--ink); color: #0A0D12; }
+  .btn.solid:hover { background: #fff; }
+  .btn.ghost { background: rgba(244, 240, 230, 0.04); color: var(--ink); border-color: var(--line); }
+  .btn.ghost:hover { border-color: rgba(244, 240, 230, 0.4); }
+  .btn svg { width: 16px; height: 16px; transition: transform .18s; } .btn:hover svg { transform: translateX(3px); }
+
+  /* ── the night: six scenes, one screen each ───────── */
+  .night { position: relative; height: 600vh; height: calc(6 * 100svh); }
+  .stage { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; background: radial-gradient(120% 90% at 50% 0%, #0A0E18 0%, var(--bg) 60%); color: var(--ink); }
+  .stars { position: absolute; inset: 0; pointer-events: none; opacity: .55;
+    background-image: radial-gradient(1px 1px at 12% 18%, #fff, transparent 60%), radial-gradient(1px 1px at 27% 42%, #fff, transparent 60%), radial-gradient(1.2px 1.2px at 44% 9%, #fff, transparent 60%), radial-gradient(1px 1px at 58% 30%, #fff, transparent 60%), radial-gradient(1px 1px at 71% 16%, #fff, transparent 60%), radial-gradient(1px 1px at 83% 37%, #fff, transparent 60%), radial-gradient(1.2px 1.2px at 91% 11%, #fff, transparent 60%), radial-gradient(1px 1px at 7% 52%, #fff, transparent 60%), radial-gradient(1px 1px at 36% 26%, #fff, transparent 60%), radial-gradient(1px 1px at 65% 6%, #fff, transparent 60%), radial-gradient(1px 1px at 19% 4%, #fff, transparent 60%), radial-gradient(1px 1px at 96% 48%, #fff, transparent 60%); }
+  #globe { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  /* the dark that the words sit on: deeper at the top, where they are */
+  .veil { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(5, 7, 11, 0.78) 0%, rgba(5, 7, 11, 0.3) 34%, rgba(5, 7, 11, 0) 58%); transition: opacity .8s ease; }
+  .floor { position: absolute; inset: auto 0 0 0; height: 24%; pointer-events: none; background: linear-gradient(0deg, rgba(5, 7, 11, 0.92) 0%, rgba(5, 7, 11, 0.6) 38%, rgba(5, 7, 11, 0) 100%); transition: opacity .8s ease; }
+  .stage[data-beat="0"] .floor { opacity: 0; }
+  .grain { position: absolute; inset: 0; pointer-events: none; opacity: 0.07; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/></svg>"); }
+
+  .bar { position: absolute; inset: 0 0 auto 0; z-index: 6; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px clamp(18px, 4vw, 48px); padding-top: calc(22px + env(safe-area-inset-top, 0px)); }
+  .brand { display: inline-flex; align-items: center; gap: 10px; font: 600 17px/1 "Geist", sans-serif; letter-spacing: -0.01em; color: inherit; text-decoration: none; }
+  .brand b { width: 24px; height: 24px; border-radius: 6px; background: var(--ink); color: #0A0D12; display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+  .bar .btn { padding: 11px 15px; font-size: 14px; }
+  .bar .plain { color: var(--ink-3); font-size: 14px; margin-right: 20px; }
+  .bar .plain .short { display: none; }
+  @media (max-width: 620px) { .bar .plain { margin-right: 14px; font-size: 13.5px; color: var(--ink-2); } .bar .plain .long { display: none; } .bar .plain .short { display: inline; } .bar .btn { padding: 10px 13px; font-size: 13.5px; } }
+
+  /* where you are, and where she is: two quiet labels on the globe */
+  .pin { position: absolute; left: 0; top: 0; z-index: 3; pointer-events: none; display: flex; align-items: center; gap: 9px; font: 500 12.5px/1 "Geist", sans-serif; letter-spacing: .02em; color: var(--ink); white-space: nowrap; opacity: 0; transition: opacity .6s ease; will-change: transform; }
+  .pin.on { opacity: 1; }
+  .pin i { width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 4px rgba(232, 195, 126, 0.18), 0 0 18px rgba(232, 195, 126, 0.9); }
+  .pin span { padding: 6px 9px; border-radius: 7px; background: rgba(8, 10, 15, 0.62); border: 1px solid rgba(244, 240, 230, 0.14); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+  .pin small { color: var(--ink-3); font-size: 1em; margin-left: 6px; }
+
+  /* scene 0: what it does, at once */
+  .hero { position: absolute; inset: 0; z-index: 4; display: grid; justify-items: center; align-content: start; text-align: center; padding: clamp(104px, 15vh, 168px) clamp(18px, 5vw, 60px) 0; transition: opacity .6s var(--ease), transform .8s var(--ease); }
+  .hero > div { display: grid; justify-items: center; gap: clamp(14px, 2.2vh, 24px); width: 100%; }
+  .hero h1 { font: 400 clamp(52px, min(9.6vw, 14vh), 142px)/0.9 "Instrument Serif", Georgia, serif; letter-spacing: -0.035em; }
+  .ln { display: block; overflow: hidden; padding: 0.06em 0.06em 0.16em; margin-bottom: -0.16em; }
+  .ln > span { display: block; transform: translateY(112%); animation: rise 1.1s var(--ease) forwards; }
+  .ln + .ln > span { animation-delay: .14s; }
+  @keyframes rise { to { transform: none; } }
+  .hero .tag, .hero .small, .hero .cta { opacity: 0; animation: arrive .9s var(--ease) forwards; }
+  .hero .tag { animation-delay: .05s; } .hero .small { animation-delay: .5s; } .hero .cta { animation-delay: .65s; }
+  @keyframes arrive { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  .tag { font: 500 12px/1 "Geist", sans-serif; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-3); }
+  .tag.gold { color: var(--gold); }
+  .small { color: var(--ink-2); font-size: clamp(16.5px, 1.5vw, 19px); max-width: 43ch; text-wrap: pretty; }
+  .cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 4px; }
+  .stage:not([data-beat="0"]) .hero { opacity: 0; transform: translateY(-40px); pointer-events: none; }
+  @media (max-height: 700px) { .hero .small { display: none; } }
+
+  /* scenes 1 to 5: one clock, one line, one card that grows through the night */
+  .story { position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: clamp(8px, 1.5vh, 16px); padding: clamp(92px, 13vh, 150px) clamp(16px, 5vw, 60px) 96px; text-align: center; transition: opacity .7s var(--ease) .15s, transform .8s var(--ease) .15s; }
+  .stage[data-beat="0"] .story { opacity: 0; transform: translateY(40px); pointer-events: none; transition-delay: 0s; }
+  .story .tag { display: inline-flex; align-items: center; gap: 12px; }
+  .story .tag::before, .story .tag::after { content: ""; width: 26px; height: 1px; background: currentColor; opacity: .6; }
+  .time { font: 400 clamp(76px, 11vw, 148px)/0.86 "Instrument Serif", Georgia, serif; letter-spacing: -0.03em; font-variant-numeric: lining-nums tabular-nums; transition: font-size .7s var(--ease); white-space: nowrap; padding-bottom: 0.05em; }
+  .time small { font-size: 0.32em; font-style: italic; letter-spacing: 0; margin-left: 0.14em; color: var(--ink-2); }
+  .there { font: 500 13px/1 "Geist", sans-serif; letter-spacing: .02em; color: var(--ink-3); font-variant-numeric: tabular-nums; margin-top: -2px; }
+  .stage[data-beat="3"] .time, .stage[data-beat="4"] .time { font-size: clamp(48px, 5.6vw, 72px); }
+  .caps { display: grid; width: 100%; }
+  .cap { grid-area: 1 / 1; align-self: center; font: 400 clamp(26px, 3.4vw, 46px)/1.1 "Instrument Serif", Georgia, serif; letter-spacing: -0.015em; text-wrap: balance; opacity: 0; transform: translateY(14px); transition: opacity .4s ease, transform .6s var(--ease); }
+  .cap.on { opacity: 1; transform: none; transition-delay: .25s; }
+  .cap.was { transform: translateY(-14px); }
+
+  /* the card: frosted glass in front of the planet */
+  .card { position: relative; width: min(100%, 560px); text-align: left; border-radius: 20px; padding: 6px 22px; margin-top: clamp(4px, 1.4vh, 14px);
+    background: linear-gradient(180deg, rgba(20, 24, 34, 0.62), rgba(12, 15, 22, 0.5));
+    -webkit-backdrop-filter: blur(26px) saturate(140%); backdrop-filter: blur(26px) saturate(140%);
+    box-shadow: inset 0 1px 0 rgba(244, 240, 230, 0.14), 0 1px 0 rgba(0, 0, 0, 0.4), 0 30px 60px -30px rgba(0, 0, 0, 0.9), 0 60px 120px -60px rgba(0, 0, 0, 0.9); }
+  .card::before { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+    background: linear-gradient(150deg, rgba(244, 240, 230, 0.42), rgba(244, 240, 230, 0.07) 30%, rgba(244, 240, 230, 0.05) 70%, rgba(232, 195, 126, 0.4));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
+  .sec { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .7s var(--ease), opacity .45s ease; }
+  .sec > div { overflow: hidden; min-height: 0; }
+  .sec.on { grid-template-rows: 1fr; opacity: 1; }
+  .pad { padding-block: 13px; }
+  .live { display: inline-flex; align-items: center; gap: 8px; font: 500 11px/1 "Geist", sans-serif; letter-spacing: .18em; text-transform: uppercase; color: var(--gold); margin-bottom: 7px; }
+  .live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); }
+  .row { display: flex; align-items: center; gap: 14px; }
+  .row .ava { width: 44px; height: 44px; flex: none; border-radius: 50%; display: grid; place-items: center; font: 600 14px/1 "Geist", sans-serif; color: var(--ink); background: rgba(244, 240, 230, 0.08); box-shadow: inset 0 0 0 1px rgba(244, 240, 230, 0.16); }
+  .row .who { min-width: 0; flex: 1; }
+  .row b { display: block; font-weight: 600; font-size: 16px; letter-spacing: -0.005em; } .row .who span { display: block; font-size: 13.5px; color: var(--ink-2); }
+  .mark { flex: none; white-space: nowrap; font: 400 58px/0.9 "Instrument Serif", Georgia, serif; color: var(--gold); letter-spacing: -0.03em; font-variant-numeric: lining-nums tabular-nums; opacity: 0; transform: translateY(8px); transition: opacity .5s ease, transform .7s var(--ease); }
+  .mark small { font: 500 12px/1 "Geist", sans-serif; color: var(--ink-3); letter-spacing: 0; }
+  .mark.on { opacity: 1; transform: none; }
+  .bub { padding: 12px 15px; font-size: 15px; line-height: 1.5; }
+  .bub + .bub { margin-top: 9px; }
+  .bub.them { border-radius: 14px 14px 14px 4px; background: rgba(244, 240, 230, 0.06); box-shadow: inset 0 0 0 1px rgba(244, 240, 230, 0.08); margin-right: 9%; }
+  .bub.me { border-radius: 14px 14px 4px 14px; background: rgba(232, 195, 126, 0.1); box-shadow: inset 0 0 0 1px rgba(232, 195, 126, 0.26); margin-left: 7%; min-height: 5.8em; }
+  .bub small { display: block; font: 500 10.5px/1 "Geist", sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px; }
+  .caret { display: inline-block; width: 2px; height: 1em; background: var(--gold); vertical-align: -2px; margin-left: 1px; }
+  .ticks { display: grid; gap: 9px; }
+  .tick { display: flex; align-items: center; gap: 11px; font: 500 14.5px/1.25 "Geist", sans-serif; color: var(--ink-3); transition: color .4s; }
+  .tick::before { content: "✓"; flex: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: transparent; box-shadow: inset 0 0 0 1px rgba(244, 240, 230, 0.2); transition: background .4s, color .3s, box-shadow .4s; }
+  .tick.hit { color: var(--ink); }
+  .tick.hit::before { background: var(--gold); color: #17130C; box-shadow: none; }
+  .rest .row { padding-block: 10px; border-top: 1px solid rgba(244, 240, 230, 0.1); }
+  .rest .row b, .rest .row .n { opacity: .78; }
+  .rest .row .n { flex: none; font: 400 30px/1 "Instrument Serif", Georgia, serif; font-variant-numeric: lining-nums; }
+  .rest p { padding-block: 11px 5px; border-top: 1px solid rgba(244, 240, 230, 0.1); font-size: 13.5px; color: var(--ink-3); }
+
+  /* the thread that runs under the whole night */
+  .thread { position: absolute; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 5; width: min(86vw, 600px); transition: opacity .6s; }
+  .stage[data-beat="0"] .thread { opacity: 0; }
+  .thread .line { position: relative; height: 1px; background: rgba(244, 240, 230, 0.18); }
+  .thread .fill { position: absolute; inset: 0 auto 0 0; width: var(--at, 0%); background: var(--ink); transition: width .9s var(--ease); }
+  .thread ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); margin-top: -4px; }
+  .thread li { display: grid; justify-items: center; gap: 10px; font: 500 11.5px/1 "Geist", sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); transition: color .4s; }
+  .thread li:first-child { justify-items: start; } .thread li:last-child { justify-items: end; }
+  .thread li::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #1A1D26; box-shadow: 0 0 0 1px rgba(244, 240, 230, 0.3); transition: background .4s, box-shadow .4s; }
+  .thread li.done::before { background: var(--ink); box-shadow: none; }
+  .thread li.now { color: var(--ink); } .thread li.now::before { background: var(--gold); box-shadow: 0 0 0 4px rgba(232, 195, 126, 0.2), 0 0 14px rgba(232, 195, 126, 0.9); }
+  @media (max-width: 520px) { .thread li { font-size: 9.5px; letter-spacing: .04em; } }
+
+  /* phones: everything a size down so the chat scene fits */
+  @media (max-width: 560px), (max-height: 760px) {
+    .story { gap: 7px; padding: 78px 16px 86px; }
+    .time { font-size: clamp(60px, 18vw, 88px); }
+    .stage[data-beat="3"] .time, .stage[data-beat="4"] .time { font-size: 40px; }
+    .cap { font-size: clamp(23px, 6.2vw, 30px); }
+    .bub { font-size: 14px; padding: 10px 12px; } .bub.me { min-height: 7.6em; }
+    .tick { font-size: 13.5px; } .ticks { gap: 7px; }
+    .card { padding: 4px 16px; border-radius: 18px; } .pad { padding-block: 10px; }
+    .mark { font-size: 44px; }
+  }
+
+  /* a short phone: the test scene gets the whole screen (no timeline under it) */
+  @media (max-width: 999px) and (max-height: 700px) {
+    .story { padding-top: 70px; }
+    .stage[data-beat="3"] .thread { opacity: 0; }
+    .stage[data-beat="3"] .there, .stage[data-beat="4"] .there { display: none; }
+    .stage[data-beat="3"] .row .who span { display: none; }
+    .stage[data-beat="3"] .story { padding-bottom: 20px; }
+  }
+
+  /* A wide screen: the words and the card on the left, the Earth on the right
+     with room to be looked at. Nothing sits on top of anything. */
+  @media (min-width: 1000px) {
+    .veil { background: linear-gradient(90deg, rgba(5, 7, 11, 0.5) 0%, rgba(5, 7, 11, 0) 46%); }
+    .stage[data-beat="0"] .veil { opacity: 0; }
+    .story { inset: 0 auto 0 0; width: min(52vw, 700px); align-items: flex-start; text-align: left; gap: 12px; padding: clamp(104px, 15vh, 168px) 0 130px clamp(48px, 7.4vw, 136px); }
+    .story .tag::before { display: none; }
+    .time { font-size: clamp(104px, min(11vw, 20vh), 176px); margin-left: -0.035em; }
+    .stage[data-beat="3"] .time, .stage[data-beat="4"] .time { font-size: clamp(52px, min(5.4vw, 9vh), 84px); }
+    .there { margin-top: 2px; }
+    /* two lines of caption at most, one in the two scenes where the card is tall */
+    .caps { display: block; position: relative; margin-top: 6px; font: 400 clamp(30px, min(3.3vw, 5.4vh), 50px)/1.08 "Instrument Serif", Georgia, serif; height: 2.16em; transition: height .7s var(--ease); }
+    .stage[data-beat="3"] .caps, .stage[data-beat="4"] .caps { height: 1.08em; }
+    .cap { position: absolute; left: 0; top: 0; font: inherit; letter-spacing: -0.015em; max-width: 21ch; }
+    .cap[data-cap="3"], .cap[data-cap="4"] { max-width: none; white-space: nowrap; }
+    .stage[data-beat="3"] .there, .stage[data-beat="4"] .there { display: none; }
+    .card { width: min(100%, 540px); margin-top: clamp(10px, 2.4vh, 26px); }
+    .thread { width: min(88vw, 1180px); }
+  }
+  @media (min-width: 1000px) and (max-height: 820px) {
+    .story { padding-top: 92px; gap: 8px; }
+    .bub { font-size: 14px; padding: 10px 13px; } .bub.me { min-height: 5.6em; }
+    .pad { padding-block: 10px; } .ticks { gap: 7px; } .tick { font-size: 13.5px; }
+  }
+
+  /* ── the morning: one short screen, then done ── */
+  .morning { min-height: 100vh; min-height: 100svh; background: radial-gradient(60% 50% at 88% 0%, rgba(255, 214, 140, 0.5), rgba(255, 214, 140, 0) 70%), var(--day-bg); color: var(--day-ink); padding: clamp(48px, 8vw, 96px) clamp(18px, 5vw, 60px) 28px; display: grid; align-content: center; }
+  .morning .in { max-width: 1080px; margin: 0 auto; width: 100%; display: grid; gap: clamp(28px, 4.4vw, 54px); }
+  .morning h2 { font: 400 clamp(38px, 6vw, 84px)/0.98 "Instrument Serif", Georgia, serif; letter-spacing: -0.03em; text-wrap: balance; max-width: 16ch; }
+  .morning h2 em { color: #8A6420; }
+  .three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid rgba(16, 22, 19, 0.16); }
+  .three > div { padding: 22px 22px 6px 22px; border-right: 1px solid rgba(16, 22, 19, 0.16); min-width: 0; }
+  .three > div:first-child { padding-left: 0; } .three > div:last-child { border-right: 0; }
+  .three b { display: block; font: 400 clamp(54px, 7vw, 92px)/0.9 "Instrument Serif", Georgia, serif; letter-spacing: -0.03em; font-variant-numeric: lining-nums; }
+  .three p { margin-top: 10px; font-size: 15.5px; color: rgba(16, 22, 19, 0.7); max-width: 24ch; }
+  @media (max-width: 720px) { .three { grid-template-columns: minmax(0, 1fr); } .three > div { border-right: 0; border-bottom: 1px solid rgba(16, 22, 19, 0.16); padding: 14px 0; display: flex; align-items: baseline; gap: 16px; } .three > div:last-child { border-bottom: 0; } .three b { font-size: 54px; flex: none; min-width: 2.2ch; } .three p { margin: 0; } }
+  .end { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px 28px; }
+  .end .btn.solid { background: #8A6420; color: #FBF7EE; } .end .btn.solid:hover { background: #74531A; }
+  .end .btn.ghost { color: var(--day-ink); border-color: rgba(16, 22, 19, 0.24); background: transparent; }
+  .end p { font-size: 17px; color: rgba(16, 22, 19, 0.74); max-width: 40ch; }
+  .fine { color: rgba(16, 22, 19, 0.5); font-size: 12.5px; text-align: center; }
+  .bar .plain { text-decoration: none; transition: color .18s; } .bar .plain:hover { color: var(--ink); }
+  /* the highlight: who it was made by, and for */
+  .niche { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 26px; align-items: baseline; padding: 22px 0; border-top: 1px solid rgba(16, 22, 19, 0.16); border-bottom: 1px solid rgba(16, 22, 19, 0.16); }
+  .niche .tag { color: #8A6420; letter-spacing: .18em; white-space: nowrap; }
+  .niche p { font: 400 clamp(22px, 2.4vw, 30px)/1.2 "Instrument Serif", Georgia, serif; letter-spacing: -0.01em; color: var(--day-ink); text-wrap: pretty; max-width: 46ch; }
+  @media (max-width: 720px) { .niche { grid-template-columns: minmax(0, 1fr); } }
+  .foot { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 22px; font-size: 13.5px; color: rgba(16, 22, 19, 0.56); }
+  .foot a { color: inherit; text-decoration: none; } .foot a:hover { color: var(--day-ink); text-decoration: underline; }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .hero, .story, .cap, .sec, .mark, .tick, .time, .thread .fill, .btn, .pin, .veil { transition: none !important; }
+    .ln > span { transform: none; animation: none; } .hero .tag, .hero .small, .hero .cta { opacity: 1; animation: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <section class="night" id="night" aria-label="One night with HireFlow">
+    <div class="stage" id="stage" data-beat="0">
+      <div class="stars" aria-hidden="true"></div>
+      <canvas id="globe" aria-hidden="true"></canvas>
+      <div class="veil" aria-hidden="true"></div>
+      <div class="floor" aria-hidden="true"></div>
+      <div class="grain" aria-hidden="true"></div>
+
+      <div class="pin" id="pinYou" aria-hidden="true"><i></i><span>You<small id="pinYouTime">9:00 pm</small></span></div>
+      <div class="pin" id="pinHer" aria-hidden="true"><i></i><span>Cebu<small id="pinHerTime">9:00 am</small></span></div>
+
+      <div class="bar">
+        <a class="brand" href="#night"><b>H</b>HireFlow</a>
+        <span><a class="plain" id="jobLink" href="/careers"><span class="long">Looking for a job?</span><span class="short">Jobs</span></a><a class="btn solid" href="#morning" data-cta>Get early access</a></span>
+      </div>
+
+      <div class="hero">
+        <div>
+          <span class="tag gold">Hiring remote chat support</span>
+          <h1><span class="ln"><span>Hire chat agents</span></span><span class="ln"><span><em>while you sleep.</em></span></span></h1>
+          <p class="small">Post the role tonight. By morning every applicant has been tested on a real customer chat, scored and ranked. You only meet the best.</p>
+          <div class="cta">
+            <a class="btn solid" href="#morning" data-cta>Get early access <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+            <button class="btn ghost" type="button" id="watch">Watch one night</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="story" aria-live="polite">
+        <span class="tag" id="tag">Tonight</span>
+        <div class="time"><span id="clock">9:02</span><small id="ampm">pm</small></div>
+        <span class="there" id="there">9:02 am in Manila</span>
+        <div class="caps">
+          <p class="cap" data-cap="1">You post the role, and go to bed.</p>
+          <p class="cap" data-cap="2">On the other side of the world, <em>she applies.</em></p>
+          <p class="cap" data-cap="3">Her test: a payout <em>six days late.</em></p>
+          <p class="cap" data-cap="4">Scored, with the reasons.</p>
+          <p class="cap" data-cap="5">Good morning. <em>Three to call.</em></p>
+        </div>
+
+        <div class="card" id="card">
+          <div class="sec" data-on="1"><div><div class="pad"><span class="live">Live in the Philippines</span><div class="row"><div class="who"><b>Chat Support Agent</b><span>Your evening is their morning. Their day is just starting.</span></div></div></div></div></div>
+          <div class="sec" data-on="2 3 4 5"><div><div class="pad"><div class="row"><span class="ava">MA</span><div class="who"><b>Maria, Cebu</b><span>Three years in chat support. Applied 11:47 pm, your time.</span></div><span class="mark" id="mark"><span id="score">0</span><small> /100</small></span></div></div></div></div>
+          <div class="sec" data-on="3"><div><div class="pad"><div class="bub them"><small>Customer</small>Your site says 1 to 3 business days. It has been SIX. Where is my money??</div><div class="bub me"><small>Maria</small><span id="typed"></span><span class="caret" id="caret"></span></div></div></div></div>
+          <div class="sec" data-on="3 4"><div><div class="pad ticks"><span class="tick">Replied in 41 seconds</span><span class="tick">Found the real reason</span><span class="tick">Promised nothing she could not keep</span></div></div></div>
+          <div class="sec rest" data-on="5"><div><div><div class="row"><span class="ava">JR</span><div class="who"><b>Jun, Davao</b><span>Team leader for two years</span></div><span class="n">88</span></div><div class="row"><span class="ava">AS</span><div class="who"><b>Ana, Manila</b><span>Night shifts for a gaming brand</span></div><span class="n">84</span></div><p>138 more applied overnight. All tested, all scored, sorted under these three.</p></div></div></div>
+        </div>
+      </div>
+
+      <div class="thread" aria-hidden="true">
+        <div class="line"><span class="fill"></span></div>
+        <ol><li>Posted</li><li>Applied</li><li>Tested</li><li>Scored</li><li>Morning</li></ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="morning" id="morning">
+    <div class="in">
+      <h2>That was one night. It is <em>how we hire</em> ourselves.</h2>
+      <div class="three">
+        <div><b>153</b><p>people applied to one of our own roles in its first four days.</p></div>
+        <div><b>71</b><p>finished a written interview without one of us in the room.</p></div>
+        <div><b>3</b><p>were worth a call. Those are the only ones we spoke to.</p></div>
+      </div>
+      <div class="niche">
+        <span class="tag">Sweepstakes &amp; social casino</span>
+        <p>Made by an operator, for operators. The tests come from real player chats: cash&#8209;outs, redemptions, ID checks and angry players. You hire people who have already handled them.</p>
+      </div>
+      <div class="end">
+        <p>For any team hiring remote chat agents and team leaders. Free while we are in early access.</p>
+        <span class="cta" style="margin: 0"><a class="btn solid" href="#night" data-cta>Get early access <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a><a class="btn ghost" href="#night">Watch it again</a></span>
+      </div>
+      <p class="fine">The night above shows how it works; Maria, Jun and Ana are not real applicants. The three numbers are real, from our own role.</p>
+      <nav class="foot" aria-label="More"><a href="/careers">Open jobs</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="https://staff.hireflownow.com/auth">Team sign in</a></nav>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var night = document.getElementById("night"), stage = document.getElementById("stage"), morning = document.getElementById("morning");
+  var caps = Array.prototype.slice.call(document.querySelectorAll("[data-cap]"));
+  var secs = Array.prototype.slice.call(document.querySelectorAll(".sec"));
+  var nodes = Array.prototype.slice.call(document.querySelectorAll(".thread li"));
+  var ticks = Array.prototype.slice.call(document.querySelectorAll(".tick"));
+  var fill = document.querySelector(".thread .fill");
+  var tag = document.getElementById("tag"), clock = document.getElementById("clock"), ampm = document.getElementById("ampm"), there = document.getElementById("there");
+  var typed = document.getElementById("typed"), caret = document.getElementById("caret"), mark = document.getElementById("mark"), scoreEl = document.getElementById("score");
+  var pinYou = document.getElementById("pinYou"), pinHer = document.getElementById("pinHer"), pinYouTime = document.getElementById("pinYouTime"), pinHerTime = document.getElementById("pinHerTime");
+  var calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var N = 6;
+  var TAGS = ["", "Tonight", "While you sleep", "The test", "Scored and sealed", "The next morning"];
+  var MINUTES = [0, 2, 167, 186, 238, 600];             // after 9:00 pm, your time
+  var REPLY = "I have your withdrawal from the 3rd open. It is held at the ID check: the photo came through too dark. Send a new one here and it moves today. I cannot give you a payout date until that clears.";
+
+  function clamp(v, a, b) { return Math.min(b, Math.max(a, v)); }
+  function ease(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+  function parts(mins, base) { var m = (((base + Math.round(mins)) % 1440) + 1440) % 1440, h = Math.floor(m / 60); return [((h % 12) || 12) + ":" + String(m % 60).padStart(2, "0"), h < 12 ? "am" : "pm"]; }
+  function showClock(mins) {
+    var mine = parts(mins, 21 * 60), theirs = parts(mins, 9 * 60);
+    clock.textContent = mine[0]; ampm.textContent = mine[1];
+    there.textContent = theirs[0] + " " + theirs[1] + " in Manila";
+    pinYouTime.textContent = mine[0] + " " + mine[1]; pinHerTime.textContent = theirs[0] + " " + theirs[1];
+  }
+
+  /* ═══ The Earth ═══════════════════════════════════════════════════════
+     One object carries the page: a globe of fine dots, lit by where the sun
+     really is at each moment of the story. It is drawn only while something
+     is changing (a scene arriving, the pointer leaning it); at rest it costs
+     nothing. The land is a coarse hand-drawn outline, half a degree a cell. */
+  var LAND = (function () { var raw = atob("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAD////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/////+AAAAAA///////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf/////8AAAf/////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf//////8P/////////////gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////7//////////////+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////////////+AAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH///////////////////////+AAAAAAAAAAAD///AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH///////////////////////+AAAAAAAAAAD///8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD///////////////////////+AAAAAAAAAD////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB///////////////////////+AAAAAAAAAAf///gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB///////////////////////+AAAAAAAAAAH//+AAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAA/////+H////////////////+AAAAAAAAAAA//4AAAAAAAAAAAAAAGAAAAAAAAAAA/4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH///gAAAAA///AA////////////////+AAAAAAAAAAAAAAAAAAAAAAAAAAAA4AAAAAAAAAAP//gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA///////gAAAAAAgAAP///////////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAPAAAAAAAAAAD///+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB///////gAAAAAAAAAAA/////////////8AAAAAAAAAAAAAAAAAAAAAAAAAAD8AAAAAAAAA//////4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/////8AAAAAAAAAAAAf////////////4AAAAAAAAAAAAAAAAAAAAAAAAAAPwAAAAAAA////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD////wAAAAAAAAAAAAH////////////4AAAAAAAAAAAAAAAAAAAAAAAAAB/AAAAAAAH////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAD////////////wAAAAAAAAAAAAAAAAAAAAAAAAAH4AAAAAAA/////////+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAAAAAAAAA////////////wAAAAAAAAAAAAAAAAAAAAAAAAA/gAAAAAAH/////////////gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//+AAAAAAAAAAAIAAAAAAAf///////////gAAAAAAAAAAAAAAAAAAAAAAAAD+AAAAAAA//////////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH//////gAAAAD///wAAAAAAP///////////gAAAAAAAAAAAAAAAAAAAAAAAAP8AAAgAAH///////////////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH//////wAAAAB////AAAAAAP///////////AAAAAAAAAAAAAAAAAAAAAAAAAfwAAB/gA////////////////4AAAD/+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAD//////8AACAA////+AAAAAH///////////AAAAAAAAAAAAAAAAAAAAAAAAB/AAAB/g/////////////////+AAB///4AAAAAAAAAAAAAAAAAAAAAAAAAAAAD//////+AADwA/////gAAAAH//////////+AAAAAAAAAAAAAAAAAAAAAAAAD+AAAD/x//////////////////gA/////gAAAAAAAAAAAAAAAAAgAAAAAAAAAAP//////AAD+Af////8AAAAD//////////8AAAAAAAAAAAAAAACAAAAAAAAP4AAAH/x///////////////////////////gAAAAAAAAAAAAAAD//8AAAAAAAAA//////wAH/wP/////AAAAD//////////8AAAAAAAAAAAAAAP//gAAAAAAAAAAAH/7///////////////////////////+AAAAAAAAAAAAAAf/////////wAAD/////4AH/+AAP///4AAAB//////////4AAAAAAAAAAAAAD///8AAAAAAAAAgAP/7/////////////////////////////////4AAAAAAAB///////////+AAP///wAAH//4AB///+AAAB//////////AAAAAAAAAAAAAA/////gAAAAAAAB/gP////////////////////////////////////wgAAAAAP/////////////wAAAgAAAH///AAH///gAAA/////////8AAAAAAAAAAAAAH/////+AAAAAA///////////////////////////////////////////AAAAA///////////////+AAAAAAP///8AA///wAAA/////////gAAAAAAAAAAAAA///////4ACAA////////////////////////////////////////////+AAAD//////////////////////////wAAH//8AAAf///////4AAAAAAAAAAAAAB////////+D///////////////////////////////////////////////wAAf//////////////////////////gAAf///AAAf//////+AAAAAAAAAAAAAAD////////+D////////////////////////////////////////////////AB//////////////////////////+AAA////gAAP//////gAAAAAAAAAAAAAAH////////8D////////////////////////////////////////////////4P//////////////////////////8AAD////4AAP/////wAAAD/+AAAAAAAAAP//////4H8/////////////////////////////////////////////////w///////////////////////////wAAP////wAAH////4AAAA///gAAAAAAAAf//////4AB//////////////////////////////////////////////D//gH//////////////////////////gAAB////wAAD////wAAAAf//wAAAAAAAA///wf//8AH//////////////////////////////////////////////A//gB/////////////////////////+AAAAH///gAAB////gAAAAP//8AAAAAAAB///wP//8AP/////////////////////////////////////////////4AP/AAf////////////////////////8AAAAA///AAAB////AAAAAP//gAAAAAAAH///j///////////////////////////////////////////////////8AAAAAA////////////////////////wAAAAAf/+AAAA///+AAAAAH/8AAAAAAAA///+H///////////////////////////////////////////////////8AAAAAD////////////////////////gAAAAAP/+AAAAf//8AAAAAAAgAAAAAAAD///8P///////////////////////////////////////////////////+AAAAAH////////////////////////AAAAAAD/8AAAAP//4AAAAAAAAAAAAAAAP///wf///////////////////////////////////////////////////+AAAAAf///////////////////////8AAAAgAB+AAAAAD//wAAAAAAAAAAAAAAA////gf////////////////////////////////////////////////////AAAAB////////////////////////4AAAA/+AgAAAAAB//gAAAAAAAAAAAAAAB////Af/////////////////////////////////////////////8f///4AAAAAAf///////////////////////wAAAA//wAAAAAAAf/AAAAAAAAAAAAAAAD////A/////////////////////////////////////////////wD////gAAAAAAH///////////////////////AAAAA//+AAAAAAAP/AAAAAAAAAAAAAAAH///+A/////////////////////////////////////////////gP///+AAAAAAAD////+Af///////////////+AAAAA///4AAAAAAA+AAAAAAAAAAAAAAAH////wP+D//////////////////////////////////////////Af///4AAAAAAAA////wAA///////////////+AAAAA////wAAAAAAEAAAAAAAAAAAAAAAD////wCAf/////////////////////////////////////////+A////gAAAAAAAAD//+AAAD///////////////AAAAA////4AAAAAAAAAAAAAAAAAAAAAAD////gB///////////////////////////////////////////8D//gAAAAAAAAAAAP/4AAAAf//////////////AAAAAf///8AAAAAAAAAAAAAAAAAAAfAAD/n//gA///////////////////////////////////////4AAAAH//AAAAAAAAAAAD//AAAAAH//////////////gAAAAf///+AAAAAAAAAAAAAAAAAAAfgAACD//AA///////////////////////////////////////wAAAAP/8AAAAAAAAAAAH/8AAAAAA//////////////gAAAAf////AAAAAAAAAAAAAAAAAAA/4AAAH/+AI///////////////////////////////////////AAAAAf/4AAAAAAAAAAAH/wAAAAAAP/////////////8AAAAP////gAAAAAAAAAAAAAAAAAA/4AAAd/8Af//////////////////////////////////////+AAAAA//wAAAAAAAAAAAP+AAAAAAAH//////////////wAAAP////wAAAAAAAAAAAAAAAAAB/4AAD4/4A///////////////////////////////////////8AAAAB//wAAAAAAAAAAAf4AAAAAAAD//////////////+AAAf////4AAAAAAAAAAAAAAAAAA/4AAD4fwA///////////////////////////////////////4AAAAB//gAAAAAAAAAAA/AAAAAAAAA///////////////wAA/////8AAAAAAAAAAAAAAAAAA/4AAD4fAA///////////////////////////////////////wAAAAB//gAAAAAAAAAAA4AAAAAAAAAf//////////////+AA/////+AAAAAAAAAAAAAAAAAEf4AADweAA///////////////////////////////////////gAAAAB//AAAAAAAAAAABAAAAAAAAAAP///////////////AB//////gAAAAAAAAAAAAAAAAeP8AADwAPx///////////////////////////////////////AAAAAB//AAAAAAAAAAAAAAAAAAAAAAH///////////////gD//////wAAAAAAAAAAAAAAAD/D+AAB4A/////////////////////////////////////////AAAAAB/+AAAAAAAAAAAAAAAAAAAAAAD///////////////wD//////4AAAAAAAAAAAAAAAD/g/AAP///////////////////////////////////////////gEAAAB/8AAAAAAAAAAAAAAAAAAAAAAB///////////////4H//////+AAAAAAAAAAAAAAAB/n/gA/////////////////////////////////////////////EAAAB/8AAAAAAAAAAAAAAAAAAAAAAA///////////////8H///////AAAAAAAAAAAAAAAB/H/8H/////////////////////////////////////////////GAAAA/4AAAAAAAAAAAAAAAAAAAAAAAf///////////////H///////wAAAAAAAAAAAAAAB/H/8P/////////////////////////////////////////////mAAAA/gAAAAAAAAAAAAAAAAAAAAAAAP///////////////v///////4AAAAAAAAAAAAAACAf/4P/////////////////////////////////////////////uAAAA+AAAAAAAAAAAAAAAAAAAAAAAAH///////////////////////IAAAAAAAAAAAAAAAAB/4f/////////////////////////////////////////////uAAAAcAAAAAAAAAAAAAAAAAAAAAAAAD//////////////////////8cAAAAAAAAAAAAAAAAH+H//////////////////////////////////////////////uAAAAQAAAAAAAAAAAAAAAAAAAAAAAAA//////////////////////h+AAAAAAAAAAAAAAAAPgP//////////////////////////////////////////////vAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////////gAD/AAAAAAAAAAAAAAAAwP///////////////////////////////////////////////PAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD///////////////////gAH/gAAAAAAAAAAAAAAAAP///////////////////////////////////////////////PAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA///////////////////wAH/gAAAAAAAAAAAAAAAAP///////////////////////////////////////////////fAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////////wAP/wAAAAAAAAAAAAAAAP////////////////////////////////////////////////eAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH///////////////////4Af/wAAAAAAAAAAAAAAAB///////////////////////////////////////////////+eAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH///////////////////4AB/4AAAAAAAAAAAAAAAAf//////////////////////////////////////////////4cAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD///////////////////8AAEAAAAAAAAAAAAAAAAAP//////////3/7////f////////////////////////////wMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD////////////////////gAAAAAAAAAAAAAAAAAAAP//////////j/h///4B////////////////////////////gIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD////////////////////+AAAAAAAAAAAAAAAAAAAH//////////g8D///gB////////////////////////////AIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD////////////////////4AAAAAAAAAAAAAAAAAAAH////j/////AYD//8AD///////////////////////////+AIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD////////////////////wAAAAAAAAAAAAAAAAAAAH////h////+AAB//8AD///////////////////////////8AMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH//////////////////w/AAAAAAAAAAAAAAAAAAAAP////g////4AAA//8B////////////////////////////4APAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH/////////////////+AAAAAAAAAAAAAAAAAAAAP4P//8Pgf///wAAAP/8A////////////////////////////wAfgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH/////////////////+AAAAAAAAAAAAAAAAAAAAf///8AHwP///gAAAD/+A///////////////////////////+AAf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAH/////////////////8AAAAAAAAAAAAAAAAAAAB////gAH8B///gAAAA/+Af//////////////////////////4AA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH/////////////////8AAAAAAAAAAAAAAAAAAAB////gAB+Af//gAAAA//AP/////////////////////////8AABPgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH/////////////////8AAAAAAAAAAAAAAAAAAAA////gAA/wP//gB/gA//AD/////////////////////////4AACCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH/////////////////wAAAAAAAAAAAAAAAAAAAA///8AAQP8P//g//7///gD/////////////////////////wAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH////////////////+AAAAAAAAAAAAAAAAAAAAA///wADwD/H/////////gB/////////////////////////gAADwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH////////////////4AAAAAAAAAAAAAAAAAAAAA///gADwA/3+D///////wB////////////////////////+AAADwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD////////////////wAAAAAAAAAAAAAAAAAAAAB///gADwAfj8D///////wA//////////////////////j/8AAAD4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD////////////////wAAAAAAAAAAAAAAAAAAAAB///AADwAfB+D///////wA/////////////////////+GH+AAAHwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB////////////////gAAAAAAAAAAAAAAAAAAAAB///gACAAeB+B///////wB/////////////////////4ED+AAAHwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA////////////////gAAAAAAAAAAAAAAAAAAAAB///AAAAf4A/B///////wB/////////////////////4AD/AAAHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf///////////////AAAAAAAAAAAAAAAAAAAAAA//+AAAAfwA/A///////4A/////////////////////8AB/AAAfgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf///////////////AAAAAAAAAAAAAAAAAAAAAA//8AAAQDgAeAf//////4A///////////////////////A/gAA/gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////////AAAAAAAAAAAAAAAAAAAAAAh/4AH/+AgAeAf///////wf/////////////////////8AfgAD/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////+AAAAAAAAAAAAAAAAAAAAAAAwAP//+AAAAAAAg////////////////////////////wAfgAH/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH//////////////+AAAAAAAAAAAAAAAAAAAAAAAgB///8AAABAAAF////////////////////////////gAfgP//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH//////////////+AAAAAAAAAAAAAAAAAAAAAAA/////8AAAA+AAZ////////////////////////////AA/gf/8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD//////////////8AAAAAAAAAAAAAAAAAAAAAAB/////4AAAAQADx///////////////////////////+AA8B//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD//////////////wAAAAAAAAAAAAAAAAAAAAAAB/////4AAAAAAAB////////////////////////////AAAD/8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////////gAAAAAAAAAAAAAAAAAAAAAAH/////8AAAAAAAD////////////////////////////gAAH/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH/////////////AAAAAAAAAAAAAAAAAAAAAAA//////+AAAAAAAD////////////////////////////wAAfgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB////////////+AAAAAAAAAAAAAAAAAAAAAAA///////4AA+AAAD////////////////////////////wAAfgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA////////////4AAAAAAAAAAAAAAAAAAAAAAB////////gA/gAAH////////////////////////////4AAPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA////////////wAAAAAAAAAAAAAAAAAAAAAAB////////4B/4AAH////////////////////////////4AAPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf///////////gAAAAAAAAAAAAAAAAAAAAAAD////////+B//AP/////////////////////////////8AAPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf///////////gAAAAAAAAAAAAAAAAAAAAAAD///////////////////////////////////////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////gAAAAAAAAAAAAAAAAAAAAAAD///////////////////////////////////////////+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPv///////gA/wAAAAAAAAAAAAAAAAAAAAAAH///////////////////////////////////////////+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH3/////8AgAfwAAAAAAAAAAAAAAAAAAAAAAH///////////////////h///////////////////////+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH7/////wAAAfwAAAAAAAAAAAAAAAAAAAAAAf///////////////////g///////////////////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD5/////gAAAPwAAAAAAAAAAAAAAAAAAAAAA///////////////7////g///////////////////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD8////+AAAAP4AAAAAAAAAAAAAAAAAAAAAD///////////////7////wf//////////////////////4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB+f///+AAAAH4AAAAAAAAAAAAAAAAAAAAAH///////////////x////4D//////////////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+P///+AAAAH4AAAAAAAAAAAAAAAAAAAAAP///////////////5////+Ag/////////////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAfD///8AAAADwAAAAAAAAAAAAAAAAAAAAAf///////////////4////+ACf////////////////////gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPB///8AAAADwAAAAAAAAAAAAAAAAAAAAA////////////////8f///+QGP////////////////////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHg///8AAAAAQAAAAAAAAAAAAAAAAAAAAA////////////////8f////wPAP//////////////////+EAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADgf//8AAAAAAAAAAAAAAAAAAAAAAAAAAB////////////////+P////wfAAAP////////////////8MAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABwP//8AAAAAAAAAAAAAAAAAAAAAAAAAAB////////////////+H//////wAAH////////////////4MAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwH//8AAAAAAAAAAAAAAAAAAAAAAAAAAD/////////////////H//////8AAD////////////////wcAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYH//4AAAAEAAAAAAAAAAAAAAAAAAAAAD/////////////////D//////+AAA////////////////gYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAID//4AAAAf4AAAAAAAAAAAAAAAAAAAAH/////////////////j//////+AAAP///////////////A4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB//4AAAA//AAAAAAAAAAAAAAAAAAAAH/////////////////h///////AAA///////////////gAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB//4AAAD//4AAAAAAAAAAAAAAAAAAAH/////////////////x//////+AAAf/////+D//////8AAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB//8AAAgAH+AAAAAAAAAAAAAAAAAAAP/////////////////x//////+AAAP/////gD/////nwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB//8AB/gAD/AAAAAAAAAAAAAAAAAAAP/////////////////4//////8AAAH/////AB////+DAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB//+AB/AAA/wAAAAAAAAAAAAAAAAAAP/////////////////4f/////8AAAAf///8AB////8CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB///AD/AAAA/+AAAAAAAAAAAAAAAAAH/////////////////4P/////4AAAAf///4AA////4BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf//AD+AAAAf/AAAAAAAAAAAAAAAAAH/////////////////8H/////4AAAAf///wAAf///4HAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH//gH+AAAAf/wAAAAAAAAAAAAAAAAH/////////////////8D/////wAAAAf///gAAf///wfAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD////8AAAAf4AAAAAAAAAAAAAAAAAH/////////////////8B/////gAAAAf///AAAP///wPAAAeAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA////8AAAAAgAAAAAAAAAAAAAAAAAH/////////////////+B/////AAAAAP///AAAP///4AAAAeAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///8AAAAAAAAAAAAAAAAAAAAAAAH/////////////////+A////8AAAAAP//+AAAP///8AAAAeAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD///4AAAAAAAAAAAAAAAAAAAAAAAH/////////////////+A////4AAAAAH//8AAAP///+AAAA+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf//4AAAAAAAAAAAAAAAAAAAAAAAH//////////////////Af///AAAAAAH//4AAAOH///AAAA+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAED//4AAAAAAAAAAAAAAAAAAAAAAP//////////////////Af//4AAAAAAH//wAAAIH///gAAB+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA///wAAAAAAAAAAAAAAAAAAAAAP//////////////////wf//gAAAAAAD//AAAAAH///gAAA8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf//wAAAAAAAAAAAAAAAAAAAAAf//////////////////4f/+AAAAAAAD/+AAAAAD///wAAA8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH//wAAAAAAAAAAAAAAAAAAAAAf//////////////////+f/8AAAAAAAD/+AAAAAD///wAAAcAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD//wAAAAAAAAAAAAAAAAAAAAAf///////////////////P/wAAAAAAAD/+AAAAAD///4AAAPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf/gAAAAAAAAAAAAAAAAAAAAAP////////////////////8AAAAAAAAB/+AAAAAD///4AAA8gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/gAAAAAAAAAAAAAAAAAAAAAP////////////////////gAAAAAAAAB/+AAAAAD///4AAAYYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/gAAAQAAAAAAAAAAAAAAAAAP///////////////////4AAAAAAAAAA/+AAAAADx//4AAAIPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/gAAA+AAAAAAAAAAAAAAAAAH///////////////////wAAgAAAAAAA/+AAAAABwf/4AAACPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/gAAD/wAAAAAAAAAAAAAAAAB///////////////////wD/gAAAAAAAf8AAAAABgP/wAABDvAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAfwAB////4AAAAAAAAAAAAAAA///////////////////8P/AAAAAAAAf8AAAAABgP/gAADD/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAfwAD////8AAAAAAAAAAAAAAAf/////////////////////AAAAAAAAP8AAAAABgD/AAADD+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP4AH////8AAAAAAAAAAAAAAAP/////////////////////AAAAAAAAP4AAAAABwB+AAAGB5AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD4If////+AAAAAAAAAAAAAAAP////////////////////+AAAAAAAAH0AAAAABwA8AAAIAjAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA////////AAAAAAAAAAAAAAAH////////////////////+AAAAAAAADmAAAAAD4AgAAAQAjgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////gAAAAAAAAAAAAAAD////////////////////8AAAAAAAABHAAAAAD4AAAAAgA/gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB///////wAAAAAAAAAAAAAAB////////////////////8AAAAAAAAAHgAAAAD8AAAAAAB/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQf/////4AAAAAAAAAAAAAAA////////////////////8AAAAAAAAAHwAAAAB8AAAAAAB/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf/////8AAAAAAAAAAAAAAAf///////////////////4AAAAAAAAADgAAAAA+AAAABACPgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf/////+AAAAAAAAAAAAAAAP///////////////////4AAAAAAAAADgAAAAA/AAAADwAPgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf///////AAAAAAAAAAAAAAD///gH//////////////wAAAAAAAAABAAAAAAfwAAAD4ABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf///////wAAAAAAAAAAAAAB//8AD//////////////gAAAAAAAAAAAAAAD8PwAAAH+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf///////8AAAAAAAAAAAAAAfAQAB//////////////gAAAAAAAAAAAAAAB+P4AAAP8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf////////AAAAAAAAAAAAAAEAAAAg/////////////AAAAAAAAAAAAAAAB/H4AAAf4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf////////AAAAAAAAAAAAAAAAAAAA////////////+AAAAAAAAAAAAAAAA/H4AAB/4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/////////gAAAAAAAAAAAAAAAAAAAf///////////8AAAAAAAAAAAAAAAAfj4AAD/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/////////gAAAAAAAAAAAAAAAAAAAf///////////4AAAAAAAAAAAAAAAAHz8AAf/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/////////wAAAAAAAAAAAAAAAAAAAf///////////wAAAAAAAAAAAAAAAAD58AB//4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/////////wAAAAAAAAAAAAAAAAAAAf///////////gAAAAAAAAAAAAAAAAB8cAD//4ACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH/////////4AAAAAAAAAAAAAAAAAAA////////////AAAAAAAAAAAAAAAAAA+OAP//8AOAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH/////////4AAAAAAAAAAAAAAAAAAA///////////+AAAAAAAAAAAAAAAAAA/AAP//8/8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/////////wAAAAAAAAAAAAAAAAAAA///////////8AAAAAAAAAAAAAAAAAAfgAP//4/8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf/////////wAAAAAAAAAAAAAAAAAAA///////////4AAAAAAAAAAAAAAAAAAfwAH//44AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf//////////AAAAAAAAAAAAAAAAAAA///////////wAAAAAAAAAAAAAAAAAAP4AH//x4AAD+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA///////////wAAAAAAAAAAAAAAAAAA///////////gAAAAAAAAAAAAAAAAAAP8AD//h8gAB/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA///////////8AAAAAAAAAAAAAAAAAA///////////AAAAAAAAAAAAAAAAAAAH+AD//h/AAB/AgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf///////////AAAAAAAAAAAAAAAAAA//////////+AAAAAAAAAAAAAAAAAAAD/AD//B/AAA/j8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf////////////4AAAAAAAAAAAAAAAAf/////////8AAAAAAAAAAAAAAAAAAAD/wD//D+AAA/n/gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf////////////+AAAAAAAAAAAAAAAAP/////////4AAAAAAAAAAAAAAAAAAAB/4D/+D+AAAP//4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////////AAAAAAAAAAAAAAAAH/////////wAAAAAAAAAAAAAAAAAAAA/4AA+D+AAAH//+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB//////////////wAAAAAAAAAAAAAAAD/////////wAAAAAAAAAAAAAAAAAAAAf4AAeDvAAAB///wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB//////////////8AAAAAAAAAAAAAAAB/////////gAAAAAAAAAAAAAAAAAAAAHwAAABhAAAAP//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA///////////////AAAAAAAAAAAAAAAB/////////gAAAAAAAAAAAAAAAAAAAADwAAABgAAAAB//+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA///////////////wAAAAAAAAAAAAAAA/////////AAAAAAAAAAAAAAAAAAAAABwAAABgAAAAB///gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA///////////////wAAAAAAAAAAAAAAA/////////AAAAAAAAAAAAAAAAAAAAAAwAAAAAAAAAA///wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf//////////////wAAAAAAAAAAAAAAA/////////gAAAAAAAAAAAAAAAAAAAAAP/gAAAAAAAA///4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf//////////////4AAAAAAAAAAAAAAAf////////gAAAAAAAAAAAAAAAAAAAAAH/8AAAAAAAA///4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////////4AAAAAAAAAAAAAAAf////////wAAAAAAAAAAAAAAAAAAAAAAf/wAAAAAAAf//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH//////////////wAAAAAAAAAAAAAAAP////////wAAAAAAAAAAAAAAAAAAAAAAB/gAAAAAAAf/P+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH//////////////wAAAAAAAAAAAAAAAP////////wAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAB+H/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD//////////////gAAAAAAAAAAAAAAAP////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEB/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB//////////////gAAAAAAAAAAAAAAAP////////4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB//////////////AAAAAAAAAAAAAAAAH////////4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////////AAAAAAAAAAAAAAAAH////////4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/////////////+AAAAAAAAAAAAAAAAH////////4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf////////////8AAAAAAAAAAAAAAAAH////////4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAOAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf////////////4AAAAAAAAAAAAAAAAP////////4AAIAAAAAAAAAAAAAAAAAAAAAAAAAAH/8AOAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////wAAAAAAAAAAAAAAAAP////////8AAYAAAAAAAAAAAAAAAAAAAAAAAAAAH/8AeAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////gAAAAAAAAAAAAAAAAf////////8AAcAAAAAAAAAAAAAAAAAAAAAAAAAAP/4AeAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH////////////gAAAAAAAAAAAAAAAAf////////8AA8AAAAAAAAAAAAAAAAAAAAAAAAAQP/4AfAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH////////////gAAAAAAAAAAAAAAAA/////////4AA8AAAAAAAAAAAAAAAAAAAAAAAAA8f/4AfAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD////////////gAAAAAAAAAAAAAAAA/////////4AB8AAAAAAAAAAAAAAAAAAAAAAAAB+f/wAfwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD////////////gAAAAAAAAAAAAAAAA/////////wAD+AAAAAAAAAAAAAAAAAAAAAAAAB///wAf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA////////////AAAAAAAAAAAAAAAAA/////////gAP+AAAAAAAAAAAAAAAAAAAAAAAAD///4A/8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////////AAAAAAAAAAAAAAAAA/////////gAf+AAAAAAAAAAAAAAAAAAAAAAAAH///+A/8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH///////////AAAAAAAAAAAAAAAAB/////////AB/8AAAAAAAAAAAAAAAAAAAAAAAAP////A/8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB///////////AAAAAAAAAAAAAAAAB////////+AD/8AAAAAAAAAAAAAAAAAAAAAAAAf////w/+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf//////////AAAAAAAAAAAAAAAAB////////4AD/4AAAAAAAAAAAAAAAAAAAAAAAB///////+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH//////////AAAAAAAAAAAAAAAAA////////wAD/4AAAAAAAAAAAAAAAAAAAAAAAD///////+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH/////////+AAAAAAAAAAAAAAAAA////////gAD/4AAAAAAAAAAAAAAAAAAAAAAAD///////+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH/////////+AAAAAAAAAAAAAAAAAf///////AAD/wAAAAAAAAAAAAAAAAAAAAAAAH////////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH/////////+AAAAAAAAAAAAAAAAAf//////+AAD/wAAAAAAAAAAAAAAAAAAAAAAAH////////gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH/////////+AAAAAAAAAAAAAAAAAP//////8AAD/gAAAAAAAAAAAAAAAAAAAAAAB/////////4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH/////////8AAAAAAAAAAAAAAAAAH//////8AAH/gAAAAAAAAAAAAAAAAAAAAAA//////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH/////////8AAAAAAAAAAAAAAAAAH//////8AAH/gAAAAAAAAAAAAAAAAAAAAAH//////////+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH/////////4AAAAAAAAAAAAAAAAAD//////+AAH/AAAAAAAAAAAAAAAAAAAAAA////////////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH/////////wAAAAAAAAAAAAAAAAAD//////+AAH/AAAAAAAAAAAAAAAAAAAAAB////////////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH/////////gAAAAAAAAAAAAAAAAAB//////+AAH/AAAAAAAAAAAAAAAAAAAAAB////////////gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH////////8AAAAAAAAAAAAAAAAAAB//////+AAH/AAAAAAAAAAAAAAAAAAAAAB////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH////////gAAAAAAAAAAAAAAAAAAB//////+AAH+AAAAAAAAAAAAAAAAAAAAAB////////////4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////+AAAAAAAAAAAAAAAAAAAB//////+AAD+AAAAAAAAAAAAAAAAAAAAAA////////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////4AAAAAAAAAAAAAAAAAAAA//////+AAB+AAAAAAAAAAAAAAAAAAAAAA////////////+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////wAAAAAAAAAAAAAAAAAAAA//////wAAB4AAAAAAAAAAAAAAAAAAAAAA/////////////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////AAAAAAAAAAAAAAAAAAAAA//////AAAAgAAAAAAAAAAAAAAAAAAAAAA/////////////gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////AAAAAAAAAAAAAAAAAAAAA//////AAAAAAAAAAAAAAAAAAAAAAAAAAA/////////////gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///////AAAAAAAAAAAAAAAAAAAAA//////AAAAAAAAAAAAAAAAAAAAAAAAAAA/////////////gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////+AAAAAAAAAAAAAAAAAAAAAf/////AAAAAAAAAAAAAAAAAAAAAAAAAAAf////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////+AAAAAAAAAAAAAAAAAAAAAf/////AAAAAAAAAAAAAAAAAAAAAAAAAAAf////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////+AAAAAAAAAAAAAAAAAAAAAP/////AAAAAAAAAAAAAAAAAAAAAAAAAAAf////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf//////8AAAAAAAAAAAAAAAAAAAAAP/////AAAAAAAAAAAAAAAAAAAAAAAAAAAf////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf//////4AAAAAAAAAAAAAAAAAAAAAH////+AAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf//////4AAAAAAAAAAAAAAAAAAAAAH////4AAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf//////wAAAAAAAAAAAAAAAAAAAAAD////wAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf//////gAAAAAAAAAAAAAAAAAAAAAD////gAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf//////gAAAAAAAAAAAAAAAAAAAAAB////AAAAAAAAAAAAAAAAAAAAAAAAAAAAH////////////gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf//////AAAAAAAAAAAAAAAAAAAAAAB////AAAAAAAAAAAAAAAAAAAAAAAAAAAAH////////////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf/////+AAAAAAAAAAAAAAAAAAAAAAA///+AAAAAAAAAAAAAAAAAAAAAAAAAAAAH///8B///////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////+AAAAAAAAAAAAAAAAAAAAAAA///8AAAAAAAAAAAAAAAAAAAAAAAAAAAAH///gAD/////+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////8AAAAAAAAAAAAAAAAAAAAAAA///wAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//+AAB/////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////4AAAAAAAAAAAAAAAAAAAAAAA///AAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//wAAA+////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////gAAAAAAAAAAAAAAAAAAAAAAA//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/8AAAA8////4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////AAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/gAAAAR////4AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAB////wAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/////gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB////wAAAAAADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/////gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA////wAAAAAABgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///gAAAAAABwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH///gAAAAAAA4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH////+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD//+AAAAAAAA/8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH////+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf4AAAAAAAAf4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHgAAAAAAAA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH///4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAB/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAfgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf4AAAAAAAEOAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf4AAAAAAAOcAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP4AAAAAAAfoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP4AAAAAAA/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH//+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH4AAAAAAD+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH4AAAAAAH+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH//4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH//4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf/+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH/gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf/8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf/+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA///AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA///gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA///AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB//+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB//+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf/gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf/gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf/+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB//+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAA////////////////+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf/8AAAAAAD////////////////////+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/////AAAAH//////////////////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD///////gAH////////////////////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB///8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////////////////////////////////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH///4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf///////////////////////////////////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP///4AAAAAAAAAAAAAAAAAAAAAAAAAAAB///////////////////////////////////////////4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA////4AAAAAAAAAAAAAAAAAAA/////////////////////////////////////////////////////4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB////wAAAAAAAAAAAAAAAAAAf//////////////////////////////////////////////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH////wAAAAAAAAAAAAAAAAAP////////////////////////////////////////////////////////gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////wAAAAAAAAAAAAAAAAH//////////////////////////////////////////////////////////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/////////////wAAAAAAAAAAAAAAAD///////////////////////////////////////////////////////////+AAAAAAAAAAAAAAAAAAAAAAAAAAAA///////////////gAAAAAAAAAAAAAAB/////////////////////////////////////////////////////////////gAAAAAAAAAAAAAAAAAAAAAAAAAP////////////////gAAAAAAAAAAAAAA//////////////////////////////////////////////////////////////wAAAAAAAAAAAAAAAAAAAAAAAD//////////////////+AAAAAAAAAAAAAf//////////////////////////////////////////////////////////////8AAAAAAAAAAAAAAAAAAAAAA/////////////////////4AAAAAAAAAAAP////////////////////////////////////////////////////////////////AAAAAAAAAAAAAAAAAAAAP///////////////////////gAAAAAAAAAH/////////////////////////////////////////////////////////////////gAAAAAAAAAAAAAAAAAD/////////////////////////+AAAAAAAAD//////////////////////////////////////////////////////////////////4AAAAAAAAAAAAAAAA////////////////////////////4AAAAAAB///////////////////////////////////////////////////////////////////+AAAAAAAAAAAAAAP//////////////////////////////gAAAAA/////////////////////////////////////////////////////////////////////AAAAAAAAAAAAD////////////////////////////////+AAAAf/////////////////////////////////////////////////////////////////////wAAAAAAAAAA///////////////////////////////////4AAP//////////////////////////////////////////////////////////////////////8AAAAA/////////////////////////////////////////gH///////////////////////////////////////////////////////////////////////+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////"), out = new Uint8Array(raw.length); for (var i = 0; i < raw.length; i += 1) out[i] = raw.charCodeAt(i); return out; })();
+  function isLand(lat, lon) {
+    var row = clamp(Math.floor((90 - lat) * 2), 0, 359), col = ((Math.floor((lon + 180) * 2) % 720) + 720) % 720;
+    return (LAND[row * 90 + (col >> 3)] & (0x80 >> (col & 7))) !== 0;
+  }
+  var RAD = Math.PI / 180;
+  function vec(lat, lon) { var c = Math.cos(lat * RAD); return [c * Math.sin(lon * RAD), Math.sin(lat * RAD), c * Math.cos(lon * RAD)]; }
+  // the dots: an even spiral over the sphere, kept where there is land
+  var DOTS = (function () {
+    var total = 40000, golden = Math.PI * (3 - Math.sqrt(5)), xs = [], ys = [], zs = [], kind = [];
+    for (var i = 0; i < total; i += 1) {
+      var y = 1 - (2 * (i + 0.5)) / total, r = Math.sqrt(1 - y * y), th = i * golden;
+      var x = r * Math.cos(th), z = r * Math.sin(th);
+      var lat = Math.asin(y) / RAD, lon = Math.atan2(x, z) / RAD;
+      if (lat < -60 || !isLand(lat, lon)) continue;
+      xs.push(x); ys.push(y); zs.push(z);
+      // a few of them are towns: they show as lights on the night side
+      var h = Math.sin(i * 12.9898) * 43758.5453; h -= Math.floor(h);
+      kind.push(h < (lat > 8 && lat < 58 ? 0.11 : 0.04) ? 1 : 0);
+    }
+    return { n: xs.length, x: new Float32Array(xs), y: new Float32Array(ys), z: new Float32Array(zs), town: new Uint8Array(kind) };
+  })();
+  var YOU = vec(39, -77), HER = vec(10.3, 123.9);
+  var OTHERS = [vec(14.6, 121), vec(7.1, 125.6), vec(10.7, 122.6), vec(16.4, 120.6), vec(8.5, 124.6), vec(13.4, 123.4), vec(15.2, 120.6), vec(6.9, 122.1)];
+
+  var canvas = document.getElementById("globe"), ctx = canvas.getContext("2d");
+  var W = 0, H = 0, DPR = 1;
+  function size() {
+    DPR = Math.min(window.devicePixelRatio || 1, 1.5);
+    W = stage.clientWidth; H = stage.clientHeight;
+    canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+  }
+  // where the camera is, and what time it is, for each scene
+  function pose(k) {
+    var phone = W < 620, wide = W >= 1000;
+    // the opening: so close that the Earth is a horizon under the headline
+    var R0 = Math.max(W * (phone ? 1.5 : 0.82), H * 1.1);
+    var hero = { lon: -96, lat: -33, R: R0, cx: 0.5, cy: (phone ? 0.74 : 0.69) + R0 / H, mins: 0, dim: 1, arc: 0, many: 0, land: 0 };
+    if (wide) {
+      // then it pulls back and sits on the right, whole
+      var R = Math.min(H * 0.43, W * 0.27), x = 0.715, y = 0.54;
+      return [
+        hero,
+        { lon: -94, lat: 24, R: R, cx: x, cy: y, mins: 2, dim: 1, arc: 0, many: 0, land: 0 },
+        { lon: 128, lat: 14, R: R, cx: x, cy: y, mins: 167, dim: 1, arc: 0.3, many: 0, land: 0 },
+        { lon: 152, lat: 30, R: R, cx: x, cy: y, mins: 186, dim: 1, arc: 0.46, many: 0.34, land: 0 },
+        { lon: -168, lat: 44, R: R, cx: x, cy: y, mins: 238, dim: 1, arc: 0.66, many: 0.62, land: 0 },
+        { lon: -82, lat: 30, R: R, cx: x, cy: y, mins: 600, dim: 1, arc: 1, many: 1, land: 1 }
+      ][k];
+    }
+    // a narrow screen: the Earth rises from the bottom, under the card
+    var r = W * (phone ? 0.7 : 0.5), low = (H * 0.5 + r * 0.92) / H, lower = (H * 0.62 + r) / H;
+    return [
+      hero,
+      { lon: -92, lat: 4, R: r, cx: 0.5, cy: low, mins: 2, dim: 1, arc: 0, many: 0, land: 0 },
+      { lon: 126, lat: -16, R: r, cx: 0.5, cy: low, mins: 167, dim: 1, arc: 0.3, many: 0, land: 0 },
+      { lon: 150, lat: 0, R: r, cx: 0.5, cy: lower, mins: 186, dim: 0.5, arc: 0.46, many: 0.34, land: 0 },
+      { lon: -168, lat: 14, R: r, cx: 0.5, cy: lower, mins: 238, dim: 0.5, arc: 0.66, many: 0.62, land: 0 },
+      { lon: -82, lat: 2, R: r, cx: 0.5, cy: (H * 0.66 + r * 0.92) / H, mins: 600, dim: 1, arc: 1, many: 1, land: 1 }
+    ][k];
+  }
+  var cam = null, from = null, to = null, t0 = 0, took = 0, loop = 0, lean = [0, 0], leanTo = [0, 0];
+  function mixPose(a, b, t) {
+    var dl = ((b.lon - a.lon + 540) % 360) - 180, out = {};
+    for (var key in a) out[key] = a[key] + (b[key] - a[key]) * t;
+    out.lon = a.lon + dl * t;
+    return out;
+  }
+  function rot(v, lon0, lat0) {                 // a point on the Earth, as the camera sees it: x right, y up, z towards you
+    var cl = Math.cos(lon0 * RAD), sl = Math.sin(lon0 * RAD), ct = Math.cos(lat0 * RAD), st = Math.sin(lat0 * RAD);
+    var x1 = v[0] * cl - v[2] * sl, z1 = v[0] * sl + v[2] * cl;
+    return [x1, v[1] * ct - z1 * st, v[1] * st + z1 * ct];
+  }
+  function slerp(a, b, t) {
+    var d = clamp(a[0] * b[0] + a[1] * b[1] + a[2] * b[2], -1, 1), om = Math.acos(d), so = Math.sin(om) || 1;
+    var ka = Math.sin((1 - t) * om) / so, kb = Math.sin(t * om) / so;
+    return [a[0] * ka + b[0] * kb, a[1] * ka + b[1] * kb, a[2] * ka + b[2] * kb];
+  }
+  function drawArc(a, b, head, alpha, keepTrail, lon0, lat0, cx, cy, R) {
+    if (head <= 0) return;
+    var tail = keepTrail ? 0 : Math.max(0, head - 0.4), steps = 56, prev = null;
+    for (var i = 0; i <= steps; i += 1) {
+      var t = tail + ((head - tail) * i) / steps;
+      var p = slerp(a, b, t), lift = 1 + 0.16 * Math.sin(Math.PI * t);
+      var q = rot([p[0] * lift, p[1] * lift, p[2] * lift], lon0, lat0);
+      var near = clamp((q[2] + 0.03) * 7, 0, 1);                      // it comes up over the edge, it does not loop round the back
+      var pt = near <= 0 ? null : [cx + q[0] * R, cy - q[1] * R];
+      if (prev && pt) {
+        var k = i / steps, fade = (keepTrail ? 0.22 + 0.78 * Math.pow(k, 3) : k * k) * near;
+        ctx.strokeStyle = "rgba(244,226,186," + (alpha * fade).toFixed(3) + ")";
+        ctx.lineWidth = (0.7 + 1.3 * Math.pow(k, 3)) * DPR;
+        ctx.beginPath(); ctx.moveTo(prev[0], prev[1]); ctx.lineTo(pt[0], pt[1]); ctx.stroke();
+      }
+      prev = pt;
+    }
+    if (prev && head < 0.995) {
+      var glow = ctx.createRadialGradient(prev[0], prev[1], 0, prev[0], prev[1], 9 * DPR);
+      glow.addColorStop(0, "rgba(255,236,196," + (0.9 * alpha).toFixed(3) + ")"); glow.addColorStop(1, "rgba(255,236,196,0)");
+      ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(prev[0], prev[1], 9 * DPR, 0, 7); ctx.fill();
+      ctx.fillStyle = "rgba(255,246,224," + alpha.toFixed(3) + ")"; ctx.beginPath(); ctx.arc(prev[0], prev[1], 1.9 * DPR, 0, 7); ctx.fill();
+    }
+  }
+  function place(pin, v, lon0, lat0, cx, cy, R, show) {
+    // only when it is well round to this side, and its label has room on the screen
+    var q = rot(v, lon0, lat0), x = (cx + q[0] * R) / DPR, y = (cy - q[1] * R) / DPR;
+    var on = show && q[2] > 0.3 && x > 12 && x < W - 150 && y > 70 && y < H - 90;
+    pin.classList.toggle("on", on);
+    if (on) pin.style.transform = "translate3d(" + x.toFixed(1) + "px," + y.toFixed(1) + "px,0)";
+  }
+  function render() {
+    var c = cam, lon0 = c.lon + lean[0] * 4, lat0 = c.lat - lean[1] * 3;
+    var R = c.R * DPR, cx = c.cx * W * DPR, cy = c.cy * H * DPR;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // the sun: over the point of the Earth where it is noon
+    var utc = 1 + c.mins / 60, sunLon = -15 * (utc - 12), S = vec(-6.3, sunLon), sv = rot(S, lon0, lat0);
+    ctx.globalAlpha = c.dim;
+    // the air: a thin cool rim, and warmth on the limb the sun is behind
+    var rim = ctx.createRadialGradient(cx, cy, R * 0.985, cx, cy, R * 1.09);
+    rim.addColorStop(0, "rgba(150,178,255,0.28)"); rim.addColorStop(1, "rgba(150,178,255,0)");
+    ctx.fillStyle = rim; ctx.beginPath(); ctx.arc(cx, cy, R * 1.09, 0, 7); ctx.fill();
+    var sx = cx + sv[0] * R, sy = cy - sv[1] * R, facing = clamp(1 - Math.abs(sv[2]) * 1.15, 0, 1);
+    var warm = ctx.createRadialGradient(sx, sy, 0, sx, sy, R * 0.95);
+    warm.addColorStop(0, "rgba(255,226,170," + (0.75 * facing + 0.12).toFixed(3) + ")"); warm.addColorStop(0.25, "rgba(248,186,120," + (0.34 * facing + 0.05).toFixed(3) + ")"); warm.addColorStop(1, "rgba(248,186,120,0)");
+    ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = warm; ctx.beginPath(); ctx.arc(sx, sy, R * 0.95, 0, 7); ctx.fill(); ctx.globalCompositeOperation = "source-over";
+    // the body: night, with the day side as a soft blue
+    ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.clip();
+    ctx.fillStyle = "#070A11"; ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
+    var day = ctx.createRadialGradient(sx, sy, 0, sx, sy, R * 1.5);
+    day.addColorStop(0, "rgba(74,112,178,0.62)"); day.addColorStop(0.45, "rgba(40,66,120,0.3)"); day.addColorStop(0.7, "rgba(20,32,62,0.08)"); day.addColorStop(1, "rgba(10,14,24,0)");
+    ctx.fillStyle = day; ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
+    // the land: every dot lit by the real sun
+    var cl = Math.cos(lon0 * RAD), sl = Math.sin(lon0 * RAD), ct = Math.cos(lat0 * RAD), st = Math.sin(lat0 * RAD);
+    var base = clamp(R * 0.0058, 1.1 * DPR, 3.4 * DPR), X = DOTS.x, Y = DOTS.y, Z = DOTS.z, town = DOTS.town;
+    var buckets = { night: [], dusk: [], day1: [], day2: [], lights: [] };
+    for (var i = 0; i < DOTS.n; i += 1) {
+      var x1 = X[i] * cl - Z[i] * sl, z1 = X[i] * sl + Z[i] * cl, y2 = Y[i] * ct - z1 * st, z2 = Y[i] * st + z1 * ct;
+      if (z2 <= 0.02) continue;
+      var px = cx + x1 * R, py = cy - y2 * R;
+      if (px < -4 || py < -4 || px > canvas.width + 4 || py > canvas.height + 4) continue;
+      var light = X[i] * S[0] + Y[i] * S[1] + Z[i] * S[2];
+      var b = light > 0.16 ? (z2 > 0.5 ? buckets.day2 : buckets.day1) : light > -0.1 ? buckets.dusk : town[i] ? buckets.lights : buckets.night;
+      b.push(px, py, 0.55 + 0.45 * z2);
+    }
+    function paint(list, color, grow) { ctx.fillStyle = color; for (var j = 0; j < list.length; j += 3) { var s = base * list[j + 2] * grow; ctx.fillRect(list[j] - s / 2, list[j + 1] - s / 2, s, s); } }
+    paint(buckets.night, "rgba(150,166,205,0.2)", 0.9);
+    paint(buckets.dusk, "rgba(240,196,128,0.78)", 1);
+    paint(buckets.day1, "rgba(244,240,230,0.56)", 0.96);
+    paint(buckets.day2, "rgba(244,240,230,0.86)", 1);
+    // a town's glow: a soft wide square under the bright one (a blurred shadow per light costs far more to draw)
+    paint(buckets.lights, "rgba(255,206,130,0.16)", 2.8);
+    paint(buckets.lights, "rgba(255,214,150,0.95)", 0.95);
+    // roundness: everything darkens towards the edge, the land with it
+    var shade = ctx.createRadialGradient(cx, cy, R * 0.5, cx, cy, R);
+    shade.addColorStop(0, "rgba(4,6,10,0)"); shade.addColorStop(0.75, "rgba(4,6,10,0.18)"); shade.addColorStop(1, "rgba(4,6,10,0.72)");
+    ctx.fillStyle = shade; ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
+    ctx.restore();
+    // the applications: lines of light from the Philippines to you
+    ctx.lineCap = "round";
+    drawArc(HER, YOU, c.arc, 0.95, true, lon0, lat0, cx, cy, R);
+    for (var a = 0; a < OTHERS.length; a += 1) drawArc(OTHERS[a], YOU, clamp(c.many * 1.16 - a * 0.05, 0, 1), 0.5, false, lon0, lat0, cx, cy, R);
+    if (c.land > 0) {                            // they arrive: rings where you are
+      var y = rot(YOU, lon0, lat0);
+      if (y[2] > 0) for (var r = 0; r < 3; r += 1) { var g = clamp(c.land * 1.6 - r * 0.3, 0, 1); ctx.strokeStyle = "rgba(255,226,170," + (0.5 * (1 - g) + 0.08).toFixed(3) + ")"; ctx.lineWidth = 1.2 * DPR; ctx.beginPath(); ctx.arc(cx + y[0] * R, cy - y[1] * R, (6 + g * 34) * DPR, 0, 7); ctx.stroke(); }
+    }
+    ctx.globalAlpha = 1;
+    var roomy = W >= 1000;
+    place(pinYou, YOU, lon0, lat0, cx, cy, R, beat === 1 || beat === 5 || (beat === 0 && W >= 620) || (roomy && beat === 4));
+    place(pinHer, HER, lon0, lat0, cx, cy, R, beat === 2 || (roomy && beat === 3));
+  }
+  function frame(now) {
+    loop = 0;
+    var moving = false;
+    if (to) {
+      var k = took ? clamp((now - t0) / took, 0, 1) : 1;
+      cam = mixPose(from, to, ease(k));
+      if (k < 1) moving = true; else { cam = to; to = null; }
+      showClock(cam.mins);
+    }
+    var dx = leanTo[0] - lean[0], dy = leanTo[1] - lean[1];
+    if (Math.abs(dx) + Math.abs(dy) > 0.002) { lean[0] += dx * 0.08; lean[1] += dy * 0.08; moving = true; }
+    render();
+    if (moving) loop = requestAnimationFrame(frame);
+  }
+  function wake() { if (!loop) loop = requestAnimationFrame(frame); }
+  function fly(k, ms) {
+    from = cam || pose(k); to = pose(k); t0 = performance.now(); took = calm ? 0 : ms;
+    wake();
+  }
+
+  /* her reply types itself; the three checks land as it does */
+  var typer = 0, scorer = 0;
+  function settle(done) {
+    clearInterval(typer);
+    typed.textContent = done ? REPLY : "";
+    caret.style.visibility = "hidden";
+    ticks.forEach(function (t) { t.classList.toggle("hit", done); });
+  }
+  function type() {
+    settle(false);
+    if (calm) { settle(true); return; }
+    caret.style.visibility = "visible";
+    var i = 0;
+    typer = setInterval(function () {
+      i = Math.min(REPLY.length, i + 5);
+      typed.textContent = REPLY.slice(0, i);
+      ticks[0].classList.toggle("hit", i > REPLY.length * 0.3);
+      ticks[1].classList.toggle("hit", i > REPLY.length * 0.62);
+      ticks[2].classList.toggle("hit", i >= REPLY.length);
+      if (i >= REPLY.length) { clearInterval(typer); caret.style.visibility = "hidden"; }
+    }, 24);
+  }
+  function count(target) {
+    cancelAnimationFrame(scorer);
+    if (calm) { scoreEl.textContent = String(target); return; }
+    var start = null;
+    (function step(now) {
+      if (start == null) start = now;
+      var k = clamp((now - start) / 800, 0, 1);
+      scoreEl.textContent = String(Math.round(target * ease(k)));
+      if (k < 1) scorer = requestAnimationFrame(step);
+    })(performance.now());
+  }
+
+  /* arriving at a scene */
+  var beat = -1;
+  function enter(next) {
+    var before = beat;
+    beat = next;
+    stage.dataset.beat = String(next);
+    if (next >= 1) tag.textContent = TAGS[next];
+    // the camera takes its time: longer when it has half the world to cross
+    fly(next, before === -1 ? 0 : Math.abs(next - before) > 1 || next === 5 || (next === 2 && before === 1) ? 1500 : 1000);
+    caps.forEach(function (c) { var mine = Number(c.dataset.cap); c.classList.toggle("on", mine === next); c.classList.toggle("was", mine < next); });
+    secs.forEach(function (s) { s.classList.toggle("on", s.dataset.on.split(" ").indexOf(String(next)) >= 0); });
+    nodes.forEach(function (n, i) { n.classList.toggle("now", i + 1 === next); n.classList.toggle("done", i + 1 < next); });
+    fill.style.setProperty("--at", clamp(((next - 1) / 4) * 100, 0, 100) + "%");
+    if (next === 3) { if (before !== 3) type(); } else settle(next > 3);
+    mark.classList.toggle("on", next >= 4);
+    if (next === 4 && before !== 4) count(91); else if (next > 4) scoreEl.textContent = "91"; else if (next < 4) scoreEl.textContent = "0";
+  }
+  var raf = 0;
+  function draw() {
+    raf = 0;
+    var box = night.getBoundingClientRect();
+    var near = Math.round(clamp(-box.top / Math.max(1, box.height - window.innerHeight), 0, 1) * (N - 1));
+    if (near !== beat) enter(near);
+  }
+  function ask() { if (!raf) raf = requestAnimationFrame(draw); }
+  size();
+  window.addEventListener("scroll", ask, { passive: true });
+  window.addEventListener("resize", function () { size(); cam = pose(Math.max(0, beat)); to = null; wake(); ask(); });
+  draw();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(wake);
+  if (!calm && matchMedia("(hover: hover)").matches) window.addEventListener("pointermove", function (e) {
+    leanTo = [(e.clientX / window.innerWidth) * 2 - 1, (e.clientY / window.innerHeight) * 2 - 1];
+    if (window.scrollY < morning.offsetTop) wake();
+  }, { passive: true });
+
+  /* One gesture, one scene. A wheel flick, a swipe or an arrow key moves the
+     page exactly one scene and it comes to rest there. Scene N is the
+     morning section, where the page scrolls as any page does. */
+  var locked = false, pile = 0, pileTimer = 0, walking = [];
+  function where() {
+    var y = window.scrollY, h = stage.offsetHeight;
+    if (y >= morning.offsetTop - h * 0.5) return N;
+    return clamp(Math.round((y - night.offsetTop) / h), 0, N - 1);
+  }
+  function go(k) {
+    k = clamp(k, 0, N);
+    locked = true;
+    window.scrollTo({ top: k === N ? morning.offsetTop : night.offsetTop + k * stage.offsetHeight, behavior: calm ? "auto" : "smooth" });
+    setTimeout(function () { locked = false; pile = 0; }, calm ? 120 : 900);
+  }
+  function inStory(down) {
+    var y = window.scrollY;
+    if (y < morning.offsetTop - 2) return true;
+    return !down && y <= morning.offsetTop + 2;
+  }
+  function stopWalk() { walking.forEach(clearTimeout); walking = []; }
+  window.addEventListener("wheel", function (e) {
+    if (e.ctrlKey) return;
+    var down = e.deltaY > 0;
+    if (!inStory(down)) return;
+    e.preventDefault();
+    stopWalk();
+    if (locked) return;
+    pile += e.deltaY;
+    clearTimeout(pileTimer);
+    pileTimer = setTimeout(function () { pile = 0; }, 200);
+    if (Math.abs(pile) >= 24) { var step = pile > 0 ? 1 : -1; pile = 0; go(where() + step); }
+  }, { passive: false });
+  var touchY = null;
+  window.addEventListener("touchstart", function (e) { touchY = e.touches[0].clientY; stopWalk(); }, { passive: true });
+  window.addEventListener("touchmove", function (e) {
+    if (touchY == null) return;
+    var dy = touchY - e.touches[0].clientY;
+    if (!inStory(dy > 0)) return;
+    if (e.cancelable) e.preventDefault();
+    if (!locked && Math.abs(dy) > 34) { touchY = null; go(where() + (dy > 0 ? 1 : -1)); }
+  }, { passive: false });
+  window.addEventListener("keydown", function (e) {
+    var down = e.key === "ArrowDown" || e.key === "PageDown" || (e.key === " " && !e.shiftKey);
+    var up = e.key === "ArrowUp" || e.key === "PageUp" || (e.key === " " && e.shiftKey);
+    if ((!down && !up) || (e.key === " " && /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test((e.target && e.target.tagName) || ""))) return;
+    if (!inStory(down)) return;
+    e.preventDefault();
+    stopWalk();
+    if (!locked) go(where() + (down ? 1 : -1));
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('a[href="#morning"], a[href="#night"]'), function (a) {
+    a.addEventListener("click", function (e) { e.preventDefault(); stopWalk(); go(a.getAttribute("href") === "#morning" ? N : 0); });
+  });
+  // Someone already signed in on this site (an applicant) goes straight to their applications.
+  try {
+    if (window.localStorage.getItem("sb-yqklrkpptnhubsnijqze-auth-token")) {
+      var jobLink = document.getElementById("jobLink");
+      jobLink.querySelector(".long").textContent = "My applications"; jobLink.querySelector(".short").textContent = "Applications";
+      jobLink.setAttribute("href", "/applications");
+    }
+  } catch (e) { /* storage blocked: the plain link stays */ }
+  document.getElementById("watch").addEventListener("click", function () {
+    stopWalk();
+    var waits = [0, 2200, 2500, 3600, 2300], at = 0;
+    waits.forEach(function (wait, i) { at += wait; walking.push(setTimeout(function () { go(i + 1); }, at)); });
+  });
+})();
+</script>
+</body>
+</html>

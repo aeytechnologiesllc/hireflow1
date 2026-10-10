@@ -9,7 +9,8 @@ import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { GemRail, type GemRailNode } from "@/components/rail/GemRail";
 import { glyphForKind } from "@/components/glyphForKind";
 import { ChatDemo } from "@/components/careers/ChatDemo";
-import { isStaffHost, isStaffRole, staffSignInHref } from "@/lib/hosts";
+import { CAREERS_PATH, isStaffHost, isStaffRole, staffSignInHref } from "@/lib/hosts";
+import { usePageHead } from "@/components/seo/usePageHead";
 import { jobPagePath, rootDestination, usableSlug } from "@/lib/jobSlug";
 import { jobLevelLabel, jobTypeLabel } from "@/lib/jobLabels";
 import "@/styles/careers.css";
@@ -28,7 +29,11 @@ import "@/styles/careers.css";
  * view the job page reads); Apply goes to the public job page, so no job code
  * is needed (/candidate/apply still takes one).
  *
- * With exactly one open role this page steps aside: hireflownow.com/ opens
+ * It lives at /careers: hireflownow.com/ is HireFlow's own landing page
+ * since 2026-10-09 (public/landing.html, served by middleware.js), and "/"
+ * inside the app on this host goes here.
+ *
+ * With exactly one open role this page steps aside: hireflownow.com/careers opens
  * that role's page (its short link, hireflownow.com/<slug>), replacing this
  * entry so Back does not bounce. Owner, 2026-10-06: applicants "could hit the
  * back button or get confused easily" (docs/SHORT-JOB-LINKS.md).
@@ -165,6 +170,13 @@ export default function Index() {
   const sentToCallback = useRef(false);
   const staffHost = isStaffHost();
   const [scrolled, setScrolled] = useState(false);
+  // Listed as the careers page at /careers (hireflownow.com/ is HireFlow's
+  // landing page). On the staff host this route is only a doorway.
+  usePageHead(
+    staffHost
+      ? { title: "Zulu Support Team — Staff", noindex: true }
+      : { title: "Zulu Support Team — Careers", path: CAREERS_PATH, description: "Remote chat support jobs with the Zulu Support Team, including team leads. All online: a few questions, a skills check, a computer check, a typing test, a chat practice and a written interview." },
+  );
 
   // Signed in, auth finished, and still no role: this account never had its
   // user_roles row written (an OAuth sign-in that didn't pass through
@@ -263,7 +275,7 @@ export default function Index() {
 
       <header className="cr-head" data-scrolled={scrolled ? "true" : "false"}>
         <div className="cr-wrap cr-head__in">
-          <Link to="/" className="cr-brand" aria-label="Zulu Support Team careers">
+          <Link to={CAREERS_PATH} className="cr-brand" aria-label="Zulu Support Team careers">
             <span className="cr-brand__mark" aria-hidden="true">Z</span>
             <span className="cr-brand__name">Zulu Support Team</span>
             <span className="cr-brand__tag">Careers</span>

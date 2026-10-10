@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight, MessageSquare, ClipboardCheck, KeyRound, UserRound } from "lucide-react";
 import { CandidateShell } from "@/components/candidate/CandidateShell";
 import { usePageHead } from "@/components/seo/usePageHead";
+import { CAREERS_PATH } from "@/lib/hosts";
 
 export default function CandidatePortalLanding() {
   usePageHead({ title: "Applicants | Zulu Support Team", path: "/candidate" });
@@ -27,7 +28,7 @@ export default function CandidatePortalLanding() {
     <CandidateShell>
       <div className="mx-auto max-w-4xl px-4 py-8 md:py-12">
         <header className="mb-12 flex items-center justify-between">
-          <Link to="/" className="font-display text-lg tracking-wide" style={{ color: "var(--hf-text)" }}>
+          <Link to={CAREERS_PATH} className="font-display text-lg tracking-wide" style={{ color: "var(--hf-text)" }}>
             ZULU SUPPORT TEAM
           </Link>
           <Link to="/candidate/auth" className="cand-btn-ghost text-sm">

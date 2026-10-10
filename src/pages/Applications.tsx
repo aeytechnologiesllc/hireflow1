@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { useState, useEffect, useId, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { CAREERS_PATH } from "@/lib/hosts";
 import { EmptyStateCard } from "@/components/EmptyStateCard";
 import { supabase } from "@/integrations/supabase/client";
 import type { ApplicationWithJob } from "@/hooks/useApplications";
@@ -826,7 +827,7 @@ export default function Applications() {
               // job's link has a code (docs/SHORT-JOB-LINKS.md). With one open
               // role, the careers page opens it.
               label: "See open roles",
-              onClick: () => navigate("/"),
+              onClick: () => navigate(CAREERS_PATH),
               icon: LetterIdentityGlyph,
             }}
           />

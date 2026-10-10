@@ -15,6 +15,11 @@
 
 export type HostRole = "employer" | "candidate" | "team_member" | "developer" | null;
 
+/** The careers page (open roles). hireflownow.com/ is HireFlow's own front
+ *  page since 2026-10-09 (public/landing.html, served by middleware.js), so
+ *  every link that sends an applicant to "the open roles" uses this. */
+export const CAREERS_PATH = "/careers";
+
 /** Read by name, so the build swaps in this one value rather than every
  *  build setting (vite.config.ts). The try keeps this file importable from
  *  plain Node (scripts/hosts_routing.test.mjs), where import.meta.env does
@@ -88,6 +93,7 @@ const STAFF_ONLY = [
 ];
 
 const CANDIDATE_ONLY = [
+  /^\/careers\/?$/,
   /^\/candidate\/?$/,
   /^\/candidate\/auth(\/|$)/,
   /^\/candidate\/apply(\/|$)/,

@@ -56,10 +56,10 @@ const RESERVED_SLUGS = new Set([
   "__preview", "about", "admin", "adzuna.xml", "analytics", "api", "applicants", "applications",
   "apply", "assets", "auth", "ava-preview", "candidate", "careers", "contact", "dashboard",
   "developer", "documents", "favicon.ico", "flow-lab", "help", "home", "index.html", "interviews",
-  "job", "jobs", "jobs.xml", "join-team", "jooble.xml", "landing-assets", "login", "logout",
+  "job", "jobs", "jobs.xml", "join-team", "jooble.xml", "landing-assets", "landing.html", "login", "logout",
   "manifest.webmanifest", "marketing-demo", "media", "messages", "more", "my-documents",
   "notifications", "oauth", "preview", "privacy", "profile", "register", "robots.txt",
-  "screenshots", "search", "settings", "signin", "signup", "site.webmanifest", "sitemap.xml",
+  "screenshots", "search", "settings", "share", "signin", "signup", "site.webmanifest", "sitemap.xml",
   "staff", "support", "team", "team-portal", "terms", "verify"
 ]);
 
@@ -201,7 +201,7 @@ export default async function handler(req, res) {
     // by its short link (docs/SHORT-JOB-LINKS.md §7): the sitemap and the
     // page's own head (JobPageHead.tsx) still name /candidate/job/:id, which
     // is prerendered for every visitor, while /<slug> is prerendered only for
-    // crawlers and is the plain shell (canonical = the homepage) for anyone
+    // crawlers and is the plain shell (no canonical of its own) for anyone
     // else. Pointing here at /<slug> would give search two canonicals for one
     // job. All three move to the short link together, in one change.
     const url = `${origin}/candidate/job/${job.id}`;
@@ -218,9 +218,13 @@ export default async function handler(req, res) {
       // describe an "AI-powered hiring platform" to an employer audience, and
       // anything preferring twitter:* over og:* — X among them — was serving
       // that to candidates with no job title in it at all.
-      `<meta name="twitter:card" content="summary" />` +
+      // A shared job link shows the Zulu Support Team careers picture (the
+      // shell's og:image stays; twitter:* is stripped above, so it is named
+      // again here). Never HireFlow's landing image: this is the applicants' link.
+      `<meta name="twitter:card" content="summary_large_image" />` +
       `<meta name="twitter:title" content="${esc(title)}" />` +
       `<meta name="twitter:description" content="${esc(desc)}" />` +
+      `<meta name="twitter:image" content="${origin}/share/zulu-careers.jpg" />` +
       `<link rel="canonical" href="${esc(url)}" />`;
 
     let out = shell

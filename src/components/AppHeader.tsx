@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown, LogOut, Settings, User, Menu } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { CAREERS_PATH, isStaffHost } from "@/lib/hosts";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -44,7 +45,7 @@ export default function AppHeader({ onMenuClick, isMobile }: AppHeaderProps) {
 
   const handleSignOut = async () => {
     await signOut();
-    navigate("/");
+    navigate(isStaffHost() ? "/" : CAREERS_PATH);
   };
 
   const userInitials = user?.user_metadata?.full_name

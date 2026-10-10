@@ -193,7 +193,7 @@ console.log("\nReact Router: every existing route still wins over /:slug");
   check("App.tsx registers /:slug", routePaths.includes("/:slug"));
   check(
     "only on the candidates' site",
-    /\{!isStaffHost\(\) && <Route path="\/:slug" element=\{<JobDetails \/>\} \/>\}/.test(app) && /import \{ isStaffHost \} from "@\/lib\/hosts";/.test(app),
+    /\{!isStaffHost\(\) && <Route path="\/:slug" element=\{<JobDetails \/>\} \/>\}/.test(app) && /import \{ CAREERS_PATH, isStaffHost \} from "@\/lib\/hosts";/.test(app),
   );
   const slugAt = app.indexOf('path="/:slug"');
   const catchAllAt = app.indexOf('path="*"');
@@ -296,7 +296,8 @@ check("...never off the site", jobPageFromRedirect("//evil.example") === null &&
   const routing = await read("src/lib/authRouting.ts");
   check("a signed-in candidate's home is their applications, not the code box", /if \(role === "candidate"\) \{\s*return "\/applications";/.test(routing));
   const applications = await read("src/pages/Applications.tsx");
-  check("no applications yet: 'See open roles', not 'Enter Job Code'", /label: "See open roles",\s*onClick: \(\) => navigate\("\/"\)/.test(applications) && !/navigate\("\/apply"\)/.test(applications));
+  // The open roles are at /careers since 2026-10-09 (hireflownow.com/ is HireFlow's landing page).
+  check("no applications yet: 'See open roles', not 'Enter Job Code'", /label: "See open roles",\s*onClick: \(\) => navigate\(CAREERS_PATH\)/.test(applications) && !/navigate\("\/apply"\)/.test(applications));
   check("sign-in's back link is the job when Apply sent them", /to=\{backToJob \?\? "\/candidate"\}/.test(auth));
 
   const callback = await read("src/pages/AuthCallback.tsx");

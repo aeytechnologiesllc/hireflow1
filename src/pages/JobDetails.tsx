@@ -31,7 +31,7 @@ import { detectSchemaMode } from "@/cockpit/data/showcaseSource";
 import { fetchRoleById } from "@/lib/showcaseApply";
 import { JobPageHead } from "@/components/seo/JobPageHead";
 import { PageHeadTags } from "@/components/seo/usePageHead";
-import { isStaffHost } from "@/lib/hosts";
+import { CAREERS_PATH, isStaffHost } from "@/lib/hosts";
 import { jobPagePath, shortLinkFor, slugFromParam, withApplyAsk } from "@/lib/jobSlug";
 import { jobLevelLabel, jobTypeLabel } from "@/lib/jobLabels";
 import { APPLICANT_BLOCKED_MESSAGE, isApplicantBlockedError } from "@/lib/applicantBlocked";
@@ -56,7 +56,7 @@ export default function JobDetails() {
   // never had one, so the code box was a dead end dressed up as a way out
   // (for a signed-in candidate too). With one open role the careers page
   // opens it.
-  const strandedRoute = "/";
+  const strandedRoute = CAREERS_PATH;
   // This page IS the candidate's view, so it always reads the candidate's
   // source: published_jobs_public. It used to be
   //   !user || role === "candidate"

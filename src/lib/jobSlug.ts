@@ -73,8 +73,10 @@ export const SITE_PATHS: readonly string[] = [
   "site.webmanifest",
   "index.html",
   "landing-assets",
+  "landing.html",
   "media",
   "screenshots",
+  "share",
 ];
 
 /** Words a page is likely to want one day, held back so a job does not take

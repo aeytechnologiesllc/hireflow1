@@ -6,7 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { HostGate } from "@/components/HostGate";
-import { isStaffHost } from "@/lib/hosts";
+import { CAREERS_PATH, isStaffHost } from "@/lib/hosts";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/hooks/useAuth";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -201,7 +201,12 @@ const App = () => (
               <HostGate>
               <Suspense fallback={<LazyFallback />}>
                 <Routes>
-                  <Route path="/" element={<Index />} />
+                  {/* hireflownow.com/ itself is the landing page (middleware.js), so the
+                      app only meets "/" from an in-app link: on the applicants' site that
+                      means the open roles. On the staff site "/" is the doorway to
+                      sign-in or the dashboard (HostGate). */}
+                  <Route path="/" element={isStaffHost() ? <Index /> : <Navigate to={CAREERS_PATH} replace />} />
+                  <Route path={CAREERS_PATH} element={<Index />} />
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/auth/callback" element={<AuthCallback />} />
                   
