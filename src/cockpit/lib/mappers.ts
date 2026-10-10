@@ -639,6 +639,8 @@ export function mapDocumentRow(doc: DocumentWithApplication): DocRow {
     rawStatus: doc.status ?? null,
     candidateSignedAt: doc.candidate_signed_at ?? null,
     isVoided,
+    createdAt: doc.created_at ?? null,
+    expiresAt: doc.expires_at ?? null,
   };
 }
 

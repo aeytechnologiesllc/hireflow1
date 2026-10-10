@@ -55,6 +55,8 @@ export function useApplicantRequests(applicationId: string | null | undefined) {
 export interface RequestWithPerson extends ApplicantRequest {
   /** The applicant's name, for the Documents page's list. */
   personName: string;
+  /** The job it is for, for the Documents page's job filter. */
+  jobTitle: string | null;
 }
 
 /**
@@ -80,9 +82,17 @@ export function useAllRequests(enabled = true) {
       const rows = (data ?? []) as unknown as ApplicantRequest[];
       if (rows.length === 0) return [];
       const ids = [...new Set(rows.map((r) => r.candidate_id))];
-      const { data: people } = await supabase.from("profiles").select("user_id, full_name").in("user_id", ids);
+      const appIds = [...new Set(rows.map((r) => r.application_id))];
+      const [{ data: people }, { data: apps }] = await Promise.all([
+        supabase.from("profiles").select("user_id, full_name").in("user_id", ids),
+        supabase.from("applications").select("id, job_id").in("id", appIds),
+      ]);
+      const jobIds = [...new Set((apps ?? []).map((a) => a.job_id).filter(Boolean))];
+      const { data: jobs } = jobIds.length ? await supabase.from("jobs").select("id, title").in("id", jobIds) : { data: [] as { id: string; title: string }[] };
       const nameOf = new Map((people ?? []).map((p) => [p.user_id, (p.full_name ?? "").trim()]));
-      return rows.map((r) => ({ ...r, personName: nameOf.get(r.candidate_id) || "Applicant" }));
+      const titleOfJob = new Map((jobs ?? []).map((j) => [j.id, j.title]));
+      const jobOfApp = new Map((apps ?? []).map((a) => [a.id, titleOfJob.get(a.job_id) ?? null]));
+      return rows.map((r) => ({ ...r, personName: nameOf.get(r.candidate_id) || "Applicant", jobTitle: jobOfApp.get(r.application_id) ?? null }));
     },
   });
 }

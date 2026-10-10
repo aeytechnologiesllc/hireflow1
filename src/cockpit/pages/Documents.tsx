@@ -14,7 +14,9 @@ import { ActionDialog } from "../components/ActionDialog";
 import { OfferLetterDialog } from "../components/OfferLetterDialog";
 import { RequestDocumentsDialog } from "../components/RequestDocumentsDialog";
 import { RequestRow } from "../components/ApplicantDocumentsPanel";
-import { useAllRequests } from "../hooks/useApplicantRequests";
+import { useAllRequests, type RequestWithPerson } from "../hooks/useApplicantRequests";
+import { applyDocFilters, docJob, KIND_WORDS, NO_FILTERS, ORDER_WORDS, resultLine, STATUS_WORDS, type FilterKind, type FilterOrder, type FilterStatus } from "../lib/documentFilters";
+import { requestTitle } from "@/lib/documentRequests";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -72,10 +74,6 @@ function isReady(row: DocRow) {
   return row.status === "Signed" || row.status === "Submitted";
 }
 
-/** Things that need a person rise to the top of their section. Voided sits
- *  with Declined (something went wrong, worth a look); Withdrawn — an
- *  administrative cancel, nothing left to chase — sits last. */
-const ATTENTION: Record<DocStatus, number> = { Pending: 0, Declined: 1, Voided: 1, Submitted: 2, Signed: 3, Withdrawn: 4 };
 
 /** The mapper falls back to "Candidate"/"Role" when a document has no application. */
 function named(value: string | undefined, placeholder: string) {
@@ -287,6 +285,37 @@ function SectionTitle({ children, flush }: { children: ReactNode; flush?: boolea
   );
 }
 
+/** A row of choices, one picked (the Documents filters). Scrolls sideways on a phone. */
+function Seg<T extends string>({ value, options, onPick, label, counts }: { value: T; options: readonly T[]; onPick: (v: T) => void; label: (v: T) => string; counts?: Partial<Record<T, number>> }) {
+  return (
+    <div className="max-w-full overflow-x-auto" role="group">
+      <div className="inline-flex shrink-0 whitespace-nowrap rounded-[10px] border p-[3px]" style={{ borderColor: "var(--line)", background: "var(--hf-surface)" }}>
+        {options.map((option) => {
+          const on = option === value;
+          return (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onPick(option)}
+              className="shrink-0 whitespace-nowrap rounded-[7px] px-2.5 py-1.5 text-[12.5px] transition-colors"
+              style={on ? { background: "var(--jade-soft)", color: "var(--jade-soft-fg)", fontWeight: 600 } : { color: "var(--ink-2)" }}
+              data-filter-option={option}
+            >
+              {label(option)}
+              {counts && counts[option] !== undefined && (
+                <span className="ml-1.5 text-[11.5px] tnum" style={{ color: on ? "var(--jade-soft-fg)" : "var(--ink-3)" }}>
+                  {counts[option]}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function CockpitDocuments() {
   const { documents, isLoading, isError, refetch } = useCockpitDocuments();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -319,6 +348,14 @@ export default function CockpitDocuments() {
   const queryClient = useQueryClient();
   const [actionDialog, setActionDialog] = useState<{ type: "withdraw" | "void"; row: DocRow } | null>(null);
   const [isActing, setIsActing] = useState(false);
+  // The filters (the owner, 2026-10-10: "Documents tab also need a filter. A
+  // lot of filters"). Status starts on "Your turn" while something waits on
+  // him, else on All, until he picks one.
+  const [statusPick, setStatusPick] = useState<FilterStatus | null>(null);
+  const [kind, setKind] = useState<FilterKind>(NO_FILTERS.kind);
+  const [job, setJob] = useState<string>(NO_FILTERS.job);
+  const [order, setOrder] = useState<FilterOrder>(NO_FILTERS.order);
+  const [search, setSearch] = useState("");
 
   const confirmAction = async (reason?: string) => {
     if (!actionDialog) return;
@@ -368,13 +405,31 @@ export default function CockpitDocuments() {
   // One shape for both schema modes — the showcase rows carry the same fields.
   const rows: DocRow[] = documents.rows;
 
+  const filtersOn = kind !== NO_FILTERS.kind || job !== NO_FILTERS.job || search.trim() !== "";
+  const { result, status, jobs } = useMemo(() => {
+    const rest = { kind, job, order, search };
+    const counted = applyDocFilters<RequestWithPerson>(rows, papers, { status: "all", ...rest }, requestTitle);
+    const chosen: FilterStatus = statusPick ?? (counted.counts.yours > 0 ? "yours" : "all");
+    const shown = chosen === "all" ? counted : applyDocFilters<RequestWithPerson>(rows, papers, { status: chosen, ...rest }, requestTitle);
+    const jobTitles = [...new Set([...rows.map(docJob), ...papers.map((p) => p.jobTitle ?? "")].filter(Boolean))].sort();
+    return { result: { ...shown, counts: counted.counts }, status: chosen, jobs: jobTitles };
+  }, [rows, papers, kind, job, order, search, statusPick]);
+  const clearFilters = () => {
+    setKind(NO_FILTERS.kind);
+    setJob(NO_FILTERS.job);
+    setOrder(NO_FILTERS.order);
+    setSearch("");
+    setStatusPick("all");
+  };
+
   const { packet, people, ready, pending, declined, urgentId } = useMemo(() => {
-    const byAttention = (a: DocRow, b: DocRow) => ATTENTION[a.status] - ATTENTION[b.status];
-    const packetRows = rows.filter(isPacket).sort(byAttention);
+    // Sorted already, by the order chosen; the sections keep that order.
+    const filteredRows = result.docs;
+    const packetRows = filteredRows.filter(isPacket);
 
     // Everything that is not packet paperwork belongs to whoever it came from.
     const groups = new Map<string, { key: string; title: string; rows: DocRow[] }>();
-    for (const row of rows) {
+    for (const row of filteredRows) {
       if (isPacket(row)) continue;
       const person = named(row.candidate, "Candidate");
       const key = person ? row.avatar || person : "__unassigned";
@@ -388,7 +443,6 @@ export default function CockpitDocuments() {
       }
       groups.get(key)!.rows.push(row);
     }
-    for (const group of groups.values()) group.rows.sort(byAttention);
 
     const people = [...groups.values()];
 
@@ -406,7 +460,7 @@ export default function CockpitDocuments() {
       declined: rows.filter((r) => r.status === "Declined").length,
       urgentId: urgent?.id ?? null,
     };
-  }, [rows]);
+  }, [rows, result.docs]);
 
   // Opened from the hire prompt → /documents?applicant_id=…&action=create.
   useEffect(() => {
@@ -440,11 +494,11 @@ export default function CockpitDocuments() {
   // What was asked of whom, newest first: an ID waiting, one sent with its
   // deletion clock, typed answers.
   const papersEl =
-    papers.length > 0 ? (
+    result.requests.length > 0 ? (
       <section className="mb-1" data-papers-list>
         <SectionTitle flush>ID &amp; papers</SectionTitle>
         <ul className="ck-card px-4 py-1">
-          {papers.map((request) => (
+          {result.requests.map((request) => (
             <RequestRow key={request.id} request={request} person={request.personName} />
           ))}
         </ul>
@@ -500,7 +554,7 @@ export default function CockpitDocuments() {
     );
   }
 
-  if (rows.length === 0) {
+  if (rows.length === 0 && papers.length === 0) {
     return (
       <div className="space-y-4">
         {head}
@@ -526,7 +580,6 @@ export default function CockpitDocuments() {
             </button>
           </div>
         </section>
-        {papersEl}
         {wizardEl}
         {offerEl}
         {askEl}
@@ -542,11 +595,58 @@ export default function CockpitDocuments() {
         ? `${declined} came back declined — worth another look.`
         : "Everything in here is done.";
 
+  const shownCount = result.docs.length + result.requests.length;
+  const filterBar = (
+    <div className="mt-3 flex flex-col gap-2" data-doc-filters>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search a name or a document"
+          aria-label="Search a name or a document"
+          className="ck-input px-3 py-2 !text-[16px] max-md:w-full md:w-[300px] md:!text-[13px]"
+          data-filter-search
+        />
+        <Seg<FilterStatus> value={status} options={["all", "yours", "theirs", "done", "closed"] as const} onPick={(v) => setStatusPick(v)} label={(v) => STATUS_WORDS[v]} counts={result.counts} />
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Seg<FilterKind> value={kind} options={["all", "offers", "papers", "files"] as const} onPick={setKind} label={(v) => KIND_WORDS[v]} />
+        {jobs.length > 1 && (
+          <select value={job} onChange={(e) => setJob(e.target.value)} className="ck-input max-w-[260px] px-2.5 py-1.5 !text-[16px] md:!text-[12.5px]" aria-label="Job" data-filter-job>
+            <option value="all">All jobs</option>
+            {jobs.map((title) => (
+              <option key={title} value={title}>
+                {title}
+              </option>
+            ))}
+          </select>
+        )}
+        <select value={order} onChange={(e) => setOrder(e.target.value as FilterOrder)} className="ck-input px-2.5 py-1.5 !text-[16px] md:!text-[12.5px]" aria-label="Order" data-filter-order>
+          {(["newest", "oldest", "due"] as const).map((o) => (
+            <option key={o} value={o}>
+              {ORDER_WORDS[o]}
+            </option>
+          ))}
+        </select>
+        {(filtersOn || order !== NO_FILTERS.order || (statusPick !== null && statusPick !== "all")) && (
+          <button type="button" className="text-[12.5px] underline underline-offset-2" style={{ color: "var(--ink-3)" }} onClick={clearFilters} data-filter-clear>
+            Clear filters
+          </button>
+        )}
+      </div>
+      <div className="mt-1 text-[13px]" style={{ color: "var(--ink-3)" }} data-filter-result>
+        {resultLine(status, shownCount, filtersOn)}
+      </div>
+    </div>
+  );
+
   return (
     <div>
       {head}
 
       {/* The meter: how much of the drawer is finished, and what is holding it up. */}
+      {rows.length > 0 && (
       <div className="ck-rise mb-3 mt-3.5 flex flex-wrap items-baseline gap-x-2.5 gap-y-2">
         <span className="font-display tnum" style={{ fontSize: 32, fontWeight: 600, lineHeight: 1, color: "var(--ink)" }}>
           {ready}
@@ -578,8 +678,20 @@ export default function CockpitDocuments() {
           {caption}
         </span>
       </div>
+      )}
 
-      {papersEl}
+      {filterBar}
+
+      {shownCount === 0 && (
+        <div className="ck-card mt-3 p-5 text-[13.5px]" style={{ color: "var(--ink-2)" }} data-filter-empty>
+          {filtersOn ? "Nothing matches these filters." : `Nothing is ${STATUS_WORDS[status].toLowerCase()} right now.`}{" "}
+          <button type="button" className="underline underline-offset-2" style={{ color: "var(--jade)" }} onClick={clearFilters}>
+            Show everything
+          </button>
+        </div>
+      )}
+
+      <div className="mt-3">{papersEl}</div>
 
       {packet.length > 0 && (
         <>

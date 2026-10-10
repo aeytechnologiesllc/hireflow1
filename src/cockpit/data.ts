@@ -173,6 +173,9 @@ export interface DocRow {
   candidateSignedAt?: string | null;
   /** True once this document has been withdrawn or voided. */
   isVoided?: boolean;
+  /** Raw times, for the Documents filters' order and "expired". */
+  createdAt?: string | null;
+  expiresAt?: string | null;
 }
 
 export interface TeamMember {
