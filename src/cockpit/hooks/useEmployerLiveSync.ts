@@ -74,6 +74,14 @@ import type { ApplicationWithCandidate } from "@/hooks/useApplications";
  * candidate, a teammate or the server reaches every open screen: the list's
  * "Interview Thu 3 PM", the Interviews page and the profile all read keys
  * under ["interviews"].
+ *
+ * Wave 5 (2026-10-10): the paperwork, on two more channels of their own.
+ * The owner: "the employer tab never refreshes in real time ... I sent the
+ * ID, it didn't refresh here." `document_requests` (an ID sent, a payment
+ * email typed, a request answered on another tab) refreshes the applicant
+ * page's Documents section and the Documents page's "ID & papers" list;
+ * `documents` (an offer letter signed by the applicant, declined, completed)
+ * refreshes the Documents page, the open letter and the Hire box.
  */
 
 /** Coalescing window for a burst of row changes. */
@@ -112,6 +120,10 @@ export const LIVE_SYNC_EVENTS_KEY: QueryKey = ["assessment-events"];
 export const LIVE_SYNC_APPLICATION_SESSIONS_KEY = ["assessment-sessions", "application"] as const;
 /** Every cached query a change to public.interviews can make stale. */
 export const LIVE_SYNC_INTERVIEW_KEYS: readonly QueryKey[] = [["interviews"]];
+/** Every cached query a change to public.document_requests can make stale. */
+export const LIVE_SYNC_REQUEST_KEYS: readonly QueryKey[] = [["applicant-requests"], ["all-requests"], ["document-requests"], ["employer-pending-documents-count"]];
+/** Every cached query a change to public.documents can make stale. */
+export const LIVE_SYNC_DOCUMENT_KEYS: readonly QueryKey[] = [["documents"], ["document-audit-log"], ["offer-letter-state"], ["employer-pending-documents-count"]];
 
 /**
  * The lists that are merged in place and refetched only on a structural
@@ -487,13 +499,41 @@ export function startEmployerLiveSync({
       if (status === "SUBSCRIBED") interviewCoalescer.schedule(false);
     });
 
+  // ── The paperwork (wave 5): requests and documents, a channel each. ──
+  const requestCoalescer = createLiveSyncCoalescer(
+    (force) => Promise.all(LIVE_SYNC_REQUEST_KEYS.map((queryKey) => queryClient.invalidateQueries({ queryKey }, { cancelRefetch: force }))),
+    delayMs,
+    timers,
+  );
+  const requestChannel = client
+    .channel(`employer-requests-${userId}-${instanceId}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "document_requests" }, () => requestCoalescer.schedule(true))
+    .subscribe((status) => {
+      if (status === "SUBSCRIBED") requestCoalescer.schedule(false);
+    });
+  const documentCoalescer = createLiveSyncCoalescer(
+    (force) => Promise.all(LIVE_SYNC_DOCUMENT_KEYS.map((queryKey) => queryClient.invalidateQueries({ queryKey }, { cancelRefetch: force }))),
+    delayMs,
+    timers,
+  );
+  const documentChannel = client
+    .channel(`employer-documents-${userId}-${instanceId}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "documents" }, () => documentCoalescer.schedule(true))
+    .subscribe((status) => {
+      if (status === "SUBSCRIBED") documentCoalescer.schedule(false);
+    });
+
   return () => {
     coalescer.dispose();
     sessionCoalescer.dispose();
     interviewCoalescer.dispose();
+    requestCoalescer.dispose();
+    documentCoalescer.dispose();
     void client.removeChannel(channel);
     void client.removeChannel(sessionChannel);
     void client.removeChannel(interviewChannel);
+    void client.removeChannel(requestChannel);
+    void client.removeChannel(documentChannel);
   };
 }
 

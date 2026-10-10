@@ -205,6 +205,27 @@ export function useReviewRequest() {
 }
 
 /**
+ * Takes back a request nobody has answered yet (an NBI clearance asked by
+ * mistake, the owner, 2026-10-10). The database allows it only while the
+ * request holds no file and no typed answer, and only for the job's owner.
+ */
+export function useCancelRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    retry: false,
+    mutationFn: async (request: ApplicantRequest) => {
+      const { data, error } = await supabase.from("document_requests").delete().eq("id", request.id).select("id");
+      if (error || !data || data.length === 0) throw new Error("It could not be cancelled. If they already sent it, it stays.");
+    },
+    onSettled: (_data, _error, request) => {
+      queryClient.invalidateQueries({ queryKey: ["applicant-requests", request.application_id] });
+      queryClient.invalidateQueries({ queryKey: ["all-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["document-requests"] });
+    },
+  });
+}
+
+/**
  * A five-minute link to the file they sent, through the function that checks
  * and records it. The hiring side's first opening starts an ID's 24 hours.
  * `download`: the link saves the file ("Download a copy").

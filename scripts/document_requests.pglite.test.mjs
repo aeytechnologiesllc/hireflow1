@@ -34,6 +34,8 @@
  *   7. *_id_papers_deleted_after_opening.sql: when the team first opened a
  *      file (the 24-hour clock) is set only by the service role; no client
  *      sets or clears it; a new file from the applicant starts it over.
+ *   8. *_cancel_only_unanswered_requests.sql: the owner cancels a request
+ *      only while nothing was sent for it.
  *
  * anon / authenticated / service_role are real, separate roles, so RLS and
  * GRANT/REVOKE are genuinely in force.
@@ -384,6 +386,34 @@ async function main() {
     again.ok && again.rows[0]?.team_opened_at === null && again.rows[0]?.file_deleted_at === null && again.rows[0]?.status === "submitted",
     show(again),
   );
+
+  // 8 ──────────────────────────────────────────────────────────────────────
+  // Cancelling a request (*_cancel_only_unanswered_requests.sql): only while
+  // nothing was sent, so an uploaded ID is never orphaned in the bucket.
+  const cancelFile = (await readdir(MIGRATIONS)).filter((n) => /^\d+_cancel_only_unanswered_requests\.sql$/.test(n));
+  check("8. the cancel migration is there, once", cancelFile.length === 1);
+  if (cancelFile.length !== 1) return;
+  const sql8 = await readFile(path.join(MIGRATIONS, cancelFile[0]), "utf8");
+  let applied8 = true;
+  try {
+    await db.exec(sql8);
+    await db.exec(sql8);
+  } catch (e) {
+    applied8 = false;
+    console.log(e.message);
+  }
+  check("8. it applies, and applies again", applied8);
+  const waiting = (await as(OWNER, "authenticated", `insert into public.document_requests (application_id, employer_id, candidate_id, document_type) values ($1, $2, $3, 'proof_of_address') returning id`, [APP_ANA, OWNER, ANA])).rows[0].id;
+  const anaCancels = await as(ANA, "authenticated", `delete from public.document_requests where id = $1 returning id`, [waiting]);
+  check("8. the applicant cannot cancel a request", anaCancels.ok && anaCancels.rows.length === 0, show(anaCancels));
+  const otherCancels = await as(OTHER_EMP, "authenticated", `delete from public.document_requests where id = $1 returning id`, [waiting]);
+  check("8. nor can another employer", otherCancels.ok && otherCancels.rows.length === 0, show(otherCancels));
+  const ownerCancels = await as(OWNER, "authenticated", `delete from public.document_requests where id = $1 returning id`, [waiting]);
+  check("8. the owner cancels one nobody answered", ownerCancels.ok && ownerCancels.rows.length === 1, show(ownerCancels));
+  const withFile = await as(OWNER, "authenticated", `delete from public.document_requests where id = $1 returning id`, [nbi]);
+  check("8. …but never one with a file in it (it would stay in the bucket, out of the cleanup's sight)", withFile.ok && withFile.rows.length === 0 && (await pg(`select 1 from public.document_requests where id = $1`, [nbi])).length === 1, show(withFile));
+  const withAnswer = await as(OWNER, "authenticated", `delete from public.document_requests where id = $1 returning id`, [payReq]);
+  check("8. …nor one with a typed answer", withAnswer.ok && withAnswer.rows.length === 0, show(withAnswer));
 }
 
 await main();

@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useId } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSchemaMode } from "@/hooks/useSchemaMode";
@@ -78,4 +79,39 @@ export function useDocuments() {
     },
     enabled: !!user && mode === "hireflow1",
   });
+}
+
+/**
+ * Keeps the applicant's documents live (2026-10-10, the owner: both sides
+ * update without a refresh): the team countersigning, withdrawing or sending
+ * a letter refreshes Your documents at once. Mount it once, on the page that
+ * lists them. The topic carries useId() so a second mount never shares (and
+ * breaks) the first one's channel; RLS limits delivery to their own rows.
+ */
+export function useDocumentsLive() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const instanceId = useId();
+  const userId = user?.id;
+  useEffect(() => {
+    if (!userId) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const refresh = () => {
+      if (timer) return;
+      timer = setTimeout(() => {
+        timer = null;
+        void queryClient.invalidateQueries({ queryKey: ["documents"] });
+      }, 250);
+    };
+    const channel = supabase
+      .channel(`my-documents-${userId}-${instanceId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "documents" }, refresh)
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") refresh();
+      });
+    return () => {
+      if (timer) clearTimeout(timer);
+      void supabase.removeChannel(channel);
+    };
+  }, [userId, instanceId, queryClient]);
 }

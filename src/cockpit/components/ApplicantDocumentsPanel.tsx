@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { PanelLabel } from "./ProfileSection";
-import { isTypedAnswer, openRequestFile, useApplicantRequests, useReviewRequest, type ApplicantRequest } from "../hooks/useApplicantRequests";
+import { isTypedAnswer, openRequestFile, useApplicantRequests, useCancelRequest, useReviewRequest, type ApplicantRequest } from "../hooks/useApplicantRequests";
+import { useAuth } from "@/hooks/useAuth";
 import { idDeletion, requestKind, requestTitle, shownAnswer, statusWords, timeLeft } from "@/lib/documentRequests";
 
 /**
@@ -34,6 +35,9 @@ function tone(status: string): { background: string; color: string } {
 /** One request: what was asked, where it stands, what came back. `person` names the applicant (the Documents page's list). */
 export function RequestRow({ request, person }: { request: ApplicantRequest; person?: string }) {
   const review = useReviewRequest();
+  const cancel = useCancelRequest();
+  const { role } = useAuth();
+  const [cancelArmed, setCancelArmed] = useState(false);
   const queryClient = useQueryClient();
   const [asking, setAsking] = useState(false);
   const [reason, setReason] = useState("");
@@ -129,6 +133,38 @@ export function RequestRow({ request, person }: { request: ApplicantRequest; per
                 Ask again
               </button>
             </>
+          )}
+        </div>
+      )}
+      {/* Nothing sent yet: the owner can take it back (the database refuses once something is in). */}
+      {request.status === "pending" && !request.file_url && !request.answer_text && role === "employer" && (
+        <div className="mt-1.5 flex items-center gap-2">
+          <button
+            type="button"
+            className="text-[12px] underline underline-offset-2"
+            style={{ color: cancelArmed ? "var(--crit)" : "var(--ink-3)" }}
+            disabled={cancel.isPending}
+            onClick={async () => {
+              if (!cancelArmed) {
+                setCancelArmed(true);
+                return;
+              }
+              try {
+                await cancel.mutateAsync(request);
+                toast.success(`${requestTitle(request)} request cancelled`);
+              } catch (error) {
+                toast.error((error as Error).message);
+                setCancelArmed(false);
+              }
+            }}
+            data-request-cancel
+          >
+            {cancel.isPending ? "Cancelling..." : cancelArmed ? "Press again to cancel this request" : "Cancel request"}
+          </button>
+          {cancelArmed && !cancel.isPending && (
+            <button type="button" className="text-[12px]" style={{ color: "var(--ink-3)" }} onClick={() => setCancelArmed(false)}>
+              Keep it
+            </button>
           )}
         </div>
       )}

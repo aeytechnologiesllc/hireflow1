@@ -19,7 +19,10 @@ import { useHireWithDocuments, useOfferLetterState } from "../hooks/useHire";
  * first press, and the hire itself only happens once (useHireWithDocuments).
  */
 
-const DEFAULT_KINDS = ["government_id", "nbi_clearance", "payment_email"];
+// The owner, 2026-10-10: "Why did I ask for NBI clearance? What is that?" An
+// NBI clearance (the Philippines' police record) is there to tick, never
+// ticked for him.
+const DEFAULT_KINDS = ["government_id", "payment_email"];
 
 export function HireDialog({
   open,

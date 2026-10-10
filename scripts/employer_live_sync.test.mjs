@@ -84,6 +84,7 @@ const {
   QueryObserver,
   LIVE_SYNC_QUERY_KEYS,
   LIVE_SYNC_SESSION_KEYS,
+  LIVE_SYNC_REQUEST_KEYS,
   LIVE_SYNC_COALESCE_MS,
   applyApplicationChange,
   applySessionChange,
@@ -237,7 +238,10 @@ console.log("one channel per mounted instance, bound before subscribe");
   const interviewTopics = all.filter((t) => t.startsWith(`employer-interviews-${USER}-`));
   assert(topics.length === 2, `two mounts open two applications channels (got ${topics.length}: ${topics.join(", ")})`);
   assert(sessionTopics.length === 2, `…two test-record channels of their own (got ${all.join(", ")})`);
-  assert(interviewTopics.length === 2 && all.length === 6, `…and two interview channels of their own (got ${all.join(", ")})`);
+  const requestTopics = all.filter((t) => t.startsWith(`employer-requests-${USER}-`));
+  const documentTopics = all.filter((t) => t.startsWith(`employer-documents-${USER}-`));
+  assert(interviewTopics.length === 2, `…two interview channels of their own (got ${all.join(", ")})`);
+  assert(requestTopics.length === 2 && documentTopics.length === 2 && all.length === 10, `…and two each for document requests and documents (got ${all.join(", ")})`);
   assert(
     [...topics, ...sessionTopics, ...interviewTopics].every((t) => t.endsWith(":r1:") || t.endsWith(":r7:")),
     "every topic carries its instance id",
@@ -271,7 +275,7 @@ console.log("one channel per mounted instance, bound before subscribe");
   stopA();
   stopB();
   await settle();
-  assert(client.removed.length === 6 && client.channels.size === 0, "cleanup removes all six channels");
+  assert(client.removed.length === 10 && client.channels.size === 0, "cleanup removes all ten channels");
 }
 
 console.log("\nSUBSCRIBED runs a catch-up round that never cancels a fetch in flight");
@@ -387,7 +391,7 @@ console.log("\ncleanup stops everything");
   chan.status("SUBSCRIBED");
   await timers.fire();
   assert(calls.length === 0, "nothing refetches after cleanup");
-  assert(client.removed.length === 3, "all three channels are removed");
+  assert(client.removed.length === 5, "all five channels are removed");
 }
 
 console.log("\nthe test record: an attempt's change lands at once and refetches only its own events");
@@ -525,6 +529,30 @@ console.log("\nbooked interviews stay live");
   apps.emit(update({ id: "a1", phase: "step_chat" }));
   await timers.fire();
   assert(calls.length === LIVE_SYNC_QUERY_KEYS.length && !calls.some((c) => c.key === '["interviews"]'), "a failing interview channel never stalls the applicant list");
+  stop();
+}
+
+console.log("\nthe paperwork stays live (the owner, 2026-10-10: \"I sent the ID, it didn't refresh here\")");
+{
+  const client = fakeClient();
+  const { queryClient, calls } = spyClient();
+  const timers = fakeTimers();
+  const stop = startEmployerLiveSync({ client, queryClient, userId: USER, instanceId: ":r1:", timers });
+  const requests = [...client.channels.values()].find((c) => c.topic.startsWith("employer-requests-"));
+  const documents = [...client.channels.values()].find((c) => c.topic.startsWith("employer-documents-"));
+  const rf = requests.bindings[0]?.filter ?? {};
+  assert(!requests.boundAfterSubscribe && requests.bindings.length === 1 && rf.table === "document_requests" && rf.event === "*" && rf.filter === undefined, "the requests channel listens to every change on public.document_requests (RLS scopes delivery)");
+  const df = documents.bindings[0]?.filter ?? {};
+  assert(!documents.boundAfterSubscribe && documents.bindings.length === 1 && df.table === "documents" && df.event === "*", "the documents channel listens to public.documents");
+  requests.emit({ eventType: "UPDATE", schema: "public", table: "document_requests", errors: null, new: { id: "r1", status: "submitted" }, old: { id: "r1" } });
+  requests.emit({ eventType: "UPDATE", schema: "public", table: "document_requests", errors: null, new: { id: "r1", status: "submitted" }, old: { id: "r1" } });
+  await timers.fire();
+  const keys = calls.map((c) => c.key);
+  assert(LIVE_SYNC_REQUEST_KEYS.every((k) => keys.filter((x) => x === JSON.stringify(k)).length === 1) && keys.includes('["applicant-requests"]') && keys.includes('["all-requests"]'), `an ID sent refreshes the applicant page and the ID & papers list, once per burst (got ${keys.join(" ")})`);
+  calls.length = 0;
+  documents.emit({ eventType: "UPDATE", schema: "public", table: "documents", errors: null, new: { id: "d1", status: "pending" }, old: { id: "d1" } });
+  await timers.fire();
+  assert(calls.some((c) => c.key === '["documents"]') && calls.some((c) => c.key === '["document-audit-log"]'), `a signature refreshes the Documents page and the open letter (got ${calls.map((c) => c.key).join(" ")})`);
   stop();
 }
 

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useDocumentRequests, DocumentRequestWithDetails } from "@/hooks/useDocumentRequests";
-import { useDocuments, type DocumentWithApplication } from "@/hooks/useDocuments";
+import { useDocuments, useDocumentsLive, type DocumentWithApplication } from "@/hooks/useDocuments";
 import { DocumentRequestCard } from "@/components/documents/DocumentRequestCard";
 import { DocumentUploadDialog } from "@/components/documents/DocumentUploadDialog";
 import { SignedDocumentViewer } from "@/components/documents/SignedDocumentViewer";
@@ -81,6 +81,7 @@ export default function MyDocuments() {
     refetch: refetchRequests,
   } = useDocumentRequests();
   const { data: signDocuments = [], isLoading: signLoading } = useDocuments();
+  useDocumentsLive();
 
   const [uploadDialogRequest, setUploadDialogRequest] = useState<DocumentRequestWithDetails | null>(null);
   // A written document (an offer letter) opens the applicant's signing

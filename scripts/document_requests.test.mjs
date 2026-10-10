@@ -168,7 +168,7 @@ eq("due choices", lib.DUE_CHOICES.join(","), "3,5,7");
   check("…and no automatic retry", /retry: false/.test(hire));
   const dialog = read("src/cockpit/components/HireDialog.tsx");
   check("the Hire button locks before anything is awaited", /if \(locked \|\| !candidateId\) return;\s*\/\/[^\n]*\n\s*setLocked\(true\);\s*try \{\s*const result = await hire\.mutateAsync/.test(dialog));
-  check("…the usual documents are ticked to start", /DEFAULT_KINDS = \["government_id", "nbi_clearance", "payment_email"\]/.test(dialog));
+  check("…the usual documents are ticked to start: an ID and the payment email, never the NBI clearance (the owner, 2026-10-10)", /DEFAULT_KINDS = \["government_id", "payment_email"\]/.test(dialog));
   const page = read("src/cockpit/pages/CandidateDetail.tsx");
   check("the applicant page hires through that box only", /setHireOpen\(true\)/.test(page) && !/HiringDocumentPromptDialog/.test(page) && !/onHire=/.test(page));
   check("into Offer is the offer letter itself, on the page and the dashboard", /advanceLabel === "Offer"\s*\? \{ key: "offer", text: "Send offer letter"/.test(page) && /=== "Offer" \? setOfferFor\(c\.id\)/.test(read("src/cockpit/pages/Dashboard.tsx")));

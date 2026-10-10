@@ -33,6 +33,21 @@ everything asked of anyone (the owner: "I still don't know how do I request
 ... a government ID"). The six AI-written types behind "+ New document" are
 gone; "Upload a file to sign" takes a PDF of his own (an NDA, a contract).
 
+**Later the same day:**
+- **Live on both sides.** The staff live sync (`useEmployerLiveSync`, wave 5)
+  listens to `document_requests` and `documents` on channels of their own: an
+  ID sent or a letter signed refreshes the open screens at once (the owner:
+  "I sent the ID, it didn't refresh here"). The applicant's Your documents
+  listens to `documents` (`useDocumentsLive`); their requests were already live.
+- **NBI clearance is not ticked by default** in the Hire box (the owner: "Why
+  did I ask for NBI clearance? What is that?"). It is the Philippines' police
+  record certificate; it stays on the list to tick.
+- **Cancel request** for anything nobody has answered yet (owner only). The
+  database now allows deleting a request only while it holds no file and no
+  typed answer (migration `20261011140000_cancel_only_unanswered_requests.sql`):
+  before, deleting a request with an uploaded ID left the photo in the bucket,
+  out of the 24-hour cleanup's sight.
+
 ## What each side sees
 
 **The hiring team**, on an applicant's page (`src/cockpit/pages/CandidateDetail.tsx`):
