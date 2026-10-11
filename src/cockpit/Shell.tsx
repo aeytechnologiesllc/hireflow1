@@ -1,20 +1,7 @@
 import { type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTheme } from "next-themes";
-import {
-  Home,
-  Briefcase,
-  Users,
-  CalendarDays,
-  MessageSquare,
-  FileText,
-  BarChart3,
-  ChevronDown,
-  Bell,
-  MoreHorizontal,
-  Sun,
-  Moon,
-} from "lucide-react";
+import { ChevronDown, Bell, Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { prefetchForPath } from "@/lib/prefetchRoutes";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -24,34 +11,35 @@ import { useUnreadMessagesCount } from "@/hooks/useUnreadMessagesCount";
 import { useInterviewsLeftToday } from "./hooks/useInterviewsLeftToday";
 import { Wordmark } from "./components/Wordmark";
 import { AccountMenu } from "./components/AccountMenu";
+import { NavIcon, playNavIcon, type NavIconName } from "./components/NavIcon";
 
 interface NavItem {
   label: string;
   to: string;
-  icon: typeof Home;
+  icon: NavIconName;
 }
 
 const NAV: NavItem[] = [
-  { label: "Dashboard", to: "/dashboard", icon: Home },
+  { label: "Dashboard", to: "/dashboard", icon: "dashboard" },
   // People before job admin — the design puts Applicants second on purpose.
-  { label: "Applicants", to: "/applicants", icon: Users },
-  { label: "Jobs", to: "/jobs", icon: Briefcase },
-  { label: "Interviews", to: "/interviews", icon: CalendarDays },
-  { label: "Messages", to: "/messages", icon: MessageSquare },
-  { label: "Documents", to: "/documents", icon: FileText },
+  { label: "Applicants", to: "/applicants", icon: "applicants" },
+  { label: "Jobs", to: "/jobs", icon: "jobs" },
+  { label: "Interviews", to: "/interviews", icon: "interviews" },
+  { label: "Messages", to: "/messages", icon: "messages" },
+  { label: "Documents", to: "/documents", icon: "documents" },
   // Team is off the menu (the owner, 2026-10-09: "definitely remove the team
   // tab ... I think it just complicates things"). Nobody had been invited.
   // The page, its invitations and its access rules are all still there at
   // /team, so a hiring team with more than one person can have it back.
-  { label: "Analytics", to: "/analytics", icon: BarChart3 },
+  { label: "Analytics", to: "/analytics", icon: "analytics" },
 ];
 
-const MOBILE_TABS = [
-  { label: "Dashboard", to: "/dashboard", icon: Home },
-  { label: "Applicants", to: "/applicants", icon: Users },
-  { label: "Jobs", to: "/jobs", icon: Briefcase },
-  { label: "Messages", to: "/messages", icon: MessageSquare },
-  { label: "More", to: "/more", icon: MoreHorizontal },
+const MOBILE_TABS: NavItem[] = [
+  { label: "Dashboard", to: "/dashboard", icon: "dashboard" },
+  { label: "Applicants", to: "/applicants", icon: "applicants" },
+  { label: "Jobs", to: "/jobs", icon: "jobs" },
+  { label: "Messages", to: "/messages", icon: "messages" },
+  { label: "More", to: "/more", icon: "more" },
 ];
 
 const TITLES: Record<string, string> = {
@@ -125,7 +113,6 @@ function Sidebar() {
       <nav className="flex flex-1 flex-col gap-1">
         {NAV.map((item) => {
           const active = isActive(pathname, item.to);
-          const Icon = item.icon;
           return (
             <Link
               key={item.to}
@@ -135,9 +122,10 @@ function Sidebar() {
               // focus, so whichever signal comes first starts the fetch.
               // No-ops for already-eager routes (routeImporters won't have
               // an entry for them).
-              onMouseEnter={() => prefetchForPath(item.to)}
+              // ...and the icon plays its own motion once (NavIcon.tsx).
+              onMouseEnter={(e) => { prefetchForPath(item.to); playNavIcon(e); }}
               onPointerDown={() => prefetchForPath(item.to)}
-              onFocus={() => prefetchForPath(item.to)}
+              onFocus={(e) => { prefetchForPath(item.to); playNavIcon(e); }}
               // The label is display:none in the rail, so the name has to be
               // carried by aria-label or the link goes unnamed.
               aria-label={item.label}
@@ -156,7 +144,7 @@ function Sidebar() {
               // Jade marks where you are. Brass is money, and never the rail.
               style={active ? { boxShadow: "inset 2px 0 0 var(--jade), var(--hf-shadow-soft)" } : undefined}
             >
-              <Icon className="h-[18px] w-[18px] shrink-0 transition-transform group-hover:translate-x-px" />
+              <NavIcon name={item.icon} className="h-[18px] w-[18px] shrink-0" />
               <span className="hidden min-[1121px]:inline">{item.label}</span>
               {item.to === "/messages" && unreadMessages > 0 && (
                 <span
@@ -339,10 +327,10 @@ function MobileTabBar() {
     >
       {MOBILE_TABS.map((tab) => {
         const active = tab.to === "/more" ? moreActive : isActive(pathname, tab.to);
-        const Icon = tab.icon;
         return (
           <button
             key={tab.to}
+            onPointerDown={playNavIcon}
             onClick={() => navigate(tab.to)}
             aria-current={active ? "page" : undefined}
             className="relative flex min-w-0 flex-1 flex-col items-center gap-1 py-1"
@@ -354,7 +342,7 @@ function MobileTabBar() {
               style={{ background: active ? "var(--jade)" : "transparent" }}
             />
             <span className="relative">
-              <Icon className="h-[22px] w-[22px]" style={{ color: active ? "var(--hf-text)" : "var(--hf-text-muted)" }} />
+              <NavIcon name={tab.icon} className="h-[22px] w-[22px]" style={{ color: active ? "var(--hf-text)" : "var(--hf-text-muted)" }} />
               {tab.to === "/messages" && unreadMessages > 0 && (
                 <span
                   aria-label={`${unreadMessages} unread`}

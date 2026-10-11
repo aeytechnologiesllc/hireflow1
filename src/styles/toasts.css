@@ -1,0 +1,208 @@
+/*
+ * Notifications (src/components/ui/sonner.tsx and the older
+ * src/components/ui/toast.tsx): a warm card on the app's raised surface,
+ * never a black slab with a white button (the owner, 2026-10-11). Every
+ * color is one of the app's tokens, so dark and Paper both follow.
+ * Sonner's own rules sit inside :where() (no weight); the few that do not
+ * are beaten by the extra .hf-toaster here.
+ */
+
+.hf-toaster {
+  --width: 384px;
+  font-family: inherit;
+}
+
+.hf-toaster [data-sonner-toast].hf-toast[data-styled="true"] {
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 14px 15px;
+  background: var(--hf-surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  color: var(--hf-text);
+  box-shadow: var(--hf-toast-shadow);
+  font-size: 13.5px;
+}
+
+.hf-toaster [data-sonner-toast].hf-toast [data-icon] {
+  /* The mark is 30px; the line inside it is placed against the card. */
+  position: static;
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  flex: none;
+}
+
+.hf-toaster [data-sonner-toast].hf-toast [data-content] {
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 2px;
+  padding-top: 4px;
+}
+
+.hf-toaster .hf-toast-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--hf-text);
+}
+
+.hf-toaster .hf-toast-description {
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--hf-text-soft);
+}
+
+/* "Undo" and the like: a jade word, never a white slab. */
+.hf-toaster [data-sonner-toast][data-styled="true"] [data-button].hf-toast-action,
+.hf-toaster [data-sonner-toast][data-styled="true"] [data-button].hf-toast-cancel {
+  height: auto;
+  margin: 1px 0 0;
+  padding: 6px 10px;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--jade);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  transition: background-color 140ms ease;
+}
+.hf-toaster [data-sonner-toast][data-styled="true"] [data-button].hf-toast-cancel {
+  color: var(--hf-text-soft);
+}
+.hf-toaster [data-sonner-toast][data-styled="true"] [data-button].hf-toast-action:hover,
+.hf-toaster [data-sonner-toast][data-styled="true"] [data-button].hf-toast-action:focus-visible {
+  background: var(--jade-soft);
+}
+.hf-toaster [data-sonner-toast][data-styled="true"] [data-button].hf-toast-cancel:hover,
+.hf-toaster [data-sonner-toast][data-styled="true"] [data-button].hf-toast-cancel:focus-visible {
+  background: color-mix(in srgb, var(--hf-text) 7%, transparent);
+}
+.hf-toaster [data-sonner-toast][data-styled="true"] [data-button]:focus-visible {
+  box-shadow: 0 0 0 2px var(--jade);
+}
+
+/* The close button sits in the row, at the right; a card with its own
+   action ("Undo") does without it. */
+.hf-toaster [data-sonner-toast].hf-toast [data-close-button].hf-toast-close {
+  position: static;
+  order: 99;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin: 2px 0 0;
+  transform: none;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--hf-text-muted);
+}
+.hf-toaster [data-sonner-toast].hf-toast [data-close-button].hf-toast-close:hover {
+  background: color-mix(in srgb, var(--hf-text) 7%, transparent);
+  color: var(--hf-text);
+}
+.hf-toaster [data-sonner-toast].hf-toast [data-close-button].hf-toast-close svg {
+  width: 14px;
+  height: 14px;
+}
+.hf-toaster [data-sonner-toast].hf-toast:has([data-button]) [data-close-button] {
+  display: none;
+}
+
+/* The round mark. */
+.hf-toast-mark {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  margin-top: 1px;
+  background: var(--jade-soft);
+  color: var(--jade);
+}
+.hf-toast-mark[data-tone="crit"] {
+  background: color-mix(in srgb, var(--crit) 16%, transparent);
+  color: var(--crit);
+}
+.hf-toast-mark[data-tone="warn"] {
+  background: color-mix(in srgb, var(--hf-warning) 18%, transparent);
+  color: var(--hf-warning);
+}
+.hf-toast-mark[data-tone="info"],
+.hf-toast-mark[data-tone="busy"] {
+  background: color-mix(in srgb, var(--hf-text) 8%, transparent);
+  color: var(--hf-text-soft);
+}
+.hf-toast-mark svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* The check draws itself once as the card arrives. */
+.hf-toast-tick {
+  stroke-dasharray: 24;
+  animation: hf-toast-tick 420ms 140ms ease-out 1 both;
+}
+@keyframes hf-toast-tick {
+  from { stroke-dashoffset: 24; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* A loading card's spinner turns only while the work is still going; the
+   card becomes a check or an error, or goes, when it is done. */
+.hf-toast-spin {
+  animation: hf-toast-spin 0.9s linear infinite;
+}
+@keyframes hf-toast-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* The line along the bottom: runs out once, for as long as the card stays
+   (--hf-toast-ms, set per card in sonner.tsx), and waits while the pointer
+   is over the notifications, as Sonner's own timer does. */
+.hf-toast-time {
+  display: var(--hf-toast-line, block);
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0.55;
+  transform-origin: left;
+  animation: hf-toast-time var(--hf-toast-ms, 4000ms) linear 1 forwards;
+}
+.hf-toaster [data-sonner-toast][data-expanded="true"] .hf-toast-time {
+  animation-play-state: paused;
+}
+@keyframes hf-toast-time {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+/* The older notifications (src/components/ui/toast.tsx). */
+.hf-rtoast {
+  background: var(--hf-surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  color: var(--hf-text);
+  box-shadow: var(--hf-toast-shadow);
+}
+.hf-rtoast .hf-toast-time {
+  animation-duration: 5000ms;
+}
+.hf-rtoast:hover .hf-toast-time {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hf-toast-tick,
+  .hf-toast-time {
+    animation: none;
+  }
+  .hf-toast-time {
+    display: none;
+  }
+}

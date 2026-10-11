@@ -20,6 +20,7 @@
 const ALLOWED = {
   "src/styles/careers.css": { names: ["cr-shimmer"], why: "the loading skeleton, gone once the jobs arrive" },
   "src/components/BrandLoader.tsx": { names: ["hf-rise-draw", "hf-name-breathe"], why: "the loading screen, gone once the page arrives" },
+  "src/styles/toasts.css": { names: ["hf-toast-spin"], why: "a loading notification's spinner, which becomes a check or an error when the work is done" },
 };
 
 /** Old Vite starter stylesheet: allowed only while nothing imports it. */
