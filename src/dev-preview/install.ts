@@ -12,7 +12,7 @@ import { OFFER_DEFAULTS, addDays, dayOf, encodeDocumentBody, offerDocumentBody, 
 import { createFixtureSupabaseClient, type FixtureAuthUser, type FixtureRow, type FixtureTables } from "./fixtureClient";
 import { buildFixtureRpcHandlers, buildFixtureTables, FIXTURE_SCENARIOS, type FixtureScenario } from "./fixtures";
 import { previewHiring, previewRequests } from "./previewRequests";
-import { previewBusinesses } from "./previewBusinesses";
+import { LUCKY_USER, previewAppliedToBoth, previewBusinesses } from "./previewBusinesses";
 import { previewTrustHandlers } from "./previewTrust";
 import {
   APP_QUIZ_ID,
@@ -1197,17 +1197,20 @@ export function install(params: URLSearchParams): void {
   const tables = buildFixtureTables(scenario);
   previewCrowd(tables, params.get("__previewCrowd"));
   previewInterviewTimes(tables, params.get("__previewWhen"));
+  // Signing in as the second business's owner (`?__previewEmployer=lucky`,
+  // with `__previewBusinesses=two`).
+  const signedIn = role === "employer" && params.get("__previewEmployer") === "lucky" ? LUCKY_USER : ROLE_USERS[role];
   const base = createFixtureSupabaseClient({
-    user: ROLE_USERS[role],
+    user: signedIn,
     tables,
     rpc: {
       ...buildFixtureRpcHandlers(scenario),
-      ...previewBlockHandlers(tables, ROLE_USERS[role]),
-      ...previewShortlistHandlers(tables, ROLE_USERS[role]),
-      ...previewNotesHandlers(tables, ROLE_USERS[role], params.get("__previewNotes")),
-      ...previewChatHandlers(tables, ROLE_USERS[role], params.get("__previewChats")),
-      ...previewRatingHandlers(tables, ROLE_USERS[role], params.get("__previewGuide")),
-      ...previewTrustHandlers(tables, ROLE_USERS[role], params),
+      ...previewBlockHandlers(tables, signedIn),
+      ...previewShortlistHandlers(tables, signedIn),
+      ...previewNotesHandlers(tables, signedIn, params.get("__previewNotes")),
+      ...previewChatHandlers(tables, signedIn, params.get("__previewChats")),
+      ...previewRatingHandlers(tables, signedIn, params.get("__previewGuide")),
+      ...previewTrustHandlers(tables, signedIn, params),
     },
   });
   const realtime = liveRealtime(base, tables, params.get("__previewLive"));
@@ -1215,14 +1218,15 @@ export function install(params: URLSearchParams): void {
   // edge function (a short-lived signed link). Offline, it answers with an
   // inline picture, so the record's file previews can be looked at.
   const connectionTest = previewConnectionTest(tables);
-  const continueLinkEmail = previewContinueLinkEmail(ROLE_USERS[role], params.get("__previewEmail"));
+  const continueLinkEmail = previewContinueLinkEmail(signedIn, params.get("__previewEmail"));
   const interviewGuide = previewInterviewGuide(tables, params.get("__previewGuide"));
   previewInterviewClocks(tables, params.get("__previewTheirZone"), params.get("__previewShift"));
   const candidateInterview = previewCandidateInterview(tables, params.get("__previewInterview"));
-  const documentSigning = previewDocuments(tables, ROLE_USERS[role], role, params.get("__previewDocs"));
-  const requestedFiles = previewRequests(tables, ROLE_USERS[role], role === "employer" || role === "team_member", params.get("__previewRequests"));
+  const documentSigning = previewDocuments(tables, signedIn, role, params.get("__previewDocs"));
+  const requestedFiles = previewRequests(tables, signedIn, role === "employer" || role === "team_member", params.get("__previewRequests"));
   previewHiring(tables, params.get("__previewHiring"));
   previewBusinesses(tables, params.get("__previewBusinesses"));
+  previewAppliedToBoth(tables, ROLE_USERS.candidate.id, params.get("__previewApplied"));
   // A visitor with no account (`__previewSignedOut=1`): the page as a stranger
   // who followed a shared link sees it, Apply sending them to sign-in.
   if (params.get("__previewSignedOut") === "1") void base.auth.signOut();
