@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { CandidateShell } from "@/components/candidate/CandidateShell";
-import { CAREERS_PATH } from "@/lib/hosts";
+import { openRolesPath } from "@/lib/openRoles";
 import { SaveProgressPrompt } from "@/components/candidate/SaveProgressPrompt";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -115,7 +115,7 @@ export default function CandidateContinue() {
                   New here?{" "}
                   {/* The open roles, not the job-code box: nobody holding a
                       job's link has a code (docs/SHORT-JOB-LINKS.md). */}
-                  <Link to={CAREERS_PATH} className="text-primary hover:underline">See open roles</Link>
+                  <Link to={openRolesPath()} className="text-primary hover:underline">See open roles</Link>
                 </p>
               </CardContent>
             </Card>

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { belongsToMyView } from "@/lib/staffView";
 import { useSchemaMode } from "@/hooks/useSchemaMode";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 
@@ -17,11 +18,11 @@ export interface InterviewWithDetails extends Interview {
 }
 
 export function useInterviews() {
-  const { user, role } = useAuth();
+  const { user, role, isTeamMember } = useAuth();
   const { data: mode } = useSchemaMode();
 
   return useQuery({
-    queryKey: ["interviews", user?.id, role],
+    queryKey: ["interviews", user?.id, role, isTeamMember],
     queryFn: async () => {
       // Fetch interviews with applications and jobs
       const { data: interviews, error: intError } = await supabase
@@ -43,13 +44,9 @@ export function useInterviews() {
       }
 
       // Filter based on role
-      const filtered = (interviews as InterviewWithDetails[]).filter((interview) => {
-        if (role === "employer") {
-          return interview.applications?.jobs?.employer_id === user!.id;
-        } else {
-          return interview.applications?.candidate_id === user!.id;
-        }
-      });
+      const filtered = (interviews as InterviewWithDetails[]).filter((interview) =>
+        belongsToMyView(interview.applications, { userId: user!.id, role, isTeamMember }),
+      );
 
       if (filtered.length === 0) {
         return [] as InterviewWithDetails[];
@@ -82,11 +79,11 @@ export function useInterviews() {
 }
 
 export function useUpcomingInterviews() {
-  const { user, role } = useAuth();
+  const { user, role, isTeamMember } = useAuth();
   const { data: mode } = useSchemaMode();
 
   return useQuery({
-    queryKey: ["interviews", "upcoming", user?.id, role],
+    queryKey: ["interviews", "upcoming", user?.id, role, isTeamMember],
     queryFn: async () => {
       const now = new Date().toISOString();
       
@@ -111,13 +108,9 @@ export function useUpcomingInterviews() {
       }
 
       // Filter based on role
-      const filtered = (interviews as InterviewWithDetails[]).filter((interview) => {
-        if (role === "employer") {
-          return interview.applications?.jobs?.employer_id === user!.id;
-        } else {
-          return interview.applications?.candidate_id === user!.id;
-        }
-      });
+      const filtered = (interviews as InterviewWithDetails[]).filter((interview) =>
+        belongsToMyView(interview.applications, { userId: user!.id, role, isTeamMember }),
+      );
 
       if (filtered.length === 0) {
         return [] as InterviewWithDetails[];

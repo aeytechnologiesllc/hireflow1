@@ -17,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { useState, useEffect, useId, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { CAREERS_PATH } from "@/lib/hosts";
+import { openRolesPath } from "@/lib/openRoles";
 import { EmptyStateCard } from "@/components/EmptyStateCard";
 import { supabase } from "@/integrations/supabase/client";
 import type { ApplicationWithJob } from "@/hooks/useApplications";
@@ -824,10 +824,10 @@ export default function Applications() {
             description="See the roles that are open. Each one has its own page with an Apply button."
             action={{
               // The open roles, not the job-code box: nobody who came from a
-              // job's link has a code (docs/SHORT-JOB-LINKS.md). With one open
-              // role, the careers page opens it.
+              // job's link has a code (docs/SHORT-JOB-LINKS.md). The roles of
+              // the business whose job they last opened (src/lib/openRoles.ts).
               label: "See open roles",
-              onClick: () => navigate(CAREERS_PATH),
+              onClick: () => navigate(openRolesPath()),
               icon: LetterIdentityGlyph,
             }}
           />

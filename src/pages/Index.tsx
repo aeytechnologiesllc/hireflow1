@@ -178,7 +178,7 @@ export default function Index() {
   // landing page). On the staff host this route is only a doorway.
   usePageHead(
     staffHost
-      ? { title: "Zulu Support Team — Staff", noindex: true }
+      ? { title: "HireFlow — Staff", noindex: true }
       : { title: "Zulu Support Team — Careers", path: CAREERS_PATH, description: "Remote chat support jobs with the Zulu Support Team, including team leads. All online: a few questions, a skills check, a computer check, a typing test, a chat practice and a written interview." },
   );
 
@@ -208,23 +208,30 @@ export default function Index() {
 
   // This is the home business's page (Zulu Support Team): only its own roles.
   // Every other business has its own at /c/<business> (BusinessCareers).
-  const { data: home, isLoading: homeLoading } = useHomeBusiness(!staffHost);
+  const { data: home, isLoading: homeLoading, isError: homeError } = useHomeBusiness(!staffHost);
   const homeEmployer = home?.employer_id ?? null;
-  const { data: roles, isLoading: rolesLoading, isError } = useQuery({
+  const { data: roles, isLoading: rolesLoading, isError: rolesError } = useQuery({
     queryKey: ["careers-open-roles", homeEmployer],
     queryFn: async (): Promise<OpenRole[]> => {
+      // Only ever the home business's own roles. Without it (its page record
+      // missing) the list is empty, never every business's jobs under this
+      // page's name (the 2026-10-11 overview).
+      if (!homeEmployer) return [];
       // The whole row (the same select the job page makes), so the one-role
       // hop below can hand it over and the job opens without a second load.
-      let query = supabase.from("published_jobs_public").select("*");
-      if (homeEmployer) query = query.eq("employer_id", homeEmployer);
-      const { data, error } = await query.order("created_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("published_jobs_public")
+        .select("*")
+        .eq("employer_id", homeEmployer)
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as OpenRole[];
     },
-    enabled: !staffHost && !homeLoading,
+    enabled: !staffHost && !homeLoading && !homeError,
     staleTime: 60_000,
   });
-  const isLoading = homeLoading || rolesLoading;
+  const isError = homeError || rolesError;
+  const isLoading = homeLoading || (rolesLoading && !homeError);
 
   // One open role: go straight to it. Waits for sign-in to settle, so the
   // role-less account above still reaches /auth/callback first.

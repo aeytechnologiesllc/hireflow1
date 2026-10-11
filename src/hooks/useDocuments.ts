@@ -2,6 +2,7 @@ import { useEffect, useId } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { belongsToMyView } from "@/lib/staffView";
 import { useSchemaMode } from "@/hooks/useSchemaMode";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -17,11 +18,11 @@ export interface DocumentWithApplication extends Document {
 }
 
 export function useDocuments() {
-  const { user, role } = useAuth();
+  const { user, role, isTeamMember } = useAuth();
   const { data: mode } = useSchemaMode();
 
   return useQuery({
-    queryKey: ["documents", user?.id, role],
+    queryKey: ["documents", user?.id, role, isTeamMember],
     queryFn: async () => {
       // Fetch documents with applications and jobs
       const { data: documents, error: docError } = await supabase
@@ -43,13 +44,9 @@ export function useDocuments() {
       }
 
       // Filter based on role
-      const filtered = (documents as DocumentWithApplication[]).filter((doc) => {
-        if (role === "employer") {
-          return doc.applications?.jobs?.employer_id === user!.id;
-        } else {
-          return doc.applications?.candidate_id === user!.id;
-        }
-      });
+      const filtered = (documents as DocumentWithApplication[]).filter((doc) =>
+        belongsToMyView(doc.applications, { userId: user!.id, role, isTeamMember }),
+      );
 
       if (filtered.length === 0) {
         return [] as DocumentWithApplication[];

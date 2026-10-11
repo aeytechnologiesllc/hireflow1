@@ -401,6 +401,14 @@ void quiet;
 
   r = await hush(async () => (reset((w) => { w.profiles.find((p) => p.user_id === OWNER).company_name = null; }), ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: { job_title: TITLE_A, company_name: "This employer" } })));
   check("an owner with no business name on file signs as 'The hiring team', not as words from the request", r.status === 200 && textOf(world.sent[0]).endsWith("— The hiring team"), textOf(world.sent[0]).slice(-40));
+  check("…and is sent from HireFlow by name, never Zulu or the request's words", world.sent[0]?.from === "HireFlow <no-reply@hireflownow.com>", world.sent[0]?.from);
+
+  // Every business's applicants get mail from that business by name (the
+  // 2026-10-11 overview: every applicant email said "Zulu Support Team").
+  r = await hush(async () => (reset((w) => { w.profiles.find((p) => p.user_id === OWNER).company_name = "Lucky Star Support, Inc."; }), ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: { job_title: TITLE_A, company_name: "Rival Co" } })));
+  check("another business's applicant gets mail from that business by name (quoted when it has punctuation)", r.status === 200 && world.sent[0]?.from === '"Lucky Star Support, Inc." <no-reply@hireflownow.com>', world.sent[0]?.from);
+  r = await hush(async () => (reset((w) => { w.profiles.find((p) => p.user_id === OWNER).company_name = 'Evil "Co"\r\nBcc: victim@example.com <x>'; }), ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: { job_title: TITLE_A } })));
+  check("a business name cannot break the From header", r.status === 200 && !/[\r\n<>]/.test((world.sent[0]?.from ?? "").replace(/<no-reply@hireflownow\.com>$/, "")) && (world.sent[0]?.from ?? "").endsWith("<no-reply@hireflownow.com>"), world.sent[0]?.from);
 
   // An offer letter is the news that they were chosen (the owner,
   // 2026-10-10: "they need that email. Congratulations, you have been

@@ -31,10 +31,11 @@ import { detectSchemaMode } from "@/cockpit/data/showcaseSource";
 import { fetchRoleById } from "@/lib/showcaseApply";
 import { JobPageHead } from "@/components/seo/JobPageHead";
 import { PageHeadTags } from "@/components/seo/usePageHead";
-import { CAREERS_PATH, isStaffHost } from "@/lib/hosts";
+import { isStaffHost } from "@/lib/hosts";
 import { businessSlugFromParam, jobLookupKey, jobPagePath, pageLookupKey, shortLinkFor, slugFromParam, withApplyAsk } from "@/lib/jobSlug";
 import { jobLevelLabel, jobTypeLabel } from "@/lib/jobLabels";
 import { APPLICANT_BLOCKED_MESSAGE, isApplicantBlockedError } from "@/lib/applicantBlocked";
+import { openRolesPath, rememberBusiness } from "@/lib/openRoles";
 
 export default function JobDetails() {
   // Four doors to this one page (docs/SHORT-JOB-LINKS.md): the job's address
@@ -62,7 +63,10 @@ export default function JobDetails() {
   // never had one, so the code box was a dead end dressed up as a way out
   // (for a signed-in candidate too). With one open role the careers page
   // opens it.
-  const strandedRoute = CAREERS_PATH;
+  // A business's own link (/c/<business>/<job>) strands them on that
+  // business's roles, never another business's (the home business's address
+  // forwards to /careers itself).
+  const strandedRoute = lookupBusiness ? `/c/${lookupBusiness}` : openRolesPath();
   // This page IS the candidate's view, so it always reads the candidate's
   // source: published_jobs_public. It used to be
   //   !user || role === "candidate"
@@ -169,6 +173,13 @@ export default function JobDetails() {
     queryClient.setQueryData(["job-details", pageLookupKey(job), shouldRestrictToPublished], job);
     navigate(`${forwardTo}${location.search}${location.hash}`, { replace: true });
   }, [forwardTo, job, location.search, location.hash, navigate, queryClient, shouldRestrictToPublished]);
+
+  // "See open roles" elsewhere (sign-out, an empty list) goes to this
+  // job's business from now on (src/lib/openRoles.ts).
+  const jobBusiness = (job as { business_slug?: string | null } | null | undefined)?.business_slug ?? null;
+  useEffect(() => {
+    if (jobBusiness) rememberBusiness(jobBusiness);
+  }, [jobBusiness]);
 
   // Apply → sign in → straight into the form (docs/SHORT-JOB-LINKS.md §2).
   // The sign-in screen brings the person back here with ?apply=1, and the

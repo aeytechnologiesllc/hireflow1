@@ -44,14 +44,20 @@ const hosts = await read("src/lib/hosts.ts");
 check("the careers page is at /careers", /export const CAREERS_PATH = "\/careers";/.test(hosts) && /<Route path=\{CAREERS_PATH\} element=\{<Index \/>\} \/>/.test(app));
 check("\"/\" inside the app goes there on the applicants' site; the staff site keeps its doorway", /<Route path="\/" element=\{isStaffHost\(\) \? <Index \/> : <Navigate to=\{CAREERS_PATH\} replace \/>\} \/>/.test(app));
 check("/careers belongs on the applicants' site (the staff site sends it there)", /\/\^\\\/careers\\\/\?\$\//.test(hosts));
+// Since 2026-10-11 "see open roles" is the roles of the business whose job
+// the applicant last opened (src/lib/openRoles.ts), /careers when none is
+// known, so another business's applicant is never sent to the home business.
+const openRoles = await read("src/lib/openRoles.ts");
+check("\"see open roles\" falls back to /careers when no business is known", /return CAREERS_PATH;/.test(openRoles) && /return `\/c\/\$\{slug\}`;/.test(openRoles));
 for (const [file, pattern] of [
-  ["src/pages/JobDetails.tsx", /const strandedRoute = CAREERS_PATH;/],
-  ["src/pages/Applications.tsx", /onClick: \(\) => navigate\(CAREERS_PATH\)/],
-  ["src/pages/CandidateContinue.tsx", /<Link to=\{CAREERS_PATH\}[^>]*>See open roles<\/Link>/],
+  ["src/pages/JobDetails.tsx", /const strandedRoute = lookupBusiness \? `\/c\/\$\{lookupBusiness\}` : openRolesPath\(\);/],
+  ["src/pages/Applications.tsx", /onClick: \(\) => navigate\(openRolesPath\(\)\)/],
+  ["src/pages/CandidateContinue.tsx", /<Link to=\{openRolesPath\(\)\}[^>]*>See open roles<\/Link>/],
   ["src/pages/Index.tsx", /<Link to=\{CAREERS_PATH\} className="cr-brand"/],
-  ["src/components/AppHeader.tsx", /navigate\(isStaffHost\(\) \? "\/" : CAREERS_PATH\)/],
-  ["src/pages/NotFound.tsx", /href=\{isStaffHost\(\) \? "\/" : CAREERS_PATH\}/],
-]) check(`"see open roles" goes to /careers: ${file}`, pattern.test(await read(file)));
+  ["src/components/AppHeader.tsx", /navigate\(isStaffHost\(\) \? "\/" : openRolesPath\(\)\)/],
+  ["src/pages/NotFound.tsx", /href=\{isStaffHost\(\) \? "\/" : openRolesPath\(\)\}/],
+]) check(`"see open roles" goes to the applicant's own business: ${file}`, pattern.test(await read(file)));
+check("the job page and a business's careers page remember that business", /rememberBusiness\(jobBusiness\)/.test(await read("src/pages/JobDetails.tsx")) && /rememberBusiness\(slug\)/.test(await read("src/pages/BusinessCareers.tsx")));
 check("the careers page is listed as /careers", /path: CAREERS_PATH, description:/.test(await read("src/pages/Index.tsx")));
 
 console.log("\nThe page itself");

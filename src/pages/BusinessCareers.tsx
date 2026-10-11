@@ -1,4 +1,5 @@
 import { Link, Navigate, useLocation, useParams } from "react-router-dom";
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,6 +8,7 @@ import { useBusinessPageBySlug } from "@/hooks/useBusinessPage";
 import { businessSlugFromParam, jobPagePath } from "@/lib/jobSlug";
 import { CAREERS_PATH } from "@/lib/hosts";
 import { payWords } from "@/lib/jobPost";
+import { rememberBusiness } from "@/lib/openRoles";
 
 /**
  * A business's careers page: hireflownow.com/c/<business> (docs/BUSINESS-TRUST.md,
@@ -73,6 +75,10 @@ export default function BusinessCareers() {
     description: page?.about ?? `Open roles at ${name}. Apply online with HireFlow.`,
     noindex: !page,
   });
+  // "See open roles" elsewhere comes back here (src/lib/openRoles.ts).
+  useEffect(() => {
+    if (page && !page.home_alias) rememberBusiness(slug);
+  }, [page, slug]);
 
   if (page?.home_alias) return <Navigate to={`${CAREERS_PATH}${location.search}`} replace />;
 

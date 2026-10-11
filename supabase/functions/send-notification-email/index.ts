@@ -91,8 +91,19 @@ const EMPLOYER_FACING: ReadonlySet<NotificationType> = new Set<NotificationType>
  *  The owner: "the applicant cannot email or reply to the email we sent them
  *  ... they should only message us." So the address says it, and every
  *  applicant's email says where to write instead (NO_REPLY_NOTE below). */
-const CANDIDATE_SENDER = "Zulu Support Team <no-reply@hireflownow.com>";
+const CANDIDATE_ADDRESS = "no-reply@hireflownow.com";
 const TEAM_SENDER = "HireFlow <notifications@hireflownow.com>";
+
+/** An applicant's email is from the business they applied to, by name
+ *  ("Zulu Support Team <no-reply@…>"), never another business's: the name
+ *  is the one the server looked up for the job's owner (notificationAccess),
+ *  cleaned of anything that could break the header, quoted when it has
+ *  punctuation, and "HireFlow" when the business has no name on file. */
+function candidateSenderFor(companyName: unknown): string {
+  const name = String(companyName ?? "").replace(/["\\<>\r\n\t]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60).trim();
+  if (!name) return `HireFlow <${CANDIDATE_ADDRESS}>`;
+  return /^[A-Za-z0-9 '&-]+$/.test(name) ? `${name} <${CANDIDATE_ADDRESS}>` : `"${name}" <${CANDIDATE_ADDRESS}>`;
+}
 
 const isCandidateEmail = (type: NotificationType, recipientRole: RecipientRole) =>
   type === "new_message" ? recipientRole === "candidate" : !EMPLOYER_FACING.has(type);
@@ -1077,7 +1088,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`[send-notification-email] Sending email to ${profile.email} with subject: ${emailContent.subject}`);
 
     const emailResponse = await resend.emails.send({
-      from: isCandidateEmail(type, recipientRole) ? CANDIDATE_SENDER : TEAM_SENDER,
+      from: isCandidateEmail(type, recipientRole) ? candidateSenderFor(data?.company_name) : TEAM_SENDER,
       to: [profile.email],
       subject: emailContent.subject,
       html: emailContent.html,

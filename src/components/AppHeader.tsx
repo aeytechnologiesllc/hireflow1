@@ -13,7 +13,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown, LogOut, Settings, User, Menu } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { CAREERS_PATH, isStaffHost } from "@/lib/hosts";
+import { isStaffHost } from "@/lib/hosts";
+import { openRolesPath } from "@/lib/openRoles";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -45,7 +46,7 @@ export default function AppHeader({ onMenuClick, isMobile }: AppHeaderProps) {
 
   const handleSignOut = async () => {
     await signOut();
-    navigate(isStaffHost() ? "/" : CAREERS_PATH);
+    navigate(isStaffHost() ? "/" : openRolesPath());
   };
 
   const userInitials = user?.user_metadata?.full_name

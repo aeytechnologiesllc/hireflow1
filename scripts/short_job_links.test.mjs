@@ -249,7 +249,8 @@ check("a name with no business and no root link is no short link (it could be an
   check("Index.tsx goes to the one job with replace", /rootDestination\(roles\)/.test(index) && /navigate\(singleRole, \{ replace: true \}\)/.test(index));
   check("Index.tsx reads the whole row and links roles by jobPagePath", /\.from\("published_jobs_public"\)\s*\.select\("\*"\)/.test(index) && /<Link to=\{jobPagePath\(job\)\}/.test(index));
   check("...and hands the one role to the job page, which opens without a skeleton", /queryClient\.setQueryData\(\["job-details", pageLookupKey\(only\), true\], only\)/.test(index));
-  check("...and lists only the home business's roles (every other business has /c/<business>)", /useHomeBusiness\(/.test(index) && /query\.eq\("employer_id", homeEmployer\)/.test(index));
+  check("...and lists only the home business's roles (every other business has /c/<business>)", /useHomeBusiness\(/.test(index) && /\.eq\("employer_id", homeEmployer\)/.test(index));
+  check("...and with no home business on file it lists nothing, never every business's jobs", /if \(!homeEmployer\) return \[\];/.test(index) && !/if \(homeEmployer\) query/.test(index));
   check("the root's waiting ground follows the theme (not the always-Night careers ground)", /className="grid min-h-\[100dvh\] place-items-center bg-background" aria-busy="true"/.test(index));
 }
 
@@ -306,7 +307,7 @@ check("...never off the site", jobPageFromRedirect("//evil.example") === null &&
   check("a signed-in candidate's home is their applications, not the code box", /if \(role === "candidate"\) \{\s*return "\/applications";/.test(routing));
   const applications = await read("src/pages/Applications.tsx");
   // The open roles are at /careers since 2026-10-09 (hireflownow.com/ is HireFlow's landing page).
-  check("no applications yet: 'See open roles', not 'Enter Job Code'", /label: "See open roles",\s*onClick: \(\) => navigate\(CAREERS_PATH\)/.test(applications) && !/navigate\("\/apply"\)/.test(applications));
+  check("no applications yet: 'See open roles', not 'Enter Job Code'", /label: "See open roles",\s*onClick: \(\) => navigate\(openRolesPath\(\)\)/.test(applications) && !/navigate\("\/apply"\)/.test(applications));
   check("sign-in's back link is the job when Apply sent them", /to=\{backToJob \?\? "\/candidate"\}/.test(auth));
 
   const callback = await read("src/pages/AuthCallback.tsx");
@@ -452,7 +453,7 @@ console.log("\nPer business: the same name at two businesses never collides (202
   // job's own business.
   for (const file of ["src/pages/CandidateAuth.tsx", "src/pages/CandidatePortalLanding.tsx", "src/pages/Applications.tsx", "src/components/seo/JobPageHead.tsx", "src/main.tsx", "src/pages/BusinessCareers.tsx"]) {
     const code = (await read(file)).split("\n").filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line)).join("\n");
-    check(`${file} never names Zulu to an applicant`, !/Zulu/.test(code));
+    check(`${file} never names Zulu to an applicant`, !/zulu/i.test(code));
   }
   check("the sign-in screen says which business the job is at", /data-applying-company/.test(auth) && /at \{applyingForCompany\}/.test(auth));
   check("the database's per-business rule reads as 'taken'", slugSaveProblem({ code: "23505", message: 'duplicate key value violates unique constraint "jobs_slug_per_business"' }) === "taken");
