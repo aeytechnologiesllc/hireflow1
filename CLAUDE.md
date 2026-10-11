@@ -136,6 +136,15 @@ names. A function called inside a view runs with the caller's rights: read
 tables directly in `published_jobs_public` (a rehearsal caught
 `business_status_of()` refusing every visitor).
 
+**Never ask for date of birth or age on an application (2026-10-11).**
+Every application starts with the built-in "Are you 18 or older?"
+(`src/lib/ageCheck.ts`; never stored in a job's own questions), and the
+database refuses to send one that answered "No" (`applications_refuse_under_18`).
+The owner asked for date of birth; most applicants are in the Philippines,
+where RA 10911 Section 5(a) makes it unlawful to "require the declaration of
+age or birth date during the application process". The exact date comes after
+the hire, from the ID asked for with "Ask for ID or papers".
+
 **No business approval (the owner, 2026-10-11: "I don't want the
 headache").** Every business is open from sign-up, ID papers included; three
 reports from three different people pause one by itself

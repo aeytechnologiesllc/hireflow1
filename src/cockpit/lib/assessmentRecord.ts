@@ -45,6 +45,7 @@ import { isRetakeOpen, stepHasResult } from "@/lib/journeyProgress";
 import { parseApplicationNotes } from "@/lib/applicationNotes";
 import { stepNeedsComputer } from "@/lib/deviceGate";
 import { phoneAnswer } from "@/lib/phoneNumber";
+import { AGE_QUESTION_ID, withAgeQuestion } from "@/lib/ageCheck";
 
 /* ── Shapes ────────────────────────────────────────────────────────────── */
 
@@ -2380,9 +2381,11 @@ function draftDetail(ctx: BuildContext, session: AssessmentSessionRow): Assessme
   const draft = obj(session.draft) ?? {};
   const codes = obj(draft._phoneCountryCodes) ?? {};
   const files = uploadsOf(ctx);
-  const questions = (Array.isArray(ctx.app.jobs?.application_questions) ? (ctx.app.jobs!.application_questions as unknown[]) : [])
+  const jobQuestions = (Array.isArray(ctx.app.jobs?.application_questions) ? (ctx.app.jobs!.application_questions as unknown[]) : [])
     .map(obj)
     .filter((q): q is Obj => !!q);
+  // "Are you 18 or older?" leads once they have answered it (src/lib/ageCheck.ts).
+  const questions: Obj[] = draft[AGE_QUESTION_ID] != null ? (withAgeQuestion(jobQuestions) as Obj[]) : jobQuestions;
   const answers: AnswerItem[] = [];
   const push = (id: string, question: string, type: string | null, value: unknown) => {
     let answer = "";

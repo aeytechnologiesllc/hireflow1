@@ -64,6 +64,7 @@ import { ApplicantInTheirWords } from "../components/ApplicantInTheirWords";
 import { ApplicantIntegrityPanel } from "../components/ApplicantIntegrityPanel";
 import { PanelLabel, ProfileSection } from "../components/ProfileSection";
 import { firstName } from "../lib/avaProse";
+import { withAgeQuestion } from "@/lib/ageCheck";
 import { useApplicationSessions, useNow } from "../hooks/useAssessmentSessions";
 import { buildAssessmentRecord, liveTone, type AssessmentAppInput, type AssessmentEntry } from "../lib/assessmentRecord";
 import {
@@ -1045,7 +1046,8 @@ function CandidateProfile({
       ? testTiles(record.entries, { passing: deskApp?.jobs?.passing_score ?? null, questions, answers, quizQuestions: deskApp?.jobs?.quiz_questions })
       : [];
     const words = inTheirWords(questions, answers, deskApp?.jobs?.title ?? c.role);
-    const glance = atAGlance(questions, answers);
+    // "18 or older" first: every application asks it (src/lib/ageCheck.ts).
+    const glance = atAGlance(withAgeQuestion(Array.isArray(questions) ? questions : []), answers);
     const contact = contactFacts(answers, c.email);
     const applicationEntry = record?.entries.find((e) => e.kind === "application" && e.openable) ?? null;
     const suggestion = avaSuggests(deskApp?.ai_scorecard, status, advanceLabel);

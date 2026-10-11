@@ -52,6 +52,7 @@ import {
   RESUME_FORMATS_LABEL,
 } from "@/utils/resumeFiles";
 import { notifyApplicationSubmitted } from "@/utils/emailNotifications";
+import { AGE_QUESTION_ID, UNDER_AGE_MESSAGE, isUnderAgeAnswer, withAgeQuestion } from "@/lib/ageCheck";
 import { resolveResumeUrl } from "@/utils/resumeSignedUrl";
 import { GlyphLetter } from "@/components/candidate/glyphs";
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
@@ -328,16 +329,22 @@ export default function ApplicationFormPhase() {
   // renders (the ternary below built a new array/fallback every render,
   // which made the prefill effect further down think its `questions` dep
   // had changed and re-run on every render, not just when the data did).
+  // Every application starts with "Are you 18 or older?" (src/lib/ageCheck.ts):
+  // built in, never part of the job's own list.
   const questions: ApplicationQuestion[] = useMemo(
     () =>
-      Array.isArray(application?.jobs?.application_questions)
-        ? (application.jobs.application_questions as ApplicationQuestion[])
-        : [],
+      withAgeQuestion(
+        Array.isArray(application?.jobs?.application_questions)
+          ? (application.jobs.application_questions as ApplicationQuestion[])
+          : [],
+      ) as ApplicationQuestion[],
     [application?.jobs?.application_questions],
   );
 
   const requiresResume = application?.jobs?.require_resume !== false;
   const hasQuestions = questions.length > 0;
+  // "No" to the age question: the rest of the form goes, and nothing can be sent.
+  const underAge = isUnderAgeAnswer(answers[AGE_QUESTION_ID]);
   const isAutoPilot = application?.jobs?.processing_mode === "auto";
   const hasUploadsInProgress = isUploading || Object.values(uploadingQuestions).some(Boolean);
 
@@ -919,6 +926,7 @@ export default function ApplicationFormPhase() {
     // sync its own warning in real time (see syncQuestionError above).
     setHasAttemptedSubmit(true);
     const errors: Record<string, string> = {};
+    if (underAge) errors[AGE_QUESTION_ID] = "This job is open to people 18 and over.";
 
     // IMPORTANT: Only validate questions that are VISIBLE to the user
     // The UI filters out resume-type file questions when requiresResume is true,
@@ -969,6 +977,32 @@ export default function ApplicationFormPhase() {
     return errors;
   };
 
+  // Under 18: they may close the application themselves (an applicant may
+  // remove one still being filled in). Closing the tab instead leaves it as
+  // it is, and it can never be sent with "No".
+  const [closingApplication, setClosingApplication] = useState(false);
+  const closeUnderAgeApplication = async () => {
+    if (!id || closingApplication) return;
+    setClosingApplication(true);
+    try {
+      const { data: gone, error } = await supabase.from("applications").delete().eq("id", id).select("id");
+      if (error) throw error;
+      if (!gone || gone.length === 0) {
+        toast.error("This application can't be closed from here.");
+        return;
+      }
+      integrity.finish();
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+      toast.success("Application closed");
+      navigate("/applications", { replace: true });
+    } catch (error) {
+      console.error("[ApplicationFormPhase] Closing an under-18 application failed:", error);
+      toast.error("That didn't go through — please try again.");
+    } finally {
+      setClosingApplication(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!application) {
       toast.error("Still loading your application — give it a second, then try again.");
@@ -979,6 +1013,9 @@ export default function ApplicationFormPhase() {
       toast.error("Hang tight — your files are still uploading.");
       return;
     }
+
+    // Never sent with "No" to the age question (the database refuses it too).
+    if (underAge) return;
 
     const errors = validateForm();
     const errorFields = Object.keys(errors);
@@ -1275,6 +1312,8 @@ export default function ApplicationFormPhase() {
           {/* Application Questions - filter out resume questions when requiresResume is true */}
           {questions
             .filter((question) => {
+              // Under 18: only the age question stays, above the message.
+              if (underAge && question.id !== AGE_QUESTION_ID) return false;
               // Skip resume-type file questions when job already requires resume via dedicated section
               if (requiresResume && isResumeQuestion(question)) {
                 return false;
@@ -1756,6 +1795,14 @@ export default function ApplicationFormPhase() {
             </div>
           )})}
 
+          {underAge && (
+            <UnderAgeStop
+              closing={closingApplication}
+              onClose={closeUnderAgeApplication}
+            />
+          )}
+
+          {!underAge && (<>
           {/* Resume Upload - FIXED: Always show when resume required, even if there are file questions */}
           {/* Other file questions (like internet speed screenshots) are separate from resume */}
           {requiresResume && (
@@ -1941,8 +1988,27 @@ export default function ApplicationFormPhase() {
               )}
             </Button>
           </div>
+          </>)}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+/** In place of the rest of the form when the answer to "Are you 18 or
+ *  older?" is "No" (src/lib/ageCheck.ts). The answer can still be changed
+ *  above; nothing else is asked. */
+function UnderAgeStop({ closing, onClose }: { closing: boolean; onClose: () => void }) {
+  return (
+    <div role="status" className="space-y-4 rounded-xl border border-[var(--line)] bg-[var(--ground)] p-5">
+      <p className="text-[15px] leading-relaxed text-foreground">{UNDER_AGE_MESSAGE}</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-muted-foreground">Picked No by mistake? Choose Yes above.</p>
+        <Button variant="outline" onClick={onClose} disabled={closing} className="w-full sm:w-auto">
+          {closing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          Close this application
+        </Button>
+      </div>
     </div>
   );
 }
