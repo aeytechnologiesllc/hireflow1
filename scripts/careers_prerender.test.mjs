@@ -92,6 +92,13 @@ stub(world);
   assert.ok(r.body.includes('content="https://hireflownow.com/share/careers.jpg"'));
   assert.ok(!/Zulu/.test(r.body), "another business's page never says Zulu");
 }
+// The home business at /c/<its name>: the same page as /careers.
+stub(world);
+{
+  const r = await run({ slug: "zulu-support-team" });
+  assert.ok(r.body.includes('<link rel="canonical" href="https://hireflownow.com/careers" />'), "one address for the home business's page");
+  assert.ok(r.body.includes('content="https://hireflownow.com/share/zulu-careers.jpg"'));
+}
 // A name typed in capitals is the same business.
 stub(world);
 {
@@ -135,4 +142,4 @@ stub({ ...world, failShell: true });
   assert.ok(home < end && biz < end);
 }
 
-console.log("careers_prerender: 5 scenarios passed");
+console.log("careers_prerender: 6 scenarios passed");

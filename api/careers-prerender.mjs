@@ -100,9 +100,9 @@ export default async function handler(req, res) {
     if (!shell || !/<div id="root"/i.test(shell)) throw new Error("no shell");
 
     const page = home
-      ? await firstRow("business_pages?home_alias=eq.true&select=employer_id,slug&limit=1")
+      ? await firstRow("business_pages?home_alias=eq.true&select=employer_id,slug,home_alias&limit=1")
       : SLUG_RE.test(slug) && slug.length <= 60
-        ? await firstRow(`business_pages?slug=eq.${encodeURIComponent(slug)}&select=employer_id,slug&limit=1`)
+        ? await firstRow(`business_pages?slug=eq.${encodeURIComponent(slug)}&select=employer_id,slug,home_alias&limit=1`)
         : null;
     if (!page) {
       // No such business: the plain shell (the app says so), never cached for long.
@@ -117,7 +117,9 @@ export default async function handler(req, res) {
       sb(`published_jobs_public?employer_id=eq.${encodeURIComponent(page.employer_id)}&select=title&order=created_at.desc&limit=20`),
     ]);
     const jobs = jobsRes.ok ? await jobsRes.json() : [];
-    const head = careersHead({ company: brand?.company_name, titles: (jobs || []).map((j) => j.title), home, slug: page.slug });
+    // The home business at /c/<its name> is the same page as /careers (the
+    // app moves there), so it says /careers and its own picture.
+    const head = careersHead({ company: brand?.company_name, titles: (jobs || []).map((j) => j.title), home: home || page.home_alias === true, slug: page.slug });
 
     res.statusCode = 200;
     res.setHeader("Content-Type", "text/html; charset=utf-8");
