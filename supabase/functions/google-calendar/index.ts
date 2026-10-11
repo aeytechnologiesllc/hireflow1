@@ -36,6 +36,22 @@ serve(async (req) => {
   }
 
   try {
+    // Signed-in accounts only. verify_jwt lets the site's public key through,
+    // and these actions spend HireFlow's own Google client secret.
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const userClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { data: { user } } = await userClient.auth.getUser();
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: "Please sign in again." }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
     const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET");
 

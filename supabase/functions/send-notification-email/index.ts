@@ -995,7 +995,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (!profile.email_notifications_enabled) {
       console.log(`[send-notification-email] Email notifications globally disabled for ${profile.email}`);
       return new Response(
-        JSON.stringify({ message: "Email notifications disabled", email: profile.email }),
+        JSON.stringify({ message: "Email notifications disabled" }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
@@ -1099,7 +1099,9 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`[send-notification-email] Email sent successfully to ${profile.email}:`, JSON.stringify(emailResponse));
 
     return new Response(
-      JSON.stringify({ success: true, emailResponse, recipient: profile.email }),
+      // Never the address: the caller may be the other side (an applicant who
+      // wrote to the hiring team learns nothing about the owner's account).
+      JSON.stringify({ success: true, emailResponse }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error) {

@@ -239,15 +239,18 @@ serve(async (req) => {
         .maybeSingle(),
       supabaseAdmin
         .from("team_members")
-        .select("id, can_create_jobs, assigned_job_ids")
+        .select("id, can_manage_pipeline, assigned_job_ids")
         .eq("user_id", user.id)
         .eq("employer_id", job.employer_id)
         .eq("status", "active")
         .maybeSingle(),
     ]);
 
+    // Autopilot moves applicants, so it needs "manage pipeline" (the same
+    // flag the applications UPDATE policy asks of a team member), not
+    // "create jobs".
     const teamCanAccessJob = !!teamMembership
-      && teamMembership.can_create_jobs !== false
+      && teamMembership.can_manage_pipeline === true
       && (!Array.isArray(teamMembership.assigned_job_ids)
         || teamMembership.assigned_job_ids.length === 0
         || teamMembership.assigned_job_ids.includes(jobId));

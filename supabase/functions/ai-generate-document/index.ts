@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { callOpenAIChat, openAIErrorStatus } from "../_shared/openai.ts";
+import { requireSignedInUser } from "../_shared/signedInUser.ts";
+import { guardAuthenticatedAiCall } from "../_shared/rateLimit.ts";
 
 // Model is configurable so a retirement is a config change, not a code change.
 // Set OPENAI_DOCUMENT_MODEL to the replacement model when swapping.
@@ -175,6 +177,12 @@ serve(async (req) => {
   }
 
   try {
+    // Each call spends OpenAI money: signed-in accounts only, with a limit.
+    const caller = await requireSignedInUser(req, corsHeaders);
+    if (caller.refusal) return caller.refusal;
+    const limited = await guardAuthenticatedAiCall("ai-generate-document", caller.userId, corsHeaders);
+    if (limited) return limited;
+
     const body: DocumentRequest = await req.json();
     const { 
       documentType, 

@@ -92,17 +92,25 @@ export function parseStorageUrl(url: string): { bucket: string; path: string } |
   return { bucket: match[1], path: decodeURIComponent(match[2]) };
 }
 
-async function fetchWithSignedFallback(url: string, adminClient?: AdminStorageClient): Promise<Response | null> {
+/**
+ * A resume is read only from the applicant's own folder in the resumes
+ * bucket (`<candidate id>/...`, where the upload policy puts every one).
+ * applications.resume_url and the notes' image lists are written by the
+ * applicant, so a link to another bucket, another person's folder or any
+ * other site is refused: the server would open it with the service key and
+ * hand its contents to the AI, whose summary the applicant can read.
+ */
+export function isOwnResumeObject(storageInfo: { bucket: string; path: string } | null, ownerId: string | null | undefined): boolean {
+  if (!storageInfo || !ownerId) return false;
+  if (storageInfo.bucket !== "resumes") return false;
+  const segments = storageInfo.path.split("/");
+  return segments.length >= 2 && segments[0] === ownerId && !segments.includes("..");
+}
+
+async function fetchWithSignedFallback(url: string, adminClient: AdminStorageClient | undefined, ownerId: string): Promise<Response | null> {
   const storageInfo = parseStorageUrl(url);
 
-  if (/^https?:\/\//i.test(url)) {
-    const directResponse = await fetch(url);
-    if (directResponse.ok) {
-      return directResponse;
-    }
-  }
-
-  if (!adminClient || !storageInfo) {
+  if (!adminClient || !storageInfo || !isOwnResumeObject(storageInfo, ownerId)) {
     return null;
   }
 
@@ -132,9 +140,9 @@ function cleanExtractedText(text: string) {
   return text.replace(/\u0000/g, "").replace(/\s+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-export async function fetchResumeText(resumeUrl: string, adminClient?: AdminStorageClient): Promise<string | null> {
+export async function fetchResumeText(resumeUrl: string, adminClient: AdminStorageClient | undefined, ownerId: string): Promise<string | null> {
   try {
-    const response = await fetchWithSignedFallback(resumeUrl, adminClient);
+    const response = await fetchWithSignedFallback(resumeUrl, adminClient, ownerId);
     if (!response) {
       return null;
     }
@@ -179,11 +187,12 @@ export async function fetchResumeText(resumeUrl: string, adminClient?: AdminStor
 async function fetchVisualInputFromUrl(
   url: string,
   source: string,
-  adminClient?: AdminStorageClient,
+  adminClient: AdminStorageClient | undefined,
+  ownerId: string,
   page?: number,
 ): Promise<ResumeVisualInput | null> {
   try {
-    const response = await fetchWithSignedFallback(url, adminClient);
+    const response = await fetchWithSignedFallback(url, adminClient, ownerId);
     if (!response) {
       return null;
     }
@@ -217,9 +226,11 @@ export async function fetchResumeVisualInputs(params: {
   resumeUrl?: string | null;
   parsedNotes?: ParsedNotesForResume | null;
   adminClient?: AdminStorageClient;
+  /** The applicant: only files in their own resumes folder are read. */
+  ownerId: string;
   maxImages?: number;
 }): Promise<ResumeVisualInput[]> {
-  const { resumeUrl, parsedNotes, adminClient, maxImages = 3 } = params;
+  const { resumeUrl, parsedNotes, adminClient, ownerId, maxImages = 3 } = params;
   const imageUrls = new Set<string>();
   const orderedUrls: Array<{ url: string; source: string; page?: number }> = [];
 
@@ -255,7 +266,7 @@ export async function fetchResumeVisualInputs(params: {
 
   const visuals: ResumeVisualInput[] = [];
   for (const item of orderedUrls.slice(0, maxImages)) {
-    const visual = await fetchVisualInputFromUrl(item.url, item.source, adminClient, item.page);
+    const visual = await fetchVisualInputFromUrl(item.url, item.source, adminClient, ownerId, item.page);
     if (visual) {
       visuals.push(visual);
     }

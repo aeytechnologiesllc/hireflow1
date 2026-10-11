@@ -14,6 +14,10 @@ interface ToolCallRequest {
   currentRoute?: string;
 }
 
+// The voice-interview tools an applicant's own session called. Refused since
+// voice was retired (see the check at the top of the handler).
+const VOICE_INTERVIEW_TOOLS = new Set(["end_interview", "record_interview_transcript", "flag_inconsistency", "take_interview_note"]);
+
 // Helper function to check if a string is a valid UUID
 const isUUID = (str: string): boolean => {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -68,6 +72,34 @@ serve(async (req) => {
 
     const { tool_name, parameters, applicationId, currentRoute } = await req.json() as ToolCallRequest;
     console.log("Tool call:", { tool_name, parameters, userId: user.id, currentRoute });
+
+    // Voice is retired (ava-voice-session opens sessions only for the
+    // platform's own account). The interview tools wrote a voice result for
+    // any applicant on their own application, with no voice session behind
+    // it, so they are refused outright; the assistant tools stay for the
+    // platform's own account and its team.
+    if (VOICE_INTERVIEW_TOOLS.has(tool_name)) {
+      return new Response(
+        JSON.stringify({ error: "Voice interviews are no longer available.", code: "voice_retired" }),
+        { status: 410, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    const { data: membership } = await supabaseAdmin
+      .from("team_members")
+      .select("employer_id")
+      .eq("user_id", user.id)
+      .eq("status", "active");
+    const voiceOwners = [user.id, ...((membership ?? []) as { employer_id: string }[]).map((m) => m.employer_id)];
+    const { data: voiceAdmins } = await supabaseAdmin
+      .from("platform_admins")
+      .select("user_id")
+      .in("user_id", voiceOwners);
+    if (!voiceAdmins?.length) {
+      return new Response(
+        JSON.stringify({ error: "Voice isn't available.", code: "voice_retired" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     let result: any;
     switch (tool_name) {

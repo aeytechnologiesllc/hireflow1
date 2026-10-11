@@ -26,7 +26,7 @@
  * checks over the source, not a substitute for that test.
  *
  * 2026-09-16: extended for the free-tier entitlement switch
- * (app_settings 'blueprint_paid', supabase/functions/_shared/appSettings.ts)
+ * (the old app_settings 'blueprint_paid' switch, removed 2026-10-11: applicants never pay)
  * -- the candidate path is now "purchased OR billing is off", not purchase
  * alone. See scripts/guards/blueprint-entitlement-and-pricing.mjs for the
  * checks specific to that switch and to purchase-blueprint's pricing.
@@ -64,8 +64,8 @@ export default [
   {
     id: "performance-report-authorization-decision-present",
     why:
-      `${FN} must gate on candidate-with-purchase OR employer-side, via a testable decision function -- ` +
-      "without it, an authenticated stranger (or a candidate who never paid) still gets the report.",
+      `${FN} must gate on the application's own candidate OR employer-side, via a testable decision function -- ` +
+      "without it, an authenticated stranger still gets the report.",
     run: async ({ read }) => {
       const src = await read(FN);
       const accessSrc = await read(ACCESS_FN);
@@ -81,14 +81,12 @@ export default [
       if (!/isEmployerSide\)\s*return\s*true/.test(accessSrc)) {
         bad.push("canAccessPerformanceReport no longer grants employer-side callers");
       }
-      if (!/isCandidateOwner\s*&&\s*\(hasPurchasedBlueprint\s*\|\|\s*!billingEnabled\)\)\s*return\s*true/.test(accessSrc)) {
-        bad.push(
-          "canAccessPerformanceReport's candidate path must be (hasPurchasedBlueprint || !billingEnabled) -- " +
-          "either a real purchase, or billing being off entirely (app_settings 'blueprint_paid')"
-        );
+      if (!/if\s*\(isCandidateOwner\)\s*return\s*true/.test(accessSrc)) {
+        bad.push("canAccessPerformanceReport's candidate path must be the application's own candidate, free (applicants never pay)");
       }
-      if (!/blueprint_purchases/.test(src)) {
-        bad.push("no blueprint_purchases lookup -- candidate path isn't gated on payment");
+      const code = (text) => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+      if (/blueprint_paid|billingEnabled|hasPurchasedBlueprint|blueprint_purchases/.test(code(accessSrc) + code(src))) {
+        bad.push("the report must not depend on a payment or a billing switch: applicants never pay on HireFlow (2026-10-11)");
       }
       if (!/is_active_team_member_for_job/.test(src)) {
         bad.push(
@@ -104,7 +102,7 @@ export default [
           "applications RLS policy uses) instead"
         );
       }
-      if (!/canAccessPerformanceReport\(/.test(src.slice(src.indexOf("blueprint_purchases")))) {
+      if (!/canAccessPerformanceReport\(/.test(src.slice(src.indexOf("is_active_team_member_for_job")))) {
         bad.push("canAccessPerformanceReport(...) is not called after the ownership lookups");
       }
       if (!/status:\s*403/.test(src)) {

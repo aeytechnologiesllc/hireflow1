@@ -1138,12 +1138,13 @@ ${interviewType} Interview with AVA Results:
     }
 
     const resumeText = detectedResumeUrl
-      ? await fetchResumeText(detectedResumeUrl, supabaseAdmin)
+      ? await fetchResumeText(detectedResumeUrl, supabaseAdmin, application.candidate_id)
       : null;
     const resumeVisualInputs: ResumeVisualInput[] = await fetchResumeVisualInputs({
       resumeUrl: detectedResumeUrl,
       parsedNotes,
       adminClient: supabaseAdmin,
+      ownerId: application.candidate_id,
       maxImages: 3,
     });
 
@@ -1999,6 +2000,28 @@ serve(async (req) => {
       );
     }
 
+    // A decision moves the applicant, so a team member needs "manage
+    // pipeline" for it, the same as the applications UPDATE policy
+    // (is_active_team_member_for_job(..., true)). Scoring alone does not.
+    if (isScopedTeamMember && !isEmployerOwner && !developerRole && autopilotDecision && !previewOnly) {
+      const { data: canManagePipeline, error: pipelineError } = await supabaseUserClient.rpc("is_active_team_member_for_job", {
+        p_job_id: application.job_id,
+        p_user_id: requestingUser.id,
+        p_require_manage_pipeline: true,
+      });
+      if (pipelineError || canManagePipeline !== true) {
+        return new Response(
+          JSON.stringify({ error: "You don't have permission to move applicants on this job" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // The applicant's own call decides the step they are on in the database,
+    // never one named in the request: getAutopilotNextPhase uses an unknown
+    // phase id as the next phase as-is, so a forged id skipped every step.
+    const callerIsOnlyCandidate = isCandidateOwner && !isEmployerOwner && !isScopedTeamMember && !developerRole;
+
     // RACE CONDITION FIX: Skip if application was already rejected (unless force=true for reconsider)
     if (application.status === "rejected" && !force) {
       console.log("[trigger-ava-analysis] Application already rejected, skipping duplicate analysis");
@@ -2051,7 +2074,7 @@ serve(async (req) => {
         supabaseAdmin,
         application,
         applicationId,
-        currentPhaseId: currentPhaseId || application.phase,
+        currentPhaseId: callerIsOnlyCandidate ? application.phase : currentPhaseId || application.phase,
         passingScore: (job?.passing_score as number) || 60,
         score: analysis.score,
         scorecard: analysis.scorecard,

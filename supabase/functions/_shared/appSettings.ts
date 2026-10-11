@@ -36,11 +36,3 @@ export async function readAppSettingBoolean(
     return defaultValue;
   }
 }
-
-// 'blueprint_paid' gates the Improvement Blueprint's entitlement AND its
-// Stripe checkout path. Default false: the free tier is open on purpose
-// (20260904110000_free_tier_open) until the owner's billing launch flips
-// this row to true.
-export async function isBlueprintBillingEnabled(client: AppSettingsClient): Promise<boolean> {
-  return readAppSettingBoolean(client, "blueprint_paid", false);
-}

@@ -274,7 +274,7 @@ console.log("\nThe wiring:\n");
   // The mail client answers { data: null, error } when the provider refuses a
   // message; it does not throw. That used to be logged and reported as sent.
   const refusedAt = fn.indexOf("if (emailResponse?.error) {");
-  const successAt = fn.indexOf("JSON.stringify({ success: true, emailResponse, recipient: profile.email })");
+  const successAt = fn.indexOf("JSON.stringify({ success: true, emailResponse })");
   check(
     "a message the mail provider refuses is never reported as sent (so 'Sent to …' is only ever true)",
     refusedAt > sendAt && successAt > refusedAt && /if \(emailResponse\?\.error\) \{[\s\S]*?success: false[\s\S]*?status: 502/.test(fn.slice(refusedAt, successAt)),

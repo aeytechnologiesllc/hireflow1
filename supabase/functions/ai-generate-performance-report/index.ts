@@ -4,7 +4,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { callOpenAIJson, openAIErrorStatus } from "../_shared/openai.ts";
 import { guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { canAccessPerformanceReport } from "../_shared/performanceReportAccess.ts";
-import { isBlueprintBillingEnabled } from "../_shared/appSettings.ts";
 import { validateBlueprintReport, REQUIRED_DEVELOPMENTAL_DISCLAIMER, type ImprovementBlueprintData } from "../_shared/blueprintReport.ts";
 
 // Model is configurable so a retirement is a config change, not a code change.
@@ -104,31 +103,16 @@ serve(async (req) => {
     // other jobs access to this candidate's report -- call the same
     // SECURITY DEFINER function the RLS policy uses instead of
     // re-implementing the scoping rule here.
-    const [{ data: isScopedTeamMember }, { data: blueprintPurchase }, billingEnabled] = await Promise.all([
-      !isCandidateOwner && !isEmployerOwner && employerId
-        ? supabaseUserClient.rpc('is_active_team_member_for_job', {
-            p_job_id: candidateApp.job_id,
-            p_user_id: requestingUser.id,
-          })
-        : Promise.resolve({ data: false }),
-      isCandidateOwner
-        ? supabase
-            .from('blueprint_purchases')
-            .select('id')
-            .eq('application_id', applicationId)
-            .eq('user_id', requestingUser.id)
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
-      // 'blueprint_paid' (app_settings): false while billing is off, so the
-      // candidate path below doesn't require a purchase row. See
-      // supabase/functions/_shared/appSettings.ts.
-      isBlueprintBillingEnabled(supabase),
-    ]);
+    const { data: isScopedTeamMember } = !isCandidateOwner && !isEmployerOwner && employerId
+      ? await supabaseUserClient.rpc('is_active_team_member_for_job', {
+          p_job_id: candidateApp.job_id,
+          p_user_id: requestingUser.id,
+        })
+      : { data: false };
 
     const isEmployerSide = isEmployerOwner || !!isScopedTeamMember;
-    const hasPurchasedBlueprint = isCandidateOwner && !!blueprintPurchase;
 
-    if (!canAccessPerformanceReport({ isCandidateOwner, hasPurchasedBlueprint, isEmployerSide, billingEnabled })) {
+    if (!canAccessPerformanceReport({ isCandidateOwner, isEmployerSide })) {
       console.warn('[Report] Unauthorized performance report request', {
         requesterId: requestingUser.id,
         applicationId,

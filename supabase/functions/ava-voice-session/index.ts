@@ -479,6 +479,22 @@ serve(async (req) => {
       applicationId: applicationId || null,
     });
 
+    // Voice is retired (the owner, 2026-10: chat-only screening, never offer
+    // voice). Every mode costs OpenAI realtime minutes and 'intake' was open to
+    // any signed-in account, applicants included. Only the platform's own
+    // account (public.platform_admins) may still open a session.
+    const { data: voiceAdmin } = await adminClient
+      .from("platform_admins")
+      .select("user_id")
+      .eq("user_id", voiceOwnerUserId)
+      .maybeSingle();
+    if (!voiceAdmin) {
+      return new Response(
+        JSON.stringify({ error: "Voice isn't available. Use the written interview instead.", code: "voice_retired" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     const subscriptionBypass = await hasSubscriptionBypassForUser(
       adminClient,
       voiceOwnerUserId,

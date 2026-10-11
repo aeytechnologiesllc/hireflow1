@@ -6,31 +6,24 @@
  * scripts/performance_report_access.test.mjs) without a live Supabase
  * project or the Deno-only imports the rest of that function needs.
  *
- * The report is both (1) a candidate's private evaluation (voice transcript,
- * notes, AI analysis) and (2) the Improvement Blueprint
- * (src/hooks/useImprovementBlueprint.ts). Access is allowed only for:
- *   (a) the application's own candidate, once they hold a completed
- *       blueprint_purchases row for that specific applicationId, OR while
- *       billing is off (`billingEnabled` false -- see
- *       supabase/functions/_shared/appSettings.ts / app_settings key
- *       'blueprint_paid'; the free tier has been open on purpose since
- *       2026-09-04 and nothing may sit behind a paywall while it is), or
+ * The report is a candidate's private evaluation (notes, AI analysis), also
+ * shown as the Improvement Blueprint (src/hooks/useImprovementBlueprint.ts).
+ * Access is allowed only for:
+ *   (a) the application's own candidate, always and free: applicants never
+ *       pay on HireFlow (the owner, 2026-10-11). The old paid path (the
+ *       'blueprint_paid' setting and the purchase-blueprint checkout) is gone;
  *   (b) the job's owner (jobs.employer_id) or an active team member of that
- *       employer.
- * Everyone else — including any other signed-in user — is refused.
+ *       employer scoped to this job.
+ * Everyone else, including any other signed-in user, is refused.
  */
 export interface PerformanceReportAccessInput {
   isCandidateOwner: boolean;
-  hasPurchasedBlueprint: boolean;
   isEmployerSide: boolean;
-  /** app_settings 'blueprint_paid'. false (billing off) means the report is
-   *  free/included for the candidate — no purchase required. */
-  billingEnabled: boolean;
 }
 
 export function canAccessPerformanceReport(input: PerformanceReportAccessInput): boolean {
-  const { isCandidateOwner, hasPurchasedBlueprint, isEmployerSide, billingEnabled } = input;
+  const { isCandidateOwner, isEmployerSide } = input;
   if (isEmployerSide) return true;
-  if (isCandidateOwner && (hasPurchasedBlueprint || !billingEnabled)) return true;
+  if (isCandidateOwner) return true;
   return false;
 }
