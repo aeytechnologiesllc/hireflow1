@@ -50,6 +50,10 @@
 
 const HOOK = "src/cockpit/hooks/useEmployerLiveSync.ts";
 const LAYOUT = "src/components/AppLayout.tsx";
+// A team member's and an applicant's frames have their own files since
+// 2026-10-11 (the performance check), each loaded only for that person.
+const TEAM_LAYOUT = "src/components/layouts/TeamMemberLayout.tsx";
+const CANDIDATE_LAYOUT = "src/components/layouts/CandidateLayout.tsx";
 const SHELL = "src/cockpit/Shell.tsx";
 const APPLICATIONS = "src/hooks/useApplications.ts";
 const TOASTS = "src/components/GlobalNotificationToasts.tsx";
@@ -203,19 +207,19 @@ export default [
         if (!/<EmployerLiveSync\s*\/>/.test(ownerShell) || !/<CockpitShell>/.test(ownerShell)) {
           detail.push(`${LAYOUT}: the owner cockpit branch (the return that renders <CockpitShell>) no longer mounts <EmployerLiveSync />`);
         }
-        const team = functionBody(layout, "TeamMemberLayout") ?? "";
+        const team = (await read(TEAM_LAYOUT)) ?? "";
         if ((team.match(/<EmployerLiveSync\s*\/>/g) ?? []).length !== 1) {
-          detail.push(`${LAYOUT}: TeamMemberLayout must mount <EmployerLiveSync /> exactly once`);
+          detail.push(`${TEAM_LAYOUT}: TeamMemberLayout must mount <EmployerLiveSync /> exactly once`);
         }
-        const candidate = functionBody(layout, "CandidateLayout") ?? "";
+        const candidate = (await read(CANDIDATE_LAYOUT)) ?? "";
         if (/<EmployerLiveSync\s*\/>/.test(candidate)) {
-          detail.push(`${LAYOUT}: CandidateLayout mounts <EmployerLiveSync /> — candidates have no staff list to sync`);
+          detail.push(`${CANDIDATE_LAYOUT}: CandidateLayout mounts <EmployerLiveSync /> — candidates have no staff list to sync`);
         }
         const mounts = (layout.match(/<EmployerLiveSync\s*\/>/g) ?? []).length;
-        if (mounts !== 2) detail.push(`${LAYOUT}: expected 2 <EmployerLiveSync /> mounts (owner + team), found ${mounts}`);
+        if (mounts !== 1) detail.push(`${LAYOUT}: expected 1 <EmployerLiveSync /> mount (the owner's cockpit), found ${mounts}`);
       }
       for (const { rel, text } of await sources([".ts", ".tsx"])) {
-        if (rel === HOOK || rel === LAYOUT) continue;
+        if (rel === HOOK || rel === LAYOUT || rel === TEAM_LAYOUT) continue;
         if (/<EmployerLiveSync\b|useEmployerLiveSync\s*\(/.test(text)) {
           detail.push(`${rel} mounts the live sync too — it belongs once per layout, never in a component that can render twice (Sidebar, MobileTabBar, MobileTopBar, pages)`);
         }

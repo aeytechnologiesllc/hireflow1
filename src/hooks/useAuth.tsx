@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { getPasswordErrorMessage } from "@/lib/authErrorMessages";
@@ -50,6 +50,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<AppRole | null>(null);
   const [isTeamMember, setIsTeamMember] = useState(false);
   const [loading, setLoading] = useState(true);
+  // Whose role and team membership are already looked up, and whether the
+  // start-up read of the session is still to come. Together they keep each
+  // look-up to once per person (the performance check, 2026-10-11: one cold
+  // open ran getUser 4 times and user_roles 4 times, one after another,
+  // before the dashboard could ask for anything).
+  const resolvedUserId = useRef<string | null>(null);
+  const startingUp = useRef(true);
 
   useEffect(() => {
     // Safety watchdog: no matter what happens during auth bootstrap, never
@@ -58,15 +65,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // loading gate so route guards can render (and surface any real error)
     // instead of hanging forever.
     const loadingWatchdog = setTimeout(() => {
+      // Past this point a sign-in event is handled by the listener itself,
+      // whether or not the start-up read ever came back.
+      startingUp.current = false;
       setLoading(false);
     }, 8000);
 
-    const validateSession = async () => {
+    const validateSession = async (accessToken?: string) => {
       try {
+        // With the token in hand, getUser asks the server directly instead of
+        // waiting on Supabase's sign-in lock, so the look-ups beside it
+        // (which also take that lock) are not held up behind it.
         const {
           data: { user },
           error,
-        } = await supabase.auth.getUser();
+        } = await supabase.auth.getUser(accessToken);
 
         // If the client has a session cached but the server says it doesn't exist anymore,
         // we must clear local auth state to avoid infinite "User not authenticated" loops.
@@ -93,16 +106,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
 
-      // Defer all additional auth-dependent calls to avoid deadlocks
       if (session?.user) {
-        setTimeout(async () => {
-          const { user: verifiedUser } = await validateSession();
-          if (verifiedUser) {
-            fetchUserRole(verifiedUser.id, getFallbackRoleFromUser(verifiedUser));
-            checkTeamMembership(verifiedUser.id);
-          }
+        // While the app starts, the start-up read below does the look-ups
+        // (Supabase replays the stored session here as INITIAL_SESSION and,
+        // after recovering it, SIGNED_IN). After that, only a different
+        // person needs them: a token refresh or the page coming back to the
+        // front is the same person, already looked up.
+        if (startingUp.current || event === "INITIAL_SESSION") return;
+        if (session.user.id === resolvedUserId.current) return;
+        const signedIn = session.user;
+        resolvedUserId.current = signedIn.id;
+        // Deferred: a Supabase call awaited inside this callback deadlocks.
+        setTimeout(() => {
+          void fetchUserRole(signedIn.id, getFallbackRoleFromUser(signedIn));
+          void checkTeamMembership(signedIn.id);
         }, 0);
       } else {
+        resolvedUserId.current = null;
         setRole(null);
         setIsTeamMember(false);
       }
@@ -118,18 +138,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           setSession(session);
           setUser(session?.user ?? null);
+          startingUp.current = false;
 
           if (session?.user) {
             // Seed the role from user metadata immediately so route guards can
             // resolve even if the role/team lookups are slow or fail.
             setRole((prev) => prev ?? getFallbackRoleFromUser(session.user));
+            resolvedUserId.current = session.user.id;
 
-            const { user: verifiedUser } = await validateSession();
-            if (verifiedUser) {
-              await Promise.all([
-                fetchUserRole(verifiedUser.id, getFallbackRoleFromUser(verifiedUser)),
-                checkTeamMembership(verifiedUser.id),
-              ]);
+            // The server's check of the stored session and the two look-ups
+            // run side by side (they used to run one after the other).
+            const [{ user: verifiedUser }] = await Promise.all([
+              validateSession(session.access_token),
+              fetchUserRole(session.user.id, getFallbackRoleFromUser(session.user)),
+              checkTeamMembership(session.user.id),
+            ]);
+            if (!verifiedUser) {
+              // The stored session was no good (validateSession signed it out):
+              // nothing looked up for it stands.
+              resolvedUserId.current = null;
+              setRole(null);
+              setIsTeamMember(false);
             }
           }
         } catch (error) {
@@ -140,6 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .catch((error) => {
         console.error("Error retrieving session:", error);
+        startingUp.current = false;
         setLoading(false);
       });
 

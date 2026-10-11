@@ -68,6 +68,9 @@ interface PostgrestResult<T = unknown> {
 /** Thenable query builder — mirrors the chainable shape of
  *  `@supabase/postgrest-js`'s `PostgrestFilterBuilder` closely enough for
  *  every call site in this app, without reimplementing PostgREST. */
+/** Views that are exactly a table's rows (read straight from that table). */
+const VIEW_OF: Record<string, string> = { applications_staff_list: "applications" };
+
 class FixtureQueryBuilder implements PromiseLike<PostgrestResult> {
   private filters: Array<{ col: string; op: FilterOp; val: unknown }> = [];
   /** `.or(...)`: a row passes when ANY group matches, and a group when ALL its conditions do. */
@@ -319,7 +322,11 @@ export function createFixtureSupabaseClient(opts: FixtureClientOptions) {
   return {
     auth,
     from(table: string) {
-      return new FixtureQueryBuilder(table, opts.tables);
+      // Views that are a table's own rows read that table here, so they stay
+      // in step with its writes. applications_staff_list is applications
+      // with the notes' server-only parts left out (migration
+      // 20261011201000); the fixtures never had those parts.
+      return new FixtureQueryBuilder(VIEW_OF[table] ?? table, opts.tables);
     },
     rpc(name: string, args?: unknown) {
       const handler = opts.rpc?.[name];

@@ -12,6 +12,14 @@
 // item need an entry here — the rest of App.tsx's lazy pages (deep phase
 // routes, dev-only pages, etc.) aren't things a user hovers before clicking.
 export const routeImporters = {
+  // The hiring team's core pages (App.tsx). See warmStaffPages below for
+  // when the staff site fetches them on its own.
+  "/dashboard": () => import("@/pages/Dashboard"),
+  "/jobs": () => import("@/pages/Jobs"),
+  "/applicants": () => import("@/pages/Applicants"),
+  "/messages": () => import("@/pages/Messages"),
+  "/documents": () => import("@/pages/Documents"),
+  "/more": () => import("@/cockpit/pages/More"),
   "/interviews": () => import("@/pages/Interviews"),
   "/team": () => import("@/pages/Team"),
   "/analytics": () => import("@/pages/Analytics"),
@@ -58,4 +66,38 @@ export function prefetchForPath(to: string) {
     to.startsWith(prefix + "/"),
   );
   if (match) prefetchRoute(match);
+}
+
+/** One applicant's page (/applicants/:id): not a nav item, so not keyed by path. */
+export const applicantDetailsImporter = () => import("@/pages/ApplicantDetails");
+
+/** The staff pages fetched in the quiet after the first screen. Documents is
+ *  left to a hover or a tap: it carries the PDF tools (about 480 KB
+ *  compressed), the heaviest download in the app. */
+const STAFF_PAGES_LATER: RoutePrefix[] = ["/dashboard", "/applicants", "/jobs", "/messages", "/interviews", "/more"];
+
+/**
+ * The staff site's own page loading (2026-10-11, the performance check).
+ * It used to fetch all seven staff pages the moment the app started,
+ * Documents and its PDF tools included: about 600 KB compressed competing
+ * with the dashboard on a phone, every time the app opened. Now the page
+ * being opened (and the dashboard, where signing in leads) is fetched at
+ * once, and the rest a few seconds after the first screen is up, when the
+ * phone is idle, so moving around stays instant.
+ */
+export function warmStaffPages(pathname: string) {
+  if (/^\/applicants\/[^/]+/.test(pathname)) applicantDetailsImporter().catch(() => {});
+  else prefetchForPath(pathname);
+  prefetchRoute("/dashboard");
+  const later = () => {
+    for (const prefix of STAFF_PAGES_LATER) prefetchRoute(prefix);
+    applicantDetailsImporter().catch(() => {});
+  };
+  const schedule = () =>
+    window.setTimeout(() => {
+      if ("requestIdleCallback" in window) window.requestIdleCallback(later, { timeout: 4000 });
+      else later();
+    }, 3000);
+  if (document.readyState === "complete") schedule();
+  else window.addEventListener("load", schedule, { once: true });
 }

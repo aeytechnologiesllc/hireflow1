@@ -15,10 +15,29 @@
     <!-- Theme color for browser chrome -->
     <meta name="theme-color" content="#0a0f0d" />
 
-    <!-- Brand fonts: Fraunces (display) + Inter (UI) -->
+    <!-- Brand fonts: Fraunces (display) + Inter (UI). Loaded beside the page,
+         not in front of it: a blocking stylesheet from another site held the
+         first paint for one more round trip on every phone (the performance
+         check, 2026-10-11). display=swap shows the text at once in the
+         fallback face and swaps the brand face in when it lands. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700;800&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700;800&display=swap" /></noscript>
+
+    <!-- The start screen's colours before any stylesheet arrives (the app's
+         own ground for its theme), so a phone shows the app at once, not a
+         white page. -->
+    <script>try{if(localStorage.getItem("theme")==="light")document.documentElement.setAttribute("data-boot","light");}catch(e){}</script>
+    <style>
+      html,body{background:#17140F;margin:0}
+      html[data-boot="light"],html[data-boot="light"] body{background:#F0EBDF}
+      #hf-boot{position:fixed;inset:0;display:grid;place-items:center}
+      #hf-boot svg{width:56px;height:56px;border-radius:14px;opacity:0;animation:hf-boot-in .4s ease-out .15s 1 forwards}
+      @keyframes hf-boot-in{to{opacity:1}}
+      @media (prefers-reduced-motion:reduce){#hf-boot svg{animation:none;opacity:1}}
+    </style>
     
     <!-- Apple Mobile Web App -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -63,7 +82,11 @@
   </head>
 
   <body>
-    <div id="root"></div>
+    <!-- The start screen: the app's mark on its ground, shown the moment the
+         page arrives and replaced by the app when it draws (React empties
+         #root). It used to be an empty page until about a megabyte of code
+         had run. Fades in once, never loops. -->
+    <div id="root"><div id="hf-boot" aria-hidden="true"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="14" fill="#0C2A21"/><path d="M13 46 L25 19 L37 39 L51 17" fill="none" stroke="#3FCE97" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

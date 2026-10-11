@@ -37,11 +37,14 @@ function check(name, condition) {
 
 console.log("\nA phone opening the careers site does not download the staff side");
 const app = await read("src/App.tsx");
+const prefetch = await read("src/lib/prefetchRoutes.ts");
 for (const page of ["Dashboard", "Jobs", "Applicants", "ApplicantDetails", "Messages", "Documents"]) {
-  check(`${page} is not imported up front`, !new RegExp(`^import ${page} from "\\./pages/${page}";`, "m").test(app) && new RegExp(`const ${page} = lazyWithReload\\(staffPageImporters\\.`).test(app));
+  check(`${page} is not imported up front`, !new RegExp(`^import ${page} from "\\./pages/${page}";`, "m").test(app) && new RegExp(`const ${page} = lazyWithReload\\((routeImporters\\["/|applicantDetailsImporter)`).test(app));
 }
-check("More is not imported up front", !/^import More from/m.test(app) && /const More = lazyWithReload\(staffPageImporters\.more\)/.test(app));
-check("…and on the staff host they are fetched as the app starts, so the team's navigation stays instant", /if \(typeof window !== "undefined" && isStaffHost\(\)\) \{\s*for \(const load of Object\.values\(staffPageImporters\)\) load\(\)\.catch\(\(\) => \{\}\);/.test(app));
+check("More is not imported up front", !/^import More from/m.test(app) && /const More = lazyWithReload\(routeImporters\["\/more"\]\)/.test(app));
+check("…on the staff host the page being opened (and the dashboard) is fetched as the app starts", /if \(typeof window !== "undefined" && isStaffHost\(\)\) warmStaffPages\(window\.location\.pathname\);/.test(app) && /else prefetchForPath\(pathname\);\s*prefetchRoute\("\/dashboard"\);/.test(prefetch));
+check("…the rest once the first screen is up, so the team's navigation stays instant", /const STAFF_PAGES_LATER: RoutePrefix\[\] = \["\/dashboard", "\/applicants", "\/jobs", "\/messages", "\/interviews", "\/more"\];/.test(prefetch) && /requestIdleCallback\(later/.test(prefetch));
+check("…and Documents, with the PDF tools, only on a hover or a tap (never at start-up)", !/STAFF_PAGES_LATER[^;]*documents/.test(prefetch) && /"\/documents": \(\) => import\("@\/pages\/Documents"\)/.test(prefetch));
 const vite = await read("vite.config.ts");
 check("Vite's on-demand loader and the CommonJS helpers live with React, never in the PDF or charts bundle", /if \(id\.includes\("vite\/preload-helper"\) \|\| id\.includes\("commonjsHelpers"\)\) return "vendor-react";/.test(vite));
 check("…the vendor groups are kept", /'vendor-pdf': \['jspdf', 'pdf-lib', '@react-pdf\/renderer', 'react-pdf'\]/.test(vite) && /for \(const \[chunk, pkgs\] of Object\.entries\(VENDOR_CHUNKS\)\)/.test(vite));

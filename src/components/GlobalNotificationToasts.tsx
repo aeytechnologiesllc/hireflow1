@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { createIntegrityToastGate, parseIntegrityCard, type IntegrityCardRow, type IntegrityToast } from "@/cockpit/lib/assessmentRecord";
+import { createIntegrityToastGate, parseIntegrityCard, type IntegrityCardRow, type IntegrityToast } from "@/cockpit/lib/integrityCards";
 
 /**
  * One per tab, shared by every mount: decides which writes of the owner's

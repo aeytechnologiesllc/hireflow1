@@ -1,73 +1,83 @@
 // Build marker: applicants-ux ship (sticky back · inline resume dialog · candidate-aware funnel) 2026-06-30
-import { Suspense, lazy } from "react";
+import { Suspense, useEffect, useRef } from "react";
+import { lazyWithReload } from "@/lib/lazyWithReload";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { HostGate } from "@/components/HostGate";
 import { CAREERS_PATH, isStaffHost } from "@/lib/hosts";
 import { ThemeProvider } from "next-themes";
-import { AuthProvider } from "@/hooks/useAuth";
+import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import AppLayout from "@/components/AppLayout";
-import CandidateStepGate from "@/components/candidate/CandidateStepGate";
-import DeveloperLayout from "@/components/DeveloperLayout";
 import { OrbLoader } from "@/components/ava/OrbLoader";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
-import { routeImporters } from "@/lib/prefetchRoutes";
+import { applicantDetailsImporter, routeImporters, warmStaffPages } from "@/lib/prefetchRoutes";
 import { usePageViewTracking } from "@/hooks/usePageViewTracking";
 import { useAutoUpdate } from "@/hooks/useAutoUpdate";
 
-import Index from "./pages/Index";
-import Auth from "./pages/Auth";
 
-// Recover from stale code-split chunks after a deploy: if a lazy import fails
-// because the hashed chunk 404s (the app was open in the browser while a new
-// version deployed), reload once to fetch fresh assets instead of white-screening
-// the whole app with "Something went wrong".
-function lazyWithReload(factory: Parameters<typeof lazy>[0]) {
-  return lazy(() =>
-    factory()
-      .then((m) => { sessionStorage.removeItem("hf-chunk-reload"); return m; })
-      .catch((err) => {
-        if (!sessionStorage.getItem("hf-chunk-reload")) {
-          sessionStorage.setItem("hf-chunk-reload", "1");
-          window.location.reload();
-          return new Promise<never>(() => {}); // hang while the page reloads
-        }
-        throw err;
-      }),
-  );
+// The big screens every visitor used to download up front, whichever one
+// they were opening (the performance check, 2026-10-11: they were about 90%
+// of the app's own first download). Each is fetched when needed, and the one
+// a visit is opening is started at once below, beside the rest.
+const appLayoutImporter = () => import("@/components/AppLayout");
+const indexImporter = () => import("./pages/Index");
+const authImporter = () => import("./pages/Auth");
+const AppLayout = lazyWithReload(appLayoutImporter);
+const Index = lazyWithReload(indexImporter);
+const Auth = lazyWithReload(authImporter);
+const CandidateStepGate = lazyWithReload(() => import("@/components/candidate/CandidateStepGate"));
+const DeveloperLayout = lazyWithReload(() => import("@/components/DeveloperLayout"));
+
+/** The paths a signed-in applicant opens inside the app's frame. */
+const CANDIDATE_APP_PATH = /^\/(applications|messages|my-documents|profile|settings|notifications)(\/|$)/;
+
+if (typeof window !== "undefined") {
+  const path = window.location.pathname;
+  if (path === "/auth" || path.startsWith("/auth/")) authImporter().catch(() => {});
+  if (isStaffHost()) appLayoutImporter().catch(() => {});
+  else if (path === CAREERS_PATH) indexImporter().catch(() => {});
+  else if (CANDIDATE_APP_PATH.test(path)) appLayoutImporter().catch(() => {});
+}
+
+/**
+ * The staff site's "/" (where the installed app opens): only a doorway.
+ * HostGate sends a visitor on to sign-in or the dashboard. This used to be
+ * the whole careers page (Index), downloaded to show a loading screen. What
+ * it did here is kept: a signed-in account that never had its role written
+ * goes to /auth/callback to get one, once.
+ */
+function StaffDoorway() {
+  const { loading, session, role } = useAuth();
+  const navigate = useNavigate();
+  const sent = useRef(false);
+  useEffect(() => {
+    if (loading || !session || role !== null || sent.current) return;
+    sent.current = true;
+    navigate("/auth/callback?role=employer", { replace: true });
+  }, [loading, session, role, navigate]);
+  return <AuthLoadingScreen variant="employer" />;
 }
 
 // The hiring team's core pages. They used to be loaded eagerly "for instant
 // navigation", so every applicant who opened the careers page or a job also
 // downloaded the whole staff side, PDF tools included: about 1.1 MB
 // compressed before the job appeared (2026-10-09, on phones in the
-// Philippines). Now they are lazy, and on the staff host they are fetched as
-// soon as the app starts, so the team's navigation is still instant.
-const staffPageImporters = {
-  dashboard: () => import("./pages/Dashboard"),
-  jobs: () => import("./pages/Jobs"),
-  applicants: () => import("./pages/Applicants"),
-  applicantDetails: () => import("./pages/ApplicantDetails"),
-  messages: () => import("./pages/Messages"),
-  documents: () => import("./pages/Documents"),
-  more: () => import("./cockpit/pages/More"),
-};
-const Dashboard = lazyWithReload(staffPageImporters.dashboard);
-const Jobs = lazyWithReload(staffPageImporters.jobs);
-const Applicants = lazyWithReload(staffPageImporters.applicants);
-const ApplicantDetails = lazyWithReload(staffPageImporters.applicantDetails);
-const Messages = lazyWithReload(staffPageImporters.messages);
-const Documents = lazyWithReload(staffPageImporters.documents);
-const More = lazyWithReload(staffPageImporters.more);
+// Philippines). Now they are lazy; on the staff host the page being opened
+// is fetched at once and the rest once the first screen is up
+// (warmStaffPages, src/lib/prefetchRoutes.ts).
+const Dashboard = lazyWithReload(routeImporters["/dashboard"]);
+const Jobs = lazyWithReload(routeImporters["/jobs"]);
+const Applicants = lazyWithReload(routeImporters["/applicants"]);
+const ApplicantDetails = lazyWithReload(applicantDetailsImporter);
+const Messages = lazyWithReload(routeImporters["/messages"]);
+const Documents = lazyWithReload(routeImporters["/documents"]);
+const More = lazyWithReload(routeImporters["/more"]);
 const HelpPage = lazyWithReload(() => import("./cockpit/pages/Help"));
 const AdminPage = lazyWithReload(() => import("./cockpit/pages/Admin"));
-if (typeof window !== "undefined" && isStaffHost()) {
-  for (const load of Object.values(staffPageImporters)) load().catch(() => {});
-}
+if (typeof window !== "undefined" && isStaffHost()) warmStaffPages(window.location.pathname);
 
 // All other pages lazy-loaded to reduce initial bundle.
 // Routes that are also reachable from a nav item share their import()
@@ -209,7 +219,7 @@ const App = () => (
                       app only meets "/" from an in-app link: on the applicants' site that
                       means the open roles. On the staff site "/" is the doorway to
                       sign-in or the dashboard (HostGate). */}
-                  <Route path="/" element={isStaffHost() ? <Index /> : <Navigate to={CAREERS_PATH} replace />} />
+                  <Route path="/" element={isStaffHost() ? <StaffDoorway /> : <Navigate to={CAREERS_PATH} replace />} />
                   <Route path={CAREERS_PATH} element={<Index />} />
                   {/* Every business's live jobs (2026-10-11): where the front
                       page's "Looking for a job?" leads. */}

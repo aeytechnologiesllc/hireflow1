@@ -19,7 +19,7 @@ export interface ActivityItem {
 }
 
 export function useActivityFeed(limit: number = 20) {
-  const { user } = useAuth();
+  const { user, role, isTeamMember } = useAuth();
   const { data: mode } = useSchemaMode();
   const queryClient = useQueryClient();
 
@@ -28,12 +28,17 @@ export function useActivityFeed(limit: number = 20) {
     queryFn: async () => {
       if (!user) return [];
 
-      const { data: teamMember } = await supabase
-        .from("team_members")
-        .select("employer_id, assigned_job_ids")
-        .eq("user_id", user.id)
-        .eq("status", "active")
-        .maybeSingle();
+      // An owner is no team member (useAuth knows): no look-up in front of
+      // the feed for them.
+      const { data: teamMember } =
+        isTeamMember || role !== "employer"
+          ? await supabase
+              .from("team_members")
+              .select("employer_id, assigned_job_ids")
+              .eq("user_id", user.id)
+              .eq("status", "active")
+              .maybeSingle()
+          : { data: null };
 
       const effectiveEmployerId = teamMember?.employer_id || user.id;
       const assignedJobIds = Array.isArray(teamMember?.assigned_job_ids)

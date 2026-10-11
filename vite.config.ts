@@ -22,44 +22,42 @@ for (const key of Object.keys(process.env)) {
 }
 
 // https://vitejs.dev/config/
+/*
+ * UI packages left to the screens that use them (the performance check,
+ * 2026-10-11). They all sat in one 'vendor-ui' chunk that every page
+ * downloaded first: 417 KB, mostly animation, every icon in the app, and
+ * pickers, sliders and dialogs no first screen draws. Rollup now places each
+ * with the screens that import it.
+ */
+const LEFT_TO_THEIR_SCREENS = new Set([
+  'framer-motion', 'motion-dom', 'motion-utils',
+  'lucide-react', 'cmdk', 'vaul',
+  '@radix-ui/react-accordion', '@radix-ui/react-alert-dialog', '@radix-ui/react-aspect-ratio',
+  '@radix-ui/react-avatar', '@radix-ui/react-checkbox', '@radix-ui/react-collapsible',
+  '@radix-ui/react-context-menu', '@radix-ui/react-dialog', '@radix-ui/react-hover-card',
+  '@radix-ui/react-label', '@radix-ui/react-menubar', '@radix-ui/react-navigation-menu',
+  '@radix-ui/react-popover', '@radix-ui/react-progress', '@radix-ui/react-radio-group',
+  '@radix-ui/react-scroll-area', '@radix-ui/react-select', '@radix-ui/react-separator',
+  '@radix-ui/react-slider', '@radix-ui/react-switch', '@radix-ui/react-tabs',
+  '@radix-ui/react-toggle', '@radix-ui/react-toggle-group',
+]);
+
 const VENDOR_CHUNKS: Record<string, string[]> = {
     'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+    // What every screen's frame uses (the shell, toasts, tooltips, menus),
+    // and the small shared pieces Radix and others are built on. Pinned here
+    // so they never get pulled into a heavy chunk (see manualChunks below).
     'vendor-ui': [
-      '@radix-ui/react-accordion',
-      '@radix-ui/react-alert-dialog',
-      '@radix-ui/react-aspect-ratio',
-      '@radix-ui/react-avatar',
-      '@radix-ui/react-checkbox',
-      '@radix-ui/react-collapsible',
-      '@radix-ui/react-context-menu',
-      '@radix-ui/react-dialog',
-      '@radix-ui/react-dropdown-menu',
-      '@radix-ui/react-hover-card',
-      '@radix-ui/react-label',
-      '@radix-ui/react-menubar',
-      '@radix-ui/react-navigation-menu',
-      '@radix-ui/react-popover',
-      '@radix-ui/react-progress',
-      '@radix-ui/react-radio-group',
-      '@radix-ui/react-scroll-area',
-      '@radix-ui/react-select',
-      '@radix-ui/react-separator',
-      '@radix-ui/react-slider',
-      '@radix-ui/react-slot',
-      '@radix-ui/react-switch',
-      '@radix-ui/react-tabs',
-      '@radix-ui/react-toast',
-      '@radix-ui/react-toggle',
-      '@radix-ui/react-toggle-group',
       '@radix-ui/react-tooltip',
+      '@radix-ui/react-toast',
+      '@radix-ui/react-dropdown-menu',
+      '@radix-ui/react-slot',
       'class-variance-authority',
       'clsx',
       'tailwind-merge',
-      'lucide-react',
-      'cmdk',
-      'vaul',
       'sonner',
-      'framer-motion',
+      'tslib',
+      'use-sync-external-store',
     ],
     'vendor-supabase': ['@supabase/supabase-js', '@tanstack/react-query'],
     'vendor-pdf': ['jspdf', 'pdf-lib', '@react-pdf/renderer', 'react-pdf'],
@@ -81,6 +79,11 @@ export default defineConfig(({ mode }) => ({
   build: {
     rollupOptions: {
       output: {
+        // Fold chunks under ~10 KB into a neighbour that loads with them: the
+        // owner's dashboard was 89 files, many of them a few hundred bytes,
+        // each one more round trip on a phone (the performance check,
+        // 2026-10-11).
+        experimentalMinChunkSize: 10_000,
         // Function form, not the object form: given the object, rollup packed
         // Vite's own on-demand page loader (vite/preload-helper) into
         // vendor-pdf, because react-pdf loads its worker on demand. Every page
@@ -94,6 +97,15 @@ export default defineConfig(({ mode }) => ({
           const pkg = id.match(/.*node_modules\/((?:@[^/]+\/)?[^/]+)\//)?.[1];
           if (!pkg) return undefined;
           for (const [chunk, pkgs] of Object.entries(VENDOR_CHUNKS)) if (pkgs.includes(pkg)) return chunk;
+          if (LEFT_TO_THEIR_SCREENS.has(pkg)) return undefined;
+          // Every other Radix piece, and what Radix and the rest are built on,
+          // stays with the frame's UI so no heavy chunk (PDF, charts, editor)
+          // claims it and drags itself into every first download.
+          if (
+            pkg.startsWith('@radix-ui/') ||
+            pkg.startsWith('@floating-ui/') ||
+            ['react-remove-scroll', 'react-remove-scroll-bar', 'react-style-singleton', 'use-callback-ref', 'use-sidecar', 'aria-hidden', 'detect-node-es', 'get-nonce'].includes(pkg)
+          ) return 'vendor-ui';
           return undefined;
         },
       },

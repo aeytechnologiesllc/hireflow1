@@ -2438,6 +2438,39 @@ export type Database = {
       }
     }
     Views: {
+      applications_staff_list: {
+        Row: {
+          ai_analysis: string | null
+          ai_score: number | null
+          ai_scorecard: Json | null
+          candidate_id: string
+          cover_letter: string | null
+          created_at: string
+          employer_notes: string | null
+          external_application_id: string | null
+          external_provider: string | null
+          id: string
+          job_id: string
+          notes: string | null
+          phase: string | null
+          phase_ai_analysis: string | null
+          rejected_by: string | null
+          rejected_by_type: string | null
+          resume_score: number | null
+          resume_url: string | null
+          source: string
+          status: Database["public"]["Enums"]["application_status"]
+          updated_at: string
+          voice_interview_duration: number | null
+          voice_interview_language: string | null
+          voice_interview_language_rule: string | null
+          voice_interview_recording_url: string | null
+          voice_interview_result: Json | null
+          voice_interview_transcript: Json | null
+          voice_interview_video_enabled: boolean | null
+        }
+        Relationships: []
+      }
       employer_public_branding: {
         Row: {
           company_logo: string | null

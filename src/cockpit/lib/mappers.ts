@@ -17,7 +17,7 @@ import {
   type WorkflowStepLike,
 } from "@/lib/candidateJourney";
 import { listingEligibility } from "./listingEligibility";
-import { isFillingInForm } from "./assessmentRecord";
+import { isFillingInForm } from "@/cockpit/lib/applicationStatus";
 import type {
   Candidate,
   CandidateStage,

@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { WifiOff } from "lucide-react";
 
 export function OfflineIndicator() {
@@ -27,31 +26,24 @@ export function OfflineIndicator() {
     };
   }, []);
 
-  return (
-    <AnimatePresence>
-      {isOffline && (
-        <motion.div
-          initial={{ y: -100, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: -100, opacity: 0 }}
-          transition={{ type: "spring", damping: 25, stiffness: 300 }}
-          className="fixed top-0 left-0 right-0 z-[100] bg-destructive text-destructive-foreground py-2 px-4 flex items-center justify-center gap-2 text-sm font-medium shadow-lg"
-        >
-          <WifiOff className="h-4 w-4" />
-          <span>You're offline. Some features may be unavailable.</span>
-        </motion.div>
-      )}
-      {showReconnected && !isOffline && (
-        <motion.div
-          initial={{ y: -100, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: -100, opacity: 0 }}
-          transition={{ type: "spring", damping: 25, stiffness: 300 }}
-          className="fixed top-0 left-0 right-0 z-[100] bg-primary text-primary-foreground py-2 px-4 flex items-center justify-center gap-2 text-sm font-medium shadow-lg"
-        >
-          <span>Back online!</span>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
+  // A plain CSS slide-in that plays once (tailwindcss-animate), not the
+  // animation library: this banner is on every staff page, and it alone put
+  // that library (about 36 KB compressed) in every owner's first download
+  // (the performance check, 2026-10-11).
+  if (isOffline) {
+    return (
+      <div className="fixed top-0 left-0 right-0 z-[100] bg-destructive text-destructive-foreground py-2 px-4 flex items-center justify-center gap-2 text-sm font-medium shadow-lg animate-in fade-in slide-in-from-top-full duration-300">
+        <WifiOff className="h-4 w-4" />
+        <span>You're offline. Some features may be unavailable.</span>
+      </div>
+    );
+  }
+  if (showReconnected) {
+    return (
+      <div className="fixed top-0 left-0 right-0 z-[100] bg-primary text-primary-foreground py-2 px-4 flex items-center justify-center gap-2 text-sm font-medium shadow-lg animate-in fade-in slide-in-from-top-full duration-300">
+        <span>Back online!</span>
+      </div>
+    );
+  }
+  return null;
 }

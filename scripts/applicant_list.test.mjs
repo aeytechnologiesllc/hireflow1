@@ -1024,12 +1024,15 @@ console.log("\n9. The slim load pages past 1,000 rows");
   }));
   const profiles = apps.map((a, i) => ({ user_id: a.candidate_id, full_name: `Person ${i}`, email: `p${i}@example.com`, avatar_url: null, bio: "long" }));
   const reopens = Array.from({ length: 1500 }, (_, i) => ({ application_id: apps[i % 1234].id, step_id: i < 1234 ? "quiz" : "step_typing", job_id: apps[i % 1234].job_id, reopened_at: new Date(NOW - i * 1000).toISOString(), reopened_by: null, reopen_count: 1 }));
-  globalThis.__fakeSupabase = fakeSupabase({ applications: apps, assessment_sessions: sessions, profiles, assessment_step_reopens: reopens });
+  // The list reads the staff view (applications without the notes' heavy
+  // server-only parts, migration 20261011201000), never the table.
+  globalThis.__fakeSupabase = fakeSupabase({ applications_staff_list: apps, assessment_sessions: sessions, profiles, assessment_step_reopens: reopens });
   const calls = globalThis.__fakeSupabase.calls;
 
   const gotApps = await H.fetchListApplications(jobs);
   check("all 1,234 applications, not the first 1,000", gotApps.length === 1234 && new Set(gotApps.map((a) => a.id)).size === 1234, String(gotApps.length));
-  const appCalls = calls.filter((c) => c.table === "applications");
+  const appCalls = calls.filter((c) => c.table === "applications_staff_list");
+  check("…never the applications table itself (the view drops the notes' heavy parts)", !calls.some((c) => c.table === "applications"));
   check("…in two pages of the slim columns, no job embed", appCalls.length === 2 && appCalls.every((c) => c.columns === "id, job_id, candidate_id, status, phase, created_at, updated_at, notes, ai_score, ai_scorecard, resume_url, voice_interview_result"), show(appCalls.map((c) => c.columns)));
   check("…no heavy column came back", !gotApps.some((a) => "ai_analysis" in a || "jobs" in a));
   const profileCalls = calls.filter((c) => c.table === "profiles");
@@ -1173,7 +1176,10 @@ console.log("\n10. Live: an UPDATE merges in place with no refetch; an INSERT re
   await timers.fire();
   check("a payload the server cut short refetches it", counts().list === 3);
 
-  apps.status("SUBSCRIBED");
+  apps.status("SUBSCRIBED"); // the first join: what loaded since the sync began is not fetched again
+  await timers.fire();
+  check("the first join leaves the freshly loaded list alone", counts().list === 3);
+  apps.status("SUBSCRIBED"); // a rejoin after a dropped socket
   await timers.fire();
   check("the reconnect catch-up refetches it", counts().list === 4);
 
@@ -1214,7 +1220,10 @@ console.log("\n10. Live: an UPDATE merges in place with no refetch; an INSERT re
   await timers.fire();
   check("a DELETE drops the attempt and refetches", counts().attempts === before.attempts + 3 && queryClient.getQueryData(sessKey).every((s) => s.id !== CANDIDATE_2_SESSIONS[0].id));
 
-  live.status("SUBSCRIBED");
+  live.status("SUBSCRIBED"); // the first join
+  await timers.fire();
+  check("the first join leaves the freshly loaded attempts alone", counts().attempts === before.attempts + 3);
+  live.status("SUBSCRIBED"); // a rejoin after a dropped socket
   await timers.fire();
   check("the reconnect catch-up refetches it", counts().attempts === before.attempts + 4);
 

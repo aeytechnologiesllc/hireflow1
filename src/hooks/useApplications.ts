@@ -131,34 +131,55 @@ const LIVE_LIST_FRESHNESS = {
 } as const;
 
 export function useEmployerApplications() {
-  const { user } = useAuth();
+  const { user, role, isTeamMember } = useAuth();
   const { data: mode } = useSchemaMode();
 
   return useQuery({
     queryKey: ["applications", "employer", user?.id],
     queryFn: async () => {
-      // Check if user is a team member
-      const { data: teamMember } = await supabase
-        .from("team_members")
-        .select("employer_id")
-        .eq("user_id", user!.id)
-        .eq("status", "active")
-        .maybeSingle();
+      // Whose jobs: a team member's business's, an owner's own. An owner
+      // needs no look-up for that (useAuth already knows they are no team
+      // member); it used to sit in front of everything below.
+      let effectiveEmployerId = user!.id;
+      if (isTeamMember || role !== "employer") {
+        const { data: teamMember } = await supabase
+          .from("team_members")
+          .select("employer_id")
+          .eq("user_id", user!.id)
+          .eq("status", "active")
+          .maybeSingle();
+        effectiveEmployerId = teamMember?.employer_id || user!.id;
+      }
 
-      const effectiveEmployerId = teamMember?.employer_id || user!.id;
+      // The jobs once, then only their applications, each given its job here.
+      // This used to be every application the rules allowed with its whole
+      // job embedded (`*, jobs!inner(*)`), filtered on the phone: 9.2 MB for
+      // the owner's 154 applications on every open, 2.7 MB of it the same
+      // 17 KB job again and again (the performance check, 2026-10-11). RLS
+      // still decides every row: a team member limited to some jobs sees only
+      // those jobs, and so only their applications.
+      const { data: jobs, error: jobsError } = await supabase
+        .from("jobs")
+        .select("*")
+        .eq("employer_id", effectiveEmployerId);
+      if (jobsError) throw jobsError;
+      if (!jobs || jobs.length === 0) return [] as ApplicationWithCandidate[];
+      const jobById = new Map(jobs.map((job) => [job.id, job]));
 
-      // Get applications with jobs - RLS handles job filtering for team members
+      // applications_staff_list: applications exactly, without the notes'
+      // three heavy parts no staff screen reads (migration
+      // 20261011201000_applications_staff_list.sql).
       const { data: applications, error: appError } = await supabase
-        .from("applications")
-        .select("*, jobs!inner(*)")
+        .from("applications_staff_list")
+        .select("*")
+        .in("job_id", [...jobById.keys()])
         .order("created_at", { ascending: false });
 
       if (appError) throw appError;
 
-      // Filter to only show applications for jobs owned by effective employer
-      const filtered = (applications as ApplicationWithCandidate[]).filter(
-        (app) => app.jobs?.employer_id === effectiveEmployerId
-      );
+      const filtered = (applications ?? [])
+        .map((app) => ({ ...app, jobs: jobById.get(app.job_id as string) ?? null }))
+        .filter((app) => app.jobs?.employer_id === effectiveEmployerId) as unknown as ApplicationWithCandidate[];
 
       if (filtered.length === 0) {
         return [] as ApplicationWithCandidate[];

@@ -29,7 +29,12 @@ const defaultPermissions: TeamMemberPermissions = {
 };
 
 export function useTeamMemberPermissions() {
-  const { user } = useAuth();
+  const { user, role, isTeamMember } = useAuth();
+  // Only a team member has permissions to look up; an owner's answer is the
+  // default (every screen reads isTeamMember first). Asking anyway put one
+  // more request in front of every owner's first screen (the performance
+  // check, 2026-10-11).
+  const mayBeTeamMember = isTeamMember || role === "team_member";
 
   return useQuery({
     queryKey: ["team-member-permissions", user?.id],
@@ -63,7 +68,8 @@ export function useTeamMemberPermissions() {
         assignedJobIds: data.assigned_job_ids ?? [],
       };
     },
-    enabled: !!user,
+    enabled: !!user && mayBeTeamMember,
+    initialData: mayBeTeamMember ? undefined : defaultPermissions,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }

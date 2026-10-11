@@ -42,7 +42,8 @@ console.log("\nThe careers page and every applicant link");
 const app = await read("src/App.tsx");
 const hosts = await read("src/lib/hosts.ts");
 check("the careers page is at /careers", /export const CAREERS_PATH = "\/careers";/.test(hosts) && /<Route path=\{CAREERS_PATH\} element=\{<Index \/>\} \/>/.test(app));
-check("\"/\" inside the app goes there on the applicants' site; the staff site keeps its doorway", /<Route path="\/" element=\{isStaffHost\(\) \? <Index \/> : <Navigate to=\{CAREERS_PATH\} replace \/>\} \/>/.test(app));
+check("\"/\" inside the app goes there on the applicants' site; the staff site keeps its doorway", /<Route path="\/" element=\{isStaffHost\(\) \? <StaffDoorway \/> : <Navigate to=\{CAREERS_PATH\} replace \/>\} \/>/.test(app));
+check("…the staff doorway is a small screen of its own, still sending a role-less account to /auth/callback", /function StaffDoorway\(\)/.test(app) && /navigate\("\/auth\/callback\?role=employer", \{ replace: true \}\)/.test(app));
 check("/careers belongs on the applicants' site (the staff site sends it there)", /\/\^\\\/careers\\\/\?\$\//.test(hosts));
 // Since 2026-10-11 "see open roles" is the roles of the business whose job
 // the applicant last opened (src/lib/openRoles.ts), so another business's

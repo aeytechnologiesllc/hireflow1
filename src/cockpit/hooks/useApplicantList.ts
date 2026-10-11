@@ -157,8 +157,11 @@ export async function fetchListApplications(jobIds: readonly string[]): Promise<
     apps.push(
       ...(await allPages<ApplicantListApp>(
         (from, to) =>
+          // The view, not the table: the same rows without the notes'
+          // three heavy parts no staff screen reads (2.3 MB of the owner's
+          // 4.2 MB of notes; migration 20261011201000).
           supabase
-            .from("applications")
+            .from("applications_staff_list")
             .select(APPLICANT_LIST_COLUMNS)
             .in("job_id", ids)
             .order("created_at", { ascending: false })

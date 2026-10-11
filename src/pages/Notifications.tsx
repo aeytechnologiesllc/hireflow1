@@ -9,7 +9,7 @@ import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import type { Notification } from "@/hooks/useNotifications";
-import { parseIntegrityCard } from "@/cockpit/lib/assessmentRecord";
+import { parseIntegrityCard } from "@/cockpit/lib/integrityCards";
 
 const notificationIcons: Record<string, React.ElementType> = {
   message: MessageSquare,

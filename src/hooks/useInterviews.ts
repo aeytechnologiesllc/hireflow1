@@ -32,7 +32,7 @@ export function useInterviews() {
           applications(
             id,
             candidate_id,
-            jobs(*)
+            jobs(id, title, employer_id)
           )
         `)
         .order("scheduled_at", { ascending: true });
@@ -94,7 +94,7 @@ export function useUpcomingInterviews() {
           applications(
             id,
             candidate_id,
-            jobs(*)
+            jobs(id, title, employer_id)
           )
         `)
         .eq("status", "scheduled")

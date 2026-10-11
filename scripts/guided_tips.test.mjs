@@ -140,7 +140,9 @@ check("only tip-shaped names", !(await as(MARIA, "authenticated", `insert into p
 
 // Mounted, anchored, switchable ──────────────────────────────────────────────────
 const layout = await read("src/components/AppLayout.tsx");
-check("mounted in the owner's layout and the team member's", (layout.match(/<GuidedTips \/>/g) ?? []).length === 2);
+const teamLayout = await read("src/components/layouts/TeamMemberLayout.tsx");
+check("mounted in the owner's layout and the team member's", (layout.match(/<GuidedTips \/>/g) ?? []).length === 1 && (teamLayout.match(/<GuidedTips \/>/g) ?? []).length === 1);
+check("…fetched on its own in the owner's layout (only a new business sees tips)", /const GuidedTips = lazyWithReload\(\(\) => import\("@\/cockpit\/tips\/GuidedTips"\)/.test(layout) && /<Suspense fallback=\{null\}>\s*<GuidedTips \/>/.test(layout));
 const jobs = await read("src/cockpit/pages/Jobs.tsx");
 check("the Share link carries its anchor", /data-tip-anchor="share"/.test(jobs));
 check("the Messages heading carries its anchor", /data-tip-anchor="messages"/.test(await read("src/cockpit/pages/Messages.tsx")));

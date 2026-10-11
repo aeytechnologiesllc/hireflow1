@@ -336,6 +336,37 @@ export function applySessionChange<T extends SessionRowLike>(rows: T[] | undefin
  * Plain function (no React) so scripts/employer_live_sync.test.mjs can drive
  * it with a fake client and a real QueryClient.
  */
+/**
+ * A channel's catch-up when it connects. The FIRST time, only what was loaded
+ * before this live sync began is refreshed (an earlier visit's cache, which
+ * may have missed changes): what loaded since is already as new as the
+ * connection. Refreshing it too downloaded the whole dashboard a second time
+ * about a second after it first loaded, on every open (the performance
+ * check, 2026-10-11). Every later reconnect, and every real change, still
+ * refreshes in full.
+ */
+export function createCatchUpGate(openedAt: number) {
+  let first = true;
+  let since: number | null = null;
+  return {
+    /** The channel says SUBSCRIBED. */
+    connected() {
+      since = first ? openedAt : null;
+      first = false;
+    },
+    /** A row changed: the next round refreshes in full. */
+    changed() {
+      since = null;
+    },
+    /** For the round about to run: which queries it may refresh. */
+    take(): (query: { state: { dataUpdatedAt: number } }) => boolean {
+      const limit = since;
+      since = null;
+      return (query) => limit == null || query.state.dataUpdatedAt < limit;
+    },
+  };
+}
+
 export function startEmployerLiveSync({
   client,
   queryClient,
@@ -351,17 +382,21 @@ export function startEmployerLiveSync({
   delayMs?: number;
   timers?: Timers;
 }) {
+  // Each channel's first catch-up spares what loaded after this point.
+  const openedAt = Date.now();
   // Set by a change the merged lists cannot take in place, or a catch-up;
   // read and cleared by the round that refetches them.
   let applicationListsStale = false;
+  const applicationsGate = createCatchUpGate(openedAt);
   const coalescer = createLiveSyncCoalescer(
     (force) => {
       const lists = applicationListsStale;
       applicationListsStale = false;
+      const fresh = applicationsGate.take();
       return Promise.all(
         LIVE_SYNC_QUERY_KEYS.map((queryKey) =>
           queryClient.invalidateQueries(
-            { queryKey, predicate: (query) => lists || !isMergedListKey(query.queryKey) },
+            { queryKey, predicate: (query) => fresh(query) && (lists || !isMergedListKey(query.queryKey)) },
             { cancelRefetch: force },
           ),
         ),
@@ -390,12 +425,14 @@ export function startEmployerLiveSync({
           if (merged.rows !== held) queryClient.setQueryData(queryKey, merged.rows);
           if (merged.refetch) applicationListsStale = true;
         }
+        applicationsGate.changed();
         coalescer.schedule(true);
       },
     )
     .subscribe((status) => {
       if (status === "SUBSCRIBED") {
         applicationListsStale = true;
+        applicationsGate.connected();
         coalescer.schedule(false);
       }
     });
@@ -407,8 +444,10 @@ export function startEmployerLiveSync({
   const touchedApplications = new Set<string>();
   let catchUp = false;
   let sessionListsStale = false;
+  const sessionsGate = createCatchUpGate(openedAt);
   const sessionCoalescer = createLiveSyncCoalescer(
     (force) => {
+      const fresh = sessionsGate.take();
       const sessionIds = [...touchedSessions];
       const applicationIds = [...touchedApplications];
       const everything = catchUp;
@@ -424,15 +463,16 @@ export function startEmployerLiveSync({
               queryKey,
               // A profile's own attempts only when one of THEIR attempts changed.
               predicate: (query) =>
-                isApplicationSessionsKey(query.queryKey)
+                fresh(query) &&
+                (isApplicationSessionsKey(query.queryKey)
                   ? everything || applicationIds.includes(query.queryKey[2] as string)
-                  : lists || !isMergedListKey(query.queryKey),
+                  : lists || !isMergedListKey(query.queryKey)),
             },
             { cancelRefetch: force },
           ),
         ),
         ...(everything
-          ? [queryClient.invalidateQueries({ queryKey: LIVE_SYNC_EVENTS_KEY }, { cancelRefetch: false })]
+          ? [queryClient.invalidateQueries({ queryKey: LIVE_SYNC_EVENTS_KEY, predicate: fresh }, { cancelRefetch: false })]
           : [
               ...sessionIds.map((id) =>
                 queryClient.invalidateQueries({ queryKey: [...LIVE_SYNC_EVENTS_KEY, id] }, { cancelRefetch: force }),
@@ -474,53 +514,84 @@ export function startEmployerLiveSync({
             if (isApplicationSessionsKey(queryKey) && typeof queryKey[2] === "string") touchedApplications.add(queryKey[2]);
           }
         }
+        sessionsGate.changed();
         sessionCoalescer.schedule(true);
       },
     )
     .subscribe((status) => {
       if (status === "SUBSCRIBED") {
         catchUp = true;
+        sessionsGate.connected();
         sessionCoalescer.schedule(false);
       }
     });
 
   // ── Booked interviews (public.interviews), on a channel of their own. ──
   // Small queries, keyed under ["interviews"]: refetch the ones on screen.
+  const interviewsGate = createCatchUpGate(openedAt);
   const interviewCoalescer = createLiveSyncCoalescer(
-    (force) =>
-      Promise.all(LIVE_SYNC_INTERVIEW_KEYS.map((queryKey) => queryClient.invalidateQueries({ queryKey }, { cancelRefetch: force }))),
+    (force) => {
+      const fresh = interviewsGate.take();
+      return Promise.all(LIVE_SYNC_INTERVIEW_KEYS.map((queryKey) => queryClient.invalidateQueries({ queryKey, predicate: fresh }, { cancelRefetch: force })));
+    },
     delayMs,
     timers,
   );
   const interviewChannel = client
     .channel(`employer-interviews-${userId}-${instanceId}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "interviews" }, () => interviewCoalescer.schedule(true))
+    .on("postgres_changes", { event: "*", schema: "public", table: "interviews" }, () => {
+      interviewsGate.changed();
+      interviewCoalescer.schedule(true);
+    })
     .subscribe((status) => {
-      if (status === "SUBSCRIBED") interviewCoalescer.schedule(false);
+      if (status === "SUBSCRIBED") {
+        interviewsGate.connected();
+        interviewCoalescer.schedule(false);
+      }
     });
 
   // ── The paperwork (wave 5): requests and documents, a channel each. ──
+  const requestsGate = createCatchUpGate(openedAt);
   const requestCoalescer = createLiveSyncCoalescer(
-    (force) => Promise.all(LIVE_SYNC_REQUEST_KEYS.map((queryKey) => queryClient.invalidateQueries({ queryKey }, { cancelRefetch: force }))),
+    (force) => {
+      const fresh = requestsGate.take();
+      return Promise.all(LIVE_SYNC_REQUEST_KEYS.map((queryKey) => queryClient.invalidateQueries({ queryKey, predicate: fresh }, { cancelRefetch: force })));
+    },
     delayMs,
     timers,
   );
   const requestChannel = client
     .channel(`employer-requests-${userId}-${instanceId}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "document_requests" }, () => requestCoalescer.schedule(true))
+    .on("postgres_changes", { event: "*", schema: "public", table: "document_requests" }, () => {
+      requestsGate.changed();
+      requestCoalescer.schedule(true);
+    })
     .subscribe((status) => {
-      if (status === "SUBSCRIBED") requestCoalescer.schedule(false);
+      if (status === "SUBSCRIBED") {
+        requestsGate.connected();
+        requestCoalescer.schedule(false);
+      }
     });
+  const documentsGate = createCatchUpGate(openedAt);
   const documentCoalescer = createLiveSyncCoalescer(
-    (force) => Promise.all(LIVE_SYNC_DOCUMENT_KEYS.map((queryKey) => queryClient.invalidateQueries({ queryKey }, { cancelRefetch: force }))),
+    (force) => {
+      const fresh = documentsGate.take();
+      return Promise.all(LIVE_SYNC_DOCUMENT_KEYS.map((queryKey) => queryClient.invalidateQueries({ queryKey, predicate: fresh }, { cancelRefetch: force })));
+    },
     delayMs,
     timers,
   );
   const documentChannel = client
     .channel(`employer-documents-${userId}-${instanceId}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: "documents" }, () => documentCoalescer.schedule(true))
+    .on("postgres_changes", { event: "*", schema: "public", table: "documents" }, () => {
+      documentsGate.changed();
+      documentCoalescer.schedule(true);
+    })
     .subscribe((status) => {
-      if (status === "SUBSCRIBED") documentCoalescer.schedule(false);
+      if (status === "SUBSCRIBED") {
+        documentsGate.connected();
+        documentCoalescer.schedule(false);
+      }
     });
 
   return () => {

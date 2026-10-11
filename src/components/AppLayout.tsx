@@ -1,25 +1,28 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { Suspense, useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate, Outlet, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { supabase } from "@/integrations/supabase/client";
 
-import AppSidebar from "./AppSidebar";
-import AppHeader from "./AppHeader";
 import CockpitShell from "@/cockpit/Shell";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 
-import CandidateOnboardingWizard from "./candidate/CandidateOnboardingWizard";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { GlobalNotificationToasts } from "@/components/GlobalNotificationToasts";
 import { EmployerLiveSync } from "@/cockpit/hooks/useEmployerLiveSync";
-import { GuidedTips } from "@/cockpit/tips/GuidedTips";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { Card, CardContent } from "@/components/ui/card";
 import { Shield } from "lucide-react";
-import TeamOnboardingWizard from "@/components/team/TeamOnboardingWizard";
+import { lazyWithReload } from "@/lib/lazyWithReload";
+
+// Each person's frame is fetched only for them (2026-10-11, the performance
+// check): the owner's cockpit is here; a team member's and an applicant's
+// frames, with their welcome wizards, the confetti and the older sidebar,
+// are their own files. The one-time tips too: only a new business sees them.
+const TeamMemberLayout = lazyWithReload(() => import("@/components/layouts/TeamMemberLayout"));
+const CandidateLayout = lazyWithReload(() => import("@/components/layouts/CandidateLayout"));
+const GuidedTips = lazyWithReload(() => import("@/cockpit/tips/GuidedTips").then((m) => ({ default: m.GuidedTips })));
 
 // Edge swipe detection constants
 const EDGE_SWIPE_THRESHOLD = 30; // px from edge to start swipe
@@ -300,7 +303,7 @@ export default function AppLayout() {
   // CANDIDATES: 100% free access — bypass ALL subscription logic
   // ═══════════════════════════════════════════════════════
   if (user && role === 'candidate') {
-    return <CandidateLayout
+    return <Suspense fallback={<AuthLoadingScreen variant="candidate" />}><CandidateLayout
       user={user}
       isMobile={isMobile}
       sidebarOpen={sidebarOpen}
@@ -311,15 +314,20 @@ export default function AppLayout() {
       handleTouchMove={handleTouchMove}
       handleTouchEnd={handleTouchEnd}
       mainContentRef={mainContentRef}
-    />;
+    /></Suspense>;
   }
 
   // ═══════════════════════════════════════════════════════
   // EMPLOYERS & TEAM: account-gated access below
   // ═══════════════════════════════════════════════════════
 
-  // Show loading while the account state is loading (non-developers only)
-  if (subLoading) {
+  // A team member waits for the account state (it says whether their access
+  // still stands). An owner does not: nothing on their screen needs it to
+  // draw, and waiting meant the whole shell was swapped for the loading
+  // screen while get-subscription ran (about 1.5 s on a phone), then built
+  // again from nothing, every time the app opened (the performance check,
+  // 2026-10-11).
+  if (subLoading && (isTeamMember || role === "team_member")) {
     return <AuthLoadingScreen variant={loadingVariant} />;
   }
 
@@ -347,7 +355,7 @@ export default function AppLayout() {
   }
 
   if (user && isTeamMember) {
-    return <TeamMemberLayout
+    return <Suspense fallback={<AuthLoadingScreen variant="employer" />}><TeamMemberLayout
       user={user}
       isMobile={isMobile}
       sidebarOpen={sidebarOpen}
@@ -358,7 +366,7 @@ export default function AppLayout() {
       handleTouchMove={handleTouchMove}
       handleTouchEnd={handleTouchEnd}
       mainContentRef={mainContentRef}
-    />;
+    /></Suspense>;
   }
 
   return (
@@ -371,182 +379,18 @@ export default function AppLayout() {
           live as applicants act — mounted once per shell, never inside the
           sidebar or tab bar (they mount twice). */}
       <EmployerLiveSync />
-      {/* One-time tips for a new business (src/cockpit/tips). */}
-      <GuidedTips />
+      {/* One-time tips for a new business (src/cockpit/tips), fetched on their own. */}
+      <Suspense fallback={null}>
+        <GuidedTips />
+      </Suspense>
       {/* Deep Jade Owner Cockpit shell (desktop sidebar + mobile bottom tabs) */}
       <CockpitShell>
-        <Outlet />
+        {/* The frame draws at once; a page still arriving fills in beside it
+            (it used to be a full-screen loader until each page's code came). */}
+        <Suspense fallback={null}>
+          <Outlet />
+        </Suspense>
       </CockpitShell>
-    </TooltipProvider>
-  );
-}
-
-function TeamMemberLayout({
-  user,
-  isMobile,
-  sidebarOpen,
-  setSidebarOpen,
-  handleToggleSidebar,
-  handleNavigate,
-  handleTouchStart,
-  handleTouchMove,
-  handleTouchEnd,
-  mainContentRef,
-}: {
-  user: { id: string };
-  isMobile: boolean;
-  sidebarOpen: boolean;
-  setSidebarOpen: (v: boolean) => void;
-  handleToggleSidebar: () => void;
-  handleNavigate: () => void;
-  handleTouchStart: (e: React.TouchEvent) => void;
-  handleTouchMove: (e: React.TouchEvent) => void;
-  handleTouchEnd: () => void;
-  mainContentRef: React.RefObject<HTMLDivElement>;
-}) {
-  const [teamOnboardingLoading, setTeamOnboardingLoading] = useState(true);
-  const [teamNeedsOnboarding, setTeamNeedsOnboarding] = useState(false);
-  const [teamContext, setTeamContext] = useState<{
-    companyName: string;
-    memberName: string;
-    department: string | null;
-    permissionLabel: string;
-    assignedJobTitles: string[];
-    canCreateJobs: boolean;
-    canMessageCandidates: boolean;
-    canManagePipeline: boolean;
-    canScheduleInterviews: boolean;
-    canSendDocuments: boolean;
-  } | null>(null);
-
-  useEffect(() => {
-    let isCancelled = false;
-
-    void (async () => {
-      const { data: membership, error: membershipError } = await supabase
-        .from("team_members")
-        .select("name, department, employer_id, permission_level, assigned_job_ids, can_create_jobs, can_message_candidates, can_manage_pipeline, can_schedule_interviews, can_send_documents, onboarding_completed")
-        .eq("user_id", user.id)
-        .eq("status", "active")
-        .maybeSingle();
-
-      if (membershipError || !membership || isCancelled) {
-        setTeamOnboardingLoading(false);
-        return;
-      }
-
-      const permissionLabel =
-        membership.permission_level === "full_admin"
-          ? "Full Admin"
-          : membership.permission_level === "limited"
-            ? "Team Member"
-            : "View Only";
-
-      let companyName = "Your organization";
-      const assignedJobIds = Array.isArray(membership.assigned_job_ids) ? membership.assigned_job_ids : [];
-      let assignedJobTitles: string[] = [];
-
-      // The business's public name: a team member may not read the owner's
-      // profile (RLS), so profiles always came back empty here.
-      const [{ data: profileData }, jobsResult] = await Promise.all([
-        supabase
-          .from("employer_public_branding")
-          .select("company_name")
-          .eq("user_id", membership.employer_id)
-          .maybeSingle(),
-        assignedJobIds.length > 0
-          ? supabase.from("jobs").select("title").in("id", assignedJobIds)
-          : Promise.resolve({ data: [], error: null }),
-      ]);
-
-      if (isCancelled) {
-        return;
-      }
-
-      if (profileData?.company_name) {
-        companyName = profileData.company_name;
-      }
-
-      if (jobsResult.data && Array.isArray(jobsResult.data)) {
-        assignedJobTitles = jobsResult.data.map((job) => job.title).filter(Boolean);
-      }
-
-      setTeamContext({
-        companyName,
-        memberName: membership.name || "Team member",
-        department: membership.department,
-        permissionLabel,
-        assignedJobTitles,
-        canCreateJobs: membership.can_create_jobs ?? false,
-        canMessageCandidates: membership.can_message_candidates ?? false,
-        canManagePipeline: membership.can_manage_pipeline ?? false,
-        canScheduleInterviews: membership.can_schedule_interviews ?? false,
-        canSendDocuments: membership.can_send_documents ?? false,
-      });
-      setTeamNeedsOnboarding(!membership.onboarding_completed);
-      setTeamOnboardingLoading(false);
-    })();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [user.id]);
-
-  const handleTeamOnboardingComplete = async () => {
-    // Only the owner may update team_members, so the member marks their own
-    // welcome done through the database (it used to come back every sign-in).
-    const { error } = await supabase.rpc("mark_team_welcome_done" as never);
-    if (error) console.warn("[team] could not save the welcome as done", error.message);
-    setTeamNeedsOnboarding(false);
-  };
-
-  if (teamOnboardingLoading) {
-    return <AuthLoadingScreen variant="employer" />;
-  }
-
-  if (teamNeedsOnboarding && teamContext) {
-    return <TeamOnboardingWizard {...teamContext} onComplete={handleTeamOnboardingComplete} />;
-  }
-
-  return (
-    <TooltipProvider>
-      <div
-        className="h-[100dvh] bg-background relative overflow-x-hidden flex w-full"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-      >
-        <OfflineIndicator />
-        <GlobalNotificationToasts />
-        {/* Same live applicant sync as the owner shell. */}
-        <EmployerLiveSync />
-        <GuidedTips />
-        <div className="hidden md:block absolute top-0 right-0 md:w-[600px] md:h-[600px] bg-primary/15 rounded-full md:blur-[150px] pointer-events-none" />
-        <div className="hidden md:block absolute bottom-0 left-0 md:w-[500px] md:h-[500px] bg-accent/12 rounded-full md:blur-[150px] pointer-events-none" />
-
-        {isMobile && sidebarOpen && (
-          <div
-            className="fixed inset-0 bg-black/60 z-40 transition-opacity duration-300"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
-
-        <AppSidebar
-          isOpen={sidebarOpen}
-          isMobile={isMobile}
-          onToggle={handleToggleSidebar}
-          onNavigate={handleNavigate}
-        />
-        <div
-          ref={mainContentRef}
-          className="flex-1 flex flex-col min-w-0 w-full max-w-full relative z-10"
-        >
-          <AppHeader onMenuClick={handleToggleSidebar} isMobile={isMobile} />
-          <main className="flex-1 p-4 md:p-8 overflow-auto overflow-x-hidden w-full max-w-full">
-            <Outlet />
-          </main>
-        </div>
-      </div>
     </TooltipProvider>
   );
 }
@@ -576,105 +420,5 @@ function TeamAccessRestricted({
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════
-// CandidateLayout: Renders the full app layout for candidates
-// with independent onboarding (no subscription dependency)
-// ═══════════════════════════════════════════════════════
-function CandidateLayout({
-  user,
-  isMobile,
-  sidebarOpen,
-  setSidebarOpen,
-  handleToggleSidebar,
-  handleNavigate,
-  handleTouchStart,
-  handleTouchMove,
-  handleTouchEnd,
-  mainContentRef,
-}: {
-  user: { id: string };
-  isMobile: boolean;
-  sidebarOpen: boolean;
-  setSidebarOpen: (v: boolean) => void;
-  handleToggleSidebar: () => void;
-  handleNavigate: () => void;
-  handleTouchStart: (e: React.TouchEvent) => void;
-  handleTouchMove: (e: React.TouchEvent) => void;
-  handleTouchEnd: () => void;
-  mainContentRef: React.RefObject<HTMLDivElement>;
-}) {
-  const [candidateNeedsOnboarding, setCandidateNeedsOnboarding] = useState(false);
-  const [onboardingLoading, setOnboardingLoading] = useState(true);
-
-  useEffect(() => {
-    supabase
-      .from("profiles")
-      .select("onboarding_completed")
-      .eq("user_id", user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data && !data.onboarding_completed) {
-          setCandidateNeedsOnboarding(true);
-        }
-        setOnboardingLoading(false);
-      });
-  }, [user.id]);
-
-  const handleOnboardingComplete = async () => {
-    await supabase
-      .from("profiles")
-      .update({ onboarding_completed: true })
-      .eq("user_id", user.id);
-    setCandidateNeedsOnboarding(false);
-  };
-
-  if (onboardingLoading) {
-    return <AuthLoadingScreen variant="candidate" />;
-  }
-
-  if (candidateNeedsOnboarding) {
-    return <CandidateOnboardingWizard onComplete={handleOnboardingComplete} />;
-  }
-
-  return (
-    <TooltipProvider>
-      <div
-        className="h-[100dvh] bg-background relative overflow-x-hidden flex w-full"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-      >
-        <OfflineIndicator />
-        <GlobalNotificationToasts />
-        <div className="hidden md:block absolute top-0 right-0 md:w-[600px] md:h-[600px] bg-primary/15 rounded-full md:blur-[150px] pointer-events-none" />
-        <div className="hidden md:block absolute bottom-0 left-0 md:w-[500px] md:h-[500px] bg-accent/12 rounded-full md:blur-[150px] pointer-events-none" />
-
-        {isMobile && sidebarOpen && (
-          <div
-            className="fixed inset-0 bg-black/60 z-40 transition-opacity duration-300"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
-
-        <AppSidebar
-          isOpen={sidebarOpen}
-          isMobile={isMobile}
-          onToggle={handleToggleSidebar}
-          onNavigate={handleNavigate}
-        />
-        <div
-          ref={mainContentRef}
-          className="flex-1 flex flex-col min-w-0 w-full max-w-full relative z-10"
-        >
-          <AppHeader onMenuClick={handleToggleSidebar} isMobile={isMobile} />
-          <main className="flex-1 p-4 md:p-8 overflow-auto overflow-x-hidden w-full max-w-full">
-            <Outlet />
-          </main>
-        </div>
-      </div>
-    </TooltipProvider>
   );
 }

@@ -309,6 +309,56 @@ console.log("\nSUBSCRIBED runs a catch-up round that never cancels a fetch in fl
   stop();
 }
 
+console.log("\nthe FIRST catch-up spares what loaded after the sync began (no second dashboard download)");
+{
+  const client = fakeClient();
+  const { queryClient } = spyClient();
+  const timers = fakeTimers();
+  // Loaded on an earlier visit, before this sync began: may have missed changes.
+  queryClient.setQueryData(["activity-feed", USER, 8], ["earlier"], { updatedAt: Date.now() - 60_000 });
+  const stop = startEmployerLiveSync({ client, queryClient, userId: USER, instanceId: ":r1:", timers });
+  const chan = [...client.channels.values()][0];
+  // Loaded just now, as the dashboard opened: as new as the connection.
+  queryClient.setQueryData(["careers-traffic", USER], ["just loaded"], { updatedAt: Date.now() + 5 });
+  chan.status("SUBSCRIBED");
+  await timers.fire();
+  const state = (k) => queryClient.getQueryState(k);
+  assert(state(["activity-feed", USER, 8]).isInvalidated === true, "an earlier visit's data is refreshed on the first catch-up");
+  assert(state(["careers-traffic", USER]).isInvalidated === false, "data loaded after the sync began is not downloaded again");
+  chan.status("SUBSCRIBED"); // a rejoin after a dropped socket
+  await timers.fire();
+  assert(state(["careers-traffic", USER]).isInvalidated === true, "a rejoin still refreshes everything (changes may have been missed while away)");
+  stop();
+}
+{
+  const client = fakeClient();
+  const { queryClient } = spyClient();
+  const timers = fakeTimers();
+  const stop = startEmployerLiveSync({ client, queryClient, userId: USER, instanceId: ":r1:", timers });
+  const chan = [...client.channels.values()][0];
+  queryClient.setQueryData(["careers-traffic", USER], ["just loaded"], { updatedAt: Date.now() + 5 });
+  chan.status("SUBSCRIBED");
+  chan.emit(update(row("a1"))); // a real change lands before the round runs
+  await timers.fire();
+  assert(queryClient.getQueryState(["careers-traffic", USER]).isInvalidated === true, "a real change in the same round refreshes in full");
+  stop();
+}
+{
+  const client = fakeClient();
+  const { queryClient } = spyClient();
+  const timers = fakeTimers();
+  const stop = startEmployerLiveSync({ client, queryClient, userId: USER, instanceId: ":r1:", timers });
+  queryClient.setQueryData(["interviews", USER], ["just loaded"], { updatedAt: Date.now() + 5 });
+  const interviews = [...client.channels.values()].find((c) => c.topic.startsWith("employer-interviews-"));
+  interviews.status("SUBSCRIBED");
+  await timers.fire();
+  assert(queryClient.getQueryState(["interviews", USER]).isInvalidated === false, "the interviews channel's first catch-up spares fresh data too");
+  interviews.emit({ eventType: "UPDATE", new: { id: "i1" }, old: { id: "i1" } });
+  await timers.fire();
+  assert(queryClient.getQueryState(["interviews", USER]).isInvalidated === true, "...and a booked interview changing refreshes it");
+  stop();
+}
+
 console.log("\na burst of changes is one round; a change mid-round gets exactly one more");
 {
   const client = fakeClient();

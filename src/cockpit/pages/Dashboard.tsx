@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format, isSameDay, startOfDay } from "date-fns";
 import {
@@ -26,7 +26,9 @@ import { candidateOrigin } from "@/lib/hosts";
 import CkAvatar from "../components/Avatar";
 import { CountUp } from "../components/CountUp";
 import { ActionDialog } from "../components/ActionDialog";
-import { OfferLetterDialog } from "../components/OfferLetterDialog";
+// Fetched when a letter is opened, not with the dashboard (the performance
+// check, 2026-10-11).
+const OfferLetterDialog = lazy(() => import("../components/OfferLetterDialog").then((m) => ({ default: m.OfferLetterDialog })));
 import { CockpitErrorCard } from "../components/ErrorCard";
 import { ShareJobCompact, ShareJobHero } from "../components/ShareJobCard";
 import {
@@ -1313,7 +1315,11 @@ export default function CockpitDashboard() {
         </>
       )}
 
-      {offerFor && <OfferLetterDialog open applicationId={offerFor} onClose={() => setOfferFor(null)} />}
+      {offerFor && (
+        <Suspense fallback={null}>
+          <OfferLetterDialog open applicationId={offerFor} onClose={() => setOfferFor(null)} />
+        </Suspense>
+      )}
       {actionDialog?.type === "advance" && (() => {
         const cand = actionDialog.cand;
         const label = advanceTargetLabel(statusOf(cand.id));
