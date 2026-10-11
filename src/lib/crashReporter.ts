@@ -20,6 +20,7 @@
  * client-claimed user id.
  */
 import { supabase, SUPABASE_URL } from "@/integrations/supabase/client";
+import { whenAuthLockTakenOver } from "@/lib/authLock";
 
 const ENDPOINT = `${SUPABASE_URL}/functions/v1/client-errors`;
 
@@ -137,6 +138,11 @@ let installed = false;
 
 /** Wires window-level crash capture. Call once, e.g. from src/App.tsx. Idempotent. */
 export function installCrashReporter(): void {
+  // Sign-in had to take its lock over from another open copy of the app
+  // (src/lib/authLock.ts): not a crash, but the one way to see in the
+  // reports that a phone would have hung on "loading" without it.
+  whenAuthLockTakenOver(() => reportError("Sign-in waited 5s for another open copy of HireFlow and took over"));
+
   if (installed || typeof window === "undefined") return;
   installed = true;
 
