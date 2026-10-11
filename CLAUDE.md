@@ -53,11 +53,11 @@ The app icon is **"A" — the logo's own mark**: a dark jade tile `#0C2A21` with
 
 ## Distribution & billing state (updated 2026-09-16, first set 2026-09-04)
 
-- **Free tier is fully open** while Stripe is off: trials never expire, no job or applicant caps, 120 voice minutes per employer (migration `20260904110000_free_tier_open`, further relaxed by the recovered `20260627131622_relax_job_limit_billing_deferred`). Nothing may sit behind a paywall or show a price as due while billing is off. Re-gate when the pay-per-job model ships.
+- **Free tier is fully open** while Stripe is off: trials never expire, no job or applicant caps, voice is off for every business but the platform's own account (2026-10-11; get-subscription still reports a 120-minute grant, unused) (migration `20260904110000_free_tier_open`, further relaxed by the recovered `20260627131622_relax_job_limit_billing_deferred`). Nothing may sit behind a paywall or show a price as due while billing is off. Re-gate when the pay-per-job model ships.
 - **Google Indexing API works** — the service account in `GOOGLE_INDEXING_SERVICE_ACCOUNT_JSON` is a verified Search Console owner; every publish/close fires `URL_UPDATED`/`URL_DELETED`, plus an IndexNow ping (key file in `public/`). The live `jobs.xml` feed is valid but currently serves 0 jobs — the live database has 0 rows in `jobs`/`applications` (test data was cleared on 2026-09-15/16); it needs one real, complete, published job to prove end to end.
 - **Email is not wired**: `RESEND_API_KEY` is unset, so `send-notification-email` returns `skipped`. Auth emails (reset links) go through Supabase's default SMTP, which is rate-limited.
 - **Models**: all OpenAI calls run on `gpt-5.6-luna` (cheap) / `gpt-5.6-terra` (scoring), voice on `gpt-realtime-2.1` + `gpt-live-transcribe`. GPT-5 models reject non-default `temperature`; the shared helpers strip it. See `docs/MODEL-DEADLINES.md`.
-- **Stripe**: no live key is set. Checkout fails loudly (no silent test-key fallback) and takes no money — this is intentional until billing is turned on for real.
+- **Stripe**: no key is set and no checkout exists: the old checkout/webhook functions were deleted from Supabase on 2026-10-11. Billing is built new (pricing v9: free first job, $99/job, $299/mo), with the owner's account exempt through `platform_admins`, never `home_alias`. The owner adds the Stripe keys himself, last.
 
 ## Security posture (as of 2026-09-16)
 
@@ -114,16 +114,27 @@ One edge function calling another presents the project's secret key in the
 a check that reads only `Authorization` refuses every function-to-function
 call, which is what the first version of this lock did for five hours.
 
-**One production account has no `profiles` row right now.** Verified live
-2026-09-16: `select count(*) from auth.users u left join public.profiles p
-on p.user_id=u.id where p.user_id is null` returns 1. The self-healing fix
-for this, `public.reconcile_orphaned_profiles()`
-(`supabase/migrations/20260831190000_reconcile_orphaned_profiles.sql`), was
-never applied — the function does not exist live. Until it's applied, that
-account has no `company_name`, which the feed quality gate and Google
-structured data need, so its jobs are silently withheld/anonymized. This is
-a real, live gap, not a bookkeeping one; see `docs/MIGRATION-HISTORY.md`
-section 3a.
+**Every account has a `profiles` row (re-checked live 2026-10-11).** On
+2026-09-16 one account had none and the self-healing
+`public.reconcile_orphaned_profiles()`
+(`supabase/migrations/20260831190000_reconcile_orphaned_profiles.sql`) was
+never applied; `select count(*) from auth.users u left join public.profiles p
+on p.user_id=u.id where p.user_id is null` now returns 0. Re-run it before
+trusting this line; see `docs/MIGRATION-HISTORY.md` section 3a.
+
+**Before other businesses join (2026-10-11 overview, 3e62305 + f2cdb7f).**
+Applications start clean on INSERT (no self-set score, stage or result);
+documents, videos and resumes are reachable only by the applicant's own
+business; team members join only by invitation and an account belongs to
+one business; voice is off for everyone but `platform_admins`; a suspended
+business cannot publish and its jobs leave `published_jobs_public`;
+applicant emails come from the job's business by name. The 15 old
+Stripe/boost/blueprint/voice-credit edge functions were DELETED from
+Supabase (they would have woken with the old prices the moment a Stripe key
+was set) — never redeploy them; billing gets built new, with new secret
+names. A function called inside a view runs with the caller's rights: read
+tables directly in `published_jobs_public` (a rehearsal caught
+`business_status_of()` refusing every visitor).
 
 See `docs/ARCHITECTURE.md` and `docs/BACKEND-SCHEMA.md` for the current live
 schema, and `docs/MIGRATION-HISTORY.md` for how migration history was
@@ -214,7 +225,6 @@ one only with that function's own tests.
 
 - [ ] Stripe live keys — checkout is deliberately disabled (fails loudly, takes no money) until pay-per-job billing ships; see "Distribution & billing state" above
 - [ ] One real, complete, published job on production — the feed and Google indexing pipeline are wired and valid but currently serve 0 jobs because the live database has 0 rows in `jobs`/`applications`
-- [ ] Apply `20260831190000_reconcile_orphaned_profiles.sql` — one live account currently has no `profiles` row (see "Security posture" above), so its jobs are silently withheld from the feed/Google structured data
   (the 7 `enforce_*` trusted-result migrations plus `enforce_phase_lock` are already applied live — re-verified 2026-09-16; do not re-add them here without re-running the query in "Security posture" first)
 - [ ] Verify `ONESIGNAL_*` push-notification secrets are current in Supabase Edge Function secrets — the wrong-project-ref bug that silently broke every push was fixed (`20260826221000_fix_push_notification_wrong_project_url`), but re-confirm a live send before relying on it
 - [ ] Custom domain settings beyond `hireflownow.com`, if any additional domain is wanted on Vercel

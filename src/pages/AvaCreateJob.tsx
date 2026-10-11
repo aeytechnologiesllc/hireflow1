@@ -478,9 +478,6 @@ export default function AvaCreateJob() {
               <Link to="/jobs" className="ck-btn ck-btn-primary">
                 Back to Jobs
               </Link>
-              <Link to="/settings?tab=subscription" className="ck-btn ck-btn-outline">
-                View plan
-              </Link>
             </div>
           </div>
         </main>
