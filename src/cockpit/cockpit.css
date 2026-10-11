@@ -32,7 +32,7 @@
 .cm-breathe {
   animation-name: cm-breathe;
   animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
+  animation-iteration-count: 3;
 }
 .cm-breathe-active {
   /* recently-active marks breathe a touch livelier/brighter */
@@ -71,7 +71,7 @@
 }
 .cm-layer {
   animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
+  animation-iteration-count: 3;
 }
 .cm-drift-a { animation-name: cm-drift-a; }
 .cm-drift-b { animation-name: cm-drift-b; }
@@ -86,7 +86,7 @@
 .cm-roam {
   animation-name: cm-roam;
   animation-timing-function: linear;
-  animation-iteration-count: infinite;
+  animation-iteration-count: 3;
 }
 
 /* ring shimmer — slow specular glint travelling around the ring */
@@ -97,7 +97,7 @@
 .cm-sweep {
   animation-name: cm-sweep;
   animation-timing-function: linear;
-  animation-iteration-count: infinite;
+  animation-iteration-count: 3;
 }
 
 /* ring draw-on — the score "rolls up" from empty to its value on mount */
@@ -367,7 +367,7 @@ main.ck-scroll,
   0%, 100% { box-shadow: 0 0 12px hsl(38 64% 60% / 0.30); }
   50%      { box-shadow: 0 0 22px hsl(38 64% 60% / 0.55); }
 }
-.ck-node-pulse { animation: ck-node-pulse 2.8s ease-in-out 1.1s infinite; }
+.ck-node-pulse { animation: ck-node-pulse 2.8s ease-in-out 1.1s 3; }
 
 /* ── Micro-interactions: lift on cards/tiles ──────────────── */
 .ck-lift {
@@ -458,7 +458,7 @@ main.ck-scroll,
 }
 .ck-seal-breathe {
   display: inline-flex;
-  animation: ck-seal-breathe 2.6s ease-in-out infinite;
+  animation: ck-seal-breathe 2.6s ease-in-out 3;
 }
 @media (prefers-reduced-motion: reduce) {
   .ck-seal-breathe { animation: none; }
@@ -473,6 +473,10 @@ main.ck-scroll,
    prefers-reduced-motion. Values come from design/preview/app.html.
    ══════════════════════════════════════════════════════════════════════════ */
 
+/* Nothing here animates forever (the owner's rule, 2026-10-09: this app is
+   open all day, and endless motion kept his computer busy for hours). The
+   lights drift once as the app opens, then rest where they ended; every
+   pulse, breath and shimmer plays a few times, then stops. */
 .ck-ambient {
   position: fixed;
   inset: 0;
@@ -495,7 +499,7 @@ main.ck-scroll,
     radial-gradient(circle, var(--amb-a), transparent 66%),
     radial-gradient(circle, var(--amb-a), transparent 66%),
     radial-gradient(circle, var(--amb-a), transparent 66%);
-  animation: ck-drift1 22s ease-in-out infinite alternate;
+  animation: ck-drift1 22s ease-in-out 1 forwards;
 }
 .ck-ambient i:nth-child(2) {
   width: 560px; height: 560px; bottom: -170px; left: 18%;
@@ -503,7 +507,7 @@ main.ck-scroll,
     radial-gradient(circle, var(--amb-b), transparent 66%),
     radial-gradient(circle, var(--amb-b), transparent 66%),
     radial-gradient(circle, var(--amb-b), transparent 66%);
-  animation: ck-drift2 28s ease-in-out infinite alternate;
+  animation: ck-drift2 28s ease-in-out 1 forwards;
 }
 .ck-ambient i:nth-child(3) {
   width: 380px; height: 380px; top: 34%; left: -120px;
@@ -511,7 +515,7 @@ main.ck-scroll,
     radial-gradient(circle, var(--amb-a), transparent 66%),
     radial-gradient(circle, var(--amb-a), transparent 66%),
     radial-gradient(circle, var(--amb-a), transparent 66%);
-  animation: ck-drift3 25s ease-in-out infinite alternate;
+  animation: ck-drift3 25s ease-in-out 1 forwards;
 }
 /* Day's light has its own character: not dimmed lamplight but morning sun — a
    wide soft brass band sweeping the paper. Night keeps its lamplight instead. */
@@ -522,7 +526,7 @@ main.ck-scroll,
   background:
     linear-gradient(105deg, transparent 38%, var(--amb-b) 50%, transparent 62%),
     linear-gradient(105deg, transparent 40%, var(--amb-b) 50%, transparent 60%);
-  animation: ck-sunband 19s ease-in-out infinite alternate;
+  animation: ck-sunband 19s ease-in-out 1 forwards;
   will-change: transform;
 }
 .dark .ck-ambient::after { display: none; }
@@ -674,8 +678,8 @@ main.ck-scroll,
   transform-origin: bottom;
   animation:
     ck-tick-in 300ms cubic-bezier(0.2, 0.7, 0.3, 1) both,
-    ck-tick-idle 3.2s ease-in-out infinite,
-    ck-tick-breathe 2.4s ease-in-out infinite;
+    ck-tick-idle 3.2s ease-in-out 3,
+    ck-tick-breathe 2.4s ease-in-out 3;
   animation-delay: calc(var(--i) * 45ms + 500ms), calc(var(--i) * 140ms + 1.6s), calc(var(--i) * 190ms);
 }
 .ck-ticker i:nth-child(3n)  { height: 16px; }
@@ -691,7 +695,7 @@ main.ck-scroll,
 /* "Still reading" tab — a barely-there breathing pulse so the state reads
    as ongoing work, not a frozen count. */
 @keyframes ck-reading-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.62; } }
-.ck-reading-pulse { animation: ck-reading-pulse 3s ease-in-out infinite; }
+.ck-reading-pulse { animation: ck-reading-pulse 3s ease-in-out 3; }
 
 @media (prefers-reduced-motion: reduce) {
   .ck-page, .ck-ink, .ck-seal-press { animation: none; }
@@ -774,7 +778,7 @@ main.ck-scroll,
 .ck-rail-track-fill {
   background: linear-gradient(90deg, var(--gem-jade), var(--gem-mint), var(--gem-teal), var(--gem-gold));
   background-size: 240% 100%;
-  animation: ck-rail-flow 8s linear infinite;
+  animation: ck-rail-flow 8s linear 2;
   box-shadow: 0 0 14px -3px color-mix(in srgb, var(--gem-mint) 55%, transparent);
   transition: transform 0.9s cubic-bezier(0.22, 1.36, 0.36, 1);
 }
@@ -845,7 +849,7 @@ main.ck-scroll,
   border-radius: 50%;
   background: radial-gradient(circle, var(--node-color, var(--gem-jade)) 0%, transparent 70%);
   opacity: 0.24;
-  animation: ck-rail-halo 2.6s ease-in-out infinite;
+  animation: ck-rail-halo 2.6s ease-in-out 3;
   z-index: -1;
   pointer-events: none;
 }
@@ -1296,6 +1300,17 @@ main.ck-scroll,
 [data-ckp-head="split"] .ckp-head { grid-template-columns: auto minmax(0, 1fr); row-gap: 16px; }
 [data-ckp-head="split"] .ckp-head > :last-child { grid-column: 1 / -1; justify-content: space-between; }
 .ckp-head > :last-child > .ckp-score { margin-left: auto; }
+/* "Ava suggests" (ApplicantHeaderBand): up when the page opens, then faded
+   out of the way after a few seconds (the owner, 2026-10-09: "it should pop
+   up, but then it should kind of disappear after some time"). Its place is
+   kept, so the header does not move, and it is back while the pointer is on
+   that side of the header. */
+.ckp-suggest { animation: ckp-suggest-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.25s backwards; transition: opacity 0.6s ease, transform 0.6s ease; }
+.ckp-suggest[data-gone] { opacity: 0; transform: translateY(-4px) scale(0.98); pointer-events: none; }
+.ckp-headright:hover .ckp-suggest[data-gone],
+.ckp-headright:focus-within .ckp-suggest[data-gone] { opacity: 1; transform: none; }
+@keyframes ckp-suggest-in { from { opacity: 0; transform: translateY(6px) scale(0.96); } }
+@media (prefers-reduced-motion: reduce) { .ckp-suggest { animation: none; transition: none; } }
 
 .ckp-journey {
   padding: 22px 0 6px;

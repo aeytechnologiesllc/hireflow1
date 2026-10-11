@@ -247,7 +247,8 @@
   background:
     radial-gradient(42% 42% at 76% 34%, rgba(79, 191, 149, 0.2), transparent 70%),
     radial-gradient(30% 34% at 14% 82%, rgba(224, 185, 106, 0.09), transparent 70%);
-  animation: cr-drift 18s ease-in-out infinite alternate;
+  /* Once, then it rests (nothing on screen animates forever, 2026-10-09). */
+  animation: cr-drift 18s ease-in-out 1 forwards;
 }
 @keyframes cr-drift {
   from { transform: translate3d(0, 0, 0) scale(1); }
@@ -289,7 +290,7 @@
   inset: -5px;
   border: 1px solid var(--jade-bright);
   border-radius: 50%;
-  animation: cr-ping 2.6s ease-out infinite;
+  animation: cr-ping 2.6s ease-out 3;
 }
 @keyframes cr-ping {
   0% { transform: scale(0.4); opacity: 0.9; }
@@ -455,7 +456,7 @@
   vertical-align: -2px;
   border-radius: 1px;
   background: var(--jade-bright);
-  animation: cr-blink 1s steps(1) infinite;
+  animation: cr-blink 1s steps(1) 6;
 }
 @keyframes cr-blink { 50% { opacity: 0; } }
 .cr-resolved {
@@ -705,7 +706,7 @@
   background:
     radial-gradient(40% 50% at 50% 0%, rgba(103, 227, 175, 0.2), transparent 70%),
     radial-gradient(30% 40% at 85% 100%, rgba(224, 185, 106, 0.08), transparent 70%);
-  animation: cr-drift 20s ease-in-out infinite alternate;
+  animation: cr-drift 20s ease-in-out 1 forwards;
 }
 .cr-close__in { display: grid; justify-items: center; text-align: center; }
 .cr-close .cr-h2 { color: #f2efe5; }

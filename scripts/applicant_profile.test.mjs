@@ -665,5 +665,15 @@ check("a live tile shows the flags on the attempt in progress", /tile\.state ===
 check("the rail's sealed pill takes each theme's button ink (contrast in Day)", /\.ck-rail-receipt\.show\.is-sealed \{[^}]*color: var\(--btn-fg\);/.test(css));
 check("Back names the list's tab only when the pager came from that list", /readApplicantTab\(\)/.test(profile) && /const tabWords = pager && listTab/.test(profile) && /writeApplicantTab\(state\.tab\)/.test(listPage));
 
+// "Ava suggests" comes up when the page opens and then gets out of the way
+// (the owner, 2026-10-09: "it should pop up, but then it should kind of
+// disappear after some time. Shouldn't stay there.").
+const band = await src("src/cockpit/components/ApplicantHeaderBand.tsx");
+check("Ava suggests: up for eight seconds after the page opens, then faded", /export const SUGGESTION_SHOWN_MS = 8000;/.test(band) && /setGone\(false\);\s*const timer = window\.setTimeout\(\(\) => setGone\(true\), SUGGESTION_SHOWN_MS\);\s*return \(\) => window\.clearTimeout\(timer\);/.test(band));
+check("…afresh for each applicant, the next one in the pager included", /\}, \[openedKey, suggestion\.text\]\);/.test(band) && /key=\{openedKey\}/.test(band) && /suggestKey=\{c\.id\}/.test(profile));
+check("…only ever faded, never taken out: its place is kept and a screen reader still reads it", /data-gone=\{gone \? "" : undefined\}/.test(band) && !/gone \? null/.test(band) && /\.ckp-suggest\[data-gone\] \{ opacity: 0; transform: translateY\(-4px\) scale\(0\.98\); pointer-events: none; \}/.test(css));
+check("…and back while the pointer is on that side of the header", /\.ckp-headright:hover \.ckp-suggest\[data-gone\],\s*\.ckp-headright:focus-within \.ckp-suggest\[data-gone\] \{ opacity: 1; transform: none; \}/.test(css) && /className="ckp-headright flex items-center gap-\[18px\]"/.test(band));
+check("…with no motion for people who ask for less (it still gets out of the way)", /@media \(prefers-reduced-motion: reduce\) \{ \.ckp-suggest \{ animation: none; transition: none; \} \}/.test(css));
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

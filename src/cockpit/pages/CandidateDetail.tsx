@@ -1099,6 +1099,7 @@ function CandidateProfile({
         applied={c.appliedAgo}
         line={line}
         suggestion={suggestion}
+        suggestKey={c.id}
         score={score}
       />
     );

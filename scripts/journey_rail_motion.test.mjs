@@ -94,7 +94,9 @@ check("every part of the opening starts from one attribute, on the same hold", (
 check("the arrival ring plays once", /\.ck-rail-calm \.ck-rail-node\[data-arrive\] \.ck-rail-dot::before \{\s*animation: ck-rail-arrive 0\.7s cubic-bezier\(0\.2, 0\.6, 0\.3, 1\) var\(--rail-at, 0ms\);/.test(rules));
 check("the track is never drawn a frame late under reduced motion", /\.ck-rail-track,\s*\n\.ck-rail-calm \.ck-rail-fill-clip \{ transition-property: none; \}/.test(rules));
 check("reduced motion: no transitions and no animations on the calm rail", /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*\.ck-rail-calm \.ck-rail-chip,[\s\S]*animation: none !important;/.test(rules));
-check("the walk's own rules are untouched", /\.ck-rail-track-fill \{\s*\n\s*background: linear-gradient\(90deg, var\(--gem-jade\), var\(--gem-mint\), var\(--gem-teal\), var\(--gem-gold\)\);\s*\n\s*background-size: 240% 100%;\s*\n\s*animation: ck-rail-flow 8s linear infinite;/.test(css));
+// Its shimmer plays twice, then rests: nothing on screen animates forever
+// (the owner's rule, 2026-10-09).
+check("the walk's own rules are untouched (its shimmer plays twice, never forever)", /\.ck-rail-track-fill \{\s*\n\s*background: linear-gradient\(90deg, var\(--gem-jade\), var\(--gem-mint\), var\(--gem-teal\), var\(--gem-gold\)\);\s*\n\s*background-size: 240% 100%;\s*\n\s*animation: ck-rail-flow 8s linear 2;/.test(css));
 
 console.log(`\n${passed} passed, ${failed} failed.`);
 process.exit(failed ? 1 : 0);

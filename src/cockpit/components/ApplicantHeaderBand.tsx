@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { ApplicantScore, AvaSuggestion, HeaderLine } from "../lib/applicantProfile";
 import { scoreColor } from "../lib/applicantProfile";
 
@@ -15,6 +15,9 @@ const LINE_TONE: Record<HeaderLine["tone"], string> = {
   crit: "var(--crit)",
   muted: "var(--ink-3)",
 };
+
+/** How long "Ava suggests" stays up after an applicant's page opens. */
+export const SUGGESTION_SHOWN_MS = 8000;
 
 /** The suggestion's box: a solid tint of its tone over the page's ground
  *  (no translucent panel), the words in the tone's readable shade. */
@@ -35,6 +38,7 @@ export function ApplicantHeaderBand({
   applied,
   line,
   suggestion,
+  suggestKey,
   score,
 }: {
   name: string;
@@ -48,6 +52,8 @@ export function ApplicantHeaderBand({
   applied: string;
   line: HeaderLine | null;
   suggestion: AvaSuggestion | null;
+  /** Whose page this is (the application's id): the suggestion comes up afresh for each one. */
+  suggestKey?: string | null;
   score: ApplicantScore;
 }) {
   return (
@@ -87,13 +93,8 @@ export function ApplicantHeaderBand({
         </p>
       </div>
 
-      <div className="flex items-center gap-[18px]">
-        {suggestion && (
-          <p className="max-w-[230px] rounded-[12px] px-3.5 py-2.5 text-[13px] leading-[1.35]" style={SUGGEST_STYLE[suggestion.tone]}>
-            <span className="mb-0.5 block text-[11px] font-semibold uppercase tracking-[0.12em]">Ava suggests</span>
-            {suggestion.text}
-          </p>
-        )}
+      <div className="ckp-headright flex items-center gap-[18px]">
+        {suggestion && <Suggestion suggestion={suggestion} openedKey={suggestKey ?? name} />}
         {score.value == null ? (
           // Not scored yet: said in words. A 58px dash drew a thin rule that
           // read as a stray divider, not as a figure.
@@ -119,3 +120,36 @@ export function ApplicantHeaderBand({
 }
 
 export default ApplicantHeaderBand;
+
+/**
+ * "Ava suggests", beside the score. The owner, 2026-10-09: "every time the
+ * page loads, it should pop up, but then it should kind of disappear after
+ * some time. Shouldn't stay there."
+ *
+ * So it comes up when an applicant's page opens, stays for
+ * SUGGESTION_SHOWN_MS, and fades out of the way. Its place is kept, so
+ * nothing in the header moves, and it is back for as long as the pointer is
+ * over that side of the header. It is only ever faded, never removed: a
+ * screen reader still reads it.
+ */
+function Suggestion({ suggestion, openedKey }: { suggestion: AvaSuggestion; openedKey: string }) {
+  const [gone, setGone] = useState(false);
+  useEffect(() => {
+    setGone(false);
+    const timer = window.setTimeout(() => setGone(true), SUGGESTION_SHOWN_MS);
+    return () => window.clearTimeout(timer);
+  }, [openedKey, suggestion.text]);
+  return (
+    // Keyed by whose page it is, so it pops up again for the next applicant.
+    <p
+      key={openedKey}
+      className="ckp-suggest max-w-[230px] rounded-[12px] px-3.5 py-2.5 text-[13px] leading-[1.35]"
+      style={SUGGEST_STYLE[suggestion.tone]}
+      data-ava-suggests
+      data-gone={gone ? "" : undefined}
+    >
+      <span className="mb-0.5 block text-[11px] font-semibold uppercase tracking-[0.12em]">Ava suggests</span>
+      {suggestion.text}
+    </p>
+  );
+}

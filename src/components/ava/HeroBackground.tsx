@@ -34,7 +34,8 @@ const STYLE = `
       color-mix(in srgb, var(--hf-green-border) 46%, transparent) 0%,
       color-mix(in srgb, var(--hf-green-soft) 18%, transparent) 38%,
       transparent 68%);
-    animation: hf-hero-a 26s ease-in-out infinite;
+    /* Once, then still (nothing on screen animates forever, 2026-10-09). */
+    animation: hf-hero-a 26s ease-in-out 1;
   }
   .hf-hero-bg__aurora::after {
     bottom: -32%; right: -16%; width: 58vw; height: 58vw; max-width: 720px; max-height: 720px;
@@ -42,7 +43,7 @@ const STYLE = `
       color-mix(in srgb, var(--hf-green-soft) 34%, transparent) 0%,
       color-mix(in srgb, var(--hf-gold-hover) 10%, transparent) 42%,
       transparent 70%);
-    animation: hf-hero-b 32s ease-in-out infinite;
+    animation: hf-hero-b 32s ease-in-out 1;
   }
   /* a third, brighter jade core glow up top — gives the "brighter" hero feel */
   .hf-hero-bg__glow {

@@ -491,11 +491,11 @@
   }
 
   .animate-float {
-    animation: float 6s ease-in-out infinite;
+    animation: float 6s ease-in-out 2;
   }
 
   .animate-pulse-slow {
-    animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) 2;
   }
 }
 
@@ -527,7 +527,7 @@
 }
 
 .animate-bounce-subtle {
-  animation: bounce-subtle 2s infinite ease-in-out;
+  animation: bounce-subtle 2s 3 ease-in-out;
 }
 
 @keyframes pulse-glow {
@@ -540,10 +540,12 @@
 }
 
 .animate-pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
+  animation: pulse-glow 2s ease-in-out 3;
 }
 
-/* Sidebar Premium Animations */
+/* Sidebar Premium Animations
+   Each plays a few times and stops: a loop that never ends keeps the
+   computer working for as long as the page is open (2026-10-11). */
 @keyframes sidebar-gradient-shift {
   0%, 100% {
     background-position: 0% 50%;
@@ -594,25 +596,25 @@
 }
 
 .animate-sidebar-gradient {
-  animation: sidebar-gradient-shift 8s ease infinite;
+  animation: sidebar-gradient-shift 8s ease 1 forwards;
   background-size: 200% 200%;
 }
 
 .animate-glow-pulse {
-  animation: glow-pulse 4s ease-in-out infinite;
+  animation: glow-pulse 4s ease-in-out 2 forwards;
 }
 
 .animate-border-shimmer {
-  animation: border-shimmer 3s linear infinite;
+  animation: border-shimmer 3s linear 2 forwards;
   background-size: 100% 200%;
 }
 
 .animate-icon-glow {
-  animation: icon-glow 2s ease-in-out infinite;
+  animation: icon-glow 2s ease-in-out 2 forwards;
 }
 
 .animate-logo-breathe {
-  animation: logo-breathe 3s ease-in-out infinite;
+  animation: logo-breathe 3s ease-in-out 2;
 }
 
 /* Sidebar gradient border */
@@ -635,7 +637,7 @@
     hsl(var(--border)) 80%,
     transparent 100%
   );
-  animation: border-shimmer 3s linear infinite;
+  animation: border-shimmer 3s linear 2 forwards;
   background-size: 100% 200%;
 }
 

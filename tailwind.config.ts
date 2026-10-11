@@ -138,7 +138,7 @@ export default {
         "slide-in-left": "slide-in-left 0.3s ease-in-out",
         "slide-in-right": "slide-in-right 0.3s ease-in-out",
         "scale-in": "scale-in 0.3s ease-out",
-        "float-awaiting": "float-awaiting 2s ease-in-out infinite",
+        "float-awaiting": "float-awaiting 2s ease-in-out 3",
       },
       boxShadow: {
         glow: "var(--shadow-glow)",
