@@ -5,7 +5,7 @@ import { usePageHead } from "@/components/seo/usePageHead";
 import { CAREERS_PATH } from "@/lib/hosts";
 
 export default function CandidatePortalLanding() {
-  usePageHead({ title: "Applicants | Zulu Support Team", path: "/candidate" });
+  usePageHead({ title: "Applicants | HireFlow", path: "/candidate" });
   const features = [
     {
       icon: ClipboardCheck,

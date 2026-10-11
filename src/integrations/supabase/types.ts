@@ -1467,6 +1467,7 @@ export type Database = {
           salary_period: string | null
           skills_required: string[] | null
           slug: string | null
+          root_link: boolean
           status: Database["public"]["Enums"]["job_status"]
           title: string
           updated_at: string
@@ -1510,6 +1511,7 @@ export type Database = {
           salary_period?: string | null
           skills_required?: string[] | null
           slug?: string | null
+          root_link?: boolean
           status?: Database["public"]["Enums"]["job_status"]
           title: string
           updated_at?: string
@@ -1553,6 +1555,7 @@ export type Database = {
           salary_period?: string | null
           skills_required?: string[] | null
           slug?: string | null
+          root_link?: boolean
           status?: Database["public"]["Enums"]["job_status"]
           title?: string
           updated_at?: string
@@ -2486,6 +2489,8 @@ export type Database = {
           salary_period: string | null
           skills_required: string[] | null
           slug: string | null
+          business_slug: string | null
+          root_link: boolean | null
           title: string | null
           workflow_steps: Json | null
         }
@@ -2521,6 +2526,8 @@ export type Database = {
           salary_period?: string | null
           skills_required?: string[] | null
           slug?: string | null
+          business_slug?: string | null
+          root_link?: boolean | null
           title?: string | null
           workflow_steps?: never
         }
@@ -2556,6 +2563,8 @@ export type Database = {
           salary_period?: string | null
           skills_required?: string[] | null
           slug?: string | null
+          business_slug?: string | null
+          root_link?: boolean | null
           title?: string | null
           workflow_steps?: never
         }

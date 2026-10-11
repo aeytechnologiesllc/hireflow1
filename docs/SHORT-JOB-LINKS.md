@@ -1,4 +1,51 @@
-# Short job links: hireflownow.com/team-lead
+# Short job links: hireflownow.com/c/<business>/<job>
+
+## Per business (2026-10-10)
+
+The owner, opening HireFlow to other businesses: *"they're going to be
+multiple people posting multiple jobs. So do we go back to the job code style
+of it or unique link?"* Chosen: the business's name, then the job's. And:
+*"once I click on the link and they don't have an account and they're
+creating the account, will they be able to redirect to that same job, no
+collision? ... Make sure you check different scenarios."*
+
+- **A job's address is `hireflownow.com/c/<business>/<job>`.** `jobs.slug` is
+  unique within a business (`jobs_slug_per_business`), `business_pages.slug`
+  across the site, so the pair names exactly one job. Two businesses can both
+  have `team-lead`. Migration `20261011150000_job_links_per_business.sql`.
+- **The way back after sign-up is that address.** Apply sends
+  `/candidate/auth?redirect=/c/<business>/<job>?apply=1`; the sign-in screen
+  looks the job up by business and name (its "Applying for" line), and sends a
+  new or returning applicant back to it, which starts the application. The
+  email-confirmation link carries it too, in case confirmation is ever turned
+  on (it is off: accounts are confirmed at once).
+- **Root links already handed out keep working.** `jobs.root_link` is true
+  only for jobs that had a name before this change (the live `team-lead`);
+  `jobs_root_link_unique` allows one per name, and no client can set it (the
+  `jobs_root_link_guard` trigger), so no new business can ever take
+  `hireflownow.com/<anything>`. `/team-lead` opens Zulu's job and moves to its
+  address. A renamed job loses its root link (the editor already warns).
+- **Every business with a job has a careers address**, made from its name on
+  its first job (`business_page_for`, called by the `jobs_business_page`
+  trigger; nobody can call it for someone else). `/c/<business>` is its careers
+  page (`BusinessCareers.tsx`); the home business's goes to `/careers`, which
+  lists only its own roles.
+- **Link previews**: `/c/<business>/<job>` goes to `api/job-prerender.mjs` for
+  everyone (it is the job's own address); a closed job there is a 404 +
+  noindex with the app's "no longer open" screen. `/c/<business>` and
+  `/careers` go to `api/careers-prerender.mjs`.
+- **Tests**: `scripts/job_links_per_business.pglite.test.mjs` (two and three
+  businesses with the same name, the root link, the view, visits),
+  `scripts/short_job_links.test.mjs` ("Per business"),
+  `scripts/job_prerender_gone.test.mjs` (12), `scripts/careers_prerender.test.mjs`.
+  In the dev preview, `?__previewBusinesses=two` adds a second business with
+  its own `team-lead`, and `?__previewSignedOut=1` opens it as a stranger.
+
+The sections below describe the root links as first built (2026-10-06).
+
+---
+
+# Short job links, as first built: hireflownow.com/team-lead
 
 Owner, 2026-10-06, looking at `hireflownow.com/candidate/apply?code=JOB-C84E85`:
 *"I don't get it. Why are link actually has a job code and all of that?

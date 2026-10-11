@@ -12,6 +12,7 @@ import { OFFER_DEFAULTS, addDays, dayOf, encodeDocumentBody, offerDocumentBody, 
 import { createFixtureSupabaseClient, type FixtureAuthUser, type FixtureRow, type FixtureTables } from "./fixtureClient";
 import { buildFixtureRpcHandlers, buildFixtureTables, FIXTURE_SCENARIOS, type FixtureScenario } from "./fixtures";
 import { previewHiring, previewRequests } from "./previewRequests";
+import { previewBusinesses } from "./previewBusinesses";
 import {
   APP_QUIZ_ID,
   APP_ZULU_RETAKE_ID,
@@ -1219,6 +1220,10 @@ export function install(params: URLSearchParams): void {
   const documentSigning = previewDocuments(tables, ROLE_USERS[role], role, params.get("__previewDocs"));
   const requestedFiles = previewRequests(tables, ROLE_USERS[role], role === "employer" || role === "team_member", params.get("__previewRequests"));
   previewHiring(tables, params.get("__previewHiring"));
+  previewBusinesses(tables, params.get("__previewBusinesses"));
+  // A visitor with no account (`__previewSignedOut=1`): the page as a stranger
+  // who followed a shared link sees it, Apply sending them to sign-in.
+  if (params.get("__previewSignedOut") === "1") void base.auth.signOut();
   const client = {
     ...base,
     ...realtime,

@@ -81,6 +81,7 @@ const TeamPortal = lazyWithReload(routeImporters["/team-portal"]);
 const JoinTeam = lazyWithReload(() => import("./pages/JoinTeam"));
 const ApplyWithCode = lazyWithReload(routeImporters["/apply"]);
 const JobDetails = lazyWithReload(() => import("./pages/JobDetails"));
+const BusinessCareers = lazyWithReload(() => import("./pages/BusinessCareers"));
 /**
  * The accountless applicant's way back in: they enter the phone number they
  * applied with and get their applications. Eight links across four files
@@ -311,6 +312,13 @@ const App = () => (
                       role isn't open" for a name no job has. The job editor refuses
                       every top-level path above as a name (src/lib/jobSlug.ts). */}
                   {!isStaffHost() && <Route path="/:slug" element={<JobDetails />} />}
+
+                  {/* Per business (2026-10-10): hireflownow.com/c/<business> is its
+                      careers page, /c/<business>/<job> one of its jobs. The pair
+                      names exactly one job, so the link someone follows, and the
+                      page sign-up sends them back to, is always that job. */}
+                  {!isStaffHost() && <Route path="/c/:business" element={<BusinessCareers />} />}
+                  {!isStaffHost() && <Route path="/c/:business/:slug" element={<JobDetails />} />}
 
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={<NotFound />} />

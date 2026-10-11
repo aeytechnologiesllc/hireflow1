@@ -33,6 +33,8 @@ interface JobPreview {
   id: string;
   /** The short link name; a job that has one is opened there instead. */
   slug: string | null;
+  business_slug: string | null;
+  root_link: boolean | null;
   title: string;
   description: string;
   location: string | null;
@@ -177,7 +179,7 @@ export default function ApplyWithCode() {
 
       const { data, error: fetchError } = await supabase
         .from("published_jobs_public")
-        .select("id, slug, title, description, location, job_type, experience_level, department, benefits, application_questions, quiz_questions, workflow_steps, require_resume, application_deadline, employer_id")
+        .select("id, slug, business_slug, root_link, title, description, location, job_type, experience_level, department, benefits, application_questions, quiz_questions, workflow_steps, require_resume, application_deadline, employer_id")
         .eq("job_code", normalizedCode)
         .maybeSingle();
 

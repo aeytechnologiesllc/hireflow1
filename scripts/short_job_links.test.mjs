@@ -39,6 +39,9 @@ import {
   tidySlugInput,
   usableSlug,
   withApplyAsk,
+  businessSlugFromParam,
+  pageLookupKey,
+  refLookupKey,
 } from "../src/lib/jobSlug.ts";
 import { COMPUTER_STEP_TYPES, hasComputerSteps } from "../src/lib/candidateJourney.ts";
 import { hostRedirect, isCandidateOnlyPath, isSharedPrivatePath, isStaffOnlyPath } from "../src/lib/hosts.ts";
@@ -64,7 +67,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 console.log("\nThe editor's four messages, in the doc's words");
 check("format", SLUG_MESSAGES.format === "Use lowercase letters, numbers and hyphens");
 check("length", SLUG_MESSAGES.length === "3 to 40 characters");
-check("taken", SLUG_MESSAGES.taken === "That name is taken by another job");
+check("taken (within the business since 2026-10-10)", SLUG_MESSAGES.taken === "Another of your jobs has that name");
 check("reserved", SLUG_MESSAGES.reserved === "That name is part of the site; pick another");
 
 // ---------------------------------------------------------------------------
@@ -235,21 +238,26 @@ console.log("\nThe two front doors leave a short link alone (src/lib/hosts.ts)")
 console.log("\nThe root: 0, 1 or many open jobs");
 check("no open jobs → the careers page (its empty state)", rootDestination([]) === null);
 check("no data yet → stay", rootDestination(undefined) === null && rootDestination(null) === null);
-check("one open job with a short link → /team-lead", rootDestination([{ id: "j1", slug: "team-lead" }]) === "/team-lead");
+check("one open job → its address, /c/<business>/<job>", rootDestination([{ id: "j1", slug: "team-lead", business_slug: "zulu-support-team" }]) === "/c/zulu-support-team/team-lead");
+check("one open job known only by its root link → /team-lead", rootDestination([{ id: "j1", slug: "team-lead", root_link: true }]) === "/team-lead");
 check("one open job without one → its job page", rootDestination([{ id: "j1", slug: null }]) === "/candidate/job/j1");
 check("several open jobs → the careers page lists them", rootDestination([{ id: "j1", slug: "a-job" }, { id: "j2", slug: "b-job" }]) === null);
-check("each listed role links to its short link", jobPagePath({ id: "j2", slug: "b-job" }) === "/b-job" && jobPagePath({ id: "j3" }) === "/candidate/job/j3");
+check("each listed role links to its address", jobPagePath({ id: "j2", slug: "b-job", business_slug: "lucky-star-support" }) === "/c/lucky-star-support/b-job" && jobPagePath({ id: "j3" }) === "/candidate/job/j3");
+check("a name with no business and no root link is no short link (it could be anyone's)", jobPagePath({ id: "j4", slug: "b-job" }) === "/candidate/job/j4");
 {
   const index = await read("src/pages/Index.tsx");
   check("Index.tsx goes to the one job with replace", /rootDestination\(roles\)/.test(index) && /navigate\(singleRole, \{ replace: true \}\)/.test(index));
   check("Index.tsx reads the whole row and links roles by jobPagePath", /\.from\("published_jobs_public"\)\s*\.select\("\*"\)/.test(index) && /<Link to=\{jobPagePath\(job\)\}/.test(index));
-  check("...and hands the one role to the job page, which opens without a skeleton", /queryClient\.setQueryData\(\["job-details", slug \? `slug:\$\{slug\}` : only\.id, true\], only\)/.test(index));
+  check("...and hands the one role to the job page, which opens without a skeleton", /queryClient\.setQueryData\(\["job-details", pageLookupKey\(only\), true\], only\)/.test(index));
+  check("...and lists only the home business's roles (every other business has /c/<business>)", /useHomeBusiness\(/.test(index) && /query\.eq\("employer_id", homeEmployer\)/.test(index));
   check("the root's waiting ground follows the theme (not the always-Night careers ground)", /className="grid min-h-\[100dvh\] place-items-center bg-background" aria-busy="true"/.test(index));
 }
 
 // ---------------------------------------------------------------------------
 console.log("\nOld links forward to the short link");
-check("a job with a slug → its short link", shortLinkFor({ slug: "team-lead" }) === "/team-lead");
+check("a job with a business and a name → its address", shortLinkFor({ slug: "team-lead", business_slug: "zulu-support-team" }) === "/c/zulu-support-team/team-lead");
+check("a job with only its root link → /team-lead", shortLinkFor({ slug: "team-lead", root_link: true }) === "/team-lead");
+check("…the business address wins over the root link", shortLinkFor({ slug: "team-lead", business_slug: "zulu-support-team", root_link: true }) === "/c/zulu-support-team/team-lead");
 check("a job without → stay on the old page", shortLinkFor({ slug: null }) === null && shortLinkFor(null) === null);
 check("/Team-Lead finds team-lead", slugFromParam("Team-Lead") === "team-lead");
 check("a path that cannot be a name finds nothing", slugFromParam("no_such.role") === null && slugFromParam("") === null && slugFromParam(undefined) === null);
@@ -262,7 +270,8 @@ check("a path that cannot be a name finds nothing", slugFromParam("no_such.role"
   check("/candidate/job/:id forwards to the short link with replace", /navigate\(`\$\{forwardTo\}\$\{location\.search\}\$\{location\.hash\}`, \{ replace: true \}\)/.test(job));
   check("...but not on the staff host", /shortPath && !isStaffHost\(\) && location\.pathname !== shortPath/.test(job));
   check("...and never to a name the site cannot open", /const shortPath = shortLinkFor\(job\);/.test(job));
-  check("the job page reads by slug on the short link", /base\.eq\("slug", lookupSlug!\)/.test(job));
+  check("the job page reads a business's job by its business AND its name", /base\.eq\("business_slug", lookupBusiness\)\.eq\("slug", lookupSlug!\)/.test(job));
+  check("…and a root link only as the job it was handed out for", /base\.eq\("slug", lookupSlug!\)\.eq\("root_link", true\)/.test(job));
 }
 
 // ---------------------------------------------------------------------------
@@ -319,7 +328,8 @@ check("...never off the site", jobPageFromRedirect("//evil.example") === null &&
 // ---------------------------------------------------------------------------
 console.log("\nThe share-link builder");
 const ORIGIN = "https://hireflownow.com";
-check("a slug → the short link", jobShareLink(ORIGIN, { id: "j1", slug: "team-lead", roleCode: "JOB-C84E85" }) === "https://hireflownow.com/team-lead");
+check("a job's address is the link to share", jobShareLink(ORIGIN, { id: "j1", slug: "team-lead", business_slug: "zulu-support-team", roleCode: "JOB-C84E85" }) === "https://hireflownow.com/c/zulu-support-team/team-lead");
+check("…a name with no business: the code link, never a bare root link", jobShareLink(ORIGIN, { id: "j1", slug: "team-lead", roleCode: "JOB-C84E85" }) === "https://hireflownow.com/candidate/apply?code=JOB-C84E85");
 check("no slug, a code → the code link it always had", jobShareLink(ORIGIN, { id: "j1", roleCode: "JOB-C84E85" }) === "https://hireflownow.com/candidate/apply?code=JOB-C84E85");
 check("neither → the job page", jobShareLink(ORIGIN, { id: "j1" }) === "https://hireflownow.com/candidate/job/j1");
 check("a code is URL-encoded", applyWithCodePath("A B&C") === "/candidate/apply?code=A%20B%26C");
@@ -393,6 +403,59 @@ check("the sign-in screen can name the job from its page path", same(jobRefFromP
   check("the empty field's placeholder is plainly an example", /placeholder="your-job-name"/.test(editor) && /placeholder:italic/.test(editor));
   check("the help line spells out the whole link (a long name is cut in the box on a phone)", /The link you share: <span className="font-medium text-foreground">\{linkHost\}\/\{slug\}<\/span>/.test(editor));
   check("a bad name stops the save before anything is written", editor.indexOf("if (slugError) {") > editor.indexOf("const handleSubmit = async") && editor.indexOf("if (slugError) {") < editor.indexOf("const jobData = {"));
+}
+
+// ---------------------------------------------------------------------------
+console.log("\nPer business: the same name at two businesses never collides (2026-10-10)");
+{
+  // The owner: "once I click on the link and they don't have an account and
+  // they're creating the account, will they be able to redirect to that same
+  // job, no collision? ... check different scenarios".
+  const zulu = { id: "z1", slug: "team-lead", business_slug: "zulu-support-team", root_link: true };
+  const lucky = { id: "l1", slug: "team-lead", business_slug: "lucky-star-support" };
+  check("two businesses' 'team-lead' are two addresses", jobPagePath(zulu) === "/c/zulu-support-team/team-lead" && jobPagePath(lucky) === "/c/lucky-star-support/team-lead");
+  // Apply → sign up → back: the redirect the job page sends, kept whole.
+  const back = withApplyAsk(jobPagePath(lucky));
+  check("the sign-in screen keeps the whole address as the way back", jobPageFromRedirect(back) === "/c/lucky-star-support/team-lead");
+  check("…and names that job, not another business's", JSON.stringify(jobRefFromPagePath(jobPageFromRedirect(back))) === JSON.stringify({ business: "lucky-star-support", slug: "team-lead" }));
+  check("…under its own cache key (the title on the sign-in screen is that job's)", refLookupKey(jobRefFromPagePath("/c/lucky-star-support/team-lead")) !== refLookupKey(jobRefFromPagePath("/c/zulu-support-team/team-lead")) && refLookupKey(jobRefFromPagePath("/team-lead")) === "slug:team-lead");
+  check("the page a job's link opens and the key it is handed over under agree", [zulu, lucky].every((j) => pageLookupKey(j) === refLookupKey(jobRefFromPagePath(jobPagePath(j)))));
+  check("an old root link still names its job", JSON.stringify(jobRefFromPagePath("/team-lead")) === JSON.stringify({ slug: "team-lead" }));
+  for (const bad of ["/c/lucky-star-support", "/c//team-lead", "/c/lucky-star-support/", "/c/../team-lead", "/c/lucky-star-support/team-lead/extra", "/c/Lucky/team-lead", "/c/lucky_star/team-lead", "//evil.example/c/x/y", "https://evil.example/c/x/y"]) {
+    check(`never a way back: ${bad}`, jobPageFromRedirect(bad) === null);
+  }
+  check("a trailing slash still names the job", JSON.stringify(jobRefFromPagePath("/c/lucky-star-support/team-lead/")) === JSON.stringify({ business: "lucky-star-support", slug: "team-lead" }));
+  check("business names follow the database's rule", businessSlugFromParam("Lucky-Star-Support") === "lucky-star-support" && businessSlugFromParam("lucky--star") === null && businessSlugFromParam("x") === null && businessSlugFromParam("-x-") === null);
+
+  const app = await read("src/App.tsx");
+  check("/c/<business>/<job> opens the job page, on the candidates' site only", /\{!isStaffHost\(\) && <Route path="\/c\/:business\/:slug" element=\{<JobDetails \/>\} \/>\}/.test(app));
+  check("/c/<business> opens its careers page", /\{!isStaffHost\(\) && <Route path="\/c\/:business" element=\{<BusinessCareers \/>\} \/>\}/.test(app));
+  const routes = [
+    { path: "/c/:business", element: "careers" },
+    { path: "/c/:business/:slug", element: "job" },
+    { path: "/:slug", element: "root" },
+    { path: "*", element: "none" },
+  ];
+  const hit = (p) => matchRoutes(routes, p)?.at(-1)?.route.element;
+  check("the router: /c/a/b → the job, /c/a → careers, /team-lead → root link", hit("/c/lucky-star-support/team-lead") === "job" && hit("/c/lucky-star-support") === "careers" && hit("/team-lead") === "root" && hit("/c/a/b/c") === "none");
+  check("/c/... belongs to the candidates' site (the staff site sends it there)", isCandidateOnlyPath("/c/lucky-star-support/team-lead") && isCandidateOnlyPath("/c/lucky-star-support") && !isCandidateOnlyPath("/c/a/b/c"));
+
+  const auth = await read("src/pages/CandidateAuth.tsx");
+  check("the sign-in screen looks the job up by its business and name", /base\.eq\("business_slug", applyingFor\.business\)\.eq\("slug", applyingFor\.slug\)/.test(auth) && /base\.eq\("slug", applyingFor\.slug\)\.eq\("root_link", true\)/.test(auth));
+  check("sign-up carries the job into the confirmation email's link too", /signUp\(signUpEmail, signUpPassword, signUpName, "candidate", undefined, safeRedirectTarget\)/.test(auth));
+  const useAuth = await read("src/hooks/useAuth.tsx");
+  check("…which AuthCallback honours (same-site paths only)", /redirectUrl\.searchParams\.set\("redirect", redirectPath\)/.test(useAuth) && /redirectPath\.startsWith\("\/"\) && !redirectPath\.startsWith\("\/\/"\)/.test(useAuth));
+  const avail = await read("src/lib/jobSlugAvailability.ts");
+  check("a name is checked within the business only", /takenSlugs\(names: string\[\], exceptJobId: string \| null \| undefined, employerId: string\)/.test(avail) && (avail.match(/\.eq\("employer_id", employerId\)/g) ?? []).length === 2);
+  // Clear at a glance (the owner: "no confusion"): the screens every
+  // business's applicants share never name Zulu; the sign-in screen names the
+  // job's own business.
+  for (const file of ["src/pages/CandidateAuth.tsx", "src/pages/CandidatePortalLanding.tsx", "src/pages/Applications.tsx", "src/components/seo/JobPageHead.tsx", "src/main.tsx", "src/pages/BusinessCareers.tsx"]) {
+    const code = (await read(file)).split("\n").filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line)).join("\n");
+    check(`${file} never names Zulu to an applicant`, !/Zulu/.test(code));
+  }
+  check("the sign-in screen says which business the job is at", /data-applying-company/.test(auth) && /at \{applyingForCompany\}/.test(auth));
+  check("the database's per-business rule reads as 'taken'", slugSaveProblem({ code: "23505", message: 'duplicate key value violates unique constraint "jobs_slug_per_business"' }) === "taken");
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

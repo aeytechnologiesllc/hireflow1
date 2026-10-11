@@ -38,7 +38,7 @@ export function JobPageHead({ job, company }: { job: JobPageHeadJob; company?: s
     // so pointing search and link previews at it would send them home. Move
     // this to the short link only together with a by-slug prerender.
     const url = `${CANONICAL_ORIGIN}/candidate/job/${job.id}`;
-    const title = company ? `${job.title} at ${company}` : `${job.title} | Zulu Support Team`;
+    const title = company ? `${job.title} at ${company}` : `${job.title} | HireFlow`;
     const description = textSummary(job, company);
     const previousTitle = document.title;
     document.title = title;

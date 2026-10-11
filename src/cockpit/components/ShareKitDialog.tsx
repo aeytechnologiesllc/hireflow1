@@ -19,8 +19,10 @@ interface ShareKitJob {
   location: string;
   pay: string;
   roleCode?: string | null;
-  /** The short link name: hireflownow.com/<slug> (docs/SHORT-JOB-LINKS.md). */
+  /** The job's name in its link (docs/SHORT-JOB-LINKS.md): /c/<business_slug>/<slug>. */
   slug?: string | null;
+  business_slug?: string | null;
+  root_link?: boolean | null;
   /** The job has steps done at a computer (a connection check, a typing test,
    *  a chat practice, an interview: docs/COMPUTER-ONLY-TESTS.md). Only then do
    *  the post and flyer say "on your computer". */

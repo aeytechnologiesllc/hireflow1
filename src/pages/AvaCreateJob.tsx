@@ -67,6 +67,7 @@ import TalkToAva from "@/components/ava/createFlow/TalkToAva";
 import type { LucideIcon } from "lucide-react";
 import { candidateOrigin } from "@/lib/hosts";
 import { jobPageUrl, jobShareUrl } from "@/lib/jobLinks";
+import { useOwnBusiness } from "@/hooks/useBusinessPage";
 import { claimSuggestedSlug } from "@/lib/jobSlugAvailability";
 
 const KIND_ICON: Record<string, { icon: LucideIcon; accent: ReviewPhaseCard["accent"] }> = {
@@ -183,6 +184,8 @@ export default function AvaCreateJob() {
   const [publishedRoleId, setPublishedRoleId] = useState<string | null>(null);
   // The new job's short link name (hireflownow.com/<slug>), when one was free.
   const [publishedSlug, setPublishedSlug] = useState<string | null>(null);
+  // The business's careers name: the link is /c/<business>/<job>.
+  const { data: ownBusiness } = useOwnBusiness();
   // Publishing with no business name on file is what a job silently drops out
   // of the aggregator feed for and shows "Confidential" to candidates. Catch
   // it right here rather than losing the plan the employer just built.
@@ -487,7 +490,7 @@ export default function AvaCreateJob() {
 
   const applyLink = publishedCode
     ? publishedSlug && publishedRoleId
-      ? jobShareUrl({ id: publishedRoleId, slug: publishedSlug })
+      ? jobShareUrl({ id: publishedRoleId, slug: publishedSlug, business_slug: ownBusiness?.slug ?? null })
       : publishedRoleId && typeof window !== "undefined"
         ? `${candidateOrigin()}/candidate/job/${publishedRoleId}`
         : candidateApplyUrl(publishedCode)
@@ -750,7 +753,7 @@ export default function AvaCreateJob() {
                   <div className="mt-4 flex w-full flex-col gap-2.5">
                     {publishedRoleId && (
                       <a
-                        href={jobPageUrl({ id: publishedRoleId, slug: publishedSlug })}
+                        href={jobPageUrl({ id: publishedRoleId, slug: publishedSlug, business_slug: ownBusiness?.slug ?? null })}
                         target="_blank"
                         rel="noreferrer"
                         className="ck-btn ck-btn-primary w-full !text-[13px]"

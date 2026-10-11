@@ -66,8 +66,10 @@ export const JOB_COPY_COLUMNS = [
  *    employer is set by the create path, never copied from a row);
  *  - status: a copy is always a draft;
  *  - job_code: the database gives every job its own on insert;
- *  - slug: the short link is one job's; two jobs cannot share it, and the
- *    editor suggests a new one when the draft is published;
+ *  - slug: the short link is one job's; two jobs of a business cannot share
+ *    it, and the editor suggests a new one when the draft is published;
+ *  - root_link: a root link handed out before links went per business is
+ *    the original's alone (and no client can set it anyway);
  *  - application_deadline: a date chosen for the original's run;
  *  - ai_bias_score, ai_bias_feedback: a reading of the original, written by
  *    the checker; the editor reads the copy afresh.
@@ -80,6 +82,7 @@ export const JOB_COPY_LEFT_OUT = [
   "status",
   "job_code",
   "slug",
+  "root_link",
   "application_deadline",
   "ai_bias_score",
   "ai_bias_feedback",

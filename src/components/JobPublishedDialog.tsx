@@ -33,8 +33,9 @@ interface JobPublishedDialogProps {
     location?: string | null;
     job_type?: string | null;
     job_code?: string | null;
-    /** The short link name: hireflownow.com/<slug> (docs/SHORT-JOB-LINKS.md). */
+    /** The job's name in its link (docs/SHORT-JOB-LINKS.md): /c/<business_slug>/<slug>. */
     slug?: string | null;
+    business_slug?: string | null;
   } | null;
 }
 

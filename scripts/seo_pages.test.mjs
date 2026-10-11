@@ -61,7 +61,8 @@ const legal = await read("src/components/LegalPage.tsx");
 check("Privacy and Terms: their own title and address (no name in the frame, docs/LEGAL-PAGES.md)", /usePageHead\(\{ title: doc\.title, path: pathname, description: doc\.intro\[0\] \}\);/.test(legal));
 check("an address that does not exist: kept out of search", /usePageHead\(\{ title: "Page not found", noindex: true \}\);/.test(await read("src/pages/NotFound.tsx")));
 check("a one-word address that is no open job (/nope, a closed role): kept out of search", /<PageHeadTags title=\{"This role isn\\u2019t open"\} noindex \/>/.test(await read("src/pages/JobDetails.tsx")));
-check("the applicants' sign-in: its own title, kept out of search", /usePageHead\(\{ title: "Sign in \| Zulu Support Team", noindex: true \}\);/.test(await read("src/pages/CandidateAuth.tsx")));
+// Every business's applicants sign in here (2026-10-10): HireFlow's name, not Zulu's.
+check("the applicants' sign-in: its own title, kept out of search", /usePageHead\(\{ title: "Sign in \| HireFlow", noindex: true \}\);/.test(await read("src/pages/CandidateAuth.tsx")));
 const jobHead = await read("src/components/seo/JobPageHead.tsx");
 check("the job page shares the same tag helpers", /from "@\/lib\/headTags";/.test(jobHead) && !/function setMeta/.test(jobHead));
 const shell = await read("index.html");

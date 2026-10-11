@@ -115,6 +115,7 @@ import { subscribeToAvaFormCommands, AvaFormCommand } from "@/utils/avaFormEvent
 import { JobPublishedDialog } from "@/components/JobPublishedDialog";
 import { SLUG_MESSAGES, slugCandidates, slugProblem, slugSaveProblem, suggestJobSlug, tidySlugInput } from "@/lib/jobSlug";
 import { firstFreeSlug, takenSlugs } from "@/lib/jobSlugAvailability";
+import { useOwnBusiness } from "@/hooks/useBusinessPage";
 import { candidateOrigin } from "@/lib/hosts";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import AvaWorkflowGenerationOverlay, {
@@ -905,7 +906,12 @@ export default function CreateJob() {
   const slugLeaving = isEditMode && !!loadedSlug && slug !== loadedSlug;
   const [pendingSlugChange, setPendingSlugChange] = useState<{ status: "draft" | "published"; companyNameOverride?: string } | null>(null);
   const slugChangeAcceptedRef = useRef<string | null>(null);
-  const linkHost = candidateOrigin().replace(/^https?:\/\//, "");
+  // The business this job belongs to: names are unique within it, and its
+  // careers name is the middle of the link (/c/<business>/<job>).
+  const { data: ownBusiness } = useOwnBusiness();
+  const slugEmployerId = existingJob?.employer_id ?? ownBusiness?.employerId ?? null;
+  const businessSlug = ownBusiness?.slug ?? null;
+  const linkHost = `${candidateOrigin().replace(/^https?:\/\//, "")}${businessSlug ? `/c/${businessSlug}` : ""}`;
 
   const [formData, setFormData] = useState<AvaJobFormData>({
     title: "",
@@ -977,6 +983,7 @@ export default function CreateJob() {
     job_type?: string | null;
     job_code?: string | null;
     slug?: string | null;
+    business_slug?: string | null;
   } | null>(null);
   const [showPublishedDialog, setShowPublishedDialog] = useState(false);
   // Publishing with no business name on file is what silently drops a job
@@ -1240,7 +1247,7 @@ export default function CreateJob() {
   // taken moves on to the next free one (team-lead-2); a name the person typed
   // is theirs, so it is only flagged. The save asks the database again either way.
   useEffect(() => {
-    if (!slug || slugProblem(slug) || (isEditMode && slug === loadedSlug)) return;
+    if (!slug || slugProblem(slug) || (isEditMode && slug === loadedSlug) || !slugEmployerId) return;
     let cancelled = false;
     const timer = setTimeout(async () => {
       try {
@@ -1248,15 +1255,15 @@ export default function CreateJob() {
           if (refusedSlugs.has(slug)) {
             // The database already said no to this one: the next free name.
             const names = slugCandidates(slug, 8).filter((name) => !refusedSlugs.has(name));
-            const taken = await takenSlugs(names, id);
+            const taken = await takenSlugs(names, id, slugEmployerId);
             const free = names.find((name) => !taken.has(name));
             if (!cancelled && free) setSlug(free);
             return;
           }
-          const free = await firstFreeSlug(slug, id);
+          const free = await firstFreeSlug(slug, id, slugEmployerId);
           if (!cancelled && free && free !== slug && !refusedSlugs.has(free)) setSlug(free);
         } else {
-          const taken = await takenSlugs([slug], id);
+          const taken = await takenSlugs([slug], id, slugEmployerId);
           if (!cancelled) setSlugTaken(taken.has(slug) ? slug : null);
         }
       } catch (error) {
@@ -1268,7 +1275,7 @@ export default function CreateJob() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [slug, slugFollowsTitle, id, isEditMode, loadedSlug, refusedSlugs]);
+  }, [slug, slugFollowsTitle, id, isEditMode, loadedSlug, refusedSlugs, slugEmployerId]);
 
   const handleGuidedSetupChange = <K extends keyof GuidedJobSetup>(field: K, value: GuidedJobSetup[K]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -1748,6 +1755,7 @@ export default function CreateJob() {
             job_type: createdJob.job_type,
             job_code: createdJob.job_code,
             slug: createdJob.slug,
+            business_slug: businessSlug,
           });
           setShowPublishedDialog(true);
         } else {

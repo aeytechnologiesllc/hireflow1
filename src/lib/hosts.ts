@@ -94,6 +94,8 @@ const STAFF_ONLY = [
 
 const CANDIDATE_ONLY = [
   /^\/careers\/?$/,
+  // A business's careers page and its jobs (/c/<business>, /c/<business>/<job>).
+  /^\/c\/[^/]+(\/[^/]+)?\/?$/,
   /^\/candidate\/?$/,
   /^\/candidate\/auth(\/|$)/,
   /^\/candidate\/apply(\/|$)/,

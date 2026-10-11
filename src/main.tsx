@@ -14,7 +14,7 @@ installCrashReporter();
 
 // index.html's title is the careers site's. On the staff host the tab (and an
 // iPhone home-screen bookmark) should say whose door this is.
-if (isStaffHost()) document.title = "Zulu Support Team — Staff";
+if (isStaffHost()) document.title = "HireFlow — Staff";
 
 // Unregister any cached service workers that might interfere with fetch requests
 if ('serviceWorker' in navigator) {

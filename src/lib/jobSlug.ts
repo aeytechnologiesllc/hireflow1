@@ -3,8 +3,17 @@
  *
  * Owner, 2026-10-06, looking at hireflownow.com/candidate/apply?code=JOB-C84E85:
  * "I don't get it. Why are link actually has a job code and all of that?" The
- * link an applicant sees is hireflownow.com/<slug>; the page it opens has one
+ * link an applicant sees has the job's name in it; the page it opens has one
  * job and one Apply button.
+ *
+ * Per business since 2026-10-10 (the owner, opening HireFlow to other
+ * businesses: "multiple people posting multiple jobs ... no collision?"):
+ * hireflownow.com/c/<business>/<job>. A job's name is unique within its
+ * business (jobs_slug_per_business), a business's name across the site, so
+ * the pair names exactly one job: the link someone follows, and the page they
+ * are sent back to after making an account, can only ever be that job. The
+ * root links already handed out (hireflownow.com/team-lead) still open their
+ * job (jobs.root_link), and the page moves to the new address.
  *
  * Everything here is plain logic with ZERO imports, so
  * scripts/short_job_links.test.mjs imports this very file into Node and tests
@@ -33,6 +42,8 @@ export const ROUTE_SEGMENTS: readonly string[] = [
   "apply",
   "auth",
   "ava-preview",
+  // A business's careers page: /c/<slug> (2026-10-11).
+  "c",
   "candidate",
   "dashboard",
   "developer",
@@ -108,7 +119,7 @@ export type SlugProblem = "format" | "length" | "reserved" | "taken";
 export const SLUG_MESSAGES: Readonly<Record<SlugProblem, string>> = {
   format: "Use lowercase letters, numbers and hyphens",
   length: "3 to 40 characters",
-  taken: "That name is taken by another job",
+  taken: "Another of your jobs has that name",
   reserved: "That name is part of the site; pick another",
 };
 
@@ -190,8 +201,27 @@ export function slugCandidates(base: string, count = 6): string[] {
 export interface LinkableJob {
   id: string;
   slug?: string | null;
+  /** The business's careers name (business_pages.slug): /c/<business>/<slug>. */
+  business_slug?: string | null;
+  /** The job's root link (hireflownow.com/<slug>) was handed out before links
+   *  went per business (jobs.root_link); only those jobs have one. */
+  root_link?: boolean | null;
   /** The job code (jobs.job_code, or a showcase role's role_code). */
   roleCode?: string | null;
+}
+
+/** business_pages.slug's own rule: lowercase words joined by hyphens, 2-60. */
+export const BUSINESS_SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+/** The URL's business name as the database stores it, or null when it cannot be one. */
+export function businessSlugFromParam(param: string | null | undefined): string | null {
+  const value = (param ?? "").trim().toLowerCase();
+  return value.length >= 2 && value.length <= 60 && BUSINESS_SLUG_PATTERN.test(value) ? value : null;
+}
+
+/** A job's address: hireflownow.com/c/<business>/<job>. */
+export function businessJobPath(business: string, slug: string): string {
+  return `/c/${business}/${slug}`;
 }
 
 /** The old code link, still honoured for links already shared. */
@@ -210,10 +240,21 @@ export function usableSlug(slug: string | null | undefined): string | null {
   return slug && SLUG_PATTERN.test(slug) && !RESERVED_SLUGS.has(slug) ? slug : null;
 }
 
-/** The job's page on the candidates' site: its short link when it has one. */
+/**
+ * The job's own short path: /c/<business>/<job>; for a job whose business
+ * address is not known, its root link if it was handed one; otherwise null.
+ */
+export function shortLinkFor(job: Pick<LinkableJob, "slug" | "business_slug" | "root_link"> | null | undefined): string | null {
+  const slug = usableSlug(job?.slug);
+  if (!slug) return null;
+  const business = businessSlugFromParam(job?.business_slug);
+  if (business) return businessJobPath(business, slug);
+  return job?.root_link ? `/${slug}` : null;
+}
+
+/** The job's page on the candidates' site: its short path when it has one. */
 export function jobPagePath(job: LinkableJob): string {
-  const slug = usableSlug(job.slug);
-  return slug ? `/${slug}` : `/candidate/job/${job.id}`;
+  return shortLinkFor(job) ?? `/candidate/job/${job.id}`;
 }
 
 /**
@@ -222,8 +263,8 @@ export function jobPagePath(job: LinkableJob): string {
  * when the job has one, and the link it always had otherwise.
  */
 export function jobShareLink(origin: string, job: LinkableJob): string {
-  const slug = usableSlug(job.slug);
-  if (slug) return `${origin}/${slug}`;
+  const path = shortLinkFor(job);
+  if (path) return `${origin}${path}`;
   if (job.roleCode) return `${origin}${applyWithCodePath(job.roleCode)}`;
   return `${origin}/candidate/job/${job.id}`;
 }
@@ -236,15 +277,6 @@ export function jobShareLink(origin: string, job: LinkableJob): string {
 export function rootDestination(openJobs: ReadonlyArray<LinkableJob> | null | undefined): string | null {
   if (!openJobs || openJobs.length !== 1) return null;
   return jobPagePath(openJobs[0]);
-}
-
-/**
- * Where an old link (/candidate/apply?code=X, /candidate/job/:id) forwards:
- * the job's short link when it has one, otherwise null and the old page stays.
- */
-export function shortLinkFor(job: { slug?: string | null } | null | undefined): string | null {
-  const slug = usableSlug(job?.slug);
-  return slug ? `/${slug}` : null;
 }
 
 /** The URL's slug as the database stores it (a link typed as /Team-Lead/
@@ -263,7 +295,7 @@ export function jobPageFromRedirect(redirect: string | null | undefined): string
   const [path, query = ""] = redirect.split("?");
   const segment = path.slice(1);
   const isShortLink = slugFromParam(segment) === segment && !RESERVED_SLUGS.has(segment);
-  const isJobPage = isShortLink || /^\/candidate\/job\/[^/]+\/?$/.test(path);
+  const isJobPage = isShortLink || isBusinessJobPath(path) || /^\/candidate\/job\/[^/]+\/?$/.test(path);
   if (!isJobPage) return null;
   const params = new URLSearchParams(query);
   params.delete("apply");
@@ -271,11 +303,26 @@ export function jobPageFromRedirect(redirect: string | null | undefined): string
   return rest ? `${path}?${rest}` : path;
 }
 
-/** Which job a public job page path names: its short link name or its id.
- *  Used by the sign-in screen to say which job the person is applying for. */
-export function jobRefFromPagePath(path: string | null | undefined): { slug: string } | { id: string } | null {
+/** /c/<business>/<job>, exactly as the database would store both names. */
+function isBusinessJobPath(path: string): boolean {
+  const m = /^\/c\/([^/]+)\/([^/]+)\/?$/.exec(path);
+  return !!m && businessSlugFromParam(m[1]) === m[1] && slugFromParam(m[2]) === m[2];
+}
+
+export type JobPageRef = { business: string; slug: string } | { slug: string } | { id: string };
+
+/** Which job a public job page path names: its business and name, its root
+ *  link, or its id. Used by the sign-in screen to say which job the person is
+ *  applying for. */
+export function jobRefFromPagePath(path: string | null | undefined): JobPageRef | null {
   if (!path) return null;
   const bare = path.split("?")[0].replace(/\/+$/, "");
+  const scoped = /^\/c\/([^/]+)\/([^/]+)$/.exec(bare);
+  if (scoped) {
+    const business = businessSlugFromParam(scoped[1]);
+    const slug = slugFromParam(scoped[2]);
+    return business && slug && business === scoped[1] && slug === scoped[2] ? { business, slug } : null;
+  }
   const byId = /^\/candidate\/job\/([^/]+)$/.exec(bare);
   if (byId) {
     try {
@@ -287,6 +334,25 @@ export function jobRefFromPagePath(path: string | null | undefined): { slug: str
   const segment = bare.slice(1);
   const slug = slugFromParam(segment);
   return slug && slug === segment && !RESERVED_SLUGS.has(slug) ? { slug } : null;
+}
+
+/** The job page's cache key for a job named by its business and name. */
+export function jobLookupKey(business: string, slug: string): string {
+  return `job:${business}/${slug}`;
+}
+
+/** The cache key the job page reads for a path's job (the sign-in screen and
+ *  the careers page hand the row over under it). */
+export function refLookupKey(ref: JobPageRef | null | undefined): string | null {
+  if (!ref) return null;
+  if ("business" in ref) return jobLookupKey(ref.business, ref.slug);
+  if ("slug" in ref) return `slug:${ref.slug}`;
+  return ref.id;
+}
+
+/** The cache key of the page a job's short path opens. */
+export function pageLookupKey(job: Pick<LinkableJob, "id" | "slug" | "business_slug" | "root_link">): string {
+  return refLookupKey(jobRefFromPagePath(shortLinkFor(job))) ?? job.id;
 }
 
 /** The job page with the "start my application" ask that sign-in carries back. */
@@ -302,7 +368,7 @@ export function withApplyAsk(path: string): string {
 export function slugSaveProblem(error: unknown): "taken" | "format" | null {
   const e = (error ?? null) as { code?: string; message?: string; details?: string } | null;
   const text = `${e?.message ?? ""} ${e?.details ?? ""}`;
-  if (e?.code === "23505" && /jobs_slug_unique/.test(text)) return "taken";
+  if (e?.code === "23505" && /jobs_slug_per_business|jobs_slug_unique/.test(text)) return "taken";
   if (e?.code === "23514" && /jobs_slug_format/.test(text)) return "format";
   return null;
 }

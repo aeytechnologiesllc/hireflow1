@@ -4,6 +4,7 @@
 //
 // Runs the real handler with fetch stubbed — no network.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import handler from "../api/job-prerender.mjs";
 
 const SHELL =
@@ -124,7 +125,9 @@ stubFetch({ jobRows: [REMOTE_WORLDWIDE], branding: [] });
   const r = await run(REMOTE_WORLDWIDE.id);
   assert.equal(r.status, 200);
   assert.ok(!/JobPosting/.test(r.body));
-  assert.match(r.body, /<title>Line Cook — Zulu Support Team<\/title>/);
+  // No business name on file: the site's own name (it said "Zulu Support Team"
+  // until other businesses could post, 2026-10-11).
+  assert.match(r.body, /<title>Line Cook — HireFlow<\/title>/);
   assert.deepEqual(robotsTags(r.body), ['<meta name="robots" content="index, follow" />']);
 }
 
@@ -302,4 +305,72 @@ stubFetch({ jobRows: [], jobStatus: 503 });
   );
 }
 
-console.log("job_prerender_gone: 11 scenarios passed");
+// 12. A business's job, /c/<business>/<slug> (2026-10-10, the owner: "no
+//     collision"): found by its business AND its name, never by the name
+//     alone; served to everyone, so no Vary; a closed or unknown one is a
+//     404 + noindex like an old id link, a failed lookup is never kept.
+async function runScoped(business, slug) {
+  const asked = [];
+  const before = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    asked.push(String(url));
+    return before(url, init);
+  };
+  const headers = {};
+  const res = {
+    statusCode: 0,
+    body: "",
+    setHeader(k, v) { headers[k.toLowerCase()] = v; },
+    end(b) { this.body = String(b ?? ""); },
+  };
+  try {
+    await handler({ query: { business, slug } }, res);
+  } finally {
+    globalThis.fetch = before;
+  }
+  return { status: res.statusCode, headers, body: res.body, asked };
+}
+stubFetch({ jobRows: [TEAM_LEAD], branding: [{ company_name: "Zulu Support Team" }] });
+{
+  const r = await runScoped("zulu-support-team", "team-lead");
+  assert.equal(r.status, 200);
+  assert.ok(r.asked.some((u) => u.includes("/published_jobs_public?business_slug=eq.zulu-support-team&slug=eq.team-lead&")), "found by its business and its name");
+  assert.ok(!r.asked.some((u) => /published_jobs_public\?slug=eq\./.test(u)), "never by the name alone");
+  assert.match(r.body, /<title>Chat Support Team Leader \(Zulu Royal &amp; Zulu Rush\) — Zulu Support Team<\/title>/);
+  assert.equal(r.headers["vary"], undefined, "one page for everyone at a business's address");
+}
+stubFetch({ jobRows: [TEAM_LEAD] });
+{
+  const r = await runSlug("team-lead");
+  assert.ok(r.asked.some((u) => u.includes("slug=eq.team-lead&root_link=is.true&")), "a root link opens only the job it was handed out for");
+}
+stubFetch({ jobRows: [] });
+{
+  const r = await runScoped("lucky-star-support", "team-lead");
+  assert.equal(r.status, 404, "a business's job that is not open is gone");
+  assert.deepEqual(robotsTags(r.body), ['<meta name="robots" content="noindex,follow" />']);
+  assert.match(r.body, /<div id="root"/, "the app still loads and says the role isn't open");
+}
+stubFetch({ jobRows: [], jobStatus: 500 });
+{
+  const r = await runScoped("lucky-star-support", "team-lead");
+  assert.equal(r.status, 200);
+  assert.equal(r.headers["cache-control"], "no-store", "a failed lookup is never kept");
+}
+stubFetch({ jobRows: [TEAM_LEAD] });
+{
+  const r = await runScoped("Not A Business", "team-lead");
+  assert.ok(!r.asked.some((u) => u.includes("/published_jobs_public?")), "a malformed business name is never looked up");
+  assert.equal(r.status, 404);
+}
+{
+  const vercel = JSON.parse(readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
+  const rules = vercel.rewrites;
+  const at = rules.findIndex((r) => r.source === "/c/:business/:slug");
+  assert.ok(at !== -1, "vercel.json sends /c/<business>/<job> to the prerender");
+  assert.equal(rules[at].destination, "/api/job-prerender?business=:business&slug=:slug");
+  assert.equal(rules[at].has, undefined, "for everyone, not only crawlers: the address is the job's alone");
+  assert.ok(at < rules.findIndex((r) => r.source === "/:path+"), "before the catch-all");
+}
+
+console.log("job_prerender_gone: 13 scenarios passed");

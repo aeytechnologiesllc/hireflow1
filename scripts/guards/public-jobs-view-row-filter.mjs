@@ -1,3 +1,6 @@
+import { readdir } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 /**
  * C3: public.published_jobs_public (a SECURITY DEFINER view — public.jobs
  * itself has RLS with no anon SELECT policy at all) returned every
@@ -30,9 +33,23 @@ export default [
       "makes every internal QA/test job readable by any stranger with (or " +
       "guessing) its id again, exactly the exposure this migration closed.",
     async run({ read }) {
-      const MIGRATION = "supabase/migrations/20260915130000_public_views_tighten.sql";
-      const sql = await read(MIGRATION);
-      if (sql == null) return { ok: false, detail: [`${MIGRATION} is missing`] };
+      // The NEWEST migration that defines the view is what production runs
+      // (2026-10-10: job links per business replaced it again), so that is
+      // the one held to the rule. 20260915130000_public_views_tighten.sql
+      // was the first.
+      const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "supabase", "migrations");
+      const files = (await readdir(dir)).filter((n) => n.endsWith(".sql")).sort();
+      let MIGRATION = null;
+      let sql = null;
+      for (const name of files.reverse()) {
+        const text = await read(`supabase/migrations/${name}`);
+        if (text && /create or replace view public\.published_jobs_public as/i.test(text)) {
+          MIGRATION = `supabase/migrations/${name}`;
+          sql = text;
+          break;
+        }
+      }
+      if (sql == null) return { ok: false, detail: ["no migration defines published_jobs_public"] };
       const bad = [];
 
       // Isolate the published_jobs_public view body so an unrelated view

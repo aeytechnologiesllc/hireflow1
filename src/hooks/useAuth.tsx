@@ -11,7 +11,7 @@ interface AuthContextType {
   role: AppRole | null;
   isTeamMember: boolean;
   loading: boolean;
-  signUp: (email: string, password: string, fullName: string, role: AppRole, companyName?: string) => Promise<{ error: Error | null; needsConfirmation: boolean }>;
+  signUp: (email: string, password: string, fullName: string, role: AppRole, companyName?: string, redirectPath?: string | null) => Promise<{ error: Error | null; needsConfirmation: boolean }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signInWithGoogle: (redirectTo?: string, role?: AppRole) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -230,9 +230,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signUp = async (email: string, password: string, fullName: string, userRole: AppRole, companyName?: string) => {
+  const signUp = async (email: string, password: string, fullName: string, userRole: AppRole, companyName?: string, redirectPath?: string | null) => {
     const redirectUrl = new URL("/auth/callback", window.location.origin);
     redirectUrl.searchParams.set("role", userRole);
+    // Where they were going (a job's Apply): if the project ever asks people
+    // to confirm their email, the link in that email still brings them back
+    // to that same job (AuthCallback honours ?redirect=, same-site paths only).
+    if (redirectPath && redirectPath.startsWith("/") && !redirectPath.startsWith("//")) {
+      redirectUrl.searchParams.set("redirect", redirectPath);
+    }
 
     const trimmedCompanyName = companyName?.trim();
 

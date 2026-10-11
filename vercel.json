@@ -25,6 +25,18 @@
       "destination": "/api/job-prerender?id=:id"
     },
     {
+      "source": "/careers",
+      "destination": "/api/careers-prerender?home=1"
+    },
+    {
+      "source": "/c/:slug",
+      "destination": "/api/careers-prerender?slug=:slug"
+    },
+    {
+      "source": "/c/:business/:slug",
+      "destination": "/api/job-prerender?business=:business&slug=:slug"
+    },
+    {
       "source": "/:slug",
       "has": [
         {

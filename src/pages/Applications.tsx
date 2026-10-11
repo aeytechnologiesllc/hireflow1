@@ -821,7 +821,7 @@ export default function Applications() {
           <EmptyStateCard
             icon={JourneyIdentityGlyph}
             title="Ready to Start Your Job Search?"
-            description="See the roles the Zulu Support Team has open. Each one has its own page with an Apply button."
+            description="See the roles that are open. Each one has its own page with an Apply button."
             action={{
               // The open roles, not the job-code box: nobody who came from a
               // job's link has a code (docs/SHORT-JOB-LINKS.md). With one open

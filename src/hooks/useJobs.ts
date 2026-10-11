@@ -13,9 +13,11 @@ export type JobInsert = TablesInsert<"jobs">;
 
 export interface JobWithApplicationCount extends Job {
   application_count: number;
+  /** The business's careers name (business_pages.slug): the job's link is /c/<business_slug>/<slug>. */
+  business_slug?: string | null;
 }
 
-async function resolveEmployerIdForJobAccess(userId: string, isTeamMember: boolean) {
+export async function resolveEmployerIdForJobAccess(userId: string, isTeamMember: boolean) {
   if (!isTeamMember) {
     return userId;
   }
@@ -76,8 +78,15 @@ export function useEmployerJobs() {
         countMap.set(app.job_id, (countMap.get(app.job_id) || 0) + 1);
       });
 
+      // The business's careers name: each job's link is /c/<business>/<slug>
+      // (docs/SHORT-JOB-LINKS.md, "Per business"). Best effort: without it a
+      // job keeps its longer link.
+      const { data: page } = await supabase.from("business_pages" as never).select("slug").eq("employer_id", employerId).maybeSingle();
+      const businessSlug = (page as { slug?: string } | null)?.slug ?? null;
+
       return jobs.map(job => ({
         ...job,
+        business_slug: businessSlug,
         application_count: countMap.get(job.id) || 0,
       })) as JobWithApplicationCount[];
     },

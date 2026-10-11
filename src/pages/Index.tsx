@@ -11,7 +11,8 @@ import { glyphForKind } from "@/components/glyphForKind";
 import { ChatDemo } from "@/components/careers/ChatDemo";
 import { CAREERS_PATH, isStaffHost, isStaffRole, staffSignInHref } from "@/lib/hosts";
 import { usePageHead } from "@/components/seo/usePageHead";
-import { jobPagePath, rootDestination, usableSlug } from "@/lib/jobSlug";
+import { jobPagePath, pageLookupKey, rootDestination } from "@/lib/jobSlug";
+import { useHomeBusiness } from "@/hooks/useBusinessPage";
 import { jobLevelLabel, jobTypeLabel } from "@/lib/jobLabels";
 import "@/styles/careers.css";
 
@@ -47,6 +48,9 @@ const EASE_OUT: [number, number, number, number] = [0.2, 0.7, 0.3, 1];
 interface OpenRole {
   id: string;
   slug: string | null;
+  /** The job's address is /c/<business_slug>/<slug> (published_jobs_public). */
+  business_slug?: string | null;
+  root_link?: boolean | null;
   title: string;
   location: string | null;
   job_type: string | null;
@@ -202,21 +206,25 @@ export default function Index() {
     return () => scroller.removeEventListener("scroll", onScroll);
   }, [staffHost]);
 
-  const { data: roles, isLoading, isError } = useQuery({
-    queryKey: ["careers-open-roles"],
+  // This is the home business's page (Zulu Support Team): only its own roles.
+  // Every other business has its own at /c/<business> (BusinessCareers).
+  const { data: home, isLoading: homeLoading } = useHomeBusiness(!staffHost);
+  const homeEmployer = home?.employer_id ?? null;
+  const { data: roles, isLoading: rolesLoading, isError } = useQuery({
+    queryKey: ["careers-open-roles", homeEmployer],
     queryFn: async (): Promise<OpenRole[]> => {
       // The whole row (the same select the job page makes), so the one-role
       // hop below can hand it over and the job opens without a second load.
-      const { data, error } = await supabase
-        .from("published_jobs_public")
-        .select("*")
-        .order("created_at", { ascending: false });
+      let query = supabase.from("published_jobs_public").select("*");
+      if (homeEmployer) query = query.eq("employer_id", homeEmployer);
+      const { data, error } = await query.order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as OpenRole[];
     },
-    enabled: !staffHost,
+    enabled: !staffHost && !homeLoading,
     staleTime: 60_000,
   });
+  const isLoading = homeLoading || rolesLoading;
 
   // One open role: go straight to it. Waits for sign-in to settle, so the
   // role-less account above still reaches /auth/callback first.
@@ -227,8 +235,7 @@ export default function Index() {
     // The job page reads this very row (published_jobs_public, select *):
     // seed its cache so it opens on the job, not on a loading skeleton.
     const only = roles[0];
-    const slug = usableSlug(only.slug);
-    queryClient.setQueryData(["job-details", slug ? `slug:${slug}` : only.id, true], only);
+    queryClient.setQueryData(["job-details", pageLookupKey(only), true], only);
     navigate(singleRole, { replace: true });
   }, [singleRole, roles, queryClient, navigate]);
 

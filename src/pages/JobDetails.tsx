@@ -32,16 +32,22 @@ import { fetchRoleById } from "@/lib/showcaseApply";
 import { JobPageHead } from "@/components/seo/JobPageHead";
 import { PageHeadTags } from "@/components/seo/usePageHead";
 import { CAREERS_PATH, isStaffHost } from "@/lib/hosts";
-import { jobPagePath, shortLinkFor, slugFromParam, withApplyAsk } from "@/lib/jobSlug";
+import { businessSlugFromParam, jobLookupKey, jobPagePath, pageLookupKey, shortLinkFor, slugFromParam, withApplyAsk } from "@/lib/jobSlug";
 import { jobLevelLabel, jobTypeLabel } from "@/lib/jobLabels";
 import { APPLICANT_BLOCKED_MESSAGE, isApplicantBlockedError } from "@/lib/applicantBlocked";
 
 export default function JobDetails() {
-  // Three doors to this one page (docs/SHORT-JOB-LINKS.md): the short link
-  // hireflownow.com/<slug>, and the old /candidate/job/:id and /job/:id.
-  const { id, slug: slugParam } = useParams<{ id?: string; slug?: string }>();
+  // Four doors to this one page (docs/SHORT-JOB-LINKS.md): the job's address
+  // hireflownow.com/c/<business>/<job>, a root link already handed out
+  // (hireflownow.com/<job>), and the old /candidate/job/:id and /job/:id.
+  // The business and the name together name one job (2026-10-10, the owner:
+  // "no collision"); a root link only ever opens the job it was handed out
+  // for (jobs.root_link).
+  const { id, slug: slugParam, business: businessParam } = useParams<{ id?: string; slug?: string; business?: string }>();
   const lookupSlug = id ? null : slugFromParam(slugParam);
-  const lookupKey = id ?? (lookupSlug ? `slug:${lookupSlug}` : null);
+  const lookupBusiness = id || businessParam === undefined ? null : businessSlugFromParam(businessParam);
+  const scopedLookup = businessParam !== undefined;
+  const lookupKey = id ?? (lookupSlug && scopedLookup ? (lookupBusiness ? jobLookupKey(lookupBusiness, lookupSlug) : null) : lookupSlug ? `slug:${lookupSlug}` : null);
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -92,7 +98,12 @@ export default function JobDetails() {
       // when in truth their connection dropped. `data === null` now means
       // "no such job (or not published)"; a thrown error means "we failed".
       const base = supabase.from("published_jobs_public").select("*");
-      const { data, error } = await (id ? base.eq("id", id) : base.eq("slug", lookupSlug!)).maybeSingle();
+      const query = id
+        ? base.eq("id", id)
+        : lookupBusiness
+          ? base.eq("business_slug", lookupBusiness).eq("slug", lookupSlug!)
+          : base.eq("slug", lookupSlug!).eq("root_link", true);
+      const { data, error } = await query.maybeSingle();
 
       if (error) throw error;
       return data;
@@ -107,10 +118,16 @@ export default function JobDetails() {
     queryKey: ["job-owned-unpublished", lookupKey, user?.id],
     queryFn: async () => {
       const base = supabase.from("jobs").select("id, status");
-      const { data } = await (id ? base.eq("id", id) : base.eq("slug", lookupSlug!)).maybeSingle();
+      // Under a business's address: only the owner's own job of that name.
+      const query = id
+        ? base.eq("id", id)
+        : lookupBusiness
+          ? base.eq("employer_id", user!.id).eq("slug", lookupSlug!)
+          : base.eq("slug", lookupSlug!).eq("root_link", true);
+      const { data } = await query.maybeSingle();
       return data;
     },
-    enabled: !!lookupKey && !isShowcase && isEmployer && !hireflowLoading && !job,
+    enabled: !!lookupKey && !isShowcase && isEmployer && !!user && !hireflowLoading && !job,
   });
 
   // Employer company name/logo (for JobPosting structured data hiringOrganization).
@@ -149,7 +166,7 @@ export default function JobDetails() {
     if (!forwardTo || !job) return;
     // The short link's page reads the same row: hand it over, so it opens
     // without a second request or a loading flash.
-    queryClient.setQueryData(["job-details", `slug:${job.slug}`, shouldRestrictToPublished], job);
+    queryClient.setQueryData(["job-details", pageLookupKey(job), shouldRestrictToPublished], job);
     navigate(`${forwardTo}${location.search}${location.hash}`, { replace: true });
   }, [forwardTo, job, location.search, location.hash, navigate, queryClient, shouldRestrictToPublished]);
 

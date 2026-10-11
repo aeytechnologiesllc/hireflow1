@@ -15,11 +15,13 @@ export interface ShareableJob {
   id: string;
   title: string;
   roleCode?: string | null;
-  /** The short link name: hireflownow.com/<slug> (docs/SHORT-JOB-LINKS.md). */
+  /** The job's name in its link (docs/SHORT-JOB-LINKS.md): /c/<business_slug>/<slug>. */
   slug?: string | null;
+  business_slug?: string | null;
+  root_link?: boolean | null;
 }
 
-/** The link a candidate applies through: the short link (hireflownow.com/<slug>)
+/** The link a candidate applies through: the job's address (hireflownow.com/c/<business>/<slug>)
  *  when the job has one, otherwise the code link or the job page. */
 export function applyLinkFor(job: ShareableJob): string {
   return jobShareUrl(job);

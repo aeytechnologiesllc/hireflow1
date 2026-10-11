@@ -100,6 +100,8 @@ export function mapJobRow(
     applicants: job.application_count,
     roleCode: job.job_code ?? null,
     slug: job.slug ?? null,
+    business_slug: job.business_slug ?? null,
+    root_link: job.root_link ?? null,
     onComputer: hasComputerSteps(job.workflow_steps),
     dateLabel,
     date,

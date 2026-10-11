@@ -43,6 +43,8 @@ const JOB_FIELDS =
 
 /** A short link's name: the database's own CHECK (jobs_slug_format). */
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
+/** business_pages.slug's own CHECK (2-60 characters, checked at the lookup). */
+const BUSINESS_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 /**
  * Names the site itself uses: a pinned copy of src/lib/jobSlug.ts
@@ -54,7 +56,7 @@ const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
  */
 const RESERVED_SLUGS = new Set([
   "__preview", "about", "admin", "adzuna.xml", "analytics", "api", "applicants", "applications",
-  "apply", "assets", "auth", "ava-preview", "candidate", "careers", "contact", "dashboard",
+  "apply", "assets", "auth", "ava-preview", "c", "candidate", "careers", "contact", "dashboard",
   "developer", "documents", "favicon.ico", "flow-lab", "fonts", "help", "home", "index.html", "interviews",
   "job", "jobs", "jobs.xml", "join-team", "jooble.xml", "landing-assets", "landing.html", "login", "logout",
   "manifest.webmanifest", "marketing-demo", "media", "messages", "more", "my-documents",
@@ -73,7 +75,7 @@ function esc(s) {
 
 function jobPageTitle(job, company) {
   const base = (job.title || "").trim() || "Job opening";
-  return company ? `${base} — ${company}` : `${base} — Zulu Support Team`;
+  return company ? `${base} — ${company}` : `${base} — HireFlow`;
 }
 
 function jobMetaDescription(job) {
@@ -100,9 +102,12 @@ function sb(path) {
 
 export default async function handler(req, res) {
   const id = String((req.query && req.query.id) || "").trim();
-  // A short link, when the request came in as /<slug> (vercel.json). An id
-  // wins if both are somehow given.
+  // A short link, when the request came in as /<slug> (a root link, crawlers
+  // only) or /c/<business>/<slug> (a business's job, everyone; vercel.json).
+  // An id wins if both are somehow given.
   const slug = id ? "" : String((req.query && req.query.slug) || "").trim().toLowerCase();
+  const business = id ? "" : String((req.query && req.query.business) || "").trim().toLowerCase();
+  const scoped = !id && !!(req.query && req.query.business !== undefined);
   const origin = ORIGIN;
 
   let shell = "";
@@ -112,16 +117,43 @@ export default async function handler(req, res) {
     if (!shell || !/<div id="root"/i.test(shell)) {
       res.statusCode = 200;
       res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.end(shell || '<!doctype html><meta charset="utf-8"><title>Zulu Support Team</title><p>Loading…</p>');
+      res.end(shell || '<!doctype html><meta charset="utf-8"><title>HireFlow</title><p>Loading…</p>');
       return;
     }
 
     let job = null;
-    if (slug) {
-      // The short link: the same public view, looked up by its name.
+    let scopedGone = false;
+    if (scoped) {
+      // /c/<business>/<slug>: the business and the name together name one job
+      // (jobs_slug_per_business, business_pages.slug unique). Served to
+      // everyone, so a closed job answers like an old id link: 404 + noindex
+      // with the app's own "no longer open" screen.
+      let lookupFailed = false;
+      if (BUSINESS_RE.test(business) && business.length <= 60 && SLUG_RE.test(slug)) {
+        const jr = await sb(`published_jobs_public?business_slug=eq.${encodeURIComponent(business)}&slug=eq.${encodeURIComponent(slug)}&select=${JOB_FIELDS}&limit=1`);
+        lookupFailed = !jr.ok;
+        if (jr.ok) {
+          const rows = await jr.json();
+          job = Array.isArray(rows) && rows[0] ? rows[0] : null;
+          if (job?.application_deadline && new Date(job.application_deadline).getTime() < Date.now()) {
+            job = null;
+          }
+        }
+      }
+      if (!job && lookupFailed) {
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.setHeader("Cache-Control", "no-store");
+        res.end(shell);
+        return;
+      }
+      scopedGone = !job;
+    } else if (slug) {
+      // A root link: only the job it was handed out for (jobs.root_link), never
+      // another business's job of the same name.
       let lookupFailed = false;
       if (SLUG_RE.test(slug) && !RESERVED_SLUGS.has(slug)) {
-        const jr = await sb(`published_jobs_public?slug=eq.${encodeURIComponent(slug)}&select=${JOB_FIELDS}&limit=1`);
+        const jr = await sb(`published_jobs_public?slug=eq.${encodeURIComponent(slug)}&root_link=is.true&select=${JOB_FIELDS}&limit=1`);
         lookupFailed = !jr.ok;
         if (jr.ok) {
           const rows = await jr.json();
@@ -150,7 +182,7 @@ export default async function handler(req, res) {
     // published_jobs_public (closed, deleted, never existed), or past its
     // deadline. A Supabase error is deliberately not "gone" — a hiccup must
     // never tell Google that a real, open job was removed.
-    let gone = !job && !(id && /^[0-9a-f][0-9a-f-]{10,40}$/i.test(id));
+    let gone = scopedGone || (!job && !(id && /^[0-9a-f][0-9a-f-]{10,40}$/i.test(id)));
     if (!job && !gone) {
       const jr = await sb(`published_jobs_public?id=eq.${encodeURIComponent(id)}&select=${JOB_FIELDS}&limit=1`);
       if (jr.ok) {
@@ -182,6 +214,7 @@ export default async function handler(req, res) {
     }
 
     let company = null;
+    let home = false;
     if (job.employer_id) {
       try {
         // employer_public_branding = safe public view (name+logo only); raw profiles are RLS-locked.
@@ -192,6 +225,15 @@ export default async function handler(req, res) {
         }
       } catch {
         /* profile lookup is optional */
+      }
+      try {
+        // The home business (the one that runs HireFlow, Zulu Support Team)
+        // keeps its own careers picture; every other business's job link
+        // gets the plain "Now hiring" one (docs/BUSINESS-TRUST.md).
+        const hr = await sb(`business_pages?employer_id=eq.${encodeURIComponent(job.employer_id)}&select=home_alias&limit=1`);
+        if (hr.ok) home = !!(await hr.json())[0]?.home_alias;
+      } catch {
+        /* the plain picture, then */
       }
     }
 
@@ -218,17 +260,18 @@ export default async function handler(req, res) {
       // describe an "AI-powered hiring platform" to an employer audience, and
       // anything preferring twitter:* over og:* — X among them — was serving
       // that to candidates with no job title in it at all.
-      // A shared job link shows the Zulu Support Team careers picture, named
-      // here rather than taken from the shell (the shell's og:* and twitter:*
-      // are stripped above). Never HireFlow's landing image: this is the
+      // A shared job link shows its business's careers picture (the home
+      // business's own, else the plain "Now hiring" one), named here rather
+      // than taken from the shell (the shell's og:* and twitter:* are
+      // stripped above). Never HireFlow's landing image: this is the
       // applicants' link.
-      `<meta property="og:image" content="${origin}/share/zulu-careers.jpg" />` +
+      `<meta property="og:image" content="${origin}/share/${home ? "zulu-careers" : "careers"}.jpg" />` +
       `<meta property="og:image:width" content="1200" />` +
       `<meta property="og:image:height" content="630" />` +
       `<meta name="twitter:card" content="summary_large_image" />` +
       `<meta name="twitter:title" content="${esc(title)}" />` +
       `<meta name="twitter:description" content="${esc(desc)}" />` +
-      `<meta name="twitter:image" content="${origin}/share/zulu-careers.jpg" />` +
+      `<meta name="twitter:image" content="${origin}/share/${home ? "zulu-careers" : "careers"}.jpg" />` +
       `<link rel="canonical" href="${esc(url)}" />`;
 
     let out = shell
@@ -257,11 +300,12 @@ export default async function handler(req, res) {
     res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=60");
     // The short link's page is the crawlers' answer only (people get the app
     // at the same address): never one cache entry for both.
-    if (slug) res.setHeader("Vary", "User-Agent");
+    // Only a root link answers crawlers and people differently (vercel.json).
+    if (slug && !scoped) res.setHeader("Vary", "User-Agent");
     res.end(out);
   } catch {
     res.statusCode = 200;
     res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.end(shell || '<!doctype html><meta charset="utf-8"><title>Zulu Support Team</title><p>Loading…</p>');
+    res.end(shell || '<!doctype html><meta charset="utf-8"><title>HireFlow</title><p>Loading…</p>');
   }
 }

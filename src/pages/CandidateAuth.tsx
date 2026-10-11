@@ -20,7 +20,7 @@ import { usePageHead } from "@/components/seo/usePageHead";
 import { GlyphLetter } from "@/components/candidate/glyphs";
 import { GOOGLE_AUTH_ENABLED } from "@/lib/googleAuth";
 import { staffSignInHref } from "@/lib/hosts";
-import { jobPageFromRedirect, jobRefFromPagePath } from "@/lib/jobSlug";
+import { jobPageFromRedirect, jobRefFromPagePath, refLookupKey } from "@/lib/jobSlug";
 
 // Google OAuth isn't enabled on the Supabase backend yet (authorize endpoint
 // returns 400) — keep the UI hidden until credentials exist. Flip
@@ -110,7 +110,7 @@ const PasswordRequirements = ({ password }: { password: string }) => {
 
 export default function CandidateAuth() {
   // A sign-in screen: its own title, and kept out of search.
-  usePageHead({ title: "Sign in | Zulu Support Team", noindex: true });
+  usePageHead({ title: "Sign in | HireFlow", noindex: true });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
@@ -157,22 +157,41 @@ export default function CandidateAuth() {
   // ...and the screen says which job, instead of "Candidate Portal". The job
   // page that sent them here has usually read the row already.
   const applyingFor = jobRefFromPagePath(backToJob);
-  const applyingForKey = applyingFor ? ("slug" in applyingFor ? `slug:${applyingFor.slug}` : applyingFor.id) : null;
-  const { data: applyingForTitle } = useQuery({
+  const applyingForKey = refLookupKey(applyingFor);
+  // The job AND the business: an applicant always sees who they are applying
+  // to (the owner, 2026-10-10: "easily understandable ... what they're
+  // looking at. There should be no confusion").
+  const { data: applyingForJob } = useQuery({
     queryKey: ["candidate-auth-applying-for", applyingForKey],
-    queryFn: async (): Promise<string | null> => {
+    queryFn: async (): Promise<{ title: string; company: string | null } | null> => {
       if (!applyingFor) return null;
-      const base = supabase.from("published_jobs_public").select("title");
-      const { data, error } = await ("slug" in applyingFor ? base.eq("slug", applyingFor.slug) : base.eq("id", applyingFor.id)).maybeSingle();
+      // The same job the page names: a business's job by its business and
+      // name, a root link only as the job it was handed out for.
+      const base = supabase.from("published_jobs_public").select("title, employer_id");
+      const query =
+        "business" in applyingFor
+          ? base.eq("business_slug", applyingFor.business).eq("slug", applyingFor.slug)
+          : "slug" in applyingFor
+            ? base.eq("slug", applyingFor.slug).eq("root_link", true)
+            : base.eq("id", applyingFor.id);
+      const { data, error } = await query.maybeSingle();
       if (error) throw error;
-      return data?.title ?? null;
+      if (!data?.title) return null;
+      const { data: brand } = await supabase.from("employer_public_branding").select("company_name").eq("user_id", data.employer_id).maybeSingle();
+      return { title: data.title, company: (brand?.company_name ?? "").trim() || null };
     },
-    initialData: () =>
-      queryClient.getQueryData<{ title?: string | null } | null>(["job-details", applyingForKey, true])?.title ?? undefined,
+    // The job page that sent them here has usually read both already.
+    initialData: () => {
+      const row = queryClient.getQueryData<{ title?: string | null; employer_id?: string | null } | null>(["job-details", applyingForKey, true]);
+      const brand = row?.employer_id ? queryClient.getQueryData<{ company_name?: string | null } | null>(["job-employer-profile", row.employer_id]) : undefined;
+      return row?.title && brand ? { title: row.title, company: (brand.company_name ?? "").trim() || null } : undefined;
+    },
     enabled: !!applyingFor,
     staleTime: 5 * 60_000,
     retry: 1,
   });
+  const applyingForTitle = applyingForJob?.title ?? null;
+  const applyingForCompany = applyingForJob?.company ?? null;
 
   // Sign In state
   const [signInEmail, setSignInEmail] = useState("");
@@ -405,7 +424,7 @@ export default function CandidateAuth() {
     }
 
     // Always register as candidate - no role selector needed
-    const { error, needsConfirmation } = await signUp(signUpEmail, signUpPassword, signUpName, "candidate");
+    const { error, needsConfirmation } = await signUp(signUpEmail, signUpPassword, signUpName, "candidate", undefined, safeRedirectTarget);
 
     if (error) {
       const errorMessage = error.message.includes("already registered")
@@ -426,7 +445,9 @@ export default function CandidateAuth() {
     } else {
       toast({
         title: "Account created!",
-        description: "Welcome to the Zulu Support Team. You can now apply.",
+        description: applyingForTitle
+          ? `You're applying for ${applyingForTitle}${applyingForCompany ? ` at ${applyingForCompany}` : ""}.`
+          : "You can now apply.",
         duration: 1500,
       });
       await routeAuthenticatedUser();
@@ -567,16 +588,23 @@ export default function CandidateAuth() {
             {/* Sent here by a job's Apply: the heading is that job, so the
                 person knows they are on the right path (not a "portal"). */}
             {backToJob && applyingForTitle ? (
-              <h1 className="mt-4 max-w-xl break-words text-2xl leading-[1.15] text-center lg:text-left lg:text-[2.2rem] [overflow-wrap:anywhere]">
-                {applyingForTitle}
-              </h1>
+              <>
+                <h1 className="mt-4 max-w-xl break-words text-2xl leading-[1.15] text-center lg:text-left lg:text-[2.2rem] [overflow-wrap:anywhere]">
+                  {applyingForTitle}
+                </h1>
+                {applyingForCompany && (
+                  <p className="mt-1.5 text-base text-muted-foreground text-center lg:text-left" data-applying-company>
+                    at {applyingForCompany}
+                  </p>
+                )}
+              </>
             ) : (
               <h1 className="mt-4 text-3xl lg:text-[2.6rem] leading-[1.08] text-center lg:text-left">
                 Every application, one home.
               </h1>
             )}
             <p className="mt-3 text-sm text-muted-foreground hidden sm:block text-center lg:text-left">
-              Zulu staff?{" "}
+              Hiring team?{" "}
               <a href={staffSignInHref()} className="text-primary hover:underline">
                 Sign in here →
               </a>
@@ -970,7 +998,7 @@ export default function CandidateAuth() {
                       One home for every application. Everyone who finishes every step gets a yes or no by email.
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Zulu staff?{" "}
+                      Hiring team?{" "}
                       <a href={staffSignInHref()} className="text-primary hover:underline">
                         Sign in here
                       </a>

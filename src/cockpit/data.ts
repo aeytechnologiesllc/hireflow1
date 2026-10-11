@@ -51,9 +51,13 @@ export interface JobRow {
   date: string;
   /** Public candidate-facing application code (showcase roles.role_code). */
   roleCode?: string | null;
-  /** The short link name: hireflownow.com/<slug> (jobs.slug). What every
-   *  share surface hands out when set (docs/SHORT-JOB-LINKS.md). */
+  /** The job's name in its link (jobs.slug). What every share surface hands
+   *  out when set (docs/SHORT-JOB-LINKS.md): /c/<business_slug>/<slug>. */
   slug?: string | null;
+  /** The business's careers name (business_pages.slug). */
+  business_slug?: string | null;
+  /** The job keeps a root link handed out before links went per business. */
+  root_link?: boolean | null;
   /** The job has steps done at a computer (docs/COMPUTER-ONLY-TESTS.md); the
    *  Share Kit says "on your computer" only then. */
   onComputer?: boolean;
