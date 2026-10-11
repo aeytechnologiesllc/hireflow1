@@ -1,4 +1,5 @@
 import { format, formatDistanceToNow } from "date-fns";
+import { payWords } from "@/lib/jobPost";
 import type { ApplicationWithCandidate } from "@/hooks/useApplications";
 import type { JobWithApplicationCount } from "@/hooks/useJobs";
 import type { InterviewWithDetails } from "@/hooks/useInterviews";
@@ -66,14 +67,12 @@ function mapJobStatus(status: string): JobStatus {
   return "closed";
 }
 
+// The pay as the job states it ("USD 500 a month"). It used to print every
+// range as "$min – $max / hr", so a job paying USD 500 a month read
+// "$500 – $500 / hr" on its card, in the Share Kit's post and on the flyer
+// (seen 2026-10-11).
 function formatPay(job: JobWithApplicationCount): string {
-  const min = job.salary_min;
-  const max = job.salary_max;
-  const currency = job.salary_currency?.toUpperCase() === "USD" || !job.salary_currency ? "$" : job.salary_currency;
-  if (min != null && max != null) return `${currency}${min} – ${currency}${max} / hr`;
-  if (min != null) return `From ${currency}${min}`;
-  if (max != null) return `Up to ${currency}${max}`;
-  return job.job_type ? job.job_type.replace(/_/g, " ") : "Competitive pay";
+  return payWords(job) ?? (job.job_type ? job.job_type.replace(/_/g, " ") : "Competitive pay");
 }
 
 export function mapJobRow(

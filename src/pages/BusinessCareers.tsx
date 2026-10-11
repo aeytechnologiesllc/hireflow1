@@ -6,6 +6,7 @@ import { usePageHead } from "@/components/seo/usePageHead";
 import { useBusinessPageBySlug } from "@/hooks/useBusinessPage";
 import { businessSlugFromParam, jobPagePath } from "@/lib/jobSlug";
 import { CAREERS_PATH } from "@/lib/hosts";
+import { payWords } from "@/lib/jobPost";
 
 /**
  * A business's careers page: hireflownow.com/c/<business> (docs/BUSINESS-TRUST.md,
@@ -27,20 +28,6 @@ interface Role {
   salary_max: number | null;
   salary_currency: string | null;
   salary_period: string | null;
-}
-
-const PER: Record<string, string> = { HOUR: " an hour", DAY: " a day", WEEK: " a week", MONTH: " a month", YEAR: " a year" };
-
-/** "USD 500 a month", or nothing when the job names no pay. */
-export function payWords(role: Pick<Role, "salary_min" | "salary_max" | "salary_currency" | "salary_period">): string | null {
-  const { salary_min: min, salary_max: max } = role;
-  if (!min && !max) return null;
-  const curr = role.salary_currency || "USD";
-  const per = PER[(role.salary_period || "").toUpperCase()] ?? "";
-  if (min && max && min === max) return `${curr} ${min.toLocaleString()}${per}`;
-  if (min && max) return `${curr} ${min.toLocaleString()} to ${max.toLocaleString()}${per}`;
-  if (min) return `${curr} ${min.toLocaleString()}+${per}`;
-  return `Up to ${curr} ${max?.toLocaleString()}${per}`;
 }
 
 function initials(name: string): string {

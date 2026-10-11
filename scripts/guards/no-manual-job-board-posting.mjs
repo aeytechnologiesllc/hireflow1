@@ -21,6 +21,12 @@
  * plus sharing-your-own-link actions
  * (copy link, view page, QR, print flyer) — no board menu, no per-board
  * hrefs, no "Boost" label on a free action.
+ *
+ * 2026-10-11, the owner: "give them options to copy job full post so they can
+ * simply paste on job posts and won't have to change anything". The Share
+ * Kit's "Full job post" (copy the whole job, with its own apply link) is that
+ * ask and is allowed; what stays out is unchanged: links to outside boards,
+ * a board menu, and copy telling anyone to go post it by hand.
  */
 const BOARD_HREF_PATTERNS = [
   /indeed\.com/i,

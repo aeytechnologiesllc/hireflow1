@@ -3,8 +3,11 @@ import { createPortal } from "react-dom";
 import { X, Copy, Check, Printer } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { jobShareUrl } from "@/lib/jobLinks";
 import { shortLinkFor } from "@/lib/jobSlug";
+import { buildFullJobPost, type FullPostJob } from "@/lib/jobPost";
 
 /**
  * ShareKitDialog — theme-locked (Deep Jade) per-job share kit: apply link +
@@ -12,6 +15,12 @@ import { shortLinkFor } from "@/lib/jobSlug";
  * for the shop window. Opens from the Jobs list so an employer can re-share
  * any job long after publish day. Everything here shares HireFlow's own
  * link — it never sends anyone to post the job by hand on an outside board.
+ *
+ * The post comes two ways (the owner, 2026-10-11: "give them options to copy
+ * job full post so they can simply paste on job posts and won't have to
+ * change anything"): the short one (title, place, pay, link) and the full job
+ * post, the whole job from its own fields with the link at the end
+ * (src/lib/jobPost.ts).
  */
 interface ShareKitJob {
   id: string;
@@ -128,7 +137,26 @@ function printFlyer(job: ShareKitJob, applyUrl: string, qrCanvas: HTMLCanvasElem
 export function ShareKitDialog({ open, job, applyUrl: callerUrl, onClose }: ShareKitDialogProps) {
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedPost, setCopiedPost] = useState(false);
+  const [postKind, setPostKind] = useState<"full" | "short">("full");
   const qrWrapRef = useRef<HTMLDivElement>(null);
+
+  // The whole job, read when the kit opens, for the full post: the job's own
+  // fields and the business's name. Nothing to fill in by hand.
+  const { data: fullSource, isLoading: fullLoading } = useQuery({
+    queryKey: ["share-kit-full-job", job?.id],
+    enabled: open && !!job?.id,
+    staleTime: 60_000,
+    queryFn: async (): Promise<{ job: FullPostJob; company: string | null } | null> => {
+      const { data } = await supabase
+        .from("jobs")
+        .select("title, description, responsibilities, requirements, benefits, job_type, location, is_remote, salary_min, salary_max, salary_currency, salary_period, application_deadline, employer_id")
+        .eq("id", job!.id)
+        .maybeSingle();
+      if (!data) return null;
+      const { data: brand } = await supabase.from("employer_public_branding").select("company_name").eq("user_id", data.employer_id).maybeSingle();
+      return { job: data as FullPostJob, company: (brand?.company_name ?? "").trim() || null };
+    },
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -151,6 +179,11 @@ export function ShareKitDialog({ open, job, applyUrl: callerUrl, onClose }: Shar
   // One link for the copy button, the QR code, the flyer and the post.
   const applyUrl = shortLinkFor(job) ? jobShareUrl(job) : callerUrl;
   const postText = buildPostText(job, applyUrl);
+  const fullText = fullSource
+    ? buildFullJobPost(fullSource.job, { company: fullSource.company, applyUrl, applyLead: job.onComputer ? SHARE_POST_LEAD : SHARE_POST_LEAD_PLAIN })
+    : null;
+  const showingFull = postKind === "full" && !!fullText;
+  const shownText = showingFull ? (fullText as string) : postText;
 
   const copy = async (text: string, which: "link" | "post") => {
     try {
@@ -162,7 +195,7 @@ export function ShareKitDialog({ open, job, applyUrl: callerUrl, onClose }: Shar
         setCopiedPost(true);
         setTimeout(() => setCopiedPost(false), 2000);
       }
-      toast.success(which === "link" ? "Apply link copied" : "Job post copied");
+      toast.success(which === "link" ? "Apply link copied" : showingFull ? "Full job post copied" : "Job post copied");
     } catch {
       toast.error("Could not copy");
     }
@@ -241,35 +274,65 @@ export function ShareKitDialog({ open, job, applyUrl: callerUrl, onClose }: Shar
           </div>
         </div>
 
-        {/* ── Post text ──────────────────────────────── */}
+        {/* ── Post text: short, or the whole job ─────── */}
         <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--hf-border-strong)" }}>
           <div className="text-[11px] uppercase" style={{ color: "var(--hf-text-muted)", letterSpacing: "0.12em" }}>
             Ready-to-paste post
           </div>
-          <div className="relative mt-2">
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="inline-flex rounded-[10px] border p-[3px]" style={{ borderColor: "var(--hf-border-strong)", background: "var(--hf-surface-raised)" }} role="group" aria-label="Which post">
+              {(["short", "full"] as const).map((kind) => (
+                <button
+                  key={kind}
+                  type="button"
+                  aria-pressed={postKind === kind}
+                  onClick={() => setPostKind(kind)}
+                  className="whitespace-nowrap rounded-[7px] px-2.5 py-1.5 text-[12.5px]"
+                  style={postKind === kind ? { background: "var(--jade-soft)", color: "var(--jade-soft-fg)", fontWeight: 600 } : { color: "var(--hf-text-soft)" }}
+                  data-post-kind={kind}
+                >
+                  {kind === "short" ? "Short post" : "Full job post"}
+                </button>
+              ))}
+            </div>
+            <button
+              className={`ck-btn ${postKind === "full" ? "ck-btn-primary" : "ck-btn-outline"} !px-2.5 !py-1.5 !text-[12px]`}
+              onClick={() => void copy(shownText, "post")}
+              disabled={postKind === "full" && !fullText}
+              data-post-copy
+            >
+              {copiedPost ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} {postKind === "full" ? "Copy full post" : "Copy"}
+            </button>
+          </div>
+          {postKind === "full" && !fullText ? (
+            <p className="mt-2 rounded-xl px-3.5 py-3 text-[12.5px]" style={{ background: "var(--hf-surface-raised)", border: "1px solid var(--hf-border-strong)", color: "var(--hf-text-soft)" }} data-post-full-missing>
+              {fullLoading ? "Putting the full post together…" : "The full post isn't available for this job. The short post below still works."}
+            </p>
+          ) : null}
+          {(postKind === "short" || fullText || !fullLoading) && (
             <pre
-              className="overflow-x-auto whitespace-pre-wrap rounded-xl px-3.5 py-3 pr-24 text-[12.5px] leading-relaxed"
+              className={`mt-2 overflow-x-auto whitespace-pre-wrap rounded-xl px-3.5 py-3 text-[12.5px] leading-relaxed ${showingFull ? "max-h-[260px] overflow-y-auto" : ""}`}
               style={{ background: "var(--hf-surface-raised)", border: "1px solid var(--hf-border-strong)", color: "var(--hf-text-soft)", fontFamily: "inherit" }}
+              data-post-text={showingFull ? "full" : "short"}
             >
               {/* The post as text, with its link drawn by LinkText so the job's
-                  name never splits across lines (the copy button copies
-                  postText itself, unchanged). */}
-              {postText.endsWith(applyUrl) ? (
+                  name never splits across lines (the copy button copies the
+                  text itself, unchanged). */}
+              {shownText.endsWith(applyUrl) ? (
                 <>
-                  {postText.slice(0, postText.length - applyUrl.length)}
+                  {shownText.slice(0, shownText.length - applyUrl.length)}
                   <LinkText url={applyUrl} />
                 </>
               ) : (
-                postText
+                shownText
               )}
             </pre>
-            <button
-              className="ck-btn ck-btn-outline absolute right-2 top-2 !px-2.5 !py-1.5 !text-[12px]"
-              onClick={() => void copy(postText, "post")}
-            >
-              {copiedPost ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} Copy
-            </button>
-          </div>
+          )}
+          {showingFull && (
+            <p className="mt-2 text-[12px]" style={{ color: "var(--hf-text-muted)" }}>
+              Everything in the job, with the apply link at the end. Paste it as is: nothing to change.
+            </p>
+          )}
         </div>
 
         {/* ── Status note ────────────────────────────── */}
