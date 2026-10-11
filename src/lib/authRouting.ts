@@ -77,7 +77,22 @@ export function getPostAuthRoute(role: AppRole, redirectTo?: string | null): str
     return "/jobs/create";
   }
 
+  // The page they were sent to before signing in (an email or bell link to a
+  // chat or an applicant): back there. Only a path on this site.
+  const back = safeReturnPath(redirectTo);
+  if (back) return back;
+
   return "/dashboard";
+}
+
+/** A same-site path to come back to, or null ("//x", "/\\x" and anything odd refused). */
+export function safeReturnPath(redirectTo?: string | null): string | null {
+  if (typeof redirectTo !== "string" || redirectTo.length > 500) return null;
+  if (!redirectTo.startsWith("/") || redirectTo.startsWith("//") || redirectTo.startsWith("/\\")) return null;
+  if (/[\s\u0000-\u001f\u007f]/.test(redirectTo)) return null;
+  // Never back to a sign-in page.
+  if (/^\/(auth|candidate\/auth)(\/|\?|$)/.test(redirectTo)) return null;
+  return redirectTo;
 }
 
 export function getSignedOutRoute(role: AppRole | null): string {

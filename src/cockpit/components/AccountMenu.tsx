@@ -69,7 +69,7 @@ export function AccountMenu({
             {account.name}
           </div>
           <div className="text-[12px] font-normal" style={{ color: "var(--hf-text-muted)" }}>
-            Owner workspace
+            {isTeamMember ? "Team workspace" : "Owner workspace"}
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator style={{ background: "var(--hf-border-strong)" }} />
@@ -80,13 +80,16 @@ export function AccountMenu({
           <SettingsIcon className="h-[18px] w-[18px]" style={{ color: "var(--hf-text-muted)" }} />
           Settings
         </DropdownMenuItem>
-        <DropdownMenuItem
-          onSelect={() => navigate("/profile")}
-          className="cursor-pointer gap-2.5 rounded-lg px-2.5 py-2.5 text-[14px] focus:bg-[var(--surface-2)]"
-        >
-          <UserIcon className="h-[18px] w-[18px]" style={{ color: "var(--hf-text-muted)" }} />
-          Profile
-        </DropdownMenuItem>
+        {/* A team member's account is Settings: /profile is the applicant's résumé page. */}
+        {!isTeamMember && (
+          <DropdownMenuItem
+            onSelect={() => navigate("/profile")}
+            className="cursor-pointer gap-2.5 rounded-lg px-2.5 py-2.5 text-[14px] focus:bg-[var(--surface-2)]"
+          >
+            <UserIcon className="h-[18px] w-[18px]" style={{ color: "var(--hf-text-muted)" }} />
+            Profile
+          </DropdownMenuItem>
+        )}
         {owner && (
           <DropdownMenuItem
             onSelect={() => navigate("/team")}

@@ -36,6 +36,18 @@ export function equipmentBarsForBrief(brief: Pick<JobBrief, "followUps">): Equip
   return { kind: "equipment_check", ...bars };
 }
 
+/**
+ * The words on the plan's interview step. Voice interviews are off for every
+ * business (owner decision, 2026-10-04; AvaCreateJob's hasVoiceInterviews is
+ * false), so the engine's interview phase is saved as a typed chat_interview
+ * step (jobFromFlow.ts buildWorkflowSteps). It was titled "Answer a few
+ * questions out loud", which applicants then read on a step where they type.
+ * Both generators use these, so the two can never describe it differently.
+ * Shown to the applicant as stored: never Ava, AI or anything machine.
+ */
+export const WRITTEN_INTERVIEW_TITLE = "Written interview";
+export const WRITTEN_INTERVIEW_DESCRIPTION = "A short set of questions you answer in writing, about your experience and how you work.";
+
 /** A remote role is done from the candidate's own computer, so the check is
  *  worth running; on site the employer's machine is not theirs to test. The
  *  same line the playbook draws for its remote-critical follow-ups. */
@@ -100,7 +112,8 @@ export function phasesToLegacyStages(phases: ScreeningPhase[], shortlist: Shortl
       stages.push({
         kind: "interview",
         title: phase.title,
-        icon: "mic",
+        // Written, not spoken (WRITTEN_INTERVIEW_TITLE above).
+        icon: "chat",
         avaRuns: true,
         interview: {
           questions: (cfg.questions ?? []).map((q) => q.prompt),

@@ -30,9 +30,14 @@ export interface Conversation {
 
 export interface MessageableEmployer {
   employer_id: string;
+  /** Not readable by an applicant (RLS); kept for older callers, always null here. */
   employer_profile: Tables<"profiles"> | null;
+  /** The business's public name (employer_public_branding). */
+  company_name?: string | null;
   job_title: string;
   application_id: string;
+  /** Every one of their applications to this business. */
+  application_ids?: string[];
 }
 
 export interface MessageableCandidate {
@@ -69,27 +74,35 @@ export function useMessageableEmployers(options: { enabled?: boolean } = {}) {
 
       if (employerIds.length === 0) return [];
 
-      // Fetch employer profiles
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("*")
+      // Each business's public name: an applicant may not read a business's
+      // profile (RLS), so every chat used to read "Hiring team".
+      const { data: brands, error: brandsError } = await supabase
+        .from("employer_public_branding")
+        .select("user_id, company_name")
         .in("user_id", employerIds);
 
-      if (profilesError) throw profilesError;
+      if (brandsError) throw brandsError;
 
-      const profileMap = new Map(profiles.map((p) => [p.user_id, p]));
+      const nameOf = new Map(
+        ((brands ?? []) as { user_id: string | null; company_name: string | null }[])
+          .filter((b) => b.user_id && b.company_name?.trim())
+          .map((b) => [b.user_id as string, (b.company_name as string).trim()]),
+      );
 
       // Create messageable employers list
       const employers: MessageableEmployer[] = applications
         .filter((app) => app.jobs?.employer_id)
         .map((app) => ({
           employer_id: app.jobs.employer_id,
-          employer_profile: profileMap.get(app.jobs.employer_id) || null,
+          employer_profile: null,
+          company_name: nameOf.get(app.jobs.employer_id) ?? null,
           job_title: app.jobs.title,
           application_id: app.id,
+          application_ids: applications.filter((a) => a.jobs?.employer_id === app.jobs.employer_id).map((a) => a.id),
         }));
 
-      // Dedupe by employer_id (keep first occurrence with job title)
+      // Dedupe by employer_id (keep first occurrence with job title); every
+      // application stays findable through application_ids.
       const seen = new Set<string>();
       return employers.filter((e) => {
         if (seen.has(e.employer_id)) return false;
@@ -162,64 +175,22 @@ export function useConversations() {
   return useQuery({
     queryKey: ["conversations", user?.id],
     queryFn: async () => {
-      // Check if user is a team member
-      const { data: teamMember } = await supabase
-        .from("team_members")
-        .select("employer_id, assigned_job_ids")
-        .eq("user_id", user!.id)
-        .eq("status", "active")
-        .maybeSingle();
+      // Everyone's inbox is their own chats: what they sent and what was sent
+      // to them. A team member's list used to be built from the owner's
+      // messages while the open chat showed their own, so a chat they started
+      // vanished from the list and the owner's opened empty.
+      const { data, error } = await supabase
+        .from("messages")
+        .select("*")
+        .or(`sender_id.eq.${user!.id},receiver_id.eq.${user!.id}`)
+        .order("created_at", { ascending: false });
 
-      let messages: Message[] = [];
-
-      if (teamMember) {
-        // For team members: fetch messages related to their employer's applications
-        // First get applications for assigned jobs
-        const { data: applications, error: appError } = await supabase
-          .from("applications")
-          .select("id, candidate_id, jobs!inner(employer_id)")
-          .eq("jobs.employer_id", teamMember.employer_id);
-
-        if (appError) throw appError;
-
-        // Filter by assigned jobs if applicable
-        const filteredApps = teamMember.assigned_job_ids?.length 
-          ? applications 
-          : applications;
-
-        const applicationIds = filteredApps?.map(a => a.id) || [];
-        const candidateIds = [...new Set(filteredApps?.map(a => a.candidate_id) || [])];
-
-        if (applicationIds.length > 0) {
-          // Fetch messages for these applications OR between employer and candidates
-          const { data: appMessages, error: msgError } = await supabase
-            .from("messages")
-            .select("*")
-            .or(`sender_id.eq.${teamMember.employer_id},receiver_id.eq.${teamMember.employer_id}`)
-            .order("created_at", { ascending: false });
-
-          if (msgError) throw msgError;
-          
-          // Filter to only show messages with candidates from assigned jobs
-          messages = (appMessages || []).filter(msg => 
-            candidateIds.includes(msg.sender_id) || candidateIds.includes(msg.receiver_id)
-          );
-        }
-      } else {
-        // Regular user: fetch their own messages
-        const { data, error } = await supabase
-          .from("messages")
-          .select("*")
-          .or(`sender_id.eq.${user!.id},receiver_id.eq.${user!.id}`)
-          .order("created_at", { ascending: false });
-
-        if (error) throw error;
-        messages = data || [];
-      }
+      if (error) throw error;
+      const messages: Message[] = data || [];
 
       // Group by conversation partner
       const conversationMap = new Map<string, { messages: Message[]; unread: number; lastIncomingAt: string | null }>();
-      const effectiveUserId = teamMember?.employer_id || user!.id;
+      const effectiveUserId = user!.id;
       
       for (const msg of messages) {
         const contactId = msg.sender_id === effectiveUserId ? msg.receiver_id : msg.sender_id;
@@ -236,7 +207,6 @@ export function useConversations() {
           conv.lastIncomingAt = msg.created_at;
         }
         
-        // For team members, count unread based on employer's perspective
         if (!msg.is_read && msg.receiver_id === effectiveUserId) {
           conv.unread++;
         }

@@ -733,6 +733,11 @@ export default function CockpitDashboard() {
     return m;
   }, [applications]);
   const statusOf = (id: string) => statusById[id] || undefined;
+  // Where "Move to …" would take them, or null to offer no move. Never while
+  // they are still filling in the form (in_progress): leaving in_progress
+  // marks the form sent (the assessment_application_form_submitted trigger)
+  // and their autosave then breaks.
+  const moveLabelFor = (id: string) => (statusOf(id) === "in_progress" ? null : advanceTargetLabel(statusOf(id)));
 
   const { sealed, awaitingDecision, passedOver, readCount, hired, stillReading, applying, applyingOne, multiRole } = useMemo(() => {
     // Only people Ava has actually finished get ranked, sealed or counted.
@@ -1155,11 +1160,11 @@ export default function CockpitDashboard() {
                   candidate={c}
                   index={i}
                   showRole={multiRole}
-                  advanceLabel={advanceTargetLabel(statusOf(c.id)) === "Offer" ? "Send offer letter" : advanceTargetLabel(statusOf(c.id))}
+                  advanceLabel={moveLabelFor(c.id) === "Offer" ? "Send offer letter" : moveLabelFor(c.id)}
                   busy={isUpdating}
                   onOpen={() => navigate(`/applicants/${c.id}`)}
                   onPass={() => setActionDialog({ type: "pass", cand: c })}
-                  onAdvance={() => (advanceTargetLabel(statusOf(c.id)) === "Offer" ? setOfferFor(c.id) : setActionDialog({ type: "advance", cand: c }))}
+                  onAdvance={() => (moveLabelFor(c.id) === "Offer" ? setOfferFor(c.id) : setActionDialog({ type: "advance", cand: c }))}
                 />
               ))}
             </div>
@@ -1317,7 +1322,18 @@ export default function CockpitDashboard() {
           <ActionDialog
             open
             title={`Advance ${cand.name}?`}
-            description={label ? `This moves ${cand.name} into your ${label} stage and notifies them of the progress.` : `This moves ${cand.name} forward in your pipeline.`}
+            // A stage change on its own sends nothing: notify_application_status_change
+            // skips Review and Interview (the interview's own bell goes when a time is
+            // set). It used to promise "notifies them of the progress".
+            description={
+              label === "Review"
+                ? `This moves ${cand.name} into your Review stage. Nothing is sent to them.`
+                : label === "Interview"
+                  ? `This moves ${cand.name} into your Interview stage. Nothing is sent until you set up the interview on their profile.`
+                  : label
+                    ? `This moves ${cand.name} into your ${label} stage.`
+                    : `This moves ${cand.name} forward in your pipeline.`
+            }
             confirmLabel={label ? `Move to ${label}` : "Advance"}
             tone="brass"
             busy={isUpdating}

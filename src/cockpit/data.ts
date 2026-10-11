@@ -145,6 +145,9 @@ export interface Conversation {
   lastIncomingAt?: string | null;
   /** The applicant's application status as stored ("rejected", "interview"...), when the chat is with one. */
   status?: string | null;
+  /** The application the newest message belongs to: an applicant's chat with
+   *  someone on a hiring team is named by that application's business. */
+  applicationId?: string | null;
 }
 export interface ChatMessage {
   id: string;

@@ -10,6 +10,9 @@ import { DUE_CHOICES, ID_DELETE_HOURS_AFTER_OPENED, REQUEST_KINDS, SIGN_OFFER_LI
 import { addDays, dayOf, longDate } from "../lib/offerLetter";
 import { useApplicantRequests, type NewRequest } from "../hooks/useApplicantRequests";
 import { useHireWithDocuments, useOfferLetterState } from "../hooks/useHire";
+import { useAuth } from "@/hooks/useAuth";
+import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
+import { CANT_MOVE_APPLICANTS, teamRoleCant } from "@/lib/teamPermissions";
 
 /**
  * Hire, and ask for documents in the same welcome email
@@ -70,7 +73,14 @@ export function HireDialog({
   // papers follow what the database says (open from sign-up since 2026-10-11),
   // so a refusal never takes the payment email down with it.
   const { idsLocked, allLocked } = requestLocks(useBusinessStanding(open));
-  const isLocked = (key: string) => allLocked || (idsLocked && !!REQUEST_KINDS.find((k) => k.key === key)?.idPaper);
+  // A team member asks for documents only with "Send documents" on (the
+  // database refuses the request otherwise), and "Request documents" on the
+  // applicant's page is the owner's: theirs is Documents, Ask for ID or papers.
+  const { isTeamMember } = useAuth();
+  const { data: teamPermissions } = useTeamMemberPermissions();
+  const cantAsk = isTeamMember && teamPermissions !== undefined && !teamPermissions.canSendDocuments;
+  const askLaterWhere = isTeamMember ? "Documents, Ask for ID or papers" : `${first}'s page`;
+  const isLocked = (key: string) => cantAsk || allLocked || (idsLocked && !!REQUEST_KINDS.find((k) => k.key === key)?.idPaper);
 
   const [picked, setPicked] = useState<string[]>(DEFAULT_KINDS);
   const [dueDays, setDueDays] = useState<number>(5);
@@ -84,11 +94,12 @@ export function HireDialog({
     }
   }, [open]);
 
-  // The standing can arrive after the dialog opened: drop what it locks.
+  // The standing (or a team member's switches) can arrive after the dialog
+  // opened: drop what it locks.
   useEffect(() => {
-    if (idsLocked || allLocked) setPicked((now) => now.filter((key) => !isLocked(key)));
+    if (idsLocked || allLocked || cantAsk) setPicked((now) => now.filter((key) => !isLocked(key)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idsLocked, allLocked]);
+  }, [idsLocked, allLocked, cantAsk]);
 
   useEffect(() => {
     if (!open) return;
@@ -136,8 +147,12 @@ export function HireDialog({
       });
       if (result.already) {
         toast.message(`${first} is already hired`, { description: "Nothing was sent again." });
+      } else if (result.refused === "declined") {
+        toast.message(`${first} was declined`, { description: "They can't be hired from here. Nothing was sent." });
+      } else if (result.refused === "not_allowed") {
+        toast.error(`${first} was not hired`, { description: `${CANT_MOVE_APPLICANTS} Nothing was sent.` });
       } else if (result.askFailed) {
-        toast.success(`${first} is hired`, { description: "The welcome email went, but the documents could not be asked for. Use Request documents on their page." });
+        toast.success(`${first} is hired`, { description: `The welcome email went, but the documents could not be asked for. Use ${isTeamMember ? "Documents, Ask for ID or papers" : "Request documents on their page"}.` });
       } else {
         toast.success(`${first} is hired`, {
           description: todo.length > 0 ? `One welcome email sent, with ${todo.length} ${todo.length === 1 ? "thing" : "things"} to do.` : "One welcome email sent.",
@@ -201,7 +216,7 @@ export function HireDialog({
                     {lockedKind ? (
                       <span className="inline-flex shrink-0 items-center gap-1 text-[11.5px]" style={{ color: "var(--hf-gold)" }}>
                         <Lock className="h-3 w-3" aria-hidden />
-                        {allLocked ? "paused" : "not open"}
+                        {cantAsk ? "off" : allLocked ? "paused" : "not open"}
                       </span>
                     ) : (
                       <span className="shrink-0 text-[11.5px]" style={{ color: "var(--ink-3)" }}>
@@ -211,11 +226,13 @@ export function HireDialog({
                   </label>
                 );
               })}
-              {(idsLocked || allLocked) && (
+              {(idsLocked || allLocked || cantAsk) && (
                 <p className="rounded-[12px] px-3 py-2.5 text-[13px] leading-snug" style={{ background: "var(--amber-bg)", color: "var(--amber-fg)" }} data-hire-approval-note>
                   {allLocked
                     ? "Your business is paused, so nothing can be asked for right now. Open Help to message HireFlow."
-                    : `ID papers aren't open for ${company || "your business"} right now. You can ask for them later from ${first}'s page.`}
+                    : cantAsk
+                      ? `${teamRoleCant("ask for documents", "canSendDocuments")} ${first} still gets the welcome email.`
+                      : `ID papers aren't open for ${company || "your business"} right now. You can ask for them later from ${askLaterWhere}.`}
                 </p>
               )}
             </fieldset>

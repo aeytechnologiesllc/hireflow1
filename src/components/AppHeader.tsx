@@ -39,7 +39,7 @@ interface AppHeaderProps {
 }
 
 export default function AppHeader({ onMenuClick, isMobile }: AppHeaderProps) {
-  const { user, role, signOut } = useAuth();
+  const { user, role, signOut, isTeamMember } = useAuth();
   const { data: profile } = useProfile();
   const navigate = useNavigate();
   const location = useLocation();
@@ -101,10 +101,13 @@ export default function AppHeader({ onMenuClick, isMobile }: AppHeaderProps) {
             <div className="px-2 py-2 border-b border-border">
               <p className="text-sm text-muted-foreground truncate">{user?.email || ""}</p>
             </div>
-            <DropdownMenuItem onClick={() => navigate("/profile")}>
-              <User className="h-4 w-4 mr-2" />
-              Profile
-            </DropdownMenuItem>
+            {/* A team member's account is Settings; Profile is the applicant's résumé page. */}
+            {!isTeamMember && (
+              <DropdownMenuItem onClick={() => navigate("/profile")}>
+                <User className="h-4 w-4 mr-2" />
+                Profile
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={() => navigate("/settings")}>
               <Settings className="h-4 w-4 mr-2" />
               Settings

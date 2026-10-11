@@ -1,7 +1,16 @@
 /** Deterministic template generator — guaranteed fallback when OpenAI / edge fn unavailable. */
 import { detectFamily } from "./playbook";
 import { bankForFamily } from "./questionBanks";
-import { briefWantsEquipmentCheck, buildJobFlow, defaultShortlistWeights, emptyRubric, equipmentCheckPhase, RIGOR_SPEC } from "./assemble";
+import {
+  briefWantsEquipmentCheck,
+  buildJobFlow,
+  defaultShortlistWeights,
+  emptyRubric,
+  equipmentCheckPhase,
+  RIGOR_SPEC,
+  WRITTEN_INTERVIEW_DESCRIPTION,
+  WRITTEN_INTERVIEW_TITLE,
+} from "./assemble";
 import type { GenerateFlowRequest, GenerateFlowResult, JobPost, ScreeningPhase } from "./types";
 
 function take<T>(arr: T[], n: number): T[] {
@@ -126,13 +135,15 @@ function buildPhases(brief: GenerateFlowRequest["brief"], rigor: GenerateFlowReq
     });
   }
 
+  // The engine still calls its interview phase "voice_interview"; it is saved
+  // as a typed chat interview (WRITTEN_INTERVIEW_TITLE in assemble.ts).
   phases.push({
     id: "ph_voice",
     kind: "voice_interview",
     order: order++,
-    title: "Answer a few questions out loud",
-    candidateDescription: "A short, friendly set of questions you answer out loud about your experience and approach.",
-    rationale: "The strongest signal — clarity, judgment, and ownership; hardest to fake.",
+    title: WRITTEN_INTERVIEW_TITLE,
+    candidateDescription: WRITTEN_INTERVIEW_DESCRIPTION,
+    rationale: "Their own words, in writing — I read them for clarity, judgment and ownership.",
     config: {
       kind: "voice_interview",
       maxCallLengthSec: spec.callMin * 60,

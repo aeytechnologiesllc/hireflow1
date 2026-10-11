@@ -179,7 +179,9 @@ console.log("\nThe applications list");
   check("its button opens the application at the interview", /navigate\(`\/applications\/\$\{application\.id\}#interview`\);/.test(list));
   check("the whole card opens it for a tap; the button inside is the control", /className="ck-reveal cursor-pointer p-5 sm:p-7"\s+onClick=\{onOpen\}/.test(hero) && /data-testid="interview-open"/.test(hero) && !/role="button"/.test(hero.replace(/\/\/.*$/gm, "")));
   check("its button is a pill, solid jade when it is theirs to do (never a dark slab)", /className=\{`hf-pill \$\{words\.theirMove \? "hf-pill--jade" : "hf-pill--tonal"\} hf-pill--lg w-full shrink-0 sm:w-auto`\}/.test(hero));
-  check("the withdraw menu is still on it", /<div className="-mr-2 -mt-2 shrink-0">\{menu\}<\/div>/.test(hero) && /const menu = \(/.test(list));
+  // The menu is still placed on it; it holds Withdraw only before a decision
+  // (an interview is past that, so no menu shows; 2026-10-11).
+  check("the withdraw menu's place is still on it, and Withdraw only before a decision", /<div className="-mr-2 -mt-2 shrink-0">\{menu\}<\/div>/.test(hero) && /const menu = !canWithdraw \? null : \(/.test(list) && /const canWithdraw = \["in_progress", "pending", "reviewing"\]/.test(list));
   check("a live interview always opens the row", /const isLocked =\s*\(displayState\.isPendingReview \|\| displayState\.isWaitingPhase\) && !candidateHasSomethingToDo && !interviewWords;/.test(list));
   check("someone selected is never forwarded to a test on arrival", /stepWaitingOnComputer\(applications\?\.filter\(\(app\) => !liveInterviewWords\(app\)\)\)/.test(list));
 

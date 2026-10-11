@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
+import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { TIPS_OFF, nextTip, placeTip, tipsEligible, tipsForPage, type Tip } from "./tipRules";
 import "./tips.css";
 
@@ -85,11 +86,14 @@ export function useGuidedTipsState() {
 
 export function GuidedTips() {
   const { pathname } = useLocation();
-  const { role } = useAuth();
+  const { role, isTeamMember } = useAuth();
+  const { data: teamPermissions } = useTeamMemberPermissions();
   const state = useGuidedTipsState();
   // The tip before this one on the page was put away with "Next".
   const [followed, setFollowed] = useState<string | null>(null);
-  const tips = useMemo(() => tipsForPage(pathname, { canAskForPapers: role === "employer" }), [pathname, role]);
+  // A team member with "Send documents" may ask for ID papers too (Documents).
+  const canAskForPapers = isTeamMember ? !!teamPermissions?.canSendDocuments : role === "employer";
+  const tips = useMemo(() => tipsForPage(pathname, { canAskForPapers }), [pathname, canAskForPapers]);
   const tip = state.ready ? nextTip(tips, state.seen) : null;
   if (!tip) return null;
   return (

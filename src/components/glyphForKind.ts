@@ -41,7 +41,9 @@ export function glyphForKind(kind: string) {
   if (k.includes("quiz") || k.includes("scenario")) return GlyphScenarios;
   if (k.includes("typing") || k.includes("skills")) return GlyphTyping;
   if (k.includes("video") || k.includes("walkthrough")) return GlyphCallingCard;
-  if (k.includes("chat") || k.includes("simulation") || k.includes("sim")) return GlyphExchange;
+  // "written interview" is the create flow's typed interview card: the chat
+  // mark, like the chat_interview step it is saved as, never the spoken one.
+  if (k.includes("chat") || k.includes("written") || k.includes("simulation") || k.includes("sim")) return GlyphExchange;
   if (k.includes("voice") || k.includes("interview")) return GlyphQuoted;
   if (k.includes("cod") || k.includes("technical")) return GlyphForme;
   // A forme is the frame a printer locks finished work into — the closest

@@ -1,8 +1,9 @@
 {
+  "trailingSlash": false,
   "rewrites": [
     {
       "source": "/sitemap.xml",
-      "destination": "https://yqklrkpptnhubsnijqze.supabase.co/functions/v1/sitemap"
+      "destination": "/api/sitemap"
     },
     {
       "source": "/jobs.xml",

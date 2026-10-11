@@ -323,8 +323,11 @@ export async function decideNotification(
       if (mine.length === 0) return { ok: false, refusal: NOT_ALLOWED };
       const limited = await overLimit(callerId, NOTIFICATION_LIMITS.applicant, lookups);
       if (limited) return { ok: false, refusal: limited };
-      const jobTitle = jobTitleFor(asked.job_title, mine, false);
-      const about = mine.find((a) => plainLine(a.job_title, 200) === jobTitle) ?? mine[0];
+      // The application it's about, when the request names one of theirs;
+      // otherwise the newest with that title (two businesses can share a title).
+      const askedApp = typeof asked.application_id === "string" && UUID.test(asked.application_id) ? mine.find((a) => a.id === asked.application_id) : undefined;
+      const jobTitle = askedApp ? (plainLine(askedApp.job_title, 200) ?? jobTitleFor(asked.job_title, mine, false)) : jobTitleFor(asked.job_title, mine, false);
+      const about = askedApp ?? mine.find((a) => plainLine(a.job_title, 200) === jobTitle) ?? mine[0];
       const team = await lookups.profileOf(about.employer_id!).catch(() => null);
       return {
         ok: true,
@@ -432,7 +435,14 @@ export async function decideNotification(
       };
     }
     const toOwner = await applicantLinks();
-    if (toOwner.length === 0) return { ok: false, refusal: NOT_ALLOWED };
+    // …or to someone on the team of a business they applied to, who may
+    // message applicants (a reply to a team member used to get only the bell).
+    const toTeam =
+      toOwner.length > 0
+        ? []
+        : staffLinks(named, await lookups.membershipsOf(named), (await lookups.applicationsOf(callerId)).filter((a) => a.employer_id), "can_message_candidates");
+    const links = toOwner.length > 0 ? toOwner : toTeam;
+    if (links.length === 0) return { ok: false, refusal: NOT_ALLOWED };
     const limited = await overLimit(callerId, NOTIFICATION_LIMITS.applicant, lookups);
     if (limited) return { ok: false, refusal: limited };
     const me = await lookups.profileOf(callerId).catch(() => null);
@@ -444,7 +454,7 @@ export async function decideNotification(
       data: withDefined({
         message_preview: plainLine(asked.message_preview, 100),
         // Only a job that really links them; a message need not name one.
-        job_title: wantedTitle && toOwner.some((a) => plainLine(a.job_title, 200) === wantedTitle) ? wantedTitle : undefined,
+        job_title: wantedTitle && links.some((a) => plainLine(a.job_title, 200) === wantedTitle) ? wantedTitle : undefined,
         sender_name: plainLine(me?.full_name, 120) ?? "A candidate",
         sender_id: callerId,
         recipient_role: "employer",

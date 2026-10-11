@@ -6,6 +6,8 @@ import { atClock, firstDayWithTimes, timesLeftOn } from "@/lib/interviewOfferDay
 import { sayClock, suggestTimes, suggestionWords } from "@/lib/interviewSuggestion";
 import { useJobInterviewHints } from "@/hooks/useJobInterviewHints";
 import { useUpdateApplication } from "@/hooks/useApplications";
+import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
+import { isRefused, teamRoleCant } from "@/lib/teamPermissions";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -324,6 +326,14 @@ export default function InterviewSchedulingWizard({
     [allInterviews, applicationId],
   );
   const updateApplication = useUpdateApplication();
+  // A team member with "Schedule interviews" but not "Manage pipeline" books
+  // the time and the invitation goes; only the move to the Interview stage is
+  // left out (the database would refuse it).
+  const { data: teamPermissions } = useTeamMemberPermissions();
+  const mayMoveApplicants = !teamPermissions?.isTeamMember || teamPermissions.canManagePipeline;
+  // One booking at a time: a second press before the first has finished
+  // must not make a second interview.
+  const bookingRef = useRef(false);
   const isMobile = useIsMobile();
 
   const steps = [
@@ -727,7 +737,13 @@ export default function InterviewSchedulingWizard({
       return;
     }
 
+    if (bookingRef.current) return;
+    bookingRef.current = true;
     setIsCreating(true);
+    // Set once the interview row exists. Past that point the applicant's bell
+    // has rung, so nothing may read as "couldn't book": each retry of that
+    // message made another interview.
+    let booked = false;
     try {
       // One live interview for an application. Any earlier one still live
       // (an offer never answered, a time already set) is replaced by this
@@ -808,16 +824,28 @@ export default function InterviewSchedulingWizard({
         interviewDateLabel = `${sortedSelectedWindows.length} times to choose from`;
         interviewTimeLabel = "pick what works in your dashboard";
       }
+      booked = true;
 
       if (earlierIds.length > 0) {
         const { error: replaceError } = await supabase.from("interviews").update({ status: "cancelled" }).in("id", earlierIds);
         if (replaceError) console.error("[interview] could not retire the earlier interview:", replaceError);
       }
 
-      await updateApplication.mutateAsync({
-        id: applicationId,
-        status: "interview",
-      });
+      // The stage follows the booking, never the other way round: a refused
+      // or failed move is logged, and the invitation below still goes.
+      // Never for someone still filling in the form: leaving in_progress marks
+      // their form submitted and stops their autosave.
+      const { data: standing } = await supabase.from("applications").select("status").eq("id", applicationId).maybeSingle();
+      if (mayMoveApplicants && (standing as { status?: string } | null)?.status !== "in_progress") {
+        try {
+          await updateApplication.mutateAsync({
+            id: applicationId,
+            status: "interview",
+          });
+        } catch (stageError) {
+          console.error("[interview] booked, but the applicant could not be moved to Interview:", stageError);
+        }
+      }
 
       // Tell the applicant by email. The lookup asks only for what the email
       // needs. Until 2026-10-07 it also asked for the employer's company name
@@ -888,8 +916,23 @@ export default function InterviewSchedulingWizard({
       // Raw Supabase/Postgres messages mean nothing to the owner — keep them in
       // the console for us and give them the one thing they can act on.
       console.error("Interview scheduling failed:", error);
-      toast.error(isPassedTimeError(error) ? PASSED_TIME_WORDS : "I couldn't book that time. Try again, or pick another slot.");
+      if (booked) {
+        // The interview is made; only something after it failed. It is
+        // booked, so say so (the success screen says whether the email went),
+        // and never offer the retry that would book it twice.
+        queryClient.invalidateQueries({ queryKey: ["interview", "application", applicationId] });
+        queryClient.invalidateQueries({ queryKey: ["interviews"] });
+        localStorage.removeItem(WIZARD_STATE_KEY);
+        setCandidateEmailStatus((status) => status ?? "failed");
+        setShowSuccess(true);
+        onComplete?.();
+      } else if (teamPermissions?.isTeamMember && isRefused(error)) {
+        toast.error(teamRoleCant("schedule interviews", "canScheduleInterviews"));
+      } else {
+        toast.error(isPassedTimeError(error) ? PASSED_TIME_WORDS : "I couldn't book that time. Try again, or pick another slot.");
+      }
     } finally {
+      bookingRef.current = false;
       setIsCreating(false);
     }
   };

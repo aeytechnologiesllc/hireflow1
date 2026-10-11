@@ -64,9 +64,13 @@ export function ApplicantDecisionDialogs({
       {open === "advance" && candidate && (() => {
         const label = advanceTargetLabel(status);
         const rec = avaAdvanceRec(candidate.overall ?? 0, candidate.analyzed, candidate.recommendedAction, candidate.hardRejectReason);
+        // Moving into review sends nothing: the database's status trigger
+        // (notify_application_status_change) only tells them about an offer,
+        // a hire or a pass, and no email goes for it either. It used to
+        // promise "I'll let them know".
         const ask =
           label === "Review"
-            ? { title: `Move ${who} into review?`, body: `I'll let ${who} know they've moved on. To mark them as one of your picks instead, use Add to shortlist: that one tells them nothing.` }
+            ? { title: `Move ${who} into review?`, body: `I'll move ${who} into review on your list. Nothing is sent to them. To mark them as one of your picks instead, use Add to shortlist.` }
             : label === "Interview"
               ? { title: `Take ${who} to interview?`, body: `I'll tell ${who} you'd like to meet. You can pick the time straight after this.` }
               : label === "Offer"

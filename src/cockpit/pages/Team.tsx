@@ -20,9 +20,10 @@ import { CkAvatar } from "../components/Avatar";
 import { ActionDialog } from "../components/ActionDialog";
 import { CockpitErrorCard } from "../components/ErrorCard";
 import { useCockpitTeam } from "../hooks/useCockpitData";
-import { useDeleteTeamMember } from "@/hooks/useTeamMembers";
-import { useDeleteInvitation } from "@/hooks/useTeam";
-import { TeamInviteWizard } from "@/components/team/TeamInviteWizard";
+import { useDeleteTeamMember, useTeamMembers, type TeamMember } from "@/hooks/useTeamMembers";
+import { useDeleteInvitation, useTeamInvitations } from "@/hooks/useTeam";
+import { TeamInviteWizard, teamInviteLink } from "@/components/team/TeamInviteWizard";
+import { EditTeamMemberDialog } from "@/components/team/EditTeamMemberDialog";
 
 // `sparkle` is in the row type but never emitted by the hook (rule 3 bans the
 // icon), so it maps to a glyph we already use rather than importing Sparkles.
@@ -56,6 +57,23 @@ export default function CockpitTeam() {
   const queryClient = useQueryClient();
   const deleteMember = useDeleteTeamMember();
   const deleteInvite = useDeleteInvitation();
+  // The rows behind the mapped ones (the same cached queries useCockpitTeam
+  // reads): a member's switches and jobs for Edit, an invite's code for its link.
+  const { data: rawMembers = [] } = useTeamMembers();
+  const { data: rawInvites = [] } = useTeamInvitations();
+  const [editing, setEditing] = useState<TeamMember | null>(null);
+  // An invite link can be sent again any time it is still pending: the
+  // wizard showed it once, and closing that screen used to lose it for good.
+  const copyInviteLink = async (inviteId: string) => {
+    const code = rawInvites.find((i) => i.id === inviteId)?.invite_code;
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(teamInviteLink(code));
+      toast.success("Invite link copied", { description: "Only the email it was sent to can use it." });
+    } catch {
+      toast.error("Couldn't copy the link", { description: teamInviteLink(code) });
+    }
+  };
   const onInviteSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["team-invitations"] });
     queryClient.invalidateQueries({ queryKey: ["team-members"] });
@@ -99,6 +117,7 @@ export default function CockpitTeam() {
         actions={<button className="ck-btn ck-btn-primary max-md:w-full" onClick={() => setInviteOpen(true)}><UserPlus className="h-4 w-4" />Invite teammate</button>}
       />
       <TeamInviteWizard open={inviteOpen} onOpenChange={setInviteOpen} onSuccess={onInviteSuccess} />
+      <EditTeamMemberDialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)} member={editing} />
       <ActionDialog
         open={!!confirm}
         title={confirm?.kind === "member" ? `Remove ${confirm?.name}?` : `Revoke invite to ${confirm?.name}?`}
@@ -156,7 +175,10 @@ export default function CockpitTeam() {
                     {menuId === `m-${m.id}` && (
                       <>
                         <div className="fixed inset-0 z-40" onClick={() => setMenuId(null)} />
-                        <div className="absolute right-0 top-8 z-50 min-w-[170px] overflow-hidden rounded-xl py-1" style={{ background: "var(--hf-surface-raised)", border: "1px solid var(--hf-border-strong)", boxShadow: "0 16px 40px hsl(0 0% 0% / 0.5)" }}>
+                        <div className="absolute right-0 top-8 z-50 min-w-[190px] overflow-hidden rounded-xl py-1" style={{ background: "var(--hf-surface-raised)", border: "1px solid var(--hf-border-strong)", boxShadow: "0 16px 40px hsl(0 0% 0% / 0.5)" }}>
+                          {rawMembers.some((r) => r.id === m.id) && (
+                            <button className="block w-full px-3.5 py-2 text-left text-[13px]" style={{ color: "var(--hf-text)" }} onClick={() => { setMenuId(null); setEditing(rawMembers.find((r) => r.id === m.id) ?? null); }} data-edit-member>Edit permissions and jobs</button>
+                          )}
                           <button className="block w-full px-3.5 py-2 text-left text-[13px]" style={{ color: "var(--hf-danger)" }} onClick={() => { setMenuId(null); setConfirm({ kind: "member", id: m.id, name: m.name }); }}>Remove from team</button>
                         </div>
                       </>
@@ -198,6 +220,9 @@ export default function CockpitTeam() {
                       <>
                         <div className="fixed inset-0 z-40" onClick={() => setMenuId(null)} />
                         <div className="absolute right-0 top-8 z-50 min-w-[150px] overflow-hidden rounded-xl py-1" style={{ background: "var(--hf-surface-raised)", border: "1px solid var(--hf-border-strong)", boxShadow: "0 16px 40px hsl(0 0% 0% / 0.5)" }}>
+                          {rawInvites.some((r) => r.id === inv.id && r.invite_code) && (
+                            <button className="block w-full px-3.5 py-2 text-left text-[13px]" style={{ color: "var(--hf-text)" }} onClick={() => { setMenuId(null); void copyInviteLink(inv.id); }} data-copy-invite-link>Copy link</button>
+                          )}
                           <button className="block w-full px-3.5 py-2 text-left text-[13px]" style={{ color: "var(--hf-danger)" }} onClick={() => { setMenuId(null); setConfirm({ kind: "invite", id: inv.id, name: inv.name }); }}>Revoke invite</button>
                         </div>
                       </>

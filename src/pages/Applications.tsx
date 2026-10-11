@@ -1,4 +1,5 @@
 import { useAuth } from "@/hooks/useAuth";
+import { jobTypeLabel } from "@/lib/jobLabels";
 import { useCandidateApplications } from "@/hooks/useApplications";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -282,15 +283,28 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
   const displayState = getApplicationDisplayState(application);
   const ActionIcon = displayState.actionIcon;
 
+  // Withdrawing is only for an application nobody has decided on yet (the
+  // database refuses the rest, and anything with a signed document): an
+  // offer, a hire or a decline is the business's record too.
+  const canWithdraw = ["in_progress", "pending", "reviewing"].includes(String(application.status ?? ""));
+
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
-      const { error } = await supabase
+      const { data: gone, error } = await supabase
         .from("applications")
         .delete()
-        .eq("id", application.id);
+        .eq("id", application.id)
+        .select("id");
 
       if (error) throw error;
+      if (!gone || gone.length === 0) {
+        // Refused (a decision was made, or something is signed): say so,
+        // never "withdrawn".
+        toast.error("This application can't be withdrawn now. Message the hiring team instead.");
+        setConfirmWithdrawOpen(false);
+        return;
+      }
       toast.success("Application withdrawn successfully");
       onDelete(application.id);
     } catch (error) {
@@ -358,8 +372,9 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
     navigate(route ?? `/applications/${application.id}`);
   };
 
-  // "Withdraw application", and its confirm: the same on both layouts.
-  const menu = (
+  // "Withdraw application", and its confirm: the same on both layouts. Only
+  // while nobody has decided yet; afterwards there's nothing to offer here.
+  const menu = !canWithdraw ? null : (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -465,7 +480,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
         {job?.job_type && (
           <span className="inline-flex min-w-0 items-center gap-1">
             <Briefcase className="h-3.5 w-3.5 shrink-0" />
-            <span className="break-words [overflow-wrap:anywhere]">{job.job_type}</span>
+            <span className="break-words [overflow-wrap:anywhere]">{jobTypeLabel(job.job_type) ?? job.job_type}</span>
           </span>
         )}
         <span className="inline-flex min-w-0 items-center gap-1">

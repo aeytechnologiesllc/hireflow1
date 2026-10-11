@@ -13,8 +13,30 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useEmployerJobs } from "@/hooks/useJobs";
 import { motion, AnimatePresence } from "framer-motion";
-import { getErrorMessage } from "@/lib/utils";
 import { staffLinkOrigin } from "@/lib/hosts";
+
+/** The join link for an invite code: the one the wizard shows, and Team's "Copy link". */
+export function teamInviteLink(inviteCode: string): string {
+  return `${staffLinkOrigin()}/join-team/${inviteCode}`;
+}
+
+/**
+ * Why an invite could not be made, in plain words. The database's own
+ * message ("new row violates row-level security policy for table
+ * team_invitations") was shown as it came.
+ */
+function inviteFailureWords(error: unknown): string {
+  const e = error as { code?: string | null; message?: string | null } | null;
+  const message = e?.message ?? "";
+  if (e?.code === "42501" || /row-level security|permission denied/i.test(message)) {
+    return "HireFlow didn't allow this invite. Only the business owner can invite teammates.";
+  }
+  if (e?.code === "23505" || /duplicate key/i.test(message)) {
+    return "That invite already exists. Copy its link from Pending invites, or revoke it and invite them again.";
+  }
+  if (/fetch|network/i.test(message)) return "We couldn't reach HireFlow. Check your connection and try again.";
+  return "The invite wasn't made. Try again in a moment.";
+}
 
 interface TeamInviteWizardProps {
   open: boolean;
@@ -153,9 +175,10 @@ export function TeamInviteWizard({ open, onOpenChange, onSuccess }: TeamInviteWi
         description: "Share the invite link with your team member.",
       });
     } catch (error) {
+      console.error("[team invite]", error);
       toast({
-        title: "Error",
-        description: getErrorMessage(error, "Failed to create invitation"),
+        title: "Couldn't create the invite",
+        description: inviteFailureWords(error),
         variant: "destructive",
       });
     } finally {
@@ -164,7 +187,7 @@ export function TeamInviteWizard({ open, onOpenChange, onSuccess }: TeamInviteWi
   };
 
   const handleCopyLink = () => {
-    const link = `${staffLinkOrigin()}/join-team/${inviteCode}`;
+    const link = teamInviteLink(inviteCode ?? "");
     navigator.clipboard.writeText(link);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -485,7 +508,7 @@ export function TeamInviteWizard({ open, onOpenChange, onSuccess }: TeamInviteWi
               <div className="flex items-center gap-2">
                 <Input
                   readOnly
-                  value={`${staffLinkOrigin()}/join-team/${inviteCode}`}
+                  value={teamInviteLink(inviteCode ?? "")}
                   className="text-sm"
                 />
                 <Button onClick={handleCopyLink} variant="outline" size="icon">

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSchemaMode } from "@/hooks/useSchemaMode";
+import { teamRoleCant } from "@/lib/teamPermissions";
 import { isRecordNotDeployed } from "./useAssessmentSessions";
 import { SHORTLIST_COLUMNS, SHORTLIST_PRIVATE_LINE, shortlistDoneWords, shortlistIndex, type ShortlistEntry } from "../lib/shortlist";
 
@@ -88,15 +89,18 @@ type RpcError = { code?: string | null; message?: string | null } | null | undef
  *  says nothing when it works (the Undo of a toast that already said it). */
 type SetShortlisted = (targets: readonly ShortlistTarget[], on: boolean, options?: { quiet?: boolean }) => Promise<boolean>;
 
-function failureWords(error: RpcError, many: boolean): string {
+function failureWords(error: RpcError, many: boolean, isTeamMember: boolean): string {
   if (isRecordNotDeployed(error)) return "The shortlist isn't switched on yet.";
+  // A team member sees only applicants they may see, so a refusal is their
+  // role (the shortlist needs Manage pipeline), and says which switch.
+  if (error?.code === "42501" && isTeamMember) return teamRoleCant("change the shortlist", "canManagePipeline");
   if (error?.code === "42501") return many ? "You can't change the shortlist for these applicants." : "You can't change the shortlist for this applicant.";
   return "Couldn't update your shortlist. Try again.";
 }
 
 export function useShortlistActions() {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, isTeamMember } = useAuth();
   // The same array from one render to the next (see useApplicantViews: a key built
   // afresh each render once made a page write to the server ten times a second).
   const uid = user?.id;
@@ -158,7 +162,7 @@ export function useShortlistActions() {
       try {
         const { done, skipped } = await mutateAsync({ ids: unique.map((t) => t.applicationId), on });
         if (done.length === 0) {
-          toast.error(failureWords({ code: "42501" }, many));
+          toast.error(failureWords({ code: "42501" }, many, isTeamMember));
           return false;
         }
         if (!options?.quiet) {
@@ -173,11 +177,11 @@ export function useShortlistActions() {
         return skipped.length === 0;
       } catch (error) {
         console.error("[set_applications_shortlisted]", error);
-        toast.error(failureWords(error as RpcError, many));
+        toast.error(failureWords(error as RpcError, many, isTeamMember));
         return false;
       }
     },
-    [mutateAsync],
+    [mutateAsync, isTeamMember],
   );
 
   return { setShortlisted, busy: mutation.isPending };

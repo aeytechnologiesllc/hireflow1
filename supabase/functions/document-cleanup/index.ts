@@ -87,5 +87,29 @@ Deno.serve(async (req) => {
     await admin.from("document_request_events").insert({ request_id: request.id, user_id: null, action: "deleted" });
     counts.deleted += 1;
   }
-  return json({ ok: true, ...counts });
+
+  // Files whose request is gone (its job, application or business was
+  // deleted): the database noted them (document_file_trash, 20261011195000);
+  // the file and its folder go now, then the note.
+  const { data: trash, error: trashError } = await admin.from("document_file_trash").select("id, candidate_id, request_id, file_url").limit(200);
+  if (trashError) console.error("[document-cleanup] could not read the trash:", trashError.message);
+  let orphans = 0;
+  for (const note of trash ?? []) {
+    const folder = `${note.candidate_id}/${note.request_id}`;
+    const file = String(note.file_url ?? "");
+    const own = file.startsWith(`${note.candidate_id}/`) && !file.includes("..") ? [file] : [];
+    const { data: listed } = await admin.storage.from(BUCKET).list(folder, { limit: 100 });
+    const paths = [...new Set([...own, ...(listed ?? []).filter((f) => f.name).map((f) => `${folder}/${f.name}`)])];
+    if (paths.length > 0) {
+      const { error: removeError } = await admin.storage.from(BUCKET).remove(paths);
+      if (removeError) {
+        counts.failed += 1;
+        console.error(`[document-cleanup] could not delete the file of deleted request ${note.request_id}:`, removeError.message);
+        continue;
+      }
+    }
+    await admin.from("document_file_trash").delete().eq("id", note.id);
+    orphans += 1;
+  }
+  return json({ ok: true, ...counts, orphans });
 });

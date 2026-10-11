@@ -545,7 +545,9 @@ function getPlanLimits(planType: string) {
         jobs: -1,
         applicants: -1,
         documents: -1,
-        teamMembers: 3,
+        // Unlimited, as the database says while billing is off
+        // (team_member_limit_for_user, 20261011193000).
+        teamMembers: -1,
         aiAnalyses: -1,
         voiceMinutes: 120,
         hasAdvancedAnalytics: true,

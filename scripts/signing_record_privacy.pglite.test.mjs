@@ -47,6 +47,8 @@ const TEAM = "10000000-0000-4000-8000-000000000001";
 const ANA = "20000000-0000-4000-8000-000000000001";
 const BEN = "20000000-0000-4000-8000-000000000002";
 const DOC = "50000000-0000-4000-8000-000000000001";
+const OWNER = "10000000-0000-4000-8000-000000000009"; // owns the job; a team member sent the document
+const VIEWER = "10000000-0000-4000-8000-000000000008"; // on the team, may not send documents
 
 async function database() {
   const db = new PGlite();
@@ -59,7 +61,10 @@ async function database() {
     grant execute on function auth.uid() to anon, authenticated, service_role;
     alter default privileges in schema public grant select, insert, update, delete on tables to anon, authenticated, service_role;
     alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
-    create table public.documents (id uuid primary key, sender_id uuid, recipient_id uuid);
+    create table public.documents (id uuid primary key, sender_id uuid, recipient_id uuid, application_id uuid);
+    create table public.jobs (id uuid primary key, employer_id uuid);
+    create table public.applications (id uuid primary key, job_id uuid, candidate_id uuid);
+    create table public.team_members (user_id uuid, employer_id uuid, status text, can_send_documents boolean, assigned_job_ids uuid[]);
     -- document_audit_logs as live (2026-10-11), column for column, in order.
     create table public.document_audit_logs (
       id uuid primary key default gen_random_uuid(), document_id uuid, user_id uuid, action text, details jsonb,
@@ -71,7 +76,10 @@ async function database() {
     alter table public.document_audit_logs enable row level security;
     create policy "Users can view audit logs for their documents" on public.document_audit_logs for select
       using (exists (select 1 from public.documents d where d.id = document_audit_logs.document_id and (d.sender_id = auth.uid() or d.recipient_id = auth.uid())));
-    insert into public.documents values ('${DOC}', '${TEAM}', '${ANA}');
+    insert into public.jobs values ('30000000-0000-4000-8000-00000000000a', '${OWNER}');
+    insert into public.applications values ('60000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-00000000000a', '${ANA}');
+    insert into public.team_members values ('${TEAM}', '${OWNER}', 'active', true, null), ('${VIEWER}', '${OWNER}', 'active', false, null);
+    insert into public.documents values ('${DOC}', '${TEAM}', '${ANA}', '60000000-0000-4000-8000-000000000001');
     insert into public.document_audit_logs (document_id, user_id, action, details, ip_address, user_agent, created_at, signer_name, signer_email, signer_role, location_city, location_region, location_country) values
       ('${DOC}', '${ANA}', 'candidate_signed', '{"device":{"deviceType":"phone","platform":"iOS","timeZone":"Asia/Manila"}}', '49.145.1.1', 'Mozilla/5.0 (iPhone)', now() - interval '2 hours', 'Ana Reyes', 'ana@example.com', 'candidate', 'Manila', 'Metro Manila', 'PH'),
       ('${DOC}', '${TEAM}', 'employer_countersigned', '{"device":{"deviceType":"computer","platform":"macOS","timeZone":"America/New_York"}}', '99.74.0.227', 'Mozilla/5.0 (Macintosh)', now() - interval '1 hour', 'Zack', 'zack@yahoo.com', 'employer', 'Ashburn', 'Virginia', 'US');
@@ -136,6 +144,22 @@ async function main() {
   check("2. someone else reads nothing", ben.ok && ben.rows.length === 0, show(ben));
   const anon = await as(null, "anon", `select * from public.document_audit_log($1)`, [DOC]);
   check("2. nobody signed out", !anon.ok);
+  const later = (await readdir(MIGRATIONS)).filter((n) => /^\d+_signing_record_for_business\.sql$/.test(n));
+  check("the whole-business migration is there, once", later.length === 1);
+  if (later.length === 1) {
+    const laterSql = await readFile(path.join(MIGRATIONS, later[0]), "utf8");
+    await db.exec(laterSql);
+    await db.exec(laterSql);
+    const owner = await as(OWNER, "authenticated", `select action, ip_address from public.document_audit_log($1)`, [DOC]);
+    check("4. the business's owner reads the whole record of a document a team member sent", owner.ok && owner.rows.length === 2 && owner.rows.some((r) => r.ip_address === "49.145.1.1"), show(owner));
+    const viewer = await as(VIEWER, "authenticated", `select * from public.document_audit_log($1)`, [DOC]);
+    check("4. a team member who may not send documents reads nothing", viewer.ok && viewer.rows.length === 0, show(viewer));
+    const anaAgain = await as(ANA, "authenticated", `select action, ip_address from public.document_audit_log($1)`, [DOC]);
+    const teamRow = anaAgain.rows?.find((r) => r.action === "employer_countersigned");
+    check("4. the applicant's view is unchanged: still no team IP", anaAgain.ok && anaAgain.rows.length === 2 && teamRow?.ip_address === null, show(anaAgain));
+    const benAgain = await as(BEN, "authenticated", `select * from public.document_audit_log($1)`, [DOC]);
+    check("4. someone else still reads nothing", benAgain.ok && benAgain.rows.length === 0);
+  }
   const service = await as(null, "service_role", `select ip_address from public.document_audit_logs`);
   check("the signing function (service role) still reads every column", service.ok && service.rows.length === 2);
 

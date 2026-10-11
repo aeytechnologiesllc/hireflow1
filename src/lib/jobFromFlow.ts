@@ -18,6 +18,7 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { rigorToDb } from "@/lib/avaEngine/rigor";
+import { WRITTEN_INTERVIEW_DESCRIPTION, WRITTEN_INTERVIEW_TITLE } from "@/lib/avaEngine/assemble";
 import { geocodePlace } from "@/lib/geocode";
 import { normalizeBenefits } from "@/lib/jobBenefits";
 import { inferCountryCode, isFullyRemoteText } from "@/lib/jobLocation";
@@ -299,15 +300,28 @@ export function buildWorkflowSteps(phases: ScreeningPhase[], voiceInterview: boo
       // A planned voice interview persists as a real `voice_interview` step (spoken interview
       // with Ava via the Realtime stack) when the employer has voice access; otherwise it
       // degrades to `chat_interview` (typed) so the candidate flow never breaks on the gate.
+      // A typed step never keeps words about speaking: a plan saved in this browser before
+      // 2026-10-11 still carries "Answer a few questions out loud", and the applicant reads
+      // the stored title (titleFor in candidateJourney.ts).
+      const spoken = /out loud|spoken|voice interview/i;
+      const typedTitle = phase.title && !spoken.test(phase.title) ? phase.title : WRITTEN_INTERVIEW_TITLE;
+      const typedDescription =
+        phase.candidateDescription && !spoken.test(phase.candidateDescription)
+          ? phase.candidateDescription
+          : WRITTEN_INTERVIEW_DESCRIPTION;
       steps.push({
         id: uid("step"),
         type: voiceInterview ? "voice_interview" : "chat_interview",
-        title: phase.title || (voiceInterview ? "Voice interview" : "Interview"),
-        description:
-          phase.candidateDescription ||
-          (voiceInterview
-            ? "A short set of questions you answer out loud about your experience."
-            : "A short conversation about your experience."),
+        // (The generators now write the typed words, so a spoken step, unused today,
+        // does not take them over.)
+        title: voiceInterview
+          ? phase.title && phase.title !== WRITTEN_INTERVIEW_TITLE ? phase.title : "Voice interview"
+          : typedTitle,
+        description: voiceInterview
+          ? phase.candidateDescription && phase.candidateDescription !== WRITTEN_INTERVIEW_DESCRIPTION
+            ? phase.candidateDescription
+            : "A short set of questions you answer out loud about your experience."
+          : typedDescription,
         required: true,
         config: {
           questions: (cfg.questions ?? []).map((q) => q.prompt),

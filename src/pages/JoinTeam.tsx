@@ -34,15 +34,56 @@ interface InvitationData {
   };
 }
 
+/**
+ * Why a signed-in person could not join, from accept_team_invitation's
+ * refusals (supabase/migrations/20261011185000_join_team_from_empty_business.sql).
+ * Each is shown with a way out, never as a toast over a spinner that turns
+ * forever.
+ */
+interface JoinProblem {
+  title: string;
+  text: string;
+  /**
+   * The way out: sign out and join as the invitee (this account can't join),
+   * try again (something went wrong on the way), or nothing to do here.
+   */
+  next: "signOut" | "retry" | "none";
+}
+
+function joinProblemFor(message: string, inviteeEmail: string | null): JoinProblem {
+  const invitee = inviteeEmail || "the email it was sent to";
+  if (message.includes("different email")) {
+    return { title: "This invitation is for another email", text: `It was sent to ${invitee}. You're signed in with a different account.`, next: "signOut" };
+  }
+  if (message.includes("runs its own hiring")) {
+    return { title: "This account runs its own hiring", text: `An account that posts its own jobs can't also join another team. Join with ${invitee} instead.`, next: "signOut" };
+  }
+  if (message.includes("another hiring team")) {
+    return { title: "This account is on another team", text: `An account can be on one hiring team. Join with ${invitee} instead.`, next: "signOut" };
+  }
+  if (message.includes("already been used")) {
+    return { title: "This invitation was already used", text: "Someone has joined with it already. If that was you with another account, sign in with that one. Otherwise, ask whoever invited you for a new link.", next: "signOut" };
+  }
+  if (message.includes("expired")) {
+    return { title: "This invitation has expired", text: "Ask whoever invited you for a new link.", next: "none" };
+  }
+  return { title: "We couldn't add you to the team", text: message || "Something went wrong. Try again in a moment.", next: "retry" };
+}
+
 export default function JoinTeam() {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
-  const { user, signIn, signUp, signInWithGoogle } = useAuth();
+  const { user, loading: authLoading, signIn, signUp, signInWithGoogle, signOut } = useAuth();
   const { toast } = useToast();
 
   const [invitation, setInvitation] = useState<InvitationData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // The link no longer opens an invitation (used, expired or not one): who is
+  // signed in decides what that means (see the effect below).
+  const [linkClosed, setLinkClosed] = useState(false);
+  const [joinProblem, setJoinProblem] = useState<JoinProblem | null>(null);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"signin" | "signup">("signup");
@@ -75,7 +116,10 @@ export default function JoinTeam() {
 
         const inviteData = rows?.[0];
         if (!inviteData) {
-          setError("This invitation link is invalid or has expired");
+          // Only pending, unexpired invitations come back, so this cannot yet
+          // tell "used" from "expired" or "never was". The effect below asks
+          // on behalf of whoever is signed in.
+          setLinkClosed(true);
           setLoading(false);
           return;
         }
@@ -104,6 +148,43 @@ export default function JoinTeam() {
     fetchInvitation();
   }, [code]);
 
+  // A link that opens no invitation. For someone signed in, accepting again
+  // answers it exactly: the person who used this invitation is told "yes"
+  // again (the function's replay rule) and goes to their team; anyone else
+  // hears used, expired or not found. Signed out, it is said plainly with a
+  // way to sign in.
+  useEffect(() => {
+    // Waits for the session too, so a signed-in visitor never sees the
+    // signed-out answer flash first.
+    if (!linkClosed || loading || authLoading) return;
+    if (!user) {
+      setError("This invitation link has already been used, has expired, or isn't valid. If you already joined this team, sign in to get to it. Otherwise, ask whoever invited you for a new link.");
+      return;
+    }
+    // Signed in just now (from the form below): ask again, behind the loader.
+    setError(null);
+    let cancelled = false;
+    void (async () => {
+      const { error: acceptError } = await supabase.rpc("accept_team_invitation", { p_code: code! });
+      if (cancelled) return;
+      if (!acceptError) {
+        window.location.replace("/team-portal");
+        return;
+      }
+      const message = acceptError.message || "";
+      setError(
+        message.includes("already been used")
+          ? "This invitation was already used by another account. If you joined with a different email, sign out and sign in with that one."
+          : message.includes("expired")
+            ? "This invitation has expired. Ask whoever invited you for a new link."
+            : "This invitation link isn't valid. Ask whoever invited you for a new link.",
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [linkClosed, loading, authLoading, user, code]);
+
   // Handle if user is already logged in
   useEffect(() => {
     if (user && invitation) {
@@ -111,7 +192,7 @@ export default function JoinTeam() {
     }
     // handleAcceptInvitation isn't added: it's unmemoized, and on any of its
     // non-navigating failure paths (email mismatch, already used, generic
-    // error) it only calls setIsSubmitting — user/invitation stay truthy, so
+    // error) it only sets the problem and isSubmitting — user/invitation stay truthy, so
     // that re-render would give this effect a "changed" dependency and call
     // it again, forever, on every one of those failures. It only leaves via
     // window.location.replace on success, which tears the page down anyway.
@@ -122,6 +203,7 @@ export default function JoinTeam() {
     if (!user || !invitation) return;
 
     setIsSubmitting(true);
+    setJoinProblem(null);
     try {
       // Everything that matters -- the pending/unexpired check, the invitee
       // email match, and copying permissions/assigned_job_ids -- happens
@@ -133,22 +215,11 @@ export default function JoinTeam() {
       });
 
       if (acceptError) {
-        const message = acceptError.message || "";
-        if (message.includes("different email")) {
-          toast({
-            title: "Email Mismatch",
-            description: `This invitation is for ${invitation.invitee_email}. Please sign in with that email.`,
-            variant: "destructive",
-          });
-        } else if (message.includes("already been used")) {
-          toast({
-            title: "Already a Team Member",
-            description: "You're already a member of this team.",
-            variant: "destructive",
-          });
-        } else {
-          throw acceptError;
-        }
+        // Shown on the page with a way out (sign out and join as the
+        // invitee), in place of "Joining team...". An already-used
+        // invitation never reaches here for the person who used it: the
+        // function answers them "yes" again.
+        setJoinProblem(joinProblemFor(acceptError.message || "", invitation.invitee_email));
         setIsSubmitting(false);
         return;
       }
@@ -177,13 +248,20 @@ export default function JoinTeam() {
       // the newly inserted team_members row before rendering the shell.
       window.location.replace("/team-portal");
     } catch (err) {
-      toast({
-        title: "Error",
-        description: getErrorMessage(err, "Failed to accept invitation"),
-        variant: "destructive",
-      });
+      setJoinProblem(joinProblemFor(getErrorMessage(err, ""), invitation.invitee_email));
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  /** Signs out so the invitee can sign in or create their account right here. */
+  const handleSignOutToJoin = async () => {
+    setIsSigningOut(true);
+    try {
+      await signOut();
+    } finally {
+      setJoinProblem(null);
+      setIsSigningOut(false);
     }
   };
 
@@ -251,7 +329,8 @@ export default function JoinTeam() {
     }
   };
 
-  if (loading) {
+  // A closed link waits for its answer (asked for whoever is signed in).
+  if (loading || (linkClosed && !error)) {
     return (
       <div className="dark">
         <BrandLoader message="Loading invitation..." />
@@ -267,13 +346,43 @@ export default function JoinTeam() {
             <div className="mx-auto p-3 rounded-full bg-destructive/10 w-fit mb-4">
               <X className="h-8 w-8 text-destructive" />
             </div>
-            <CardTitle>Invalid Invitation</CardTitle>
+            <CardTitle>{linkClosed ? "This invitation can't be used" : "Invalid Invitation"}</CardTitle>
             <CardDescription>{error}</CardDescription>
           </CardHeader>
-          <CardContent className="text-center">
-            <Button onClick={() => navigate("/")} variant="outline">
-              Go to Homepage
-            </Button>
+          <CardContent className="space-y-4">
+            {/* Someone who already joined signs in here and goes to their team. */}
+            {linkClosed && !user && (
+              <form onSubmit={handleSignIn} className="space-y-3" data-join-signin>
+                <div className="space-y-2">
+                  <Label htmlFor="closed-signin-email">Email</Label>
+                  <Input id="closed-signin-email" type="email" placeholder="john@company.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="closed-signin-password">Password</Label>
+                  <Input id="closed-signin-password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                </div>
+                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Signing In...
+                    </>
+                  ) : (
+                    "Sign in"
+                  )}
+                </Button>
+              </form>
+            )}
+            {linkClosed && user && (
+              <Button className="w-full" onClick={() => void handleSignOutToJoin()} disabled={isSigningOut}>
+                {isSigningOut ? "Signing out..." : "Sign out and use another account"}
+              </Button>
+            )}
+            <div className="text-center">
+              <Button onClick={() => navigate("/")} variant="outline">
+                Go to Homepage
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -511,7 +620,29 @@ export default function JoinTeam() {
               </div>
             )}
 
-            {user && (
+            {user && joinProblem && (
+              <div className="space-y-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4" role="alert" data-join-problem>
+                <p className="font-medium">{joinProblem.title}</p>
+                <p className="text-sm text-muted-foreground">{joinProblem.text}</p>
+                <div className="flex flex-col gap-2">
+                  {joinProblem.next === "signOut" && (
+                    <Button onClick={() => void handleSignOutToJoin()} disabled={isSigningOut}>
+                      {isSigningOut ? "Signing out..." : invitation.invitee_email ? `Sign out and join with ${invitation.invitee_email}` : "Sign out and use another account"}
+                    </Button>
+                  )}
+                  {joinProblem.next === "retry" && (
+                    <Button variant="outline" onClick={() => void handleAcceptInvitation()} disabled={isSubmitting}>
+                      Try again
+                    </Button>
+                  )}
+                  <Button variant="ghost" onClick={() => navigate("/")}>
+                    Go to Homepage
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {user && !joinProblem && (
               <div className="text-center">
                 <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
                 <p className="text-muted-foreground">Joining team...</p>

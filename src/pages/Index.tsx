@@ -188,12 +188,15 @@ export default function Index() {
   // a null role as "not one of ours", so the person can't get anywhere.
   // /auth/callback runs the role assignment and routes them. Once only — it
   // navigates away on success and shows its own error on failure, so this
-  // cannot ping-pong.
+  // cannot ping-pong. Which role it gives says where they are: /careers is
+  // the applicants' page, so there it is candidate. With no role named, the
+  // callback used to default to employer and made an applicant a business.
+  // The staff site's doorway keeps employer, as before.
   useEffect(() => {
     if (loading || !session || role !== null || sentToCallback.current) return;
     sentToCallback.current = true;
-    navigate("/auth/callback", { replace: true });
-  }, [loading, session, role, navigate]);
+    navigate(`/auth/callback?role=${staffHost ? "employer" : "candidate"}`, { replace: true });
+  }, [loading, session, role, navigate, staffHost]);
 
   // The page scrolls inside #root (html/body/#root are 100% tall), not the window.
   useEffect(() => {

@@ -21,6 +21,7 @@ import {
   Loader2,
   MapPin,
   MessageSquare,
+  MessageSquareText,
   Mic,
   Pencil,
   QrCode,
@@ -77,9 +78,19 @@ const KIND_ICON: Record<string, { icon: LucideIcon; accent: ReviewPhaseCard["acc
   // The computer and connection check (docs/EQUIPMENT-CHECK.md), a remote role's first step.
   equipment_check: { icon: Gauge, accent: "mint" },
   simulation: { icon: MessageSquare, accent: "brass" },
-  voice_interview: { icon: Mic, accent: "mint" },
+  // Written, not spoken: see KIND_LABEL below.
+  voice_interview: { icon: MessageSquareText, accent: "mint" },
   coding_test: { icon: Code2, accent: "mint" },
   shortlist: { icon: Trophy, accent: "brass" },
+};
+
+/** The card's kind line where the engine's own name would mislead. Its
+ *  interview phase is still called "voice_interview", but voice is off for
+ *  every business (hasVoiceInterviews below), so it is saved as a typed chat
+ *  interview: the card said "VOICE INTERVIEW" over a step where applicants
+ *  type. "written interview" also lands on the chat mark (glyphForKind). */
+const KIND_LABEL: Record<string, string> = {
+  voice_interview: "written interview",
 };
 
 function flowToReviewCards(flow: JobFlow): ReviewPhaseCard[] {
@@ -98,7 +109,7 @@ function flowToReviewCards(flow: JobFlow): ReviewPhaseCard[] {
     const meta = KIND_ICON[p.kind] ?? { icon: FileText, accent: "jade" as const };
     return {
       id: p.id,
-      kind: p.kind.replace(/_/g, " "),
+      kind: KIND_LABEL[p.kind] ?? p.kind.replace(/_/g, " "),
       icon: meta.icon,
       accent: meta.accent,
       title: p.title,
@@ -513,9 +524,10 @@ export default function AvaCreateJob() {
           <ArrowLeft className="h-3.5 w-3.5" /> Jobs
         </Link>
         {!(step === 0 && inputMode === "voice") && <div className="hidden flex-1 sm:block"><StepRail step={step} traveler={travelerInitials} receipts={stepReceipts} /></div>}
+        {/* Once published it is live: the header said "Draft" over "Your role is live". */}
         {genSource && (
-          <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: genSource === "openai" ? "hsl(var(--ck-mint))" : "hsl(var(--muted-foreground))" }}>
-            {"Draft"}
+          <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: publishedCode || genSource === "openai" ? "hsl(var(--ck-mint))" : "hsl(var(--muted-foreground))" }}>
+            {publishedCode ? "Live" : "Draft"}
           </span>
         )}
       </header>

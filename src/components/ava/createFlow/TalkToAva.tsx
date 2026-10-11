@@ -44,7 +44,7 @@ interface TalkToAvaProps {
   onConfirmPublish: () => void;
 }
 
-/** Match a plain step name Ava says ("the quiz", "voice interview") to a plan card. */
+/** Match a plain step name Ava says ("the quiz", "written interview") to a plan card. */
 function matchCard(cards: { id: string; kind: string; title: string }[], name: unknown): { id: string } | null {
   const q = String(name ?? "").toLowerCase().trim();
   if (!q) return null;

@@ -217,7 +217,7 @@ Deno.serve(async (req) => {
 
     const { data: application } = await admin
       .from("applications")
-      .select("candidate_id, job_id")
+      .select("candidate_id, job_id, status")
       .eq("id", document.application_id)
       .maybeSingle();
     if (!application) {
@@ -376,6 +376,11 @@ Deno.serve(async (req) => {
       if (!precondition.ok) {
         return errorResponse(precondition.error, ERROR_MESSAGE[precondition.error], ERROR_STATUS[precondition.error]);
       }
+      // An offer taken back (the application turned down) is no longer theirs
+      // to sign, even if the letter wasn't withdrawn on its own.
+      if ((application as { status?: string | null }).status === "rejected") {
+        return errorResponse("not_pending", "This offer was taken back, so it can't be signed.", 409);
+      }
       const sigCheck = validateSignaturePayload(payload.signature);
       if (!sigCheck.ok) {
         return errorResponse(sigCheck.error, ERROR_MESSAGE[sigCheck.error], ERROR_STATUS[sigCheck.error]);
@@ -452,6 +457,19 @@ Deno.serve(async (req) => {
           `${callerName} signed ${document.name}. Countersign it to finish.`,
           "/documents",
         );
+        // And an email: the bell alone was missed (a signed offer sat a day
+        // waiting for its countersignature). Never fails the signing.
+        try {
+          await admin.functions.invoke("send-notification-email", {
+            body: {
+              type: "document_signed",
+              recipient_user_id: job.employer_id,
+              data: { candidate_name: callerName, document_name: document.name },
+            },
+          });
+        } catch (emailError) {
+          console.error("[document-signing] signed email not sent:", emailError instanceof Error ? emailError.message : "unknown");
+        }
       }
 
       return json({ ok: true });

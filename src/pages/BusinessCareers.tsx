@@ -68,11 +68,15 @@ export default function BusinessCareers() {
     },
   });
 
-  const name = (brand?.company_name ?? "").trim() || "Careers";
+  const companyName = (brand?.company_name ?? "").trim();
+  const name = companyName || "Careers";
   usePageHead({
-    title: `${name} — Careers`,
+    // The same head the server render gives (api/careers-prerender.mjs): an
+    // unknown address is plain "HireFlow" and never indexed, a business with
+    // no name yet "HireFlow — Careers". Both used to read "Careers — Careers".
+    title: !page ? "HireFlow" : `${companyName || "HireFlow"} — Careers`,
     path: slug ? `/c/${slug}` : undefined,
-    description: page?.about ?? `Open roles at ${name}. Apply online with HireFlow.`,
+    description: page?.about ?? (companyName ? `Open roles at ${companyName}. Apply online with HireFlow.` : "Open roles. Apply online with HireFlow."),
     noindex: !page,
   });
   // "See open roles" elsewhere comes back here (src/lib/openRoles.ts).

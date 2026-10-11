@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useUpdateApplication } from "@/hooks/useApplications";
+import { resolveEmployerIdForJobAccess } from "@/hooks/useJobs";
+import { isNoRowChanged, isRefused, teamRoleCant } from "@/lib/teamPermissions";
 import { generateV1Hash } from "@/lib/documentHash";
 import { notifyDocumentSent } from "@/utils/emailNotifications";
 import type { TablesInsert } from "@/integrations/supabase/types";
@@ -48,18 +50,27 @@ export interface OfferPerson {
 /** The stages an offer can go out from, the likeliest first. */
 const OFFER_STAGES = ["interview", "offered", "reviewing"];
 
-/** Everyone an offer could go to: interviewed first, then people still in review. Document requests also reach people already hired. */
+/**
+ * Everyone an offer could go to: interviewed first, then people still in
+ * review. Document requests also reach people already hired.
+ *
+ * The business's jobs, not the signed-in person's: a team member's own id
+ * owns no job, so the list was always empty for them and no offer, file to
+ * sign or request for papers could ever be sent. Row-level security keeps a
+ * team member to the jobs they are assigned.
+ */
 export function useOfferPeople(enabled: boolean, stages: readonly string[] = OFFER_STAGES) {
-  const { user, role } = useAuth();
+  const { user, role, isTeamMember } = useAuth();
   return useQuery({
-    queryKey: ["offer-people", user?.id, stages.join(",")],
-    enabled: enabled && !!user && role === "employer",
+    queryKey: ["offer-people", user?.id, !!isTeamMember, stages.join(",")],
+    enabled: enabled && !!user && (role === "employer" || !!isTeamMember),
     staleTime: 30_000,
     queryFn: async (): Promise<OfferPerson[]> => {
+      const employerId = await resolveEmployerIdForJobAccess(user!.id, !!isTeamMember);
       const { data: jobs, error: jobsError } = await supabase
         .from("jobs")
         .select("id, title, salary_min, salary_max, salary_currency, salary_period, is_remote")
-        .eq("employer_id", user!.id);
+        .eq("employer_id", employerId);
       if (jobsError) throw jobsError;
       if (!jobs || jobs.length === 0) return [];
       const jobById = new Map(jobs.map((job) => [job.id, job]));
@@ -102,11 +113,13 @@ export interface SentOffer {
   documentId: string;
   /** False when the letter went but the applicant could not be moved to Offer. */
   moved: boolean;
+  /** Not moved because the sender's team role may not move applicants (Manage pipeline is off). */
+  moveRefused?: boolean;
 }
 
 /** Sends the letter for signing. Throws with words he can read when it cannot. */
 export function useSendOfferLetter() {
-  const { user } = useAuth();
+  const { user, isTeamMember } = useAuth();
   const queryClient = useQueryClient();
   const updateApplication = useUpdateApplication();
 
@@ -140,7 +153,12 @@ export function useSendOfferLetter() {
         } as unknown as TablesInsert<"documents">)
         .select()
         .single();
-      if (error || !document) throw new Error("The letter could not be sent. Nothing went out; try again.");
+      if (error || !document) {
+        // A team member without "Send documents" is refused by the database;
+        // "try again" would never work for them.
+        if (isTeamMember && isRefused(error)) throw new Error(`${teamRoleCant("send documents", "canSendDocuments")} Nothing went out.`);
+        throw new Error("The letter could not be sent. Nothing went out; try again.");
+      }
 
       // From here the letter exists and is waiting on them. What follows tells
       // them so; none of it can undo the send, so none of it may fail it.
@@ -177,14 +195,18 @@ export function useSendOfferLetter() {
       void notifyDocumentSent(person.candidateId, name, cleanFields(fields).companyName, person.applicationId);
 
       let moved = true;
+      let moveRefused = false;
       if (person.status === "interview" || person.status === "reviewing") {
         try {
           await updateApplication.mutateAsync({ id: person.applicationId, status: "offered" as never });
-        } catch {
+        } catch (moveError) {
           moved = false;
+          // "Send documents" without "Manage pipeline": the letter goes, the
+          // stage change is refused (nothing changes, no error of its own).
+          moveRefused = !!isTeamMember && isNoRowChanged(moveError);
         }
       }
-      return { documentId: document.id, moved };
+      return { documentId: document.id, moved, moveRefused };
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });

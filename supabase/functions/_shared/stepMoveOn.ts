@@ -166,6 +166,11 @@ export interface StepMoveOnInput {
   /** Default: the SUPABASE_URL / SUPABASE_ANON_KEY the function runs with. */
   supabaseUrl?: string | null;
   anonKey?: string | null;
+  /** Default: SUPABASE_SERVICE_ROLE_KEY. Used only when the applicant's own
+   *  sign-in expired while the step was graded (trigger-ava-analysis answered
+   *  401): one more ask as the system, which it treats as the applicant
+   *  asking for themself. */
+  serviceKey?: string | null;
   /** jobs.processing_mode when the caller already read it from the database. */
   processingMode?: string | null;
 }
@@ -399,30 +404,33 @@ function envValue(name: string): string | null {
   }
 }
 
-function withEnv(input: StepMoveOnInput): StepMoveOnInput & { supabaseUrl: string | null; anonKey: string | null } {
+function withEnv(input: StepMoveOnInput): StepMoveOnInput & { supabaseUrl: string | null; anonKey: string | null; serviceKey: string | null } {
   return {
     ...input,
     supabaseUrl: input.supabaseUrl ?? envValue("SUPABASE_URL"),
     anonKey: input.anonKey ?? envValue("SUPABASE_ANON_KEY"),
+    serviceKey: input.serviceKey ?? envValue("SUPABASE_SERVICE_ROLE_KEY"),
   };
 }
 
 /** One POST to trigger-ava-analysis, with a deadline. Never throws. */
 async function askOnce(
-  input: { supabaseUrl: string; anonKey: string; authorization: string; applicationId: string; stepId: string },
+  input: { supabaseUrl: string; anonKey: string; authorization: string; applicationId: string; stepId: string; asSystem?: string | null },
   fetchImpl: typeof fetch,
   timeoutMs: number,
 ): Promise<{ status: number | null; body: unknown; error: string | null }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
+    // As the applicant (their own Authorization), or, after their sign-in
+    // expired, as the system: the service key in `apikey`, no Authorization,
+    // the way one function calls another here.
+    const headers: Record<string, string> = input.asSystem
+      ? { "Content-Type": "application/json", apikey: input.asSystem }
+      : { "Content-Type": "application/json", apikey: input.anonKey, Authorization: input.authorization };
     const response = await fetchImpl(`${input.supabaseUrl.replace(/\/+$/, "")}/functions/v1/trigger-ava-analysis`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: input.anonKey,
-        Authorization: input.authorization,
-      },
+      headers,
       body: JSON.stringify(moveOnRequestBody(input.applicationId, input.stepId)),
       signal: controller.signal,
     });
@@ -526,6 +534,15 @@ export async function runStepMoveOn(
       }
       tries = 2;
       sent = await askOnce(ask, fetchImpl, timing.askTimeoutMs);
+      answer = readTriggerAnswer(sent.status, sent.body);
+    }
+    // The applicant's sign-in ran out while the step was graded (a 401): ask
+    // once more as the system, which this function already checked was them.
+    // Without this an applicant sat on a finished step for days (2026-10-09).
+    if (!answer.ok && sent.status === 401 && input.serviceKey) {
+      log("their sign-in expired: asking as the system", { tries });
+      tries += 1;
+      sent = await askOnce({ ...ask, asSystem: input.serviceKey }, fetchImpl, timing.askTimeoutMs);
       answer = readTriggerAnswer(sent.status, sent.body);
     }
     if (answer.ok) log("asked trigger-ava-analysis", { at, status: sent.status, decision: answer.decision, tries });

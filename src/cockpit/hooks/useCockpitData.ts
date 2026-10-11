@@ -14,6 +14,8 @@ import { useConversations, useMessages, useSendMessage, useMarkAsRead } from "@/
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { useTeamInvitations } from "@/hooks/useTeam";
 import { useAdvancedAnalytics } from "@/hooks/useAdvancedAnalytics";
+import { CANT_MOVE_APPLICANTS, isNoRowChanged, teamRoleCant } from "@/lib/teamPermissions";
+import { DOCUMENT_SIGNING_ERROR_MESSAGES, invokeDocumentSigning } from "@/lib/documentSigningErrors";
 import {
   buildAccountFromProfile,
   buildDashboardHero,
@@ -290,9 +292,10 @@ export function useCockpitCandidate(id: string | undefined) {
 /** DB status progression for the "Advance" button. Caps at "offered" — moving
  *  past offered is the explicit Hire action (so a candidate is never auto-hired
  *  and an offered candidate can never be bumped backwards). */
+// Not "in_progress": someone still filling in the form isn't moved on (leaving
+// in_progress marks their form submitted and stops their autosave).
 const NEXT_STATUS: Record<string, string> = {
   pending: "reviewing",
-  in_progress: "reviewing",
   reviewing: "interview",
   interview: "offered",
 };
@@ -348,9 +351,61 @@ export function avaAdvanceRec(
   return { tone: "caution", text: `I'd be careful here — ${overall} out of 100 is a weak match for this job.` };
 }
 
+/**
+ * Why an applicant could not be moved, in words the person can act on. A
+ * refused update changes no row and says nothing (row-level security), so
+ * useUpdateApplication's `.single()` reports "no row": for a team member that
+ * is their role (Manage pipeline is off); for the owner, an application that
+ * is no longer there. Anything else keeps the caller's own words.
+ */
+function moveFailureWords(error: unknown, isTeamMember: boolean, fallback: string): string {
+  if (!isNoRowChanged(error)) return fallback;
+  return isTeamMember ? CANT_MOVE_APPLICANTS : "That application isn't there any more. Refresh the page.";
+}
+
+/**
+ * After an applicant is turned down, what still waits on their signature for
+ * that application is withdrawn (not signed yet) or voided (signed, not yet
+ * countersigned) through the signing engine, which tells them why. "Take back
+ * offer" used to leave the offer letter open to sign. When they held an offer
+ * everything still open goes; on any other decline, the offer letters. It
+ * never undoes the decline: what could not be closed is reported.
+ */
+async function closeOpenSigning(applicationId: string, wasOffered: boolean): Promise<{ left: number; why: string | null }> {
+  const { data, error } = await supabase
+    .from("documents")
+    .select("id, document_type, candidate_signed_at, employer_signed_at, is_locked")
+    .eq("application_id", applicationId)
+    .eq("status", "pending")
+    .eq("is_voided", false);
+  if (error) return wasOffered ? { left: 1, why: "The documents could not be checked just now." } : { left: 0, why: null };
+  const rows = (data ?? []) as Array<{ id: string; document_type: string | null; candidate_signed_at: string | null; employer_signed_at: string | null; is_locked: boolean | null }>;
+  const open = rows.filter((d) => !d.is_locked && !d.employer_signed_at && (wasOffered || d.document_type === "offer_letter"));
+  let left = 0;
+  let why: string | null = null;
+  for (const doc of open) {
+    try {
+      await invokeDocumentSigning(supabase, {
+        documentId: doc.id,
+        action: doc.candidate_signed_at ? "void" : "withdraw",
+        // The applicant reads this (3 to 500 characters).
+        reason: wasOffered ? "The offer was taken back." : "The application was closed.",
+      });
+    } catch (e) {
+      left += 1;
+      why = why ?? (e as Error).message;
+    }
+  }
+  return { left, why };
+}
+
+/**
+ * Each action resolves true when the applicant really moved, false when it
+ * said why not (a toast). The confirms that open them close either way.
+ */
 export function useCockpitActions() {
   const { data: mode } = useSchemaMode();
-  const { user } = useAuth();
+  const { user, isTeamMember } = useAuth();
   const updateApplication = useUpdateApplication();
   const queryClient = useQueryClient();
 
@@ -362,78 +417,88 @@ export function useCockpitActions() {
   }, [queryClient]);
 
   const advance = useCallback(
-    async (applicationId: string, currentStatus?: string) => {
+    async (applicationId: string, currentStatus?: string): Promise<boolean> => {
       if (mode === "showcase") {
         try {
           await updateShowcaseDecision(applicationId, "offer");
           toast.success("Candidate advanced");
           refresh();
+          return true;
         } catch (err) {
           console.error(err);
           toast.error("Could not advance candidate");
+          return false;
         }
-        return;
       }
 
       const nextStatus = nextAdvanceStatus(currentStatus);
       if (!nextStatus) {
         // Already at offered/hired/rejected — Advance is a no-op here.
-        return;
+        return false;
       }
 
       try {
         await updateApplication.mutateAsync({ id: applicationId, status: nextStatus as never });
         toast.success(nextStatus === "offered" ? "Moved to offer" : "Candidate advanced");
         refresh();
+        return true;
       } catch (err) {
         console.error(err);
-        toast.error("Could not advance candidate");
+        toast.error(moveFailureWords(err, isTeamMember, "Could not advance candidate"));
+        return false;
       }
     },
-    [updateApplication, refresh, mode],
+    [updateApplication, refresh, mode, isTeamMember],
   );
 
   const hire = useCallback(
-    async (applicationId: string) => {
+    async (applicationId: string): Promise<boolean> => {
       if (mode === "showcase") {
         try {
           await updateShowcaseDecision(applicationId, "offer");
           toast.success("Candidate hired 🎉");
           refresh();
+          return true;
         } catch (err) {
           console.error(err);
           toast.error("Could not hire candidate");
+          return false;
         }
-        return;
       }
 
       try {
         await updateApplication.mutateAsync({ id: applicationId, status: "hired" as never });
         toast.success("Candidate hired 🎉");
         refresh();
+        return true;
       } catch (err) {
         console.error(err);
-        toast.error("Could not hire candidate");
+        toast.error(moveFailureWords(err, isTeamMember, "Could not hire candidate"));
+        return false;
       }
     },
-    [updateApplication, refresh, mode],
+    [updateApplication, refresh, mode, isTeamMember],
   );
 
   const reject = useCallback(
-    async (applicationId: string, reason?: string) => {
+    async (applicationId: string, reason?: string): Promise<boolean> => {
       if (mode === "showcase") {
         try {
           await updateShowcaseDecision(applicationId, "passed");
           toast.success("Candidate passed");
           refresh();
+          return true;
         } catch (err) {
           console.error(err);
           toast.error("Could not update candidate");
+          return false;
         }
-        return;
       }
 
       const trimmed = reason?.trim();
+      // Where they stood: an offer taken back closes what waits on their signature.
+      const { data: before } = await supabase.from("applications").select("status").eq("id", applicationId).maybeSingle();
+      const wasOffered = (before as { status?: string } | null)?.status === "offered";
       try {
         await updateApplication.mutateAsync({
           id: applicationId,
@@ -444,14 +509,28 @@ export function useCockpitActions() {
           rejected_by_type: "user",
           ...(trimmed ? { employer_notes: trimmed } : {}),
         } as never);
-        toast.success("Candidate passed");
-        refresh();
       } catch (err) {
         console.error(err);
-        toast.error("Could not update candidate");
+        toast.error(moveFailureWords(err, isTeamMember, "Could not update candidate"));
+        return false;
       }
+      toast.success(wasOffered ? "Offer taken back" : "Candidate passed");
+      refresh();
+
+      const { left, why } = await closeOpenSigning(applicationId, wasOffered);
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      queryClient.invalidateQueries({ queryKey: ["offer-letter-state", applicationId] });
+      if (left > 0) {
+        const refusedRole = isTeamMember && why === DOCUMENT_SIGNING_ERROR_MESSAGES.role_mismatch;
+        toast.error(left === 1 ? "The offer letter is still open to sign" : `${left} documents are still open to sign`, {
+          description: refusedRole
+            ? `They were declined, but ${teamRoleCant("withdraw documents", "canSendDocuments")}`
+            : `They were declined, but ${left === 1 ? "it" : "they"} could not be withdrawn${why ? ` (${why.replace(/\.$/, "")})` : ""}. Withdraw ${left === 1 ? "it" : "them"} in Documents.`,
+        });
+      }
+      return true;
     },
-    [updateApplication, refresh, mode, user?.id],
+    [updateApplication, refresh, mode, user?.id, isTeamMember, queryClient],
   );
 
   // Back-compat alias — quick "Pass" with no reason.
@@ -468,21 +547,24 @@ export function useCockpitActions() {
    * next step" bell is the DB trigger notify_application_phase_advanced's.
    */
   const letContinue = useCallback(
-    async (applicationId: string, nextPhaseId: string, nextTitle: string) => {
+    async (applicationId: string, nextPhaseId: string, nextTitle: string): Promise<boolean> => {
       if (mode === "showcase") {
         toast.message("Not available on the showcase data");
-        return;
+        return false;
       }
       try {
-        await updateApplication.mutateAsync({ id: applicationId, phase: nextPhaseId, status: "reviewing" as never } as never);
+        // The email names the step as they will see it, not its id.
+        await updateApplication.mutateAsync({ id: applicationId, phase: nextPhaseId, phaseTitle: nextTitle, status: "reviewing" as never } as never);
         toast.success(`${nextTitle} is open for them`);
         refresh();
+        return true;
       } catch (err) {
         console.error(err);
-        toast.error("Could not open the next step");
+        toast.error(moveFailureWords(err, isTeamMember, "Could not open the next step"));
+        return false;
       }
     },
-    [updateApplication, refresh, mode],
+    [updateApplication, refresh, mode, isTeamMember],
   );
 
   return { advance, hire, reject, pass, letContinue, isUpdating: updateApplication.isPending };

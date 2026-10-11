@@ -21,6 +21,14 @@ import { BULK_PASS_STOP_AFTER, PASSABLE_STATUSES, passUpdate, type BulkPassResul
  * moved to an offer, a hire or a decline since it was picked is left alone.
  * The in-app bell is the database's own trigger, as on a single Pass.
  */
+
+/** After a Pass that changed nothing: is this application still one a Pass may change? */
+async function stillUndecided(applicationId: string): Promise<boolean> {
+  const { data } = await supabase.from("applications").select("status").eq("id", applicationId).maybeSingle();
+  const status = (data as { status?: string } | null)?.status;
+  return !!status && (PASSABLE_STATUSES as readonly string[]).includes(status);
+}
+
 export function useBulkPass() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -28,8 +36,9 @@ export function useBulkPass() {
 
   const passMany = useCallback(
     async (targets: readonly PassTarget[]): Promise<BulkPassResult> => {
-      const result: BulkPassResult = { total: targets.length, passed: 0, emailed: 0, moved: 0, failed: 0, stopped: false };
+      const result: BulkPassResult = { total: targets.length, passed: 0, emailed: 0, moved: 0, refused: 0, failed: 0, stopped: false };
       let failuresInARow = 0;
+      let refusedAt = -1;
       try {
         for (let i = 0; i < targets.length; i += 1) {
           const target = targets[i];
@@ -42,8 +51,12 @@ export function useBulkPass() {
               .in("status", [...PASSABLE_STATUSES] as never)
               .select("id");
             if (error) throw error;
+            // Nothing changed: it had moved on since it was picked, or the
+            // database refused (a team role without Manage pipeline changes
+            // nothing and says nothing). Still undecided means refused, and
+            // then so is everyone after it: the rest are left as they are.
             if (!Array.isArray(data) || data.length === 0) {
-              // Nothing changed: it had moved on since it was picked.
+              if (await stillUndecided(target.applicationId)) { refusedAt = i; break; }
               result.moved += 1;
               failuresInARow = 0;
               continue;
@@ -64,6 +77,7 @@ export function useBulkPass() {
             }
           }
         }
+        if (refusedAt >= 0) result.refused = targets.length - refusedAt;
       } finally {
         setProgress(null);
         queryClient.invalidateQueries({ queryKey: ["applications"] });

@@ -27,6 +27,8 @@ import { cn } from "@/lib/utils";
 import type { Tables } from "@/integrations/supabase/types";
 import { PASSED_TIME_WORDS, applicantEmailTime, isPassedTimeError, localTimeZone, timeStillAhead } from "@/lib/interviewTimes";
 import { fetchApplicantTimeZone } from "@/hooks/useApplicantTimeZone";
+import { useAuth } from "@/hooks/useAuth";
+import { NothingChanged, teamRoleCant } from "@/lib/teamPermissions";
 
 interface RescheduleInterviewDialogProps {
   open: boolean;
@@ -42,6 +44,7 @@ export function RescheduleInterviewDialog({
   applicationId,
 }: RescheduleInterviewDialogProps) {
   const queryClient = useQueryClient();
+  const { isTeamMember } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [date, setDate] = useState<Date | undefined>();
   const [time, setTime] = useState("10:00");
@@ -78,16 +81,22 @@ export function RescheduleInterviewDialog({
     setIsSubmitting(true);
     try {
 
-      const { error } = await supabase
+      const { data: changed, error } = await supabase
         .from("interviews")
         .update({
           scheduled_at: scheduledAt.toISOString(),
           duration_minutes: parseInt(duration),
           meeting_link: meetingLink || null,
         })
-        .eq("id", interview.id);
+        .eq("id", interview.id)
+        .select("id");
 
       if (error) throw error;
+      // A refused change (a team role without Schedule interviews) changes
+      // nothing and says nothing: it read "rescheduled successfully".
+      if (!changed || changed.length === 0) {
+        throw new NothingChanged(isTeamMember ? teamRoleCant("change interviews", "canScheduleInterviews") : "That interview isn't there any more. Refresh the page.");
+      }
 
       // Get application details to send email
       const { data: appData } = await supabase
@@ -114,7 +123,7 @@ export function RescheduleInterviewDialog({
       onOpenChange(false);
     } catch (error) {
       console.error("Failed to reschedule interview:", error);
-      toast.error(isPassedTimeError(error) ? PASSED_TIME_WORDS : "Failed to reschedule interview");
+      toast.error(error instanceof NothingChanged ? error.message : isPassedTimeError(error) ? PASSED_TIME_WORDS : "Failed to reschedule interview");
     } finally {
       setIsSubmitting(false);
     }

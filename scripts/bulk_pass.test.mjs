@@ -113,6 +113,8 @@ console.log("\nWhat is written, and how it went\n");
   const nothing = P.bulkPassDoneWords({ total: 3, passed: 0, emailed: 0, moved: 0, failed: 3, stopped: true });
   check("nobody passed: it does not say 'passed'", !nothing.ok && nothing.title === "Couldn't pass on them", show(nothing));
   check("one person reads as one", P.bulkPassDoneWords({ total: 1, passed: 1, emailed: 1, moved: 0, failed: 0, stopped: false }).title === "1 applicant passed");
+  const refused = P.bulkPassDoneWords({ total: 5, passed: 0, emailed: 0, moved: 0, refused: 5, failed: 0, stopped: false });
+  check("a team role without Manage pipeline is told so, never 'had already moved on'", !refused.ok && refused.title === "Nobody was passed on" && /Your team role can't pass on applicants\. Ask the owner to turn on Manage pipeline\./.test(refused.description) && !/moved on/.test(refused.description), show(refused));
 }
 
 console.log("\nHow it is sent\n");
@@ -124,7 +126,12 @@ console.log("\nHow it is sent\n");
   check("the note is the single Pass's own, and it is waited for", /const emailed = await notifyStatusRejected\(target\.candidateId, target\.jobTitle \|\| "Position"\);/.test(hook) && /if \(emailed === "sent"\) result\.emailed \+= 1;/.test(hook));
   check("one person at a time: no Promise.all, no burst", !/Promise\.all/.test(hook) && /for \(let i = 0; i < targets\.length; i \+= 1\)/.test(hook));
   check("it stops after three failures in a row", /if \(failuresInARow >= BULK_PASS_STOP_AFTER\) \{\s*result\.stopped = true;\s*break;/.test(hook) && P.BULK_PASS_STOP_AFTER === 3);
-  check("it is not Remove and block: no block, and no other table", !/block_applicants|blocked_applicants|\.rpc\(/.test(hook) && (hook.match(/\.from\("/g) ?? []).length === 1);
+  // It reads the applications table back after a Pass that changed nothing
+  // (moved on, or refused by a team role), so "no other table" is checked by
+  // name: every table it touches is applications.
+  const tables = hook.match(/\.from\("[^"]*"\)/g) ?? [];
+  check("it is not Remove and block: no block, and no other table", !/block_applicants|blocked_applicants|\.rpc\(/.test(hook) && tables.length > 0 && tables.every((t) => t === '.from("applications")'));
+  check("a Pass the team role may not make reads as refused, not as moved on", /if \(await stillUndecided\(target\.applicationId\)\) \{ refusedAt = i; break; \}/.test(hook) && /result\.refused = targets\.length - refusedAt;/.test(hook));
   check("it does not go through the hook whose email is not waited for", !/useUpdateApplication/.test(hook.replace(/\/\*\*[\s\S]*?\*\//, "")));
   check("the list is refreshed once, at the end", /finally \{\s*setProgress\(null\);\s*queryClient\.invalidateQueries\(\{ queryKey: \["applications"\] \}\);/.test(hook));
 }

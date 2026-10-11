@@ -163,7 +163,17 @@ eq("due choices", lib.DUE_CHOICES.join(","), "3,5,7");
   check("an offer letter's email says they were selected, then asks them to sign", /"Congratulations, you've been selected!"/.test(fn) && /has selected you for the position of/.test(fn) && /"Read and sign your offer letter"/.test(fn) && /doc\?\.document_type === "offer_letter"/.test(fn));
 
   const hire = read("src/cockpit/hooks/useHire.ts");
-  check("hired once: the update only touches someone not already hired or declined", /\.not\("status", "in", "\(hired,rejected\)"\)/.test(hire) && /if \(!moved \|\| moved\.length === 0\) return \{ already: true/.test(hire));
+  // When nothing changed, every way out returns before anything is asked for
+  // or emailed; it reads where they stand so a refusal is not "already hired".
+  const noChange = /if \(!moved \|\| moved\.length === 0\) \{([\s\S]*?)\n      \}\n/.exec(hire)?.[1] ?? "";
+  check(
+    "hired once: the update only touches someone not already hired or declined",
+    /\.not\("status", "in", "\(hired,rejected\)"\)/.test(hire) &&
+      /return \{ already: true/.test(noChange) &&
+      /refused: "declined"/.test(noChange) &&
+      /return \{ already: false, refused: "not_allowed"/.test(noChange) &&
+      !/insertRequestRows\(|notifyStatusHired\(|\.update\(/.test(noChange),
+  );
   check("…the documents are asked for before the one welcome email, so it lists them", hire.indexOf("insertRequestRows(") > 0 && hire.indexOf("insertRequestRows(") < hire.indexOf("notifyStatusHired("));
   check("…and no automatic retry", /retry: false/.test(hire));
   const dialog = read("src/cockpit/components/HireDialog.tsx");

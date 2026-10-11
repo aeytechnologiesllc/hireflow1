@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSchemaMode } from "@/hooks/useSchemaMode";
+import { teamRoleCant } from "@/lib/teamPermissions";
 import { isRecordNotDeployed } from "./useAssessmentSessions";
 import { LIVE_SYNC_LIST_KEYS } from "./useEmployerLiveSync";
 import { BLOCKED_COLUMNS, blockedIndex, type BlockedApplicant } from "../lib/blockedApplicants";
@@ -89,15 +90,18 @@ type RpcError = { code?: string | null; message?: string | null } | null | undef
 /** The applications a block closes besides the one clicked (block_applicant). */
 const OPEN_STATUSES: ReadonlySet<string> = new Set(["in_progress", "pending", "reviewing"]);
 
-function blockFailureWords(error: RpcError, many: boolean): string {
+function blockFailureWords(error: RpcError, many: boolean, isTeamMember: boolean): string {
   if (isRecordNotDeployed(error)) return "Remove and block isn't switched on yet.";
+  // A team member sees only applicants they may see, so a refusal is their
+  // role (blocking needs Manage pipeline), and says which switch.
+  if (error?.code === "42501" && isTeamMember) return teamRoleCant("remove or block applicants", "canManagePipeline");
   if (error?.code === "42501") return many ? "You can't decide on these applicants." : "You can't decide on this applicant.";
   return "Couldn't remove and block them. Try again.";
 }
 
 export function useApplicantBlockActions() {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, isTeamMember } = useAuth();
   // The same array from one render to the next (see useApplicantViews: a key built
   // afresh each render once made a page write to the server ten times a second).
   const uid = user?.id;
@@ -241,7 +245,7 @@ export function useApplicantBlockActions() {
       try {
         const { blocked, skipped } = await blockMutation.mutateAsync({ targets, reason });
         if (blocked.length === 0) {
-          toast.error(blockFailureWords({ code: "42501" }, many));
+          toast.error(blockFailureWords({ code: "42501" }, many, isTeamMember));
           return false;
         }
         const one = targets.find((t) => t.applicationId === blocked[0]);
@@ -254,11 +258,11 @@ export function useApplicantBlockActions() {
         return skipped.length === 0;
       } catch (error) {
         console.error("[block_applicants]", error);
-        toast.error(blockFailureWords(error as RpcError, many));
+        toast.error(blockFailureWords(error as RpcError, many, isTeamMember));
         return false;
       }
     },
-    [blockMutation],
+    [blockMutation, isTeamMember],
   );
 
   /** Unblock one person. Their application stays declined. */
@@ -267,7 +271,7 @@ export function useApplicantBlockActions() {
       try {
         const removed = await unblockMutation.mutateAsync({ target });
         if (removed === 0) {
-          toast.error("Couldn't unblock them: you may not have permission to.");
+          toast.error(isTeamMember ? teamRoleCant("unblock applicants", "canManagePipeline") : "Couldn't unblock them: you may not have permission to.");
           return false;
         }
         toast.success(`${target.name} unblocked`, { description: "They can apply again. Their application stays declined." });
@@ -278,7 +282,7 @@ export function useApplicantBlockActions() {
         return false;
       }
     },
-    [unblockMutation],
+    [unblockMutation, isTeamMember],
   );
 
   return {

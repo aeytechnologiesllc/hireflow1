@@ -393,7 +393,14 @@ export default function CockpitInterviews() {
 
   /* The strip follows the work: this week, unless everything sits further out. */
   const dated = useMemo(() => sessions.filter((s) => s.at && s.status === "scheduled"), [sessions]);
-  const thisWeek = useMemo(() => startOfWeek(today, WEEK_OPTS), [today]);
+  // The working week the strip opens on. On a Saturday or Sunday this week's
+  // weekdays are all behind you, so it is the coming one: the strip used to
+  // show five days already gone. (The calendar week stays for the label.)
+  const calendarWeek = useMemo(() => startOfWeek(today, WEEK_OPTS), [today]);
+  const thisWeek = useMemo(() => {
+    const weekend = today.getDay() === 0 || today.getDay() === 6;
+    return weekend ? addDays(calendarWeek, 7) : calendarWeek;
+  }, [today, calendarWeek]);
   const weekStart = useMemo(() => {
     const firstUpcoming = upcoming.find((s) => s.at)?.at;
     if (firstUpcoming && firstUpcoming >= addDays(thisWeek, 7)) return startOfWeek(firstUpcoming, WEEK_OPTS);
@@ -598,7 +605,9 @@ export default function CockpitInterviews() {
           {/* ── The week at a glance ──────────────────────────── */}
           {dated.length > 0 && (
             <section>
-              {!isSameDay(weekStart, thisWeek) && (
+              {/* Any week but the one we are in says which it is (the coming
+                  one too, on a weekend). */}
+              {!isSameDay(weekStart, calendarWeek) && (
                 <div
                   className="mb-2 text-[10px] font-bold uppercase leading-[1.2] tracking-[0.1em]"
                   style={{ color: "var(--ink-3)" }}

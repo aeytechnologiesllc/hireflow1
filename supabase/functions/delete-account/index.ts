@@ -142,8 +142,11 @@ interface StorageApiWithListV2 {
 async function cleanupUserStorage(
   supabaseAdmin: AdminClient,
   userId: string,
+  /** Buckets whose files belong to a business, kept (a team member's uploads). */
+  keep: readonly string[] = [],
 ) {
   for (const bucket of storageBuckets) {
+    if (keep.includes(bucket)) continue;
     try {
       const storageApi = supabaseAdmin.storage.from(bucket) as unknown as StorageApiWithListV2;
 
@@ -239,6 +242,34 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
 
+    // Someone on a business's team (not a business themselves): their work
+    // belongs to that business. Their chats with applicants and the documents
+    // they sent go to the owner first, so leaving never takes the business's
+    // records with it (messages are deleted with an account).
+    const { data: roleRows } = await supabaseAdmin.from('user_roles').select('role').eq('user_id', user.id);
+    const isBusiness = (roleRows ?? []).some((r: { role?: string }) => r.role === 'employer');
+    const { data: teamRows } = isBusiness
+      ? { data: [] as { employer_id: string }[] }
+      : await supabaseAdmin.from('team_members').select('employer_id').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1);
+    const teamOwner = (teamRows ?? [])[0]?.employer_id as string | undefined;
+    if (teamOwner) {
+      const handover = [
+        supabaseAdmin.from('messages').update({ sender_id: teamOwner }).eq('sender_id', user.id),
+        supabaseAdmin.from('messages').update({ receiver_id: teamOwner }).eq('receiver_id', user.id),
+        supabaseAdmin.from('documents').update({ sender_id: teamOwner }).eq('sender_id', user.id),
+      ];
+      for (const step of handover) {
+        const { error } = await step;
+        if (error) {
+          console.error('Handover before deleting a team member failed (nothing deleted):', error.message);
+          return new Response(
+            JSON.stringify({ error: 'Failed to delete account' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+    }
+
     const ownedJobIds = await fetchIds(supabaseAdmin, 'jobs', 'employer_id', user.id);
     const candidateApplicationIds = await fetchIds(supabaseAdmin, 'applications', 'candidate_id', user.id);
     const employerApplicationIds = await fetchIdsIn(supabaseAdmin, 'applications', 'job_id', ownedJobIds);
@@ -251,9 +282,10 @@ serve(async (req) => {
     // log into but could do nothing with, and which no longer had a company
     // name, so any job it published was silently dropped from the feed.
     //
-    // Nothing in the schema forced that order — no foreign key references
-    // auth.users at all (verified 2026-08-31), so there is no cascade to
-    // sequence around. Deleting the auth user FIRST makes the failure mode
+    // Foreign keys to auth.users cascade or clear themselves (documents' sender
+    // and recipient since 20261011194000; before that they refused the
+    // deletion outright for anyone who had sent or received one). Deleting the
+    // auth user FIRST makes the failure mode
     // non-destructive: if it fails we return before touching a single row and
     // the account is left whole, so the user can simply try again.
     // ---------------------------------------------------------------------
@@ -286,15 +318,19 @@ serve(async (req) => {
       residue.push(...(await deleteRowsByIds(supabaseAdmin, table, 'application_id', relatedApplicationIds)));
     }
 
+    // What a team member did for the business stays with it: documents they
+    // reviewed and the audit trail (already handed over above).
+    const keptForTheBusiness = new Set(teamOwner ? ['document_requests.reviewed_by', 'document_audit_logs.user_id'] : []);
     for (const operation of deleteOperations) {
       for (const column of operation.columns) {
+        if (keptForTheBusiness.has(`${operation.table}.${column}`)) continue;
         await purge(`${operation.table}.${column}`, () =>
           supabaseAdmin.from(operation.table).delete().eq(column, user.id)
         );
       }
     }
 
-    await cleanupUserStorage(supabaseAdmin, user.id);
+    await cleanupUserStorage(supabaseAdmin, user.id, teamOwner ? ['documents', 'message-attachments'] : []);
 
     if (residue.length > 0) {
       // Loud on purpose: the account is deleted, but rows survived it. This is a

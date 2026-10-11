@@ -10,6 +10,7 @@ import { useDeleteJob, useUpdateJob } from "@/hooks/useJobs";
 import { jobCopyFailureWords, useCopyJobToDrafts } from "@/hooks/useJobCopy";
 import { COPY_TO_DRAFTS_HINT, COPY_TO_DRAFTS_LABEL, copiedToDraftsWords, sortJobStartOptions, type JobStartOption } from "@/lib/jobCopy";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
+import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import { SearchInput, FilterSelect } from "../components/controls";
 import { ActionDialog } from "../components/ActionDialog";
 import { ShareKitDialog } from "../components/ShareKitDialog";
@@ -416,6 +417,8 @@ export default function CockpitJobs() {
   const { jobs, rawJobs, applications, isLoading, isError, refetch } = useCockpitJobsData();
   const { data: mode } = useSchemaMode();
   const { data: teamPermissions } = useTeamMemberPermissions();
+  // Only the platform's own account can talk to Ava (see the empty state below).
+  const canTalk = usePlatformAdmin();
   const updateJob = useUpdateJob();
   const deleteJob = useDeleteJob();
   const copyJob = useCopyJobToDrafts();
@@ -446,7 +449,9 @@ export default function CockpitJobs() {
       toast.success(`${job.title} is closed — off your job page and the job board feed.`);
     } catch (error) {
       console.error("Failed to close job:", error);
-      toast.error("Couldn't close this role. Please try again.");
+      // A team role without "Create jobs", or a job already gone, says so (useJobs).
+      const said = error instanceof Error && /^Your team role|isn't there any more/.test(error.message) ? error.message : null;
+      toast.error(said ?? "Couldn't close this role. Please try again.");
     }
   };
 
@@ -746,8 +751,17 @@ export default function CockpitJobs() {
             everyone who applies and send you the ones worth your time.
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
+            {/* Talking to Ava is the platform's own account only (AvaCreateJob's
+                canTalk); everyone else lands on the typed form, so a mic and
+                "Talk to Ava" promised them something the button never opens. */}
             <button type="button" className="ck-btn ck-btn-primary" onClick={startRole}>
-              <Mic className="h-4 w-4" /> Talk to Ava
+              {canTalk ? (
+                <>
+                  <Mic className="h-4 w-4" /> Talk to Ava
+                </>
+              ) : (
+                "Post a job"
+              )}
             </button>
           </div>
         </section>

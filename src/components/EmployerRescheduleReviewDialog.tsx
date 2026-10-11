@@ -24,6 +24,8 @@ import { PASSED_TIME_WORDS, applicantEmailTime, clockGapWords, isPassedTimeError
 import { fetchApplicantTimeZone, useApplicantTimeZone } from "@/hooks/useApplicantTimeZone";
 import { clashAt, clashWords, type BusyInterview } from "@/lib/interviewClash";
 import type { Json } from "@/integrations/supabase/types";
+import { useAuth } from "@/hooks/useAuth";
+import { NothingChanged, teamRoleCant } from "@/lib/teamPermissions";
 
 /**
  * The hiring team's answer when an applicant cannot make the interview time
@@ -145,6 +147,13 @@ export function EmployerRescheduleReviewDialog({
     queryClient.invalidateQueries({ queryKey: ["interviews"] });
   };
 
+  // Each change asks for the row back: a refused one (a team role without
+  // Schedule interviews) changes nothing and says nothing, and read as done.
+  const { isTeamMember } = useAuth();
+  const nothingChanged = () =>
+    new NothingChanged(isTeamMember ? teamRoleCant("change interviews", "canScheduleInterviews") : "That interview isn't there any more. Refresh the page.");
+  const failWords = (error: unknown, fallback: string) => (error instanceof NothingChanged ? error.message : fallback);
+
   /** Who the interview is with, and for which job: what every email here needs. */
   const lookUp = async () => {
     const { data } = await supabase
@@ -176,7 +185,7 @@ export function EmployerRescheduleReviewDialog({
     try {
       const { candidateId, jobTitle } = await lookUp();
 
-      const { error } = await supabase
+      const { data: changed, error } = await supabase
         .from("interviews")
         .update({
           scheduled_at: selectedTime,
@@ -186,9 +195,11 @@ export function EmployerRescheduleReviewDialog({
           proposed_times: null,
           candidate_note: null,
         })
-        .eq("id", interviewId);
+        .eq("id", interviewId)
+        .select("id");
 
       if (error) throw error;
+      if (!changed || changed.length === 0) throw nothingChanged();
 
       // The applicant's bell is the database's own
       // (notify_interview_scheduled_or_rescheduled, on this scheduled_at change).
@@ -212,7 +223,7 @@ export function EmployerRescheduleReviewDialog({
       onOpenChange(false);
     } catch (error) {
       console.error("Error accepting a suggested time:", error);
-      toast.error(isPassedTimeError(error) ? PASSED_TIME_WORDS : "Couldn't set that time. Try again.");
+      toast.error(failWords(error, isPassedTimeError(error) ? PASSED_TIME_WORDS : "Couldn't set that time. Try again."));
     } finally {
       setIsSubmitting(false);
     }
@@ -225,16 +236,18 @@ export function EmployerRescheduleReviewDialog({
     try {
       const { candidateId, jobTitle, scheduledAt } = await lookUp();
 
-      const { error } = await supabase
+      const { data: changed, error } = await supabase
         .from("interviews")
         .update({
           candidate_response: "pending", // They are asked to confirm the time that stands
           proposed_times: null,
           candidate_note: null,
         })
-        .eq("id", interviewId);
+        .eq("id", interviewId)
+        .select("id");
 
       if (error) throw error;
+      if (!changed || changed.length === 0) throw nothingChanged();
 
       if (candidateId) {
         await supabase.from("notifications").insert({
@@ -261,7 +274,7 @@ export function EmployerRescheduleReviewDialog({
       onOpenChange(false);
     } catch (error) {
       console.error("Error keeping the time:", error);
-      toast.error("Couldn't update the interview. Try again.");
+      toast.error(failWords(error, "Couldn't update the interview. Try again."));
     } finally {
       setIsSubmitting(false);
     }
@@ -277,16 +290,18 @@ export function EmployerRescheduleReviewDialog({
     try {
       const { candidateId, jobTitle } = await lookUp();
 
-      const { error } = await supabase
+      const { data: changed, error } = await supabase
         .from("interviews")
         .update({
           candidate_response: "awaiting_pick",
           proposed_times: null,
           candidate_note: null,
         })
-        .eq("id", interviewId);
+        .eq("id", interviewId)
+        .select("id");
 
       if (error) throw error;
+      if (!changed || changed.length === 0) throw nothingChanged();
 
       if (candidateId) {
         await supabase.from("notifications").insert({
@@ -312,7 +327,7 @@ export function EmployerRescheduleReviewDialog({
       onOpenChange(false);
     } catch (error) {
       console.error("Error sending them back to the offered times:", error);
-      toast.error("Couldn't update the interview. Try again.");
+      toast.error(failWords(error, "Couldn't update the interview. Try again."));
     } finally {
       setIsSubmitting(false);
     }
@@ -338,7 +353,7 @@ export function EmployerRescheduleReviewDialog({
     try {
       const { candidateId, jobTitle, scheduledAt } = await lookUp();
       const startIso = newStart.toISOString();
-      const { error } = await supabase
+      const { data: changed, error } = await supabase
         .from("interviews")
         .update({
           scheduled_at: startIso,
@@ -348,9 +363,11 @@ export function EmployerRescheduleReviewDialog({
           proposed_times: null,
           candidate_note: null,
         })
-        .eq("id", interviewId);
+        .eq("id", interviewId)
+        .select("id");
 
       if (error) throw error;
+      if (!changed || changed.length === 0) throw nothingChanged();
 
       if (candidateId) {
         // The applicant's bell is the database's own when the time changed
@@ -383,7 +400,7 @@ export function EmployerRescheduleReviewDialog({
       onOpenChange(false);
     } catch (error) {
       console.error("Error setting a new time:", error);
-      toast.error(isPassedTimeError(error) ? PASSED_TIME_WORDS : "Couldn't send the new time. Try again.");
+      toast.error(failWords(error, isPassedTimeError(error) ? PASSED_TIME_WORDS : "Couldn't send the new time. Try again."));
     } finally {
       setIsSubmitting(false);
     }

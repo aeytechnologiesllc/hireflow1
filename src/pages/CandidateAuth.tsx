@@ -130,8 +130,17 @@ export default function CandidateAuth() {
   const [showSignInPassword, setShowSignInPassword] = useState(false);
   const [showSignUpPassword, setShowSignUpPassword] = useState(false);
 
+  // A reset link that had expired or was already used comes back with
+  // #error=…&error_code=otp_expired: open "Reset your password" and say why,
+  // instead of a sign-in form they can't fill.
+  const [expiredResetLink] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const hash = window.location.hash;
+    return /[#&]error_code=(otp_expired|access_denied)/.test(hash) || (/[#&]error=access_denied/.test(hash) && /expired|invalid/i.test(decodeURIComponent(hash)));
+  });
+
   // Password reset state
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(expiredResetLink);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
   const [resetEmailSent, setResetEmailSent] = useState(false);
   /**
@@ -689,7 +698,9 @@ export default function CandidateAuth() {
                     <p className="text-muted-foreground text-sm mt-1">
                       {resetEmailSent
                         ? "Check your email for the reset link"
-                        : "Enter your email and we'll send you a reset link"}
+                        : expiredResetLink
+                          ? "That link has expired or was already used. Enter your email for a new one."
+                          : "Enter your email and we'll send you a reset link"}
                     </p>
                   </div>
 

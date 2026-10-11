@@ -250,7 +250,9 @@ function buildAuthUser(user: FixtureAuthUser) {
     app_metadata: {},
     user_metadata: user.user_metadata,
     aud: "authenticated",
-    created_at: new Date().toISOString(),
+    // An account from before guided tips (2026-10-11): like the owner's, it
+    // sees none unless the preview asks (?__previewTips=1).
+    created_at: "2026-06-01T00:00:00.000Z",
   };
 }
 

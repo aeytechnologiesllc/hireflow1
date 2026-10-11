@@ -232,6 +232,10 @@ const getEmailContent = (
   // `redirect` param and routes an already-signed-in candidate straight through.
   const candidateLink = (path: string) =>
     `${baseUrl}/candidate/auth?redirect=${encodeURIComponent(path)}`;
+  // The hiring side signs in on its own address (staff.hireflownow.com): a
+  // link to a team page on the applicants' site arrived signed out there and
+  // landed on the sign-in page with the page lost.
+  const staffBaseUrl = baseUrl.replace(/^https:\/\/(www\.)?hireflownow\.com$/, "https://staff.hireflownow.com");
 
   // On every email to an applicant, under what the email is about and above
   // the signature: replies are not read, and where to write instead. The link
@@ -277,7 +281,7 @@ const getEmailContent = (
         `<p><strong>${esc(data.candidate_name)}</strong> has applied for the <strong>${esc(data.job_title)}</strong> position.</p>
          <p style="color: #666;">Review their application in your dashboard.</p>`,
         "View Application",
-        `${baseUrl}/applicants`
+        `${staffBaseUrl}/applicants`
       ),
     },
     
@@ -328,8 +332,8 @@ const getEmailContent = (
              ${data.message_preview ? `<p style="color: #666; font-style: italic; border-left: 3px solid #ddd; padding-left: 12px;">"${esc(data.message_preview)}..."</p>` : ''}`,
             "Reply",
             data.sender_id
-              ? `${baseUrl}/messages?candidate=${encodeURIComponent(data.sender_id)}`
-              : `${baseUrl}/messages`
+              ? `${staffBaseUrl}/messages?candidate=${encodeURIComponent(data.sender_id)}`
+              : `${staffBaseUrl}/messages`
           ),
         },
     
@@ -390,7 +394,7 @@ const getEmailContent = (
            <p><strong>When:</strong> ${esc(data.interview_when)}${data.interview_length ? `<br><strong>Length:</strong> ${esc(data.interview_length)}` : ""}</p>
            <p style="color: #666;">It is on your Interviews page, with the interview guide.</p>`,
           "Open Interviews",
-          `${baseUrl}/interviews`
+          `${staffBaseUrl}/interviews`
         ),
       };
     })(),
@@ -542,7 +546,7 @@ const getEmailContent = (
         `<p><strong>${esc(data.candidate_name)}</strong> has signed the document <strong>${esc(data.document_name)}</strong>.</p>
          <p style="color: #666;">The document is now awaiting your countersignature.</p>`,
         "View Document",
-        `${baseUrl}/documents`
+        `${staffBaseUrl}/documents`
       ),
     },
     
@@ -580,7 +584,7 @@ const getEmailContent = (
         `<p><strong>${esc(data.candidate_name)}</strong> has completed the <strong>${esc(data.phase_name)}</strong> phase for <strong>${esc(data.job_title)}</strong>.</p>
          <p style="color: #666;">Review their submission and decide on next steps.</p>`,
         "Review Submission",
-        `${baseUrl}/applicants`
+        `${staffBaseUrl}/applicants`
       ),
     },
     
@@ -643,7 +647,7 @@ const getEmailContent = (
              ${data.clock_gap ? `<p style="color: #666;">That is on their own clock, which is ${esc(data.clock_gap)}.</p>` : ""}
              <p style="color: #666;">Open Interviews to set a new time. They are asked to book it, and you are told when they do.</p>`,
             "Set a New Time",
-            `${baseUrl}/interviews`
+            `${staffBaseUrl}/interviews`
           ),
         }
       : {
@@ -655,7 +659,7 @@ const getEmailContent = (
              ${data.proposed_times ? `<p><strong>Proposed times:</strong> ${esc(data.proposed_times)}</p>` : ''}
              <p style="color: #666;">Review the request and either approve a new time or decline.</p>`,
             "Review Request",
-            `${baseUrl}/interviews`
+            `${staffBaseUrl}/interviews`
           ),
         },
     
@@ -668,7 +672,7 @@ const getEmailContent = (
          ${parseInt(data.active_jobs_count || '0') > 0 ? `<p style="color: #666;">You have <strong>${esc(data.active_jobs_count)} active job${parseInt(data.active_jobs_count || '0') > 1 ? 's' : ''}</strong> that may be affected if you run out of minutes.</p>` : ''}
          <p style="color: #666;">Purchase more voice minutes to ensure uninterrupted AI voice interviews for your candidates.</p>`,
         "Purchase Voice Minutes",
-        `${baseUrl}/settings?tab=subscription`
+        `${staffBaseUrl}/settings?tab=subscription`
       ),
     },
     
@@ -680,7 +684,7 @@ const getEmailContent = (
          ${parseInt(data.active_jobs_count || '0') > 0 ? `<p>Candidates applying to your <strong>${esc(data.active_jobs_count)} active job${parseInt(data.active_jobs_count || '0') > 1 ? 's' : ''}</strong> cannot complete AI voice interviews until you purchase more minutes.</p>` : '<p>Candidates cannot complete AI voice interviews until you purchase more minutes.</p>'}
          <p style="color: #666;">Purchase more voice minutes immediately to restore AI voice interview functionality.</p>`,
         "Purchase Voice Minutes Now",
-        `${baseUrl}/settings?tab=subscription`
+        `${staffBaseUrl}/settings?tab=subscription`
       ),
     },
     
@@ -736,7 +740,7 @@ const getEmailContent = (
         `<p><strong>${esc(data.candidate_name)}</strong> has passed all automated assessments for <strong>${esc(data.job_title)}</strong> with a score of <strong>${esc(data.score)}%</strong>.</p>
          <p style="color: #666;">They are now ready for the AIVA voice interview. You'll need to manually move them to the interview phase and configure the interview settings.</p>`,
         "Review Candidate",
-        `${baseUrl}/applicants`
+        `${staffBaseUrl}/applicants`
       ),
     },
   };

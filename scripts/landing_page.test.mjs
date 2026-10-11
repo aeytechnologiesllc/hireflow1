@@ -45,10 +45,15 @@ check("the careers page is at /careers", /export const CAREERS_PATH = "\/careers
 check("\"/\" inside the app goes there on the applicants' site; the staff site keeps its doorway", /<Route path="\/" element=\{isStaffHost\(\) \? <Index \/> : <Navigate to=\{CAREERS_PATH\} replace \/>\} \/>/.test(app));
 check("/careers belongs on the applicants' site (the staff site sends it there)", /\/\^\\\/careers\\\/\?\$\//.test(hosts));
 // Since 2026-10-11 "see open roles" is the roles of the business whose job
-// the applicant last opened (src/lib/openRoles.ts), /careers when none is
-// known, so another business's applicant is never sent to the home business.
+// the applicant last opened (src/lib/openRoles.ts), so another business's
+// applicant is never sent to the home business. When none is known (a fresh
+// device) it is every business's live jobs, /open-jobs: /careers is the home
+// business's own page, and sent a fresh device there.
 const openRoles = await read("src/lib/openRoles.ts");
-check("\"see open roles\" falls back to /careers when no business is known", /return CAREERS_PATH;/.test(openRoles) && /return `\/c\/\$\{slug\}`;/.test(openRoles));
+check(
+  "\"see open roles\" falls back to /open-jobs (every business's jobs), never /careers, when no business is known",
+  /return OPEN_JOBS_PATH;/.test(openRoles) && /return `\/c\/\$\{slug\}`;/.test(openRoles) && !/CAREERS_PATH/.test(openRoles) && /export const OPEN_JOBS_PATH = "\/open-jobs";/.test(hosts),
+);
 for (const [file, pattern] of [
   ["src/pages/JobDetails.tsx", /const strandedRoute = lookupBusiness \? `\/c\/\$\{lookupBusiness\}` : openRolesPath\(\);/],
   ["src/pages/Applications.tsx", /onClick: \(\) => navigate\(openRolesPath\(\)\)/],

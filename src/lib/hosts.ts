@@ -20,6 +20,10 @@ export type HostRole = "employer" | "candidate" | "team_member" | "developer" | 
  *  every link that sends an applicant to "the open roles" uses this. */
 export const CAREERS_PATH = "/careers";
 
+/** Every business's live jobs (src/pages/OpenJobs.tsx, 2026-10-11): where an
+ *  applicant is sent when no one business is theirs to go back to. */
+export const OPEN_JOBS_PATH = "/open-jobs";
+
 /** Read by name, so the build swaps in this one value rather than every
  *  build setting (vite.config.ts). The try keeps this file importable from
  *  plain Node (scripts/hosts_routing.test.mjs), where import.meta.env does

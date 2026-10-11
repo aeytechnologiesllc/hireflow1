@@ -1,4 +1,4 @@
-import { CAREERS_PATH } from "@/lib/hosts";
+import { OPEN_JOBS_PATH } from "@/lib/hosts";
 import { BUSINESS_SLUG_PATTERN } from "@/lib/jobSlug";
 
 /**
@@ -6,8 +6,9 @@ import { BUSINESS_SLUG_PATTERN } from "@/lib/jobSlug";
  * business whose job they last looked at (/c/<business>; the home business's
  * own address forwards to /careers), so another business's applicant is
  * never sent to the home business's roles (the 2026-10-11 overview). With
- * nothing remembered (a fresh device, private browsing) it is /careers, as
- * before.
+ * nothing remembered (a fresh device, private browsing) it is /open-jobs,
+ * every business's live jobs. It used to be /careers, which is one business's
+ * page (the home business's), so a fresh device sent anyone there.
  *
  * Kept in this browser only: a convenience, never a decision.
  */
@@ -29,5 +30,5 @@ export function openRolesPath(): string {
   } catch {
     // Storage blocked: fall through.
   }
-  return CAREERS_PATH;
+  return OPEN_JOBS_PATH;
 }

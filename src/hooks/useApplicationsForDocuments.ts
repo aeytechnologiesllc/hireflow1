@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { resolveEmployerIdForJobAccess } from "@/hooks/useJobs";
 
 export interface ApplicationForDocument {
   id: string;
@@ -16,19 +17,26 @@ export interface ApplicationForDocument {
   } | null;
 }
 
+/**
+ * The applicants a file to sign can go to ("Upload a file to sign"). The
+ * business's jobs, so a team member sees their applicants too (their own id
+ * owns no job); row-level security keeps them to the jobs they are assigned.
+ */
 export function useApplicationsForDocuments() {
-  const { user, role } = useAuth();
+  const { user, role, isTeamMember } = useAuth();
+  const staff = role === "employer" || !!isTeamMember;
 
   return useQuery({
-    queryKey: ["applications-for-documents", user?.id],
+    queryKey: ["applications-for-documents", user?.id, !!isTeamMember],
     queryFn: async () => {
-      if (role !== "employer") return [];
+      if (!staff) return [];
 
-      // First get applications for employer's jobs
+      // First get applications for the business's jobs
+      const employerId = await resolveEmployerIdForJobAccess(user!.id, !!isTeamMember);
       const { data: jobs, error: jobsError } = await supabase
         .from("jobs")
         .select("id")
-        .eq("employer_id", user!.id);
+        .eq("employer_id", employerId);
 
       if (jobsError) throw jobsError;
       if (!jobs || jobs.length === 0) return [];
@@ -77,6 +85,6 @@ export function useApplicationsForDocuments() {
         jobs: jobMap.get(app.job_id) || null,
       })) as ApplicationForDocument[];
     },
-    enabled: !!user && role === "employer",
+    enabled: !!user && staff,
   });
 }

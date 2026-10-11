@@ -4,6 +4,7 @@ import { CheckSquare, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { useAuth } from "@/hooks/useAuth";
+import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { useIsMobile, useMinWidth } from "@/hooks/use-mobile";
 import { useEmployerJobs } from "@/hooks/useJobs";
 import { clearDraft } from "@/lib/avaEngine/draft";
@@ -226,9 +227,12 @@ const ApplicantListItem = memo(function ApplicantListItem({
   reveal,
   actions,
   interviewChip,
+  canDecide,
 }: {
   /** "Interview 7.8", when he has rated their interview. A string, so the memo still holds. */
   interviewChip: string | null;
+  /** May pick, shortlist, pass and block (applicantMenuItems' canDecide). */
+  canDecide: boolean;
   row: ApplicantListRow;
   index: number;
   wide: boolean;
@@ -237,7 +241,8 @@ const ApplicantListItem = memo(function ApplicantListItem({
   reveal: boolean;
   actions: RowActions;
 }) {
-  const pickable = row.tab !== "blocked";
+  // Picking leads only to Shortlist, Pass and Remove and block.
+  const pickable = canDecide && row.tab !== "blocked";
   const select = pickable
     ? { checked: picked, label: `Select ${row.name}`, onToggle: (e: MouseEvent<HTMLButtonElement>) => actions.toggle(row.id, e.shiftKey) }
     : null;
@@ -255,6 +260,7 @@ const ApplicantListItem = memo(function ApplicantListItem({
           onOpenProfile: () => actions.openProfile(row.id),
           onSelect: () => actions.select(row.id),
           onRequest: actions.request,
+          canDecide,
         })
       }
     />
@@ -276,6 +282,11 @@ export default function CockpitApplicants() {
   const navigationType = useNavigationType();
   const [searchParams, setSearchParams] = useSearchParams();
   const { isTeamMember } = useAuth();
+  // A team member without Manage pipeline: no picking, no bulk bar, no Pass
+  // by score, and a row menu that only opens the profile. The database
+  // refuses those actions for them; offering them only led to a refusal.
+  const { data: teamPermissions } = useTeamMemberPermissions();
+  const canDecide = !isTeamMember || !!teamPermissions?.canManagePipeline;
   const isPhone = useIsMobile();
   const rootRef = useRef<HTMLDivElement | null>(null);
   // A callback ref as well, so the table-or-cards measure follows the list
@@ -802,14 +813,14 @@ export default function CockpitApplicants() {
   };
   // Cards: picking several starts with Select (a tap then picks, not opens).
   const selectButton =
-    !wide && !onBlockedTab && !selectMode && pageIds.length > 0 ? (
+    canDecide && !wide && !onBlockedTab && !selectMode && pageIds.length > 0 ? (
       <button type="button" className="ck-btn ck-btn-ghost -my-2 min-h-[36px] shrink-0 !px-2.5 !text-[13px]" onClick={() => setSelectMode(true)}>
         <CheckSquare aria-hidden className="h-4 w-4" />
         Select
       </button>
     ) : null;
   const headerLead =
-    !onBlockedTab && pageIds.length > 0 ? (
+    canDecide && !onBlockedTab && pageIds.length > 0 ? (
       <SelectMark
         quiet
         size={28}
@@ -867,6 +878,7 @@ export default function CockpitApplicants() {
       reveal={reveal}
       actions={rowActions}
       interviewChip={interviewScoreWords(interviewScoresByApplication.get(row.id))?.chip ?? null}
+      canDecide={canDecide}
     />
   );
   // What is waiting (new applicants, rows that would move): one quiet bar,
@@ -906,9 +918,9 @@ export default function CockpitApplicants() {
             </button>
           )}
           {/* Pass on everyone under a score, in one go (lib/passByScore.ts).
-              Offered once anyone has applied; it says itself when nobody
-              finished has scored under the line. */}
-          {people.length > 0 && (
+              Offered once anyone has applied, to whoever may pass on people;
+              it says itself when nobody finished has scored under the line. */}
+          {canDecide && people.length > 0 && (
             <button type="button" className="ck-btn ck-btn-outline shrink-0 !py-2 !text-[12.5px] max-md:min-h-[36px]" onClick={() => setPassByScoreOpen(true)} data-pass-by-score-open>
               Pass by score
             </button>
@@ -1085,7 +1097,7 @@ export default function CockpitApplicants() {
 
       {/* What is picked, and Remove and block: one bar at the foot. The
           spacer keeps the last row and "Show more" clear of it. */}
-      {selecting && !onBlockedTab && (
+      {canDecide && selecting && !onBlockedTab && (
         <>
           <div aria-hidden style={{ height: isPhone ? 112 : 64 }} />
           <ApplicantBulkBar

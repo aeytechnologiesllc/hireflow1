@@ -257,10 +257,17 @@ export function applicantMenuItems({
   onOpenProfile,
   onSelect,
   onRequest,
+  canDecide = true,
 }: {
   target: BlockTarget;
   status: string;
   blocked: boolean;
+  /**
+   * May shortlist, pass, block and unblock: the owner, or a team member with
+   * Manage pipeline on. Off, only "Open profile" is left (the database would
+   * refuse the rest). Absent means yes.
+   */
+  canDecide?: boolean;
   /** The job they applied for, for the note a Pass sends. */
   jobTitle?: string | null;
   /** The team's shortlist (lib/shortlist.ts): whether they are on it, and
@@ -279,6 +286,7 @@ export function applicantMenuItems({
   // can still be passed on or closed, and they can be unblocked from it.
   const closed = status === "rejected";
   if (onOpenProfile) items.push({ key: "open", label: "Open profile", icon: <ExternalLink aria-hidden className="h-4 w-4 shrink-0" />, onSelect: onOpenProfile });
+  if (!canDecide) return items;
   if (onSelect && !(blocked && closed)) items.push({ key: "select", label: "Select", icon: <CheckSquare aria-hidden className="h-4 w-4 shrink-0" />, onSelect });
   const unblock: ApplicantMenuItem = { key: "unblock", label: "Unblock", icon: <RotateCcw aria-hidden className="h-4 w-4 shrink-0" />, onSelect: () => onRequest({ kind: "unblock", target }) };
   if (blocked && closed) {
@@ -424,8 +432,9 @@ export function ApplicantActionDialogs({
         note={<DeclineNotePreview jobTitle={request.jobTitle} />}
         onConfirm={() =>
           void finish(async () => {
-            await reject(request.target.applicationId);
-            return true;
+            // True only when they really were passed: a team role without
+            // Manage pipeline is refused, and reject() says so.
+            return await reject(request.target.applicationId);
           })
         }
         onClose={onClose}

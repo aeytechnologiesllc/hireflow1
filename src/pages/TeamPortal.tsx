@@ -36,9 +36,8 @@ interface TeamMembership {
   status: string;
   joined_at: string;
   employer_profile?: {
-    full_name: string;
-    company_name: string;
-    company_logo: string;
+    company_name: string | null;
+    company_logo: string | null;
   };
 }
 
@@ -92,10 +91,11 @@ export default function TeamPortal() {
         return;
       }
 
-      // Fetch employer profile
+      // The business's public name and logo: a team member may not read the
+      // owner's profile (RLS), which is why this said "Company".
       const { data: profileData } = await supabase
-        .from("profiles")
-        .select("full_name, company_name, company_logo")
+        .from("employer_public_branding")
+        .select("company_name, company_logo")
         .eq("user_id", memberData.employer_id)
         .maybeSingle();
 
@@ -281,7 +281,7 @@ export default function TeamPortal() {
             </div>
             <div>
               <h2 className="text-xl font-semibold">
-                {membership.employer_profile?.company_name || "Company"}
+                {membership.employer_profile?.company_name || "Your team"}
               </h2>
               <p className="text-muted-foreground">
                 {membership.department ? `${membership.department} • ` : ""}

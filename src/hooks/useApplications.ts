@@ -267,7 +267,7 @@ export function useCreateApplication() {
 
           if (jobDetails) {
             // Notify candidate their application was received
-            notifyApplicationReceived(user!.id, jobDetails.title, jobDetails.companyName);
+            notifyApplicationReceived(user!.id, jobDetails.title, jobDetails.companyName, data?.id);
             
             // Notify employer about new application
             const candidateName = user?.user_metadata?.full_name || user?.email || "A candidate";
@@ -290,7 +290,19 @@ export function useUpdateApplication() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, ...updates }: Partial<Application> & { id: string }) => {
+    mutationFn: async ({
+      id,
+      phaseTitle,
+      ...updates
+    }: Partial<Application> & {
+      id: string;
+      /**
+       * The step's name as the applicant knows it ("Chat interview"), for the
+       * "you've been moved to" email when `phase` is a step id. Never written
+       * to the row. Without it the email said "You've been moved to step_chat".
+       */
+      phaseTitle?: string;
+    }) => {
       // Best-effort read of the prior state for notifications.
       // Do not block the actual application update if this lookup stalls.
       const currentAppLookup = supabase
@@ -351,7 +363,7 @@ export function useUpdateApplication() {
               if (currentApp) {
                 // Phase advanced (only if phase actually changed)
                 if (updates.phase && updates.phase !== currentApp.phase) {
-                  notifyPhaseAdvanced(currentApp.candidate_id, updates.phase, job.title, job.companyName);
+                  notifyPhaseAdvanced(currentApp.candidate_id, phaseTitle?.trim() || updates.phase, job.title, job.companyName);
                 }
 
                 // Phase completed by candidate (phase_ai_analysis added/updated while in same phase)

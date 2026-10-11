@@ -34,6 +34,10 @@ export default function Settings() {
   const navigate = useNavigate();
   const isEmployer = role === "employer";
   const isDeveloper = role === "developer";
+  // Staff settings for the hiring side: the owner and the business's team
+  // members. A team member was shown the applicant's page (no email
+  // preferences, no tips). The careers page card below stays the owner's.
+  const isStaff = isEmployer || isTeamMember || role === "team_member";
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isSendingTestPush, setIsSendingTestPush] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -137,7 +141,7 @@ export default function Settings() {
   };
 
   // Candidate Settings - Simple view (no subscription tab)
-  if (!isEmployer) {
+  if (!isStaff) {
     return (
       <div className="space-y-6 max-w-2xl">
         {/* Header */}
@@ -241,7 +245,7 @@ export default function Settings() {
         {/* Account Tab */}
         <TabsContent value="account" className="space-y-6 mt-6">
           {/* The business's careers page (owners; the 2026-10-11 mock-ups, #3). */}
-          {!isTeamMember && <CareersPageCard />}
+          {isEmployer && !isTeamMember && <CareersPageCard />}
 
           {/* Account Settings */}
           <Card className="bg-card border-border">

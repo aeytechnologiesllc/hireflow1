@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Archive, ArchiveRestore, Paperclip, Trash2 } from "lucide-react";
@@ -82,7 +82,7 @@ function firstName(full: string) {
 
 /** A candidate knows the hiring team by the company; fall back to whoever posted. */
 function employerName(e: MessageableEmployer) {
-  return e.employer_profile?.company_name || e.employer_profile?.full_name || "Hiring team";
+  return e.company_name || e.employer_profile?.company_name || e.employer_profile?.full_name || "Hiring team";
 }
 
 function isImageFile(file: Attachment) {
@@ -480,11 +480,23 @@ export default function CockpitMessages() {
 
   const activeConv: ThreadItem | undefined = conversations.find((c) => c.id === contactId);
   const activeCandidate = candidates.find((c) => c.avatar === contactId);
-  const activeEmployer = isCandidate ? employers.find((e) => e.employer_id === contactId) : undefined;
   const employersById = useMemo(
     () => new Map(employers.map((e) => [e.employer_id, e])),
     [employers],
   );
+  // Someone on a hiring team writes from their own account, not the owner's:
+  // their chat is named by the business behind its application (it read
+  // "Contact · Applicant", since an applicant can't read a team member's profile).
+  const employersByApplication = useMemo(
+    () => new Map(employers.flatMap((e) => (e.application_ids?.length ? e.application_ids : [e.application_id]).map((id) => [id, e] as const))),
+    [employers],
+  );
+  const teamOf = useCallback(
+    (c: { id: string; applicationId?: string | null } | undefined) =>
+      c ? employersById.get(c.id) ?? (c.applicationId ? employersByApplication.get(c.applicationId) : undefined) : undefined,
+    [employersById, employersByApplication],
+  );
+  const activeEmployer = isCandidate ? employers.find((e) => e.employer_id === contactId) ?? teamOf(activeConv) : undefined;
 
   // The person on screen: their thread if one exists, otherwise whoever the
   // deep link or the opener list named — so a first message is always possible.
@@ -492,7 +504,7 @@ export default function CockpitMessages() {
   // the hiring-team lookup overrides the bare profile the conversation carries.
   const partner = useMemo(() => {
     if (activeConv) {
-      const team = isCandidate ? employersById.get(activeConv.id) : undefined;
+      const team = isCandidate ? teamOf(activeConv) : undefined;
       return {
         id: activeConv.id,
         name: team ? employerName(team) : activeConv.name,
@@ -506,7 +518,7 @@ export default function CockpitMessages() {
       return { id: contactId, name: employerName(activeEmployer), role: activeEmployer.job_title };
     }
     return null;
-  }, [activeConv, activeCandidate, activeEmployer, contactId, isCandidate, employersById]);
+  }, [activeConv, activeCandidate, activeEmployer, contactId, isCandidate, teamOf]);
 
   // A company name is not a first name: a candidate writes to "Ridgeline
   // Coffee", not to "Ridgeline".
@@ -515,7 +527,9 @@ export default function CockpitMessages() {
   // Team-member RLS on messages is keyed on application_id — a row without one
   // is invisible to them, including their own. Send every message with the
   // application it belongs to when we know it.
-  const activeApplicationId = activeCandidate?.id ?? activeEmployer?.application_id;
+  // A reply in a chat with someone on the hiring team carries that chat's
+  // application, so it reaches them (or the owner, if they've left).
+  const activeApplicationId = activeCandidate?.id ?? activeEmployer?.application_id ?? activeConv?.applicationId ?? undefined;
 
   // The inbox's own counts: an archived chat is in neither.
   const needsYou = split.inbox.filter((c) => (c.unread ?? 0) > 0).length;
@@ -545,7 +559,7 @@ export default function CockpitMessages() {
         : [];
     const named = isCandidate
       ? list.map((c) => {
-          const team = employersById.get(c.id);
+          const team = teamOf(c);
           return team ? { ...c, name: employerName(team), role: team.job_title } : c;
         })
       : list;
@@ -567,7 +581,7 @@ export default function CockpitMessages() {
       return [pending, ...all];
     }
     return all;
-  }, [conversations, split, filter, partner, isCandidate, employers, employersById]);
+  }, [conversations, split, filter, partner, isCandidate, employers, teamOf]);
 
   // Where the applicant on screen stands, once decided. From their chat when
   // there is one, else from their record (a first message to someone declined).

@@ -187,7 +187,20 @@ export default function AppLayout() {
         return;
       }
 
-      navigate(isCandidateRoute ? "/candidate/auth" : "/auth", { replace: true });
+      if (isCandidateRoute) {
+        navigate("/candidate/auth", { replace: true });
+        return;
+      }
+      // Anything else: sign in, then come back to it (an emailed or pushed
+      // link to a chat used to lose the chat here). My documents, and a chat
+      // opened from an applicant's bell (?employer=), are the applicant's;
+      // every other private page is the hiring side's.
+      const here = `${location.pathname}${location.search}`;
+      const back = here && here !== "/" && here !== "/dashboard" ? `?redirect=${encodeURIComponent(here)}` : "";
+      const applicantPage =
+        location.pathname.startsWith("/my-documents") ||
+        (location.pathname === "/messages" && new URLSearchParams(location.search).has("employer"));
+      navigate(applicantPage ? `/candidate/auth${back}` : `/auth${back}`, { replace: true });
     } else if (!loading && user && (role as string) === 'developer' && !location.pathname.startsWith("/developer")) {
       // Redirect developers to their dashboard
       navigate("/developer", { replace: true });
@@ -328,6 +341,7 @@ export default function AppLayout() {
       <TeamAccessRestricted
         title="Access Restricted"
         description="Your team access was removed by the account owner. Please contact your account administrator if you need access restored."
+        onSignOut={() => void signOut()}
       />
     );
   }
@@ -432,9 +446,11 @@ function TeamMemberLayout({
       const assignedJobIds = Array.isArray(membership.assigned_job_ids) ? membership.assigned_job_ids : [];
       let assignedJobTitles: string[] = [];
 
+      // The business's public name: a team member may not read the owner's
+      // profile (RLS), so profiles always came back empty here.
       const [{ data: profileData }, jobsResult] = await Promise.all([
         supabase
-          .from("profiles")
+          .from("employer_public_branding")
           .select("company_name")
           .eq("user_id", membership.employer_id)
           .maybeSingle(),
@@ -477,12 +493,10 @@ function TeamMemberLayout({
   }, [user.id]);
 
   const handleTeamOnboardingComplete = async () => {
-    await supabase
-      .from("team_members")
-      .update({ onboarding_completed: true })
-      .eq("user_id", user.id)
-      .eq("status", "active");
-
+    // Only the owner may update team_members, so the member marks their own
+    // welcome done through the database (it used to come back every sign-in).
+    const { error } = await supabase.rpc("mark_team_welcome_done" as never);
+    if (error) console.warn("[team] could not save the welcome as done", error.message);
     setTeamNeedsOnboarding(false);
   };
 
@@ -540,9 +554,12 @@ function TeamMemberLayout({
 function TeamAccessRestricted({
   title,
   description,
+  onSignOut,
 }: {
   title: string;
   description: string;
+  /** A way out: sign out (and in with another account). */
+  onSignOut: () => void;
 }) {
   return (
     <div className="min-h-[100dvh] bg-background flex items-center justify-center p-6">
@@ -553,6 +570,9 @@ function TeamAccessRestricted({
           </div>
           <h2 className="text-xl font-semibold">{title}</h2>
           <p className="text-muted-foreground">{description}</p>
+          <button type="button" className="ck-btn ck-btn-outline mx-auto" onClick={onSignOut} data-team-restricted-signout>
+            Sign out
+          </button>
         </CardContent>
       </Card>
     </div>

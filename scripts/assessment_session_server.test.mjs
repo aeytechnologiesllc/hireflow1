@@ -770,7 +770,12 @@ console.log("\nMoving on after a result (stepMoveOn.ts):\n");
     trigger.includes("if (autoMode && (autopilotDecision || previewOnly))"));
   check("…moves by compare-and-set and starts an analysis only when none has read the step",
     trigger.includes("await advanceAfterStep(") && trigger.includes("shouldScoreAfterStep(outcome, application.notes)"));
-  check("…and accepts the candidate's own JWT", trigger.includes("const isCandidateOwner = application.candidate_id === requestingUser.id;"));
+  check("…and accepts the candidate's own JWT", trigger.includes("const isCandidateOwner = application.candidate_id === requestingUserId;") && trigger.includes("requestingUserId = requestingUser.id;"));
+  // After the applicant's sign-in expired mid-grading: the service key, as the applicant and nothing more.
+  check("…or the system's move-on (service key in apikey, no Authorization), only ever as the applicant",
+    trigger.includes("const isSystemMoveOn = !authHeader && !!supabaseServiceKey && apikeyHeader === supabaseServiceKey;") &&
+    trigger.includes("if (isSystemMoveOn) requestingUserId = application.candidate_id;") &&
+    trigger.includes("const isEmployerOwner = !isSystemMoveOn && employerId === requestingUserId;"));
 }
 
 console.log(`\n${passed} passed, ${failed} failed.`);

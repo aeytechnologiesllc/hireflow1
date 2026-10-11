@@ -517,6 +517,10 @@ void quiet;
   check("a team member without the messaging permission cannot", r.status === 403 && world.sent.length === 0, show(r));
   r = await hush(async () => (reset(), ask("tok-stranger", { type: "new_message", recipient_user_id: OWNER, data: { message_preview: "Buy now" } })));
   check("a stranger cannot message an employer they never applied to", r.status === 403 && world.sent.length === 0);
+  r = await hush(async () => (reset(), ask("tok-ana", { type: "new_message", recipient_user_id: TEAM_ALL, data: { message_preview: "Thanks Tess", recipient_role: "candidate" } })));
+  check("an applicant replying to a team member who may message applicants: that member gets the email", r.status === 200 && show(world.sent[0]?.to) === show([emailOf(TEAM_ALL)]), show(r));
+  r = await hush(async () => (reset(), ask("tok-ana", { type: "new_message", recipient_user_id: TEAM_VIEW, data: { message_preview: "Hi" } })));
+  check("…but not one who may not message applicants", r.status === 403 && world.sent.length === 0, show(r));
   r = await hush(async () => (reset(), ask("tok-ana", { type: "new_message", recipient_user_id: BEN, data: { message_preview: "x" } })));
   check("an applicant cannot message another applicant", r.status === 403 && world.sent.length === 0);
 }
@@ -642,7 +646,8 @@ void quiet;
   text = textOf(mail);
   check("the team's notice goes to the job's owner, from HireFlow", r.status === 200 && show(mail?.to) === show([emailOf(OWNER)]) && /^HireFlow <notifications@/.test(mail?.from ?? ""), show({ to: mail?.to, from: mail?.from }));
   check("it says who picked, for which job, and when on the team's clock", mail?.subject === `Ana Reyes picked an interview time: ${TITLE_A}` && text.includes(`Ana Reyes picked an interview time for ${TITLE_A}`) && text.includes("When: Thursday, October 8 at 9:00 AM EDT") && text.includes("Length: 30 minutes"), mail?.subject);
-  check("its button opens the Interviews page", /href="https:\/\/hireflownow\.com\/interviews"/.test(mail?.html ?? ""));
+  // On the hiring side's own address, where they're signed in (2026-10-11).
+  check("its button opens the Interviews page, on the staff address", /href="https:\/\/staff\.hireflownow\.com\/interviews"/.test(mail?.html ?? ""));
   r = await hush(async () => (reset(), asFunction(picked("moved"))));
   check("a swap to another offered time reads as moved", world.sent[0]?.subject === `Ana Reyes moved their interview: ${TITLE_A}` && textOf(world.sent[0]).includes("Interview moved"));
   r = await hush(async () => (reset(), asFunction(picked("confirmed"))));

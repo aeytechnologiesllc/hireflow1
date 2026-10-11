@@ -260,7 +260,9 @@ export function DocumentUploadDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md overflow-hidden">
+      {/* No overflow-hidden: it beat the dialog's own scrolling, so on a short
+          phone "Browse Files" sat past the bottom edge, out of reach. */}
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-primary" />

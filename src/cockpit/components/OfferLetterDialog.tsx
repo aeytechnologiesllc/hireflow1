@@ -365,7 +365,9 @@ export function OfferLetterDialog({
       toast.success(`Offer letter sent to ${who}`, {
         description: sent.moved
           ? `They have until ${longDate(replyBy)} to sign. You sign after they do.`
-          : `They have until ${longDate(replyBy)} to sign. Moving them to Offer did not go through: do that on their profile.`,
+          : sent.moveRefused
+            ? `They have until ${longDate(replyBy)} to sign. They stay at their stage on the list: your team role can't move applicants, so ask the owner to move them to Offer.`
+            : `They have until ${longDate(replyBy)} to sign. Moving them to Offer did not go through: do that on their profile.`,
       });
       onClose();
     } catch (error) {

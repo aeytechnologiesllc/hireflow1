@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { resolveEmployerIdForJobAccess } from "@/hooks/useJobs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -54,7 +55,7 @@ export default function JobDetails() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
-  const { role, user, signOut, loading: authLoading } = useAuth();
+  const { role, user, signOut, loading: authLoading, isTeamMember } = useAuth();
   const [isStartingApplication, setIsStartingApplication] = useState(false);
 
   const isEmployer = role === "employer";
@@ -102,6 +103,10 @@ export default function JobDetails() {
       // the same error — and the page then told a stranger the job was gone
       // when in truth their connection dropped. `data === null` now means
       // "no such job (or not published)"; a thrown error means "we failed".
+      // A cut-off or mangled old link (/candidate/job/<not an id>): no such
+      // job, said at once. It used to be sent anyway, refused (400), retried
+      // three times and then blamed on the connection.
+      if (id && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return null;
       const base = supabase.from("published_jobs_public").select("*");
       const query = id
         ? base.eq("id", id)
@@ -154,6 +159,18 @@ export default function JobDetails() {
     },
     enabled: !!job?.employer_id,
   });
+
+  // Whether the signed-in employer's business posted this job. Any employer can
+  // open any business's public page, and the page used to call every job
+  // "your posting" (with See applicants and the job code). An owner's business
+  // is their own account, answered without asking; one on a team asks once.
+  const { data: ownBusinessId } = useQuery({
+    queryKey: ["job-details-own-business", user?.id, isTeamMember],
+    queryFn: () => resolveEmployerIdForJobAccess(user!.id, isTeamMember),
+    enabled: isEmployer && !!user,
+    staleTime: 10 * 60_000,
+  });
+  const ownsJob = isEmployer && !!job && !!user && (job.employer_id === user.id || job.employer_id === ownBusinessId);
 
   // Check if application deadline has passed
   const isDeadlinePassed = job?.application_deadline && isPast(new Date(job.application_deadline));
@@ -602,12 +619,15 @@ export default function JobDetails() {
             className="rounded-xl border p-4"
             style={{ borderColor: "var(--brass-line)", background: "var(--amber-bg)" }}
           >
+            {/* "Your posting" only when it is: another business's job is just
+                a job they are looking at (ownsJob above). */}
             <p className="text-sm font-medium text-foreground">
-              This is the candidate&apos;s view of your posting
+              {ownsJob ? "This is the candidate’s view of your posting" : "You’re signed in as an employer"}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Everything below is what an applicant sees. Applying needs a candidate
-              account, so the button won&apos;t work while you&apos;re signed in as an employer.
+              {ownsJob
+                ? "Everything below is what an applicant sees. Applying needs a candidate account, so the button won’t work while you’re signed in as an employer."
+                : "This job is posted by another business. Applying needs a candidate account, so the button won’t work while you’re signed in as an employer."}
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <Button
@@ -624,9 +644,11 @@ export default function JobDetails() {
               >
                 Sign out and view as a candidate
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => navigate("/applicants")}>
-                See applicants
-              </Button>
+              {ownsJob && (
+                <Button size="sm" variant="ghost" onClick={() => navigate("/applicants")}>
+                  See applicants
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -809,7 +831,7 @@ export default function JobDetails() {
                     </div>
                     {/* The code is the team's reference; an applicant never
                         needs one (the job's own link opens it). */}
-                    {isEmployer && job.job_code && (
+                    {ownsJob && job.job_code && (
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Job Code</span>
                         <span className="font-mono text-primary">{job.job_code}</span>

@@ -150,7 +150,12 @@ export async function invokeTriggerAvaAnalysis<T = Record<string, unknown>>(
   let result = await invokeWithToken(initialToken);
 
   if (result.error && isAuthInvokeError(result.error)) {
-    const refreshedToken = await getAccessTokenWithRetry();
+    // The sign-in ran out: getSession() hands back the same expired token,
+    // so ask for a fresh one outright (an applicant sat on a finished step
+    // for days when this only re-read the old one, 2026-10-09).
+    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError) console.warn("[triggerAvaAnalysis] Session refresh failed:", refreshError.message);
+    const refreshedToken = refreshed.session?.access_token ?? (await getAccessTokenWithRetry());
 
     if (refreshedToken && refreshedToken !== initialToken) {
       result = await invokeWithToken(refreshedToken);

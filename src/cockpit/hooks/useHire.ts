@@ -56,6 +56,12 @@ export function useOfferLetterState(applicationId: string | null | undefined, en
 export interface HireResult {
   /** They were hired already (a second press): nothing changed, nothing was sent. */
   already: boolean;
+  /**
+   * Nothing changed, and not because they were hired already: they were
+   * declined ("declined"), or the database refused the change ("not_allowed":
+   * a team role without Manage pipeline). Nothing was sent.
+   */
+  refused?: "declined" | "not_allowed";
   /** How many documents were asked for. */
   asked: number;
   /** The hire went through but the documents could not be asked for. */
@@ -91,7 +97,17 @@ export function useHireWithDocuments() {
         .not("status", "in", "(hired,rejected)")
         .select("id");
       if (error) throw new Error("Hiring did not go through. Nothing was sent; try again.");
-      if (!moved || moved.length === 0) return { already: true, asked: 0, askFailed: false };
+      if (!moved || moved.length === 0) {
+        // Nothing changed. That reads the same whether they were hired
+        // already, declined, or the database refused a team role without
+        // Manage pipeline (row-level security changes nothing and says
+        // nothing), so ask where they stand instead of saying "already hired".
+        const { data: now } = await supabase.from("applications").select("status").eq("id", applicationId).maybeSingle();
+        const status = (now as { status?: string } | null)?.status;
+        if (status === "hired") return { already: true, asked: 0, askFailed: false };
+        if (status === "rejected") return { already: false, refused: "declined", asked: 0, askFailed: false };
+        return { already: false, refused: "not_allowed", asked: 0, askFailed: false };
+      }
 
       // From here they are hired; what follows must not undo that.
       let asked = 0;

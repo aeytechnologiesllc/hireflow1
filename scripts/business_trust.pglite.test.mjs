@@ -285,14 +285,28 @@ async function main() {
   const EVE = "20000000-0000-4000-8000-000000000005";
   await pg(`insert into auth.users (id, email) values ('${CAT}', 'cat@example.com'), ('${DAN}', 'dan@example.com'), ('${EVE}', 'eve@example.com')`);
   await pg(`insert into public.user_roles values ('${CAT}', 'candidate'), ('${DAN}', 'candidate'), ('${EVE}', 'candidate')`);
+  // Reports pause a business only from people who applied to it (20261011194000).
+  const finalFixes = await migration("final_gap_fixes");
+  check("8. the final-gap migration is there, once", !!finalFixes);
+  if (finalFixes) {
+    await db.exec(`create table if not exists public.interviews (id uuid primary key default gen_random_uuid(), application_id uuid, status text, scheduled_at timestamptz);
+      create table if not exists public.documents (id uuid primary key default gen_random_uuid(), sender_id uuid references auth.users(id), recipient_id uuid references auth.users(id));
+      create table if not exists public.document_templates (id uuid primary key default gen_random_uuid(), employer_id uuid references auth.users(id));`);
+    await db.exec(finalFixes);
+  }
+  const STRANGER = "20000000-0000-4000-8000-000000000009";
+  await pg(`insert into auth.users (id, email) values ('${STRANGER}', 'stranger@example.com')`);
+  await pg(`insert into public.user_roles values ('${STRANGER}', 'candidate')`);
   await pg(`delete from public.notifications`);
   // New Biz already has one open report, from Ben (section 6). Ben again, on its other job: still one person.
   await as(BEN, "authenticated", `select public.report_employer($1, 'fake_job', 'again')`, [JOB_N2]);
   const one = (await pg(`select status from public.business_standing where employer_id = $1`, [NEWBIZ]))[0]?.status ?? "approved";
   check("8. one person reporting twice does not pause anyone", one === "approved", show(one));
+  await as(STRANGER, "authenticated", `select public.report_employer($1, 'fake_job', 'never applied')`, [JOB_N]);
+  await pg(`insert into public.applications (job_id, candidate_id) values ('${JOB_N}', '${CAT}'), ('${JOB_N}', '${DAN}'), ('${JOB_N}', '${BEN}')`);
   await as(CAT, "authenticated", `select public.report_employer($1, 'asked_for_money', 'Asked for a fee')`, [JOB_N]);
   const two = (await pg(`select status from public.business_standing where employer_id = $1`, [NEWBIZ]))[0]?.status ?? "approved";
-  check("8. two people: still open", two === "approved", show(two));
+  check("8. two who applied plus someone who never applied: still open (strangers don't count)", two === "approved", show(two));
   const third = await as(DAN, "authenticated", `select public.report_employer($1, 'asked_for_money', 'Same here') as id`, [JOB_N]);
   const standingNow = (await pg(`select status, reason, reopen_job_ids from public.business_standing where employer_id = $1`, [NEWBIZ]))[0];
   check("8. a third person's report goes through", third.ok, show(third));

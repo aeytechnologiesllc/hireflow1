@@ -129,7 +129,7 @@ const DOCUMENT_TYPES = [
 const GENERATE_STEPS = [
   { id: "source", title: "Document Source", subtitle: "Choose how to create your document" },
   { id: "type", title: "Document Type", subtitle: "Choose the type of document to create" },
-  { id: "recipient", title: "Recipient", subtitle: "Select or enter recipient details" },
+  { id: "recipient", title: "Recipient", subtitle: "Choose the applicant it goes to" },
   { id: "details", title: "Document Details", subtitle: "Provide information for the document" },
   { id: "generate", title: "AI Generation", subtitle: "Generate your document with AI" },
   { id: "review", title: "Review & Sign", subtitle: "Review and add signature fields" },
@@ -138,7 +138,7 @@ const GENERATE_STEPS = [
 // Steps for Upload flow
 const UPLOAD_STEPS = [
   { id: "source", title: "Document Source", subtitle: "Choose how to create your document" },
-  { id: "recipient", title: "Recipient", subtitle: "Select or enter recipient details" },
+  { id: "recipient", title: "Recipient", subtitle: "Choose the applicant it goes to" },
   { id: "upload", title: "Upload Document", subtitle: "Upload your document file" },
   { id: "review", title: "Review & Sign", subtitle: "Configure signature fields" },
 ];
@@ -165,7 +165,6 @@ export function DocumentWizard({
   const [documentSource, setDocumentSource] = useState<"generate" | "upload" | "">("");
   const [documentType, setDocumentType] = useState("");
   const [selectedApplication, setSelectedApplication] = useState<string>("");
-  const [isManualRecipient, setIsManualRecipient] = useState(false);
   const [recipientName, setRecipientName] = useState("");
   const [recipientEmail, setRecipientEmail] = useState("");
   const [companyName, setCompanyName] = useState("");
@@ -281,7 +280,6 @@ export function DocumentWizard({
     setDocumentSource("");
     setDocumentType("");
     setSelectedApplication("");
-    setIsManualRecipient(false);
     setRecipientName("");
     setRecipientEmail("");
     setCompanyName("");
@@ -313,17 +311,17 @@ export function DocumentWizard({
     onOpenChange(false);
   };
 
+  // Always one of the applicants: a document is sent on an application (the
+  // database refuses one without), so a name and email typed in by hand only
+  // ever got as far as "Select a candidate" after the file was uploaded.
   const getSelectedRecipient = useCallback(() => {
-    if (applications.length === 0 || isManualRecipient) {
-      return { name: recipientName, email: recipientEmail, jobTitle };
-    }
     const app = applications.find(a => a.id === selectedApplication);
     return {
       name: app?.profiles?.full_name || "",
       email: app?.profiles?.email || "",
       jobTitle: app?.jobs?.title || jobTitle,
     };
-  }, [applications, isManualRecipient, recipientName, recipientEmail, jobTitle, selectedApplication]);
+  }, [applications, jobTitle, selectedApplication]);
 
   // Compute validation state
   const documentValidation = useMemo((): DocumentValidation => {
@@ -370,9 +368,6 @@ export function DocumentWizard({
       case "type":
         return !!documentType;
       case "recipient":
-        if (applications.length === 0 || isManualRecipient) {
-          return !!(recipientName.trim() && recipientEmail.trim());
-        }
         return !!selectedApplication;
       case "details":
         return companyName.trim() && (jobTitle.trim() || getSelectedRecipient().jobTitle);
@@ -950,30 +945,7 @@ export function DocumentWizard({
             exit={{ opacity: 0, x: -20 }}
             className="space-y-6"
           >
-            {applications.length > 0 && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                  <Button
-                    variant={!isManualRecipient ? "default" : "outline"}
-                    onClick={() => setIsManualRecipient(false)}
-                    className="flex-1"
-                  >
-                    <User className="h-4 w-4 mr-2" />
-                    Select from Applicants
-                  </Button>
-                  <Button
-                    variant={isManualRecipient ? "default" : "outline"}
-                    onClick={() => setIsManualRecipient(true)}
-                    className="flex-1"
-                  >
-                    <PenTool className="h-4 w-4 mr-2" />
-                    Enter Manually
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {!isManualRecipient && applications.length > 0 ? (
+            {applications.length > 0 ? (
               <div className="space-y-3">
                 <Label>Select Applicant</Label>
                 <div className="grid gap-3 max-h-[300px] overflow-y-auto">
@@ -1011,26 +983,10 @@ export function DocumentWizard({
                 </div>
               </div>
             ) : (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Recipient Name</Label>
-                  <Input
-                    value={recipientName}
-                    onChange={(e) => setRecipientName(e.target.value)}
-                    onBlur={handleNameBlur(setRecipientName)}
-                    placeholder="John Doe"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Recipient Email</Label>
-                  <Input
-                    type="email"
-                    value={recipientEmail}
-                    onChange={(e) => setRecipientEmail(e.target.value)}
-                    placeholder="john@example.com"
-                  />
-                </div>
-              </div>
+              // Nobody to send it to yet: Next stays off, and this says why.
+              <p className="rounded-xl border border-border bg-muted/40 p-4 text-sm text-muted-foreground" data-no-applicants>
+                You'll pick an applicant once someone applies.
+              </p>
             )}
           </motion.div>
         );

@@ -3,7 +3,8 @@
  * Ava's flow generation brain — OpenAI server-side only.
  *
  * Input: { brief: JobBrief, rigor: easy|medium|hard, rigorPlan?: easy|standard|high }
- * Output: JobFlow content fields (jobPost, application, quiz, simulation, voice, rationales)
+ * Output: JobFlow content fields (jobPost, application, quiz, simulation, the
+ * written interview (still keyed voiceQuestions/voiceDimensions), rationales)
  *
  * NOTE (pre-launch): deployed with verify_jwt=false for demo. Gate behind auth + rate-limit before launch.
  */
@@ -140,7 +141,11 @@ Deno.serve(async (req: Request) => {
       "You are Ava, an expert hiring-process designer for small businesses. Given a role brief you design the CONTENT of a complete screening flow. Output ONLY JSON matching the schema. " +
       "Make every question SPECIFIC to this exact role — use the description and follow-up context. " +
       "Scenario quiz questions test real on-the-job judgment (never trivia); each has a one-line 'good' note on what a strong answer shows. " +
-      "Voice interview questions are warm and behavioral — candidate-facing prompts with NO mention of AI, bots, or automation. " +
+      // The interview is written, not spoken: voice interviews are off for every
+      // business, and the step is saved as a typed chat interview. The output
+      // keys keep their old names (voiceQuestions, voiceDimensions) because the
+      // app reads them by those names (src/lib/avaEngine/flowGenerator.ts).
+      "Interview questions are for a WRITTEN interview the candidate answers by typing — warm and behavioral, one thing at a time, never asking them to speak, record or call — candidate-facing prompts with NO mention of AI, bots, or automation. " +
       "jobPost fields are candidate-facing — warm, clear, human language only (no AI/Ava/bot/automated/algorithm). " +
       "phaseRationales are employer-facing first-person Ava notes explaining why each screening phase exists (AI framing OK there). " +
       "For technical/developer roles include practical scenarios; for cash-handling roles include till/de-escalation scenarios; for cleaning roles include trust/reliability scenarios.";
@@ -152,10 +157,10 @@ Write EXACTLY:
 - ${spec.app} short application questions
 - ${spec.quiz} scenario quiz items {scenario, good}
 - ${spec.sim} simulation scenario(s) {title, prompt} (empty array if rigor is easy)
-- ${spec.voice} voice interview spoken questions (candidate will answer out loud)
-- voiceDimensions: 3-4 competency dimensions to score the voice interview
+- voiceQuestions: ${spec.voice} written interview questions (the candidate types each answer; never ask them to speak or record)
+- voiceDimensions: 3-4 competency dimensions to score the written interview answers
 - shortlistWeights: 5 ranking factors, most important first
-- phaseRationales: one employer-facing Ava rationale per major phase (application, quiz, simulation if any, voice, shortlist)
+- phaseRationales: one employer-facing Ava rationale per major phase (application, quiz, simulation if any, written interview, shortlist)
 
 Tailor everything to: ${brief.roleTitle || brief.title || "this role"}.`;
 

@@ -1903,8 +1903,15 @@ serve(async (req) => {
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
     const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
+    // Another edge function moving an applicant on after recording their step
+    // (_shared/stepMoveOn.ts), when the applicant's own sign-in expired while
+    // the step was graded: the service key in `apikey`, no Authorization (how
+    // one function calls another here). It is treated exactly as the
+    // applicant asking for themself, never more.
+    const apikeyHeader = req.headers.get("apikey") ?? "";
+    const isSystemMoveOn = !authHeader && !!supabaseServiceKey && apikeyHeader === supabaseServiceKey;
 
-    if (!authHeader) {
+    if (!authHeader && !isSystemMoveOn) {
       return new Response(
         JSON.stringify({ error: "Authentication required" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -1913,23 +1920,25 @@ serve(async (req) => {
 
     const supabaseUserClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
-        headers: {
-          Authorization: authHeader,
-        },
+        headers: authHeader ? { Authorization: authHeader } : {},
       },
     });
 
-    const {
-      data: { user: requestingUser },
-      error: requestingUserError,
-    } = await supabaseUserClient.auth.getUser();
+    let requestingUserId: string | null = null;
+    if (!isSystemMoveOn) {
+      const {
+        data: { user: requestingUser },
+        error: requestingUserError,
+      } = await supabaseUserClient.auth.getUser();
 
-    if (requestingUserError || !requestingUser) {
-      console.error("[trigger-ava-analysis] Invalid auth token:", requestingUserError);
-      return new Response(
-        JSON.stringify({ error: "Invalid authentication token" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      if (requestingUserError || !requestingUser) {
+        console.error("[trigger-ava-analysis] Invalid auth token:", requestingUserError);
+        return new Response(
+          JSON.stringify({ error: "Invalid authentication token" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      requestingUserId = requestingUser.id;
     }
 
     // Fetch application data with all job fields needed for autopilot decision
@@ -1952,8 +1961,10 @@ serve(async (req) => {
 
     const employerId = (application.jobs as any)?.employer_id;
 
-    const isCandidateOwner = application.candidate_id === requestingUser.id;
-    const isEmployerOwner = employerId === requestingUser.id;
+    // The system's move-on asks as the applicant, and only that.
+    if (isSystemMoveOn) requestingUserId = application.candidate_id;
+    const isCandidateOwner = application.candidate_id === requestingUserId;
+    const isEmployerOwner = !isSystemMoveOn && employerId === requestingUserId;
 
     // Team-member access must be scoped to THIS job the same way the live
     // RLS policy on `applications` scopes it ("Team members can view
@@ -1970,13 +1981,13 @@ serve(async (req) => {
       !isCandidateOwner && !isEmployerOwner && employerId
         ? supabaseUserClient.rpc("is_active_team_member_for_job", {
             p_job_id: application.job_id,
-            p_user_id: requestingUser.id,
+            p_user_id: requestingUserId!,
           })
         : Promise.resolve({ data: false, error: null }),
       supabaseAdmin
         .from("user_roles")
         .select("role")
-        .eq("user_id", requestingUser.id)
+        .eq("user_id", requestingUserId!)
         .eq("role", "developer")
         .maybeSingle(),
     ]);
@@ -1989,7 +2000,7 @@ serve(async (req) => {
 
     if (!isCandidateOwner && !isEmployerOwner && !isScopedTeamMember && !developerRole) {
       console.warn("[trigger-ava-analysis] Unauthorized analysis attempt", {
-        requesterId: requestingUser.id,
+        requesterId: requestingUserId!,
         applicationId,
         employerId,
         candidateId: application.candidate_id,
@@ -2006,7 +2017,7 @@ serve(async (req) => {
     if (isScopedTeamMember && !isEmployerOwner && !developerRole && autopilotDecision && !previewOnly) {
       const { data: canManagePipeline, error: pipelineError } = await supabaseUserClient.rpc("is_active_team_member_for_job", {
         p_job_id: application.job_id,
-        p_user_id: requestingUser.id,
+        p_user_id: requestingUserId!,
         p_require_manage_pipeline: true,
       });
       if (pipelineError || canManagePipeline !== true) {

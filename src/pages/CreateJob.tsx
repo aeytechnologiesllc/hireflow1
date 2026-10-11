@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile, useUpdateProfile } from "@/hooks/useProfile";
@@ -114,7 +115,7 @@ import {
 import { subscribeToAvaFormCommands, AvaFormCommand } from "@/utils/avaFormEvents";
 import { JobPublishedDialog } from "@/components/JobPublishedDialog";
 import { SLUG_MESSAGES, slugCandidates, slugProblem, slugSaveProblem, suggestJobSlug, tidySlugInput } from "@/lib/jobSlug";
-import { firstFreeSlug, takenSlugs } from "@/lib/jobSlugAvailability";
+import { claimSuggestedSlug, firstFreeSlug, takenSlugs } from "@/lib/jobSlugAvailability";
 import { useOwnBusiness } from "@/hooks/useBusinessPage";
 import { candidateOrigin } from "@/lib/hosts";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -848,6 +849,18 @@ const WORKFLOW_DEFAULTS = {
   requiredWpm: 35,
 };
 
+/** What a paused business is told when it tries to put a job live. */
+const BUSINESS_PAUSED_PUBLISH_MESSAGE = "Your business is paused, so jobs can't go live. Open Help to message us.";
+
+/** The database's refusal to publish for a paused business: the
+ *  jobs_publish_needs_good_standing trigger raises it with HINT
+ *  'business_suspended' (supabase/migrations/20261011170000_business_basics_server.sql). */
+function isBusinessPausedError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const e = error as { hint?: unknown; message?: unknown };
+  return e.hint === "business_suspended" || (typeof e.message === "string" && /business is paused/i.test(e.message));
+}
+
 // `keepWhole`: items the job already had, kept whole if they contain a comma
 // (see splitListKeepingItems).
 const parseCommaSeparatedList = (value: unknown, keepWhole: ReadonlyArray<string> = []): string[] =>
@@ -864,6 +877,7 @@ export default function CreateJob() {
   const updateProfile = useUpdateProfile();
   const createJob = useCreateJob();
   const updateJob = useUpdateJob();
+  const queryClient = useQueryClient();
   const { data: existingJob, isLoading: isLoadingJob } = useJob(id);
   // Text-only screening (owner decision, 2026-10-04): the generated plan keeps
   // its written interview and never swaps in a voice interview.
@@ -1724,6 +1738,16 @@ export default function CreateJob() {
         // `status` always rides along: it is what the button chose, and the
         // showcase schema's update reads a missing status as "live".
         await updateJob.mutateAsync({ id, ...pickJobColumns(jobData, columns), status });
+        // A job this save puts live with no short link (a copied draft has none,
+        // jobCopy.ts leaves it out) names itself after its title, as the create
+        // flow does (claimSuggestedSlug). Without it the share link fell back to
+        // /candidate/apply?code=…. Only when the field was empty all along: a
+        // name they removed on purpose is caught by slugLeaving above. Best
+        // effort, never in the way of the publish that already happened.
+        if (status === "published" && existingJob?.status !== "published" && !loadedSlug && !slug) {
+          const claimed = await claimSuggestedSlug(id, formData.title).catch(() => null);
+          if (claimed) await queryClient.invalidateQueries({ queryKey: ["jobs"] });
+        }
         toast.success(status === "published" ? "Job updated and published!" : "Job updated");
         navigate("/jobs");
       } else {
@@ -1775,6 +1799,18 @@ export default function CreateJob() {
         }
         setCurrentStep(0);
         toast.error(`Short link: ${SLUG_MESSAGES[slugIssue]}`);
+        return;
+      }
+      // A paused business cannot put a job live (the jobs_publish_needs_good_standing
+      // trigger, HINT business_suspended). "Failed to update job" told them to try
+      // again, which can never work: say why, and where to go.
+      if (isBusinessPausedError(error)) {
+        toast.error(BUSINESS_PAUSED_PUBLISH_MESSAGE);
+        return;
+      }
+      // A team role without "Create jobs" (or a job that's gone) says so (useJobs).
+      if (error instanceof Error && /^Your team role|isn't there any more/.test(error.message)) {
+        toast.error(error.message);
         return;
       }
       toast.error(isEditMode ? "Failed to update job" : "Failed to create job");

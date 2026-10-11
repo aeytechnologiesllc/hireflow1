@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { resolvePostAuthDestination } from "@/lib/authRouting";
+import { isStaffHost } from "@/lib/hosts";
 import { AFTER_SIGN_IN_STATE } from "@/lib/resumeOnComputer";
 
 /**
@@ -49,7 +50,13 @@ export default function AuthCallback() {
   const [searchParams] = useSearchParams();
   const { refreshRole } = useAuth();
   const roleFromUrl = searchParams.get("role");
-  const portalRole = roleFromUrl === "candidate" ? "candidate" : "employer";
+  // Every sign-in that comes here names its role (sign-up's email link, the
+  // Google buttons, the careers page). With none named, the applicants' site
+  // means candidate and only the staff site means employer: a role-less
+  // account that wandered in from /careers was being made a business.
+  // ?role=employer still makes an employer wherever the business signed up.
+  const portalRole =
+    roleFromUrl === "candidate" ? "candidate" : roleFromUrl === "employer" ? "employer" : isStaffHost() ? "employer" : "candidate";
   // A failed link goes back to sign-in carrying where they were headed (a
   // job's Apply, for instance), so trying again still lands there.
   const requestedOnLoad = portalRole === "candidate" ? safeRedirect(searchParams.get("redirect")) : null;

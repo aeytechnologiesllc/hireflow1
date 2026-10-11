@@ -7,6 +7,7 @@ import { createShowcaseRole, SHOWCASE_EMPLOYER_ID } from "@/lib/showcaseApply";
 import { showcaseDb } from "@/lib/showcaseSchema";
 import { useSchemaMode } from "@/hooks/useSchemaMode";
 import { mergeQuizAnswerKeys, type JobQuizKeyRow } from "@/lib/quizAnswerKeys";
+import { isNoRowChanged, teamRoleCant } from "@/lib/teamPermissions";
 
 export type Job = Tables<"jobs">;
 export type JobInsert = TablesInsert<"jobs">;
@@ -251,6 +252,7 @@ export function useCreateJob() {
 
 export function useUpdateJob() {
   const queryClient = useQueryClient();
+  const { isTeamMember } = useAuth();
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Job> & { id: string }) => {
@@ -287,6 +289,11 @@ export function useUpdateJob() {
         .select()
         .single();
 
+      // Nothing changed: for a team member, the database refused (editing or
+      // closing a job needs Create jobs); said in words, not as "no row".
+      if (error && isNoRowChanged(error)) {
+        throw new Error(isTeamMember ? teamRoleCant("edit or close jobs", "canCreateJobs") : "That job isn't there any more. Refresh the page.");
+      }
       if (error) throw error;
       return data;
     },
@@ -319,11 +326,17 @@ export function useUpdateJob() {
 
 export function useDeleteJob() {
   const queryClient = useQueryClient();
+  const { isTeamMember } = useAuth();
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("jobs").delete().eq("id", id);
+      // Asks for the deleted row back: a delete the database refuses removes
+      // nothing and raises nothing, and the page then said "Deleted".
+      const { data, error } = await supabase.from("jobs").delete().eq("id", id).select("id");
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(isTeamMember ? teamRoleCant("delete jobs", "canDeleteJobs") : "That job isn't there any more. Refresh the page.");
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });

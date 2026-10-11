@@ -18,6 +18,8 @@ import { useAllRequests, type RequestWithPerson } from "../hooks/useApplicantReq
 import { applyDocFilters, docJob, KIND_WORDS, NO_FILTERS, ORDER_WORDS, resultLine, STATUS_WORDS, type FilterKind, type FilterOrder, type FilterStatus } from "../lib/documentFilters";
 import { requestTitle } from "@/lib/documentRequests";
 import { useAuth } from "@/hooks/useAuth";
+import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
+import { teamRoleCant } from "@/lib/teamPermissions";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { invokeDocumentSigning } from "@/lib/documentSigningErrors";
@@ -143,6 +145,7 @@ function DocRowItem({
   row,
   index,
   primary,
+  canAct = true,
   onOpenViewer,
   onWithdraw,
   onVoid,
@@ -150,6 +153,8 @@ function DocRowItem({
   row: DocRow;
   index: number;
   primary?: boolean;
+  /** May sign, withdraw and void (the owner; a team member with "Send documents"). */
+  canAct?: boolean;
   onOpenViewer: (row: DocRow) => void;
   onWithdraw: (row: DocRow) => void;
   onVoid: (row: DocRow) => void;
@@ -228,7 +233,7 @@ function DocRowItem({
             data-doc-open
           >
             {/* They signed and it waits on you: the button says so. */}
-            {row.status === "Pending" && row.candidateSignedAt && !row.isVoided ? "Sign" : "Open"}
+            {canAct && row.status === "Pending" && row.candidateSignedAt && !row.isVoided ? "Sign" : "Open"}
           </button>
         ) : row.fileUrl ? (
           <button
@@ -247,8 +252,9 @@ function DocRowItem({
         {/* Withdraw (before the candidate signs) or Void (after they sign,
             before countersigning) — the sender's own cancel path. Only ever
             shown on a live pending row; a withdrawn/voided/signed/declined
-            row has nothing left to cancel. */}
-        {row.status === "Pending" &&
+            row has nothing left to cancel. A team member without "Send
+            documents" is refused by the signing engine, so it is not offered. */}
+        {canAct && row.status === "Pending" &&
           (row.candidateSignedAt ? (
             <button
               type="button"
@@ -328,8 +334,16 @@ export default function CockpitDocuments() {
   // "Ask for ID or papers": the request box, with its own applicant picker,
   // and everything asked and sent listed here (the owner, 2026-10-10: "I
   // still don't know how do I request ... a government ID").
-  const { role } = useAuth();
-  const canAsk = role === "employer";
+  //
+  // Who may send: the owner, and a team member with "Send documents" on (an
+  // offer letter, a file to sign, and asking for ID or papers; the database
+  // allows exactly that). Without it, the buttons give way to one line that
+  // says why, instead of a dialog the database would refuse.
+  const { role, isTeamMember } = useAuth();
+  const { data: teamPermissions } = useTeamMemberPermissions();
+  const permissionsKnown = !isTeamMember || teamPermissions !== undefined;
+  const canSend = isTeamMember ? !!teamPermissions?.canSendDocuments : role === "employer";
+  const cantSendLine = isTeamMember && permissionsKnown && !canSend ? teamRoleCant("send documents", "canSendDocuments") : null;
   const [asking, setAsking] = useState(false);
   const { data: papers = [] } = useAllRequests();
   // Same underlying useDocuments() query useCockpitDocuments() already
@@ -463,15 +477,18 @@ export default function CockpitDocuments() {
   }, [rows, result.docs]);
 
   // Opened from the hire prompt → /documents?applicant_id=…&action=create.
+  // Waits for a team member's switches, then opens the letter only for
+  // someone who may send it; anyone else is told why.
   useEffect(() => {
-    if (searchParams.get("action") === "create") {
-      setOffer({ appId: searchParams.get("applicant_id") ?? undefined });
+    if (searchParams.get("action") === "create" && permissionsKnown) {
+      if (canSend) setOffer({ appId: searchParams.get("applicant_id") ?? undefined });
+      else if (cantSendLine) toast({ title: "Offer letters are off for you", description: cantSendLine });
       const next = new URLSearchParams(searchParams);
       next.delete("action");
       next.delete("applicant_id");
       setSearchParams(next, { replace: true });
     }
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, permissionsKnown, canSend, cantSendLine, toast]);
 
   const wizardEl = wizard ? (
     <DocumentWizard
@@ -516,19 +533,23 @@ export default function CockpitDocuments() {
       <span className="text-[13px]" style={{ color: "var(--ink-3)" }}>
         Every offer, form and file you send &mdash; one drawer
       </span>
-      <div className="ml-auto flex flex-wrap gap-2 max-md:w-full max-md:[&>button]:flex-1">
-        <button className="ck-btn ck-btn-outline !py-2 !text-[12.5px]" onClick={() => setOffer({})} data-offer-open>
-          Offer letter
-        </button>
-        {canAsk && (
+      {canSend ? (
+        <div className="ml-auto flex flex-wrap gap-2 max-md:w-full max-md:[&>button]:flex-1">
+          <button className="ck-btn ck-btn-outline !py-2 !text-[12.5px]" onClick={() => setOffer({})} data-offer-open>
+            Offer letter
+          </button>
           <button className="ck-btn ck-btn-outline !py-2 !text-[12.5px]" onClick={() => setAsking(true)} data-ask-papers>
             Ask for ID or papers
           </button>
-        )}
-        <button className="ck-btn ck-btn-ghost !py-2 !text-[12.5px]" onClick={() => setWizard({ mode: "upload" })} data-upload-to-sign>
-          Upload a file to sign
-        </button>
-      </div>
+          <button className="ck-btn ck-btn-ghost !py-2 !text-[12.5px]" onClick={() => setWizard({ mode: "upload" })} data-upload-to-sign>
+            Upload a file to sign
+          </button>
+        </div>
+      ) : cantSendLine ? (
+        <p className="w-full text-[12.5px]" style={{ color: "var(--ink-3)" }} data-cant-send>
+          {cantSendLine}
+        </p>
+      ) : null}
     </header>
   );
 
@@ -563,22 +584,28 @@ export default function CockpitDocuments() {
             The drawer is empty.
           </h2>
           <p className="mt-2 max-w-[54ch] text-[14px]" style={{ color: "var(--ink-2)" }}>
-            Offers, contracts and anything you ask a candidate to sign land here. Make the first one and
-            I&rsquo;ll keep track of who has signed what.
+            {canSend ? (
+              <>
+                Offers, contracts and anything you ask a candidate to sign land here. Make the first one and
+                I&rsquo;ll keep track of who has signed what.
+              </>
+            ) : (
+              "Offers, contracts and anything a candidate is asked to sign land here."
+            )}
           </p>
-          <div className="mt-5 flex flex-wrap gap-2">
-            <button className="ck-btn ck-btn-primary" onClick={() => setOffer({})} data-offer-open>
-              Write an offer letter
-            </button>
-            {canAsk && (
+          {canSend ? (
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button className="ck-btn ck-btn-primary" onClick={() => setOffer({})} data-offer-open>
+                Write an offer letter
+              </button>
               <button className="ck-btn ck-btn-outline" onClick={() => setAsking(true)}>
                 Ask for ID or papers
               </button>
-            )}
-            <button className="ck-btn ck-btn-outline" onClick={() => setWizard({ mode: "upload" })}>
-              Upload a file to sign
-            </button>
-          </div>
+              <button className="ck-btn ck-btn-outline" onClick={() => setWizard({ mode: "upload" })}>
+                Upload a file to sign
+              </button>
+            </div>
+          ) : null}
         </section>
         {wizardEl}
         {offerEl}
@@ -698,7 +725,7 @@ export default function CockpitDocuments() {
           <SectionTitle flush={!papersEl}>Hiring packet</SectionTitle>
           <div className="flex flex-col gap-2">
             {packet.map((row, i) => (
-              <DocRowItem key={row.id} row={row} index={i} primary={row.id === urgentId} onOpenViewer={openRow} onWithdraw={(r) => setActionDialog({ type: "withdraw", row: r })} onVoid={(r) => setActionDialog({ type: "void", row: r })} />
+              <DocRowItem key={row.id} row={row} index={i} primary={row.id === urgentId} canAct={canSend} onOpenViewer={openRow} onWithdraw={(r) => setActionDialog({ type: "withdraw", row: r })} onVoid={(r) => setActionDialog({ type: "void", row: r })} />
             ))}
           </div>
         </>
@@ -709,7 +736,7 @@ export default function CockpitDocuments() {
           <SectionTitle flush={g === 0 && packet.length === 0 && !papersEl}>{group.title}</SectionTitle>
           <div className="flex flex-col gap-2">
             {group.rows.map((row, i) => (
-              <DocRowItem key={row.id} row={row} index={i} primary={row.id === urgentId} onOpenViewer={openRow} onWithdraw={(r) => setActionDialog({ type: "withdraw", row: r })} onVoid={(r) => setActionDialog({ type: "void", row: r })} />
+              <DocRowItem key={row.id} row={row} index={i} primary={row.id === urgentId} canAct={canSend} onOpenViewer={openRow} onWithdraw={(r) => setActionDialog({ type: "withdraw", row: r })} onVoid={(r) => setActionDialog({ type: "void", row: r })} />
             ))}
           </div>
         </div>

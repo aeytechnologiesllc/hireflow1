@@ -158,11 +158,15 @@ export async function notifyRescheduleRequested(
 export async function notifyApplicationReceived(
   candidateId: string,
   jobTitle: string,
-  companyName?: string
+  companyName?: string,
+  applicationId?: string,
 ): Promise<EmailStatus> {
+  // The application itself, so two jobs with the same title at two
+  // businesses can't be mixed up (the server signs it with that job's business).
   return sendNotificationEmail("application_received", candidateId, {
     job_title: jobTitle,
     company_name: companyName,
+    application_id: applicationId,
   });
 }
 

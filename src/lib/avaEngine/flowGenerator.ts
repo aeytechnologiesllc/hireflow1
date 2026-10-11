@@ -1,6 +1,15 @@
 /** Flow generation — OpenAI via Supabase edge function, with template fallback. */
 import { generateTemplateFlow } from "./templateGenerator";
-import { briefWantsEquipmentCheck, buildJobFlow, defaultShortlistWeights, emptyRubric, equipmentCheckPhase, RIGOR_SPEC } from "./assemble";
+import {
+  briefWantsEquipmentCheck,
+  buildJobFlow,
+  defaultShortlistWeights,
+  emptyRubric,
+  equipmentCheckPhase,
+  RIGOR_SPEC,
+  WRITTEN_INTERVIEW_DESCRIPTION,
+  WRITTEN_INTERVIEW_TITLE,
+} from "./assemble";
 import { rigorToLegacy } from "./rigor";
 import { supabase } from "@/integrations/supabase/client";
 import type {
@@ -136,13 +145,14 @@ function edgePayloadToFlow(req: GenerateFlowRequest, payload: EdgeFlowPayload): 
   const voiceDims = take(payload.voiceDimensions, 4).length
     ? take(payload.voiceDimensions, 4)
     : ["Clarity", "Judgment", "Ownership", "Fit"];
+  // Saved as a typed chat interview, like the template's (WRITTEN_INTERVIEW_TITLE in assemble.ts).
   phases.push({
     id: "ph_voice",
     kind: "voice_interview",
     order: order++,
-    title: "Answer a few questions out loud",
-    candidateDescription: "A short set of questions you answer out loud about your experience and approach.",
-    rationale: rationales[r++] ?? "Strongest signal — clarity, judgment, ownership.",
+    title: WRITTEN_INTERVIEW_TITLE,
+    candidateDescription: WRITTEN_INTERVIEW_DESCRIPTION,
+    rationale: rationales[r++] ?? "Their own words, in writing — clarity, judgment, ownership.",
     config: {
       kind: "voice_interview",
       maxCallLengthSec: spec.callMin * 60,
@@ -153,7 +163,7 @@ function edgePayloadToFlow(req: GenerateFlowRequest, payload: EdgeFlowPayload): 
       criteria: voiceDims.map((d, i) => ({
         id: `vdim${i}`,
         label: d,
-        guidance: `Score the spoken answers on ${d.toLowerCase()}, citing transcript evidence.`,
+        guidance: `Score the written answers on ${d.toLowerCase()}, quoting what they wrote.`,
         weightWithinPhase: 1 / voiceDims.length,
       })),
     },

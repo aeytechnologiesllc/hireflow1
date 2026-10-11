@@ -54,7 +54,7 @@ The app icon is **"A" — the logo's own mark**: a dark jade tile `#0C2A21` with
 ## Distribution & billing state (updated 2026-09-16, first set 2026-09-04)
 
 - **Free tier is fully open** while Stripe is off: trials never expire, no job or applicant caps, voice is off for every business but the platform's own account (2026-10-11; get-subscription still reports a 120-minute grant, unused) (migration `20260904110000_free_tier_open`, further relaxed by the recovered `20260627131622_relax_job_limit_billing_deferred`). Nothing may sit behind a paywall or show a price as due while billing is off. Re-gate when the pay-per-job model ships.
-- **Google Indexing API works** — the service account in `GOOGLE_INDEXING_SERVICE_ACCOUNT_JSON` is a verified Search Console owner; every publish/close fires `URL_UPDATED`/`URL_DELETED`, plus an IndexNow ping (key file in `public/`). The live `jobs.xml` feed is valid but currently serves 0 jobs — the live database has 0 rows in `jobs`/`applications` (test data was cleared on 2026-09-15/16); it needs one real, complete, published job to prove end to end.
+- **Google Indexing API / IndexNow were removed on 2026-10-05** (87f7628, "Google Jobs is removed"): nothing fires on publish/close any more. The job feeds (`jobs.xml`, `adzuna.xml`, `jooble.xml`) only list a job that has a country (`api/job-feed.mjs`), so Zulu's worldwide-remote job (no country) is in none of them (checked 2026-10-11). The sitemap is served by `api/sitemap.mjs` (proxying the `sitemap` edge function) so it goes out as XML.
 - **Email is not wired**: `RESEND_API_KEY` is unset, so `send-notification-email` returns `skipped`. Auth emails (reset links) go through Supabase's default SMTP, which is rate-limited.
 - **Models**: all OpenAI calls run on `gpt-5.6-luna` (cheap) / `gpt-5.6-terra` (scoring), voice on `gpt-realtime-2.1` + `gpt-live-transcribe`. GPT-5 models reject non-default `temperature`; the shared helpers strip it. See `docs/MODEL-DEADLINES.md`.
 - **Stripe**: no key is set and no checkout exists: the old checkout/webhook functions were deleted from Supabase on 2026-10-11. Billing is built new (pricing v9: free first job, $99/job, $299/mo), with the owner's account exempt through `platform_admins`, never `home_alias`. The owner adds the Stripe keys himself, last.
@@ -242,7 +242,6 @@ one only with that function's own tests.
 Already configured and working, despite older notes here: `OPENAI_API_KEY`
 (every AI feature — job writing, scoring, chat/voice interviews, documents,
 portfolio analysis — runs live on `gpt-5.6-luna`/`gpt-5.6-terra`/
-`gpt-realtime-2.1`, see `docs/MODEL-DEADLINES.md`); `GOOGLE_INDEXING_SERVICE_ACCOUNT_JSON`
-(Indexing API + IndexNow both fire on publish/close). `ELEVENLABS_API_KEY` is
+`gpt-realtime-2.1`, see `docs/MODEL-DEADLINES.md`). `ELEVENLABS_API_KEY` is
 only used by the `/marketing-demo` page — no candidate or employer flow depends
 on it, so it is not a launch blocker either way.

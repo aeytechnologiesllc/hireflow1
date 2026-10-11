@@ -109,6 +109,13 @@ export function passUpdate(userId: string | null): { status: "rejected"; rejecte
   return { status: "rejected", rejected_by: userId, rejected_by_type: "user" };
 }
 
+/**
+ * A team member whose Manage pipeline switch is off. Written out here, not
+ * imported, so this file stays free of imports (the tests load it as is); it
+ * is src/lib/teamPermissions.ts's teamRoleCant() wording.
+ */
+const CANT_PASS_ON = "Your team role can't pass on applicants. Ask the owner to turn on Manage pipeline.";
+
 /** After this many failures in a row the run stops: something is wrong on our side, not with one applicant. */
 export const BULK_PASS_STOP_AFTER = 3;
 
@@ -121,6 +128,12 @@ export interface BulkPassResult {
   emailed: number;
   /** Had moved on (offered, hired, declined) since they were picked: left as they are. */
   moved: number;
+  /**
+   * Left as they are because the database refused: the team role may not
+   * pass on applicants (Manage pipeline is off). Counted from the first
+   * refusal on, since the rest would be refused the same way.
+   */
+  refused?: number;
   /** Could not be changed. */
   failed: number;
   /** Stopped early after BULK_PASS_STOP_AFTER failures in a row. */
@@ -135,6 +148,11 @@ export function bulkPassProgressWords(done: number, total: number): string {
 /** How it went, for the toast. `ok` is false when anyone was left undone by a fault. */
 export function bulkPassDoneWords(result: BulkPassResult): { ok: boolean; title: string; description?: string } {
   const { passed, emailed, moved, failed, stopped, total } = result;
+  const refused = result.refused ?? 0;
+  // Refused by the team role: said as that, never as "had already moved on".
+  if (refused > 0 && passed === 0) {
+    return { ok: false, title: "Nobody was passed on", description: `${CANT_PASS_ON} Nothing was sent.` };
+  }
   const notes: string[] = [];
   if (passed > 0) {
     const unsent = passed - emailed;
@@ -143,11 +161,12 @@ export function bulkPassDoneWords(result: BulkPassResult): { ok: boolean; title:
     else notes.push(`${emailed} ${emailed === 1 ? "was" : "were"} sent the note; ${unsent} could not be emailed and will see the decision in their application.`);
   }
   if (moved > 0) notes.push(`${moved} had already moved on and ${moved === 1 ? "was" : "were"} left as ${moved === 1 ? "it was" : "they were"}.`);
+  if (refused > 0) notes.push(`${refused} ${refused === 1 ? "was" : "were"} left as ${refused === 1 ? "it was" : "they were"}. ${CANT_PASS_ON}`);
   if (failed > 0) {
-    const undone = total - passed - moved;
+    const undone = total - passed - moved - refused;
     notes.push(stopped ? `It stopped after ${BULK_PASS_STOP_AFTER} failures in a row: ${undone} ${undone === 1 ? "was" : "were"} not changed. Try those again in a minute.` : `${failed} could not be changed. Try ${failed === 1 ? "that one" : "those"} again.`);
   }
-  const ok = failed === 0;
+  const ok = failed === 0 && refused === 0;
   const title = passed === 0 ? (ok ? "Nobody was passed on" : "Couldn't pass on them") : passed === total ? `${people(passed)} passed` : `${passed} of ${total} passed`;
   return { ok, title, description: notes.length > 0 ? notes.join(" ") : undefined };
 }

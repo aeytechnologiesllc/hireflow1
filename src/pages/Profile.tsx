@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile, useUpdateProfile, type ProfileUpdate } from "@/hooks/useProfile";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +21,17 @@ import { isSupportedResumeFile } from "@/utils/resumeFiles";
 const AVATAR_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/heic", "image/heif", "image/avif"];
 import { resolveResumeUrl } from "@/utils/resumeSignedUrl";
 
+/**
+ * A team member has no résumé or company page of their own: their account
+ * lives in Settings. They were shown the applicant's résumé page here.
+ */
 export default function Profile() {
+  const { isTeamMember } = useAuth();
+  if (isTeamMember) return <Navigate to="/settings" replace />;
+  return <OwnProfile />;
+}
+
+function OwnProfile() {
   const { user, role } = useAuth();
   const isEmployer = role === "employer";
   const { data: profile, isLoading } = useProfile();

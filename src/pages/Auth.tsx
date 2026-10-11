@@ -16,7 +16,7 @@ import AvaSeal from "@/components/ava/AvaSeal";
 import { HeroBackground } from "@/components/ava/HeroBackground";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { GOOGLE_AUTH_ENABLED } from "@/lib/googleAuth";
-import { isStaffHost } from "@/lib/hosts";
+import { candidateOrigin, isStaffHost } from "@/lib/hosts";
 import { cleanAddress } from "@/components/business/CareersPageCard";
 
 // Google OAuth isn't enabled on the Supabase backend yet (authorize endpoint
@@ -50,6 +50,10 @@ const nameSchema = z.string().min(2, "Name must be at least 2 characters");
  *  can get a number if it is taken. */
 function careersAddressPreview(name: string): string {
   const address = cleanAddress(name).replace(/-+$/, "");
+  // A name with no letters the address can use (Chinese, Arabic, only
+  // symbols) makes an empty address, and business_page_for then gives
+  // "business": show that, rather than no line at all. Nothing typed, no line.
+  if (!address) return name.trim() ? "business" : "";
   // The addresses kept for HireFlow, as business_page_for makes them.
   if (address === "hireflow") return "business";
   if (["admin", "help", "support", "staff", "official", "careers", "jobs", "team", "api", "www"].includes(address)) return `${address}-jobs`;
@@ -204,11 +208,22 @@ export default function Auth() {
         return;
       }
 
-      const { route } = await resolvePostAuthDestination({
+      const { role: signedInRole, route } = await resolvePostAuthDestination({
         userId: currentUser.id,
         portalRole: "employer",
         redirectTo,
       });
+
+      // An applicant who signed in here (the front page's "Sign in" is the
+      // business door): their applications live on the applicants' site,
+      // where sign-in is kept apart, so going on from here meant signing in
+      // twice. Send them to their own sign-in, once.
+      if (signedInRole === "candidate" && isStaffHost()) {
+        navigated = true;
+        await supabase.auth.signOut();
+        window.location.replace(`${candidateOrigin()}/candidate/auth?redirect=${encodeURIComponent("/applications")}`);
+        return;
+      }
 
       navigated = true;
       navigate(route, { replace: true });
@@ -319,6 +334,15 @@ export default function Auth() {
       return;
     }
     setIsLoading(true);
+    // HireFlow's own name, or another business's, can't be used (applicant
+    // emails are signed with it; the database refuses it too). Asked first so
+    // the answer is plain. A failed check lets the database decide.
+    const { data: nameTaken } = await supabase.rpc("business_name_taken" as never, { p_name: signUpCompany.trim() } as never);
+    if (nameTaken === true) {
+      setIsLoading(false);
+      toast({ variant: "warning", title: "That business name is taken", description: "Another business on HireFlow uses it, or it's kept for HireFlow. Add something to tell yours apart." });
+      return;
+    }
     const { error, needsConfirmation } = await signUp(signUpEmail.trim(), signUpPassword, signUpName.trim(), "employer", signUpCompany.trim());
     setIsLoading(false);
     if (error) {
@@ -556,7 +580,7 @@ export default function Auth() {
             <h1 className="mt-4 text-3xl lg:text-[2.6rem] leading-[1.08] text-center lg:text-left">
               Hiring, handled by Ava.
             </h1>
-            <p className="mt-3 text-sm text-muted-foreground hidden sm:block text-center lg:text-left">
+            <p className="mt-3 text-sm text-muted-foreground text-center lg:text-left">
               Looking for work?{" "}
               <Link to="/candidate" className="text-primary hover:underline">
                 Go to Candidate Portal →
@@ -972,10 +996,10 @@ export default function Auth() {
 
             {/* Footer: a pointer for job seekers who landed here by mistake.
                 The old "first three applicants are on us" line was a paid-plan
-                promise; there is no plan any more (2026-10-04). Hidden on
-                phones, where this page is staff-only. */}
+                promise; there is no plan any more (2026-10-04). Shown on phones
+                too: applicants reach this page from the front page's "Sign in". */}
             <div
-              className="mt-6 pt-4 border-t text-center hidden sm:block"
+              className="mt-6 pt-4 border-t text-center"
               style={{ borderColor: "var(--hf-border)" }}
             >
               <p className="text-xs text-muted-foreground">

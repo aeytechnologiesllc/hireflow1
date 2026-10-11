@@ -81,7 +81,7 @@ export const PLAYBOOKS: Record<Family, Playbook> = {
     rigor: {
       recommended: "high",
       rationale:
-        "They'll handle the till and deposits, lead a team, and own open/close — a mishire here is expensive. A practical simulation plus a structured voice interview protects you.",
+        "They'll handle the till and deposits, lead a team, and own open/close — a mishire here is expensive. A practical simulation plus a structured written interview protects you.",
     },
   },
   cleaner: {
@@ -110,7 +110,7 @@ export const PLAYBOOKS: Record<Family, Playbook> = {
     rigor: {
       recommended: "standard",
       rationale:
-        "This is a trust-and-reliability hire more than a technical one. A light screen plus a short voice interview confirms dependability — without scaring off good, busy applicants.",
+        "This is a trust-and-reliability hire more than a technical one. A light screen plus a short written interview confirms dependability — without scaring off good, busy applicants.",
     },
   },
   admin: {
@@ -168,7 +168,7 @@ export const PLAYBOOKS: Record<Family, Playbook> = {
     rigor: {
       recommended: "high",
       rationale:
-        "Skill claims are easy to inflate. A short practical code test plus a structured voice interview gives you real signal before you spend live interview time.",
+        "Skill claims are easy to inflate. A short practical code test plus a structured written interview gives you real signal before you spend live interview time.",
     },
   },
   general: {

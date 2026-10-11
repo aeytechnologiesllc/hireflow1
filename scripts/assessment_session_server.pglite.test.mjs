@@ -1024,6 +1024,18 @@ async function main() {
     const refusedAsk = harness({ answers: [{ status: 401, body: { error: "Invalid authentication token" } }] });
     const refusedOut = await M.runStepMoveOn(service, input(APP_MOVE, "step_chat"), refusedAsk.deps);
     check("a 401 is not tried again (and never throws)", refusedOut.kind === "asked" && !refusedOut.ok && refusedOut.status === 401 && refusedOut.tries === 1 && refusedAsk.asks.length === 1);
+    // Their sign-in ran out while the step was graded (live, 2026-10-09: an
+    // applicant sat on a finished step for days): one more ask, as the system.
+    const expired = harness({ answers: [{ status: 401, body: { error: "Invalid authentication token" } }, { status: 200, body: { success: true, decision: "advanced" } }] });
+    const expiredOut = await M.runStepMoveOn(service, input(APP_MOVE, "step_chat", { serviceKey: "service-key" }), expired.deps);
+    const systemAsk = expired.asks[1];
+    check("an expired sign-in (401): asked once more as the system, and it moves them on",
+      expiredOut.kind === "asked" && expiredOut.ok && expiredOut.decision === "advanced" && expired.asks.length === 2, JSON.stringify(expiredOut));
+    check("…with the service key in apikey and no Authorization, and the same body",
+      systemAsk?.init.headers.apikey === "service-key" && systemAsk?.init.headers.Authorization === undefined && JSON.stringify(systemAsk?.body) === JSON.stringify(expired.asks[0].body));
+    const forbidden = harness({ answers: [{ status: 403, body: { error: "no" } }] });
+    const forbiddenOut = await M.runStepMoveOn(service, input(APP_MOVE, "step_chat", { serviceKey: "service-key" }), forbidden.deps);
+    check("…but a refusal that isn't an expired sign-in (403) is never retried as the system", forbiddenOut.kind === "asked" && !forbiddenOut.ok && forbidden.asks.length === 1, JSON.stringify(forbiddenOut));
     const landed = harness({ answers: [{ throws: "connection reset", before: () => owner(`update public.applications set phase = 'step_interview' where id = $1`, [APP_MOVE]) }] });
     const landedOut = await M.runStepMoveOn(service, input(APP_MOVE, "step_chat"), landed.deps);
     check("a dropped connection whose ask landed anyway: not asked twice", landedOut.kind === "skipped" && landedOut.at === "retry" && landedOut.why === "already_moved_on" && landed.asks.length === 1, JSON.stringify(landedOut));

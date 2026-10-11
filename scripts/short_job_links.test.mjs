@@ -291,7 +291,12 @@ check("...never off the site", jobPageFromRedirect("//evil.example") === null &&
   check("the ask is answered once, only on the job's own page, only for a signed-in candidate", /if \(!wantsToApply \|\| autoStartedRef\.current \|\| authLoading \|\| !job \|\| forwardTo\) return;/.test(job) && /if \(user && role === "candidate" && !isDeadlinePassed\)/.test(job));
   check("a stranger sees no 'Back to Apply' (the code box)", !/"Back to Apply"\s*\}/.test(job.slice(job.indexOf("return (\n    <>"))));
   check("a stranger's loading skeleton has no Back-button bar", /\{\(isEmployer \|\| role === "candidate"\) && <Skeleton className="h-8 w-32" \/>\}/.test(job));
-  check("the job code is shown to the team only", /\{isEmployer && job\.job_code && \(/.test(job));
+  // The job's own team only (2026-10-11): any employer can open another
+  // business's job page, and that one's code is not theirs.
+  check(
+    "the job code is shown to the team only",
+    /\{ownsJob && job\.job_code && \(/.test(job) && /const ownsJob = isEmployer && !!job && !!user && \(job\.employer_id === user\.id \|\| job\.employer_id === ownBusinessId\);/.test(job),
+  );
   check("'See open roles' points forward", /See open roles\s*<ArrowRight/.test(job));
   check("on a phone, Apply follows the reader down a long page", /data-testid="sticky-apply"/.test(job) && /ref=\{mobileApplyRef\}/.test(job) && /const stickyApply = standalone && !isEmployer && !isDeadlinePassed;/.test(job));
 
@@ -312,6 +317,18 @@ check("...never off the site", jobPageFromRedirect("//evil.example") === null &&
 
   const callback = await read("src/pages/AuthCallback.tsx");
   check("the auth callback moves on with replace", /navigate\(requested && role === portalRole \? requested : route, \{ replace: true(, state: AFTER_SIGN_IN_STATE)? \}\)/.test(callback));
+  // A role-less account that opened /careers was made an employer (2026-10-11):
+  // the careers page sent it to the callback with no role, and no role meant employer.
+  check(
+    "with no role named, the callback makes a candidate on the applicants' site and an employer only on the staff site",
+    /roleFromUrl === "candidate" \? "candidate" : roleFromUrl === "employer" \? "employer" : isStaffHost\(\) \? "employer" : "candidate"/.test(callback),
+  );
+  const careers = await read("src/pages/Index.tsx");
+  check(
+    "the careers page sends a role-less account to the callback as a candidate (the staff doorway as an employer)",
+    /navigate\(`\/auth\/callback\?role=\$\{staffHost \? "employer" : "candidate"\}`, \{ replace: true \}\)/.test(careers),
+  );
+  check("a business's sign-up still names employer in its email link", /redirectUrl\.searchParams\.set\("role", userRole\);/.test(await read("src/hooks/useAuth.tsx")));
 
   const card = await read("src/components/candidate/NextStepCard.tsx");
   check("'Start <next step>' replaces the sent step", /window\.location\.replace\(route\)/.test(card) && /window\.location\.replace\(nextRoute\)/.test(card) && /navigate\(nextRoute, \{ replace: true \}\)/.test(card) && !/location\.assign\(/.test(card));
@@ -360,6 +377,13 @@ check("a code is URL-encoded", applyWithCodePath("A B&C") === "/candidate/apply?
   check("the publish dialog shares the job page by its short link", /const shareLink = job \? jobPageUrl\(job\) : "";/.test(published));
   const ava = await read("src/pages/AvaCreateJob.tsx");
   check("a job published through Ava gets a short link", /claimSuggestedSlug\(created\.id, created\.title\)/.test(ava));
+  // A copied draft has no slug (jobCopy.ts leaves it out): publishing it from
+  // the editor used to keep the /candidate/apply?code=… link (2026-10-11).
+  const editor = await read("src/pages/CreateJob.tsx");
+  check(
+    "a job the editor puts live with no short link gets one, as Ava's does",
+    /if \(status === "published" && existingJob\?\.status !== "published" && !loadedSlug && !slug\) \{\s*const claimed = await claimSuggestedSlug\(id, formData\.title\)\.catch\(\(\) => null\);/.test(editor),
+  );
   const head = await read("src/components/seo/JobPageHead.tsx");
   const prerender = await read("api/job-prerender.mjs");
   // Until /<slug> has its own prerender it is served the plain shell, whose

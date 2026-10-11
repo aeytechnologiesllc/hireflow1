@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback, useId } from "react";
+import { jobTypeLabel } from "@/lib/jobLabels";
 import { parseApplicationNotes, isPhaseSkipped as checkPhaseSkipped, type StepRecordLike } from "@/utils/applicationNotes";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -705,7 +706,7 @@ export default function CandidateApplicationDetail() {
               {job?.job_type && (
                 <span className="flex min-w-0 items-center gap-1">
                   <Briefcase className="h-3.5 w-3.5 shrink-0" />
-                  <span className="break-words [overflow-wrap:anywhere]">{job.job_type}</span>
+                  <span className="break-words [overflow-wrap:anywhere]">{jobTypeLabel(job.job_type) ?? job.job_type}</span>
                 </span>
               )}
               <span className="flex min-w-0 items-center gap-1">

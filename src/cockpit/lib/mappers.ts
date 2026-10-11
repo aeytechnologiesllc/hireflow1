@@ -662,6 +662,7 @@ export function mapConversation(conv: Conversation, apps: ApplicationWithCandida
     lastAt: conv.last_message?.created_at ?? null,
     lastIncomingAt: conv.last_incoming_at ?? null,
     status: app?.status ?? null,
+    applicationId: conv.last_message?.application_id ?? null,
   };
 }
 
@@ -687,7 +688,8 @@ export function mapTeamMember(member: TeamMember, profile?: Profile | null): Coc
   return {
     id: member.id,
     avatar: member.user_id,
-    name: member.name ?? profile?.full_name ?? member.email,
+    // The invite's Name is optional and saved as '' when left empty.
+    name: member.name?.trim() || profile?.full_name?.trim() || member.email,
     email: member.email,
     role: member.department ?? member.permission_level ?? "Member",
     permission,
