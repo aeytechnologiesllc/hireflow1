@@ -105,13 +105,24 @@ async function setup() {
 }
 
 const sql = await migration(/_business_screens\.sql$/);
-check("the migration file exists exactly once", !!sql);
-if (!sql) process.exit(1);
+const teamSql = await migration(/_business_screens_team\.sql$/);
+check("the migration files exist exactly once", !!sql && !!teamSql);
+if (!sql || !teamSql) process.exit(1);
 const { db, as, pg } = await setup();
 let applied = true;
 try {
+  // As live (20261011100000_business_trust): standing, ID papers, admin.
+  await db.exec(`
+    create table public.business_standing (employer_id uuid primary key, status text not null default 'new');
+    create or replace function public.business_status_of(p_employer uuid) returns text language sql stable security definer as $$
+      select coalesce((select s.status from public.business_standing s where s.employer_id = p_employer), 'new') $$;
+    create or replace function public.business_has_paid(p_employer uuid) returns boolean language sql stable security definer as $$ select false $$;
+    revoke execute on function public.business_status_of(uuid) from public, anon, authenticated;
+  `);
   await db.exec(sql);
   await db.exec(sql);
+  await db.exec(teamSql);
+  await db.exec(teamSql);
 } catch (e) {
   applied = false;
   console.log(e.message);
@@ -162,6 +173,23 @@ check("0. it applies, and applies again", applied);
   for (let i = 0; i < 18; i += 1) await as(LUCKY, "authenticated", `select public.send_help_message('message ${i}')`);
   const tooMany = await as(LUCKY, "authenticated", `select public.send_help_message('one more')`);
   check("1. twenty messages a day, then it waits", !tooMany.ok && /help_too_many/.test(tooMany.error), show(tooMany));
+}
+
+// 1b. Team members (20261011181000_business_screens_team) ─────────────────────
+{
+  const teamReads = await as(TESS, "authenticated", `select count(*)::int n from public.help_messages`);
+  check("1b. Lucky Star's team member reads its Help thread too", teamReads.ok && teamReads.rows[0].n > 0, show(teamReads));
+  const nightTeam = await as(TESS, "authenticated", `select count(*)::int n from public.help_messages where employer_id = $1`, [NIGHT]);
+  check("1b. …and no other business's", nightTeam.ok && nightTeam.rows[0].n === 0, show(nightTeam));
+  await pg(`insert into public.business_standing values ($1, 'approved')`, [LUCKY]);
+  const owner = await as(LUCKY, "authenticated", `select public.my_business_standing() s`);
+  const team = await as(TESS, "authenticated", `select public.my_business_standing() s`);
+  const fresh = await as(NIGHT, "authenticated", `select public.my_business_standing() s`);
+  check("1b. the owner's standing: approved, may ask for ID papers", owner.ok && owner.rows[0].s.status === "approved" && owner.rows[0].s.can_request_ids === true, show(owner));
+  check("1b. the team member gets their business's standing (approved), not their own", team.ok && team.rows[0].s.status === "approved" && team.rows[0].s.can_request_ids === true, show(team));
+  check("1b. a new business: new, no ID papers yet", fresh.ok && fresh.rows[0].s.status === "new" && fresh.rows[0].s.can_request_ids === false, show(fresh));
+  const anon = await as(null, "anon", `select public.my_business_standing() s`);
+  check("1b. nobody signed out can ask", !anon.ok || anon.rows[0].s === null, show(anon));
 }
 
 // 2. A new business joins ───────────────────────────────────────────────────

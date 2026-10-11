@@ -36,6 +36,7 @@ import { businessSlugFromParam, jobLookupKey, jobPagePath, pageLookupKey, shortL
 import { jobLevelLabel, jobTypeLabel } from "@/lib/jobLabels";
 import { APPLICANT_BLOCKED_MESSAGE, isApplicantBlockedError } from "@/lib/applicantBlocked";
 import { openRolesPath, rememberBusiness } from "@/lib/openRoles";
+import { SafetyNote } from "@/components/trust/SafetyNote";
 
 export default function JobDetails() {
   // Four doors to this one page (docs/SHORT-JOB-LINKS.md): the job's address
@@ -812,6 +813,10 @@ export default function JobDetails() {
             </motion.div>
           </div>
         </div>
+
+        {/* Stay safe, and report a job that asks for money (the 2026-10-11
+            mock-ups, #5). Not on the business's own preview of its job. */}
+        {job && !isEmployer && <SafetyNote job={{ id: job.id, title: job.title }} signedIn={!!user} />}
 
         {/* Room under the last card, so the bar below never covers it. */}
         {stickyApply && <div aria-hidden="true" className="h-20 lg:hidden" />}

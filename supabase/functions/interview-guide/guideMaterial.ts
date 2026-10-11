@@ -67,6 +67,8 @@ export interface GuideRecord {
   job: InterviewJob;
   /** The scorer's own family for the job ("team_lead", ...). */
   family: string;
+  /** Whether the job is the home business's (its team-lead script names its own numbers). Absent: yes, as before. */
+  homeBusiness?: boolean;
   /** applications.notes, parsed. */
   notes: Record<string, unknown>;
   /** The applicant's latest written interview, oldest first; empty when there is none. */
@@ -244,7 +246,7 @@ function interviewForRequest(turns: GuideTurn[]): string {
  */
 export function buildGuideMessages(record: GuideRecord): Array<{ role: "system" | "user"; content: string }> {
   const { job } = record;
-  const plan = applyPlanEdits(interviewPlanFor(record.family), readPlanEdits(record.planEdits));
+  const plan = applyPlanEdits(interviewPlanFor(record.family, { homeBusiness: record.homeBusiness }), readPlanEdits(record.planEdits));
   const context = buildServerCandidateContext(record.notes, { quizQuestions: job.quizQuestions });
   const wrote = candidateWrittenBlock(context);
   const facts = recordLines(record);

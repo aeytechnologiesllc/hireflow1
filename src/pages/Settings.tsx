@@ -26,9 +26,10 @@ import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useEmailPreferences, useUpdateEmailPreferences, type EmailPreferences } from "@/hooks/useEmailPreferences";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getSignedOutRoute } from "@/lib/authRouting";
+import { CareersPageCard } from "@/components/business/CareersPageCard";
 
 export default function Settings() {
-  const { user, role, loading } = useAuth();
+  const { user, role, loading, isTeamMember } = useAuth();
   const navigate = useNavigate();
   const isEmployer = role === "employer";
   const isDeveloper = role === "developer";
@@ -238,6 +239,9 @@ export default function Settings() {
 
         {/* Account Tab */}
         <TabsContent value="account" className="space-y-6 mt-6">
+          {/* The business's careers page (owners; the 2026-10-11 mock-ups, #3). */}
+          {!isTeamMember && <CareersPageCard />}
+
           {/* Account Settings */}
           <Card className="bg-card border-border">
             <CardHeader>

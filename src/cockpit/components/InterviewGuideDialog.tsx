@@ -38,6 +38,7 @@ import {
 import { interviewScore } from "../lib/interviewScore";
 import { GUIDE_WRITE_WORDS, PLAN_SAVE_WORDS, useInterviewGuide, type PlanSaveFailure } from "../hooks/useInterviewGuide";
 import { RATINGS_SAVE_WORDS, useInterviewRatings } from "../hooks/useInterviewRatings";
+import { useBusinessPageFor, useOwnBusiness } from "@/hooks/useBusinessPage";
 
 /**
  * The interview guide: one page the owner reads before and during a live
@@ -439,7 +440,12 @@ export function InterviewGuideDialog({
   const first = applicantName.trim().split(/\s+/)[0] || "them";
   // The plan as written here, and the plan this job is actually asked: the
   // same with the job's own changes laid over it.
-  const basePlan = useMemo(() => interviewPlanFor(record?.family), [record?.family]);
+  // The home business's team-lead script names its own numbers; another
+  // business gets the same script without them (unknown: the home business's).
+  const { data: ownBusiness } = useOwnBusiness();
+  const { data: ownPage } = useBusinessPageFor(ownBusiness?.employerId);
+  const homeBusiness = ownPage ? ownPage.home_alias : undefined;
+  const basePlan = useMemo(() => interviewPlanFor(record?.family, { homeBusiness }), [record?.family, homeBusiness]);
   const plan = useMemo(() => applyPlanEdits(basePlan, record?.planEdits), [basePlan, record?.planEdits]);
   const personal = record?.personal ?? null;
   // Changing the questions: `draft` holds what is being typed; null = reading.

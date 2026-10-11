@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import { Eye, FileSignature } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { GlyphLetter } from "@/components/candidate/glyphs";
+import { businessJobLine, useCompanyNames } from "@/hooks/useCompanyNames";
 
 const LetterIdentityGlyph = GlyphLetter as unknown as LucideIcon;
 
@@ -37,7 +38,7 @@ function signStatusChip(doc: DocumentWithApplication): { label: string; bg: stri
   return { label: "Awaiting your signature", bg: "var(--amber-bg)", fg: "var(--amber-fg)" };
 }
 
-function SignDocumentRow({ doc, onView }: { doc: DocumentWithApplication; onView: () => void }) {
+function SignDocumentRow({ doc, onView, askedBy }: { doc: DocumentWithApplication; onView: () => void; askedBy?: string | null }) {
   const chip = signStatusChip(doc);
   // Waiting on them: the button says what to do.
   const theirTurn = doc.status === "pending" && !doc.candidate_signed_at && !doc.is_voided;
@@ -53,7 +54,8 @@ function SignDocumentRow({ doc, onView }: { doc: DocumentWithApplication; onView
         <div className="line-clamp-2 text-[14px] font-semibold leading-[1.3]" style={{ color: "var(--ink)" }}>
           {doc.name}
         </div>
-        <div className="mt-0.5 truncate text-[12px]" style={{ color: "var(--ink-3)" }}>
+        <div className="mt-0.5 truncate text-[12px]" style={{ color: "var(--ink-3)" }} data-sign-asked-by={askedBy ? "" : undefined}>
+          {askedBy && <span className="font-medium" style={{ color: "var(--ink-2)" }}>{askedBy} · </span>}
           Sent {format(new Date(doc.created_at), "MMM d, yyyy")}
         </div>
       </div>
@@ -82,6 +84,11 @@ export default function MyDocuments() {
   } = useDocumentRequests();
   const { data: signDocuments = [], isLoading: signLoading } = useDocuments();
   useDocumentsLive();
+  // Which business asks for each paper (someone in two hiring processes).
+  const companies = useCompanyNames([
+    ...signDocuments.map((d) => d.applications?.jobs?.employer_id),
+    ...documentRequests.map((r) => r.applications?.jobs?.employer_id ?? r.employer_id),
+  ]);
 
   const [uploadDialogRequest, setUploadDialogRequest] = useState<DocumentRequestWithDetails | null>(null);
   // A written document (an offer letter) opens the applicant's signing
@@ -147,7 +154,12 @@ export default function MyDocuments() {
               </h2>
               <div className="space-y-3">
                 {signDocuments.map((doc) => (
-                  <SignDocumentRow key={doc.id} doc={doc} onView={() => openDocument(doc)} />
+                  <SignDocumentRow
+                    key={doc.id}
+                    doc={doc}
+                    onView={() => openDocument(doc)}
+                    askedBy={businessJobLine(companies.get(doc.applications?.jobs?.employer_id ?? ""), doc.applications?.jobs?.title)}
+                  />
                 ))}
               </div>
             </section>
@@ -165,6 +177,7 @@ export default function MyDocuments() {
                     request={request}
                     isEmployer={false}
                     onUpload={() => setUploadDialogRequest(request)}
+                    askedBy={businessJobLine(companies.get(request.applications?.jobs?.employer_id ?? request.employer_id), request.applications?.jobs?.title)}
                   />
                 ))}
               </div>

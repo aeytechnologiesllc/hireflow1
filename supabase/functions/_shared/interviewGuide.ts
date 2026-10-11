@@ -260,9 +260,23 @@ const GENERAL_PLAN: InterviewPlan = {
 };
 
 /** The plan for a job family ("team_lead" from the scorer's own inferJobFamily; anything else is general). */
-export function interviewPlanFor(family: string | null | undefined): InterviewPlan {
-  return family === "team_lead" ? TEAM_LEAD_PLAN : GENERAL_PLAN;
+/**
+ * The plan for a job. The team-lead plan was written from the home
+ * business's own role (six agents); another business gets the same plan
+ * without the number (the owner, 2026-10-11: "Same script, no number").
+ * Not knowing whose job it is means the home business's, as before.
+ */
+export function interviewPlanFor(family: string | null | undefined, options: { homeBusiness?: boolean } = {}): InterviewPlan {
+  if (family !== "team_lead") return GENERAL_PLAN;
+  return options.homeBusiness === false ? TEAM_LEAD_PLAN_ANY_BUSINESS : TEAM_LEAD_PLAN;
 }
+
+/** The team-lead plan without the home business's own numbers. */
+function withoutHomeNumbers(text: string): string {
+  return text.replace("You also lead six agents.", "You also lead the agents on your shift.").replace("alone on a shift with six agents?", "alone on a shift with the team?");
+}
+
+const TEAM_LEAD_PLAN_ANY_BUSINESS: InterviewPlan = JSON.parse(JSON.stringify(TEAM_LEAD_PLAN), (_key, value) => (typeof value === "string" ? withoutHomeNumbers(value) : value));
 
 /** Every question the plan already asks, so the personal part does not repeat one. */
 export function planQuestions(plan: InterviewPlan): string[] {

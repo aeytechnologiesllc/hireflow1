@@ -64,6 +64,8 @@ const TITLES: Record<string, string> = {
   "/team": "Team",
   "/analytics": "Analytics",
   "/more": "More",
+  "/help": "Help",
+  "/admin": "Admin",
 };
 
 function isActive(pathname: string, to: string) {

@@ -6,6 +6,7 @@ import { useOfferPeople, type OfferPerson } from "../hooks/useOfferLetter";
 import { useApplicantRequests, useSendRequests, type NewRequest } from "../hooks/useApplicantRequests";
 import { DUE_CHOICES, ID_DELETE_HOURS_AFTER_OPENED, REQUEST_KINDS } from "@/lib/documentRequests";
 import { addDays, dayOf, longDate } from "../lib/offerLetter";
+import { requestLocks, useBusinessStanding } from "@/hooks/useBusinessStanding";
 
 /**
  * Ask an applicant for documents (src/lib/documentRequests.ts;
@@ -34,6 +35,10 @@ export function RequestDocumentsDialog({ open, applicationId, onClose }: { open:
   const [pickedId, setPickedId] = useState<string | null>(applicationId ?? null);
   const [search, setSearch] = useState("");
   const [picked, setPicked] = useState<string[]>([]);
+  // Before HireFlow approves the business, ID papers are locked; a paused
+  // business can ask for nothing (the database says the same).
+  const { idsLocked, allLocked } = requestLocks(useBusinessStanding());
+  const isLocked = (key: string) => allLocked || (idsLocked && !!REQUEST_KINDS.find((k) => k.key === key)?.idPaper);
   const [other, setOther] = useState("");
   const [dueDays, setDueDays] = useState<number>(5);
   const [note, setNote] = useState("");
@@ -60,10 +65,12 @@ export function RequestDocumentsDialog({ open, applicationId, onClose }: { open:
   const dueDate = addDays(today, dueDays);
 
   const items: NewRequest[] = useMemo(() => {
-    const chosen: NewRequest[] = REQUEST_KINDS.filter((k) => picked.includes(k.key) && !openKinds.has(k.key)).map((k) => ({ documentType: k.key, ask: k.ask }));
+    if (allLocked) return [];
+    const chosen: NewRequest[] = REQUEST_KINDS.filter((k) => picked.includes(k.key) && !openKinds.has(k.key) && !isLocked(k.key)).map((k) => ({ documentType: k.key, ask: k.ask }));
     if (other.trim()) chosen.push({ documentType: "custom", customName: other.trim().slice(0, 80), ask: "" });
     return chosen;
-  }, [picked, other, openKinds]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [picked, other, openKinds, idsLocked, allLocked]);
 
   const matches = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -174,8 +181,15 @@ export function RequestDocumentsDialog({ open, applicationId, onClose }: { open:
                   <legend className="mb-1.5 text-[12.5px] font-semibold" style={{ color: "var(--hf-text)" }}>
                     What do you need?
                   </legend>
+                  {(idsLocked || allLocked) && (
+                    <p className="rounded-[12px] px-3 py-2.5 text-[13px] leading-snug" style={{ background: "var(--amber-bg)", color: "var(--amber-fg)" }} data-request-approval-note>
+                      {allLocked
+                        ? "Your business is paused, so nothing can be asked for right now. Open Help to message HireFlow."
+                        : "ID papers open once HireFlow approves your business, usually within a day. Everything else works now."}
+                    </p>
+                  )}
                   {REQUEST_KINDS.map((kind) => {
-                    const asked = openKinds.has(kind.key);
+                    const asked = openKinds.has(kind.key) || isLocked(kind.key);
                     const on = !asked && picked.includes(kind.key);
                     return (
                       <label
@@ -191,7 +205,7 @@ export function RequestDocumentsDialog({ open, applicationId, onClose }: { open:
                           <span className="block text-[14px] font-medium" style={{ color: "var(--hf-text)" }}>
                             {kind.label}
                             <span className="ml-2 text-[11.5px] font-normal" style={{ color: "var(--ink-3)" }}>
-                              {asked ? "already asked" : kind.answer === "text" ? "they type it" : "photo or PDF"}
+                              {isLocked(kind.key) ? (allLocked ? "paused" : "after approval") : asked ? "already asked" : kind.answer === "text" ? "they type it" : "photo or PDF"}
                             </span>
                           </span>
                           <span className="mt-0.5 block text-[12.5px] leading-snug" style={{ color: "var(--ink-3)" }}>

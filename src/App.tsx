@@ -63,6 +63,8 @@ const ApplicantDetails = lazyWithReload(staffPageImporters.applicantDetails);
 const Messages = lazyWithReload(staffPageImporters.messages);
 const Documents = lazyWithReload(staffPageImporters.documents);
 const More = lazyWithReload(staffPageImporters.more);
+const HelpPage = lazyWithReload(() => import("./cockpit/pages/Help"));
+const AdminPage = lazyWithReload(() => import("./cockpit/pages/Admin"));
 if (typeof window !== "undefined" && isStaffHost()) {
   for (const load of Object.values(staffPageImporters)) load().catch(() => {});
 }
@@ -247,6 +249,8 @@ const App = () => (
                     <Route path="/documents" element={<Documents />} />
                     <Route path="/more" element={<More />} />
                     <Route path="/team" element={<Team />} />
+                    <Route path="/help" element={<HelpPage />} />
+                    <Route path="/admin" element={<AdminPage />} />
                     <Route path="/team-portal" element={<TeamPortal />} />
                     <Route path="/analytics" element={<Analytics />} />
                     <Route path="/apply" element={<ApplyWithCode />} />

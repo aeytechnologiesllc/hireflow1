@@ -78,8 +78,10 @@
   .brand b { width: 24px; height: 24px; border-radius: 6px; background: var(--ink); color: #0A0D12; display: grid; place-items: center; font-size: 13px; font-weight: 700; }
   .bar .btn { padding: 11px 15px; font-size: 14px; }
   .bar .plain { color: var(--ink-3); font-size: 14px; margin-right: 20px; }
-  .bar .plain .short { display: none; }
-  @media (max-width: 620px) { .bar .plain { margin-right: 14px; font-size: 13.5px; color: var(--ink-2); } .bar .plain .long { display: none; } .bar .plain .short { display: inline; } .bar .btn { padding: 10px 13px; font-size: 13.5px; } }
+  .bar .plain .short, .bar .btn .short { display: none; }
+  .bar > span { display: inline-flex; align-items: center; white-space: nowrap; }
+  @media (max-width: 620px) { .bar .plain { margin-right: 14px; font-size: 13.5px; color: var(--ink-2); } .bar .plain .long, .bar .btn .long { display: none; } .bar .plain .short, .bar .btn .short { display: inline; } .bar .btn { padding: 10px 13px; font-size: 13.5px; } }
+  @media (max-width: 380px) { .bar .plain { margin-right: 10px; font-size: 13px; } .bar .btn { padding: 9px 11px; font-size: 13px; } .bar .brand { font-size: 15px; } }
 
   /* where you are, and where she is: two quiet labels on the globe */
   .pin { position: absolute; left: 0; top: 0; z-index: 3; pointer-events: none; display: flex; align-items: center; gap: 9px; font: 500 12.5px/1 "Geist", sans-serif; letter-spacing: .02em; color: var(--ink); white-space: nowrap; opacity: 0; transition: opacity .6s ease; will-change: transform; }
@@ -263,7 +265,7 @@
 
       <div class="bar">
         <a class="brand" href="#night"><b>H</b>HireFlow</a>
-        <span><a class="plain" id="jobLink" href="/careers"><span class="long">Looking for a job?</span><span class="short">Jobs</span></a><a class="btn solid" href="https://staff.hireflownow.com/auth" id="signIn">Sign in</a></span>
+        <span><a class="plain" id="jobLink" href="/careers"><span class="long">Looking for a job?</span><span class="short">Jobs</span></a><a class="plain" href="https://staff.hireflownow.com/auth" id="signIn">Sign in</a><a class="btn solid" href="https://staff.hireflownow.com/auth?mode=signup" id="startFree"><span class="long">Start hiring free</span><span class="short">Start free</span></a></span>
       </div>
 
       <div class="hero">

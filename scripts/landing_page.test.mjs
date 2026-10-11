@@ -66,14 +66,16 @@ check("its own address, title and description", /<link rel="canonical" href="htt
 check("its own share picture (HireFlow's), large", /<meta property="og:image" content="https:\/\/hireflownow\.com\/share\/hireflow\.jpg">/.test(page) && /<meta name="twitter:card" content="summary_large_image">/.test(page));
 check("for support teams in general (not sweepstakes-only)", /<span class="tag gold">Hiring remote chat support<\/span>/.test(page) && /For any team hiring remote chat agents and team leaders\./.test(page) && !/For sweepstakes support teams/.test(page));
 check("…with sweepstakes as the highlight", /<span class="tag">Sweepstakes &amp; social casino<\/span>/.test(page) && /Made by an operator, for operators\./.test(page));
-check("an applicant who lands here finds the open roles, in the bar (on a phone too) and the footer", /<a class="plain" id="jobLink" href="\/careers"><span class="long">Looking for a job\?<\/span><span class="short">Jobs<\/span><\/a>/.test(page) && /\.bar \.plain \.long \{ display: none; \} \.bar \.plain \.short \{ display: inline; \}/.test(page) && /<a href="\/careers">Open jobs<\/a>/.test(page));
+check("an applicant who lands here finds the open roles, in the bar (on a phone too) and the footer", /<a class="plain" id="jobLink" href="\/careers"><span class="long">Looking for a job\?<\/span><span class="short">Jobs<\/span><\/a>/.test(page) && /\.bar \.plain \.long, \.bar \.btn \.long \{ display: none; \} \.bar \.plain \.short, \.bar \.btn \.short \{ display: inline; \}/.test(page) && /<a href="\/careers">Open jobs<\/a>/.test(page));
 check("no near-black button slab on the light section", /\.end \.btn\.solid \{ background: #8A6420;/.test(page));
 check("…and one already signed in here is offered their applications", /localStorage\.getItem\("sb-yqklrkpptnhubsnijqze-auth-token"\)/.test(page) && /jobLink\.setAttribute\("href", "\/applications"\)/.test(page));
 check("the three numbers are the real ones, and the story says it is a story", /<b>153<\/b>/.test(page) && /<b>71<\/b>/.test(page) && /<b>3<\/b>/.test(page) && /Maria, Jun and Ana are not real applicants/.test(page));
 check("no mock-up leftovers", !/mock-up|Mock-up|__LAND__|Post a role/.test(page));
 // The owner, 2026-10-10: he could not find a way to sign in once "Get early access"
 // took the bar's button; there is no early-access offer.
-check("the bar's button is Sign in, to the hiring team's sign-in", /<a class="btn solid" href="https:\/\/staff\.hireflownow\.com\/auth" id="signIn">Sign in<\/a>/.test(page));
+check("the bar has Sign in, to the hiring team's sign-in", /<a class="plain" href="https:\/\/staff\.hireflownow\.com\/auth" id="signIn">Sign in<\/a>/.test(page));
+// The 2026-10-11 mock-ups (#1): a business can make its account.
+check("…and the bar's button is Start hiring free, opening the sign-up tab", /<a class="btn solid" href="https:\/\/staff\.hireflownow\.com\/auth\?mode=signup" id="startFree"><span class="long">Start hiring free<\/span><span class="short">Start free<\/span><\/a>/.test(page));
 check("no early-access wording or buttons anywhere", !/early access|data-cta/i.test(page));
 check("Privacy, Terms and Team sign in are linked", /<a href="\/privacy">Privacy<\/a>/.test(page) && /<a href="\/terms">Terms<\/a>/.test(page) && /href="https:\/\/staff\.hireflownow\.com\/auth">Team sign in<\/a>/.test(page));
 check("nothing moves forever (docs: no endless animations)", !/infinite/.test(page));

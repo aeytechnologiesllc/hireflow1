@@ -66,6 +66,14 @@ console.log("\nThe plan every applicant gets\n");
   const lead = G.interviewPlanFor("team_lead");
   const general = G.interviewPlanFor("support");
   check("a team lead job gets the team lead plan; anything else the general one", lead.family === "team_lead" && general.family === "general" && G.interviewPlanFor(null).family === "general" && G.interviewPlanFor(undefined).family === "general");
+  // The owner, 2026-10-11: other businesses get "Same script, no number".
+  const words = (plan) => JSON.stringify(plan);
+  const home = G.interviewPlanFor("team_lead", { homeBusiness: true });
+  const other = G.interviewPlanFor("team_lead", { homeBusiness: false });
+  check("the home business's team-lead script still names its six agents, word for word", words(home) === words(lead) && /You also lead six agents\./.test(words(home)) && /alone on a shift with six agents\?/.test(words(home)));
+  check("…another business gets the same script without the number", !/six agents/.test(words(other)) && /You also lead the agents on your shift\./.test(words(other)) && /alone on a shift with the team\?/.test(words(other)));
+  check("…and nothing else in it changes", words(other).replace(/the agents on your shift/g, "six agents").replace(/with the team\?/g, "with six agents?") === words(home));
+  check("…and the general plan is the same for every business", words(G.interviewPlanFor("support", { homeBusiness: false })) === words(general));
   for (const [name, plan] of [["team lead", lead], ["general", general]]) {
     const all = [plan.opener, ...plan.core, ...plan.close];
     check(`${name}: opens with the owner's question, in his softer words ("what makes you a good candidate for this role")`, plan.opener.question === "To start, what makes you a good candidate for this role?" && !/Why should we hire you/.test(show(plan)));
@@ -326,7 +334,7 @@ console.log("\nWhere it is kept, and where it shows\n");
   check("each way it can fail has plain words", ["ai_unavailable", "nothing_yet", "rate_limited", "not_deployed", "failed"].every((k) => new RegExp(`${k}: "[A-Z]`).test(hook)));
 
   const dialog = await read("src/cockpit/components/InterviewGuideDialog.tsx");
-  check("the plan shows without any call; the personal part is asked for with one button", /interviewPlanFor\(record\?\.family\)/.test(dialog) && dialog.includes("data-guide-write") && /Write \{first\}'s questions/.test(dialog));
+  check("the plan shows without any call; the personal part is asked for with one button", /interviewPlanFor\(record\?\.family, \{ homeBusiness \}\)/.test(dialog) && dialog.includes("data-guide-write") && /Write \{first\}'s questions/.test(dialog));
   check("the applicant is told nothing: the card says so", /\{first\} never sees them/.test(dialog));
   check("nothing is folded away: no collapsible, no accordion", !/Collapsible|Accordion|aria-expanded/.test(dialog));
   check("the screen never swaps one plan for another while it loads", /\{isLoading \? \(/.test(dialog) && dialog.includes("data-guide-loading"));
@@ -541,7 +549,7 @@ console.log("\nThe owner's own changes to a job's questions (2026-10-09)\n");
   check("the function reads the job's changes itself, by the job it took from the application", /admin\.from\("interview_plans"\)\.select\("edits"\)\.eq\("job_id", jobId\)\.maybeSingle\(\)/.test(fn) && /planEdits: \(planRow\.data as \{ edits\?: unknown \} \| null\)\?\.edits \?\? null,/.test(fn));
 
   const dialog = code(await read("src/cockpit/components/InterviewGuideDialog.tsx"));
-  check("the guide shows the job's own plan: the plan as written with the changes laid over it", /const basePlan = useMemo\(\(\) => interviewPlanFor\(record\?\.family\), \[record\?\.family\]\);\s*const plan = useMemo\(\(\) => applyPlanEdits\(basePlan, record\?\.planEdits\), \[basePlan, record\?\.planEdits\]\);/.test(dialog));
+  check("the guide shows the job's own plan: the plan as written with the changes laid over it", /const basePlan = useMemo\(\(\) => interviewPlanFor\(record\?\.family, \{ homeBusiness \}\), \[record\?\.family, homeBusiness\]\);\s*const plan = useMemo\(\(\) => applyPlanEdits\(basePlan, record\?\.planEdits\), \[basePlan, record\?\.planEdits\]\);/.test(dialog));
   check("'Edit questions' opens the editor on a copy; nothing changes until Save", /setDraft\(record\?\.planEdits \?\? NO_PLAN_EDITS\);/.test(dialog) && dialog.includes("data-guide-edit") && /Nothing changes until you save\./.test(dialog) && (dialog.match(/savePlan\(/g) ?? []).length === 1);
   check("the opener can be reworded, not removed; the others can be taken out and put back", /<QuestionEditor id=\{base\.opener\.id\} base=\{base\} edits=\{edits\} removable=\{false\}/.test(dialog) && dialog.includes("data-plan-remove") && dialog.includes("data-plan-back") && /Do not ask this one/.test(dialog));
   check("'Back to the original questions' takes two presses", /resetArmed \? void savePlanEdits\(null\) : setResetArmed\(true\)/.test(dialog) && /Yes, back to the original/.test(dialog));

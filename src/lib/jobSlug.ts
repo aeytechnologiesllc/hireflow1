@@ -36,6 +36,8 @@ export const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
  */
 export const ROUTE_SEGMENTS: readonly string[] = [
   "__preview",
+  // The platform admin's page and Help (2026-10-11).
+  "admin",
   "analytics",
   "applicants",
   "applications",
@@ -49,6 +51,7 @@ export const ROUTE_SEGMENTS: readonly string[] = [
   "developer",
   "documents",
   "flow-lab",
+  "help",
   "interviews",
   "job",
   "jobs",
@@ -96,10 +99,8 @@ export const SITE_PATHS: readonly string[] = [
  *  them first and break when that page arrives. */
 export const HELD_BACK: readonly string[] = [
   "about",
-  "admin",
   "careers",
   "contact",
-  "help",
   "home",
   "login",
   "logout",

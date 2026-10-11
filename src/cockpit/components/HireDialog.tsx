@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Lock, X } from "lucide-react";
 import { toast } from "sonner";
 import { useProfile } from "@/hooks/useProfile";
+import { requestLocks, useBusinessStanding } from "@/hooks/useBusinessStanding";
 import { DUE_CHOICES, ID_DELETE_HOURS_AFTER_OPENED, REQUEST_KINDS, SIGN_OFFER_LINE, todoLine } from "@/lib/documentRequests";
 import { addDays, dayOf, longDate } from "../lib/offerLetter";
 import { useApplicantRequests, type NewRequest } from "../hooks/useApplicantRequests";
@@ -57,6 +58,12 @@ export function HireDialog({
     return map;
   }, [existing]);
 
+  // Before HireFlow approves the business, ID papers are locked (the
+  // database refuses them, and used to take the payment email down with
+  // them); a paused business can ask for nothing (the 2026-10-11 mock-ups, #4).
+  const { idsLocked, allLocked } = requestLocks(useBusinessStanding(open));
+  const isLocked = (key: string) => allLocked || (idsLocked && !!REQUEST_KINDS.find((k) => k.key === key)?.idPaper);
+
   const [picked, setPicked] = useState<string[]>(DEFAULT_KINDS);
   const [dueDays, setDueDays] = useState<number>(5);
   const [locked, setLocked] = useState(false);
@@ -69,6 +76,12 @@ export function HireDialog({
     }
   }, [open]);
 
+  // The standing can arrive after the dialog opened: drop what it locks.
+  useEffect(() => {
+    if (idsLocked || allLocked) setPicked((now) => now.filter((key) => !isLocked(key)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsLocked, allLocked]);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
@@ -80,7 +93,7 @@ export function HireDialog({
 
   if (!open) return null;
 
-  const items: NewRequest[] = REQUEST_KINDS.filter((k) => picked.includes(k.key) && !already.has(k.key)).map((k) => ({ documentType: k.key, ask: k.ask }));
+  const items: NewRequest[] = REQUEST_KINDS.filter((k) => picked.includes(k.key) && !already.has(k.key) && !isLocked(k.key)).map((k) => ({ documentType: k.key, ask: k.ask }));
   const dueDate = addDays(today, dueDays);
   const offerUnsigned = offer?.kind === "unsigned";
 
@@ -162,25 +175,41 @@ export function HireDialog({
               </legend>
               {REQUEST_KINDS.map((kind) => {
                 const done = already.get(kind.key);
-                const on = !done && picked.includes(kind.key);
+                const lockedKind = !done && isLocked(kind.key);
+                const on = !done && !lockedKind && picked.includes(kind.key);
                 return (
                   <label
                     key={kind.key}
                     htmlFor={`ck-hire-${kind.key}`}
-                    className={`flex items-center gap-3 rounded-[12px] border px-3 py-2 transition-colors ${done ? "cursor-default opacity-60" : "cursor-pointer"}`}
+                    className={`flex items-center gap-3 rounded-[12px] border px-3 py-2 transition-colors ${done || lockedKind ? "cursor-default opacity-60" : "cursor-pointer"}`}
                     style={{ borderColor: on ? "var(--jade)" : "var(--line)", background: on ? "var(--jade-soft)" : "transparent" }}
                     data-hire-kind={kind.key}
+                    data-hire-kind-locked={lockedKind ? "true" : undefined}
                   >
-                    <input id={`ck-hire-${kind.key}`} type="checkbox" className="h-4 w-4 shrink-0 accent-[var(--jade)]" checked={on} disabled={busy || !!done} onChange={() => toggle(kind.key)} />
+                    <input id={`ck-hire-${kind.key}`} type="checkbox" className="h-4 w-4 shrink-0 accent-[var(--jade)]" checked={on} disabled={busy || !!done || lockedKind} onChange={() => toggle(kind.key)} />
                     <span className="min-w-0 flex-1 text-[14px] font-medium" style={{ color: "var(--hf-text)" }}>
                       {kind.label}
                     </span>
-                    <span className="shrink-0 text-[11.5px]" style={{ color: "var(--ink-3)" }}>
-                      {done ?? (kind.key === "payment_email" ? "Wise or PayPal" : kind.answer === "text" ? "typed" : "photo")}
-                    </span>
+                    {lockedKind ? (
+                      <span className="inline-flex shrink-0 items-center gap-1 text-[11.5px]" style={{ color: "var(--hf-gold)" }}>
+                        <Lock className="h-3 w-3" aria-hidden />
+                        {allLocked ? "paused" : "after approval"}
+                      </span>
+                    ) : (
+                      <span className="shrink-0 text-[11.5px]" style={{ color: "var(--ink-3)" }}>
+                        {done ?? (kind.key === "payment_email" ? "Wise or PayPal" : kind.answer === "text" ? "typed" : "photo")}
+                      </span>
+                    )}
                   </label>
                 );
               })}
+              {(idsLocked || allLocked) && (
+                <p className="rounded-[12px] px-3 py-2.5 text-[13px] leading-snug" style={{ background: "var(--amber-bg)", color: "var(--amber-fg)" }} data-hire-approval-note>
+                  {allLocked
+                    ? "Your business is paused, so nothing can be asked for right now. Open Help to message HireFlow."
+                    : `ID papers open once HireFlow approves ${company || "your business"}, usually within a day. You can ask for them later from ${first}'s page.`}
+                </p>
+              )}
             </fieldset>
 
             <div>

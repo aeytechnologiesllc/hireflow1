@@ -202,9 +202,13 @@ Deno.serve(async (req) => {
       // written is still a true list of questions not to repeat.
       admin.from("interview_plans").select("edits").eq("job_id", jobId).maybeSingle(),
     ]);
+    // The home business's team-lead script names its own numbers; another
+    // business's says the same without them. Unknown: the home business's.
+    const { data: page } = await admin.from("business_pages").select("home_alias").eq("employer_id", (jobRow as { employer_id?: string }).employer_id ?? "").maybeSingle();
     const record: GuideRecord = {
       job,
       family: inferJobFamily(job.title, job.description),
+      homeBusiness: page ? (page as { home_alias?: boolean }).home_alias === true : undefined,
       notes: parseNotes((application as { notes?: unknown }).notes),
       interview,
       practiceLines: practice.filter((t) => t.role === "user").map((t) => t.content),

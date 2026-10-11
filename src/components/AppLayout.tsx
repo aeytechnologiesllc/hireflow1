@@ -10,7 +10,6 @@ import AppHeader from "./AppHeader";
 import CockpitShell from "@/cockpit/Shell";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 
-import EmployerWelcome from "./EmployerWelcome";
 import CandidateOnboardingWizard from "./candidate/CandidateOnboardingWizard";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { GlobalNotificationToasts } from "@/components/GlobalNotificationToasts";
@@ -34,6 +33,9 @@ const TEAM_ALLOWED_PATH_PREFIXES = [
   "/profile",
   "/settings",
   "/notifications",
+  // Help: a team member writes to HireFlow for their business (the "account
+  // paused" alert links here too).
+  "/help",
 ];
 
 function isAllowedTeamPath(pathname: string) {
@@ -74,6 +76,15 @@ export default function AppLayout() {
   const [searchParams] = useSearchParams();
   const { user, loading, role, signOut, isTeamMember } = useAuth();
   const { teamAccess, isLoading: subLoading, error: subError, completeOnboarding, needsOnboarding: hookNeedsOnboarding } = useSubscription();
+  // A new business lands on the Dashboard's first steps (the 2026-10-11
+  // mock-ups, #2), not a separate welcome screen: the flag that showed that
+  // screen is simply marked done, once.
+  const onboardingMarked = useRef(false);
+  useEffect(() => {
+    if (!hookNeedsOnboarding || role !== "employer" || onboardingMarked.current) return;
+    onboardingMarked.current = true;
+    completeOnboarding.mutate();
+  }, [hookNeedsOnboarding, role, completeOnboarding]);
   const isMobile = useIsMobile();
   usePushNotifications(); // Auto-registers device for push notifications in Natively
   
@@ -234,11 +245,6 @@ export default function AppLayout() {
     location.pathname === "/jobs/create" &&
     (searchParams.get("guestDraft") === "1" ||
       (typeof window !== "undefined" && Boolean(window.localStorage.getItem("guestJobData"))));
-  const isGuestDraftHandoff =
-    !isCandidateRoute &&
-    location.pathname === "/jobs/create" &&
-    typeof window !== "undefined" &&
-    (isGuestDraftSignal || window.sessionStorage.getItem("guestDraftOnboardingBypass") === "1");
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -315,10 +321,6 @@ export default function AppLayout() {
     return <AuthLoadingScreen variant={loadingVariant} />;
   }
 
-  // Show onboarding wizard for employers only
-  if (hookNeedsOnboarding && !isGuestDraftHandoff && role === "employer") {
-    return <EmployerWelcome />;
-  }
 
   if (hasRevokedTeamAccess) {
     return (

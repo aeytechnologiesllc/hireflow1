@@ -149,12 +149,26 @@ export function useSendRequests() {
 
       // From here the requests exist; telling them must not fail the send.
       const what = items.length === 1 ? requestTitle({ document_type: items[0].documentType, custom_document_name: items[0].customName }) : `${items.length} documents`;
+      // Who is asking, by the job's own business (a team member's profile has
+      // no business name), so an applicant in two hiring processes can tell.
+      let asker: { company: string | null; jobTitle: string | null } = { company: null, jobTitle: null };
       try {
+        const { data: app } = await supabase.from("applications").select("jobs(title, employer_id)").eq("id", applicationId).maybeSingle();
+        const job = (app as { jobs?: { title?: string | null; employer_id?: string | null } | null } | null)?.jobs ?? null;
+        const { data: brand } = job?.employer_id
+          ? await supabase.from("employer_public_branding").select("company_name").eq("user_id", job.employer_id).maybeSingle()
+          : { data: null };
+        asker = { company: (brand?.company_name ?? "").trim() || null, jobTitle: (job?.title ?? "").trim() || null };
+      } catch {
+        // Said without the names, then.
+      }
+      try {
+        const ask = items.length === 1 ? `your ${what.toLowerCase()}` : what;
         await supabase.from("notifications").insert({
           user_id: candidateId,
           type: "system",
-          title: "Documents requested",
-          message: items.length === 1 ? `Please send your ${what.toLowerCase()}.` : `Please send ${what}.`,
+          title: asker.company ? `Documents requested by ${asker.company}` : "Documents requested",
+          message: asker.company ? `${asker.company} asks you to send ${ask}${asker.jobTitle ? ` for ${asker.jobTitle}` : ""}.` : `Please send ${ask}.`,
           link: "/my-documents",
           is_read: false,
         } as never);

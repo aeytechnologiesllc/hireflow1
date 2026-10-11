@@ -30,6 +30,8 @@ interface DocumentRequestCardProps {
   onApprove?: (request: DocumentRequestWithDetails) => void;
   onReject?: (request: DocumentRequestWithDetails) => void;
   onDelete?: (request: DocumentRequestWithDetails) => void;
+  /** Which business and job asks for it ("Lucky Star Support · Team lead"), on the applicant's side. */
+  askedBy?: string | null;
 }
 
 // Status labels vary by role - candidates see "Completed" after uploading
@@ -84,6 +86,7 @@ export function DocumentRequestCard({
   onApprove,
   onReject,
   onDelete,
+  askedBy,
 }: DocumentRequestCardProps) {
   const status = getStatusConfig(request.status, isEmployer);
   const StatusIcon = status.icon;
@@ -124,6 +127,11 @@ export function DocumentRequestCard({
                 <p className="font-medium text-foreground text-sm sm:text-base truncate">
                   {requestTitle(request)}
                 </p>
+                {askedBy && (
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground" data-request-asked-by>
+                    <span className="font-medium text-foreground/80">{askedBy}</span>
+                  </p>
+                )}
                 
                 {/* Badges row - separate from title */}
                 <div className="flex flex-wrap items-center gap-1.5 mt-1">

@@ -9,6 +9,8 @@ import {
   Users,
   MessageSquare,
   X,
+  Check,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import { clearDraft } from "@/lib/avaEngine/draft";
@@ -19,6 +21,9 @@ import { useUpdateProfile } from "@/hooks/useProfile";
 import { useSchemaMode } from "@/hooks/useSchemaMode";
 import { useActivityFeed } from "@/hooks/useActivityFeed";
 import { useCareersTraffic, visitsInLast } from "@/hooks/useCareersTraffic";
+import { useOwnBusiness } from "@/hooks/useBusinessPage";
+import { useBusinessStanding } from "@/hooks/useBusinessStanding";
+import { candidateOrigin } from "@/lib/hosts";
 import CkAvatar from "../components/Avatar";
 import { CountUp } from "../components/CountUp";
 import { ActionDialog } from "../components/ActionDialog";
@@ -256,31 +261,95 @@ function SealedRow({
  * becomes one letterhead-style moment: Ava's mark, her voice, one door in.
  * Nothing else on the page competes for the click.
  */
-function FirstJobGuide({ onStart }: { onStart: () => void }) {
-  return (
-    <section
-      className="ck-card ck-reveal flex flex-col items-start gap-5 p-8 text-left md:p-12"
-      style={{ ["--ck-i" as string]: 1, borderTop: "3px solid var(--hf-gold-border)" }}
+/**
+ * A new business's first steps (the 2026-10-11 mock-ups, #2; replaces the
+ * one-button welcome and "Let's post your first job"). Four steps, ticked off
+ * as they go; the first is done already, because signing up made their
+ * careers page. One thing is the big button: post the first job. The ID
+ * note shows only until HireFlow approves the business.
+ */
+function FirstStepsGuide({ onStart, firstName, company }: { onStart: () => void; firstName: string | null; company: string | null }) {
+  const navigate = useNavigate();
+  const { data: own } = useOwnBusiness();
+  const standing = useBusinessStanding();
+  const link = own?.slug ? `${candidateOrigin()}/c/${own.slug}` : null;
+  const copy = async () => {
+    if (!link) return;
+    try {
+      await navigator.clipboard.writeText(link);
+      toast.success("Link copied.");
+    } catch {
+      toast.error("Couldn't copy. Open Settings to see the link.");
+    }
+  };
+  const step = (n: number, done: boolean) => (
+    <span
+      className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[12.5px] font-semibold"
+      style={done ? { background: "var(--jade)", color: "var(--jade-ink, #0d1a14)" } : { background: "var(--surface-2)", color: "var(--hf-text-soft)" }}
+      aria-hidden
     >
-      <span className="ck-seal-breathe">
-        <AvaSeal size={48} />
-      </span>
-      <div className="max-w-[56ch]">
-        <h2
-          className="font-display"
-          style={{ fontSize: "clamp(22px, 2.6vw, 30px)", lineHeight: 1.2, color: "var(--hf-text)", fontWeight: 500 }}
-        >
-          Let&rsquo;s post your first job.
-        </h2>
-        <p className="mt-3 text-[15px] leading-[1.6]" style={{ color: "var(--hf-text-soft)" }}>
-          Tell me who you need and I&rsquo;ll handle the rest — writing the posting, screening every
-          applicant, and sealing the ones worth your time right here.
+      {done ? <Check className="h-3.5 w-3.5" /> : n}
+    </span>
+  );
+  const row = "flex items-center gap-3 rounded-[12px] border px-3.5 py-3";
+  return (
+    <section className="ck-card ck-reveal p-6 md:p-8" style={{ ["--ck-i" as string]: 1 }} data-first-steps>
+      {/* The page's own greeting already says their name. */}
+      <h2 className="font-display" style={{ fontSize: "clamp(24px, 2.8vw, 32px)", lineHeight: 1.15, color: "var(--hf-text)", fontWeight: 500 }}>
+        Let&rsquo;s get {company || "your business"} hiring.
+      </h2>
+      <p className="mt-1.5 text-[15px]" style={{ color: "var(--hf-text-soft)" }}>
+        Welcome to HireFlow{firstName ? `, ${firstName}` : ""}. It takes about five minutes.
+      </p>
+      <ol className="mt-5 flex flex-col gap-2.5">
+        <li className={row} style={{ borderColor: "var(--line)" }} data-first-step="careers">
+          {step(1, true)}
+          <span className="min-w-0 flex-1">
+            <span className="block text-[14.5px] font-semibold" style={{ color: "var(--hf-text)" }}>Your careers page is ready</span>
+            <span className="block truncate text-[12.5px]" style={{ color: "var(--ink-3)" }}>{link ? link.replace(/^https?:\/\//, "") : "Making it now…"}</span>
+          </span>
+          {link && (
+            <button className="ck-btn ck-btn-outline !min-h-8 !px-3 !text-[12.5px]" onClick={() => void copy()}>
+              <Copy className="h-3.5 w-3.5" />
+              Copy link
+            </button>
+          )}
+        </li>
+        <li className={row} style={{ borderColor: "color-mix(in srgb, var(--jade) 45%, transparent)", background: "var(--jade-soft)" }} data-first-step="job">
+          {step(2, false)}
+          <span className="min-w-0 flex-1">
+            <span className="block text-[14.5px] font-semibold" style={{ color: "var(--hf-text)" }}>Post your first job</span>
+            <span className="block text-[12.5px]" style={{ color: "var(--ink-3)" }}>Free. Ava sets up the questions, the skills check and the chat practice.</span>
+          </span>
+          <button className="ck-btn ck-btn-primary !min-h-9 !px-4 !text-[13.5px]" onClick={onStart} data-first-step-start>
+            Post a job
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </li>
+        <li className={row} style={{ borderColor: "var(--line)" }} data-first-step="share">
+          {step(3, false)}
+          <span className="min-w-0 flex-1">
+            <span className="block text-[14.5px] font-semibold" style={{ color: "var(--hf-text)" }}>Share the job</span>
+            <span className="block text-[12.5px]" style={{ color: "var(--ink-3)" }}>Copy the full post and paste it on Facebook groups or job boards.</span>
+          </span>
+          <span className="shrink-0 text-[12px]" style={{ color: "var(--ink-3)" }}>After step 2</span>
+        </li>
+        <li className={row} style={{ borderColor: "var(--line)" }} data-first-step="team">
+          {step(4, false)}
+          <span className="min-w-0 flex-1">
+            <span className="block text-[14.5px] font-semibold" style={{ color: "var(--hf-text)" }}>Invite your team</span>
+            <span className="block text-[12.5px]" style={{ color: "var(--ink-3)" }}>Optional. They see only the jobs you give them.</span>
+          </span>
+          <button className="ck-btn ck-btn-outline !min-h-8 !px-3 !text-[12.5px]" onClick={() => navigate("/team")}>
+            Invite
+          </button>
+        </li>
+      </ol>
+      {standing?.status === "new" && (
+        <p className="mt-4 rounded-[12px] px-3.5 py-2.5 text-[13px] leading-snug" style={{ background: "var(--amber-bg)", color: "var(--amber-fg)" }} data-first-steps-approval>
+          Asking applicants for ID papers opens once HireFlow approves your business, usually within a day. Everything else works now.
         </p>
-      </div>
-      <button className="ck-btn ck-btn-primary !px-6 !py-3 !text-[15px]" onClick={onStart}>
-        Post your first job
-        <ChevronRight className="h-4 w-4" />
-      </button>
+      )}
     </section>
   );
 }
@@ -839,7 +908,7 @@ export default function CockpitDashboard() {
 
       {hasNoJobs ? (
         /* ── The very first moment. One door in, nothing else asking. ── */
-        <FirstJobGuide onStart={startRole} />
+        <FirstStepsGuide onStart={startRole} firstName={who || null} company={(profile?.company_name ?? "").trim() || null} />
       ) : (
         <>
           {/* ── The numbers, always. 2026-10-05: with a live role and nobody in

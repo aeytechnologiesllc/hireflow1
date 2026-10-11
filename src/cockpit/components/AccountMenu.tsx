@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { Settings as SettingsIcon, User as UserIcon, LogOut } from "lucide-react";
+import { Settings as SettingsIcon, User as UserIcon, LogOut, Users, HelpCircle, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -11,11 +11,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
+import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import { useCockpitAccount } from "../hooks/useCockpitData";
 
 /**
  * The cockpit account menu — wraps any trigger (the sidebar account button or
- * the top-bar chip) and exposes Settings, Profile and Logout. Like every
+ * the top-bar chip) and exposes Settings, Profile, Team (owners), Help,
+ * Admin (the platform admin only) and Logout. Like every
  * floating panel in the system it sits on --surface, a step above the page
  * ground, so it never lands the same colour as what is behind it in Night.
  */
@@ -29,7 +31,9 @@ export function AccountMenu({
   side?: "top" | "bottom" | "left" | "right";
 }) {
   const navigate = useNavigate();
-  const { signOut } = useAuth();
+  const { signOut, role, isTeamMember } = useAuth();
+  const admin = usePlatformAdmin();
+  const owner = role === "employer" && !isTeamMember;
   const { account } = useCockpitAccount();
 
   const handleLogout = async () => {
@@ -83,6 +87,32 @@ export function AccountMenu({
           <UserIcon className="h-[18px] w-[18px]" style={{ color: "var(--hf-text-muted)" }} />
           Profile
         </DropdownMenuItem>
+        {owner && (
+          <DropdownMenuItem
+            onSelect={() => navigate("/team")}
+            className="cursor-pointer gap-2.5 rounded-lg px-2.5 py-2.5 text-[14px] focus:bg-[var(--surface-2)]"
+          >
+            <Users className="h-[18px] w-[18px]" style={{ color: "var(--hf-text-muted)" }} />
+            Team
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem
+          onSelect={() => navigate("/help")}
+          className="cursor-pointer gap-2.5 rounded-lg px-2.5 py-2.5 text-[14px] focus:bg-[var(--surface-2)]"
+        >
+          <HelpCircle className="h-[18px] w-[18px]" style={{ color: "var(--hf-text-muted)" }} />
+          Help
+        </DropdownMenuItem>
+        {admin && (
+          <DropdownMenuItem
+            onSelect={() => navigate("/admin")}
+            className="cursor-pointer gap-2.5 rounded-lg px-2.5 py-2.5 text-[14px] focus:bg-[var(--surface-2)]"
+            data-admin-link
+          >
+            <ShieldCheck className="h-[18px] w-[18px]" style={{ color: "var(--hf-text-muted)" }} />
+            Admin
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator style={{ background: "var(--hf-border-strong)" }} />
         <DropdownMenuItem
           onSelect={handleLogout}

@@ -223,7 +223,10 @@ export const PRIVACY_POLICY: LegalDocument = {
     {
       id: "contact",
       title: "How to reach us",
-      body: ["Message us in your account: open Messages and write to the hiring team. We do not read replies to the emails the site sends."],
+      body: [
+        "Message us in your account: open Messages and write to the hiring team. We do not read replies to the emails the site sends.",
+        "To reach us directly: applicants can report a job from its page or their application; a hiring team can open Help in its account.",
+      ],
     },
   ],
 };
@@ -286,8 +289,13 @@ export const TERMS: LegalDocument = {
             "Use applicants' information only to hire for the job they applied to, keep it confidential, and act on a request to delete it.",
             "You are responsible for the people you invite to your team and for what they do here.",
             "Documents you send, such as offer letters, are yours. The site gives you the tool, not legal advice.",
+            "Never charge applicants. You may not ask an applicant for money for anything: applying, training, equipment or papers.",
+            "You can ask applicants for ID papers once we approve your business. ID papers are deleted 24 hours after you first open them.",
+            "One account is one business. Team members join only by your invitation.",
           ],
         },
+        { sub: "Reports and pausing" },
+        "Applicants can report a job. We read every report, and the business never learns who sent it. We may pause a business while we look into a report; its jobs close until it is open again.",
         { sub: "Price" },
         "Using the site is free at the moment. If that changes we will tell you first, and nothing will be charged without your agreement.",
       ],
@@ -366,7 +374,10 @@ export const TERMS: LegalDocument = {
     {
       id: "contact",
       title: "How to reach us",
-      body: ["Message us in your account: open Messages and write to the hiring team."],
+      body: [
+        "Message us in your account: open Messages and write to the hiring team.",
+        "To reach us directly: applicants can report a job from its page or their application; a hiring team can open Help in its account.",
+      ],
     },
   ],
 };

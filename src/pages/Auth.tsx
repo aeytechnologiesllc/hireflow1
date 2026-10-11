@@ -17,6 +17,7 @@ import { HeroBackground } from "@/components/ava/HeroBackground";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { GOOGLE_AUTH_ENABLED } from "@/lib/googleAuth";
 import { isStaffHost } from "@/lib/hosts";
+import { cleanAddress } from "@/components/business/CareersPageCard";
 
 // Google OAuth isn't enabled on the Supabase backend yet (authorize endpoint
 // returns 400) — keep the UI hidden until credentials exist. Flip
@@ -43,6 +44,13 @@ const isWebView = () => {
 const emailSchema = z.string().email("Please enter a valid email address");
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
 const nameSchema = z.string().min(2, "Name must be at least 2 characters");
+
+/** The careers address a business name would make (as slugify_business does),
+ *  shown while they type (slugify_business makes the same). The real one
+ *  can get a number if it is taken. */
+function careersAddressPreview(name: string): string {
+  return cleanAddress(name).replace(/-+$/, "");
+}
 
 // Real-time password requirements component
 const PasswordRequirements = ({ password }: { password: string }) => {
@@ -75,7 +83,7 @@ const PasswordRequirements = ({ password }: { password: string }) => {
 export default function Auth() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { signIn, signInWithGoogle, user, loading: authLoading } = useAuth();
+  const { signIn, signUp, signInWithGoogle, user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const inWebView = isWebView();
@@ -102,6 +110,15 @@ export default function Auth() {
   // Sign In state
   const [signInEmail, setSignInEmail] = useState("");
   const [signInPassword, setSignInPassword] = useState("");
+  // A business can make its account here (the 2026-10-11 mock-ups, #1).
+  // ?mode=signup opens on it: the front page's "Start hiring free".
+  const [authMode, setAuthMode] = useState<"signin" | "signup">(() => (searchParams.get("mode") === "signup" ? "signup" : "signin"));
+  const [signUpName, setSignUpName] = useState("");
+  const [signUpCompany, setSignUpCompany] = useState("");
+  const [signUpEmail, setSignUpEmail] = useState("");
+  const [signUpPassword, setSignUpPassword] = useState("");
+  const [showSignUpPassword, setShowSignUpPassword] = useState(false);
+  const [signUpAgreed, setSignUpAgreed] = useState(false);
 
   // Sign Up state
 
@@ -278,6 +295,44 @@ export default function Auth() {
     }
 
     setIsLoading(false);
+  };
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      nameSchema.parse(signUpName.trim());
+      z.string().trim().min(2, "Add your business name").parse(signUpCompany);
+      emailSchema.parse(signUpEmail.trim());
+      passwordSchema.parse(signUpPassword);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        toast({ variant: "warning", description: err.errors[0].message });
+        return;
+      }
+    }
+    if (!signUpAgreed) {
+      toast({ variant: "warning", description: "Please agree to the Terms first." });
+      return;
+    }
+    setIsLoading(true);
+    const { error, needsConfirmation } = await signUp(signUpEmail.trim(), signUpPassword, signUpName.trim(), "employer", signUpCompany.trim());
+    setIsLoading(false);
+    if (error) {
+      if (/already registered|already exists|already been registered/i.test(error.message)) {
+        toast({ variant: "warning", title: "This email already has an account", description: "Sign in instead, or use another email for your business." });
+        setSignInEmail(signUpEmail.trim());
+        setAuthMode("signin");
+        return;
+      }
+      toast({ variant: "warning", title: "Couldn't create the account", description: error.message });
+      return;
+    }
+    if (needsConfirmation) {
+      toast({ title: "Check your email", description: "We sent you a link. Open it to finish making your account." });
+      return;
+    }
+    toast({ title: `Welcome to HireFlow, ${signUpName.trim().split(/\s+/)[0]}!`, duration: 1800 });
+    await routeAuthenticatedUser();
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {
@@ -752,6 +807,23 @@ export default function Auth() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
               >
+                <div role="tablist" aria-label="Sign in or create an account" className="mb-4 flex gap-[3px] rounded-[10px] bg-muted/50 p-[3px]" data-auth-tabs>
+                  {(["signin", "signup"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      role="tab"
+                      aria-selected={authMode === mode}
+                      onClick={() => setAuthMode(mode)}
+                      className={`flex-1 rounded-[8px] py-2 text-sm transition-colors ${authMode === mode ? "bg-card font-semibold text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                      data-auth-tab={mode}
+                    >
+                      {mode === "signin" ? "Sign in" : "Create account"}
+                    </button>
+                  ))}
+                </div>
+                {authMode === "signin" ? (
+                  <>
                 <div className="mb-3 sm:mb-6">
                   <h2 className="text-2xl font-bold text-foreground">Welcome back</h2>
                   <p className="text-muted-foreground text-sm mt-1 hidden sm:block">
@@ -822,6 +894,75 @@ export default function Auth() {
                     )}
                   </Button>
                 </form>
+                  </>
+                ) : (
+                  <>
+                <div className="mb-3 sm:mb-5">
+                  <h2 className="text-2xl font-bold text-foreground">Start hiring</h2>
+                  <p className="text-muted-foreground text-sm mt-1">Your first job is free. No card needed.</p>
+                </div>
+                <form onSubmit={handleSignUp} className="space-y-3.5" data-signup-form>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="signup-name" className="text-foreground">Your name</Label>
+                    <Input id="signup-name" autoComplete="name" value={signUpName} onChange={(e) => setSignUpName(e.target.value)} onFocus={scrollFormIntoView} required className="bg-muted/50 border-border focus:border-primary h-11" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="signup-company" className="text-foreground">Business name</Label>
+                    <Input id="signup-company" autoComplete="organization" value={signUpCompany} onChange={(e) => setSignUpCompany(e.target.value)} onFocus={scrollFormIntoView} required maxLength={80} className="bg-muted/50 border-border focus:border-primary h-11" />
+                    {careersAddressPreview(signUpCompany) && (
+                      <p className="text-xs text-muted-foreground" data-signup-address>
+                        Your careers page: <span className="text-primary">hireflownow.com/c/{careersAddressPreview(signUpCompany)}</span>
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="signup-email" className="text-foreground">Email</Label>
+                    <Input id="signup-email" type="email" autoComplete="email" placeholder="you@yourbusiness.com" value={signUpEmail} onChange={(e) => setSignUpEmail(e.target.value)} onFocus={scrollFormIntoView} required className="bg-muted/50 border-border focus:border-primary h-11" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="signup-password" className="text-foreground">Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="signup-password"
+                        type={showSignUpPassword ? "text" : "password"}
+                        autoComplete="new-password"
+                        placeholder="At least 6 characters"
+                        value={signUpPassword}
+                        onChange={(e) => setSignUpPassword(e.target.value)}
+                        onFocus={scrollFormIntoView}
+                        required
+                        className="bg-muted/50 border-border focus:border-primary h-11 pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignUpPassword(!showSignUpPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label={showSignUpPassword ? "Hide password" : "Show password"}
+                      >
+                        {showSignUpPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <label className="flex cursor-pointer items-start gap-2.5 pt-1 text-xs leading-relaxed text-muted-foreground" data-signup-agree>
+                    <input type="checkbox" checked={signUpAgreed} onChange={(e) => setSignUpAgreed(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-[hsl(var(--primary))]" />
+                    <span>
+                      I agree to the{" "}
+                      <a href="https://hireflownow.com/terms" target="_blank" rel="noreferrer" className="text-primary hover:underline">Terms</a>. I will never charge applicants anything, and I can ask for ID papers once HireFlow approves my business.
+                    </span>
+                  </label>
+                  <Button type="submit" className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold" disabled={isLoading || !signUpAgreed} data-signup-submit>
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Creating your account...
+                      </>
+                    ) : (
+                      "Create business account"
+                    )}
+                  </Button>
+                </form>
+                  </>
+                )}
               </motion.div>
             )}
 

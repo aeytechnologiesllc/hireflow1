@@ -85,6 +85,8 @@ const STAFF_ONLY = [
   /^\/documents(\/|$)/,
   /^\/more(\/|$)/,
   /^\/team(\/|$)/,
+  /^\/help(\/|$)/,
+  /^\/admin(\/|$)/,
   /^\/team-portal(\/|$)/,
   /^\/analytics(\/|$)/,
   /^\/developer(\/|$)/,

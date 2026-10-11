@@ -67,6 +67,7 @@ interface ApplicationDetails extends Tables<"applications"> {
 // the same resolver the employer create-flow uses, so a step wears one mark
 // throughout the product.
 
+import { SafetyNote } from "@/components/trust/SafetyNote";
 import {
   candidatePhaseDisplayNames,
   phaseActionMessages as terminologyPhaseActionMessages
@@ -931,6 +932,9 @@ export default function CandidateApplicationDetail() {
           </div>
         </div>
         )}
+
+        {/* Stay safe, and report the job (the 2026-10-11 mock-ups, #5). */}
+        {job && <SafetyNote job={{ id: job.id, title: job.title }} />}
       </div>
 
       {/* Document Upload Dialog */}

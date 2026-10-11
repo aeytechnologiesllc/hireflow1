@@ -13,6 +13,7 @@ import { createFixtureSupabaseClient, type FixtureAuthUser, type FixtureRow, typ
 import { buildFixtureRpcHandlers, buildFixtureTables, FIXTURE_SCENARIOS, type FixtureScenario } from "./fixtures";
 import { previewHiring, previewRequests } from "./previewRequests";
 import { previewBusinesses } from "./previewBusinesses";
+import { previewTrustHandlers } from "./previewTrust";
 import {
   APP_QUIZ_ID,
   APP_ZULU_RETAKE_ID,
@@ -1206,6 +1207,7 @@ export function install(params: URLSearchParams): void {
       ...previewNotesHandlers(tables, ROLE_USERS[role], params.get("__previewNotes")),
       ...previewChatHandlers(tables, ROLE_USERS[role], params.get("__previewChats")),
       ...previewRatingHandlers(tables, ROLE_USERS[role], params.get("__previewGuide")),
+      ...previewTrustHandlers(tables, ROLE_USERS[role], params),
     },
   });
   const realtime = liveRealtime(base, tables, params.get("__previewLive"));

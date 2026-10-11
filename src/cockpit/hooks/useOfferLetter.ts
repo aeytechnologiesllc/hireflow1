@@ -159,7 +159,17 @@ export function useSendOfferLetter() {
       }
       try {
         await supabase.from("notifications").insert([
-          { user_id: person.candidateId, title: "Your offer letter", message: "Your offer letter is ready to read and sign.", type: "system" as const, link: "/my-documents" },
+          // Names the business and the job: an applicant can be in two hiring processes.
+          (() => {
+            const from = cleanFields(fields).companyName?.trim();
+            return {
+              user_id: person.candidateId,
+              title: from ? `Your offer letter from ${from}` : "Your offer letter",
+              message: `${from || "The hiring team"} sent you an offer letter${person.jobTitle ? ` for ${person.jobTitle}` : ""}. Read and sign it in My documents.`,
+              type: "system" as const,
+              link: "/my-documents",
+            };
+          })(),
         ]);
       } catch {
         // The email below says the same.

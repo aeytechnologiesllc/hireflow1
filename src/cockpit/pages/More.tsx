@@ -8,25 +8,39 @@ import {
   HelpCircle,
   ChevronRight,
   LogOut,
+  Users,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useCockpitAccount } from "../hooks/useCockpitData";
 import { useInterviewsLeftToday } from "../hooks/useInterviewsLeftToday";
 import { useAuth } from "@/hooks/useAuth";
+import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 
-const ITEMS = [
-  { label: "Interviews", to: "/interviews", icon: CalendarDays },
-  { label: "Documents", to: "/documents", icon: FileText },
-  { label: "Analytics", to: "/analytics", icon: BarChart3 },
-  { label: "Profile", to: "/profile", icon: UserIcon },
-  { label: "Settings", to: "/settings", icon: Settings },
-  { label: "Help", to: "/settings", icon: HelpCircle },
-];
+type Item = { label: string; to: string; icon: typeof CalendarDays };
+
+/** The More list (the 2026-10-11 mock-ups, #8): Team is back for a business
+ *  owner (a new business has no other way to invite anyone), Help opens Help,
+ *  and Admin shows only for the platform admin. */
+function moreItems({ owner, admin }: { owner: boolean; admin: boolean }): Item[] {
+  return [
+    { label: "Interviews", to: "/interviews", icon: CalendarDays },
+    { label: "Documents", to: "/documents", icon: FileText },
+    { label: "Analytics", to: "/analytics", icon: BarChart3 },
+    ...(owner ? [{ label: "Team", to: "/team", icon: Users }] : []),
+    { label: "Profile", to: "/profile", icon: UserIcon },
+    { label: "Settings", to: "/settings", icon: Settings },
+    { label: "Help", to: "/help", icon: HelpCircle },
+    ...(admin ? [{ label: "Admin", to: "/admin", icon: ShieldCheck }] : []),
+  ];
+}
 
 export default function CockpitMore() {
   const navigate = useNavigate();
   const { account } = useCockpitAccount();
-  const { signOut } = useAuth();
+  const { signOut, role, isTeamMember } = useAuth();
+  const admin = usePlatformAdmin();
+  const items = moreItems({ owner: role === "employer" && !isTeamMember, admin });
   const interviewsToday = useInterviewsLeftToday();
 
   const handleLogout = async () => {
@@ -53,7 +67,7 @@ export default function CockpitMore() {
 
       {/* list */}
       <div className="ck-card overflow-hidden">
-        {ITEMS.map((it, i) => (
+        {items.map((it, i) => (
           <button
             key={it.label}
             onClick={() => navigate(it.to)}
