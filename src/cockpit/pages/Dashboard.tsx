@@ -22,7 +22,6 @@ import { useSchemaMode } from "@/hooks/useSchemaMode";
 import { useActivityFeed } from "@/hooks/useActivityFeed";
 import { useCareersTraffic, visitsInLast } from "@/hooks/useCareersTraffic";
 import { useOwnBusiness } from "@/hooks/useBusinessPage";
-import { useBusinessStanding } from "@/hooks/useBusinessStanding";
 import { candidateOrigin } from "@/lib/hosts";
 import CkAvatar from "../components/Avatar";
 import { CountUp } from "../components/CountUp";
@@ -265,13 +264,11 @@ function SealedRow({
  * A new business's first steps (the 2026-10-11 mock-ups, #2; replaces the
  * one-button welcome and "Let's post your first job"). Four steps, ticked off
  * as they go; the first is done already, because signing up made their
- * careers page. One thing is the big button: post the first job. The ID
- * note shows only until HireFlow approves the business.
+ * careers page. One thing is the big button: post the first job.
  */
 function FirstStepsGuide({ onStart, firstName, company }: { onStart: () => void; firstName: string | null; company: string | null }) {
   const navigate = useNavigate();
   const { data: own } = useOwnBusiness();
-  const standing = useBusinessStanding();
   const link = own?.slug ? `${candidateOrigin()}/c/${own.slug}` : null;
   const copy = async () => {
     if (!link) return;
@@ -345,11 +342,6 @@ function FirstStepsGuide({ onStart, firstName, company }: { onStart: () => void;
           </button>
         </li>
       </ol>
-      {standing?.status === "new" && (
-        <p className="mt-4 rounded-[12px] px-3.5 py-2.5 text-[13px] leading-snug" style={{ background: "var(--amber-bg)", color: "var(--amber-fg)" }} data-first-steps-approval>
-          Asking applicants for ID papers opens once HireFlow approves your business, usually within a day. Everything else works now.
-        </p>
-      )}
     </section>
   );
 }

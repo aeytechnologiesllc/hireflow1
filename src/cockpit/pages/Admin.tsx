@@ -14,7 +14,8 @@ import { REPORT_REASONS } from "@/components/trust/ReportJobDialog";
 
 /**
  * Admin (the 2026-10-11 mock-ups, #7): only the platform admin. Every
- * business with Approve / Pause / Open again, the applicants' reports, and
+ * business with Pause / Open again (no approving: every business is open
+ * from sign-up, and three reports pause one by itself), the applicants' reports, and
  * the businesses' Help messages. Each action is the database's own
  * admin_* function, which checks is_platform_admin() again; this page only
  * shows the buttons. Pausing closes the business's live jobs and asks why;
@@ -28,9 +29,9 @@ const TABS: ReadonlyArray<{ key: Tab; label: string }> = [
   { key: "help", label: "Help" },
 ];
 
-const STATUS_WORDS: Record<BusinessStatus, string> = { new: "New", approved: "Approved", suspended: "Paused" };
+const STATUS_WORDS: Record<BusinessStatus, string> = { new: "Open", approved: "Open", suspended: "Paused" };
 const STATUS_STYLE: Record<BusinessStatus, CSSProperties> = {
-  new: { background: "var(--hf-gold-soft)", color: "var(--hf-gold)" },
+  new: { background: "var(--jade-soft)", color: "var(--jade-soft-fg)" },
   approved: { background: "var(--jade-soft)", color: "var(--jade-soft-fg)" },
   suspended: { background: "color-mix(in srgb, var(--hf-danger) 14%, transparent)", color: "var(--hf-danger)" },
 };
@@ -133,7 +134,7 @@ function BusinessesTab({
     try {
       await trustApi.adminSetStatus(b.employer_id, status, reason);
       const name = b.company_name || b.email;
-      toast.success(status === "approved" ? (b.status === "suspended" ? `${name} is open again. Its jobs are back.` : `${name} is approved.`) : status === "suspended" ? `${name} is paused. Its jobs are closed.` : `${name} is back to new.`);
+      toast.success(status === "suspended" ? `${name} is paused. Its jobs are closed.` : `${name} is open again. Its jobs are back.`);
       await queryClient.invalidateQueries({ queryKey: ["admin"] });
     } catch (error) {
       toast.error(trustErrorWords(error, "That didn't go through. Please try again."));
@@ -146,7 +147,8 @@ function BusinessesTab({
   if (query.isError) return <CockpitErrorCard message="We couldn't load the businesses just now." onRetry={query.refetch} />;
   if (query.isLoading) return <Loader2 className="mx-auto h-5 w-5 animate-spin" style={{ color: "var(--hf-text-muted)" }} aria-label="Loading" />;
   const rows = [...(query.data ?? [])].sort((a, b) => {
-    const order: Record<BusinessStatus, number> = { new: 0, suspended: 1, approved: 2 };
+    // Paused first (the ones to look at), then newest.
+    const order: Record<BusinessStatus, number> = { suspended: 0, new: 1, approved: 1 };
     return order[a.status] - order[b.status] || +new Date(b.signed_up_at) - +new Date(a.signed_up_at);
   });
 
@@ -155,7 +157,7 @@ function BusinessesTab({
       <ActionDialog
         open={!!pausing}
         title={`Pause ${pausing?.company_name || pausing?.email || "this business"}?`}
-        description="Its live jobs close and applicants can't apply. It sees why in its bell and can message you in Help. You can open it again any time; its jobs come back."
+        description="Its live jobs close and applicants can't apply. It sees why in its bell and can message you in Help. You can open it again any time; its jobs come back and its open reports are closed."
         confirmLabel="Pause business"
         tone="danger"
         busy={!!busy}
@@ -207,11 +209,6 @@ function BusinessesTab({
                         <span className="text-[12.5px]" style={{ color: "var(--ink-3)" }}>Free forever</span>
                       ) : (
                         <>
-                          {b.status === "new" && (
-                            <button className="ck-btn ck-btn-primary !min-h-8 !px-3 !text-[13px]" disabled={busy === b.employer_id} onClick={() => void setStatus(b, "approved")} data-admin-approve>
-                              Approve
-                            </button>
-                          )}
                           {b.status === "suspended" ? (
                             <button className="ck-btn ck-btn-outline !min-h-8 !px-3 !text-[13px]" disabled={busy === b.employer_id} onClick={() => void setStatus(b, "approved")} data-admin-reopen>
                               Open again

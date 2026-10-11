@@ -37,7 +37,7 @@ export function previewTrustHandlers(
 
   const businesses: Array<{ employer_id: string; email: string; company_name: string; full_name: string; signed_up_at: string; status: Status; status_reason: string | null; jobs_live: number; jobs_total: number; applicants: number; open_reports: number }> = [
     { employer_id: me, email: user.email ?? "you@example.com", company_name: "Zulu Support Team", full_name: "Zack", signed_up_at: iso(40 * 86_400_000), status: "approved", status_reason: null, jobs_live: 1, jobs_total: 1, applicants: 38, open_reports: 0 },
-    { employer_id: LUCKY, email: "maria@luckystar.example", company_name: "Lucky Star Support", full_name: "Maria Santos", signed_up_at: iso(3_600_000), status: "new", status_reason: null, jobs_live: 1, jobs_total: 1, applicants: 4, open_reports: 0 },
+    { employer_id: LUCKY, email: "maria@luckystar.example", company_name: "Lucky Star Support", full_name: "Maria Santos", signed_up_at: iso(3_600_000), status: "approved", status_reason: null, jobs_live: 1, jobs_total: 1, applicants: 4, open_reports: 0 },
     { employer_id: NIGHT_OWL, email: "rico@nightowl.example", company_name: "Night Owl Chat", full_name: "Rico", signed_up_at: iso(3 * 86_400_000), status: "suspended", status_reason: "Asked applicants for a fee", jobs_live: 0, jobs_total: 1, applicants: 11, open_reports: 2 },
   ];
   if (params.get("__previewReports") === "1") {

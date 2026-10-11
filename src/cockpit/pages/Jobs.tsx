@@ -308,6 +308,8 @@ function JobListRow({
             // is reserved for the future paid Ava Boost.
             title="Get the apply link, a QR code and a printable flyer for this job"
             className="ck-btn ck-btn-ghost !px-3.5 !py-2 !text-[12.5px]"
+            // The "Your job is live" tip points here (src/cockpit/tips).
+            data-tip-anchor="share"
             onClick={(e) => {
               e.stopPropagation();
               onBoost();

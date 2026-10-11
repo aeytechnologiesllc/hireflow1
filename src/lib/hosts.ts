@@ -96,6 +96,8 @@ const STAFF_ONLY = [
 
 const CANDIDATE_ONLY = [
   /^\/careers\/?$/,
+  // Every business's live jobs (2026-10-11).
+  /^\/open-jobs\/?$/,
   // A business's careers page and its jobs (/c/<business>, /c/<business>/<job>).
   /^\/c\/[^/]+(\/[^/]+)?\/?$/,
   /^\/candidate\/?$/,

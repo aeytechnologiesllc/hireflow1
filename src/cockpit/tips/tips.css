@@ -1,0 +1,128 @@
+/* Guided tips (the 2026-10-11 "Guided start" mock-up): a dark jade card with
+   a jade kicker, a Fraunces title, two short lines, "No more tips" and one
+   button. The same card in both themes: it is the guide's voice, set apart
+   from the page. It rises once; nothing loops. */
+
+.ck-tip {
+  position: fixed;
+  z-index: 45; /* over the phone's tab bar (40), under every dialog (50) */
+  width: min(320px, calc(100vw - 24px));
+  padding: 15px 16px 13px;
+  border-radius: 14px;
+  background: #16241e;
+  border: 1px solid rgba(79, 195, 154, 0.4);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.32);
+  color: #efe8da;
+  font-family: "Inter", system-ui, sans-serif;
+  text-align: left;
+  animation: ck-tip-rise 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.ck-tip::before {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: #16241e;
+  border-left: 1px solid rgba(79, 195, 154, 0.4);
+  border-top: 1px solid rgba(79, 195, 154, 0.4);
+  left: calc(var(--tip-arrow-x, 26px) - 6px);
+}
+.ck-tip--below::before { top: -7px; transform: rotate(45deg); }
+.ck-tip--above::before { bottom: -7px; transform: rotate(225deg); }
+
+/* A phone: a card across the screen, at the bottom over the tab bar, or at
+   the top when what it explains sits low. The ring on the thing itself says
+   where to look. */
+.ck-tip--sheet {
+  left: 12px;
+  right: 12px;
+  width: auto;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 78px);
+}
+.ck-tip--sheet-top {
+  left: 12px;
+  right: 12px;
+  width: auto;
+  top: calc(env(safe-area-inset-top, 0px) + 64px);
+}
+.ck-tip--sheet::before,
+.ck-tip--sheet-top::before { display: none; }
+
+.ck-tip__kick {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #4fc39a;
+}
+.ck-tip__kick i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4fc39a;
+  box-shadow: 0 0 0 4px rgba(79, 195, 154, 0.18);
+}
+.ck-tip__title {
+  margin: 8px 0 4px;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.25;
+  color: #efe8da;
+}
+.ck-tip__body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #c9c0ae;
+}
+.ck-tip__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+}
+.ck-tip__off {
+  padding: 6px 2px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: #9a907e;
+  cursor: pointer;
+}
+.ck-tip__off:hover { color: #c9c0ae; text-decoration: underline; text-underline-offset: 2px; }
+.ck-tip__got {
+  min-height: 32px;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: #4fc39a;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #0d1a14;
+  cursor: pointer;
+}
+.ck-tip__got:hover { background: #63d3ab; }
+.ck-tip__off:focus-visible,
+.ck-tip__got:focus-visible { outline: 2px solid #efe8da; outline-offset: 2px; }
+
+/* What the tip explains, ringed while it shows. */
+.ck-tip-target {
+  outline: 2px solid rgba(79, 195, 154, 0.7) !important;
+  outline-offset: 3px;
+}
+
+@keyframes ck-tip-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ck-tip { animation: none; }
+}

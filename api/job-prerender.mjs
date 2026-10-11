@@ -60,7 +60,7 @@ const RESERVED_SLUGS = new Set([
   "developer", "documents", "favicon.ico", "flow-lab", "fonts", "help", "home", "index.html", "interviews",
   "job", "jobs", "jobs.xml", "join-team", "jooble.xml", "landing-assets", "landing.html", "login", "logout",
   "manifest.webmanifest", "marketing-demo", "media", "messages", "more", "my-documents",
-  "notifications", "oauth", "preview", "privacy", "profile", "register", "robots.txt",
+  "notifications", "oauth", "open-jobs", "preview", "privacy", "profile", "register", "robots.txt",
   "screenshots", "search", "settings", "share", "signin", "signup", "site.webmanifest", "sitemap.xml",
   "staff", "support", "team", "team-portal", "terms", "verify"
 ]);

@@ -18,7 +18,7 @@ import { trustApi, trustErrorWords, type HelpMessage } from "@/lib/trustApi";
 
 const QUICK_ANSWERS: ReadonlyArray<{ q: string; a: string }> = [
   { q: "How do I share my job?", a: "Jobs, then Share. Copy the full post and paste it anywhere." },
-  { q: "Why can't I ask for ID papers yet?", a: "They open once HireFlow approves your business, usually within a day." },
+  { q: "Why is my account paused?", a: "When three people report a business, it pauses by itself and its jobs close until we look. Message us here." },
   { q: "How do I stop taking applications?", a: "Jobs, then the job, then Close. You can open it again any time." },
 ];
 

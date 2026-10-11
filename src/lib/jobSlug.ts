@@ -62,6 +62,8 @@ export const ROUTE_SEGMENTS: readonly string[] = [
   "my-documents",
   "notifications",
   "oauth",
+  // Every business's live jobs (2026-10-11).
+  "open-jobs",
   "preview",
   "privacy",
   "profile",

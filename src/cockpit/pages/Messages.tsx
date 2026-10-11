@@ -769,7 +769,7 @@ export default function CockpitMessages() {
   }
 
   const header = (
-    <header className="ck-rise flex flex-wrap items-baseline gap-x-3.5 gap-y-1">
+    <header className="ck-rise flex flex-wrap items-baseline gap-x-3.5 gap-y-1" data-tip-anchor="messages">
       <h1
         className="font-display"
         style={{

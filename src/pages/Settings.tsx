@@ -27,6 +27,7 @@ import { useEmailPreferences, useUpdateEmailPreferences, type EmailPreferences }
 import { Skeleton } from "@/components/ui/skeleton";
 import { getSignedOutRoute } from "@/lib/authRouting";
 import { CareersPageCard } from "@/components/business/CareersPageCard";
+import { TipsSettingCard } from "@/cockpit/tips/TipsSettingCard";
 
 export default function Settings() {
   const { user, role, loading, isTeamMember } = useAuth();
@@ -399,6 +400,9 @@ export default function Settings() {
               </div>
             </CardContent>
           </Card>
+
+          {/* One-time tips (a business or team member who joined from 2026-10-11). */}
+          <TipsSettingCard />
 
           {/* Danger Zone */}
           <Card className="bg-card border-destructive/50">

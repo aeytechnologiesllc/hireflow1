@@ -66,9 +66,9 @@ export function HireDialog({
     return map;
   }, [existing]);
 
-  // Before HireFlow approves the business, ID papers are locked (the
-  // database refuses them, and used to take the payment email down with
-  // them); a paused business can ask for nothing (the 2026-10-11 mock-ups, #4).
+  // A paused business can ask for nothing (the 2026-10-11 mock-ups, #4); ID
+  // papers follow what the database says (open from sign-up since 2026-10-11),
+  // so a refusal never takes the payment email down with it.
   const { idsLocked, allLocked } = requestLocks(useBusinessStanding(open));
   const isLocked = (key: string) => allLocked || (idsLocked && !!REQUEST_KINDS.find((k) => k.key === key)?.idPaper);
 
@@ -201,7 +201,7 @@ export function HireDialog({
                     {lockedKind ? (
                       <span className="inline-flex shrink-0 items-center gap-1 text-[11.5px]" style={{ color: "var(--hf-gold)" }}>
                         <Lock className="h-3 w-3" aria-hidden />
-                        {allLocked ? "paused" : "after approval"}
+                        {allLocked ? "paused" : "not open"}
                       </span>
                     ) : (
                       <span className="shrink-0 text-[11.5px]" style={{ color: "var(--ink-3)" }}>
@@ -215,7 +215,7 @@ export function HireDialog({
                 <p className="rounded-[12px] px-3 py-2.5 text-[13px] leading-snug" style={{ background: "var(--amber-bg)", color: "var(--amber-fg)" }} data-hire-approval-note>
                   {allLocked
                     ? "Your business is paused, so nothing can be asked for right now. Open Help to message HireFlow."
-                    : `ID papers open once HireFlow approves ${company || "your business"}, usually within a day. You can ask for them later from ${first}'s page.`}
+                    : `ID papers aren't open for ${company || "your business"} right now. You can ask for them later from ${first}'s page.`}
                 </p>
               )}
             </fieldset>

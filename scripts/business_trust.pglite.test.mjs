@@ -154,8 +154,10 @@ async function setup() {
 async function main() {
   const safe = await migration("document_requests_safe");
   const trust = await migration("business_trust");
-  check("the migration file is there, once", !!trust && !!safe);
-  if (!trust || !safe) return;
+  // 2026-10-11: no approval step; reports pause a business by themselves.
+  const open = await migration("open_by_default_report_pause");
+  check("the migration file is there, once", !!trust && !!safe && !!open);
+  if (!trust || !safe || !open) return;
   const { db, as, pg } = await setup();
 
   // 0 ──────────────────────────────────────────────────────────────────
@@ -164,6 +166,8 @@ async function main() {
     await db.exec(safe);
     await db.exec(trust);
     await db.exec(trust);
+    await db.exec(open);
+    await db.exec(open);
   } catch (e) {
     applied = false;
     console.log(e.message);
@@ -174,17 +178,17 @@ async function main() {
   const zackSees = await as(ZACK, "authenticated", `select public.my_business_standing() as s`);
   check("1. the owner is an admin and an approved business, who may ask for IDs", zackSees.rows?.[0]?.s?.is_admin === true && zackSees.rows[0].s.status === "approved" && zackSees.rows[0].s.can_request_ids === true, show(zackSees));
   const newSees = await as(NEWBIZ, "authenticated", `select public.my_business_standing() as s`);
-  check("1. a new business is new, not an admin, and may not ask for IDs yet", newSees.rows?.[0]?.s?.status === "new" && newSees.rows[0].s.is_admin === false && newSees.rows[0].s.can_request_ids === false, show(newSees));
+  check("1. a new business is open from sign-up: not an admin, and may ask for IDs (no approval step)", newSees.rows?.[0]?.s?.status === "approved" && newSees.rows[0].s.is_admin === false && newSees.rows[0].s.can_request_ids === true, show(newSees));
 
   // 2 ──────────────────────────────────────────────────────────────────
   const ask = (uid, app, kind) => as(uid, "authenticated", `insert into public.document_requests (application_id, employer_id, candidate_id, document_type) values ($1, $2, $3, $4) returning id`, [app, uid, ANA, kind]);
   const newId = await ask(NEWBIZ, APP_ANA_N, "government_id");
-  check("2. a new business cannot ask for a government ID", !newId.ok && /id_requests_need_approval/.test(newId.error), show(newId));
+  check("2. a business that just signed up can ask for a government ID", newId.ok, show(newId));
   const newNbi = await ask(NEWBIZ, APP_ANA_N, "nbi_clearance");
   const newAddr = await ask(NEWBIZ, APP_ANA_N, "proof_of_address");
-  check("2. …nor an NBI clearance or proof of address", !newNbi.ok && !newAddr.ok, show([newNbi, newAddr]));
+  check("2. …and an NBI clearance or proof of address", newNbi.ok && newAddr.ok, show([newNbi, newAddr]));
   const newPay = await ask(NEWBIZ, APP_ANA_N, "payment_email");
-  check("2. …but can ask for the payment email (no ID paper)", newPay.ok, show(newPay));
+  check("2. …and the payment email", newPay.ok, show(newPay));
   const zackId = await ask(ZACK, APP_ANA_Z, "government_id");
   check("2. the approved owner asks for a government ID as before", zackId.ok, show(zackId));
 
@@ -268,6 +272,49 @@ async function main() {
   check("7. nobody reads or writes the admin list from a client", !adminTable.ok);
   const helper = await as(ANA, "authenticated", `select public.business_status_of($1)`, [BADBIZ]);
   check("7. the internal standing check is not callable from a client", !helper.ok);
+  const pauseHelper = await as(ANA, "authenticated", `select public.business_pause($1, 'x', null)`, [NEWBIZ]);
+  const pauseByBiz = await as(NEWBIZ, "authenticated", `select public.business_pause($1, 'x', null)`, [BADBIZ]);
+  check("7. nobody pauses a business from a client (not even another business)", !pauseHelper.ok && !pauseByBiz.ok, show([pauseHelper, pauseByBiz]));
+
+  // 8. Reports pause a business by themselves ─────────────────────────────
+  // After reopening Bad Biz (section 4) its reports were closed: someone looked.
+  const badOpenAfter = (await pg(`select count(*)::int as n from public.employer_reports where employer_id = $1 and status = 'open'`, [BADBIZ]))[0].n;
+  check("8. reopening a paused business closes its open reports", badOpenAfter === 0, show(badOpenAfter));
+  const CAT = "20000000-0000-4000-8000-000000000003";
+  const DAN = "20000000-0000-4000-8000-000000000004";
+  const EVE = "20000000-0000-4000-8000-000000000005";
+  await pg(`insert into auth.users (id, email) values ('${CAT}', 'cat@example.com'), ('${DAN}', 'dan@example.com'), ('${EVE}', 'eve@example.com')`);
+  await pg(`insert into public.user_roles values ('${CAT}', 'candidate'), ('${DAN}', 'candidate'), ('${EVE}', 'candidate')`);
+  await pg(`delete from public.notifications`);
+  // New Biz already has one open report, from Ben (section 6). Ben again, on its other job: still one person.
+  await as(BEN, "authenticated", `select public.report_employer($1, 'fake_job', 'again')`, [JOB_N2]);
+  const one = (await pg(`select status from public.business_standing where employer_id = $1`, [NEWBIZ]))[0]?.status ?? "approved";
+  check("8. one person reporting twice does not pause anyone", one === "approved", show(one));
+  await as(CAT, "authenticated", `select public.report_employer($1, 'asked_for_money', 'Asked for a fee')`, [JOB_N]);
+  const two = (await pg(`select status from public.business_standing where employer_id = $1`, [NEWBIZ]))[0]?.status ?? "approved";
+  check("8. two people: still open", two === "approved", show(two));
+  const third = await as(DAN, "authenticated", `select public.report_employer($1, 'asked_for_money', 'Same here') as id`, [JOB_N]);
+  const standingNow = (await pg(`select status, reason, reopen_job_ids from public.business_standing where employer_id = $1`, [NEWBIZ]))[0];
+  check("8. a third person's report goes through", third.ok, show(third));
+  check("8. …and pauses the business by itself, saying why", standingNow?.status === "suspended" && /3 people reported it/.test(standingNow.reason ?? ""), show(standingNow));
+  const newJobs = await pg(`select id, status::text from public.jobs where employer_id = $1 order by id`, [NEWBIZ]);
+  check("8. its live jobs close", newJobs.every((j) => j.status === "closed"), show(newJobs));
+  const bells = await pg(`select user_id, title from public.notifications order by title`);
+  check("8. the business is told it is paused", bells.some((n) => n.user_id === NEWBIZ && n.title === "Your account is paused"), show(bells));
+  check("8. the admin is told it was paused, and why", bells.some((n) => n.user_id === ZACK && n.title === "A business was paused"), show(bells));
+  const applyPaused = await as(EVE, "authenticated", `insert into public.applications (job_id, candidate_id) values ($1, $2)`, [JOB_N, EVE]);
+  check("8. nobody can apply to it while it is paused", !applyPaused.ok && /job_not_open/.test(applyPaused.error), show(applyPaused));
+  const reopen = await as(ZACK, "authenticated", `select public.admin_set_business_status($1, 'approved')`, [NEWBIZ]);
+  const jobsBack = await pg(`select status::text from public.jobs where employer_id = $1`, [NEWBIZ]);
+  const openLeft = (await pg(`select count(*)::int as n from public.employer_reports where employer_id = $1 and status = 'open'`, [NEWBIZ]))[0].n;
+  check("8. you reopen it: its jobs come back and its reports are closed", reopen.ok && jobsBack.every((j) => j.status === "published") && openLeft === 0, show({ jobsBack, openLeft }));
+  await as(EVE, "authenticated", `select public.report_employer($1, 'other', 'one more')`, [JOB_N]);
+  const afterOne = (await pg(`select status from public.business_standing where employer_id = $1`, [NEWBIZ]))[0]?.status;
+  check("8. one more report after you looked does not pause it again", afterOne === "approved", show(afterOne));
+  for (const who of [ANA, CAT, DAN, EVE]) await as(who, "authenticated", `select public.report_employer($1, 'other', 'brigade')`, [JOB_Z]);
+  const zulu = (await pg(`select status from public.business_standing where employer_id = $1`, [ZACK]))[0]?.status ?? "approved";
+  const zuluJob = (await pg(`select status::text from public.jobs where id = $1`, [JOB_Z]))[0]?.status;
+  check("8. HireFlow's own account is never paused by reports", zulu === "approved" && zuluJob === "published", show({ zulu, zuluJob }));
 }
 
 await main();

@@ -136,6 +136,16 @@ names. A function called inside a view runs with the caller's rights: read
 tables directly in `published_jobs_public` (a rehearsal caught
 `business_status_of()` refusing every visitor).
 
+**No business approval (the owner, 2026-10-11: "I don't want the
+headache").** Every business is open from sign-up, ID papers included; three
+reports from three different people pause one by itself
+(`20261011190000_open_by_default_report_pause.sql`, docs/BUSINESS-TRUST.md).
+No TIN check: no law requires one. Don't bring back an approval step.
+New businesses get one-time guided tips (`src/cockpit/tips`, table
+`ui_tips_seen`; accounts made from 2026-10-11 08:00 UTC, never
+`platform_admins`). hireflownow.com/open-jobs lists every business's live
+jobs; the front page's "Looking for a job?" goes there, `/careers` stays Zulu's.
+
 See `docs/ARCHITECTURE.md` and `docs/BACKEND-SCHEMA.md` for the current live
 schema, and `docs/MIGRATION-HISTORY.md` for how migration history was
 reconciled with the live database on 2026-09-16 — including the full reverse

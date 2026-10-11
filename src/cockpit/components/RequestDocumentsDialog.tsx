@@ -35,8 +35,8 @@ export function RequestDocumentsDialog({ open, applicationId, onClose }: { open:
   const [pickedId, setPickedId] = useState<string | null>(applicationId ?? null);
   const [search, setSearch] = useState("");
   const [picked, setPicked] = useState<string[]>([]);
-  // Before HireFlow approves the business, ID papers are locked; a paused
-  // business can ask for nothing (the database says the same).
+  // A paused business can ask for nothing; ID papers follow what the
+  // database says (every business may ask for them from sign-up, 2026-10-11).
   const { idsLocked, allLocked } = requestLocks(useBusinessStanding());
   const isLocked = (key: string) => allLocked || (idsLocked && !!REQUEST_KINDS.find((k) => k.key === key)?.idPaper);
   const [other, setOther] = useState("");
@@ -185,7 +185,7 @@ export function RequestDocumentsDialog({ open, applicationId, onClose }: { open:
                     <p className="rounded-[12px] px-3 py-2.5 text-[13px] leading-snug" style={{ background: "var(--amber-bg)", color: "var(--amber-fg)" }} data-request-approval-note>
                       {allLocked
                         ? "Your business is paused, so nothing can be asked for right now. Open Help to message HireFlow."
-                        : "ID papers open once HireFlow approves your business, usually within a day. Everything else works now."}
+                        : "ID papers aren't open for your business right now. Everything else works. Open Help to message HireFlow."}
                     </p>
                   )}
                   {REQUEST_KINDS.map((kind) => {
@@ -205,7 +205,7 @@ export function RequestDocumentsDialog({ open, applicationId, onClose }: { open:
                           <span className="block text-[14px] font-medium" style={{ color: "var(--hf-text)" }}>
                             {kind.label}
                             <span className="ml-2 text-[11.5px] font-normal" style={{ color: "var(--ink-3)" }}>
-                              {isLocked(kind.key) ? (allLocked ? "paused" : "after approval") : asked ? "already asked" : kind.answer === "text" ? "they type it" : "photo or PDF"}
+                              {isLocked(kind.key) ? (allLocked ? "paused" : "not open") : asked ? "already asked" : kind.answer === "text" ? "they type it" : "photo or PDF"}
                             </span>
                           </span>
                           <span className="mt-0.5 block text-[12.5px] leading-snug" style={{ color: "var(--ink-3)" }}>

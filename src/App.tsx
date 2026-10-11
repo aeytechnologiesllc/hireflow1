@@ -84,6 +84,7 @@ const JoinTeam = lazyWithReload(() => import("./pages/JoinTeam"));
 const ApplyWithCode = lazyWithReload(routeImporters["/apply"]);
 const JobDetails = lazyWithReload(() => import("./pages/JobDetails"));
 const BusinessCareers = lazyWithReload(() => import("./pages/BusinessCareers"));
+const OpenJobs = lazyWithReload(() => import("./pages/OpenJobs"));
 /**
  * The accountless applicant's way back in: they enter the phone number they
  * applied with and get their applications. Eight links across four files
@@ -210,6 +211,9 @@ const App = () => (
                       sign-in or the dashboard (HostGate). */}
                   <Route path="/" element={isStaffHost() ? <Index /> : <Navigate to={CAREERS_PATH} replace />} />
                   <Route path={CAREERS_PATH} element={<Index />} />
+                  {/* Every business's live jobs (2026-10-11): where the front
+                      page's "Looking for a job?" leads. */}
+                  {!isStaffHost() && <Route path="/open-jobs" element={<OpenJobs />} />}
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/auth/callback" element={<AuthCallback />} />
                   
