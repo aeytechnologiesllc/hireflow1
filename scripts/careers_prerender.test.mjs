@@ -69,6 +69,16 @@ assert.equal(rolesLine(["A"]), "A");
 assert.equal(rolesLine(["A", "B"]), "A and B");
 assert.equal(rolesLine(["A", "B", "C"]), "A and 2 more");
 assert.equal(careersHead({ company: "", titles: [], home: false, slug: "x" }).title, "HireFlow — Careers");
+// The business's own line leads its description; the home page keeps its own words.
+assert.equal(
+  careersHead({ company: "Lucky Star", titles: ["A"], home: false, slug: "lucky", about: "Friendly chat support, 24/7" }).description,
+  "Friendly chat support, 24/7. Open roles at Lucky Star: A. Apply online, from your phone or computer.",
+);
+assert.equal(
+  careersHead({ company: "Lucky Star", titles: [], home: false, slug: "lucky", about: "  We play fair!  " }).description,
+  "We play fair! Careers at Lucky Star. Apply online, from your phone or computer.",
+);
+assert.ok(!careersHead({ company: "Zulu", titles: [], home: true, slug: "zulu", about: "Ignored" }).description.includes("Ignored"));
 
 // 1. /careers: the home business.
 stub(world);

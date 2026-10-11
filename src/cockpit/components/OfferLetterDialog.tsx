@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { useProfile } from "@/hooks/useProfile";
+import { useOwnBusiness } from "@/hooks/useBusinessPage";
+import { useCompanyNames } from "@/hooks/useCompanyNames";
 import { useOfferPeople, useSendOfferLetter, type OfferPerson } from "../hooks/useOfferLetter";
 import {
   CURRENCIES,
@@ -252,12 +254,16 @@ export function OfferLetterDialog({
   const person: OfferPerson | null = people.find((p) => p.applicationId === pickedId) ?? null;
   const replyBy = addDays(today, replyDays);
 
-  // The owner's own name and company, once, when they arrive.
+  // The signer's own name, and the business's name (the job owner's, so a
+  // team member's letter names the business, not their own blank profile).
+  const { data: ownBusiness } = useOwnBusiness();
+  const businessNames = useCompanyNames([ownBusiness?.employerId]);
+  const businessName = (ownBusiness?.employerId && businessNames.get(ownBusiness.employerId)) || "";
   useEffect(() => {
     if (!profile) return;
     setSigner((now) => now || nameCase(profile.full_name ?? ""));
-    setCompany((now) => now || (profile.company_name ?? "").trim());
-  }, [profile]);
+    setCompany((now) => now || businessName || (profile.company_name ?? "").trim());
+  }, [profile, businessName]);
 
   // Choosing a person fills in what is already known about them and the job.
   useEffect(() => {
@@ -498,7 +504,7 @@ export function OfferLetterDialog({
                     <input id="ck-offer-role" className={INPUT} value={roleTitle} maxLength={OFFER_LIMITS.line} disabled={busy} onChange={(e) => edit(setRoleTitle)(e.target.value)} autoComplete="off" />
                   </Field>
                   <Field id="ck-offer-company" label="Company name" problem={problemFor("companyName")} help="The business they will work for. Use your registered business name if you have one.">
-                    <input id="ck-offer-company" className={INPUT} value={company} maxLength={OFFER_LIMITS.name} disabled={busy} placeholder="Zulu Support Team" onChange={(e) => edit(setCompany)(e.target.value)} autoComplete="organization" />
+                    <input id="ck-offer-company" className={INPUT} value={company} maxLength={OFFER_LIMITS.name} disabled={busy} placeholder="Your business name" onChange={(e) => edit(setCompany)(e.target.value)} autoComplete="organization" />
                   </Field>
                   <div className="grid gap-3.5 sm:grid-cols-2">
                     <Field id="ck-offer-start" label="Start date" problem={problemFor("startDate")} help="Their first working day.">
@@ -602,7 +608,7 @@ export function OfferLetterDialog({
                         </Check>
                       </div>
                       <Field id="ck-offer-reports" label="Reports to" hint="optional" problem={problemFor("reportsTo")}>
-                        <input id="ck-offer-reports" className={INPUT} value={reportsTo} maxLength={OFFER_LIMITS.name} disabled={busy} placeholder="Zack, Owner" onChange={(e) => edit(setReportsTo)(e.target.value)} autoComplete="off" />
+                        <input id="ck-offer-reports" className={INPUT} value={reportsTo} maxLength={OFFER_LIMITS.name} disabled={busy} placeholder="Their manager, e.g. Maria, Owner" onChange={(e) => edit(setReportsTo)(e.target.value)} autoComplete="off" />
                       </Field>
                       <button type="button" className="self-start text-[12.5px] underline underline-offset-2" style={{ color: "var(--ink-2)" }} onClick={() => setShowTerms(false)} disabled={busy}>
                         Done

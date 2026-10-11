@@ -415,6 +415,9 @@ export async function decideNotification(
     if (toApplicant.length > 0) {
       const limited = await overLimit(callerId, NOTIFICATION_LIMITS.staff, lookups);
       if (limited) return { ok: false, refusal: limited };
+      // The email is from the business, by name ("Zulu Support Team <no-reply@…>"),
+      // as every other applicant email is: the job owner's own name.
+      const team = await lookups.profileOf(toApplicant[0].employer_id!).catch(() => null);
       return {
         ok: true,
         recipientUserId: named,
@@ -422,6 +425,7 @@ export async function decideNotification(
         data: withDefined({
           message_preview: plainLine(asked.message_preview, 100),
           job_title: jobTitleFor(asked.job_title, toApplicant, true),
+          company_name: plainLine(team?.company_name, 120),
           sender_id: callerId,
           recipient_role: "candidate",
         }),

@@ -29,8 +29,15 @@ function xmlEscape(value: string) {
     .replace(/'/g, "&apos;");
 }
 
+interface SitemapBusinessPage {
+  slug: string;
+  employer_id: string;
+  updated_at?: string | null;
+}
+
 interface SitemapJob {
   id: string;
+  employer_id?: string | null;
   created_at: string;
   updated_at?: string | null;
   application_deadline?: string | null;
@@ -47,7 +54,7 @@ Deno.serve(async () => {
     const params = new URLSearchParams({
       status: "eq.published",
       exclude_from_feed: "eq.false",
-      select: "id,created_at,updated_at,application_deadline,exclude_from_feed",
+      select: "id,employer_id,created_at,updated_at,application_deadline,exclude_from_feed",
       order: "updated_at.desc",
       limit: "5000",
       or: `(application_deadline.is.null,application_deadline.gt.${now})`,
@@ -61,8 +68,20 @@ Deno.serve(async () => {
       return !(job.application_deadline && new Date(job.application_deadline).getTime() < nowMs);
     });
 
+    // Each other business's careers page (/c/<business>) while it has a live
+    // job; the home business's is /careers, listed above (2026-10-11).
+    const liveEmployers = new Set(openJobs.map((j) => j.employer_id).filter(Boolean));
+    const pagesRes = liveEmployers.size
+      ? await fetch(`${url}/rest/v1/business_pages?home_alias=eq.false&select=slug,employer_id,updated_at`, {
+          headers: { apikey: key, Authorization: `Bearer ${key}` },
+        })
+      : null;
+    const businessPages: SitemapBusinessPage[] = pagesRes && pagesRes.ok ? await pagesRes.json() : [];
+    const careersPages = businessPages.filter((p) => p.slug && liveEmployers.has(p.employer_id));
+
     const urls = [
       ...STATIC_PAGES.map((p) => `<url><loc>${xmlEscape(`${SITE}${p.path}`)}</loc><priority>${p.priority}</priority></url>`),
+      ...careersPages.map((p) => `<url><loc>${xmlEscape(`${SITE}/c/${p.slug}`)}</loc>${p.updated_at ? `<lastmod>${new Date(p.updated_at).toISOString()}</lastmod>` : ""}<changefreq>daily</changefreq><priority>0.6</priority></url>`),
       ...openJobs.map((j) => {
         const lastmod = new Date(j.updated_at || j.created_at).toISOString();
         const loc = `${SITE}/candidate/job/${j.id}`;

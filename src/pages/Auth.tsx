@@ -49,7 +49,11 @@ const nameSchema = z.string().min(2, "Name must be at least 2 characters");
  *  shown while they type (slugify_business makes the same). The real one
  *  can get a number if it is taken. */
 function careersAddressPreview(name: string): string {
-  return cleanAddress(name).replace(/-+$/, "");
+  const address = cleanAddress(name).replace(/-+$/, "");
+  // The addresses kept for HireFlow, as business_page_for makes them.
+  if (address === "hireflow") return "business";
+  if (["admin", "help", "support", "staff", "official", "careers", "jobs", "team", "api", "www"].includes(address)) return `${address}-jobs`;
+  return address.length === 1 ? `${address}-jobs` : address;
 }
 
 // Real-time password requirements component

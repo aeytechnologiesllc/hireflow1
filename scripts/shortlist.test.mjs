@@ -289,7 +289,7 @@ console.log("\n7. The wiring");
   check("…on the computer's top line and the phone's header", /shortlistButton\(false\)/.test(profile) && /shortlistButton\(true\)/.test(profile));
 
   const preview = code(await read("src/dev-preview/install.ts"));
-  check("the offline preview answers the same function", /set_applications_shortlisted:/.test(preview) && /previewShortlistHandlers\(tables, ROLE_USERS\[role\]\)/.test(preview));
+  check("the offline preview answers the same function", /set_applications_shortlisted:/.test(preview) && /previewShortlistHandlers\(tables, (?:ROLE_USERS\[role\]|signedIn)\)/.test(preview));
   const types = await read("src/integrations/supabase/types.ts");
   check("the database types know the table and the function", /shortlisted_applications: \{/.test(types) && /set_applications_shortlisted: \{/.test(types));
 }

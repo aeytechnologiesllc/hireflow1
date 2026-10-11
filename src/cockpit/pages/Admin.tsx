@@ -363,7 +363,7 @@ function HelpTab({ query }: { query: { data?: HelpThread[]; isLoading: boolean; 
           </button>
         ))}
       </div>
-      {current ? <AdminThread thread={current} /> : <div className="ck-card p-4 text-[13.5px]" style={{ color: "var(--hf-text-soft)" }}>Pick a business to read and answer.</div>}
+      {current ? <AdminThread key={current.employer_id} thread={current} /> : <div className="ck-card p-4 text-[13.5px]" style={{ color: "var(--hf-text-soft)" }}>Pick a business to read and answer.</div>}
     </div>
   );
 }

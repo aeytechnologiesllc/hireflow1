@@ -231,5 +231,29 @@ check("0. it applies, and applies again", applied);
   check("3. HireFlow itself can still move an address (Help: 'message us')", server.ok && server.rows[0]?.slug === "lucky-star-support", show(server));
 }
 
+// 4. Help for team members (20261011186000_help_for_team_members) ─────────────
+{
+  const helpTeam = await migration(/^\d+_help_for_team_members\.sql$/);
+  check("4. the migration exists once", !!helpTeam);
+  if (helpTeam) {
+    await db.exec(helpTeam);
+    await pg(`delete from public.notifications`);
+    const reply = await as(ZACK, "authenticated", `select public.admin_reply_help($1, 'Yes: Team, then Invite.') as id`, [LUCKY]);
+    check("4. you answer Lucky Star again", reply.ok, show(reply));
+    const told = (await pg(`select user_id from public.notifications where title = 'HireFlow replied' order by user_id`)).map((r) => r.user_id);
+    check("4. the bell rings for the owner and for the team member who asked", told.length === 2 && told.includes(LUCKY) && told.includes(TESS), show(told));
+    check("4. …and nobody else", !told.includes(NIGHT) && !told.includes(ANA));
+    const read = await as(TESS, "authenticated", `select public.mark_help_read()`);
+    const unread = await pg(`select count(*)::int n from public.help_messages where employer_id = $1 and from_admin and read_at is null`, [LUCKY]);
+    check("4. the team member marks the answer read (it no longer stays new for them)", read.ok && unread[0].n === 0, show({ read, unread }));
+    const reply2 = await as(ZACK, "authenticated", `select public.admin_reply_help($1, 'Anything else?') as id`, [LUCKY]);
+    const nightRead = await as(NIGHT, "authenticated", `select public.mark_help_read()`);
+    const stillUnread = await pg(`select count(*)::int n from public.help_messages where employer_id = $1 and from_admin and read_at is null`, [LUCKY]);
+    check("4. another business marking its own Help read leaves Lucky Star's answer new", reply2.ok && nightRead.ok && stillUnread[0].n === 1, show(stillUnread));
+    const anon = await as(null, "anon", `select public.mark_help_read()`);
+    check("4. nobody signed out can mark anything", !anon.ok, show(anon));
+  }
+}
+
 console.log(`\nbusiness screens (pglite): ${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

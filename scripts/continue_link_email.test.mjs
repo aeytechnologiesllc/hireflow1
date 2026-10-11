@@ -294,7 +294,7 @@ console.log("\nThe wiring:\n");
   check("the screen still starts nothing: no test, timer, attempt or integrity hook is imported", !/useTestIntegrity|useAssessment|assessmentSession|start_assessment_session|record_integrity|useTimer|IntegrityMonitor/.test(screen + call));
 
   const preview = code(await src("src/dev-preview/install.ts"));
-  check("the offline preview answers the button without sending anything", /previewContinueLinkEmail\(ROLE_USERS\[role\], params\.get\("__previewEmail"\)\)/.test(preview) && /body\.type !== "continue_on_computer"/.test(preview));
+  check("the offline preview answers the button without sending anything", /previewContinueLinkEmail\((?:ROLE_USERS\[role\]|signedIn), params\.get\("__previewEmail"\)\)/.test(preview) && /body\.type !== "continue_on_computer"/.test(preview));
 
   const doc = await src("docs/COMPUTER-ONLY-TESTS.md");
   check("the doc no longer says there is no mailer, and describes the button", !/there is no\s+mailer/.test(doc) && /Email me the link/.test(doc) && /continueOnComputerEmail\.ts/.test(doc));

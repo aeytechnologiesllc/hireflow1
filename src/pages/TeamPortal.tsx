@@ -14,7 +14,8 @@ import {
   FileText, 
   Eye,
   Shield,
-  Building
+  Building,
+  HelpCircle
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -219,6 +220,14 @@ export default function TeamPortal() {
       description: "View documents",
       onClick: () => navigate("/documents"),
       enabled: membership.can_send_documents,
+    },
+    {
+      // Help: write to HireFlow for this business (2026-10-11).
+      icon: HelpCircle,
+      label: "Help",
+      description: "Message HireFlow",
+      onClick: () => navigate("/help"),
+      enabled: true,
     },
   ];
 

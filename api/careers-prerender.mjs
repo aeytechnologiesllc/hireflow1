@@ -52,15 +52,19 @@ export function rolesLine(titles) {
   return `${list[0]} and ${list.length - 1} more`;
 }
 
-export function careersHead({ company, titles, home, slug }) {
+export function careersHead({ company, titles, home, slug, about }) {
   const name = String(company || "").trim() || "HireFlow";
   const roles = rolesLine(titles);
   const title = `${name} — Careers`;
+  // The business's own line (Settings, "One line about your business") leads
+  // when it has written one.
+  const line = String(about || "").replace(/\s+/g, " ").trim().slice(0, 140);
+  const lead = line ? (/[.!?]$/.test(line) ? `${line} ` : `${line}. `) : "";
   const description = home
     ? "Remote chat support jobs with the Zulu Support Team, including team leads. All online: a few questions, a skills check, a computer check, a typing test, a chat practice and a written interview."
     : roles
-      ? `Open roles at ${name}: ${roles}. Apply online, from your phone or computer.`
-      : `Careers at ${name}. Apply online, from your phone or computer.`;
+      ? `${lead}Open roles at ${name}: ${roles}. Apply online, from your phone or computer.`
+      : `${lead}Careers at ${name}. Apply online, from your phone or computer.`;
   const url = home ? `${ORIGIN}/careers` : `${ORIGIN}/c/${slug}`;
   const image = home ? `${ORIGIN}/share/zulu-careers.jpg` : `${ORIGIN}/share/careers.jpg`;
   return { title, description, url, image };
@@ -100,9 +104,9 @@ export default async function handler(req, res) {
     if (!shell || !/<div id="root"/i.test(shell)) throw new Error("no shell");
 
     const page = home
-      ? await firstRow("business_pages?home_alias=eq.true&select=employer_id,slug,home_alias&limit=1")
+      ? await firstRow("business_pages?home_alias=eq.true&select=employer_id,slug,home_alias,about&limit=1")
       : SLUG_RE.test(slug) && slug.length <= 60
-        ? await firstRow(`business_pages?slug=eq.${encodeURIComponent(slug)}&select=employer_id,slug,home_alias&limit=1`)
+        ? await firstRow(`business_pages?slug=eq.${encodeURIComponent(slug)}&select=employer_id,slug,home_alias,about&limit=1`)
         : null;
     if (!page) {
       // No such business: the plain shell (the app says so), never cached for long.
@@ -119,7 +123,7 @@ export default async function handler(req, res) {
     const jobs = jobsRes.ok ? await jobsRes.json() : [];
     // The home business at /c/<its name> is the same page as /careers (the
     // app moves there), so it says /careers and its own picture.
-    const head = careersHead({ company: brand?.company_name, titles: (jobs || []).map((j) => j.title), home: home || page.home_alias === true, slug: page.slug });
+    const head = careersHead({ company: brand?.company_name, titles: (jobs || []).map((j) => j.title), home: home || page.home_alias === true, slug: page.slug, about: page.about });
 
     res.statusCode = 200;
     res.setHeader("Content-Type", "text/html; charset=utf-8");

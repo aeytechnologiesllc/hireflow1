@@ -19,3 +19,17 @@ export function isApplicantBlockedError(error: unknown): boolean {
   const e = error as { hint?: unknown; message?: unknown };
   return e.hint === "applicant_blocked" || (typeof e.message === "string" && e.message.includes(APPLICANT_BLOCKED_MESSAGE));
 }
+
+/**
+ * The database's other refusals of a new application, in words a retry can't
+ * contradict: the job closed (or its business is paused), both
+ * applications_only_to_open_jobs's "job_not_open"; or its deadline passed
+ * (check_application_deadline). Null for anything else.
+ */
+export function applicationClosedMessage(error: unknown): string | null {
+  if (!error || typeof error !== "object") return null;
+  const message = String((error as { message?: unknown }).message ?? "");
+  if (/job_not_open/.test(message)) return "This job isn't taking applications right now.";
+  if (/deadline has passed/i.test(message)) return "Applications for this job have closed.";
+  return null;
+}

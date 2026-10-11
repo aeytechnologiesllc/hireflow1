@@ -50,6 +50,9 @@ export function ReportJobDialog({
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState<string | null>(null);
 
+  // Fresh each time it opens, and only then: the page behind it redraws on
+  // live updates (with a new `jobs` list each time), which must not wipe what
+  // they are typing or bring the form back after "Thank you".
   useEffect(() => {
     if (open) {
       setJobId(defaultJobId ?? jobs[0]?.id ?? "");
@@ -58,7 +61,8 @@ export function ReportJobDialog({
       setState("idle");
       setError(null);
     }
-  }, [open, defaultJobId, jobs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const send = async () => {
     if (!reason || !jobId || state === "sending") return;

@@ -234,6 +234,14 @@ Deno.serve(async (req) => {
     );
     const record = admin as unknown as AssessmentAdmin;
 
+    // Only the applicant on this application can have it graded: checked
+    // before anything is opened or spent (recordStepResult refuses anyone
+    // else too, but only after the grading had already cost a call).
+    const { data: owned } = await admin.from("applications").select("candidate_id").eq("id", applicationId).maybeSingle();
+    if (!owned || (owned as { candidate_id?: string }).candidate_id !== callerId) {
+      return jsonResponse({ error: "This is not your application." }, 403);
+    }
+
     // The sales practice is taken on a computer (docs/COMPUTER-ONLY-TESTS.md),
     // from the request's headers AND the page's own reading in its body. A
     // phone or tablet is refused BEFORE anything is opened or spent: an

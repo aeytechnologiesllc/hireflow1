@@ -229,6 +229,40 @@ async function main() {
   check("3. …and naming it back does not bring it back (nobody can mint one)", back.ok && back.rows[0]?.root_link === false, show(back));
   const ensure = await as(ZACK, "authenticated", `select public.ensure_business_page() as s`);
   check("4. ensure_business_page() still answers the caller's own address", ensure.ok && ensure.rows[0].s === "zulu-support-team", show(ensure));
+
+  // 7. The tidy-up (20261011184000): a made address always works ─────────────────
+  const tidy = await migration(/^\d+_business_addresses_tidy\.sql$/);
+  check("7. the tidy migration is there, once", !!tidy);
+  if (tidy) {
+    await db.exec(tidy);
+    const LONG = "Bright Horizons Online Customer Support and Sales Team Inc";
+    const people = [
+      ["70000000-0000-4000-8000-000000000001", "Admin"],
+      ["70000000-0000-4000-8000-000000000002", "HireFlow"],
+      ["70000000-0000-4000-8000-000000000003", LONG],
+      ["70000000-0000-4000-8000-000000000004", LONG],
+      // Its 46th letter is a dash, so the old cut made "aaa…a--2".
+      ["70000000-0000-4000-8000-000000000006", `${"a".repeat(45)} bcd`],
+      ["70000000-0000-4000-8000-000000000007", `${"a".repeat(45)} bcd`],
+      ["70000000-0000-4000-8000-000000000005", "Careers"],
+    ];
+    for (const [id, name] of people) {
+      await db.exec(`insert into auth.users values ('${id}', '${id}@x.example'); insert into public.user_roles values ('${id}', 'employer'); insert into public.profiles values ('${id}', 'X', '${name}');`);
+    }
+    const made = [];
+    for (const [id] of people) made.push((await as(id, "authenticated", `select public.ensure_business_page() as s`)).rows?.[0]?.s);
+    check("7. a business named 'Admin' gets admin-jobs, never /c/admin", made[0] === "admin-jobs", show(made));
+    check("7. a business named 'HireFlow' gets the plain 'business'", made[1] === "business", show(made));
+    check("7. a long name never ends in a dash", made[2] === "bright-horizons-online-customer-support-and-sales", show(made));
+    check("7. …and the second one gets its own number", made[3] === "bright-horizons-online-customer-support-and-sa-2", show(made));
+    check("7. a cut that lands on a dash gives '-2', never '--2'", made[4] === `${"a".repeat(45)}-bcd` && made[5] === `${"a".repeat(45)}-2`, show(made));
+    check("7. 'Careers' gets careers-jobs", made[6] === "careers-jobs", show(made));
+    check("7. every one is a working address", made.every((m) => typeof m === "string" && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(m) && m.length <= 50), show(made));
+    const still = await as(ZACK, "authenticated", `select public.ensure_business_page() as s`);
+    check("7. an address already made never changes", still.ok && still.rows[0].s === "zulu-support-team", show(still));
+    const forged2 = await as(LUCKY, "authenticated", `select public.business_page_for($1) as s`, [LATE]);
+    check("7. still nobody makes an address for someone else", !forged2.ok && /permission denied/.test(forged2.error), show(forged2));
+  }
   void db;
 }
 

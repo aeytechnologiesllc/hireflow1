@@ -22,13 +22,19 @@ import { candidateOrigin } from "@/lib/hosts";
 
 export const ABOUT_MAX = 140;
 
+// The database's own letter table (slugify_business), so the sign-up preview
+// shows the address the business will really get ("Ørsted" is "orsted").
+const ACCENTED = "àáâãäåāăąçćčĉċďđèéêëēĕėęěĝğġģĥħìíîïĩīĭįıĵķĺļľŀłñńņňŉòóôõöøōŏőŕŗřśŝşšßţťŧùúûüũūŭůűųŵýÿŷźżž";
+const PLAIN = "aaaaaaaaacccccddeeeeeeeeegggghhiiiiiiiiijklllllnnnnnooooooooorrrssssstttuuuuuuuuuuwyyyzzz";
+
 /** What someone types, as an address: small letters, numbers, single dashes. */
 export function cleanAddress(raw: string): string {
-  return raw
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/['\u2019]/g, "")
+  let out = "";
+  for (const ch of raw.toLowerCase().replace(/['\u2019]/g, "")) {
+    const i = ACCENTED.indexOf(ch);
+    out += i >= 0 ? PLAIN[i] : ch;
+  }
+  return out
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+/, "")
     .replace(/-{2,}/g, "-")

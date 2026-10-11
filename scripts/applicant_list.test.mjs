@@ -1601,6 +1601,8 @@ console.log("\nB. Remove and block: the blocked are on Blocked, and nowhere else
   check("…and for several", B.blockConfirmWords(["A", "B", "C"]).confirm === "Remove and block 3");
   check("unblocking says their application stays declined", /application stays declined/.test(B.unblockConfirmWords("Maria").body));
   check("the candidate's refusal is recognised by its hint or its words", B.isApplicantBlockedError({ code: "P0001", hint: "applicant_blocked" }) && B.isApplicantBlockedError({ message: B.APPLICANT_BLOCKED_MESSAGE }) && !B.isApplicantBlockedError({ message: "duplicate key value" }) && !B.isApplicantBlockedError(null));
+  const A = await import(pathToFileURL(path.join(ROOT, "src/lib/applicantBlocked.ts")).href);
+  check("a closed or paused job and a passed deadline get their own words", A.applicationClosedMessage({ code: "23514", message: "job_not_open" }) === "This job isn't taking applications right now." && A.applicationClosedMessage({ message: "Application deadline has passed for this job" }) === "Applications for this job have closed." && A.applicationClosedMessage({ message: "duplicate key value" }) === null && A.applicationClosedMessage(null) === null);
   check("the words the candidate sees", B.APPLICANT_BLOCKED_MESSAGE === "We can't take an application from this account.");
 }
 

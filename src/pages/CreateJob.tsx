@@ -3603,7 +3603,10 @@ export default function CreateJob() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="w-72 p-2 bg-card/95 backdrop-blur-md border-border/50">
                                 <div className="space-y-1">
-                                  {Object.entries(STEP_TYPE_INFO).map(([type, info]) => {
+                                  {/* No voice interviews (the owner, 2026-10-11): the voice
+                                      session is refused for every business, so the step
+                                      would be a dead end for the applicant. */}
+                                  {Object.entries(STEP_TYPE_INFO).filter(([type]) => type !== 'voice_interview').map(([type, info]) => {
                                     const Icon = info.icon;
                                     const alreadyAdded = workflowSteps.some(s => s.type === type);
                                     const isVoiceInterview = type === 'voice_interview';

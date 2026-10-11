@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { Lock, X } from "lucide-react";
 import { toast } from "sonner";
 import { useProfile } from "@/hooks/useProfile";
+import { useOwnBusiness } from "@/hooks/useBusinessPage";
+import { useCompanyNames } from "@/hooks/useCompanyNames";
 import { requestLocks, useBusinessStanding } from "@/hooks/useBusinessStanding";
 import { DUE_CHOICES, ID_DELETE_HOURS_AFTER_OPENED, REQUEST_KINDS, SIGN_OFFER_LINE, todoLine } from "@/lib/documentRequests";
 import { addDays, dayOf, longDate } from "../lib/offerLetter";
@@ -46,7 +48,13 @@ export function HireDialog({
   const { data: offer } = useOfferLetterState(applicationId, open);
   const today = useMemo(() => dayOf(new Date()), []);
   const first = name.trim().split(/\s+/)[0] || "them";
-  const company = ((profile as { company_name?: string | null } | null | undefined)?.company_name ?? "").trim();
+  // The business's name (the job owner's), so a team member's welcome email
+  // names the business, not their own blank profile.
+  const { data: ownBusiness } = useOwnBusiness();
+  const businessNames = useCompanyNames([ownBusiness?.employerId]);
+  const company =
+    (ownBusiness?.employerId && businessNames.get(ownBusiness.employerId)) ||
+    ((profile as { company_name?: string | null } | null | undefined)?.company_name ?? "").trim();
 
   // What is already asked: still waiting (listed in the email anyway), sent, or approved.
   const already = useMemo(() => {

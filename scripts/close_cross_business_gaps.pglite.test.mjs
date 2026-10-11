@@ -333,5 +333,52 @@ check("the migration applies", true);
   check("both helpers have a fixed search_path", paths.length === 2 && paths.every((p) => show(p.proconfig).includes("search_path")), show(paths));
 }
 
+// 8. An empty business joins a team (20261011185000) ---------------------------
+{
+  const join = await migration(/_join_team_from_empty_business\.sql$/);
+  check("the join-from-empty-business migration exists once", !!join);
+  if (join) {
+    const EMPTY = "40000000-0000-4000-8000-000000000003"; // signed up as a business, never posted
+    const STARTED = "40000000-0000-4000-8000-000000000004"; // no job, but invited someone
+    const PAUSED = "40000000-0000-4000-8000-000000000005"; // no job, paused
+    await db.exec(`
+      create table if not exists public.business_standing (employer_id uuid primary key, status text not null default 'new');
+      create table if not exists public.business_pages (employer_id uuid primary key, slug text unique);
+      grant select, insert, update, delete on public.business_standing, public.business_pages to anon, authenticated, service_role;
+      insert into auth.users values ('${EMPTY}', 'empty@x.example'), ('${STARTED}', 'started@x.example'), ('${PAUSED}', 'paused@x.example');
+      insert into public.user_roles values ('${EMPTY}', 'employer'), ('${STARTED}', 'employer'), ('${PAUSED}', 'employer');
+      insert into public.business_pages values ('${EMPTY}', 'marias-cafe'), ('${ZULU}', 'zulu-support-team');
+      insert into public.business_standing values ('${PAUSED}', 'suspended'), ('${EMPTY}', 'new');
+      insert into public.team_invitations (inviter_id, invite_code, invitee_email, status, expires_at, can_send_documents) values
+        ('${LUCKY}', 'code-empty', 'empty@x.example', 'pending', now() + interval '7 days', true),
+        ('${LUCKY}', 'code-started', 'started@x.example', 'pending', now() + interval '7 days', true),
+        ('${LUCKY}', 'code-paused', 'paused@x.example', 'pending', now() + interval '7 days', true),
+        ('${STARTED}', 'code-from-started', 'someone@x.example', 'pending', now() + interval '7 days', false),
+        ('${LUCKY}', 'code-owner-2', 'zack@yahoo.com', 'pending', now() + interval '7 days', true);
+    `);
+    await db.exec(join);
+    const empty = await as(EMPTY, "authenticated", `select public.accept_team_invitation('code-empty') as r`);
+    check("an account that signed up as a business but never posted joins the team", empty.ok && empty.rows[0]?.r === LUCKY, show(empty));
+    const roles = (await db.query(`select role::text from public.user_roles where user_id = '${EMPTY}'`)).rows.map((r) => r.role);
+    check("…its empty business goes: no 'employer' role left", !roles.includes("employer"), show(roles));
+    const page = (await db.query(`select slug from public.business_pages where employer_id = '${EMPTY}'`)).rows;
+    check("…and its unused careers address is freed", page.length === 0, show(page));
+    const member = (await db.query(`select status, employer_id from public.team_members where user_id = '${EMPTY}'`)).rows;
+    check("…and it is an active member of Lucky's team", member.length === 1 && member[0].status === "active" && member[0].employer_id === LUCKY, show(member));
+    const started = await as(STARTED, "authenticated", `select public.accept_team_invitation('code-started') as r`);
+    check("a business that has invited its own team is still refused", !started.ok && /runs its own hiring/.test(started.error), show(started));
+    const keptRole = (await db.query(`select count(*)::int n from public.user_roles where user_id = '${STARTED}' and role = 'employer'`)).rows[0].n;
+    check("…and keeps its business", keptRole === 1);
+    const paused = await as(PAUSED, "authenticated", `select public.accept_team_invitation('code-paused') as r`);
+    check("a paused business is refused (no way round a pause)", !paused.ok && /runs its own hiring/.test(paused.error), show(paused));
+    const owner2 = await as(ZULU, "authenticated", `select public.accept_team_invitation('code-owner-2') as r`);
+    check("a business with jobs is still refused, and keeps everything", !owner2.ok && /runs its own hiring/.test(owner2.error), show(owner2));
+    const zuluKept = (await db.query(`select (select count(*)::int from public.user_roles where user_id = '${ZULU}' and role = 'employer') r, (select count(*)::int from public.business_pages where employer_id = '${ZULU}') p`)).rows[0];
+    check("…Zulu's role and careers address untouched", zuluKept.r === 1 && zuluKept.p === 1, show(zuluKept));
+    const replay = await as(EMPTY, "authenticated", `select public.accept_team_invitation('code-empty') as r`);
+    check("accepting the same invitation again still answers success", replay.ok && replay.rows[0]?.r === LUCKY, show(replay));
+  }
+}
+
 console.log(`\nclose cross-business gaps: ${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

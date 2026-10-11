@@ -68,6 +68,7 @@ import type { LucideIcon } from "lucide-react";
 import { candidateOrigin } from "@/lib/hosts";
 import { jobPageUrl, jobShareUrl } from "@/lib/jobLinks";
 import { useOwnBusiness } from "@/hooks/useBusinessPage";
+import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import { claimSuggestedSlug } from "@/lib/jobSlugAvailability";
 
 const KIND_ICON: Record<string, { icon: LucideIcon; accent: ReviewPhaseCard["accent"] }> = {
@@ -152,10 +153,16 @@ export default function AvaCreateJob() {
     const raw = previewParams?.get("__previewStep");
     return raw != null && !Number.isNaN(Number(raw)) ? Number(raw) : 0;
   });
-  const [inputMode, setInputMode] = useState<"voice" | "form">(() => {
+  // Talking to Ava is the platform's own account only (ava-voice-session
+  // refuses everyone else since 2026-10-11), so every other business starts
+  // on the typed form and is never offered voice.
+  const canTalk = usePlatformAdmin();
+  const [chosenMode, setInputMode] = useState<"voice" | "form" | null>(() => {
     const raw = previewParams?.get("__previewInputMode");
-    return raw === "form" || raw === "voice" ? raw : "voice";
+    return raw === "form" || raw === "voice" ? raw : null;
   });
+  // (The offline preview can still show the voice screen: ?__previewInputMode=voice.)
+  const inputMode: "voice" | "form" = canTalk ? chosenMode ?? "voice" : import.meta.env.DEV && chosenMode === "voice" ? "voice" : "form";
   const [fuIndex, setFuIndex] = useState(0);
   const [chipAnswers, setChipAnswers] = useState<Record<string, number>>(saved?.chipAnswers ?? {});
   const [rigor, setRigor] = useState<Rigor>(saved?.rigor ?? "standard");
@@ -308,7 +315,7 @@ export default function AvaCreateJob() {
         return;
       }
       if (!ownerCompanyName) {
-        toast.error("The account owner hasn't added a business name yet. Ask them to add it in Settings, then publish.");
+        toast.error("The account owner hasn't added a business name yet. Ask them to add it on their Profile page, then publish.");
         return;
       }
     } else {
@@ -561,9 +568,11 @@ export default function AvaCreateJob() {
                     <p className="mt-3 max-w-sm text-sm leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
                       A few details is all I need. I'll ask follow-ups, recommend screening rigor, then build your whole hiring flow.
                     </p>
-                    <button type="button" onClick={() => setInputMode("voice")} className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium transition hover:opacity-80" style={{ color: "hsl(var(--ck-brass))" }}>
-                      <Mic className="h-3.5 w-3.5" /> Talk to Ava instead
-                    </button>
+                    {canTalk && (
+                      <button type="button" onClick={() => setInputMode("voice")} className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium transition hover:opacity-80" style={{ color: "hsl(var(--ck-brass))" }}>
+                        <Mic className="h-3.5 w-3.5" /> Talk to Ava instead
+                      </button>
+                    )}
                   </div>
                   <div className="rounded-2xl p-5 sm:p-6" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "var(--shadow-lg)" }}>
                     <div className="grid gap-4 sm:grid-cols-2">

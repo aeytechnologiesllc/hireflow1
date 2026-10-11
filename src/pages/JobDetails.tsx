@@ -34,7 +34,7 @@ import { PageHeadTags } from "@/components/seo/usePageHead";
 import { isStaffHost } from "@/lib/hosts";
 import { businessSlugFromParam, jobLookupKey, jobPagePath, pageLookupKey, shortLinkFor, slugFromParam, withApplyAsk } from "@/lib/jobSlug";
 import { jobLevelLabel, jobTypeLabel } from "@/lib/jobLabels";
-import { APPLICANT_BLOCKED_MESSAGE, isApplicantBlockedError } from "@/lib/applicantBlocked";
+import { APPLICANT_BLOCKED_MESSAGE, applicationClosedMessage, isApplicantBlockedError } from "@/lib/applicantBlocked";
 import { openRolesPath, rememberBusiness } from "@/lib/openRoles";
 import { SafetyNote } from "@/components/trust/SafetyNote";
 
@@ -298,6 +298,14 @@ export default function JobDetails() {
       // again" would be untrue, a retry can never work.
       if (isApplicantBlockedError(err)) {
         toast.error(APPLICANT_BLOCKED_MESSAGE, { duration: 10_000 });
+        if (automatic) navigate(location.pathname, { replace: true });
+        return;
+      }
+      // The job closed, its business was paused, or its deadline passed
+      // while the page was open: say so, a retry can't help.
+      const closed = applicationClosedMessage(err);
+      if (closed) {
+        toast.error(closed, { duration: 10_000 });
         if (automatic) navigate(location.pathname, { replace: true });
         return;
       }
