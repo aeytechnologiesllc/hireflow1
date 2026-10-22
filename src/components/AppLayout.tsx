@@ -12,6 +12,7 @@ import { GlobalNotificationToasts } from "@/components/GlobalNotificationToasts"
 import { EmployerLiveSync } from "@/cockpit/hooks/useEmployerLiveSync";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useWebPushSync } from "@/hooks/useWebPush";
 import { Card, CardContent } from "@/components/ui/card";
 import { Shield } from "lucide-react";
 import { lazyWithReload } from "@/lib/lazyWithReload";
@@ -23,6 +24,8 @@ import { lazyWithReload } from "@/lib/lazyWithReload";
 const TeamMemberLayout = lazyWithReload(() => import("@/components/layouts/TeamMemberLayout"));
 const CandidateLayout = lazyWithReload(() => import("@/components/layouts/CandidateLayout"));
 const GuidedTips = lazyWithReload(() => import("@/cockpit/tips/GuidedTips").then((m) => ({ default: m.GuidedTips })));
+// The first-time "turn on notifications" card (the hiring side only).
+const PushPrompt = lazyWithReload(() => import("@/cockpit/push/PushPrompt").then((m) => ({ default: m.PushPrompt })));
 
 // Edge swipe detection constants
 const EDGE_SWIPE_THRESHOLD = 30; // px from edge to start swipe
@@ -91,6 +94,7 @@ export default function AppLayout() {
   }, [hookNeedsOnboarding, role, completeOnboarding]);
   const isMobile = useIsMobile();
   usePushNotifications(); // Auto-registers device for push notifications in Natively
+  useWebPushSync(); // Puts this browser's notification subscription back at sign-in (phone Home Screen, Android, desktop)
   
   // Mobile sidebar is hidden by default, desktop is expanded
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -382,6 +386,10 @@ export default function AppLayout() {
       {/* One-time tips for a new business (src/cockpit/tips), fetched on their own. */}
       <Suspense fallback={null}>
         <GuidedTips />
+      </Suspense>
+      {/* The first-time "turn on notifications" card; Settings is the other way in. */}
+      <Suspense fallback={null}>
+        <PushPrompt />
       </Suspense>
       {/* Deep Jade Owner Cockpit shell (desktop sidebar + mobile bottom tabs) */}
       <CockpitShell>

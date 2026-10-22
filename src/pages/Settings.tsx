@@ -22,7 +22,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { DeviceNotifications } from "@/components/settings/DeviceNotifications";
+import { removeThisDeviceBeforeSignOut } from "@/lib/webPush";
 import { useEmailPreferences, useUpdateEmailPreferences, type EmailPreferences } from "@/hooks/useEmailPreferences";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getSignedOutRoute } from "@/lib/authRouting";
@@ -39,10 +40,8 @@ export default function Settings() {
   // preferences, no tips). The careers page card below stays the owner's.
   const isStaff = isEmployer || isTeamMember || role === "team_member";
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const [isSendingTestPush, setIsSendingTestPush] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const { sendTestNotification } = usePushNotifications();
-  
+
   const { data: emailPrefs, isLoading: prefsLoading } = useEmailPreferences();
   const updatePrefs = useUpdateEmailPreferences();
   
@@ -85,6 +84,8 @@ export default function Settings() {
     setIsSigningOut(true);
     const currentRole = role; // Save role before sign out
     try {
+      // This phone stops getting this person's notifications (deleted while still signed in).
+      await removeThisDeviceBeforeSignOut();
       await supabase.auth.signOut();
       toast.success("Signed out successfully");
       // Navigate based on saved role - candidates go to /candidate, employers to /auth
@@ -183,6 +184,17 @@ export default function Settings() {
           </CardContent>
         </Card>
 
+        {/* Notifications on this phone or browser */}
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="text-lg">Notifications</CardTitle>
+            <CardDescription>Hear back as soon as there's news</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DeviceNotifications audience="applicant" />
+          </CardContent>
+        </Card>
+
         {/* Delete Account */}
         <Card className="bg-card border-destructive/50">
           <CardHeader>
@@ -278,32 +290,6 @@ export default function Settings() {
                     />
                   </div>
                   <Separator />
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-foreground">Test Push Notification</p>
-                      <p className="text-sm text-muted-foreground">Send a test push to your device</p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={isSendingTestPush}
-                      onClick={async () => {
-                        setIsSendingTestPush(true);
-                        try {
-                          await sendTestNotification();
-                          toast.success("Test notification sent! Check your device.");
-                        } catch {
-                          toast.error("Failed to send test notification");
-                        } finally {
-                          setIsSendingTestPush(false);
-                        }
-                      }}
-                    >
-                      {isSendingTestPush ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Bell className="h-4 w-4 mr-2" />}
-                      {isSendingTestPush ? "Sending..." : "Send Test"}
-                    </Button>
-                  </div>
-                  <Separator />
                 </>
               )}
               <div className="flex items-center justify-between">
@@ -322,9 +308,13 @@ export default function Settings() {
           <Card className="bg-card border-border">
             <CardHeader>
               <CardTitle className="text-lg">Notifications</CardTitle>
-              <CardDescription>Configure how you receive email notifications</CardDescription>
+              <CardDescription>Choose how HireFlow reaches you</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 px-5 sm:px-6">
+              {/* On a phone or in a browser, even with the app closed. The second
+                  way to turn them on, for anyone who missed the first-time card. */}
+              <DeviceNotifications audience="staff" />
+              <Separator />
               <div className="flex items-center justify-between gap-4 pr-1">
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-foreground">Email Notifications</p>

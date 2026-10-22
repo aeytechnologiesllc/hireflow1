@@ -74,6 +74,12 @@ Direct URLs are of the form:
 
 `<role>` is one of `employer`, `team_member`, `candidate`, `rejected_candidate`.
 
+`&__previewPush=on|off|blocked|home|unsupported` picks what phone notifications
+look like on this "device" (Settings' "Notifications on this device" row and
+the first-time card; kept for the visit; docs/PUSH-NOTIFICATIONS.md). The
+fixture answers `push-public-key` and `send-test-push` and keeps the saved
+device in `push_subscriptions`.
+
 ### Employer cockpit
 
 | Screen | URL |

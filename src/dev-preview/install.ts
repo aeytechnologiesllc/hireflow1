@@ -14,6 +14,7 @@ import { buildFixtureRpcHandlers, buildFixtureTables, FIXTURE_SCENARIOS, type Fi
 import { previewHiring, previewRequests } from "./previewRequests";
 import { LUCKY_USER, previewAppliedToBoth, previewBusinesses } from "./previewBusinesses";
 import { previewTrustHandlers } from "./previewTrust";
+import { previewPushHandlers, previewPushInvoke } from "./previewPush";
 import {
   APP_QUIZ_ID,
   APP_ZULU_RETAKE_ID,
@@ -1211,6 +1212,7 @@ export function install(params: URLSearchParams): void {
       ...previewChatHandlers(tables, signedIn, params.get("__previewChats")),
       ...previewRatingHandlers(tables, signedIn, params.get("__previewGuide")),
       ...previewTrustHandlers(tables, signedIn, params),
+      ...previewPushHandlers(tables, signedIn),
     },
   });
   const realtime = liveRealtime(base, tables, params.get("__previewLive"));
@@ -1268,6 +1270,8 @@ export function install(params: URLSearchParams): void {
         if (signedOrViewed) return signedOrViewed;
         const requestedFile = requestedFiles(name, options);
         if (requestedFile) return requestedFile;
+        const pushed = await previewPushInvoke(name);
+        if (pushed) return pushed;
         return base.functions.invoke(name, options);
       },
     },

@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import { installCrashReporter } from "./lib/crashReporter";
 import { isStaffHost } from "./lib/hosts";
+import { setUpServiceWorkers } from "./lib/webPush";
 import "./index.css";
 import "./cockpit/cockpit.css";
 import "./styles/candidate-jade.css";
@@ -16,13 +17,15 @@ installCrashReporter();
 // iPhone home-screen bookmark) should say whose door this is.
 if (isStaffHost()) document.title = "HireFlow — Staff";
 
-// Unregister any cached service workers that might interfere with fetch requests
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(registrations => {
-    registrations.forEach(registration => {
-      registration.unregister();
-    });
-  });
+// Service workers: the only one HireFlow keeps is /hireflow-sw.js, which shows
+// phone notifications (no fetch handler, no caching, so it can't interfere
+// with a request). Any other service worker a browser still holds from an
+// earlier build is removed, as before. After the page has loaded, so it never
+// delays the app; it can't throw.
+if ("serviceWorker" in navigator) {
+  const setUp = () => void setUpServiceWorkers();
+  if (document.readyState === "complete") setUp();
+  else window.addEventListener("load", setUp, { once: true });
 }
 
 async function bootstrap() {

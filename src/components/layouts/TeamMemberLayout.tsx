@@ -8,6 +8,7 @@ import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { GlobalNotificationToasts } from "@/components/GlobalNotificationToasts";
 import { EmployerLiveSync } from "@/cockpit/hooks/useEmployerLiveSync";
 import { GuidedTips } from "@/cockpit/tips/GuidedTips";
+import { PushPrompt } from "@/cockpit/push/PushPrompt";
 import AppSidebar from "@/components/AppSidebar";
 import AppHeader from "@/components/AppHeader";
 
@@ -156,6 +157,8 @@ export default function TeamMemberLayout({
         {/* Same live applicant sync as the owner shell. */}
         <EmployerLiveSync />
         <GuidedTips />
+        {/* The first-time "turn on notifications" card; Settings is the other way in. */}
+        <PushPrompt />
         <div className="hidden md:block absolute top-0 right-0 md:w-[600px] md:h-[600px] bg-primary/15 rounded-full md:blur-[150px] pointer-events-none" />
         <div className="hidden md:block absolute bottom-0 left-0 md:w-[500px] md:h-[500px] bg-accent/12 rounded-full md:blur-[150px] pointer-events-none" />
 

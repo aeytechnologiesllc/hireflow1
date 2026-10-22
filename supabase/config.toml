@@ -114,6 +114,12 @@ verify_jwt = false
 [functions.send-test-push]
 verify_jwt = true
 
+[functions.push-public-key]
+# The browser asks for HireFlow's public push key just before it turns
+# notifications on (src/lib/webPush.ts). A public key is no secret; the
+# function reads one row and takes no input.
+verify_jwt = true
+
 [functions.client-errors]
 verify_jwt = false
 

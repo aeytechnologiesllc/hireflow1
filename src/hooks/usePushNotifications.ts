@@ -58,6 +58,96 @@ function pollPlayerId(
   });
 }
 
+/**
+ * The native wrapper's registration, in one piece (it used to live inside the
+ * hook): permission (asked if not granted), then the OneSignal id for this
+ * person, then the row in push_subscriptions. Resolves true once the device
+ * is saved. Only meaningful inside the wrapper.
+ */
+async function registerNativeDevice(userId: string): Promise<boolean> {
+  try {
+    const sdkReady = await waitForNatively();
+    if (!sdkReady || !window.NativelyNotifications) {
+      return false;
+    }
+
+    const notifications = new window.NativelyNotifications();
+
+    // 1. Check current permission status
+    const permStatus = await new Promise<string>((res) =>
+      notifications.getPermissionStatus((r) => res(r.status))
+    );
+    // 2. Request permission if not granted
+    if (permStatus !== "granted") {
+      const granted = await new Promise<boolean>((res) =>
+        notifications.requestPermission(false, (r) => res(r.status))
+      );
+      if (!granted) {
+        return false;
+      }
+    }
+
+    // 3. Set external ID (maps OneSignal device to our user)
+    await new Promise<boolean>((res) =>
+      notifications.setExternalId({ externalId: userId }, (r) => res(r.status))
+    );
+    // 4. Get OneSignal player/subscription ID (with retries)
+    const playerId = await pollPlayerId(notifications);
+    if (!playerId) {
+      return false;
+    }
+
+    // 5. Store in push_subscriptions
+    const { error } = await supabase
+      .from("push_subscriptions")
+      .upsert(
+        {
+          user_id: userId,
+          player_id: playerId,
+          platform: "ios",
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,player_id" }
+      );
+
+    if (error) {
+      console.error("[Push] Failed to store subscription:", error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("[Push] Registration error:", err);
+    return false;
+  }
+}
+
+/** Whether the native wrapper already lets this app send notifications (null: it did not answer). */
+export async function nativePermissionGranted(): Promise<boolean | null> {
+  const ready = await waitForNatively(3000);
+  if (!ready || !window.NativelyNotifications) return null;
+  const notifications = new window.NativelyNotifications();
+  return new Promise((resolve) => {
+    const giveUp = setTimeout(() => resolve(null), 2500);
+    notifications.getPermissionStatus((r) => {
+      clearTimeout(giveUp);
+      resolve(r.status === "granted");
+    });
+  });
+}
+
+/**
+ * "Turn on notifications" inside the native wrapper: ask the phone (sending
+ * the person to its Settings if they said no before), then register as usual.
+ */
+export async function turnOnNativeNotifications(userId: string): Promise<boolean> {
+  const ready = await waitForNatively(3000);
+  if (!ready || !window.NativelyNotifications) return false;
+  const notifications = new window.NativelyNotifications();
+  const granted = await new Promise<boolean>((res) => notifications.requestPermission(true, (r) => res(!!r.status)));
+  if (!granted) return false;
+  return registerNativeDevice(userId);
+}
+
 export function usePushNotifications() {
   const { user } = useAuth();
   const registering = useRef(false);
@@ -68,55 +158,7 @@ export function usePushNotifications() {
     registering.current = true;
 
     try {
-      const sdkReady = await waitForNatively();
-      if (!sdkReady || !window.NativelyNotifications) {
-        return;
-      }
-
-      const notifications = new window.NativelyNotifications();
-
-      // 1. Check current permission status
-      const permStatus = await new Promise<string>((res) =>
-        notifications.getPermissionStatus((r) => res(r.status))
-      );
-      // 2. Request permission if not granted
-      if (permStatus !== "granted") {
-        const granted = await new Promise<boolean>((res) =>
-          notifications.requestPermission(false, (r) => res(r.status))
-        );
-        if (!granted) {
-          return;
-        }
-      }
-
-      // 3. Set external ID (maps OneSignal device to our user)
-      const extSet = await new Promise<boolean>((res) =>
-        notifications.setExternalId({ externalId: user.id }, (r) => res(r.status))
-      );
-      // 4. Get OneSignal player/subscription ID (with retries)
-      const playerId = await pollPlayerId(notifications);
-      if (!playerId) {
-        return;
-      }
-
-      // 5. Store in push_subscriptions
-      const { error } = await supabase
-        .from("push_subscriptions")
-        .upsert(
-          {
-            user_id: user.id,
-            player_id: playerId,
-            platform: "ios",
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id,player_id" }
-        );
-
-      if (error) {
-        console.error("[Push] Failed to store subscription:", error);
-      }
-    } catch (err) {
-      console.error("[Push] Registration error:", err);
+      await registerNativeDevice(user.id);
     } finally {
       registering.current = false;
     }

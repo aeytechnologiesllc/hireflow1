@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, ReactNode } fro
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { getPasswordErrorMessage } from "@/lib/authErrorMessages";
+import { removeThisDeviceBeforeSignOut } from "@/lib/webPush";
 
 type AppRole = "employer" | "candidate" | "team_member" | "developer";
 
@@ -367,6 +368,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    // This phone stops getting this person's notifications (deleted while still signed in).
+    await removeThisDeviceBeforeSignOut();
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);

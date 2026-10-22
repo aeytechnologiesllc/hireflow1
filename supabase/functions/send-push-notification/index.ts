@@ -15,6 +15,18 @@
  * The link is restricted to a hireflownow.com path (_shared/pushLink.ts),
  * because a counterparty can insert a notification for someone else.
  *
+ * Two channels, both optional:
+ *   - web: every browser subscription (push_subscriptions rows with an
+ *     endpoint) the user has turned on: a phone with HireFlow on its Home
+ *     Screen, Chrome on Android, a desktop browser. Needs no outside account;
+ *     the sender key pair makes itself (_shared/webPush.ts). A device the push
+ *     service says is gone (404/410) is removed.
+ *   - OneSignal: the native wrapper's devices, only when ONESIGNAL_* is set
+ *     and the user has such a device.
+ *
+ * It never fails the trigger: a channel that errors is logged and reported in
+ * the 200 answer.
+ *
  * Earlier versions accepted user_id/title/message/url straight from the body
  * behind an INTERNAL_FUNCTION_SECRET header that the trigger never sent, and
  * the trigger called extensions.http_post, which does not exist on this
@@ -22,6 +34,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { pushUrlForLink } from "../_shared/pushLink.ts";
+import { getVapidKeys, pushToDevices } from "../_shared/webPush.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -53,12 +66,9 @@ Deno.serve(async (req) => {
 
   const ONESIGNAL_APP_ID = Deno.env.get("ONESIGNAL_APP_ID");
   const ONESIGNAL_REST_API_KEY = Deno.env.get("ONESIGNAL_REST_API_KEY");
-  if (!ONESIGNAL_APP_ID || !ONESIGNAL_REST_API_KEY) {
-    // Not claimed, so nothing is marked sent while push isn't set up.
-    return json({ success: true, skipped: true, reason: "onesignal_not_configured" });
-  }
+  const oneSignalConfigured = !!ONESIGNAL_APP_ID && !!ONESIGNAL_REST_API_KEY;
 
-  const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 
   try {
     // Claim the row atomically. No row back means it doesn't exist or was
@@ -82,40 +92,74 @@ Deno.serve(async (req) => {
       return json({ success: true, skipped: true, reason: "notifications_disabled" });
     }
 
-    const { count } = await admin
+    const { data: devices, error: devicesError } = await admin
       .from("push_subscriptions")
-      .select("id", { count: "exact", head: true })
+      .select("id, endpoint, p256dh, auth, player_id")
       .eq("user_id", note.user_id);
-    if (!count) return json({ success: true, skipped: true, reason: "no_subscriptions" });
+    if (devicesError) throw devicesError;
+    const webDevices = (devices ?? []).filter((d: { endpoint: string | null }) => !!d.endpoint);
+    const nativeDevices = (devices ?? []).filter((d: { endpoint: string | null; player_id: string | null }) => !d.endpoint && !!d.player_id);
+    if (!webDevices.length && !(oneSignalConfigured && nativeDevices.length)) {
+      return json({ success: true, skipped: true, reason: "no_subscriptions" });
+    }
 
-    const payload: Record<string, unknown> = {
-      app_id: ONESIGNAL_APP_ID,
-      include_aliases: { external_id: [note.user_id] },
-      target_channel: "push",
-      headings: { en: note.title },
-      contents: { en: note.message },
-      ios_badgeType: "Increase",
-      ios_badgeCount: 1,
-    };
     const url = pushUrlForLink(note.link);
-    if (url) {
-      payload.url = url;
-      payload.data = { deep_link: url };
+    const errors: string[] = [];
+    const result: Record<string, unknown> = { success: true };
+
+    // ── Web push: phones with HireFlow on the Home Screen, browsers ────────
+    if (webDevices.length) {
+      try {
+        const keys = await getVapidKeys(admin);
+        result.web = await pushToDevices(admin, webDevices, { title: note.title, body: note.message, url, tag: notificationId }, keys);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error("send-push-notification web push failed:", message);
+        errors.push("web");
+        result.web = { error: "failed" };
+      }
     }
 
-    const response = await fetch("https://onesignal.com/api/v1/notifications", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Basic ${ONESIGNAL_REST_API_KEY}` },
-      body: JSON.stringify(payload),
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      console.error("OneSignal API error:", response.status, result);
-      return json({ error: "OneSignal API error" }, 502);
+    // ── OneSignal: the native wrapper's devices ───────────────────────────
+    if (oneSignalConfigured && nativeDevices.length) {
+      try {
+        const payload: Record<string, unknown> = {
+          app_id: ONESIGNAL_APP_ID,
+          include_aliases: { external_id: [note.user_id] },
+          target_channel: "push",
+          headings: { en: note.title },
+          contents: { en: note.message },
+          ios_badgeType: "Increase",
+          ios_badgeCount: 1,
+        };
+        if (url) {
+          payload.url = url;
+          payload.data = { deep_link: url };
+        }
+        const response = await fetch("https://onesignal.com/api/v1/notifications", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Basic ${ONESIGNAL_REST_API_KEY}` },
+          body: JSON.stringify(payload),
+        });
+        const answer = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          console.error("OneSignal API error:", response.status, answer);
+          errors.push("onesignal");
+          result.onesignal = { error: "OneSignal API error", status: response.status };
+        } else {
+          result.onesignal = { id: answer.id, recipients: answer.recipients };
+        }
+      } catch (error) {
+        console.error("send-push-notification OneSignal failed:", error instanceof Error ? error.message : error);
+        errors.push("onesignal");
+        result.onesignal = { error: "failed" };
+      }
     }
-    return json({ success: true, onesignal_id: result.id, recipients: result.recipients });
+
+    if (errors.length) result.success = false;
+    return json(result);
   } catch (error) {
     console.error("send-push-notification error:", error instanceof Error ? error.message : error);
-    return json({ error: "Push failed" }, 500);
+    return json({ success: false, error: "Push failed" });
   }
 });
