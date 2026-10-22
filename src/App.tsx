@@ -13,7 +13,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { OrbLoader } from "@/components/ava/OrbLoader";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
-import { applicantDetailsImporter, routeImporters, warmStaffPages } from "@/lib/prefetchRoutes";
+import { applicantDetailsImporter, jobDetailImporter, routeImporters, warmStaffPages } from "@/lib/prefetchRoutes";
 import { usePageViewTracking } from "@/hooks/usePageViewTracking";
 import { useAutoUpdate } from "@/hooks/useAutoUpdate";
 
@@ -72,6 +72,7 @@ const Dashboard = lazyWithReload(routeImporters["/dashboard"]);
 const Jobs = lazyWithReload(routeImporters["/jobs"]);
 const Applicants = lazyWithReload(routeImporters["/applicants"]);
 const ApplicantDetails = lazyWithReload(applicantDetailsImporter);
+const JobDetail = lazyWithReload(jobDetailImporter);
 const Messages = lazyWithReload(routeImporters["/messages"]);
 const Documents = lazyWithReload(routeImporters["/documents"]);
 const More = lazyWithReload(routeImporters["/more"]);
@@ -255,6 +256,10 @@ const App = () => (
                     <Route path="/jobs/create" element={<CreateJob />} />
                     <Route path="/jobs/create-legacy" element={<CreateJobLegacy />} />
                     <Route path="/jobs/edit/:id" element={<CreateJobLegacy />} />
+                    {/* One job from the inside, and a person opened from it:
+                        both stay under Jobs (src/cockpit/lib/jobScope.ts). */}
+                    <Route path="/jobs/:jobId" element={<JobDetail />} />
+                    <Route path="/jobs/:jobId/applicants/:id" element={<ApplicantDetails />} />
                     <Route path="/applicants" element={<Applicants />} />
                     <Route path="/applicants/:id" element={<ApplicantDetails />} />
                     <Route path="/interviews" element={<Interviews />} />

@@ -1370,8 +1370,9 @@ const listLib = await src("src/cockpit/lib/applicantList.ts");
 const applicantListHook = await src("src/cockpit/hooks/useApplicantList.ts");
 const detailPage = await src("src/cockpit/pages/CandidateDetail.tsx");
 check(
-  "the Applicants page is a list: no record list on it, every row opens /applicants/:id",
-  !/<AssessmentRecordList/.test(applicantsPage) && (applicantRow.match(/to=\{`\/applicants\/\$\{row\.id\}`\}/g) ?? []).length === 2,
+  // applicantPath(): /applicants/:id, or /jobs/:jobId/applicants/:id inside a job (lib/jobScope.ts).
+  "the Applicants page is a list: no record list on it, every row opens the profile",
+  !/<AssessmentRecordList/.test(applicantsPage) && (applicantRow.match(/to=\{applicantPath\(row\.id, jobId\)\}/g) ?? []).length === 2,
 );
 check("the old EvidenceTiles are gone", !/EvidenceTiles/.test(applicantsPage));
 check("the record sheet opens on the full profile, not on the list", !/<AssessmentRecordSheet/.test(applicantsPage) && /<AssessmentRecordSheet/.test(detailPage));
@@ -1398,7 +1399,8 @@ check("the full profile looks again before saying it cannot find someone", /stil
 check("the list draws 25 at a time and Show 25 more adds the next 25", /export const PAGE_SIZE = 25;/.test(listLib) && /update\(\{ shown: state\.shown \+ PAGE_SIZE \}\)/.test(applicantsPage));
 check(
   "the list's state is written to the URL with replace, from the URL it was read",
-  /setSearchParams\(\s*\(current\) => serializeListState\(\{ \.\.\.parseListState\(current\), shown: PAGE_SIZE, \.\.\.patch \}, current\),\s*\{ replace: true \},?\s*\)/.test(applicantsPage),
+  // Inside a job the job is in the path, so ?roleId= is left out of the URL.
+  /setSearchParams\(\s*\(current\) => \{\s*const next = serializeListState\(\{ \.\.\.parseListState\(current\), shown: PAGE_SIZE, \.\.\.patch \}, current\);\s*if \(jobId\) next\.delete\("roleId"\);\s*return next;\s*\},\s*\{ replace: true \},?\s*\)/.test(applicantsPage),
 );
 check("the job filter IS ?roleId=", /set\("roleId", state\.job, ""\)/.test(listLib) && /job: str\(p\.get\("roleId"\)\)/.test(listLib) && /update\(\{ job: value \|\| null \}\)/.test(applicantsPage));
 check("the profile's pager gets the order on screen; Back restores the scroll", /writeApplicantOrder\(ids\)/.test(applicantsPage) && /navigationType !== "POP"/.test(applicantsPage) && /readScroll\(location\.search\)/.test(applicantsPage));

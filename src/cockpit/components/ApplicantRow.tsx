@@ -4,6 +4,7 @@ import { Bookmark, ChevronRight, ShieldAlert, StickyNote } from "lucide-react";
 import { noteTitle } from "../lib/applicantNotes";
 import { TONE_VAR, type ApplicantDot, type ApplicantListRow, type DotState, type LineSegment } from "../lib/applicantList";
 import { samePhoneWords } from "../lib/blockedApplicants";
+import { applicantPath, useJobScope } from "../lib/jobScope";
 
 /**
  * One applicant on the Applicants list (docs/APPLICANTS-LIST.md §2): a row of
@@ -312,10 +313,20 @@ function Who({ row, size = 38 }: { row: ApplicantListRow; size?: number }) {
 }
 
 /** "Philippines · applied 3 days ago": each half whole, the dot kept on the
- *  first line when it wraps. */
-function SubLine({ row, words }: { row: ApplicantListRow; words: string }) {
+ *  first line when it wraps. With people from more than one job on the list,
+ *  their job leads it ("Barista · Philippines · …"): with four or five jobs
+ *  open, a name and a score alone don't say which one they want. */
+function SubLine({ row, words, showJob = false }: { row: ApplicantListRow; words: string; showJob?: boolean }) {
   return (
     <>
+      {showJob && row.jobTitle && (
+        <>
+          <span className="whitespace-nowrap" style={{ color: "var(--ink-2)" }}>
+            {row.jobTitle}
+            {"\u00a0·"}
+          </span>{" "}
+        </>
+      )}
       <span className="whitespace-nowrap">{row.country}{"\u00a0·"}</span> <span className="whitespace-nowrap">{words}</span>
     </>
   );
@@ -366,12 +377,16 @@ interface RowProps {
    *  that changed place, or arrived later, would blink out and fade back in
    *  (the Applicants page passes false after its first paint). */
   reveal?: boolean;
+  /** Name their job on the line under theirs: the list holds more than one job's people. */
+  showJob?: boolean;
 }
 
-export function ApplicantTableRow({ row, onOpen, index = 0, reveal = true, interviewChip }: RowProps) {
+export function ApplicantTableRow({ row, onOpen, index = 0, reveal = true, interviewChip, showJob }: RowProps) {
+  // Under the job when the list is the job's (lib/jobScope.ts).
+  const jobId = useJobScope();
   return (
     <Link
-      to={`/applicants/${row.id}`}
+      to={applicantPath(row.id, jobId)}
       onClick={(e) => onOpen?.(row, e)}
       data-applicant-row={row.id}
       className={[
@@ -403,7 +418,7 @@ export function ApplicantTableRow({ row, onOpen, index = 0, reveal = true, inter
           </span>
           {/* Wraps rather than cuts: the applied age is the part that matters. */}
           <span className="block text-[12.5px] leading-[1.4]" style={{ color: "var(--ink-3)" }}>
-            <SubLine row={row} words={row.appliedWords} />
+            <SubLine row={row} words={row.appliedWords} showJob={showJob} />
           </span>
         </span>
       </span>
@@ -460,10 +475,12 @@ function CardLine({ row }: { row: ApplicantListRow }) {
   );
 }
 
-export function ApplicantCard({ row, onOpen, index = 0, reveal = true, interviewChip }: RowProps) {
+export function ApplicantCard({ row, onOpen, index = 0, reveal = true, interviewChip, showJob }: RowProps) {
+  // Under the job when the list is the job's (lib/jobScope.ts).
+  const jobId = useJobScope();
   return (
     <Link
-      to={`/applicants/${row.id}`}
+      to={applicantPath(row.id, jobId)}
       onClick={(e) => onOpen?.(row, e)}
       data-applicant-row={row.id}
       // `relative` contains anything absolutely placed inside (the flags'
@@ -483,7 +500,7 @@ export function ApplicantCard({ row, onOpen, index = 0, reveal = true, interview
             {row.note && <NoteMark note={row.note} />}
           </span>
           <span className="block text-[12.5px] leading-[1.4]" style={{ color: "var(--ink-3)" }}>
-            <SubLine row={row} words={row.onForm ? `started ${row.appliedAgo}` : row.appliedAgo} />
+            <SubLine row={row} words={row.onForm ? `started ${row.appliedAgo}` : row.appliedAgo} showJob={showJob} />
           </span>
         </span>
         <span className="shrink-0">

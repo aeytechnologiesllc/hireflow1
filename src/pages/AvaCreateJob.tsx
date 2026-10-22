@@ -804,7 +804,7 @@ export default function AvaCreateJob() {
                 One more thing before this goes live
               </p>
               <p className="mt-0.5 text-[13px]" style={{ color: "hsl(var(--muted-foreground))" }}>
-                Your business name isn't on file — it's what candidates and job boards see instead of you.
+                Your business name isn't on file — it's what candidates see instead of you.
               </p>
             </div>
             <div className="flex shrink-0 flex-col gap-2 sm:flex-row">

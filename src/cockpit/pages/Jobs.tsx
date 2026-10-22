@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { differenceInDays, format, formatDistanceToNow } from "date-fns";
-import { Check, Copy, Mic } from "lucide-react";
+import { Mic } from "lucide-react";
 import { toast } from "sonner";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { clearDraft } from "@/lib/avaEngine/draft";
@@ -15,38 +15,27 @@ import { SearchInput, FilterSelect } from "../components/controls";
 import { ActionDialog } from "../components/ActionDialog";
 import { ShareKitDialog } from "../components/ShareKitDialog";
 import { NewJobDialog } from "../components/NewJobDialog";
+import { JobStatusChip } from "../components/JobStatusChip";
 import { CockpitErrorCard } from "../components/ErrorCard";
 import { useCockpitJobsData, useSchemaMode } from "../hooks/useCockpitData";
 import type { JobRow, JobStatus } from "../data";
-import { candidateOrigin } from "@/lib/hosts";
 import { jobShareUrl } from "@/lib/jobLinks";
 import { shortLinkFor } from "@/lib/jobSlug";
 
 /**
  * Your jobs.
  *
- * One row per role: what state it is in, where it is listed, how many people
- * came through it, and the single next thing to do with it. Live roles carry a
- * jade edge because they are the ones costing you nothing and working right now.
+ * One row per role: what state it is in, how many people came through it, and
+ * the single next thing to do with it. Live roles carry a jade edge because
+ * they are the ones working right now.
  *
- * Every listing claim on this screen is something the app actually does: a
- * published role gets its own public page, and — when it actually clears the
- * real gate in api/job-feed.mjs — sits in the employer's /jobs.xml feed for the
- * job boards. Nothing here implies a board we do not actually post to. A live
- * role that is missing a country, a real company name, or a long-enough
- * description shows the boards chip dimmed rather than claiming it — see
- * src/cockpit/lib/listingEligibility.ts, which mirrors that gate exactly.
- * Google for Jobs was removed on 2026-10-05 (owner: "remove google jobs").
+ * A published role gets its own public page, and that is the only place this
+ * screen says it is. Free job boards are not part of HireFlow (the owner,
+ * 2026-10-21: "we're not doing free job boards ... they will have to post it
+ * themselves"), so there is no boards chip and no listings link here: the
+ * Share Kit hands over the post to paste on OnlineJobs.ph. Google for Jobs
+ * went on 2026-10-05 (owner: "remove google jobs").
  */
-
-/** The places a published role CAN be listed. Drafts show both dimmed; a live role dims the boards until it has earned them. */
-const LISTINGS = ["Your job page", "Job boards"] as const;
-
-const CHIP: Record<JobStatus, { label: string; bg: string; fg: string }> = {
-  live: { label: "Live", bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)" },
-  draft: { label: "Draft", bg: "var(--amber-bg)", fg: "var(--amber-fg)" },
-  closed: { label: "Closed", bg: "var(--surface-2)", fg: "var(--ink-2)" },
-};
 
 type SortKey = "recent" | "applicants" | "title";
 type StatusKey = "all" | JobStatus;
@@ -56,18 +45,6 @@ const SORTS = [
   { value: "applicants", label: "Most applicants" },
   { value: "title", label: "A–Z" },
 ];
-
-function StatusChip({ status, filled }: { status: JobStatus; filled?: boolean }) {
-  const chip = CHIP[status];
-  return (
-    <span
-      className="ml-2 inline-block rounded-[5px] px-2 py-[3px] align-middle text-[10px] font-bold uppercase leading-none tracking-[0.06em]"
-      style={{ background: chip.bg, color: chip.fg, position: "relative", top: -1 }}
-    >
-      {status === "closed" && filled ? "Filled" : chip.label}
-    </span>
-  );
-}
 
 function JobStat({ label, value, tone }: { label: string; value: number; tone?: "jade" }) {
   return (
@@ -201,7 +178,7 @@ function JobListRow({
           go();
         }
       }}
-      aria-label={draft ? `Finish ${job.title}` : `Open applicants for ${job.title}`}
+      aria-label={draft ? `Finish ${job.title}` : `Open ${job.title}`}
       // A live role carries a jade edge — it is the one that is working right now.
       // It has to be a class: an inline box-shadow outranks .ck-row:hover, which
       // left the rows that matter most as the only ones that never lifted.
@@ -212,42 +189,12 @@ function JobListRow({
       <div className="min-w-0 flex-1 basis-[240px] sm:min-w-[240px]">
         <div className="text-[14px] font-semibold leading-tight" style={{ color: "var(--ink)" }}>
           {job.title}
-          <StatusChip status={job.status} filled={filled} />
+          <JobStatusChip status={job.status} filled={filled} />
         </div>
         <div className="mt-[3px] text-[12px] leading-snug" style={{ color: "var(--ink-3)" }}>
           {meta}
         </div>
       </div>
-
-      {/* where it is listed — automatic on publish, dimmed while it is a draft
-          OR while a live role isn't actually clearing that gate yet */}
-      {job.status !== "closed" && (
-        <div
-          className="hidden shrink-0 items-center gap-[5px] xl:flex"
-          title={
-            live
-              ? job.listings?.reason
-                ? `Your job page is live. ${job.listings.reason}`
-                : "Your job page and the job board feed are both live for this role"
-              : "Where it will be listed once you publish"
-          }
-        >
-          {LISTINGS.map((net) => {
-            // Only a LIVE role has a real per-chip eligibility to check —
-            // drafts show every chip dimmed the same way they always have.
-            const eligible = !live || net === "Your job page" ? true : (job.listings?.boards ?? true);
-            return (
-              <span
-                key={net}
-                className="whitespace-nowrap rounded-[5px] px-2 py-[3px] text-[11px]"
-                style={{ background: "var(--surface-2)", color: "var(--ink-2)", opacity: live ? (eligible ? 1 : 0.45) : 0.45 }}
-              >
-                {net}
-              </span>
-            );
-          })}
-        </div>
-      )}
 
       {/* the numbers */}
       <div className="flex shrink-0 items-start gap-5">
@@ -262,7 +209,7 @@ function JobListRow({
         {live && (
           <button
             type="button"
-            title="Take it off your job page and the job board feed — you can post it again later"
+            title="Take it off your job page so nobody new can apply — you can post it again later"
             className="ck-btn ck-btn-ghost !px-3 !py-2 !text-[12.5px]"
             onClick={(e) => {
               e.stopPropagation();
@@ -358,37 +305,6 @@ function JobListRow({
   );
 }
 
-// The listings link is the whole point of the strip — it is the thing you hand
-// to a board. Copying it beats opening it: the page behind it is written for
-// their crawler, not for you.
-function CopyListingsLink() {
-  const [copied, setCopied] = useState(false);
-
-  const copy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(`${candidateOrigin()}/jobs.xml`);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-      toast.success("Listings link copied");
-    } catch {
-      toast.error("Could not copy");
-    }
-  }, []);
-
-  return (
-    <button
-      type="button"
-      onClick={() => void copy()}
-      // Jade, not brass: sending boards your listings costs nothing.
-      className="ml-auto inline-flex shrink-0 items-center gap-1.5 font-semibold transition-opacity hover:opacity-75"
-      style={{ color: "var(--jade)" }}
-    >
-      {copied ? <Check className="h-3.5 w-3.5 shrink-0" /> : <Copy className="h-3.5 w-3.5 shrink-0" />}
-      {copied ? "Copied" : "Copy your listings link"}
-    </button>
-  );
-}
-
 /** "Marisol Reyes" → "Marisol R." — enough to recognise your own hire, no more. */
 function shortName(full: string) {
   const parts = full.trim().split(/\s+/).filter(Boolean);
@@ -442,11 +358,11 @@ export default function CockpitJobs() {
   const canCopy = mode !== "showcase" && !(teamPermissions?.isTeamMember && !teamPermissions.canCreateJobs);
 
   // Closing is the reversible way out — "Post it again" brings it back — so it needs no
-  // dialog. Closing takes it off the job page and out of the job board feed at once.
+  // dialog. Closing takes it off the job page at once; its applicants stay.
   const closeRole = async (job: JobRow) => {
     try {
       await updateJob.mutateAsync({ id: job.id, status: "closed" });
-      toast.success(`${job.title} is closed — off your job page and the job board feed.`);
+      toast.success(`${job.title} is closed. Nobody new can apply; everyone who did is still here.`);
     } catch (error) {
       console.error("Failed to close job:", error);
       // A team role without "Create jobs", or a job already gone, says so (useJobs).
@@ -682,8 +598,6 @@ export default function CockpitJobs() {
     [jobs, status, matchesSearch],
   );
 
-  const filtering = query.trim() !== "" || status !== "all" || place !== "all";
-
   const summary = [
     counts.live > 0 && `${counts.live} live`,
     counts.draft > 0 && `${counts.draft} draft`,
@@ -848,7 +762,7 @@ export default function CockpitJobs() {
                   job={job}
                   index={i}
                   extras={extras.get(job.id) ?? { when: `${job.dateLabel} ${job.date}`, hiredName: null }}
-                  onOpen={() => navigate(`/applicants?roleId=${job.id}`)}
+                  onOpen={() => navigate(`/jobs/${job.id}`)}
                   onEdit={() => navigate(`/jobs/edit/${job.id}`)}
                   onBoost={() => setKitJob(job)}
                   onCloseRole={() => void closeRole(job)}
@@ -879,7 +793,7 @@ export default function CockpitJobs() {
                       job={job}
                       index={i}
                       extras={extras.get(job.id) ?? { when: `${job.dateLabel} ${job.date}`, hiredName: null }}
-                      onOpen={() => navigate(`/applicants?roleId=${job.id}`)}
+                      onOpen={() => navigate(`/jobs/${job.id}`)}
                       onEdit={() => navigate(`/jobs/edit/${job.id}`)}
                       onBoost={() => setKitJob(job)}
                       onCloseRole={() => void closeRole(job)}
@@ -890,23 +804,6 @@ export default function CockpitJobs() {
                   ))}
                 </div>
               )}
-            </div>
-          )}
-
-          {/* ── The free job boards, only when a live role is on them ──
-              The country nag that stood here went with Google Jobs on
-              2026-10-05 (owner: "remove google jobs"). A role that is not on
-              the boards just shows its boards chip dimmed. */}
-          {counts.live > 0 && !filtering && jobs.some((j) => j.status === "live" && j.listings?.boards) && (
-            <div
-              className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 text-[12px] leading-snug"
-              style={{ border: "1px dashed var(--line)", borderRadius: 10, color: "var(--ink-3)" }}
-            >
-              <span className="min-w-0 flex-1">
-                <b style={{ color: "var(--ink-2)" }}>Adzuna, Jooble and Talent.com will list your live roles free.</b> Send
-                them your listings link.
-              </span>
-              <CopyListingsLink />
             </div>
           )}
         </>

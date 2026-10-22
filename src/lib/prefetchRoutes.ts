@@ -71,6 +71,9 @@ export function prefetchForPath(to: string) {
 /** One applicant's page (/applicants/:id): not a nav item, so not keyed by path. */
 export const applicantDetailsImporter = () => import("@/pages/ApplicantDetails");
 
+/** One job from the inside (/jobs/:jobId): reached from a job's row, not the menu. */
+export const jobDetailImporter = () => import("@/cockpit/pages/JobDetail");
+
 /** The staff pages fetched in the quiet after the first screen. Documents is
  *  left to a hover or a tap: it carries the PDF tools (about 480 KB
  *  compressed), the heaviest download in the app. */

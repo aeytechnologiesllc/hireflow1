@@ -613,11 +613,27 @@ check("the profile draws the journey rail from the record's dots", /journeyDots\
 check("the rail hands each gem its state, and GemRail honours it over position", /state: dot\.state === "done"/.test(rail) && /const stated = node\.state != null/.test(gemRail) && /node\.state === "skipped"/.test(gemRail));
 check("Set up interview lives on the profile: the wizard and the 'propose times?' moment", /<InterviewSchedulingWizard/.test(profile) && /<InterviewMoment/.test(profile) && /text: "Set up interview"/.test(profile));
 check("…moving them to interview offers it", /movingToInterview = advanceLabel === "Interview"/.test(profile) && /if \(movingToInterview\) setInterviewMoment\(true\)/.test(profile));
-check("the pager reads the list's order and replaces history", /readApplicantOrder\(\)/.test(profile) && /pagerFor\(order, id\)/.test(profile) && /navigate\(`\/applicants\/\$\{target\}`, \{ replace: true, state: PAGER_MOVE \}\)/.test(profile));
+check("the pager reads the list's order and replaces history", /readApplicantOrder\(\)/.test(profile) && /pagerFor\(order, id\)/.test(profile) && /navigate\(applicantPath\(target, jobId\), \{ replace: true, state: PAGER_MOVE \}\)/.test(profile));
 check("the phone bar shows three at most, the rest behind More", /splitActionBar\(actions, 3\)/.test(profile) && /<MoreMenu/.test(profile));
 check("…and More's menu is portalled, so a transformed ancestor cannot trap it", /createPortal\(/.test(profile) && /document\.body/.test(profile));
 check("the Needs review pill is the tab's rule, not Ava's recommendation", /applicantChip\(status, finishedEveryTest\(dots\)\)/.test(profile) && !/declineRecommended \? \(\s*<span/.test(profile));
-check("the profile URL is unchanged", /navigate\(`\/applicants\/\$\{target\}`/.test(profile));
+// Opened from inside a job (2026-10-21) a profile is /jobs/:jobId/applicants/:id,
+// so the menu keeps Jobs lit; everywhere else it is /applicants/:id, as ever.
+const jobScope = await src("src/cockpit/lib/jobScope.ts");
+const rowSrc = await src("src/cockpit/components/ApplicantRow.tsx");
+check(
+  "the profile URL is unchanged outside a job, and under the job inside one",
+  /jobId \? `\/jobs\/\$\{jobId\}\/applicants\/\$\{id\}` : `\/applicants\/\$\{id\}`/.test(jobScope) &&
+    /const jobId = useJobScope\(\)/.test(profile) &&
+    (rowSrc.match(/to=\{applicantPath\(row\.id, jobId\)\}/g) ?? []).length === 2 &&
+    /navigate\(applicantPath\(id, latest\.current\.jobId\)\)/.test(listPage),
+);
+check(
+  "inside a job, Back names the job and falls back to it",
+  /const backWords = jobId \? `Back to \$\{c\.role\?\.trim\(\) \|\| "the job"\}` : "Back to applicants"/.test(profile) &&
+    /else navigate\(applicantListPath\(jobId\)\)/.test(profile) &&
+    /jobId \? `\/jobs\/\$\{jobId\}` : "\/applicants"/.test(jobScope),
+);
 // Since the Applicants page became a list (docs/APPLICANTS-LIST.md §1) it
 // shows none of Ava's prose; the profile reads it through AvasRead, from the
 // one module, and neither page writes its own copy.
@@ -659,7 +675,7 @@ check(
   /grid-template-columns: repeat\(auto-fill, minmax\(max\(270px, calc\(\(100% - 28px\) \/ 3\)\), 1fr\)\)/.test(css) && /grid-template-columns: minmax\(0, 1fr\) clamp\(316px, 32%, 440px\)/.test(css),
 );
 const shellSrc = await src("src/cockpit/Shell.tsx");
-check("the cockpit lets the profile, and only the profile, use 1680px", /PROFILE_ROUTE = \/\^\\\/applicants\\\/\[\^\/\]\+\\\/\?\$\//.test(shellSrc) && /PROFILE_ROUTE\.test\(pathname\) \? "max-w-\[1680px\]" : "max-w-\[1240px\]"/.test(shellSrc));
+check("the cockpit lets the profile, and only the profile, use 1680px", /PROFILE_ROUTE = \/\^\\\/\(\?:jobs\\\/\[\^\/\]\+\\\/\)\?applicants\\\/\[\^\/\]\+\\\/\?\$\//.test(shellSrc) && /PROFILE_ROUTE\.test\(pathname\) \? "max-w-\[1680px\]" : "max-w-\[1240px\]"/.test(shellSrc));
 const tilesSrc = await src("src/cockpit/components/ApplicantTestTiles.tsx");
 check("a live tile shows the flags on the attempt in progress", /tile\.state === "live" && tile\.flags > 0/.test(tilesSrc));
 check("the rail's sealed pill takes each theme's button ink (contrast in Day)", /\.ck-rail-receipt\.show\.is-sealed \{[^}]*color: var\(--btn-fg\);/.test(css));

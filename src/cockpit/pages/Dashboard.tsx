@@ -329,7 +329,7 @@ function FirstStepsGuide({ onStart, firstName, company }: { onStart: () => void;
           {step(3, false)}
           <span className="min-w-0 flex-1">
             <span className="block text-[14.5px] font-semibold" style={{ color: "var(--hf-text)" }}>Share the job</span>
-            <span className="block text-[12.5px]" style={{ color: "var(--ink-3)" }}>Copy the full post and paste it on Facebook groups or job boards.</span>
+            <span className="block text-[12.5px]" style={{ color: "var(--ink-3)" }}>Copy the full post and paste it on OnlineJobs.ph.</span>
           </span>
           <span className="shrink-0 text-[12px]" style={{ color: "var(--ink-3)" }}>After step 2</span>
         </li>
@@ -371,7 +371,7 @@ function CompanyNameGuide({ onDismiss }: { onDismiss: () => void }) {
     setSaving(true);
     try {
       await updateProfile.mutateAsync({ company_name: trimmed });
-      toast.success("Saved. Candidates and job boards will see this name from now on.");
+      toast.success("Saved. Candidates will see this name from now on.");
     } catch {
       toast.error("Couldn't save that — please try again.");
     } finally {
@@ -404,7 +404,7 @@ function CompanyNameGuide({ onDismiss }: { onDismiss: () => void }) {
           What should candidates call you?
         </h2>
         <p className="mt-2 text-[14.5px] leading-[1.6]" style={{ color: "var(--hf-text-soft)" }}>
-          Your business name is missing from your account — it's what candidates and job boards see
+          Your business name is missing from your account — it's what candidates see
           in place of it. Add it once and you're done.
         </p>
       </div>

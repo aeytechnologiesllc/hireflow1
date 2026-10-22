@@ -373,8 +373,9 @@ function MobileTabBar() {
   );
 }
 
-/** /applicants/:id, the one page that takes a wider cap. */
-const PROFILE_ROUTE = /^\/applicants\/[^/]+\/?$/;
+/** One applicant's profile (/applicants/:id, or /jobs/:jobId/applicants/:id
+ *  from inside a job), the one page that takes a wider cap. */
+const PROFILE_ROUTE = /^\/(?:jobs\/[^/]+\/)?applicants\/[^/]+\/?$/;
 
 export function CockpitShell({ children }: { children: ReactNode }) {
   const isMobile = useIsMobile();

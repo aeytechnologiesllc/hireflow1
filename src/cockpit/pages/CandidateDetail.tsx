@@ -86,6 +86,7 @@ import {
   type ApplicantChip,
 } from "../lib/applicantProfile";
 import { agoWords, listRowFor, TAB_LABELS, UNKNOWN_COUNTRY, type ApplicantListApp, type ApplicantTab } from "../lib/applicantList";
+import { applicantListPath, applicantPath, useJobScope } from "../lib/jobScope";
 
 const STRENGTH_ICONS = [UserRound, MessageCircle, Target, BookOpen];
 
@@ -424,8 +425,9 @@ const PAGER_MOVE = { pagerMove: true } as const;
 
 function Pager({ position, total, prevId, nextId }: { position: number; total: number; prevId: string | null; nextId: string | null }) {
   const navigate = useNavigate();
+  const jobId = useJobScope();
   const go = (target: string | null) => {
-    if (target) navigate(`/applicants/${target}`, { replace: true, state: PAGER_MOVE });
+    if (target) navigate(applicantPath(target, jobId), { replace: true, state: PAGER_MOVE });
   };
   const arrow =
     "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border disabled:opacity-30 md:h-7 md:w-7";
@@ -456,6 +458,9 @@ function CandidateProfile({
   railEntrance: "draw" | "none";
 }) {
   const navigate = useNavigate();
+  // Opened from inside a job (/jobs/:jobId/applicants/:id): Back, the pager
+  // and the menu stay with that job (lib/jobScope.ts).
+  const jobId = useJobScope();
   const { isTeamMember } = useAuth();
   const { candidate: c, application, isLoading, isError, refetch } = useCockpitCandidate(id);
   const { advance, reject, letContinue, isUpdating } = useCockpitActions();
@@ -612,7 +617,7 @@ function CandidateProfile({
   // deep link.
   const goBack = () => {
     if (window.history.length > 1) navigate(-1);
-    else navigate("/applicants");
+    else navigate(applicantListPath(jobId));
   };
 
   // Two different held states, and they must not read the same. Wax does not
@@ -651,15 +656,17 @@ function CandidateProfile({
           <button
             type="button"
             className="ck-btn ck-btn-outline mt-3 !py-2 !text-[12.5px]"
-            onClick={() => navigate("/applicants")}
+            onClick={() => navigate(applicantListPath(jobId))}
           >
-            Back to applicants
+            {jobId ? "Back to the job" : "Back to applicants"}
           </button>
         </div>
       </div>
     );
   }
 
+  // "Back to Barista" from inside a job; the profile's job is the job it was opened from.
+  const backWords = jobId ? `Back to ${c.role?.trim() || "the job"}` : "Back to applicants";
   const isHired = status === "hired";
   const isRejected = status === "rejected";
   const isOffered = status === "offered";
@@ -1076,7 +1083,7 @@ function CandidateProfile({
           <button onClick={goBack} className="inline-flex min-w-0 items-center gap-1.5 text-[13.5px] transition-opacity hover:opacity-80" style={{ color: "var(--ink-2)" }}>
             <ChevronLeft className="h-4 w-4 shrink-0" />
             <span className="truncate">
-              Back to applicants
+              {backWords}
               {tabWords && <span style={{ color: "var(--ink-3)" }}> · {tabWords}</span>}
             </span>
           </button>
@@ -1327,10 +1334,10 @@ function CandidateProfile({
           className="hidden items-center gap-1.5 text-[13.5px] transition-opacity hover:opacity-80 md:inline-flex"
           style={{ color: "var(--hf-text-soft)" }}
         >
-          <ArrowLeft className="h-4 w-4" /> Back to applicants
+          <ArrowLeft className="h-4 w-4" /> {backWords}
         </button>
         {/* mobile */}
-        <button onClick={goBack} aria-label="Back to applicants" className="md:hidden" style={{ color: "var(--hf-text)" }}>
+        <button onClick={goBack} aria-label={backWords} className="md:hidden" style={{ color: "var(--hf-text)" }}>
           <ChevronLeft className="h-6 w-6" />
         </button>
         <span className="min-w-0 flex-1 truncate font-display text-[18px] md:hidden" style={{ color: "var(--hf-text)", fontWeight: 500 }}>

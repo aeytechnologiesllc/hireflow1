@@ -40,6 +40,7 @@ import { SHORTLIST_EMPTY_LINE, SHORTLIST_PRIVATE_LINE, canShortlist, markShortli
 import { useApplicantNotes, useApplicantViews } from "../hooks/useApplicantNotes";
 import { markSeenAndNoted } from "../lib/applicantNotes";
 import { writeApplicantOrder, writeApplicantTab } from "../lib/applicantProfile";
+import { applicantPath } from "../lib/jobScope";
 import {
   APPLIED_OPTIONS,
   BELOW_OPTIONS,
@@ -228,9 +229,12 @@ const ApplicantListItem = memo(function ApplicantListItem({
   actions,
   interviewChip,
   canDecide,
+  showJob,
 }: {
   /** "Interview 7.8", when he has rated their interview. A string, so the memo still holds. */
   interviewChip: string | null;
+  /** Their job on the line under their name: the list holds more than one job's people. */
+  showJob: boolean;
   /** May pick, shortlist, pass and block (applicantMenuItems' canDecide). */
   canDecide: boolean;
   row: ApplicantListRow;
@@ -268,15 +272,17 @@ const ApplicantListItem = memo(function ApplicantListItem({
   return (
     <ApplicantRowFrame variant={wide ? "table" : "card"} menu={menu} select={select} selecting={selecting} selected={picked} reveal={reveal} index={index}>
       {wide ? (
-        <ApplicantTableRow row={row} index={index} onOpen={actions.open} reveal={false} interviewChip={interviewChip} />
+        <ApplicantTableRow row={row} index={index} onOpen={actions.open} reveal={false} interviewChip={interviewChip} showJob={showJob} />
       ) : (
-        <ApplicantCard row={row} index={index} onOpen={actions.open} reveal={false} interviewChip={interviewChip} />
+        <ApplicantCard row={row} index={index} onOpen={actions.open} reveal={false} interviewChip={interviewChip} showJob={showJob} />
       )}
     </ApplicantRowFrame>
   );
 });
 
-export default function CockpitApplicants() {
+/** `jobId`: drawn inside one job (pages/JobDetail.tsx), which owns the title,
+ *  the job's link and its state; the list here is that job's people only. */
+export default function CockpitApplicants({ jobId = null }: { jobId?: string | null }) {
   const navigate = useNavigate();
   const location = useLocation();
   const navigationType = useNavigationType();
@@ -330,17 +336,26 @@ export default function CockpitApplicants() {
   const jobRows = useMemo(() => (rawJobs ?? []).map((j) => mapJobRow(j, [], null)), [rawJobs]);
 
   /* ── The list's state is the URL ───────────────────────────────────── */
-  const state = useMemo(() => parseListState(searchParams), [searchParams]);
+  // Inside a job the job is the page, not a filter: it is in the path, never
+  // in ?roleId=.
+  const state = useMemo(() => {
+    const parsed = parseListState(searchParams);
+    return jobId ? { ...parsed, job: jobId } : parsed;
+  }, [searchParams, jobId]);
   /** Any change but "Show 25 more" starts again from the first 25. Replace,
    *  not push: Back leaves the page, it does not undo a filter. */
   const update = useCallback(
     (patch: Partial<ApplicantListState>) => {
       setSearchParams(
-        (current) => serializeListState({ ...parseListState(current), shown: PAGE_SIZE, ...patch }, current),
+        (current) => {
+          const next = serializeListState({ ...parseListState(current), shown: PAGE_SIZE, ...patch }, current);
+          if (jobId) next.delete("roleId");
+          return next;
+        },
         { replace: true },
       );
     },
-    [setSearchParams],
+    [setSearchParams, jobId],
   );
 
   const stepTitles = useMemo(() => {
@@ -499,8 +514,9 @@ export default function CockpitApplicants() {
       },
       { key: "applied", label: "Applied", sheetLabel: "Applied", value: state.applied, anyValue: "any", options: APPLIED_OPTIONS },
     ];
-    // ?roleId= is this same filter; the menu only when there is a choice.
-    if (jobRows.length > 1) {
+    // ?roleId= is this same filter; the menu only when there is a choice
+    // (never inside a job, which is the choice already made).
+    if (!jobId && jobRows.length > 1) {
       list.push({
         key: "job",
         label: "Job",
@@ -511,7 +527,7 @@ export default function CockpitApplicants() {
       });
     }
     return list;
-  }, [journeys, jobRows, rows, state, now, view.scoped]);
+  }, [journeys, jobRows, rows, state, now, view.scoped, jobId]);
 
   const pick = useCallback(
     (key: FilterKey, value: string) => {
@@ -592,9 +608,9 @@ export default function CockpitApplicants() {
   /* ── One object the rows call back through, for the page's lifetime
      (ApplicantListItem is memoised on it): it reads the page's latest
      state from a ref, so no row redraws because a callback was rebuilt. ── */
-  const latest = useRef({ wide, selectMode, togglePick, openRow, navigate, settle, setShortlisted });
+  const latest = useRef({ wide, selectMode, togglePick, openRow, navigate, settle, setShortlisted, jobId });
   useLayoutEffect(() => {
-    latest.current = { wide, selectMode, togglePick, openRow, navigate, settle, setShortlisted };
+    latest.current = { wide, selectMode, togglePick, openRow, navigate, settle, setShortlisted, jobId };
   });
   const rowActions = useMemo<RowActions>(
     () => ({
@@ -610,7 +626,7 @@ export default function CockpitApplicants() {
       toggle: (id, range) => latest.current.togglePick(id, range),
       openProfile: (id) => {
         latest.current.openRow();
-        latest.current.navigate(`/applicants/${id}`);
+        latest.current.navigate(applicantPath(id, latest.current.jobId));
       },
       select: (id) => {
         if (!latest.current.wide) setSelectMode(true);
@@ -678,6 +694,31 @@ export default function CockpitApplicants() {
      the job says there is no job"). Now: the role it was opened for (or the
      first live one), and its link. "Post your first job" only when there
      genuinely is no role. */
+  // Inside a job: no second title under the job's own, just what happens
+  // next for this job. (A job that isn't there is the job page's to say.)
+  if (jobId && view.scoped.length === 0) {
+    const status = shareJob?.status;
+    return (
+      <section className="ck-card ck-reveal p-6 md:p-8">
+        <h2 className="font-display text-[20px]" style={{ color: "var(--ink)", fontWeight: 500 }}>
+          {status === "closed" ? "Nobody applied while it was open." : "Nobody has applied yet."}
+        </h2>
+        <p className="mt-2 max-w-[56ch] text-[14px] leading-relaxed" style={{ color: "var(--ink-2)" }}>
+          {status === "draft"
+            ? "Finish it, publish it and share its link. Everyone who applies shows up here, read and scored against the job."
+            : status === "closed"
+              ? "Post it again to take applications. Everyone who applies shows up here, read and scored against the job."
+              : "The moment someone applies I read them, score them against the job, and they show up here, already sealed, with my working shown."}
+        </p>
+        {status === "live" && shareJob && (
+          <div className="mt-5">
+            <ShareJobCompact job={shareJob} lead="It's live. Share its link:" />
+          </div>
+        )}
+      </section>
+    );
+  }
+
   if (view.scoped.length === 0 && jobMissing) {
     return (
       <div className="space-y-4">
@@ -767,6 +808,8 @@ export default function CockpitApplicants() {
 
   // The blocked are not "applied": they are off every count but Blocked's.
   const people = view.scoped.filter((r) => r.tab !== "blocked");
+  // People from more than one job on this list: each row names its job.
+  const manyJobs = new Set(view.scoped.map((r) => r.jobId)).size > 1;
   const onForm = people.filter((r) => r.onForm).length;
   const applied = people.length - onForm;
   // Blocked shows only when someone is (or it is the tab open).
@@ -879,6 +922,7 @@ export default function CockpitApplicants() {
       actions={rowActions}
       interviewChip={interviewScoreWords(interviewScoresByApplication.get(row.id))?.chip ?? null}
       canDecide={canDecide}
+      showJob={manyJobs}
     />
   );
   // What is waiting (new applicants, rows that would move): one quiet bar,
@@ -891,18 +935,23 @@ export default function CockpitApplicants() {
     <div ref={attachRoot} className="space-y-4">
       {/* ── The head: one route title per viewport. On a phone the shell's
           top bar carries "Applicants"; in the team member's shell its header
-          does at every width. ─────────────────────────────────────────── */}
+          does at every width. Inside a job the job page carries the title,
+          the job's name and its Share link. ───────────────────────────── */}
       <header className="ck-rise flex flex-wrap items-end gap-x-4 gap-y-3">
-        {!isTeamMember && (
+        {!isTeamMember && !jobId && (
           <h1 className="hidden font-display text-[34px] font-medium leading-[1.05] md:block" style={{ color: "var(--ink)", letterSpacing: "-0.01em" }}>
             Applicants
           </h1>
         )}
-        {/* Wraps to a second line rather than cutting the job's name off. */}
-        <p className="line-clamp-2 min-w-0 flex-1 text-[13px] leading-[1.4] md:pb-[5px] md:text-[14px]" style={{ color: "var(--ink-3)" }}>
+        {/* Wraps to a second line rather than cutting the job's name off.
+            Inside a job on a phone the count line under the filters says it. */}
+        <p
+          className={`line-clamp-2 min-w-0 flex-1 text-[13px] leading-[1.4] md:pb-[5px] md:text-[14px]${jobId ? " max-md:hidden" : ""}`}
+          style={{ color: "var(--ink-3)" }}
+        >
           {applied} applied
           {onForm > 0 && ` · ${onForm} on the form`}
-          {shownJob && (
+          {shownJob && !jobId && (
             <>
               {" · "}
               <span style={{ color: "var(--jade-soft-fg)", fontWeight: 500 }}>{shownJob.title}</span>
@@ -912,7 +961,7 @@ export default function CockpitApplicants() {
         {/* The search shares the title's row only when there is room for both
             (lg); below that it takes a row of its own. */}
         <div className="flex w-full items-center gap-2 lg:w-auto lg:shrink-0">
-          {shareJob && (
+          {shareJob && !jobId && (
             <button type="button" className="ck-btn ck-btn-outline shrink-0 !py-2 !text-[12.5px]" onClick={() => setShareOpen(true)}>
               Share job
             </button>

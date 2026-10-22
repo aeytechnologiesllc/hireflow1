@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Copy, Check, Printer } from "lucide-react";
+import { X, Copy, Check, Printer, ExternalLink } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
@@ -13,8 +13,11 @@ import { buildFullJobPost, type FullPostJob } from "@/lib/jobPost";
  * ShareKitDialog — theme-locked (Deep Jade) per-job share kit: apply link +
  * QR code, ready-to-paste post text, and a printable "We're hiring" QR flyer
  * for the shop window. Opens from the Jobs list so an employer can re-share
- * any job long after publish day. Everything here shares HireFlow's own
- * link — it never sends anyone to post the job by hand on an outside board.
+ * any job long after publish day. Everything here shares HireFlow's own link.
+ * HireFlow posts to no job board itself: the employer pastes the post where
+ * they hire, and the kit names the one we use (the owner, 2026-10-21: "they
+ * will have to post it themselves and post it on" OnlineJobs.ph, "that's what
+ * we use to hire our agents").
  *
  * The post comes two ways (the owner, 2026-10-11: "give them options to copy
  * job full post so they can simply paste on job posts and won't have to
@@ -22,6 +25,9 @@ import { buildFullJobPost, type FullPostJob } from "@/lib/jobPost";
  * post, the whole job from its own fields with the link at the end
  * (src/lib/jobPost.ts).
  */
+/** The job site we hire our own agents on, and the one the kit names. */
+const ONLINEJOBS_URL = "https://www.onlinejobs.ph/";
+
 interface ShareKitJob {
   id: string;
   title: string;
@@ -333,6 +339,27 @@ export function ShareKitDialog({ open, job, applyUrl: callerUrl, onClose }: Shar
               Everything in the job, with the apply link at the end. Paste it as is: nothing to change.
             </p>
           )}
+        </div>
+
+        {/* ── Where to post it: HireFlow posts to no board itself ─────── */}
+        <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--hf-border-strong)" }} data-where-to-post>
+          <div className="text-[11px] uppercase" style={{ color: "var(--hf-text-muted)", letterSpacing: "0.12em" }}>
+            Where to post it
+          </div>
+          <p className="mt-1.5 text-[13px] leading-relaxed" style={{ color: "var(--hf-text-soft)" }}>
+            Paste the full post on <b style={{ color: "var(--hf-text)", fontWeight: 600 }}>OnlineJobs.ph</b>. It&rsquo;s where we
+            hire our own chat agents. Everyone who applies through the link lands here, read and scored.
+          </p>
+          <a
+            href={ONLINEJOBS_URL}
+            target="_blank"
+            // noreferrer alone also cuts the opener (and this file must never say
+            // the other word: Print flyer's window.open needs its opener).
+            rel="noreferrer"
+            className="ck-btn ck-btn-outline mt-2.5 !px-3 !text-[12.5px]"
+          >
+            Open OnlineJobs.ph <ExternalLink className="h-3.5 w-3.5" />
+          </a>
         </div>
 
         {/* ── Status note ────────────────────────────── */}

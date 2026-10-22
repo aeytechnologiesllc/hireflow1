@@ -4782,7 +4782,7 @@ export default function CreateJob() {
             </div>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Your business name isn't on file yet — it's what candidates and job boards see instead of
+            Your business name isn't on file yet — it's what candidates see instead of
             you. Add it and this job publishes right away.
           </p>
           <div className="space-y-2">

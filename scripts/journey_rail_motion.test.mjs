@@ -64,7 +64,7 @@ const createFlow = await src("src/components/ava/createFlow/shared.tsx");
 console.log("\nWhere it applies:\n");
 check("the profile's rail is the calm one", /motion="calm"\s*\n\s*entrance=\{entrance\}/.test(journeyRail));
 check("both of the profile's rails are told whether to draw", (profile.match(/entrance=\{railEntrance\}/g) ?? []).length === 2);
-check("the pager's move says it was the pager", /const PAGER_MOVE = \{ pagerMove: true \} as const;/.test(profile) && /navigate\(`\/applicants\/\$\{target\}`, \{ replace: true, state: PAGER_MOVE \}\)/.test(profile));
+check("the pager's move says it was the pager", /const PAGER_MOVE = \{ pagerMove: true \} as const;/.test(profile) && /navigate\(applicantPath\(target, jobId\), \{ replace: true, state: PAGER_MOVE \}\)/.test(profile));
 check("a profile the pager turned to does not draw itself; one opened from the list does", /pagerMove === true;/.test(profile) && /railEntrance=\{turnedTo \? "none" : "draw"\}/.test(profile));
 check("the careers page and the create-job flow keep the walk", !/motion=/.test(careers) && !/motion=/.test(createFlow) && /motion = "walk",/.test(gemRail));
 

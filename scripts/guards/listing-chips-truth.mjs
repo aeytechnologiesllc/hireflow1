@@ -78,30 +78,30 @@ export default [
     },
   },
   {
-    id: "jobs-list-chips-are-truthful-per-chip",
+    // 2026-10-21: free job boards are not part of HireFlow (the owner: "we're
+    // not doing free job boards ... they will have to post it themselves").
+    // The boards chip, its tooltip and the Adzuna/Jooble/Talent.com strip went
+    // from the Jobs list; the Share Kit names OnlineJobs.ph instead. The
+    // eligibility mirror above stays only because api/job-feed.mjs still runs.
+    id: "jobs-list-makes-no-job-board-claims",
     why:
-      "Jobs.tsx's JobListRow must dim whichever chip a live job hasn't actually earned (per " +
-      "job.listings) and must drop the old blanket claim (\"Your job page and Google go up " +
-      "automatically — boards list you once you send them your link\") — a live job failing a gate " +
-      "must never render that chip at full opacity with a tooltip implying it is already listed there.",
+      "Jobs.tsx must not tell an employer a job board lists their job: HireFlow posts to none. " +
+      "No boards chip, no listings link, no free-boards strip, no Google for Jobs; the Share Kit " +
+      "points them to OnlineJobs.ph to post it themselves.",
     run: async ({ read }) => {
       const src = (await read("src/cockpit/pages/Jobs.tsx")) ?? "";
+      const kit = (await read("src/cockpit/components/ShareKitDialog.tsx")) ?? "";
       const bad = [];
       if (!src) {
         bad.push("src/cockpit/pages/Jobs.tsx not found");
         return { ok: false, detail: bad };
       }
-      if (/Your job page and Google go up automatically — boards list you once you send them your link/.test(src)) {
-        bad.push("Jobs.tsx still renders the stale blanket tooltip claiming boards list you once you send them your link");
+      const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+      if (/Job boards|job board feed|listings link|jobs\.xml|Adzuna|Jooble|Talent\.com|Google for Jobs/.test(code)) {
+        bad.push("Jobs.tsx claims a job board again (a boards chip, the listings link, the free-boards strip or Google for Jobs)");
       }
-      if (!/job\.listings\?\.boards/.test(src)) {
-        bad.push("JobListRow no longer dims the boards chip on job.listings.boards");
-      }
-      if (/Google for Jobs/.test(src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, ""))) {
-        bad.push("Jobs.tsx shows Google for Jobs again — it was removed on 2026-10-05");
-      }
-      if (!/Your job page is live\. \$\{job\.listings\.reason\}/.test(src)) {
-        bad.push("JobListRow no longer renders a truthful per-job reason in the live tooltip");
+      if (!/const ONLINEJOBS_URL = "https:\/\/www\.onlinejobs\.ph\/";/.test(kit) || !/Where to post it/.test(kit)) {
+        bad.push("ShareKitDialog no longer tells the employer where to post the job (OnlineJobs.ph)");
       }
       return bad.length ? { ok: false, detail: bad } : { ok: true };
     },

@@ -88,6 +88,17 @@ check("no early-access wording or buttons anywhere", !/early access|data-cta/i.t
 check("Privacy, Terms and Team sign in are linked", /<a href="\/privacy">Privacy<\/a>/.test(page) && /<a href="\/terms">Terms<\/a>/.test(page) && /href="https:\/\/staff\.hireflownow\.com\/auth">Team sign in<\/a>/.test(page));
 check("nothing moves forever (docs: no endless animations)", !/infinite/.test(page));
 check("the Earth is drawn only while something changes", /if \(moving\) loop = requestAnimationFrame\(frame\);/.test(page));
+// The opening at rest (the owner, 2026-10-21: "there's no animation while
+// it's sitting still"): one short night of arrivals, then it stops, and none
+// of it for anyone who asks for less motion.
+check(
+  "at rest the opening plays one short night, then stops",
+  /var IDLE_MS = 20000, WIND_MS = 2600/.test(page) &&
+    /function startIdle\(\) \{\s*if \(calm\) return;/.test(page) &&
+    /if \(next === 0 && before !== 0\) startIdle\(\);/.test(page) &&
+    /if \(age > IDLE_MS \+ WIND_MS && idle\.arcs\.length === 0\) \{ idle = null; return false; \}/.test(page) &&
+    /if \(stepIdle\(now\)\) moving = true;/.test(page),
+);
 
 console.log("\nApplicant links show the applicants' picture, never HireFlow's");
 const shell = await read("index.html");
