@@ -1,0 +1,16 @@
+{
+ "title": "How to test a chat support agent before you hire them (15-second ad)",
+ "voice": "af_heart",
+ "speed": 1.2,
+ "opening": "How do you know a chat agent is good, before you hire them?",
+ "steps": [
+  { "id": "hireflow", "line": "HireFlow gives every applicant a real angry-customer chat while you sleep, and scores it.", "do": [] },
+  { "id": "morning", "line": "In the morning, you meet the best three.", "do": [] }
+ ],
+ "closing": "Post your first job free at hire flow now dot com.",
+ "finale": "Hire Chat Agents while you sleep.",
+ "endHold": 600,
+ "zoom": 1,
+ "scenePage": "/__scene/01-test-a-chat-agent.html",
+ "captions": false
+}

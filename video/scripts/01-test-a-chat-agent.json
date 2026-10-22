@@ -1,0 +1,23 @@
+{
+ "title": "How to test a chat support agent before you hire them",
+ "subtitle": "Three checks that show who can handle an angry customer",
+ "voice": "af_heart",
+ "speed": 1.2,
+ "opening": "How do you know a chat agent is good, before you hire them?",
+ "steps": [
+  { "id": "same", "line": "Give every applicant the same angry customer.", "do": [] },
+  { "id": "fast", "line": "Check one: do they reply fast? Customers don't wait.", "do": [] },
+  { "id": "reason", "line": "Check two: do they find the real problem, or just say sorry?", "do": [] },
+  { "id": "promise", "line": "Check three: do they promise only what they can keep?", "do": [] },
+  { "id": "many", "line": "Now do that for every applicant. That's days of your time.", "do": [] },
+  { "id": "hireflow", "line": "HireFlow gives every applicant a real angry-customer chat while you sleep, and scores it.", "do": [] },
+  { "id": "morning", "line": "In the morning, you meet the best three.", "do": [] }
+ ],
+ "closing": "Post your first job free at hire flow now dot com.",
+ "finale": "Hire Chat Agents while you sleep.",
+ "endHold": 2500,
+ "zoom": 1,
+ "hook": "Is this chat agent good?",
+ "scenePage": "/__scene/01-test-a-chat-agent.html",
+ "captions": false
+}

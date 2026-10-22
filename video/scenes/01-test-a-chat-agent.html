@@ -1,0 +1,411 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>How to test a chat support agent before you hire them</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@500;600;700&family=Instrument+Serif:ital@0;1&family=Fraunces:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="kit.css">
+<style>
+/* ---- 0 opening: night sky, the dotted horizon, one question ---- */
+#s-opening { padding-bottom: 300px; }
+#s-opening .words { line-height: 1.02; }
+#s-opening .l2 { display: flex; align-items: center; justify-content: center; gap: 52px; margin-top: 10px; }
+#s-opening .l2 em { font-size: 1.9em; line-height: .8; }
+.chatico { flex: none; width: 168px; height: 154px; filter: drop-shadow(0 0 30px rgba(232,195,126,.32)) drop-shadow(0 18px 24px rgba(0,0,0,.5)); }
+.chatico .dot { transform-box: fill-box; transform-origin: center; }
+.on .chatico.in { animation: chipPop 560ms var(--pop) var(--d) both, icoPulse 800ms ease-in-out calc(var(--d) + 700ms) forwards; }
+@keyframes icoPulse { 0% { transform: none; } 40% { transform: scale(1.2) rotate(-5deg); } 100% { transform: none; } }
+.on .chatico .dot { animation: dotUp 700ms ease-in-out both; }
+.on .chatico .dot:nth-child(2) { animation-delay: calc(var(--d) + 780ms); }
+.on .chatico .dot:nth-child(3) { animation-delay: calc(var(--d) + 860ms); }
+.on .chatico .dot:nth-child(4) { animation-delay: calc(var(--d) + 940ms); }
+@keyframes dotUp { 0%, 100% { transform: none; } 40% { transform: scale(1.5) translateY(-4px); } }
+
+/* ---- 1 same: one angry customer, the same for every applicant ---- */
+.chatcard { width: 760px; padding: 26px 40px 38px; }
+.chatcard .k { margin-bottom: 4px; }
+.cust { display: block; margin-top: 12px; font-size: 68px; line-height: 1.05; border-radius: 30px 30px 30px 8px; padding: 22px 38px 26px; }
+.cust b { display: block; font-size: 1.42em; letter-spacing: -.045em; line-height: 1.02; }
+.chatcard .stampbox { right: -64px; top: -18px; }
+.fanout { position: relative; margin-top: 4px; }
+.fanout::before, .fanout::after, .app::before { content: ""; position: absolute; background: rgba(232,195,126,.8); }
+.fanout::after { left: 50%; top: -52px; width: 3px; height: 28px; margin-left: -1.5px; transform-origin: top; }
+.fanout::before { left: calc(var(--aw) / 2); right: calc(var(--aw) / 2); top: -25px; height: 3px; transform-origin: center; }
+.app::before { left: 50%; top: -25px; width: 3px; height: 25px; margin-left: -1.5px; transform-origin: top; }
+.on .fanout::after { animation: wireY 360ms ease-out 400ms both; }
+.on .fanout::before { animation: wireX 420ms ease-out 640ms both; }
+.on .app::before { animation: wireY 320ms ease-out 900ms both; }
+@keyframes wireY { from { transform: scaleY(0); } to { transform: none; } }
+@keyframes wireX { from { transform: scaleX(0); } to { transform: none; } }
+.fanout { --aw: 300px; }
+.apps { display: flex; gap: 28px; }
+.app { display: flex; align-items: center; gap: 18px; width: var(--aw); padding: 20px 24px; }
+.app .ini { width: 72px; height: 72px; font-size: 26px; }
+
+/* ---- 2 fast: a stopwatch and a race ---- */
+.fastpic { display: flex; align-items: center; gap: 100px; }
+.watch { flex: none; width: 360px; filter: drop-shadow(0 34px 40px rgba(0,0,0,.55)); }
+.watch svg { display: block; width: 100%; overflow: visible; }
+.watch .hand { transform-origin: 100px 124px; }
+.on .watch .hand { animation: sweep 1150ms cubic-bezier(.33,.6,.2,1) 650ms both; }
+.on .watch .arc { animation: arcGrow 1150ms cubic-bezier(.33,.6,.2,1) 650ms both; }
+@keyframes sweep { from { transform: rotate(0); } to { transform: rotate(246deg); } }
+@keyframes arcGrow { from { stroke-dashoffset: 377; } to { stroke-dashoffset: 119.5; } }
+.thread { display: flex; flex-direction: column; gap: 54px; width: 860px; }
+.trow { display: flex; align-items: flex-start; gap: 24px; }
+.trow .ini { margin-top: 20px; width: 80px; height: 80px; }
+.tcol { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; }
+.tcol .bubble { font-size: 46px; padding: 24px 36px; }
+.tag { display: inline-block; padding: 10px 26px; border-radius: 999px; font: 700 36px/1 var(--sans); letter-spacing: -.02em; color: #F4F0E6; background: rgba(244,240,230,.12); box-shadow: inset 0 0 0 2px rgba(244,240,230,.4); }
+.on .race.a { animation: raceA 540ms var(--soft) 900ms both; }
+.on .race.b { animation: raceB 1250ms cubic-bezier(.4,.1,.5,1) 900ms both, greyOut 520ms ease 2200ms forwards; }
+.on .trow.slow .ini { animation: chipPop 560ms var(--pop) 880ms both, greyOut 520ms ease 2200ms forwards; }
+@keyframes raceA { from { opacity: 0; transform: translateX(1100px); } to { opacity: 1; transform: none; } }
+@keyframes raceB { from { opacity: 0; transform: translateX(1250px); } to { opacity: 1; transform: none; } }
+@keyframes greyOut { to { opacity: .38; filter: grayscale(1); } }
+
+/* ---- 3 reason: a magnifier finds the real problem ---- */
+.reasonpic { display: flex; align-items: center; gap: 70px; }
+.reasonpic .chatcard { width: 900px; }
+.reasonpic .cust { font-size: 66px; white-space: nowrap; position: relative; padding: 30px 40px; margin-top: 14px; }
+.hl { background: linear-gradient(var(--gold), var(--gold)) 0 90% / 0% 100% no-repeat; border-radius: .14em; padding: 0 .1em; margin: 0 -.1em; }
+.on .hl { animation: lit 380ms ease var(--d) forwards; }
+@keyframes lit { to { background-size: 100% 100%; } }
+.lens { position: absolute; left: 8%; top: 4px; width: 170px; height: 170px; opacity: 0; pointer-events: none; filter: drop-shadow(0 18px 20px rgba(0,0,0,.35)); }
+.on .lens { animation: lensGlide 1000ms cubic-bezier(.45,0,.35,1) 800ms both, lensAway 520ms ease 2250ms forwards; }
+@keyframes lensAway { to { opacity: 0; transform: translate(60px, 70px) scale(.9); } }
+@keyframes lensGlide { 0% { opacity: 0; left: 4%; transform: scale(.7); } 14% { opacity: 1; transform: scale(1); } 86% { opacity: 1; } 100% { opacity: 1; left: 70%; transform: scale(1); } }
+.rcol { display: flex; flex-direction: column; align-items: flex-start; gap: 44px; }
+.sorryrow { display: flex; align-items: center; gap: 22px; }
+.sorry { font-size: 52px; padding: 22px 44px; }
+.sorry .strike { position: absolute; left: -14px; right: -14px; top: 50%; height: 7px; margin-top: -3px; border-radius: 4px; background: var(--ink); transform: scaleX(0); transform-origin: left; }
+.on .sorry .strike { animation: strike 380ms var(--soft) 2480ms forwards; }
+.on .sorryrow.dimmed { animation: chipPop 560ms var(--pop) var(--d) both, dimOut 400ms ease 2850ms forwards; }
+@keyframes strike { to { transform: none; } }
+@keyframes dimOut { to { opacity: .72; } }
+
+/* ---- 4 promise: two replies, one keeps its word ---- */
+.promisepic { display: flex; align-items: stretch; gap: 70px; padding: 44px 0 56px; }
+.reply { width: 700px; padding: 30px 40px 84px; }
+.reply .ini { width: 70px; height: 70px; }
+.reply p { margin: 20px 0 0; font: 700 50px/1.1 var(--sans); letter-spacing: -.035em; }
+.xstamp { position: absolute; z-index: 2; right: -44px; top: -56px; width: 164px; height: 164px; display: grid; place-items: center; background: var(--ivory); border: 8px solid var(--ink); border-radius: 50%;
+  box-shadow: inset 0 0 0 9px var(--ivory), inset 0 0 0 12px var(--ink), 0 22px 36px rgba(0,0,0,.5); --rot: -10deg; transform: rotate(-10deg); }
+.xstamp svg { width: 82px; height: 82px; }
+.chipwrap { position: absolute; left: 0; right: 0; bottom: -48px; display: flex; justify-content: center; }
+.reply.bad::after { content: ""; position: absolute; inset: 0; border-radius: 16px; background: rgba(8, 14, 34, .22); opacity: 0; pointer-events: none; }
+.on .reply.bad::after { animation: cardDim 500ms ease 1700ms forwards; }
+@keyframes cardDim { to { opacity: 1; } }
+
+/* ---- 5 many: the stack grows, the clock spins ---- */
+.manysplit { display: grid; grid-template-columns: auto auto; grid-template-areas: "words pile" "clock pile"; column-gap: 150px; row-gap: 56px; align-items: center; justify-items: center; }
+.manysplit .words { grid-area: words; }
+.manysplit .words em { font-size: 1.55em; }
+.clock { grid-area: clock; width: 310px; height: 310px; filter: drop-shadow(0 30px 34px rgba(0,0,0,.55)); }
+.clock svg { display: block; width: 100%; height: 100%; }
+.clock g { transform-origin: 100px 100px; }
+.on .clock .mh { animation: spin 700ms linear infinite; }
+.on .clock .hh { animation: spin 8400ms linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.pile { grid-area: pile; position: relative; width: 640px; height: 900px; --sx: 8px; --sy: 29px; --sr: -.56deg; }
+.pc { position: absolute; left: 0; bottom: 0; width: 460px; height: 170px; padding: 0; opacity: 0; transform-origin: 0% 100%;
+  --tx: calc(var(--i) * var(--sx)); --ty: calc(var(--i) * var(--sy) * -1); --rr: calc(var(--i) * var(--sr)); z-index: calc(100 - var(--i)); }
+.on .pc { animation: pcIn 520ms var(--pop) var(--d) both; }
+@keyframes pcIn { from { opacity: 0; transform: translate(var(--tx), calc(var(--ty) + 90px)) rotate(var(--rr)) scale(.9); } to { opacity: 1; transform: translate(var(--tx), var(--ty)) rotate(var(--rr)); } }
+.pc .ph { display: flex; align-items: center; gap: 14px; height: 30px; padding: 3px 22px 0; }
+.pc .ini { width: 20px; height: 20px; font-size: 8px; box-shadow: none; }
+.pc .ph i { flex: 1; height: 9px; border-radius: 5px; background: #D8CFBB; max-width: 150px; }
+.pc .body { padding: 14px 26px; }
+.pc .body i { display: block; height: 13px; border-radius: 7px; background: #D8CFBB; margin: 11px 0; }
+.pc .body i:nth-child(2) { width: 64%; }
+
+/* ---- 6 hireflow: while you sleep, a real chat, scored ---- */
+#s-hireflow { padding-top: 160px; padding-bottom: 80px; }
+.moon { position: absolute; right: 130px; top: 22px; width: 110px; height: 110px; pointer-events: none; --travel: 1315px; }
+.on .moon { animation: moonX 5200ms linear both; }
+.moon i { position: relative; display: block; width: 100%; height: 100%; border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #FFFDF6 0%, #F4EBD3 42%, #D9CCA9 100%);
+  box-shadow: 0 0 50px 14px rgba(244,235,211,.2), 0 0 150px 56px rgba(150,170,230,.16); }
+.moon i::before { content: ""; position: absolute; left: 24%; top: 46%; width: 22%; height: 22%; border-radius: 50%; background: rgba(120,105,70,.16); box-shadow: 41px -22px 0 -2px rgba(120,105,70,.13), 25px 32px 0 -5px rgba(120,105,70,.12); }
+.on .moon i { animation: moonY 5200ms cubic-bezier(.4,0,.6,1) both; }
+@keyframes moonX { from { transform: translateX(0); } to { transform: translateX(calc(var(--travel) * -1)); } }
+@keyframes moonY { 0% { transform: translateY(34px); } 50% { transform: translateY(0); } 100% { transform: translateY(24px); } }
+.hfbrand { position: absolute; left: var(--m); top: var(--m); }
+.hfgrid { display: flex; align-items: center; gap: 110px; }
+.hfright { display: flex; flex-direction: column; align-items: center; gap: 44px; }
+.hfright .words { white-space: nowrap; }
+/* the phone: realistic proportions, the real screenshot crisp from the top, nothing laid over it but the island */
+.hfgrid .phone { width: auto; }
+.phone .screen { width: 342px; aspect-ratio: 780 / 1580; border-radius: 44px; background: #151210; }
+.phone .screen img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.phone .screen::after { content: ""; position: absolute; left: 50%; bottom: 8px; width: 110px; height: 5px; margin-left: -55px; border-radius: 3px; background: rgba(244,240,230,.5); }
+/* the result: one letterhead card that pays off the three checks */
+.result { width: 900px; padding: 30px 44px 38px; }
+.result .rscore { display: flex; align-items: baseline; gap: 14px; margin: 4px 0 18px; }
+.result .rscore b { font: 700 190px/.9 var(--sans); letter-spacing: -.06em; font-variant-numeric: tabular-nums; }
+.result .rscore small { font: 600 44px/1 var(--sans); letter-spacing: -.03em; color: var(--ink2); }
+.result .rrows { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
+.result .chip { background: transparent; font-size: 44px; padding: 12px 34px 12px 14px; box-shadow: inset 0 0 0 2px var(--line); }
+
+/* ---- 7 morning: dawn, the best three, sealed ---- */
+.dawnglow { position: absolute; left: 50%; bottom: -520px; width: 1700px; height: 1000px; margin-left: -850px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(248,186,120,.85), rgba(232,195,126,.32) 56%, transparent); }
+.on .dawnglow { animation: sunrise 1700ms ease-out both; }
+@keyframes sunrise { from { opacity: 0; transform: translateY(300px); } to { opacity: 1; transform: none; } }
+.fall { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.fc { position: absolute; left: 50%; top: 46%; width: 400px; height: 130px; margin-left: -200px; padding: 0; opacity: 0; }
+.on .fc { animation: fallAway 900ms cubic-bezier(.55,0,.9,.45) var(--d) both; }
+@keyframes fallAway { 0% { opacity: 0; transform: translate(var(--x), var(--y)) rotate(var(--r)); } 12% { opacity: 1; } 100% { opacity: 1; transform: translate(calc(var(--x) * 1.3), calc(var(--y) + 2600px)) rotate(calc(var(--r) * 3)); } }
+.fc .ph { display: flex; align-items: center; gap: 14px; padding: 18px 22px 0; }
+.fc .ini { width: 44px; height: 44px; font-size: 16px; }
+.fc .ph i { flex: 1; height: 11px; border-radius: 6px; background: #D8CFBB; }
+.trio { display: flex; gap: 64px; padding-top: 30px; }
+.top3 { position: relative; width: 520px; height: 430px; padding: 34px 40px 30px; display: flex; flex-direction: column; justify-content: space-between; }
+.top3 .ini { width: 96px; height: 96px; font-size: 34px; }
+.top3 .who2 b { display: block; font: 700 60px/1 var(--sans); letter-spacing: -.045em; }
+.top3 .who2 span { display: block; margin-top: 8px; font: 600 34px/1 var(--sans); letter-spacing: -.02em; color: var(--ink2); }
+.top3 .sc { font: 700 158px/.9 var(--sans); letter-spacing: -.06em; font-variant-numeric: tabular-nums; }
+.top3 .seal { position: absolute; right: -34px; top: -46px; width: 138px; height: 138px; --rot: -9deg; }
+.top3:nth-child(2) .seal { --rot: 7deg; }
+.top3:nth-child(3) .seal { --rot: -4deg; }
+.top3 .seal svg { display: block; width: 100%; height: 100%; }
+.tick3 { position: absolute; right: 40px; bottom: 40px; display: flex; gap: 12px; }
+.tick3 i { width: 54px; height: 54px; border-radius: 50%; background: var(--jade); display: grid; place-items: center; }
+.tick3 i svg { width: 32px; height: 32px; }
+.tall .tick3 { display: none; }
+
+/* ===== portrait: 1080 x 1920 ===== */
+.tall #s-opening { padding-bottom: 440px; }
+.tall #s-opening .l2 { gap: 44px; }
+.tall #s-opening .l2 em { font-size: 1.62em; }
+.tall .chatico { width: 150px; height: 138px; }
+.tall .chatcard { width: 920px; padding: 30px 46px 42px; }
+.tall .cust { font-size: 84px; }
+.tall .chatcard .stampbox { right: 14px; top: -40px; font-size: 64px; }
+.tall .fanout { --aw: 284px; }
+.tall .apps { gap: 24px; }
+.tall .app { padding: 20px 22px; gap: 14px; }
+.tall .app .ini { width: 68px; height: 68px; }
+.tall .fastpic { flex-direction: column; gap: 56px; }
+.tall .watch { width: 430px; }
+.tall .thread { width: 920px; }
+.tall .tcol .bubble { font-size: 52px; }
+.tall .tag { font-size: 40px; }
+.tall .reasonpic { flex-direction: column; align-items: center; gap: 70px; }
+.tall .reasonpic .chatcard { width: 920px; }
+.tall .reasonpic .cust { font-size: 62px; padding: 30px 34px; }
+.tall .lens { width: 180px; height: 180px; }
+.tall .rcol { align-items: center; gap: 56px; }
+.tall .sorry { font-size: 66px; }
+.tall .promisepic { flex-direction: column; gap: 70px; padding: 50px 0 70px; align-items: center; }
+.tall .reply { width: 920px; padding: 34px 46px 88px; }
+.tall .reply p { font-size: 64px; }
+.tall .reply .ini { width: 84px; height: 84px; font-size: 30px; }
+.tall .xstamp { right: 12px; top: -64px; width: 176px; height: 176px; }
+.tall .xstamp svg { width: 90px; height: 90px; }
+.tall .chipwrap { bottom: -54px; }
+.tall .manysplit { grid-template-areas: "words words" "clock pile"; column-gap: 40px; row-gap: 40px; }
+.tall .manysplit .words em { font-size: 1.4em; }
+.tall .clock { width: 340px; height: 340px; align-self: center; margin-bottom: 0; }
+.tall .pile { width: 540px; height: 1280px; --sx: 6px; --sy: 47px; --sr: -.68deg; }
+.tall .pc { width: 430px; height: 190px; }
+.tall .pc .ph { height: 46px; padding: 6px 24px 0; }
+.tall .pc .ini { width: 30px; height: 30px; font-size: 11px; }
+.tall .pc .ph i { height: 11px; }
+.tall #s-hireflow { padding-top: 190px; padding-bottom: 80px; }
+.tall .moon { top: 40px; right: 100px; width: 120px; height: 120px; --travel: 420px; }
+.tall .hfgrid { flex-direction: column; gap: 50px; }
+.tall .hfright { display: contents; }
+.tall .hfgrid .words { order: 1; }
+.tall .hfgrid .phone { order: 2; }
+.tall .hfgrid .result { order: 3; }
+.tall .phone .screen { width: 421px; border-radius: 52px; }
+.tall .result { width: 920px; padding: 28px 38px 32px; display: grid; grid-template-columns: 200px 1fr; grid-template-areas: "k rows" "score rows"; column-gap: 26px; align-items: center; }
+.tall .result .k { grid-area: k; align-self: end; }
+.tall .result .rscore { grid-area: score; margin: 0; align-self: start; }
+.tall .result .rscore b { font-size: 150px; }
+.tall .result .rscore small { display: none; }
+.tall .result .rrows { grid-area: rows; gap: 12px; }
+.tall .result .chip { font-size: 33px; padding: 10px 24px 10px 12px; gap: 12px; }
+.tall .result .chip .ck { width: 46px; height: 46px; }
+.tall .result .chip .ck svg { width: 28px; height: 28px; }
+.tall .brand { font-size: 52px; }
+.tall .brand svg { width: 72px; height: 72px; }
+.tall .trio { flex-direction: column; gap: 46px; padding-top: 20px; }
+.tall .top3 { width: 920px; height: 262px; flex-direction: row; align-items: center; justify-content: flex-start; gap: 34px; padding: 30px 44px; }
+.tall .top3 .ini { width: 120px; height: 120px; font-size: 42px; }
+.tall .top3 .who2 { flex: 1; }
+.tall .top3 .who2 b { font-size: 78px; }
+.tall .top3 .who2 span { font-size: 42px; }
+.tall .top3 .sc { font-size: 176px; margin-right: 80px; }
+.tall .top3 .seal { right: 10px; top: -48px; width: 150px; height: 150px; }
+.tall .fc { top: 30%; }
+</style></head><body>
+
+<!-- 0 opening -->
+<section class="scene" id="s-opening" data-bg="night" data-hz="1">
+  <h1 class="words">
+    <span class="in up" style="--d:480ms">Is this<span class="tb"></span> chat agent</span>
+    <span class="l2"><em class="in up" style="--d:1250ms">good?</em>
+      <svg class="chatico in" style="--d:1500ms" viewBox="0 0 120 110" aria-hidden="true">
+        <path d="M30 4 H90 Q116 4 116 30 V58 Q116 84 90 84 H60 L34 106 L38 84 H30 Q4 84 4 58 V30 Q4 4 30 4 Z" fill="#F6F1E6"/>
+        <circle class="dot" cx="36" cy="44" r="8" fill="#14201B"/><circle class="dot" cx="60" cy="44" r="8" fill="#14201B"/><circle class="dot" cx="84" cy="44" r="8" fill="#14201B"/>
+      </svg>
+    </span>
+  </h1>
+</section>
+
+<!-- 1 same -->
+<section class="scene" id="s-same" data-bg="night">
+  <h2 class="words"><span class="in up" style="--d:1050ms">Same angry</span><span class="tb"></span> <em class="in up" style="--d:1500ms">customer</em></h2>
+  <div class="card chatcard in slam" style="--d:150ms">
+    <div class="k">Customer</div>
+    <div class="bubble cust">You charged me<b>TWICE.</b></div>
+    <div class="stampbox in thump" style="--d:1350ms;--rot:-8deg">ANGRY</div>
+  </div>
+  <div class="fanout"><div class="apps">
+    <div class="card app in left" style="--d:450ms"><span class="ini">NR</span><span class="ln"><i></i><i></i></span></div>
+    <div class="card app in left" style="--d:600ms"><span class="ini">KA</span><span class="ln"><i></i><i></i></span></div>
+    <div class="card app in left" style="--d:750ms"><span class="ini">JM</span><span class="ln"><i></i><i></i></span></div>
+  </div></div>
+</section>
+
+<!-- 2 fast -->
+<section class="scene" id="s-fast" data-bg="mid">
+  <div class="head"><div class="badge in pop" style="--d:120ms"><b>1</b></div><h2 class="words"><em class="in up" style="--d:480ms">Fast</em></h2></div>
+  <div class="fastpic">
+    <div class="watch in pop" style="--d:520ms">
+      <svg viewBox="0 0 200 224" aria-hidden="true">
+        <rect x="86" y="2" width="28" height="20" rx="6" fill="#8A6420"/><rect x="93" y="18" width="14" height="14" fill="#6A4A14"/>
+        <rect x="150" y="27" width="18" height="13" rx="4" transform="rotate(42 159 33)" fill="#8A6420"/>
+        <circle cx="100" cy="124" r="92" fill="#F6F1E6" stroke="#14201B" stroke-width="3"/>
+        <circle cx="100" cy="124" r="83" fill="none" stroke="#8A6420" stroke-width="2"/>
+        <circle cx="100" cy="124" r="75" fill="none" stroke="#14201B" stroke-width="8" stroke-dasharray="1.5 6.46" opacity=".5"/>
+        <circle cx="100" cy="124" r="74" fill="none" stroke="#14201B" stroke-width="13" stroke-dasharray="3 36.75" transform="rotate(-1 100 124)"/>
+        <circle class="arc" cx="100" cy="124" r="60" fill="none" stroke="#3FCE97" stroke-width="10" stroke-linecap="round" stroke-dasharray="377" stroke-dashoffset="377" transform="rotate(-90 100 124)"/>
+        <text x="100" y="168" text-anchor="middle" font-family="Geist, sans-serif" font-weight="700" font-size="25" letter-spacing="-1" fill="#14201B" data-count data-to="41" data-ms="1150" data-delay="650" data-suffix="s">41s</text>
+        <g class="hand"><line x1="100" y1="136" x2="100" y2="54" stroke="#14201B" stroke-width="4.5" stroke-linecap="round"/><circle cx="100" cy="50" r="6.5" fill="#E8C37E" stroke="#14201B" stroke-width="2.5"/></g>
+        <circle cx="100" cy="124" r="9" fill="#8A6420" stroke="#14201B" stroke-width="3"/>
+      </svg>
+    </div>
+    <div class="thread">
+      <div class="trow">
+        <span class="ini in pop" style="--d:880ms">JM</span>
+        <div class="tcol">
+          <div class="bubble agent race a">Checking your account now.</div>
+          <span class="chip in pop" style="--d:1500ms"><span class="ck" data-check></span>Replied in 41 seconds</span>
+        </div>
+      </div>
+      <div class="trow slow">
+        <span class="ini">KA</span>
+        <div class="tcol">
+          <div class="bubble agent race b">Hello! How can I help?</div>
+          <span class="tag in pop" style="--d:2300ms">4 min</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 reason -->
+<section class="scene" id="s-reason" data-bg="mid">
+  <div class="head"><div class="badge in pop" style="--d:120ms"><b>2</b></div>
+    <h2 class="words"><span class="in up" style="--d:420ms">The real</span><span class="tb"></span> <em class="in up" style="--d:700ms">problem</em></h2></div>
+  <div class="reasonpic">
+    <div class="card chatcard in slam" style="--d:250ms">
+      <div class="k">Customer</div>
+      <div class="bubble cust">You <span class="hl" style="--d:1250ms">charged</span> me <span class="hl" style="--d:1600ms">TWICE.</span>
+        <svg class="lens" viewBox="0 0 120 120" aria-hidden="true"><circle cx="48" cy="48" r="36" fill="rgba(255,255,255,.28)" stroke="#8A6420" stroke-width="9"/><circle cx="48" cy="48" r="30" fill="none" stroke="#E8C37E" stroke-width="3" opacity=".9"/><path d="M34 30 A22 22 0 0 1 52 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".8"/><path d="M75 75 L108 108" stroke="#8A6420" stroke-width="14" stroke-linecap="round"/><path d="M75 75 L108 108" stroke="#E8C37E" stroke-width="4" stroke-linecap="round" opacity=".8"/></svg>
+      </div>
+    </div>
+    <div class="rcol">
+      <span class="chip in pop" style="--d:1950ms"><span class="ck" data-check></span>Found the real reason</span>
+      <div class="sorryrow dimmed in pop" style="--d:2150ms"><span class="ini">KA</span><div class="bubble agent sorry"><span>Sorry!</span><i class="strike"></i></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 promise -->
+<section class="scene" id="s-promise" data-bg="mid">
+  <div class="head"><div class="badge in pop" style="--d:120ms"><b>3</b></div><h2 class="words"><em class="in up" style="--d:420ms">Honest</em></h2></div>
+  <div class="promisepic">
+    <div class="card reply bad in flip" style="--d:650ms"><span class="ini">KA</span><p>Refund today, guaranteed!</p>
+      <div class="xstamp in thump" style="--d:1500ms"><svg viewBox="0 0 24 24"><path d="M4.5 4.5 L19.5 19.5 M19.5 4.5 L4.5 19.5" fill="none" stroke="#14201B" stroke-width="4" stroke-linecap="round"/></svg></div></div>
+    <div class="card reply in flip" style="--d:850ms"><span class="ini">JM</span><p>Your refund has started. You'll see it in 3 to 5 days.</p>
+      <div class="chipwrap"><span class="chip in pop" style="--d:1800ms"><span class="ck" data-check></span>Promised nothing she couldn't keep</span></div></div>
+  </div>
+</section>
+
+<!-- 5 many -->
+<section class="scene" id="s-many" data-bg="mid">
+  <div class="manysplit">
+    <h2 class="words"><em class="in up" style="--d:850ms">Every</em><br><span class="in up" style="--d:1150ms">applicant</span></h2>
+    <div class="clock in pop" style="--d:1450ms">
+      <svg viewBox="0 0 200 200" aria-hidden="true">
+        <circle cx="100" cy="100" r="95" fill="#F6F1E6" stroke="#14201B" stroke-width="3"/>
+        <circle cx="100" cy="100" r="85" fill="none" stroke="#8A6420" stroke-width="2"/>
+        <circle cx="100" cy="100" r="75" fill="none" stroke="#14201B" stroke-width="13" stroke-dasharray="3 36.75" transform="rotate(-90 100 100)"/>
+        <g class="hh"><line x1="100" y1="108" x2="100" y2="54" stroke="#8A6420" stroke-width="8" stroke-linecap="round"/></g>
+        <g class="mh"><line x1="100" y1="112" x2="100" y2="32" stroke="#14201B" stroke-width="5" stroke-linecap="round" transform="rotate(-42 100 100)" opacity=".07"/><line x1="100" y1="112" x2="100" y2="32" stroke="#14201B" stroke-width="5" stroke-linecap="round" transform="rotate(-32 100 100)" opacity=".13"/><line x1="100" y1="112" x2="100" y2="32" stroke="#14201B" stroke-width="5" stroke-linecap="round" transform="rotate(-22 100 100)" opacity=".22"/><line x1="100" y1="112" x2="100" y2="32" stroke="#14201B" stroke-width="5" stroke-linecap="round" transform="rotate(-11 100 100)" opacity=".4"/><line x1="100" y1="112" x2="100" y2="32" stroke="#14201B" stroke-width="5" stroke-linecap="round"/></g>
+        <circle cx="100" cy="100" r="9" fill="#E8C37E" stroke="#14201B" stroke-width="3"/>
+      </svg>
+    </div>
+    <div class="pile" id="pile"></div>
+  </div>
+</section>
+
+<!-- 6 hireflow -->
+<section class="scene" id="s-hireflow" data-bg="late">
+  <div class="moon"><i></i></div>
+  <div class="brand hfbrand in fade" style="--d:0ms" data-mark>HireFlow</div>
+  <div class="hfgrid">
+    <div class="phone in up" style="--d:250ms"><div class="screen"><i class="isl"></i><img src="img/chat-test-tall.png" alt=""></div></div>
+    <div class="hfright">
+      <h2 class="words"><span class="in up" style="--d:60ms">While you</span><span class="tb"></span> <em class="in up" style="--d:300ms">sleep</em></h2>
+      <div class="card result in slam" style="--d:1500ms">
+        <div class="k">Scored overnight</div>
+        <div class="rscore"><b data-count data-to="91" data-ms="1200" data-delay="1750">0</b><small>/100</small></div>
+        <div class="rrows">
+          <span class="chip in pop" style="--d:2300ms"><span class="ck" data-check></span>Replied fast</span>
+          <span class="chip in pop" style="--d:2650ms"><span class="ck" data-check></span>Found the real problem</span>
+          <span class="chip in pop" style="--d:3000ms"><span class="ck" data-check></span>Promised only what they can keep</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 7 morning -->
+<section class="scene" id="s-morning" data-bg="dawn">
+  <div class="dawnglow"></div>
+  <div class="fall" id="fall" aria-hidden="true"></div>
+  <h2 class="words"><span class="in up" style="--d:700ms">Your best</span> <em class="in up" style="--d:900ms">three</em></h2>
+  <div class="trio">
+    <div class="card top3 in up" style="--d:300ms"><span class="ini">MA</span><div class="who2"><b>Maria</b><span>Cebu</span></div><div class="sc">91</div><div class="tick3 in fade" style="--d:850ms" data-checks></div><div class="seal in press" style="--d:1050ms" data-seal></div></div>
+    <div class="card top3 in up" style="--d:440ms"><span class="ini">JU</span><div class="who2"><b>Jun</b><span>Davao</span></div><div class="sc">88</div><div class="tick3 in fade" style="--d:990ms" data-checks></div><div class="seal in press" style="--d:1200ms" data-seal></div></div>
+    <div class="card top3 in up" style="--d:580ms"><span class="ini">AN</span><div class="who2"><b>Ana</b><span>Manila</span></div><div class="sc">84</div><div class="tick3 in fade" style="--d:1130ms" data-checks></div><div class="seal in press" style="--d:1350ms" data-seal></div></div>
+  </div>
+</section>
+
+<!-- the finale: built by kit.js -->
+<section class="scene finale" id="s-closing" data-title="Hire Chat Agents while you sleep." data-accent="while you sleep."></section>
+
+<script>
+// 5 many: one card becomes a tall, fanning stack, each new one faster than the last
+(function () {
+  const ini = ['NR','TM','RS','LP','DK','AG','SH','BN','CW','EV','FO','GY','HZ','IQ','JU','KX','LD','MB','NF','OR','PT','QS'];
+  let h = '', t = 150;
+  for (let i = 0; i < ini.length; i++) {
+    h += `<div class="card pc" style="--i:${i};--d:${Math.round(t)}ms"><div class="ph"><span class="ini">${ini[i]}</span><i></i></div><div class="body"><i></i><i></i></div></div>`;
+    t = i === 0 ? 800 : t + 105 * Math.pow(0.87, i) + 22;
+  }
+  document.getElementById('pile').innerHTML = h;
+  // 7 morning: the pile that was in the way tumbles off the bottom
+  let f = '';
+  for (let i = 0; i < 14; i++) {
+    const x = ((i * 53) % 9 - 4) * 46, y = -((i % 7) * 26) + 40, r = ((i * 37) % 21 - 10) * 1.4;
+    f += `<div class="card fc" style="--x:${x}px;--y:${y}px;--r:${r}deg;--d:${(i % 7) * 40 + (i > 6 ? 90 : 0)}ms"><div class="ph"><span class="ini">${ini[(i + 3) % ini.length]}</span><i></i></div></div>`;
+  }
+  document.getElementById('fall').innerHTML = f;
+})();
+</script>
+<script src="land.js"></script>
+<script src="kit.js"></script>
+</body></html>
