@@ -63,8 +63,8 @@ check("no storage at all (private browsing) never throws", P.canOffer(P.readMemo
 check("a storage that throws never breaks the app", (() => { try { P.writeMemory({ setItem() { throw new Error("full"); } }, "u", m); P.readMemory({ getItem() { throw new Error("denied"); } }, "u"); return true; } catch { return false; } })());
 
 console.log("-- where it may appear --");
-for (const ok of ["/dashboard", "/jobs", "/applicants", "/applicants/", "/interviews", "/documents", "/more", "/analytics", "/team-portal", "/help", "/notifications"]) check(`ok on ${ok}`, P.promptPageOk(ok));
-for (const no of ["/settings", "/settings/", "/messages", "/messages/abc", "/applicants/123", "/interviews/9", "/jobs/create", "/jobs/abc/edit"]) check(`not on ${no}`, !P.promptPageOk(no));
+for (const ok of ["/dashboard", "/jobs", "/jobs/abc", "/applicants", "/applicants/", "/interviews", "/documents", "/more", "/analytics", "/team-portal", "/help", "/notifications"]) check(`ok on ${ok}`, P.promptPageOk(ok));
+for (const no of ["/settings", "/settings/", "/messages", "/messages/abc", "/applicants/123", "/jobs/abc/applicants/123", "/interviews/9", "/jobs/create", "/jobs/abc/edit"]) check(`not on ${no}`, !P.promptPageOk(no));
 
 /* ------------------------------------------------ B. the service worker */
 console.log("-- the service worker --");

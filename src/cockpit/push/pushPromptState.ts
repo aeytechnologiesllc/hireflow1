@@ -70,6 +70,8 @@ export function promptPageOk(pathname: string): boolean {
   if (path === "/settings") return false;
   if (path === "/messages" || path.startsWith("/messages/")) return false;
   if (path.startsWith("/applicants/")) return false;
+  // A person opened from inside a job (/jobs/:jobId/applicants/:id) has the same decision bar.
+  if (/^\/jobs\/[^/]+\/applicants\//.test(path)) return false;
   if (path.startsWith("/interviews/")) return false;
   if (path === "/jobs/create" || /^\/jobs\/[^/]+\/(edit|create)/.test(path)) return false;
   return true;
