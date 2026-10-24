@@ -2617,19 +2617,57 @@ function buildZuluTables(onlyApplying: boolean): FixtureTables {
   };
 }
 
+// ------------------------------- "Your first hire" (dashboard guide) scenarios
+// One scenario for each step of the guide (src/cockpit/lib/firstHireStage.ts):
+//   new      no jobs at all (step 1)
+//   draft    only an unfinished draft (step 1, "Finish your draft")
+//   fresh    one live job, nobody yet (step 2)
+//   applying / testing   people applied, nobody finished (step 3)
+//   ready    finished and scored, nobody decided on (step 4)
+//   zulu     decisions exist: the normal dashboard (done)
+
+function buildNewTables(withDraft: boolean): FixtureTables {
+  const draft: FixtureRow = { ...freshJob, status: "draft", title: "Customer Support Chat Agent", job_code: null, created_at: daysAgo(1), updated_at: minutesAgo(50) };
+  return { ...buildFreshTables(), jobs: withDraft ? [draft] : [], published_jobs_public: [] };
+}
+
+/** The Zulu role with only some of its applicants, none of them decided on. */
+function buildZuluSome(keep: FixtureRow[]): FixtureTables {
+  const base = buildZuluTables(false);
+  const ids = new Set(keep.map((r) => r.id));
+  const sessions = (base.assessment_sessions ?? []).filter((r) => ids.has(r.application_id as string));
+  const sessionIds = new Set(sessions.map((r) => r.id));
+  return {
+    ...base,
+    applications: keep.map((r) => ({ ...r })),
+    interviews: [],
+    team_members: [],
+    assessment_sessions: sessions,
+    assessment_events: (base.assessment_events ?? []).filter((r) => sessionIds.has(r.session_id as string)),
+    assessment_step_reopens: [],
+    notifications: [],
+  };
+}
+
 // --------------------------------------------------------------- exports
 
 /** `cafe` is the default. `fresh`: one live role, nobody yet. `zulu`: the Zulu
  *  role with fourteen applicants, someone in every state the Applicants list
- *  shows. `applying`: the Zulu role with only the applicant still on the form. */
-export type FixtureScenario = "cafe" | "fresh" | "zulu" | "applying";
+ *  shows. `applying`: the Zulu role with only the applicant still on the form.
+ *  `new` and `draft`: a business with no job yet. `testing`: four people in
+ *  the tests, none finished. `ready`: three finished and scored, no decision. */
+export type FixtureScenario = "cafe" | "fresh" | "zulu" | "applying" | "new" | "draft" | "testing" | "ready";
 
-export const FIXTURE_SCENARIOS: readonly FixtureScenario[] = ["cafe", "fresh", "zulu", "applying"];
+export const FIXTURE_SCENARIOS: readonly FixtureScenario[] = ["cafe", "fresh", "zulu", "applying", "new", "draft", "testing", "ready"];
 
 export function buildFixtureTables(scenario: FixtureScenario = "cafe"): FixtureTables {
   if (scenario === "fresh") return buildFreshTables();
   if (scenario === "zulu") return buildZuluTables(false);
   if (scenario === "applying") return buildZuluTables(true);
+  if (scenario === "new") return buildNewTables(false);
+  if (scenario === "draft") return buildNewTables(true);
+  if (scenario === "testing") return buildZuluSome([appZuluTesting, appZuluTyping, appZuluLeft, appZuluForm]);
+  if (scenario === "ready") return buildZuluSome([appZuluStrong, appZuluChatTyped, appZuluDone, appZuluTesting, appZuluForm]);
   return buildCafeTables();
 }
 
@@ -2637,7 +2675,7 @@ export function buildFixtureRpcHandlers(scenario: FixtureScenario = "cafe"): Rec
   return {
     ...fixtureRpcHandlers,
     // The Zulu role carries a real answer key; the café's quiz has none filed.
-    get_job_quiz_keys: () => (scenario === "zulu" || scenario === "applying" ? zuluQuizKeys : []),
+    get_job_quiz_keys: () => (["zulu", "applying", "testing", "ready"].includes(scenario) ? zuluQuizKeys : []),
     get_careers_traffic: () =>
       scenario !== "cafe"
         ? trafficRows(2, (i) => [i === 0 ? 9 : 14, i === 0 ? 4 : 6, i === 0 ? 1 : 2])

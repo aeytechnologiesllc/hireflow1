@@ -9,8 +9,6 @@ import {
   Users,
   MessageSquare,
   X,
-  Check,
-  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import { clearDraft } from "@/lib/avaEngine/draft";
@@ -21,8 +19,7 @@ import { useUpdateProfile } from "@/hooks/useProfile";
 import { useSchemaMode } from "@/hooks/useSchemaMode";
 import { useActivityFeed } from "@/hooks/useActivityFeed";
 import { useCareersTraffic, visitsInLast } from "@/hooks/useCareersTraffic";
-import { useOwnBusiness } from "@/hooks/useBusinessPage";
-import { candidateOrigin } from "@/lib/hosts";
+import { useAuth } from "@/hooks/useAuth";
 import CkAvatar from "../components/Avatar";
 import { CountUp } from "../components/CountUp";
 import { ActionDialog } from "../components/ActionDialog";
@@ -30,7 +27,11 @@ import { ActionDialog } from "../components/ActionDialog";
 // check, 2026-10-11).
 const OfferLetterDialog = lazy(() => import("../components/OfferLetterDialog").then((m) => ({ default: m.OfferLetterDialog })));
 import { CockpitErrorCard } from "../components/ErrorCard";
-import { ShareJobCompact, ShareJobHero } from "../components/ShareJobCard";
+import { ShareJobCompact } from "../components/ShareJobCard";
+import { FirstHireGuide } from "../components/journey/FirstHireGuide";
+import { SetUpNote } from "../components/journey/SetUpNote";
+import { useFirstHireFlags } from "../components/journey/useFirstHireFlags";
+import { useGuideNotifications } from "../components/journey/useGuideNotifications";
 import {
   useCockpitAccount,
   useCockpitCandidates,
@@ -40,6 +41,7 @@ import {
   avaAdvanceRec,
 } from "../hooks/useCockpitData";
 import { buildJourneyPipeline, mapActivityFeed, type JourneyPipelineStage } from "../lib/mappers";
+import { firstHireStage, type GuideApplicant } from "../lib/firstHireStage";
 import { gemPosition } from "../lib/gemRail";
 import type { Candidate } from "../data";
 
@@ -253,98 +255,6 @@ function SealedRow({
         </div>
       </div>
     </div>
-  );
-}
-
-/**
- * The very first thing a new owner sees on this screen, ever. No morning
- * read exists yet — there is nothing to read. So the whole content area
- * becomes one letterhead-style moment: Ava's mark, her voice, one door in.
- * Nothing else on the page competes for the click.
- */
-/**
- * A new business's first steps (the 2026-10-11 mock-ups, #2; replaces the
- * one-button welcome and "Let's post your first job"). Four steps, ticked off
- * as they go; the first is done already, because signing up made their
- * careers page. One thing is the big button: post the first job.
- */
-function FirstStepsGuide({ onStart, firstName, company }: { onStart: () => void; firstName: string | null; company: string | null }) {
-  const navigate = useNavigate();
-  const { data: own } = useOwnBusiness();
-  const link = own?.slug ? `${candidateOrigin()}/c/${own.slug}` : null;
-  const copy = async () => {
-    if (!link) return;
-    try {
-      await navigator.clipboard.writeText(link);
-      toast.success("Link copied.");
-    } catch {
-      toast.error("Couldn't copy. Open Settings to see the link.");
-    }
-  };
-  const step = (n: number, done: boolean) => (
-    <span
-      className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[12.5px] font-semibold"
-      style={done ? { background: "var(--jade)", color: "var(--jade-ink, #0d1a14)" } : { background: "var(--surface-2)", color: "var(--hf-text-soft)" }}
-      aria-hidden
-    >
-      {done ? <Check className="h-3.5 w-3.5" /> : n}
-    </span>
-  );
-  const row = "flex items-center gap-3 rounded-[12px] border px-3.5 py-3";
-  return (
-    <section className="ck-card ck-reveal p-6 md:p-8" style={{ ["--ck-i" as string]: 1 }} data-first-steps>
-      {/* The page's own greeting already says their name. */}
-      <h2 className="font-display" style={{ fontSize: "clamp(24px, 2.8vw, 32px)", lineHeight: 1.15, color: "var(--hf-text)", fontWeight: 500 }}>
-        Let&rsquo;s get {company || "your business"} hiring.
-      </h2>
-      <p className="mt-1.5 text-[15px]" style={{ color: "var(--hf-text-soft)" }}>
-        Welcome to HireFlow{firstName ? `, ${firstName}` : ""}. It takes about five minutes.
-      </p>
-      <ol className="mt-5 flex flex-col gap-2.5">
-        <li className={row} style={{ borderColor: "var(--line)" }} data-first-step="careers">
-          {step(1, true)}
-          <span className="min-w-0 flex-1">
-            <span className="block text-[14.5px] font-semibold" style={{ color: "var(--hf-text)" }}>Your careers page is ready</span>
-            <span className="block truncate text-[12.5px]" style={{ color: "var(--ink-3)" }}>{link ? link.replace(/^https?:\/\//, "") : "Making it now…"}</span>
-          </span>
-          {link && (
-            <button className="ck-btn ck-btn-outline !min-h-8 !px-3 !text-[12.5px]" onClick={() => void copy()}>
-              <Copy className="h-3.5 w-3.5" />
-              Copy link
-            </button>
-          )}
-        </li>
-        <li className={row} style={{ borderColor: "color-mix(in srgb, var(--jade) 45%, transparent)", background: "var(--jade-soft)" }} data-first-step="job">
-          {step(2, false)}
-          <span className="min-w-0 flex-1">
-            <span className="block text-[14.5px] font-semibold" style={{ color: "var(--hf-text)" }}>Post your first job</span>
-            <span className="block text-[12.5px]" style={{ color: "var(--ink-3)" }}>Free. Ava sets up the questions, the skills check and the chat practice.</span>
-          </span>
-          <button className="ck-btn ck-btn-primary !min-h-9 !px-4 !text-[13.5px]" onClick={onStart} data-first-step-start>
-            Post a job
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </li>
-        <li className={row} style={{ borderColor: "var(--line)" }} data-first-step="share">
-          {step(3, false)}
-          <span className="min-w-0 flex-1">
-            <span className="block text-[14.5px] font-semibold" style={{ color: "var(--hf-text)" }}>Share the job</span>
-            <span className="block text-[12.5px]" style={{ color: "var(--ink-3)" }}>Copy the full post and paste it on OnlineJobs.ph.</span>
-          </span>
-          <span className="shrink-0 text-[12px]" style={{ color: "var(--ink-3)" }}>After step 2</span>
-        </li>
-        <li className={row} style={{ borderColor: "var(--line)" }} data-first-step="team">
-          {step(4, false)}
-          <span className="min-w-0 flex-1">
-            <span className="block text-[14.5px] font-semibold" style={{ color: "var(--hf-text)" }}>Invite your team</span>
-            <span className="block text-[12.5px]" style={{ color: "var(--ink-3)" }}>Optional. They see only the jobs you give them.</span>
-          </span>
-          <button className="ck-btn ck-btn-outline !min-h-8 !px-3 !text-[12.5px]" onClick={() => navigate("/team")}>
-            Invite
-          </button>
-        </li>
-      </ol>
-    </section>
   );
 }
 
@@ -669,11 +579,35 @@ export default function CockpitDashboard() {
   const liveJob = jobs.find((j) => j.status === "live") ?? null;
   const liveJobsCount = useMemo(() => jobs.filter((j) => j.status === "live").length, [jobs]);
 
-  // No jobs at all vs. a job with nobody in it yet are two different first
-  // moments — the first needs Ava's pitch, the second needs the link.
-  const featuredJob = liveJob ?? jobs[0] ?? null;
-  const hasNoJobs = !jobsLoading && jobs.length === 0;
-  const hasJobsNoApplicants = !jobsLoading && jobs.length > 0 && candidates.length === 0;
+  /* ── "Your first hire" (the owner, 2026-10-21) ──────────────────────────
+     One card that moves with the business until somebody has been decided on
+     (an interview, an offer, a hire or a pass). The stage comes from the real
+     jobs and applications, never from a click, so every visit shows the next
+     step. While it is up, the numbers, pipeline, activity and the rest wait:
+     "the dashboard must be less cluttered". Only the business's owner gets
+     it; a team member's dashboard is the plain one. */
+  const { user, role, isTeamMember } = useAuth();
+  const guideNotifications = useGuideNotifications();
+  const guideEligible = role === "employer" && !isTeamMember && schemaMode !== "showcase";
+  const guideLoaded = !isLoading && !jobsLoading && !candidatesFailed && !jobsFailed;
+  const guideStage = useMemo(() => {
+    if (!guideEligible || !guideLoaded) return null;
+    const applicants: GuideApplicant[] = applications.map((a) => {
+      const row = a as { id: string; job_id?: string | null; status?: string | null };
+      return { id: row.id, jobId: row.job_id ?? null, name: "", status: row.status ?? "", onForm: row.status === "in_progress", finished: false, score: null };
+    });
+    const read = firstHireStage({ jobs: jobs.map((j) => ({ id: j.id, title: j.title, status: j.status })), applicants });
+    return read.stage === "done" ? null : read;
+  }, [guideEligible, guideLoaded, applications, jobs]);
+  const guideOn = guideStage !== null;
+  const guideFlags = useFirstHireFlags(user?.id);
+  useEffect(() => {
+    if (guideOn) guideFlags.markSeen();
+    // markSeen is stable per user.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guideOn, user?.id]);
+  // The guide was up, and is not any more: say so once.
+  const showSetUp = guideEligible && guideLoaded && !guideOn && guideFlags.seen && !guideFlags.away;
 
   const now = useMemo(() => new Date(), []);
   const startOfToday = useMemo(() => startOfDay(now), [now]);
@@ -793,7 +727,8 @@ export default function CockpitDashboard() {
   const [companyPromptSetAside, setCompanyPromptSetAside] = useState(false);
   const needsCompanyName = schemaMode !== "showcase" && !profile?.company_name?.trim();
 
-  const firstApplicant = candidates.length === 1 ? candidates[0] : null;
+  // An owner's first applicant is the guide's own moment ("1 person applied").
+  const firstApplicant = candidates.length === 1 && !guideEligible ? candidates[0] : null;
   const [firstApplicantDismissed, setFirstApplicantDismissed] = useState(true);
   useEffect(() => {
     if (!firstApplicant) return;
@@ -854,8 +789,8 @@ export default function CockpitDashboard() {
   }
 
   // A failed load must never fall into "post your first job" or "nobody's
-  // applied yet" — those are the two guides `hasNoJobs` / `hasJobsNoApplicants`
-  // below would otherwise show for an account that may have plenty of both.
+  // applied yet" — the first two steps of "Your first hire" (guideLoaded
+  // keeps it from being drawn before the jobs and applicants have come).
   if (candidatesFailed || jobsFailed) {
     return (
       <CockpitErrorCard
@@ -883,8 +818,9 @@ export default function CockpitDashboard() {
             {format(now, "EEEE, MMM d")}
           </span>
         </div>
-        {!hasNoJobs && (
-          <button className="ck-btn ck-btn-primary !py-2 !text-[13.5px]" onClick={startRole}>
+        {/* The first job is the guide's own button; until then this one is not the loudest thing. */}
+        {jobs.length > 0 && guideStage?.stage !== "post" && (
+          <button className={`ck-btn ${guideOn ? "ck-btn-outline max-[640px]:!hidden" : "ck-btn-primary"} !py-2 !text-[13.5px]`} onClick={startRole}>
             + New job
           </button>
         )}
@@ -905,9 +841,12 @@ export default function CockpitDashboard() {
         />
       )}
 
-      {hasNoJobs ? (
-        /* ── The very first moment. One door in, nothing else asking. ── */
-        <FirstStepsGuide onStart={startRole} firstName={who || null} company={(profile?.company_name ?? "").trim() || null} />
+      {/* ── The guide has just finished: one line, once. ── */}
+      {showSetUp && <SetUpNote onDismiss={guideFlags.putAway} />}
+
+      {guideStage ? (
+        /* ── Your first hire: the next step, and nothing else asking. ── */
+        <FirstHireGuide light={guideStage} jobs={jobs} candidates={candidates} onPostJob={startRole} notifications={guideNotifications} />
       ) : (
         <>
           {/* ── The numbers, always. 2026-10-05: with a live role and nobody in
@@ -928,9 +867,6 @@ export default function CockpitDashboard() {
             <StatTile index={4} label="Interviews" value={upcomingInterviews} note="coming up" onClick={() => navigate("/interviews")} />
             <StatTile index={5} label="Hired" value={hired} note="through HireFlow" onClick={() => navigate("/analytics")} />
           </section>
-
-          {/* ── Nobody has applied yet: getting the link out is the one thing to do. ── */}
-          {hasJobsNoApplicants && featuredJob && <ShareJobHero job={featuredJob} />}
 
           {/* ── What needs you today — the single most valuable thing this
               page can do. Real items only; a truthful, warm line when there
@@ -1301,8 +1237,8 @@ export default function CockpitDashboard() {
             )}
           </section>
 
-          {/* ── Once people are applying, the link stays one click away. ── */}
-          {!hasJobsNoApplicants && liveJob && (
+          {/* ── The link stays one click away. ── */}
+          {liveJob && (
             <section className="ck-card ck-reveal p-4 md:p-5">
               <h2 className="font-display text-[16px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
                 Share your role

@@ -96,6 +96,15 @@ export const PREVIEW_SCREENS: PreviewScreen[] = [
   { id: "applying-applicants", group: "Applicant record (Zulu role)", label: "Applicants — only someone on the form", role: "employer", path: "/applicants?__previewScenario=applying" },
   { id: "applying-dashboard", group: "Applicant record (Zulu role)", label: "Dashboard — only someone on the form", role: "employer", path: "/dashboard?__previewScenario=applying" },
 
+  // ------------------- the dashboard's guide, "Your first hire": one per step
+  { id: "guide-new", group: "Dashboard guide (Your first hire)", label: "Step 1 — no job yet", role: "employer", path: "/dashboard?__previewScenario=new&__previewNotifications=off" },
+  { id: "guide-draft", group: "Dashboard guide (Your first hire)", label: "Step 1 — only a draft", role: "employer", path: "/dashboard?__previewScenario=draft" },
+  { id: "guide-share", group: "Dashboard guide (Your first hire)", label: "Step 2 — job is live, nobody yet", role: "employer", path: "/dashboard?__previewScenario=fresh&__previewNotifications=off" },
+  { id: "guide-applying", group: "Dashboard guide (Your first hire)", label: "Step 3 — someone is on the form", role: "employer", path: "/dashboard?__previewScenario=applying" },
+  { id: "guide-testing", group: "Dashboard guide (Your first hire)", label: "Step 3 — four people in the tests", role: "employer", path: "/dashboard?__previewScenario=testing&__previewNotifications=on" },
+  { id: "guide-ready", group: "Dashboard guide (Your first hire)", label: "Step 4 — your best three are ready", role: "employer", path: "/dashboard?__previewScenario=ready" },
+  { id: "guide-done", group: "Dashboard guide (Your first hire)", label: "Done — a decision exists, the normal dashboard", role: "employer", path: "/dashboard?__previewScenario=zulu" },
+
   // -------------------------------------------------------------- candidate side
   { id: "cand-applications", group: "Candidate", label: "Applications — list", role: "candidate", path: "/applications" },
   { id: "cand-app-detail", group: "Candidate", label: "Application detail", role: "candidate", path: `/applications/${APP_VOICE_ID}` },
