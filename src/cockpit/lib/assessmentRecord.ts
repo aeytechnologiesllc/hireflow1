@@ -391,6 +391,9 @@ export type AssessmentDetail =
       kind: "chat_simulation";
       scenario: string | null;
       customerName: string | null;
+      /** Who the applicant wrote to: "player" only on the owner's own gaming
+       *  cases, "customer" for every other business (counterpartOf). */
+      counterpart: "player" | "customer";
       /** The chat's own mark, 0-100, or null (not graded, or not sent yet). */
       score: number | null;
       /** The mark is under the job's pass mark. Apart from the typing: the
@@ -529,6 +532,16 @@ function num(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) return Number(value);
   return null;
+}
+
+/**
+ * "player" when any of these case texts talks about players (the owner's own
+ * gaming jobs), else "customer": the same rule as the server's
+ * supabase/functions/_shared/counterpart.ts (2026-10-25; docs/LAUNCH-PLAN.md,
+ * Phase 2, task 1).
+ */
+function counterpartOf(texts: ReadonlyArray<string | null | undefined>): "player" | "customer" {
+  return texts.some((t) => /\bplayers?\b/i.test(t ?? "")) ? "player" : "customer";
 }
 
 function str(value: unknown): string | null {
@@ -2026,7 +2039,7 @@ function buildEquipment(ctx: BuildContext, step: CandidateJourneyStep): Built {
 function buildChatSimulation(ctx: BuildContext, step: CandidateJourneyStep): Built {
   const r = obj(ctx.notes.chatSimulationResult) ?? obj(ctx.notes[step.id]);
   const scenario = str(r?.scenario);
-  // The result keeps the scenario's text; the job's config knows who the player was.
+  // The result keeps the scenario's text; the job's config knows who the customer was.
   const scenarios = Array.isArray(stepConfig(ctx, step.id)?.scenarios) ? (stepConfig(ctx, step.id)!.scenarios as unknown[]) : [];
   const match = scenario ? scenarios.map(obj).find((s) => s && norm(str(s.scenario) ?? "") === norm(scenario)) : null;
   const customerName = str(r?.customerName) ?? str(match?.customerName);
@@ -2065,6 +2078,7 @@ function buildChatSimulation(ctx: BuildContext, step: CandidateJourneyStep): Bui
       kind: "chat_simulation",
       scenario,
       customerName,
+      counterpart: counterpartOf([scenario, ...scenarios.map((s) => str(obj(s)?.scenario))]),
       score,
       belowPassMark: score != null ? score < ctx.passing : null,
       scores,
@@ -2285,6 +2299,7 @@ function enrichFromSession(detail: AssessmentDetail | null, session: AssessmentS
         ...detail,
         scenario: detail.scenario ?? str(c.scenario) ?? str(graded?.scenario),
         customerName: detail.customerName ?? str(c.customer_name) ?? str(graded?.customer_name),
+        counterpart: detail.counterpart === "player" ? "player" : counterpartOf([str(c.scenario), str(graded?.scenario)]),
         scores,
         strengths: detail.strengths.length > 0 ? detail.strengths : strList(g.strengths),
         improvements: detail.improvements.length > 0 ? detail.improvements : strList(g.improvements),
@@ -2521,6 +2536,7 @@ function liveDetail(ctx: BuildContext, step: CandidateJourneyStep, session: Asse
         kind: "chat_simulation",
         scenario: str(c.scenario),
         customerName: str(c.customer_name),
+        counterpart: counterpartOf([str(c.scenario)]),
         score: null,
         belowPassMark: null,
         scores: [],

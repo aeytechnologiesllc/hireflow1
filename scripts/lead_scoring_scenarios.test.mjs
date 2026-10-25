@@ -654,7 +654,7 @@ const aRude = score("A", "expected", {
     notes.chatSimulationResult = leadChatResult({ score: 30, disrespectMade: true, disrespectQuote: "Read the rules next time", cappedBy: ["disrespect"] });
   },
 });
-assert(aRude.scorecard.riskFlags.includes('Was disrespectful to the player in the escalated chat: "Read the rules next time"') && aRude.scorecard.recommendedAction !== "advance",
+assert(aRude.scorecard.riskFlags.includes('Was disrespectful to the person in the escalated chat: "Read the rules next time"') && aRude.scorecard.recommendedAction !== "advance",
   `disrespect in the escalated chat is shown in the lead's words and is not "advance" (${aRude.scorecard.recommendedAction})`);
 const aReview = score("A", "expected", {
   notes: (notes) => {
@@ -760,7 +760,7 @@ const aLeadFine = score("A", "expected", { profile: { interview: { ...PROFILES.A
 assert(aLeadFine.scorecard.recommendedAction === "advance" && !aLeadFine.scorecard.riskFlags.some((f) => /^Interview:/.test(f)),
   "lead marks of 50 and up add nothing");
 const workingLow = score("A", "expected", { profile: { interview: { ...PROFILES.A.interview, leadership: 82, adaptability: 76, workingLead: 30, writtenEnglish: 90 } } });
-assert(workingLow.scorecard.riskFlags.includes("Interview: little evidence of splitting a shift between players and leading (30/100)") && workingLow.scorecard.recommendedAction !== "advance",
+assert(workingLow.scorecard.riskFlags.includes("Interview: little evidence of splitting a shift between front-line work and leading (30/100)") && workingLow.scorecard.recommendedAction !== "advance",
   "a working-lead mark under 50 is named too");
 
 console.log("\n== The End button keeps the grader's review (2026-10-06, fourth pass) ==\n");

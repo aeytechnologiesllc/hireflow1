@@ -2052,7 +2052,7 @@ export function buildAvaScorecard(params: {
   const interviewLeadLows = ([
     ["leading a team", interviewLeadership],
     ["handling a sudden change", interviewAdaptability],
-    ["splitting a shift between players and leading", interviewWorkingLead],
+    ["splitting a shift between front-line work and leading", interviewWorkingLead],
   ] as const)
     .filter(([, mark]) => lowLeadMark(mark))
     .map(([what, mark]) => `Interview: little evidence of ${what} (${Math.round(mark as number)}/100)`);
@@ -2063,7 +2063,7 @@ export function buildAvaScorecard(params: {
   const browserTranscripts = sanitizeList(browserTranscriptPhases, 8);
   const testFindingFlags = [
     ...(newPromiseQuote ? [`Made a new promise in the escalated chat: "${newPromiseQuote}"`] : []),
-    ...(disrespectQuote ? [`Was disrespectful to the player in the escalated chat: "${disrespectQuote}"`] : []),
+    ...(disrespectQuote ? [`Was disrespectful to the person in the escalated chat: "${disrespectQuote}"`] : []),
     ...(chatReview ? [chatReviewReason ? `Chat practice needs a person to read it: ${chatReviewReason}` : "Chat practice needs a person to read it"] : []),
     ...(interviewCutShort
       ? [`Interview ended before the lead plan was covered${interviewMissing.length > 0 ? ` (not asked: ${interviewMissing.join(", ")})` : ""}`]

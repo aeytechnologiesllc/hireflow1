@@ -83,6 +83,7 @@ import {
   type InterviewJob,
 } from "./interviewContext.ts";
 import { parseNotesObject } from "../_shared/trustedResults.ts";
+import { counterpartNoun } from "../_shared/counterpart.ts";
 import { MAX_PRACTICE_BODY_BYTES, candidateIdLoader, readJsonWithin, isRefusedStep, oversizedPracticeField, practiceTurnVerdict } from "../_shared/practiceTurnGuard.ts";
 
 const corsHeaders = {
@@ -722,6 +723,10 @@ serve(async (req) => {
     // description: never by the "Lead / Principal" seniority level alone)
     // gets the lead plan and the lead marks.
     const leadRole = isLeadRole({ title: interviewJobTitle, description: interviewJobDescription });
+    // Who the applicant talks to in this job, in the job's own word: "player"
+    // only when the job says players (the owner's own gaming jobs), else
+    // "customer" (_shared/counterpart.ts; docs/LAUNCH-PLAN.md, Phase 2).
+    const counterpart = counterpartNoun([interviewJobTitle, interviewJobDescription, jobFacts.responsibilities].filter(Boolean).join("\n"));
     const requiredWpm = typeof jobFacts.requiredWpm === "number" && jobFacts.requiredWpm > 0 ? jobFacts.requiredWpm : null;
     const payPosted = postedPay(jobFacts as InterviewJob);
     const chatPracticeName = leadRole ? "Escalated chat practice" : "Chat Simulation";
@@ -753,7 +758,7 @@ Typing Test: ${typing.wpm} WPM${typing.accuracy !== null ? `, ${typing.accuracy}
 ${chatPracticeName}: done, not graded
 `
           : `
-${chatPracticeName} Score: ${chat.score}% - What to improve: ${chat.summary}${chat.newPromiseQuote ? " - Made the player a new promise the rules do not allow (their words are in <candidate_wrote>)" : ""}
+${chatPracticeName} Score: ${chat.score}% - What to improve: ${chat.summary}${chat.newPromiseQuote ? ` - Made the ${counterpart} a new promise the rules do not allow (their words are in <candidate_wrote>)` : ""}
 `;
       }
       if (candidateContext.salesSimulationResult) {
@@ -870,7 +875,7 @@ LOOK FOR THESE PATTERNS:
 WHEN YOU DETECT INCONSISTENCIES:
 - Ask probing questions naturally: "You mentioned 5 years of experience. I noticed in your assessment that [specific observation]. Can you help me understand that?"
 - Don't be accusatory, but BE DIRECT and persistent
-- Talk about the WORK, never the grade: "in the practice chat, the replies seemed to drift from what the player was asking" — not "your chat simulation score was 18%". Never tell the candidate a score, a percentage or a pass mark from any step; those are for the hiring team only, and a candidate told a number argues with the number instead of answering the question
+- Talk about the WORK, never the grade: "in the practice chat, the replies seemed to drift from what the ${counterpart} was asking" — not "your chat simulation score was 18%". Never tell the candidate a score, a percentage or a pass mark from any step; those are for the hiring team only, and a candidate told a number argues with the number instead of answering the question
 - Give them ONE chance to explain, but note if explanations are weak, evasive, or don't add up
 ${requiredWpm
   ? `- If their typing test is below this job's bar of ${requiredWpm} WPM, ask how they keep their reply times up; at or above the bar, typing is not a topic`
@@ -903,7 +908,7 @@ You MUST incorporate the candidate's assessment data into your questions. This i
 REQUIRED ACTIONS based on available data:
 ${candidateContext?.quizScore !== undefined ? `- Quiz Score is ${candidateContext.quizScore}%: ${candidateContext.quizScore < 60 ? "Ask pointed questions about knowledge gaps. This is a concerning score." : candidateContext.quizScore < 80 ? "Ask about areas they may have struggled with." : "Acknowledge their strong performance."}` : ''}
 ${typingGuidance(candidateContext?.typingTestResult, requiredWpm)}
-${chatPracticeGuidance(candidateContext?.chatSimulationResult, leadRole)}
+${chatPracticeGuidance(candidateContext?.chatSimulationResult, leadRole, counterpart)}
 ${candidateContext?.salesSimulationResult && typeof candidateContext.salesSimulationResult.score === "number" ? `- Sales Simulation Score: ${candidateContext.salesSimulationResult.score}%. ${candidateContext.salesSimulationResult.score < 60 ? "Poor performance. Ask about their sales approach and how they close deals." : "Ask about their sales methodology."}` : ''}
 ${candidateContext?.applicationAnswers?.length ? `- Application Answers available (in <candidate_wrote>): Compare their written claims to their actual performance. Ask follow-ups.` : ''}
 
@@ -942,7 +947,7 @@ ${leadRole
 3. Cover every MUST COVER topic below before you move to the closing questions
 4. Probe, inside those topics, any inconsistency between their claims and their results
 
-${leadMustCoverBlock(candidateContext?.chatSimulationResult)}
+${leadMustCoverBlock(candidateContext?.chatSimulationResult, counterpart)}
 `
   : `1. Conduct a professional 5-8 question interview
 2. Start with a warm, brief greeting (1-2 sentences max) - mention you've reviewed their materials
@@ -1038,6 +1043,7 @@ IMPORTANT: NEVER skip the "do you have any questions" step. Always give candidat
               context: candidateContext,
               leadRole,
               requiredWpm,
+              counterpart,
             },
             conversation,
           ),

@@ -385,7 +385,7 @@ none of them; `reconcile_orphaned_profiles` is separate follow-up work, one
 migration at a time through the Management API with the 2-second pause
 below, stopping immediately if it fails.
 
-## 4. Phase 1 security migrations, 2026-10-25 (docs/LAUNCH-PLAN.md)
+## 4. Launch-plan migrations, from 2026-10-25 (docs/LAUNCH-PLAN.md)
 
 Applied one at a time through the Supabase MCP `apply_migration` (which
 stamps the live version with the time of the call), each checked live before
@@ -401,6 +401,8 @@ the next. Same migration, different version stamp, as in section 2: match by
 | `20261025050000_drop_leftover_open_policies.sql` | `20261025013059` | `drop_leftover_open_policies` |
 | `20261025060000_platform_admin_two_step.sql` | `20261025013114` | `platform_admin_two_step` |
 | `20261025070000_revoke_unneeded_function_access.sql` | `20261025013132` | `revoke_unneeded_function_access` |
+| `20261025080000_admin_growth.sql` | `20261025020953` | `admin_growth` |
+| `20261025090000_protect_voice_evidence.sql` | `20261025021107` | `protect_voice_evidence` |
 
 The live copies carry a short header pointing at the repo file instead of
 the repo file's full comment block; the SQL statements are identical.

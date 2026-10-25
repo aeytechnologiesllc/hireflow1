@@ -150,7 +150,7 @@ export function recordLines(record: GuideRecord): string[] {
     }
     if (chat.disrespectMade === true) {
       const quote = str(chat.disrespectQuote, 300);
-      line += ` The reviewer read one of their lines as disrespectful to the player${quote ? `: "${quote}"` : ""}.`;
+      line += ` The reviewer read one of their lines as disrespectful to the person in the chat${quote ? `: "${quote}"` : ""}.`;
     }
     if (improve.length > 0) line += ` What the reviewer would improve: ${improve.join("; ")}.`;
     lines.push(line);

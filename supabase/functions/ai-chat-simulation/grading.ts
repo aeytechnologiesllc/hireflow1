@@ -547,7 +547,7 @@ export function leadEvaluationFrom(
     reviewReasons.push(`Possible new promise, not confirmed (${promise.why}): "${promise.quote}"`);
   }
   if (disrespect.state === "unconfirmed") {
-    reviewReasons.push(`Possible disrespect to the player, not confirmed (${disrespect.why}): "${disrespect.quote}"`);
+    reviewReasons.push(`Possible disrespect to the person in the chat, not confirmed (${disrespect.why}): "${disrespect.quote}"`);
   }
   if (promise.state === "none") {
     const seen = promiseWordsInLeadLines(lines, caseText);
@@ -712,7 +712,7 @@ export function buildPhaseAiAnalysis(evaluation: ChatSimulationEvaluation): stri
   const quote = typeof evaluation.newPromiseQuote === "string" && evaluation.newPromiseMade === true ? evaluation.newPromiseQuote : null;
   if (quote) parts.push(`Made a new promise: "${quote}".`);
   const rude = typeof evaluation.disrespectQuote === "string" && evaluation.disrespectMade === true ? evaluation.disrespectQuote : null;
-  if (rude) parts.push(`Was disrespectful to the player: "${rude}".`);
+  if (rude) parts.push(`Was disrespectful to the person in the chat: "${rude}".`);
   if (evaluation.needsReview === true) parts.push("Needs a person to read the chat.");
   return parts.join(" ");
 }

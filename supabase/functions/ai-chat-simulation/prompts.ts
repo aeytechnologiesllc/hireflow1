@@ -17,7 +17,8 @@
  * Imports: grading.ts (import-free), where the score is computed: the lead
  * items, the caps, and the numbered transcript the reviewer reads, so the
  * prompt and the server's own checks read the same lines; and typing.ts
- * (import-free) for the step's typing bar.
+ * (import-free) for the step's typing bar; and _shared/counterpart.ts
+ * (import-free) for the word for the other side of the chat.
  *
  * Nothing the request says reaches the reviewer's instructions: the case is
  * the server's (configured, or the page's built-in defaults copied here), the
@@ -35,6 +36,7 @@ import {
   type LeadItemKey,
 } from "./grading.ts";
 import { typingBarFrom, type TypingBar } from "./typing.ts";
+import { counterpartNoun, withCounterpart } from "../_shared/counterpart.ts";
 
 /** Named in session.grading.prompt_version; bump when the evaluation prompt changes.
  *  4 (2026-10-06): the reviewer also lists spelling mistakes left in the
@@ -220,25 +222,10 @@ export function knownPinnedCase(
  * Phase 2, task 1). The team-lead rubric was written for the owner's own
  * gaming support jobs, where the other side is a "player"; any other
  * business's case is about a customer. The case says which: one written
- * about players keeps "player", every other case reads "customer". (Phase 4
- * adds the industry packs' own words, such as "patient".)
+ * about players keeps "player", every other case reads "customer"
+ * (_shared/counterpart.ts, which the written interview uses too).
  */
-export function counterpartNoun(scenario: string | null | undefined): "player" | "customer" {
-  return /\bplayers?\b/i.test(scenario ?? "") ? "player" : "customer";
-}
-
-/** The reviewer's text with "player" swapped for this case's word. JSON keys (playerDisrespected) are words inside a longer name, so they stay. */
-export function withCounterpart(text: string, noun: string): string {
-  if (noun === "player") return text;
-  const cap = noun.charAt(0).toUpperCase() + noun.slice(1);
-  return text
-    .replace(/\bPLAYERS\b/g, `${noun.toUpperCase()}S`)
-    .replace(/\bPLAYER\b/g, noun.toUpperCase())
-    .replace(/\bPlayers\b/g, `${cap}s`)
-    .replace(/\bPlayer\b/g, cap)
-    .replace(/\bplayers\b/g, `${noun}s`)
-    .replace(/\bplayer\b/g, noun);
-}
+export { counterpartNoun, withCounterpart } from "../_shared/counterpart.ts";
 
 /** What the employer said this step is for, in words a reviewer reads. */
 const FOCUS_LABELS: Record<string, string> = {

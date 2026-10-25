@@ -129,7 +129,7 @@ export const PRIVACY_POLICY: LegalDocument = {
       id: "ai",
       title: "AI and automatic scoring",
       body: [
-        "AI software reads your test answers, your chat practice, your written interview and, if you upload one, your resume. It produces scores, a summary and notes for the hiring team. The player you chat with in the chat practice and the interviewer in the written interview are AI, not people.",
+        "AI software reads your test answers, your chat practice, your written interview and, if you upload one, your resume. It produces scores, a summary and notes for the hiring team. The person you chat with in the chat practice and the interviewer in the written interview are AI, not people.",
         "When you finish a step, the site may move you to the next step automatically.",
         "No application is declined by software alone. A person on the hiring team makes that decision. The one automatic refusal is this: if the hiring team has blocked an account, that account cannot apply again.",
         "AI can be wrong. If you think a result is wrong, message the hiring team in your account.",

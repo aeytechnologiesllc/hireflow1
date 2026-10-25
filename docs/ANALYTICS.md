@@ -102,6 +102,9 @@ and an account kept no trace of how its owner arrived. Now:
    them as `signup_source` in the account's metadata.
 4. **The staff site counts its sign-up page** (`/auth`, which sign-in shares)
    and nothing else, so the funnel is front page → sign-up page → accounts.
+   `page_view_daily` keeps no host, so the "sign-up page" number also holds
+   visits to `hireflownow.com/auth` (the same page on the main address,
+   counted since before 2026-10-25, including a 121-view day on 2026-10-04).
 
 The platform admin reads it all on **Admin → Growth** (`admin_growth(p_days)`,
 `supabase/migrations/20261025080000_admin_growth.sql`): front-page visits by

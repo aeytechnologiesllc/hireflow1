@@ -23,7 +23,11 @@
  * whole conversation on every turn and on submit, so this is generous: a long
  * written interview is tens of kilobytes. (It was 256 KB with 4,000-character
  * answers; the Pass C review showed one long written answer would then fail
- * every later turn and the submit, 2026-10-25.)
+ * every later turn and the submit, 2026-10-25.) It is also about the
+ * platform's own ceiling: a live probe the same day found Supabase's gateway
+ * never passes on a body over about 1 MB (900 KB reached the function and got
+ * its 413; 1.1 MB never reached it, and the caller waited for the gateway's
+ * 504). Such a request costs nothing, since the function never runs.
  */
 export const MAX_PRACTICE_BODY_BYTES = 1024 * 1024;
 

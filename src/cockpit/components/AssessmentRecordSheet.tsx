@@ -1298,7 +1298,7 @@ function ChatPracticeBody({
         />
       )}
       {detail.scenario && (
-        <Section title={detail.customerName ? `The player · ${detail.customerName}` : "The situation"}>
+        <Section title={detail.customerName ? `The ${detail.counterpart} · ${detail.customerName}` : "The situation"}>
           <p className="rounded-[10px] px-3.5 py-3 text-[13px] leading-[1.6]" style={{ background: "var(--ground-2)", color: "var(--ink-2)" }}>
             {detail.scenario}
           </p>
@@ -1330,7 +1330,7 @@ function ChatPracticeBody({
           <Transcript
             turns={detail.transcript}
             candidateName={candidate}
-            otherName={detail.customerName ? `${detail.customerName} (player)` : "Player"}
+            otherName={detail.customerName ? `${detail.customerName} (${detail.counterpart})` : detail.counterpart === "player" ? "Player" : "Customer"}
             events={flags}
           />
         ) : loading ? (
