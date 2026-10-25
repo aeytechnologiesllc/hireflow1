@@ -20,9 +20,10 @@ import {
   FileText,
 } from "lucide-react";
 import { externalHref, openExternal } from "@/lib/safeLink";
+import { servePdfWorkerFromThisSite } from "@/lib/pdfWorker";
 
 // Set up PDF.js worker using CDN for reliability
-pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+servePdfWorkerFromThisSite();
 
 export interface SignatureFieldWithPosition {
   id: string;

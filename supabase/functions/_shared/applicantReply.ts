@@ -8,12 +8,11 @@
  * notes are the hiring team's; returning them let an applicant read their
  * evaluation and, with force: true, re-run it until it came out higher.
  *
- * Pure apart from Response, so scripts/applicant_reply.test.mjs loads it.
+ * Pure apart from Response, so scripts/ava_analysis_applicant_limits.test.mjs loads it.
  */
 
 export const APPLICANT_REPLY_KEYS: ReadonlySet<string> = new Set([
   "success",
-  "message",
   "skipped",
   "reused",
   "decision",
@@ -30,10 +29,27 @@ export const APPLICANT_REPLY_KEYS: ReadonlySet<string> = new Set([
   "currentPhase",
 ]);
 
-/** The reply body with only the keys an applicant may read. */
+/**
+ * Decisions that would tell an applicant the verdict before a person has
+ * made it. Their page treats every "waiting on the hiring team" answer the
+ * same way (src/lib/journeyProgress.ts SERVER_HELD_DECISIONS), so the reply
+ * says only that (Pass C review, 2026-10-25: "recommend_decline" reached
+ * the applicant, with a message naming Ava).
+ */
+const DECISION_FOR_APPLICANT: Readonly<Record<string, string>> = {
+  recommend_decline: "needs_employer_approval",
+};
+
+/** The reply body with only the keys an applicant may read. No message: it is the hiring team's wording. */
 export function applicantReplyBody(body: unknown): unknown {
   if (!body || typeof body !== "object" || Array.isArray(body)) return body;
-  return Object.fromEntries(Object.entries(body as Record<string, unknown>).filter(([key]) => APPLICANT_REPLY_KEYS.has(key)));
+  const kept: Record<string, unknown> = Object.fromEntries(
+    Object.entries(body as Record<string, unknown>).filter(([key]) => APPLICANT_REPLY_KEYS.has(key)),
+  );
+  if (typeof kept.decision === "string" && DECISION_FOR_APPLICANT[kept.decision]) {
+    kept.decision = DECISION_FOR_APPLICANT[kept.decision];
+  }
+  return kept;
 }
 
 /** The same Response, cut down to the applicant's keys (non-JSON passes through). */

@@ -83,7 +83,7 @@ import {
   type InterviewJob,
 } from "./interviewContext.ts";
 import { parseNotesObject } from "../_shared/trustedResults.ts";
-import { MAX_PRACTICE_BODY_BYTES, candidateIdLoader, oversizedPracticeField, practiceTurnVerdict } from "../_shared/practiceTurnGuard.ts";
+import { MAX_PRACTICE_BODY_BYTES, candidateIdLoader, readJsonWithin, isRefusedStep, oversizedPracticeField, practiceTurnVerdict } from "../_shared/practiceTurnGuard.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -285,7 +285,15 @@ serve(async (req) => {
   let heldClaim: { admin: AssessmentAdmin; sessionId: string } | null = null;
 
   try {
-    const request: ChatInterviewRequest = await req.json();
+    // Read with a hard cap, whatever the request claims (_shared/practiceTurnGuard.ts).
+    const read = await readJsonWithin(req);
+    if (!read.ok) {
+      return new Response(JSON.stringify({ error: read.status === 413 ? "Request too large" : "Invalid request", code: read.status === 413 ? "too_large" : "invalid_json" }), {
+        status: read.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const request = (read.body ?? {}) as ChatInterviewRequest;
     const {
       mode,
       jobTitle,
@@ -455,6 +463,17 @@ serve(async (req) => {
         else notRecorded = resolved.reason;
       }
       if (notRecorded) console.log("[ai-chat-interview] turn not recorded:", notRecorded);
+      // A turn on a step that is not this applicant's open step of this kind
+      // is refused, never played from the request's own scenario and history:
+      // that was a free AI call for any account with any application (Pass C
+      // review, 2026-10-25). A passing database error or a busy attempt is
+      // still served, so a blip never strands an applicant mid-test.
+      if (notRecorded && isRefusedStep(notRecorded)) {
+        return new Response(JSON.stringify({ error: "This step isn't open for you right now. Reload the page.", code: notRecorded }), {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // The job and the applicant's own record, read here for the signed-in

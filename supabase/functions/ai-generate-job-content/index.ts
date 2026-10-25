@@ -317,7 +317,7 @@ serve(async (req) => {
   // sign-in, and an open endpoint was a free AI writer for anyone
   // (docs/LAUNCH-PLAN.md, Phase 1, task 3).
   if (!(await signedInUserId(req))) {
-    return new Response(JSON.stringify({ error: "Sign in to write a job.", code: "sign_in_required" }), {
+    return new Response(JSON.stringify({ error: "Sign in to create a job.", code: "sign_in_required" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

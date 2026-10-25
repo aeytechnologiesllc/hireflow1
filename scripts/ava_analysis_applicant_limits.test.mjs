@@ -62,12 +62,18 @@ const full = {
   reason: "Next phase is Ava Interview which requires employer configuration",
   analysisError: { details: "x" },
   forced: true,
+  message: "Analysis completed, candidate advanced for more evidence",
+  updatedApplication: { ai_score: 91 },
 };
 const cut = reply.applicantReplyBody(full);
 check("applicant reply keeps the move", cut.decision === "advanced" && cut.nextPhaseId === "step_2" && cut.success === true);
-for (const key of ["score", "scorecard", "autopilotAction", "reason", "analysisError", "forced"]) {
+for (const key of ["score", "scorecard", "autopilotAction", "reason", "analysisError", "forced", "message", "updatedApplication"]) {
   check(`applicant reply drops ${key}`, !(key in cut));
 }
+const decline = reply.applicantReplyBody({ success: true, decision: "recommend_decline", message: "Analysis completed — Ava recommends declining; awaiting human review", reason: "x" });
+check("a recommended decline reaches the applicant as 'waiting on the hiring team'", decline.decision === "needs_employer_approval" && !("message" in decline) && !("reason" in decline), JSON.stringify(decline));
+const journey = readFileSync(path.join(ROOT, "src/lib/journeyProgress.ts"), "utf8");
+check("…which the applicant's page already treats as final", /"needs_employer_approval"/.test(journey.slice(journey.indexOf("SERVER_HELD_DECISIONS"), journey.indexOf("SERVER_HELD_DECISIONS") + 200)));
 const res = await reply.forApplicant(new Response(JSON.stringify(full), { status: 200, headers: { "Content-Type": "application/json" } }));
 const resBody = await res.json();
 check("forApplicant keeps the status", res.status === 200);

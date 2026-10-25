@@ -57,6 +57,20 @@ only for applicants of those jobs. A membership that is not `active` is no
 membership. Anything else is refused with one answer, 403 `not_allowed`,
 whether the recipient exists or not.
 
+## Where an email goes (2026-10-25)
+
+To the address on the recipient's **sign-in account** (`auth.users.email`,
+read with `auth.admin.getUserById`), never `profiles.email`. Until
+2026-10-25 it was the profile column, which its owner could change through
+the API: a business could sign up a throwaway applicant, point its profile
+at anyone's inbox, and use this function as a relay with a line of its own
+text in each email. `profiles.email` is now read-only to the API and follows
+the account (`20261025040000_profiles_email_from_account.sql`), and
+`document-signing` records the signer's account address too. A recipient
+with no account address gets nothing (404). Proven in
+`scripts/notification_access.test.mjs` ("an edited profile email does not
+redirect mail").
+
 ## What an email may say
 
 The words that matter are looked up, never taken from the request:

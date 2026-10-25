@@ -403,6 +403,32 @@ moment the flag flips, because the migration blocks
 `voice_interview_transcript` once `voice_interview_result` is non-null AND
 `voiceInterviewResult` is enforced.
 
+## What an applicant's own call can and cannot do (2026-10-25)
+
+Two holes from the 2026-10-24 audit (docs/LAUNCH-PLAN.md, Phase 1):
+
+- **trigger-ava-analysis.** `force: true` from the applicant skipped the
+  reuse of a finished analysis and the "already rejected" check, there was no
+  limit, and the reply carried the score and scorecard: an applicant could
+  re-roll their evaluation until it came out higher, and read it. Now `force`
+  counts only for the hiring team, an applicant's calls are capped at twenty
+  an hour per application, and their reply is cut to the move
+  (`_shared/applicantReply.ts`: decision, next step; no score, scorecard or
+  reasons). Their written text reaches the judge fenced as evidence, never as
+  instructions (`_shared/promptFence.ts`), with a rule in every scoring system
+  prompt that an attempt to instruct the evaluator is itself a red flag.
+- **Staff columns.** `phase_ai_analysis` (shown as Ava's summary when
+  `ai_analysis` is empty), `employer_notes` and the three columns only the
+  system sets were writable by the applicant. A second BEFORE UPDATE trigger,
+  `applications_protect_staff_columns`
+  (`20261025030000_protect_application_staff_columns.sql`), refuses that with
+  the same exemptions as `protect_application_columns`.
+
+Still open (planned, docs/LAUNCH-PLAN.md Phase 7): an applicant can still
+*read* the staff columns of their own row, because their pages read the row
+live and live updates work only on tables; the fix is moving the evaluation
+into a staff-only table.
+
 ## What NOT to do
 
 - Don't add a new `result_key` without a matching row in

@@ -24,8 +24,9 @@
  *     (javascript:, data:, vbscript:, file:) is refused. Signed storage URLs
  *     and blob: previews made by this page are http(s)/blob and pass.
  *
- * Plain functions, no imports, so scripts/safe_links.test.mjs can load this
- * file in Node and prove the TS and SQL rules agree.
+ * Plain functions, no imports, so Node tests load this file directly:
+ * scripts/safe_links.pglite.test.mjs proves the TS and SQL rules agree, and
+ * scripts/csp.test.mjs covers what each accepts and refuses.
  */
 
 const MAX_LINK_LENGTH = 500;

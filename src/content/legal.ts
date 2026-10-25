@@ -154,7 +154,7 @@ export const PRIVACY_POLICY: LegalDocument = {
             "A video-call provider, if the hiring team uses the site's built-in call for your interview.",
           ],
         },
-        "Your browser also loads fonts and small pieces of code from public networks (Google Fonts, jsDelivr and unpkg). Like any website you visit, they see your IP address when it does.",
+        "Your browser also loads fonts and small pieces of code from public networks (Google Fonts and jsDelivr). Like any website you visit, they see your IP address when it does.",
         { sub: "Anyone else" },
         "Only if the law requires it, to protect someone's rights or safety, or if the site passes to a new owner, who would be bound by this policy.",
       ],

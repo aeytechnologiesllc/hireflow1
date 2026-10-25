@@ -1,9 +1,9 @@
 import { pdfjs } from "react-pdf";
+import { servePdfWorkerFromThisSite } from "@/lib/pdfWorker";
 
-// Ensure worker is configured (react-pdf requires this for reliable parsing)
-if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-  pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-}
+// Ensure worker is configured (react-pdf requires this for reliable parsing):
+// served from this site (src/lib/pdfWorker.ts).
+servePdfWorkerFromThisSite();
 
 /**
  * Converts a PDF File object to an array of base64-encoded PNG images.

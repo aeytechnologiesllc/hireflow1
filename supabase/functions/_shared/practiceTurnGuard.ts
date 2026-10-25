@@ -15,27 +15,73 @@
  * field has a size.
  *
  * Pure (the application lookup is passed in), so
- * scripts/practice_turn_guard.test.mjs runs it in Node.
+ * scripts/ai_endpoint_limits.test.mjs runs it in Node.
  */
 
-/** Largest request body a practice function reads at all. */
-export const MAX_PRACTICE_BODY_BYTES = 256 * 1024;
+/**
+ * Largest request body a practice function reads at all. The pages send the
+ * whole conversation on every turn and on submit, so this is generous: a long
+ * written interview is tens of kilobytes. (It was 256 KB with 4,000-character
+ * answers; the Pass C review showed one long written answer would then fail
+ * every later turn and the submit, 2026-10-25.)
+ */
+export const MAX_PRACTICE_BODY_BYTES = 1024 * 1024;
 
-/** Per-field limits, well above anything the pages send (a Zulu escalated case is ~1,500 characters). */
+/**
+ * Per-field limits: far above anything a person types in a practice step,
+ * low enough that nobody can send a book. The answer boxes have no length
+ * limit of their own, so these must never stop a real applicant.
+ */
 export const PRACTICE_LIMITS = {
-  scenario: 6000,
-  customerName: 120,
-  prospectName: 120,
-  prospectCompany: 200,
-  productService: 1000,
-  jobTitle: 200,
-  candidateName: 120,
-  agentMessage: 4000,
-  salesRepMessage: 4000,
-  candidateMessage: 4000,
-  message: 4000,
-  messages: 80,
+  scenario: 20000,
+  customerName: 200,
+  prospectName: 200,
+  prospectCompany: 500,
+  productService: 5000,
+  jobTitle: 300,
+  candidateName: 200,
+  agentMessage: 12000,
+  salesRepMessage: 12000,
+  candidateMessage: 12000,
+  userMessage: 12000,
+  message: 12000,
+  messages: 200,
 } as const;
+
+/**
+ * Reads the request's JSON body, never more than `max` bytes of it: a
+ * chunked request carries no Content-Length to check first. Answers
+ * { ok: false, status } for a body too large (413) or not JSON (400).
+ */
+export async function readJsonWithin(req: Request, max = MAX_PRACTICE_BODY_BYTES): Promise<{ ok: true; body: unknown } | { ok: false; status: number }> {
+  const declared = Number(req.headers.get("content-length") ?? "0");
+  if (declared > max) return { ok: false, status: 413 };
+  if (!req.body) return { ok: false, status: 400 };
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel().catch(() => {});
+      return { ok: false, status: 413 };
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let at = 0;
+  for (const c of chunks) {
+    bytes.set(c, at);
+    at += c.byteLength;
+  }
+  try {
+    return { ok: true, body: JSON.parse(new TextDecoder().decode(bytes)) };
+  } catch {
+    return { ok: false, status: 400 };
+  }
+}
 
 /** The first field over its limit, or null. */
 export function oversizedPracticeField(body: unknown): string | null {
@@ -87,7 +133,7 @@ export async function practiceTurnVerdict(params: {
     owner = null;
   }
   if (!owner || owner !== params.userId) {
-    return { ok: false, status: 403, code: "not_your_application", error: "This practice belongs to another application." };
+    return { ok: false, status: 403, code: "not_your_application", error: "This practice is for a different account. Sign in with the account you applied with." };
   }
   return { ok: true };
 }
@@ -103,4 +149,23 @@ export function candidateIdLoader(admin: {
     if (error || !data) return null;
     return typeof data.candidate_id === "string" ? data.candidate_id : null;
   };
+}
+
+/**
+ * Why a turn's session could not be opened, when that means the step is not
+ * this applicant's to take now (_shared/assessmentSession.ts NoSessionReason):
+ * such a turn is refused. A passing error ("error", "not_deployed") or a
+ * busy attempt ("session_busy") is not on this list.
+ */
+const REFUSED_STEP_REASONS: ReadonlySet<string> = new Set([
+  "not_your_application",
+  "application_closed",
+  "unknown_step",
+  "step_not_reached",
+  "step_finished",
+  "wrong_step_type",
+]);
+
+export function isRefusedStep(reason: string | null | undefined): boolean {
+  return typeof reason === "string" && REFUSED_STEP_REASONS.has(reason);
 }

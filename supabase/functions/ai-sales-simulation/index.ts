@@ -6,7 +6,8 @@ import { guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { computerRequiredBody, deviceKindOfRequest, needsComputer } from "../_shared/deviceKind.ts";
 import { computerOnlyGate, recordingTargetFrom, type AssessmentAdmin } from "../_shared/assessmentSession.ts";
-import { MAX_PRACTICE_BODY_BYTES, candidateIdLoader, oversizedPracticeField, practiceTurnVerdict } from "../_shared/practiceTurnGuard.ts";
+import { MAX_PRACTICE_BODY_BYTES, candidateIdLoader, readJsonWithin, oversizedPracticeField, practiceTurnVerdict } from "../_shared/practiceTurnGuard.ts";
+import { isKnownSalesCase, salesScenariosOf } from "../_shared/salesScenarios.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -88,7 +89,15 @@ serve(async (req) => {
   }
 
   try {
-    const request: SalesSimulationRequest = await req.json();
+    // Read with a hard cap, whatever the request claims (_shared/practiceTurnGuard.ts).
+    const read = await readJsonWithin(req);
+    if (!read.ok) {
+      return new Response(JSON.stringify({ error: read.status === 413 ? "Request too large" : "Invalid request", code: read.status === 413 ? "too_large" : "invalid_json" }), {
+        status: read.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const request = (read.body ?? {}) as SalesSimulationRequest;
     const { mode, scenario, prospectName, prospectCompany, productService, jobTitle, candidateName = "the sales representative", messages = [], salesRepMessage, messageCount = 0 } = request;
 
     console.log("Sales simulation request:", { mode, scenario, prospectName, candidateName, messageCount });
@@ -123,6 +132,29 @@ serve(async (req) => {
       if (!verdict.ok) {
         return new Response(JSON.stringify({ error: verdict.error, code: verdict.code }), {
           status: verdict.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      // This function records nothing and builds its prompt from the request,
+      // so the step must be a sales practice on the applicant's own job and
+      // the case must be one of that step's own (or the built-in three when
+      // the business set none). Otherwise any account with any application
+      // could send any scenario (Pass C review, 2026-10-25).
+      const { data: appRow } = reader && target
+        ? await (reader as unknown as { from: (t: string) => { select: (c: string) => { eq: (k: string, v: string) => { maybeSingle: () => Promise<{ data: { jobs?: { workflow_steps?: unknown } | null } | null }> } } } })
+            .from("applications").select("jobs(workflow_steps)").eq("id", target.applicationId).maybeSingle()
+        : { data: null };
+      const steps = Array.isArray(appRow?.jobs?.workflow_steps) ? (appRow!.jobs!.workflow_steps as Array<Record<string, unknown>>) : [];
+      const step = target ? steps.find((s) => s && s.id === target.stepId && s.type === "sales_simulation") : undefined;
+      if (!step) {
+        return new Response(JSON.stringify({ error: "This step isn't open for you right now. Reload the page.", code: "unknown_step" }), {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!isKnownSalesCase(salesScenariosOf(step.config), request)) {
+        return new Response(JSON.stringify({ error: "This practice changed. Reload the page.", code: "unknown_case" }), {
+          status: 409,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }

@@ -129,7 +129,13 @@ export default function Settings() {
         const status = (error as { context?: { status?: number } }).context?.status;
         if (status === 401) {
           const reply = await (error as { context?: Response }).context?.json?.().catch(() => null);
-          setDeleteError(reply?.code === "wrong_password" ? "That password is not right." : "Enter your password to delete your account.");
+          setDeleteError(
+            reply?.code === "wrong_password"
+              ? "That password is not right."
+              : reply?.code === "password_required"
+                ? "Enter your password to delete your account."
+                : "Your sign-in has ended. Sign out, sign in again, then try once more.",
+          );
           return;
         }
         throw error;

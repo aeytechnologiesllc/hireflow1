@@ -48,6 +48,8 @@ const directive = (name) => policy.split("; ").find((d) => d.startsWith(`${name}
 check("script-src never allows 'unsafe-inline'", !/'unsafe-inline'/.test(directive("script-src")));
 check("script-src never allows 'unsafe-eval'", !/'unsafe-eval'/.test(directive("script-src")));
 check("script-src has no bare https: or *", !/\shttps:(\s|$)|\s\*(\s|$)/.test(directive("script-src")));
+check("no package host that serves any npm package is trusted for scripts", !/https:\/\/unpkg\.com|https:\/\/cdn\.jsdelivr\.net(\s|$)/.test(directive("script-src")), directive("script-src"));
+check("the PDF worker is served from this site", /pdf\.worker\.min\.mjs\?url/.test(readFileSync(path.join(ROOT, "src/lib/pdfWorker.ts"), "utf8")));
 check("object-src is 'none'", directive("object-src") === "object-src 'none'");
 check("base-uri is 'self'", directive("base-uri") === "base-uri 'self'");
 check("frame-ancestors is 'self' (no framing by other sites)", directive("frame-ancestors") === "frame-ancestors 'self'");

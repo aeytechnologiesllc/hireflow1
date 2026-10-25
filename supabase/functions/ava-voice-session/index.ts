@@ -6,6 +6,7 @@ import { extractText } from "https://esm.sh/unpdf@0.12.1";
 import { hasSubscriptionBypassForUser } from "../_shared/subscriptionBypass.ts";
 import { computeSessionTimeLimitMinutes, HARD_CAP_MINUTES } from "../_shared/voiceSessionCharge.ts";
 import { computerRequiredBody, deviceKindOfRequest, needsComputer, stepNeedsComputer } from "../_shared/deviceKind.ts";
+import { takeDailyAiBudget } from "../_shared/aiBudget.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -2597,6 +2598,15 @@ Style:
       currentRoute,
       userId: user.id,
     });
+
+    // Today's platform-wide AI budget, like every other OpenAI call (fails
+    // open; _shared/aiBudget.ts). A voice session counts as one unit.
+    if (!(await takeDailyAiBudget())) {
+      return new Response(JSON.stringify({ error: "ai_unavailable", reason: "budget_reached" }), {
+        status: 503,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Request ephemeral token from OpenAI Realtime API
     // GA Realtime API: ephemeral tokens are minted at /v1/realtime/client_secrets with the

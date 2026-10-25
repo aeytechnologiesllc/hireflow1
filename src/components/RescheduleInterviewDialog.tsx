@@ -29,6 +29,7 @@ import { PASSED_TIME_WORDS, applicantEmailTime, isPassedTimeError, localTimeZone
 import { fetchApplicantTimeZone } from "@/hooks/useApplicantTimeZone";
 import { useAuth } from "@/hooks/useAuth";
 import { NothingChanged, teamRoleCant } from "@/lib/teamPermissions";
+import { externalHref } from "@/lib/safeLink";
 
 interface RescheduleInterviewDialogProps {
   open: boolean;
@@ -75,6 +76,13 @@ export function RescheduleInterviewDialog({
     // Never a time that has already passed (the database refuses one too).
     if (!timeStillAhead(scheduledAt)) {
       toast.error(PASSED_TIME_WORDS);
+      return;
+    }
+    // The database keeps a meeting link only when it is a web address
+    // (supabase/migrations/20261025010000_safe_links.sql): say so here
+    // instead of saving and quietly dropping it.
+    if (meetingLink.trim() && !externalHref(meetingLink)) {
+      toast.error("That meeting link doesn't look right. Paste the whole link, starting with https://");
       return;
     }
 

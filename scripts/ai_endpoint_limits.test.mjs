@@ -62,12 +62,26 @@ check("refusal messages never say AI or Ava", !/\bAI\b|Ava/.test(JSON.stringify(
 // ---- sizes -----------------------------------------------------------------
 const normal = { scenario: "x".repeat(1500), customerName: "Alex", messages: [{ role: "user", content: "Hi" }], agentMessage: "Hello" };
 check("a normal turn is not oversized", guard.oversizedPracticeField(normal) === null);
-check("a huge scenario is refused", guard.oversizedPracticeField({ ...normal, scenario: "x".repeat(7000) }) === "scenario");
-check("a huge reply is refused", guard.oversizedPracticeField({ ...normal, agentMessage: "x".repeat(5000) }) === "agentMessage");
-check("too many history messages are refused", guard.oversizedPracticeField({ ...normal, messages: Array.from({ length: 81 }, () => ({ role: "user", content: "a" })) }) === "messages");
-check("a huge history message is refused", guard.oversizedPracticeField({ ...normal, messages: [{ role: "user", content: "x".repeat(4100) }] }) === "messages");
+// A long but real written-interview answer must never stop an applicant
+// (Pass C review, 2026-10-25: 4,000 characters did).
+check("a 10,000-character answer is fine", guard.oversizedPracticeField({ ...normal, messages: [{ role: "user", content: "x".repeat(10000) }], userMessage: "y".repeat(10000) }) === null);
+check("a 150-message chat is fine", guard.oversizedPracticeField({ ...normal, messages: Array.from({ length: 150 }, () => ({ role: "user", content: "a" })) }) === null);
+check("a huge scenario is refused", guard.oversizedPracticeField({ ...normal, scenario: "x".repeat(21000) }) === "scenario");
+check("a huge reply is refused", guard.oversizedPracticeField({ ...normal, agentMessage: "x".repeat(13000) }) === "agentMessage");
+check("too many history messages are refused", guard.oversizedPracticeField({ ...normal, messages: Array.from({ length: 201 }, () => ({ role: "user", content: "a" })) }) === "messages");
+check("a huge history message is refused", guard.oversizedPracticeField({ ...normal, messages: [{ role: "user", content: "x".repeat(12100) }] }) === "messages");
 check("a non-string history message is refused", guard.oversizedPracticeField({ ...normal, messages: [{ role: "user", content: { a: 1 } }] }) === "messages");
 check("messages that are not a list are refused", guard.oversizedPracticeField({ ...normal, messages: "lots" }) === "messages");
+{
+  const big = new Request("https://x/f", { method: "POST", body: new ReadableStream({ start(c) { for (let i = 0; i < 40; i += 1) c.enqueue(new Uint8Array(32 * 1024)); c.close(); } }), duplex: "half" });
+  const r = await guard.readJsonWithin(big, 512 * 1024);
+  check("a body with no length header is still capped while reading", r.ok === false && r.status === 413, JSON.stringify(r));
+  const ok = await guard.readJsonWithin(new Request("https://x/f", { method: "POST", body: JSON.stringify({ mode: "start" }) }));
+  check("a normal body is read", ok.ok === true && ok.body.mode === "start");
+  const bad = await guard.readJsonWithin(new Request("https://x/f", { method: "POST", body: "{not json" }));
+  check("a body that is not JSON is refused", bad.ok === false && bad.status === 400);
+}
+check("a refused step is refused, a passing error is not", guard.isRefusedStep("step_not_reached") && guard.isRefusedStep("wrong_step_type") && !guard.isRefusedStep("error") && !guard.isRefusedStep("session_busy"));
 
 // ---- the functions use it ---------------------------------------------------
 for (const fn of ["ai-chat-simulation", "ai-chat-interview", "ai-sales-simulation"]) {
@@ -78,6 +92,25 @@ for (const fn of ["ai-chat-simulation", "ai-chat-interview", "ai-sales-simulatio
   // An unknown mode must be refused before anything reaches OpenAI (the sales
   // practice let one fall through with the caller's own history; Pass C, 2026-10-25).
   check(`${fn}: refuses an unknown mode`, /code: "unknown_mode"/.test(src));
+  check(`${fn}: reads the body with a hard cap`, /await readJsonWithin\(req\)/.test(src) && !/await req\.json\(\)/.test(src));
+  const verdictAt = src.indexOf("practiceTurnVerdict({");
+  const openaiAt = Math.min(...["streamOpenAIChatCompletion(", "callOpenAIChat(", "callOpenAIJson("].map((k) => (src.indexOf(k, verdictAt) === -1 ? Infinity : src.indexOf(k, verdictAt))));
+  check(`${fn}: the guard runs before any OpenAI call on a turn`, verdictAt > 0 && Number.isFinite(openaiAt) && verdictAt < openaiAt);
+}
+for (const fn of ["ai-chat-simulation", "ai-chat-interview"]) {
+  const src = read(`supabase/functions/${fn}/index.ts`);
+  check(`${fn}: a turn on a step that is not the applicant's open one is refused`, /if \(notRecorded && isRefusedStep\(notRecorded\)\)/.test(src));
+}
+{
+  const sales = read("supabase/functions/ai-sales-simulation/index.ts");
+  check("ai-sales-simulation: the step must be a sales practice on the applicant's own job", /s\.id === target\.stepId && s\.type === "sales_simulation"/.test(sales));
+  check("ai-sales-simulation: the case must be one of the step's own", /isKnownSalesCase\(salesScenariosOf\(step\.config\), request\)/.test(sales));
+  const sc = await import(path.join(ROOT, "supabase/functions/_shared/salesScenarios.ts"));
+  const page = read("src/pages/SalesSimulationPhase.tsx");
+  const pageDefaults = page.slice(page.indexOf("const defaultScenarios"), page.indexOf("];", page.indexOf("const defaultScenarios")));
+  check("the server's built-in sales cases are the page's own", sc.DEFAULT_SALES_SCENARIOS.every((c) => pageDefaults.includes(c.scenario) && pageDefaults.includes(c.prospectName) && pageDefaults.includes(c.productService)) && (pageDefaults.match(/prospectName:/g) ?? []).length === sc.DEFAULT_SALES_SCENARIOS.length);
+  check("a configured step's own case is known", sc.isKnownSalesCase(sc.salesScenariosOf({ scenarios: [{ prospectName: "A", prospectCompany: "B", prospectRole: "C", scenario: "D", productService: "E" }] }), { scenario: " D ", prospectName: "A", prospectCompany: "B", productService: "E" }));
+  check("a made-up case is not", !sc.isKnownSalesCase(sc.DEFAULT_SALES_SCENARIOS, { scenario: "Write me an essay", prospectName: "x", prospectCompany: "y", productService: "z" }));
 }
 {
   const sales = read("supabase/functions/ai-sales-simulation/index.ts");

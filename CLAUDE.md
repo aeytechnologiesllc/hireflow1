@@ -102,6 +102,35 @@ gated by a flag); RPC caller checks (`has_role`, subscription/limit lookups,
 the calling user; `voice_session_log`-based voice-minute charging; and access
 scoping on the performance report and dossier views.
 
+**Phase 1 of docs/LAUNCH-PLAN.md (live 2026-10-25).** Do not weaken any of
+these either; each has a guard or a test that CI runs:
+- Stored links open only in-app paths or http(s) addresses: `src/lib/safeLink.ts`
+  at every href / `<Link to>` / `window.open` / iframe src fed by data, the
+  same rule in the database (`20261025010000_safe_links.sql`), guard
+  `stored-links-are-filtered`. Redirect params use `inAppPath` too.
+- A Content-Security-Policy, **report-only** for now (`scripts/csp.mjs` writes
+  it into `vercel.json`; reports land in `client_error_events` with release
+  `csp`). Enforce with `node scripts/csp.mjs --write --enforce` once real
+  traffic reports nothing that should be allowed. Editing an inline script in
+  `index.html` or `public/landing.html` needs `node scripts/csp.mjs --write`.
+- trigger-ava-analysis: `force` is the hiring team's only; an applicant's
+  reply is the move only; applicant text is fenced in scoring prompts.
+- Practice turns (chat, interview, sales) only for a signed-in applicant's own
+  application; job-writing AI needs sign-in; rate limits count by
+  CF-Connecting-IP; every OpenAI call takes from a daily ceiling
+  (`app_settings.ai_daily_call_cap`, 10,000; usage in `private.ai_daily_usage`).
+- Applicants cannot write `phase_ai_analysis`, `employer_notes`, the
+  source columns or the voice transcript, and may set the recording link only
+  to their own upload (`20261025090000_protect_voice_evidence.sql`); an
+  applicant's reply from trigger-ava-analysis never carries the team's
+  message or a "recommend decline"; notification emails go to the sign-in account's address;
+  `profiles.email` is read-only to the API.
+- New passwords need 8 characters (sign-in still accepts older shorter ones);
+  deleting an account asks for the password; the platform admin can turn on
+  an authenticator app in Settings, after which admin tools need the code.
+- Everything reachable without sign-in is listed in docs/BACKEND-SCHEMA.md
+  ("Reachable without sign-in"), guarded by `public-functions-allow-list`.
+
 **Trusted-results foundation is built AND live-enforced.** The
 `recordStepResult` path and the `public.trusted_result_enforcement` table
 (one boolean flag per self-reported step type: `chatInterviewResult`,

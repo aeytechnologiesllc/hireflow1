@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { invokeDocumentSigning } from "@/lib/documentSigningErrors";
 import type { DocRow, DocStatus } from "../data";
 import { openExternal } from "@/lib/safeLink";
+import { toast as notify } from "sonner";
 
 /**
  * The drawer.
@@ -123,18 +124,26 @@ const INLINE_DOCUMENT_TYPES = new Set([
   "image/gif",
 ]);
 
+const CANNOT_OPEN = "This file can't be opened here.";
+
 function openDocument(fileUrl: string) {
   if (!fileUrl.startsWith("data:")) {
-    openExternal(fileUrl);
+    if (!openExternal(fileUrl)) notify.error(CANNOT_OPEN);
     return;
   }
   const comma = fileUrl.indexOf(",");
-  if (comma === -1) return;
+  if (comma === -1) {
+    notify.error(CANNOT_OPEN);
+    return;
+  }
   const meta = fileUrl.slice(5, comma);
   const payload = fileUrl.slice(comma + 1);
   const base64 = /;base64$/i.test(meta);
   const mime = (meta.replace(/;base64$/i, "").split(";")[0] || "application/octet-stream").trim().toLowerCase();
-  if (!INLINE_DOCUMENT_TYPES.has(mime)) return;
+  if (!INLINE_DOCUMENT_TYPES.has(mime)) {
+    notify.error(CANNOT_OPEN);
+    return;
+  }
 
   let blob: Blob;
   try {
@@ -147,6 +156,7 @@ function openDocument(fileUrl: string) {
       blob = new Blob([decodeURIComponent(payload)], { type: mime });
     }
   } catch {
+    notify.error(CANNOT_OPEN);
     return;
   }
 

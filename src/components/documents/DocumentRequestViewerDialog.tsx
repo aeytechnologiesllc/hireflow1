@@ -27,9 +27,10 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import { servePdfWorkerFromThisSite } from "@/lib/pdfWorker";
 
 // Configure PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+servePdfWorkerFromThisSite();
 
 interface DocumentRequestViewerDialogProps {
   request: DocumentRequestWithDetails | null;

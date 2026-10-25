@@ -497,8 +497,17 @@ async function sendVoiceNotification(
       return;
     }
 
+    // To the sign-in account's address, never the profile row its owner can
+    // edit (the same rule as send-notification-email; docs/NOTIFICATION-EMAILS.md).
+    const { data: account } = await (supabaseAdmin as unknown as { auth: { admin: { getUserById: (id: string) => Promise<{ data: { user: { email?: string | null } | null } }> } } }).auth.admin.getUserById(userId);
+    const recipientEmail = account?.user?.email ?? null;
+    if (!recipientEmail) {
+      console.log(`[deduct-voice-minutes] No sign-in address for user ${userId}`);
+      return;
+    }
+
     if (!profile.email_notifications_enabled || profile.email_voice_minutes === false) {
-      console.log(`[deduct-voice-minutes] Voice minute emails disabled for ${profile.email}`);
+      console.log(`[deduct-voice-minutes] Voice minute emails disabled for ${recipientEmail}`);
       return;
     }
 
@@ -543,12 +552,12 @@ async function sendVoiceNotification(
 
     const emailResponse = await resend.emails.send({
       from: "HireFlow <notifications@hireflownow.com>",
-      to: [profile.email],
+      to: [recipientEmail],
       subject,
       html,
     });
 
-    console.log(`[deduct-voice-minutes] Email sent to ${profile.email}:`, emailResponse);
+    console.log(`[deduct-voice-minutes] Email sent to ${recipientEmail}:`, emailResponse);
   } catch (error) {
     console.error('[deduct-voice-minutes] Error sending notification email:', error);
     // Don't throw - email is non-critical

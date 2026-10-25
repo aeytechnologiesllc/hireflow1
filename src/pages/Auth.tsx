@@ -110,7 +110,15 @@ export default function Auth() {
   const [isRedirecting, setIsRedirecting] = useState(false);
   // Two-step sign-in: the password was right and the account has an
   // authenticator; the 6-digit code comes next (SecondStepForm).
-  const [secondStep, setSecondStep] = useState(false);
+  const [secondStep, setSecondStepState] = useState(false);
+  // Mirrored in a ref so a routing pass that starts while the code form is
+  // open (a token refresh changes `user`) leaves it alone instead of
+  // flashing the loading screen and losing what was typed.
+  const secondStepRef = useRef(false);
+  const setSecondStep = useCallback((open: boolean) => {
+    secondStepRef.current = open;
+    setSecondStepState(open);
+  }, []);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
   const [resetEmailSent, setResetEmailSent] = useState(false);
@@ -201,7 +209,7 @@ export default function Auth() {
   }, [searchParams]);
 
   const routeAuthenticatedUser = useCallback(async () => {
-    if (redirectingRef.current) return;
+    if (redirectingRef.current || secondStepRef.current) return;
 
     redirectingRef.current = true;
     setIsRedirecting(true);
@@ -255,7 +263,7 @@ export default function Auth() {
         setIsRedirecting(false);
       }
     }
-  }, [navigate, redirectTo, toast]);
+  }, [navigate, redirectTo, toast, setSecondStep]);
 
   useEffect(() => {
     const inRecovery =
@@ -458,6 +466,15 @@ export default function Auth() {
         description: "Passwords do not match",
       });
       setIsLoading(false);
+      return;
+    }
+
+    // An account with two-step sign-in may need its code before Supabase
+    // Auth saves a new password: ask for it first, then come back here.
+    if (await needsSecondStep()) {
+      setSecondStep(true);
+      setIsLoading(false);
+      toast({ description: "Enter the code from your authenticator app, then save your new password." });
       return;
     }
 
@@ -686,7 +703,8 @@ export default function Auth() {
               <SecondStepForm
                 onDone={() => {
                   setSecondStep(false);
-                  void routeAuthenticatedUser();
+                  // Mid password reset: back to the new-password form.
+                  if (!isResettingPassword) void routeAuthenticatedUser();
                 }}
                 onCancel={() => {
                   setSecondStep(false);

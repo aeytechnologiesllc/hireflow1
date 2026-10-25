@@ -301,6 +301,17 @@ export default function JoinTeam() {
       return;
     }
 
+    // The same rule as every other new password (Auth.tsx; Supabase Auth
+    // enforces 8 as well): said here before the server has to refuse it.
+    if (password.length < 8) {
+      toast({
+        title: "Password too short",
+        description: "Use at least 8 characters.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     const { error } = await signUp(email, password, fullName, "team_member");
 
@@ -560,7 +571,9 @@ export default function JoinTeam() {
                       <Input
                         id="signup-password"
                         type="password"
-                        placeholder="••••••••"
+                        placeholder="At least 8 characters"
+                        autoComplete="new-password"
+                        minLength={8}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required

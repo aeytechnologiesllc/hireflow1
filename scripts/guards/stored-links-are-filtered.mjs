@@ -71,6 +71,21 @@ const REVIEWED = {
   "src/cockpit/components/AvasRead.tsx": ["recording"], // = externalHref(...)
 };
 
+/**
+ * The REVIEWED entries that are variables already filtered: each must still
+ * be assigned through safeLink, or the allow-list would hide a revert (the
+ * Pass C review, 2026-10-25: changing `const link = inAppPath(...)` back to
+ * the raw value left the sink text as `link`, and the guard still passed).
+ */
+const SAFE_ASSIGNMENTS = {
+  "src/pages/Notifications.tsx": /const link = inAppPath\(/,
+  "src/cockpit/pages/Messages.tsx": /const fileHref = file \? externalHref\(file\.url\) : null;/,
+  "src/cockpit/components/AvasRead.tsx": /const recording = externalHref\(/,
+  "src/components/documents/SignedDocumentViewer.tsx": /const uploadedSrc = externalHref\(/,
+  "src/pages/CandidateAuth.tsx": /const safeRedirectTarget = inAppPath\(redirectTarget\);/,
+  "src/pages/AuthCallback.tsx": /return inAppPath\(value\);/,
+};
+
 function codeOnly(text) {
   return text
     .split("\n")
@@ -102,6 +117,10 @@ export default [
           if ((REVIEWED[rel] ?? []).includes(expr)) continue;
           detail.push(`${rel}: ${m[1].trim()} ${expr}`);
         }
+      }
+      for (const [rel, pattern] of Object.entries(SAFE_ASSIGNMENTS)) {
+        const text = codeOnly((await read(rel)) ?? "");
+        if (!pattern.test(text)) detail.push(`${rel}: the value REVIEWED trusts is no longer assigned through safeLink (${pattern})`);
       }
       return detail.length ? { ok: false, detail } : { ok: true };
     },

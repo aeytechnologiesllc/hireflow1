@@ -11,8 +11,8 @@
  * not from memory): its own files; the inline scripts in index.html and
  * public/landing.html by their sha256 (computed here, so editing one of them
  * without re-running this script is caught by scripts/csp.test.mjs); the
- * Natively wrapper SDK and nothing else from jsDelivr's npm path; the PDF
- * worker from unpkg; Daily for the built-in video room; the Supabase
+ * Natively wrapper SDK and nothing else from jsDelivr's npm path; Daily for
+ * the built-in video room; the Supabase
  * project; OpenAI's realtime endpoint (the voice interview); Google's OAuth
  * and Calendar API (the scheduling wizard); ipify (the signing record's IP);
  * Google Fonts.
@@ -75,11 +75,10 @@ export function buildPolicy({ indexHtml, landingHtml }) {
         "'self'",
         ...hashes,
         ...(handlerHashes.length ? ["'unsafe-hashes'", ...handlerHashes] : []),
-        // A source path that does not end in "/" matches that exact path only,
-        // so the PDF worker (https://unpkg.com/pdfjs-dist@<version>/build/...)
-        // needs the host. The Natively path ends in "/" and matches as a prefix.
+        // A path ending in "/" matches as a prefix (a path that does not end
+        // in "/" matches one exact file). The PDF worker is served from this
+        // site (src/lib/pdfWorker.ts), so no package host is trusted.
         "https://cdn.jsdelivr.net/npm/natively@2.20.0/",
-        "https://unpkg.com",
         "https://*.daily.co",
         "blob:",
       ],
@@ -100,12 +99,11 @@ export function buildPolicy({ indexHtml, landingHtml }) {
         "https://www.googleapis.com",
         "https://oauth2.googleapis.com",
         "https://api.ipify.org",
-        "https://unpkg.com",
         "https://cdn.jsdelivr.net",
       ],
     ],
     ["frame-src", ["'self'", "blob:", "data:", SUPABASE, "https://*.daily.co", "https://accounts.google.com"]],
-    ["worker-src", ["'self'", "blob:", "https://unpkg.com"]],
+    ["worker-src", ["'self'", "blob:"]],
     ["manifest-src", ["'self'"]],
     ["object-src", ["'none'"]],
     ["base-uri", ["'self'"]],

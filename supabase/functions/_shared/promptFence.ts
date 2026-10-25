@@ -11,7 +11,7 @@
  * system prompt names (APPLICANT_TEXT_RULE), and the markers themselves are
  * removed from the text first, so an applicant cannot close the fence early.
  *
- * Pure, no imports: scripts/prompt_fence.test.mjs loads it in Node.
+ * Pure, no imports: scripts/ava_analysis_applicant_limits.test.mjs loads it in Node.
  */
 
 export const FENCE_OPEN = "<<APPLICANT_TEXT";

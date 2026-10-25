@@ -52,7 +52,8 @@ await db.exec(`
     id uuid primary key, job_id uuid not null, candidate_id uuid not null,
     status text, phase text, notes text, cover_letter text,
     phase_ai_analysis text, employer_notes text,
-    source text, external_provider text, external_application_id text
+    source text, external_provider text, external_application_id text,
+    voice_interview_transcript jsonb, voice_interview_recording_url text
   );
   create table public.team_members (user_id uuid, employer_id uuid, status text);
   insert into public.jobs values ('${JOB}', '${OWNER}');
@@ -71,6 +72,8 @@ await db.exec(`
   grant select, update on public.applications to authenticated, service_role;
 `);
 await db.exec(readFileSync(MIGRATION, "utf8"));
+// The Pass C follow-up replaces the same function (voice evidence).
+await db.exec(readFileSync(path.join(ROOT, "supabase/migrations/20261025090000_protect_voice_evidence.sql"), "utf8"));
 
 async function as(uid, role, sql) {
   await db.exec(`select set_config('request.jwt.claim.sub', '${uid ?? ""}', false); select set_config('request.jwt.claim.role', '${role}', false); set role ${role === "service_role" ? "service_role" : "authenticated"};`);
@@ -93,6 +96,27 @@ for (const [col, value] of [
 ]) {
   const err = await as(APPLICANT, "authenticated", `update public.applications set ${col} = ${value} where id = '${APP}'`);
   check(`an applicant cannot change ${col}`, err && err.includes(`cannot change ${col}`), err ?? "no error");
+}
+// Voice-interview evidence (20261025090000_protect_voice_evidence.sql).
+{
+  const err = await as(APPLICANT, "authenticated", `update public.applications set voice_interview_transcript = '[{"role":"user","content":"I led a team of 40"}]' where id = '${APP}'`);
+  check("an applicant cannot write a voice transcript", err && err.includes("cannot change voice_interview_transcript"), err ?? "no error");
+  const ownRecording = `https://yqklrkpptnhubsnijqze.supabase.co/storage/v1/object/sign/voice-interview-recordings/${APP}/interview-1700000000000.webm?token=abc.DEF-123_x`;
+  const okRec = await as(APPLICANT, "authenticated", `update public.applications set voice_interview_recording_url = '${ownRecording}' where id = '${APP}'`);
+  check("an applicant can attach their own uploaded recording (what the recorder writes)", okRec === null, okRec);
+  for (const [label, url] of [
+    ["any other site", "https://evil.example/fake.webm"],
+    ["another application's folder", "https://yqklrkpptnhubsnijqze.supabase.co/storage/v1/object/sign/voice-interview-recordings/30000000-0000-4000-8000-000000000099/interview-1.webm?token=x"],
+    ["a public (unsigned) path", `https://yqklrkpptnhubsnijqze.supabase.co/storage/v1/object/public/voice-interview-recordings/${APP}/interview-1.webm`],
+    ["another bucket", `https://yqklrkpptnhubsnijqze.supabase.co/storage/v1/object/sign/resumes/${APP}/interview-1.webm?token=x`],
+  ]) {
+    const e = await as(APPLICANT, "authenticated", `update public.applications set voice_interview_recording_url = '${url}' where id = '${APP}'`);
+    check(`an applicant cannot attach a recording from ${label}`, e && e.includes("only attach their own recording"), e ?? "no error");
+  }
+  const clear = await as(APPLICANT, "authenticated", `update public.applications set voice_interview_recording_url = null where id = '${APP}'`);
+  check("an applicant cannot wipe the recording either", clear && clear.includes("only attach their own recording"), clear ?? "no error");
+  check("the system can write the transcript", (await as(null, "service_role", `update public.applications set voice_interview_transcript = '[]' where id = '${APP}'`)) === null);
+  check("the voice submit flag still lets its own write through", (await as(APPLICANT, "authenticated", `select set_config('hireflow.in_voice_interview_submit', 'on', true); update public.applications set voice_interview_transcript = '[{"role":"assistant","content":"q"}]' where id = '${APP}'`)) === null);
 }
 const own = await as(APPLICANT, "authenticated", `update public.applications set cover_letter = 'Updated', notes = '{"typing":1}' where id = '${APP}'`);
 check("an applicant can still write their own columns", own === null, own);
