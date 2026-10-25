@@ -299,6 +299,18 @@ these either; each has a guard or a test that CI runs:
   `documents/<id>/original-<v1>.pdf`, which both sides view after the
   applicant signs (document-signing `original`). The prompt fence's markers
   carry a word made when the function starts (`_shared/promptFence.ts`).
+- (Rounds 6–7.) Every function that reads or signs a stored file with the
+  service key holds the path to `isPlainObjectPath` (applicant-file-url,
+  requested-document-url, ai-analyze-portfolio, document-signing, the resume
+  reader), and the database refuses `%`, backslash and control characters in
+  `resume_url`, the form's file paths and a request's `file_url`
+  (`20261025500000_plain_file_paths.sql`). Guard
+  `service-key-signers-use-plain-paths`. The launch locks are proved by
+  behaviour, not only by regexes: `scripts/launch_locks_behaviour.pglite.test.mjs`
+  replays every migration, then exercises the file queue, remove_applicant,
+  the AI budget, the bell and inbox limits, reports, invite codes, the plain
+  paths and a clean insert as anon / authenticated / service role. A new lock
+  belongs in it.
 
 **Trusted-results foundation is built AND live-enforced.** The
 `recordStepResult` path and the `public.trusted_result_enforcement` table

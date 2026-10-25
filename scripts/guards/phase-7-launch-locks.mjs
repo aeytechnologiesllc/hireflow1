@@ -565,6 +565,10 @@ export default [
       const fn = strip(await ctx.read("supabase/functions/requested-document-url/index.ts"));
       const guard = fn.search(/if \(!inOwnFolder\(request\.file_url, request\.candidate_id\)\) return jsonResponse\(/);
       if (!/import \{ inOwnFolder \} from "\.\/ownFolder\.ts";/.test(fn) || guard < 0 || guard > fn.search(/\.createSignedUrl\(request\.file_url/)) detail.push("supabase/functions/requested-document-url/index.ts: the stored path must pass ownFolder.ts's inOwnFolder before it is signed");
+      // The portfolio review downloads with the service key too (the seventh security review).
+      const portfolio = strip(await ctx.read("supabase/functions/ai-analyze-portfolio/index.ts"));
+      if (!/import \{ isPlainObjectPath \} from "\.\.\/_shared\/ownDocumentFile\.ts";/.test(portfolio) || !/if \(!isPlainObjectPath\(path\)\) \{[\s\S]{0,300}?return null;\s*\}\s*const \{ data, error \} = await getAdminClient\(\)\.storage\.from\("portfolios"\)\.download\(path\);/.test(portfolio) || !/const notOwned = items\.filter\(\(item\) => !ownedPattern\.test\(item\.url\) \|\| !isPlainObjectPath\(item\.url\)\);/.test(portfolio))
+        detail.push("supabase/functions/ai-analyze-portfolio/index.ts: both service-key downloads must refuse a path that is not plain (isPlainObjectPath)");
       const shared = strip(await ctx.read("supabase/functions/_shared/ownDocumentFile.ts"));
       if (!/if \(\/\[%\\\\\\u0000-\\u001f\\u007f\]\/\.test\(path\)\) return false;/.test(shared)) detail.push("supabase/functions/_shared/ownDocumentFile.ts: isPlainObjectPath no longer refuses %, backslash and control characters");
       // The database's rules, as Postgres reads them (latestDefinition).

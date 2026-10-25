@@ -7,6 +7,7 @@ import type { OpenAIMessageContent } from "../_shared/openai.ts";
 import { recordStepResult, stepOpenForResult, type MinimalSupabaseAdmin } from "../_shared/trustedResults.ts";
 import { checkRateLimit } from "../_shared/rateLimit.ts";
 import { buildOwnedPortfolioPathPattern } from "./ownedPortfolioPath.ts";
+import { isPlainObjectPath } from "../_shared/ownDocumentFile.ts";
 
 // Model is configurable so a retirement is a config change, not a code change.
 // Set OPENAI_PORTFOLIO_MODEL to the replacement model when swapping.
@@ -117,6 +118,13 @@ async function fetchPortfolioFile(url: string): Promise<ArrayBuffer | null> {
       : url.replace(/^\/+/, "");
 
   if (path) {
+    // Read with the service key, so a plain path only: no "%", backslash,
+    // control character or dot segment (the seventh security review; as
+    // document-signing and the resume reader hold it).
+    if (!isPlainObjectPath(path)) {
+      console.error(`Refused a portfolio path that is not plain: ${path.slice(0, 200)}`);
+      return null;
+    }
     const { data, error } = await getAdminClient().storage.from("portfolios").download(path);
     if (error || !data) {
       console.error(`Storage download failed for ${path}:`, error);
@@ -686,7 +694,10 @@ serve(async (req) => {
     // application/step is refused outright — never silently dropped the way
     // an unsupported file type or a download failure is below.
     const ownedPattern = buildOwnedPortfolioPathPattern(callerUserId, applicationId, stepId);
-    const notOwned = items.filter((item) => !ownedPattern.test(item.url));
+    // The owned shape, and a plain path: the step id inside the pattern is the
+    // business's own, and the download below uses the service key (the
+    // seventh security review).
+    const notOwned = items.filter((item) => !ownedPattern.test(item.url) || !isPlainObjectPath(item.url));
     if (notOwned.length > 0) {
       console.error("[ai-analyze-portfolio] rejected: file path(s) not owned by this candidate/application/step", {
         applicationId,

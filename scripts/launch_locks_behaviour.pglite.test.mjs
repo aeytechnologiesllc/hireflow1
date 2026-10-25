@@ -259,7 +259,7 @@ async function as(who, sql, params = []) {
   }
 }
 const one = async (sql, params = []) => (await db.query(sql, params)).rows[0];
-const show = (r) => JSON.stringify(r).slice(0, 300);
+const show = (r) => String(JSON.stringify(r) ?? r).slice(0, 300);
 const apply = async (who, job) => {
   const r = await as(user(who), `insert into public.applications (job_id, candidate_id) values ($1, $2) returning id`, [job, who]);
   if (!r.ok) throw new Error(`setup: ${who} could not apply to ${job}: ${r.error}`);
@@ -450,6 +450,22 @@ console.log("\n7. File paths an applicant stores are plain paths\n");
     check(`the resume link is never a path with ${what}`, !r.ok && /resume_not_own_file/.test(r.error), show(r));
     const f = await write(`update public.applications set notes = $2 where id = $1`, [app, JSON.stringify({ fileUploads: { q1: { url: value, imageUrls: [], isResume: false } } })]);
     check(`…nor a form file with ${what}`, !f.ok && /file_path_not_plain/.test(f.error), show(f));
+    // Every shape the form stores a path in, not only fileUploads' url (the
+    // seventh security review: the other three were never written).
+    for (const [shape, notes] of [
+      ["a form file's fileUrl", { fileUploads: { q1: { fileUrl: value, isResume: false } } }],
+      ["a form file's page images", { fileUploads: { q1: { url: `${ANA}/ok.pdf`, imageUrls: [value], isResume: false } } }],
+      ["the resume's page images", { resumeImageUrls: [value] }],
+    ]) {
+      const g = await write(`update public.applications set notes = $2 where id = $1`, [app, JSON.stringify(notes)]);
+      check(`…nor ${shape} with ${what}`, !g.ok && /file_path_not_plain/.test(g.error), show(g));
+    }
+  }
+  // A plain path, but in someone else's folder (the seventh security review:
+  // turning the rule's OR into AND dropped this and nothing noticed).
+  for (const other of [`${BIZ}/cv.pdf`, `${ANA2}/cv.pdf`, `cv.pdf`]) {
+    const r = await write(`update public.applications set resume_url = $2 where id = $1`, [app, other]);
+    check(`the resume link is never a file outside their own folder (${other.split("/")[0].slice(0, 8)}…)`, !r.ok && /resume_not_own_file/.test(r.error), show(r));
   }
   const ok = await write(`update public.applications set resume_url = $2, notes = $3 where id = $1`, [app, `${ANA}/1729000000000_q1.pdf`, JSON.stringify({ fileUploads: { q1: { url: `${ANA}/1729000000000_q1.pdf`, imageUrls: [`${ANA}/1729000000001_q1_page1.png`], isResume: true } }, resumeImageUrls: [`${ANA}/1729000000001_q1_page1.png`] })]);
   check("…while ordinary paths in their own folder go in", ok.ok, show(ok));
@@ -465,6 +481,30 @@ console.log("\n7. File paths an applicant stores are plain paths\n");
     }
     const sentOk = await write(`update public.document_requests set file_url = $2, file_name = 'NBI clearance.jpg', status = 'submitted' where id = $1`, [req, `${ANA}/${req}/id-1.jpg`]);
     check("…while an ordinary path in their own folder goes in", sentOk.ok, show(sentOk));
+  }
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n8. A new application starts clean\n");
+{
+  // The seventh security review: applications_insert_starts_clean was proved
+  // only by a test that loads its own migration, so a later rewrite without
+  // its resets passed everything. The plain-path rule above checks paths
+  // only on update, and relies on this.
+  const forged = await as(user(ANA2), `insert into public.applications (job_id, candidate_id, status, phase, notes, voice_interview_result, source, external_provider) values ($1, $2, 'offered', 'offer', $3, $4, 'indeed', 'indeed') returning id`, [JOB_NEW, ANA2, JSON.stringify({ quizResult: { score: 100, passed: true }, chatSimulationResult: { score: 100 }, fileUploads: { q1: { url: `${ANA2}/%2e%2e/${BIZ}/x.pdf` } } }), JSON.stringify({ score: 100 })]);
+  check("an applicant's own insert goes in", forged.ok, show(forged));
+  if (forged.ok) {
+    const row = await one(`select status, phase, notes, voice_interview_result, source, external_provider from public.applications where id = $1`, [forged.rows[0].id]);
+    check("…as in progress, at the application, with no notes, no voice result and HireFlow as its source", row.status === "in_progress" && row.phase === "application" && row.notes === null && row.voice_interview_result === null && row.source === "hireflow" && row.external_provider === null, show(row));
+    const ev = await one(`select ai_score, ai_analysis, ai_scorecard, employer_notes from public.application_evaluations where application_id = $1`, [forged.rows[0].id]);
+    check("…and nothing for the hiring team's evaluation", !ev || (ev.ai_score === null && ev.ai_analysis === null && ev.ai_scorecard === null && ev.employer_notes === null), show(ev));
+  }
+  const scored = await as(user(ANA3), `insert into public.applications (job_id, candidate_id, ai_score, employer_notes) values ($1, $2, 99, 'hire them') returning id`, [JOB_NEW, ANA3]);
+  if (scored.ok) {
+    const ev = await one(`select ai_score, employer_notes from public.application_evaluations where application_id = $1`, [scored.rows[0].id]);
+    check("an applicant's own score and team note never land", !ev || (ev.ai_score === null && ev.employer_notes === null), show(ev));
+  } else {
+    check("an applicant's own score and team note never land (refused outright)", /permission denied|not allowed|protect/i.test(scored.error), show(scored));
   }
 }
 
