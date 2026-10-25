@@ -93,7 +93,7 @@ You can do all of this with tools you already have. Put your tasks in an online 
 
 Software can take over the setup and the first pass. If you use HireFlow, its job builder, Ava, asks a few short questions about the role (chat, phone or email, what kind of business, how many chats at once) and builds the tests for you. Every applicant goes through the same steps: a short form, a connection check for remote roles, a skills check of timed situations from your kind of business, a customer chat practice, and a written interview. Answers are scored and ranked, you get an interview guide for the call, and a person on your team makes every decision.
 
-When HireFlow's own team used it to hire a team lead, 153 people applied in the first four days, 71 finished the written interview, and 3 were worth a call. They hired from those three.
+When the people behind HireFlow used it to hire a support team lead for their own business, 153 people applied in the first four days, 71 finished the written interview, and 3 were worth a call. They hired from those three.
 
 ## Keep it fair
 

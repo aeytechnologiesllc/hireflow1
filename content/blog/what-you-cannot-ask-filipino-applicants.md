@@ -6,7 +6,7 @@ slug: what-you-cannot-ask-filipino-applicants
 author: HireFlow
 ---
 
-If you hire in the Philippines, do not make applicants state their age or date of birth while they apply, and do not put an age preference in your job ad. A Philippine law, Republic Act No. 10911, makes both unlawful for employers. Ask "Are you 18 or older?" instead, and collect the exact date of birth after you hire, from the ID or papers you ask for then.
+If you hire in the Philippines, do not make applicants state their age or date of birth while they apply, and do not put an age preference in your job ad. A Philippine law, Republic Act No. 10911, makes both unlawful for employers. If you must confirm that someone is an adult, ask your lawyer whether a yes-or-no question such as "Are you 18 or older?" fits your role, and collect the exact date of birth after you hire, from the ID or papers you ask for then.
 
 This post is general information, not legal advice. Every case is different, so check with a lawyer for your own situation before you change your forms or your ads.
 
@@ -19,7 +19,7 @@ Section 5(a) lists what an employer may not do. In plain words, it is unlawful t
 - Print or publish a job notice that suggests preferences, limitations, specifications or discrimination based on age.
 - "Require the declaration of age or birth date during the application process."
 - Decline an application because of the applicant's age.
-- After hiring, treat people differently because of age in pay, promotion, training, lay-offs or retirement.
+- After hiring, treat people differently because of age in pay, promotion, training, layoffs or retirement.
 
 Section 6 allows an age limit only in a few narrow cases. One is when age is a bona fide occupational qualification: roughly, when age is a genuine requirement of the job itself. If you think an exception applies to your role, ask a lawyer before you write an age limit anywhere.
 
@@ -29,15 +29,15 @@ Section 7 sets the penalty: a fine of ₱50,000 to ₱500,000, or 3 months to 2 
 
 You probably need to know that the person you hire is an adult. You do not need their age or birth date to know that.
 
-Ask one yes-or-no question on your application form:
+Many employers ask one yes-or-no question on the application form:
 
 > Are you 18 or older?
 
-This tells you what you need without asking anyone to declare an age or a birth date. Check with your lawyer that this question is right for your case.
+It asks for far less than a birth date. But a minimum age is still an age limit, and Section 6 allows an age limit only in its narrow cases, so ask your lawyer whether this question, and turning away a "No", is right for your role before you use it.
 
 Then wait. Collect the exact date of birth after the hire, from the ID or papers you ask for at that point. You may need it then for a contract, payroll or your records. By then the hiring decision is already made, so the date plays no part in who you hire.
 
-HireFlow's application form works this way: it asks "Are you 18 or older?" and never asks for a birth date.
+HireFlow's application form starts with that yes-or-no question and never asks for a birth date itself. Any question you add to your own form is yours to word, so leave age and birth date out of those too.
 
 ## Check your job ad, too
 
@@ -78,7 +78,7 @@ Go through your application form and your job ad with this list:
 
 - No field for age, birth date or year of birth.
 - No question about marital status.
-- One yes-or-no question: "Are you 18 or older?"
+- If you need it, one yes-or-no question, "Are you 18 or older?", checked with your lawyer.
 - No age wording in the ad: "fresh graduates only," "below 30," age ranges, "young."
 - Requirements describe the work and the skills, not the person's age.
 - A note to collect the date of birth from ID or papers after the hire.
@@ -88,7 +88,7 @@ Go through your application form and your job ad with this list:
 
 - Republic Act No. 10911 makes it unlawful for an employer to require a declaration of age or birth date while people apply, to publish a job notice that suggests an age preference, or to decline someone because of age.
 - Section 7 sets a fine of ₱50,000 to ₱500,000, or 3 months to 2 years in prison, or both.
-- Ask "Are you 18 or older?" instead, and check that question with your lawyer.
+- If you must confirm an applicant is an adult, ask your lawyer whether "Are you 18 or older?" fits your role.
 - Collect the exact birth date after the hire, from the ID or papers you ask for then.
 - Under the Data Privacy Act, age and marital status are sensitive personal information. Ask only for what you need.
 - This is general information, not legal advice. Check with a lawyer for your own case.

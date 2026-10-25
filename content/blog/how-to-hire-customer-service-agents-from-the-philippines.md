@@ -60,7 +60,7 @@ Leave out anything about age. Lines such as "fresh graduates only" or "below 30"
 
 Give every applicant the same steps, in the same order:
 
-1. **A short application form.** Contact details, work history, and "Are you 18 or older?" Nothing about age or birth date.
+1. **A short application form.** Contact details and work history. Nothing asking for age or birth date (see the age rule below).
 2. **A connection check for remote roles.** Are their internet and computer good enough for the work?
 3. **A work sample.** A few real customer messages from your kind of business, including one hard one. Time it if the job is live chat.
 4. **A few written questions.** For phone roles, ask how they would handle specific calls.
@@ -78,7 +78,7 @@ Before the person starts, agree three things in writing: the pay, the currency, 
 
 A Philippine law, Republic Act No. 10911, makes it unlawful for an employer to require a declaration of age or birth date during the application process, or to publish a job notice that suggests an age preference.
 
-So ask "Are you 18 or older?" instead, and check that question with your lawyer. Collect the exact date of birth after the hire, from the ID or papers you ask for then.
+If you must confirm that someone is an adult, ask your lawyer whether a yes-or-no question such as "Are you 18 or older?" fits your role. Collect the exact date of birth after the hire, from the ID or papers you ask for then.
 
 You can read more in [what you can't ask Filipino applicants](/blog/what-you-cannot-ask-filipino-applicants). This is general information, not legal advice. Check with a lawyer for your own case.
 

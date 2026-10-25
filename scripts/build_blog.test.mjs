@@ -58,6 +58,12 @@ check("refused: a date that is not a real day", throws(() => B.parsePost(post({ 
 check("refused: an update before the date", throws(() => B.parsePost(post({ ...GOOD, updated: "2026-10-01" })), /updated/));
 check("refused: a description too short or too long for a search result", throws(() => B.parsePost(post({ ...GOOD, description: "Too short." })), /description/) && throws(() => B.parsePost(post({ ...GOOD, description: "x".repeat(161) })), /description/));
 check("refused: no front matter", throws(() => B.parsePost("# Just text"), /front matter/));
+// The Phase 6 review.
+check("refused: a misspelt key ('darft: true' would have published a draft)", throws(() => B.parsePost(post({ ...GOOD, darft: "true" })), /unknown front matter key "darft"/) && throws(() => B.parsePost(post({ ...GOOD, drafts: "true" })), /unknown front matter key/));
+check("refused: a control character in the title (feed.xml would be invalid)", throws(() => B.parsePost(post({ ...GOOD, title: "Hiring\u000B agents" })), /control character/));
+check("refused: a slug longer than the sign-up page keeps as a campaign tag (60)", throws(() => B.parsePost(post({ ...GOOD, slug: "a".repeat(30) + "-" + "b".repeat(30) })), /at most 60/));
+check("refused: a date in the future", throws(() => B.parsePost(post({ ...GOOD, date: "2099-01-01" })), /future/));
+check("a refusal reads as the post's own problem, never 'Please report this to …marked'", (() => { try { B.renderMarkdown("<b>x</b>", "x.md"); return false; } catch (e) { return !/Please report this/.test(e.message) && /raw HTML/.test(e.message); } })());
 check("refused: raw HTML in the body", throws(() => B.renderMarkdown("Hello <script>alert(1)</script>"), /raw HTML/) && throws(() => B.renderMarkdown("<div>x</div>"), /raw HTML/));
 check("refused: an h1 in the body (the title is the page's only h1)", throws(() => B.renderMarkdown("# Second title"), /no "# " heading/));
 check("refused: a javascript: link, a protocol-relative link, plain http", throws(() => B.renderMarkdown("[x](javascript:alert(1))"), /link/) && throws(() => B.renderMarkdown("[x](//evil.example)"), /link/) && throws(() => B.renderMarkdown("[x](http://example.com)"), /link/));
@@ -98,8 +104,21 @@ const feed = readFileSync(path.join(out, "blog", "feed.xml"), "utf8");
 check("an RSS feed of the posts", feed.includes(`<link>https://hireflownow.com/blog/${GOOD.slug}</link>`) && feed.includes("<title>Hiring &quot;chat&quot; agents &amp; phone agents</title>"));
 const missing = readFileSync(path.join(out, "blog", "not-found.html"), "utf8");
 check("an address under /blog that is no guide gets a plain page that search engines skip (noindex), with the list", /<meta name="robots" content="noindex, follow">/.test(missing) && !/content="index, follow/.test(missing) && missing.includes(`href="/blog/${GOOD.slug}"`) && /That guide is not here/.test(missing));
+check("the not-found page has no canonical and no og:url of its own", !/rel="canonical"/.test(missing) && !/og:url/.test(missing));
+check("the list and the top bar are tagged as the list and the bar, not as an article", index.includes("utm_medium=list&amp;utm_campaign=blog-index") || index.includes("utm_medium=list&utm_campaign=blog-index"));
 writeFileSync(path.join(content, "d.md"), post({ ...GOOD, title: "Same slug" }));
 check("two posts with one slug stop the build", throws(() => B.loadPosts(content), /already used/));
+rmSync(path.join(content, "d.md"));
+writeFileSync(path.join(content, "e.md"), post({ ...GOOD, title: "Links to a draft", slug: "links-to-a-draft" }, "## A\n\nSee [this](/blog/not-ready) for more words here.\n"));
+check("a link to a draft or a missing guide stops the build", throws(() => B.loadPosts(content), /not a published guide/));
+rmSync(path.join(content, "e.md"));
+{
+  for (const n of ["f", "g", "h"]) writeFileSync(path.join(content, `${n}.md`), post({ ...GOOD, title: `Guide ${n}`, slug: `guide-${n}` }));
+  const many = B.loadPosts(content);
+  const linkedFrom = new Map(many.map((p) => [p.slug, 0]));
+  for (const p of many) for (const m of B.postPage(p, many).matchAll(/class="card" href="\/blog\/([^"]+)"/g)) linkedFrom.set(m[1], linkedFrom.get(m[1]) + 1);
+  check("every guide is linked from three others (not the same three everywhere)", [...linkedFrom.values()].every((n) => n === 3), JSON.stringify([...linkedFrom]));
+}
 rmSync(work, { recursive: true, force: true });
 
 console.log("\nThe real posts (content/blog)\n");
@@ -119,6 +138,8 @@ for (const p of all.filter((x) => !x.draft)) {
   check(`${p.slug}: its file is named for its slug, ${words} words (600 to 2,000)`, p.file === `${p.slug}.md` && words >= 600 && words <= 2000);
   const text = p.body;
   check(`${p.slug}: no sweepstakes, casino or shop-floor examples; no emoji; no exclamation marks`, !/\b(sweepstake|casino|gambl|barista|cashier)/i.test(text) && !/\p{Extended_Pictographic}/u.test(text) && !/!(?!\[)/.test(text.replace(/!\[[^\]]*\]/g, "")));
+  // The team-lead hire was the owner's own business, not "HireFlow's own team" (the Phase 6 review).
+  check(`${p.slug}: the team-lead hire is the owner's own business, never "HireFlow's own team"`, !/HireFlow's own team/i.test(text));
   check(`${p.slug}: no made-up evidence ("studies show", "statistics", "survey")`, !/\b(studies show|research shows|statistics show|according to (a|one) (study|survey))\b/i.test(text));
   check(`${p.slug}: no price but the free first job`, !/\$\s?\d|₱\s?\d|\bper month\b/i.test(text.replace(/₱50,000 to ₱500,000|₱50,000|₱500,000/g, "")) || p.slug === "what-you-cannot-ask-filipino-applicants");
 }
