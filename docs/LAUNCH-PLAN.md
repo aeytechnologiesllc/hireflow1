@@ -878,6 +878,21 @@ and hold/transfer behaviour, with the recording and transcript kept for the
 hiring team. Each call costs real money, so it is priced into the $99/job and
 $299/mo, and it lands with Stripe.
 
+### The sales practice records its turns (deferred 2026-10-25)
+
+The Phase 7 security audit found the sales practice's grade forgeable: its
+turns are never stored, so the grader reads the transcript the page sends,
+both sides written by the applicant. Fixed for now in
+`submit-sales-simulation`: only one of the step's own cases is graded, the
+applicant's words are fenced, the job title and name come from the
+database, and every sales grade is marked `transcriptSource: "browser"`, so
+the scorer flags it and keeps the card on "review" (never trusted). The real
+fix is the chat practice's machinery (record each turn in
+`ai-sales-simulation` through `_shared/assessmentSession.ts`, resume on
+reload, grade the stored turns), a large change for a step no live job has
+and Ava's builder never adds. Do it before a business that sells hires
+with it.
+
 ### Internal job columns and the RLS performance rewrite (deferred 2026-10-25)
 
 See Phase 7, task 6: hiding `passing_score`, `processing_mode` and
@@ -926,6 +941,43 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
+
+### 2026-10-25 (late afternoon) — Phase 7 security audit, round 1; Phase 4 round 8; Phase 5 round 6; Phase 6 round 4; growth audit
+
+- **Phase 4, Pass C round 8** (5665992d): no private-use colon forgery in
+  reviewer text; title, booking and phone readings fixed.
+- **Phase 5, Pass C round 6** (fb881f53): file names kept whole, an explicit
+  document permission, plainer alerts; migration `phase5_review6`.
+- **Staff columns, second review** (a7f0dfc6): saved reports and the resume
+  score no longer carry Ava's score; migration
+  `applicant_reports_without_scores` cleared the old ones live.
+- **Phase 6, Pass C round 4** (5b0d09ee): the law's own words ("age or birth
+  date"), RA 7610 Section 12-A, the employer note; the no-age filter reads
+  one sentence at a time and covers every field the writers return.
+- **Growth audit** (c635c925): both sign-up pages no longer pull the PDF and
+  charts code; the business sign-up's link preview is the business one;
+  tagged links on /open-jobs; the sitemap leaves out a paused business's jobs.
+- **Phase 7, task 1: the security audit, round 1.** A fresh reviewer replayed
+  every migration into a local copy and read every function a browser can
+  call. Two high, four medium, a dozen low. Fixed, applied and deployed (each probed live in a rolled-back transaction or against the deployed function):
+  - *High:* three throwaway accounts could pause any business (apply, report,
+    repeat). Reports now count only from people the business was in touch
+    with (`reports_need_contact`, 20261025114715).
+  - *High:* one applicant could black out AI for a business or the platform.
+    The portfolio review checks the step first and is limited; Ava's scoring
+    from an applicant is capped by the day and fingerprinted on the stored
+    phase; performance reports, 6 a day per application; HireFlow's own jobs
+    have their own day (`ai_budget_own_jobs`, 20261025121138).
+  - *Medium:* notification and message floods (`notification_and_message_limits`,
+    20261025121142); an applicant's call on a manual-mode job is scoring only;
+    the sales grade checks its case, fences the applicant's words and is
+    never trusted while its turns are not recorded (recording them: "Later");
+    the voice session reads only the applicant's own resume.
+  - Left for round 2 or later (LOW): invite-code entropy, framing headers,
+    the blueprint PDF's caller check, the developer role and the
+    authenticator app, the geocode proxy, connection-test downloads, typing
+    speed reported by the browser. The many-accounts budget drain needs
+    Turnstile (owner's keys).
 
 ### 2026-10-25 (afternoon) — staff columns shipped; Phase 4 round 7; Phase 5 round 5; Phase 6 round 3; npm
 

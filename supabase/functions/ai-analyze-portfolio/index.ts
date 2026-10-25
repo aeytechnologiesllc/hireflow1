@@ -4,7 +4,8 @@ import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/b
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { isAiUnavailable, callOpenAIJson, openAIErrorStatus, requireJsonKeys } from "../_shared/openai.ts";
 import type { OpenAIMessageContent } from "../_shared/openai.ts";
-import { recordStepResult, type MinimalSupabaseAdmin } from "../_shared/trustedResults.ts";
+import { recordStepResult, stepOpenForResult, type MinimalSupabaseAdmin } from "../_shared/trustedResults.ts";
+import { checkRateLimit } from "../_shared/rateLimit.ts";
 import { buildOwnedPortfolioPathPattern } from "./ownedPortfolioPath.ts";
 
 // Model is configurable so a retirement is a config change, not a code change.
@@ -555,6 +556,10 @@ IMPORTANT: For each PDF, report the number of pages you reviewed and describe ke
     return analysis;
 }
 
+/** A real applicant sends one portfolio; these leave room for a dropped connection and a retry. */
+const PORTFOLIO_REVIEWS_PER_ACCOUNT_PER_HOUR = 6;
+const PORTFOLIO_REVIEWS_PER_APPLICATION_PER_DAY = 10;
+
 function jsonError(message: string, status: number) {
   return jsonResponse({ error: message }, status);
 }
@@ -625,6 +630,37 @@ serve(async (req) => {
     }
     if ((appRow as any).candidate_id !== callerUserId) {
       return jsonError("Caller is not this application's candidate", 403);
+    }
+
+    // Before anything is downloaded or sent to the model (the Phase 7
+    // security audit, 2026-10-25): the review used to run first and
+    // recordStepResult refused afterwards, so one account could loop the
+    // expensive call against its business's daily AI budget, or the
+    // platform's on HireFlow's own jobs. The step must be open to this
+    // applicant now (not decided, reached, not already handed in), and a
+    // portfolio is reviewed at most a few times an hour per account and
+    // PORTFOLIO_REVIEWS_PER_APPLICATION_PER_DAY times a day per application.
+    const open = await stepOpenForResult(admin as unknown as MinimalSupabaseAdmin, {
+      applicationId,
+      callerUserId,
+      stepId,
+      stepType: "portfolio_upload",
+    });
+    if (!open.ok) {
+      return jsonResponse({ error: open.error, code: open.code }, open.code === "application_not_found" ? 404 : open.code === "not_candidate" ? 403 : 409);
+    }
+    for (const [bucket, identifier, limit, windowSecs] of [
+      ["ai-analyze-portfolio", `user:${callerUserId}`, PORTFOLIO_REVIEWS_PER_ACCOUNT_PER_HOUR, 3600],
+      ["ai-analyze-portfolio-per-application", `application:${applicationId}`, PORTFOLIO_REVIEWS_PER_APPLICATION_PER_DAY, 86400],
+    ] as const) {
+      const limited = await checkRateLimit(bucket, identifier, limit, windowSecs);
+      if (!limited.allowed) {
+        console.warn(`[ai-analyze-portfolio] ${bucket} reached for ${identifier} (${limited.hits}/${limit})`);
+        return new Response(JSON.stringify({ error: "rate_limited", message: "Too many tries. Please wait a while and try again.", retryAfter: limited.retryAfter }), {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(limited.retryAfter) },
+        });
+      }
     }
 
     const items = files

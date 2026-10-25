@@ -766,7 +766,7 @@ console.log("\nMoving on after a result (stepMoveOn.ts):\n");
   // What it relies on in trigger-ava-analysis: the auto path, decided from the database, idempotent.
   const trigger = read("supabase/functions/trigger-ava-analysis/index.ts");
   check("trigger-ava-analysis still takes the page's body and decides auto mode from the database",
-    /applicationId,[\s\S]{0,120}autopilotDecision = false,[\s\S]{0,80}currentPhaseId = null/.test(trigger) && trigger.includes('const autoMode = job?.processing_mode === "auto";') &&
+    /applicationId,[\s\S]{0,120}autopilotDecision: askedAutopilot = false,[\s\S]{0,80}currentPhaseId = null/.test(trigger) && trigger.includes("let autopilotDecision = askedAutopilot;") && trigger.includes('const autoMode = job?.processing_mode === "auto";') &&
     trigger.includes("if (autoMode && (autopilotDecision || previewOnly))"));
   check("…moves by compare-and-set and starts an analysis only when none has read the step",
     trigger.includes("await advanceAfterStep(") && trigger.includes("shouldScoreAfterStep(outcome, application.notes)"));

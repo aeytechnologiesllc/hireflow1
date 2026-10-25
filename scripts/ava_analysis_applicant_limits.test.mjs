@@ -86,7 +86,9 @@ const src = readFileSync(path.join(ROOT, "supabase/functions/trigger-ava-analysi
 check("force only counts for the hiring team", /const effectiveForce = !!force && !callerIsOnlyCandidate;/.test(src));
 check("the rejected-skip uses effectiveForce", /application\.status === "rejected" && !effectiveForce/.test(src));
 check("the analysis context gets effectiveForce", /force: effectiveForce,/.test(src));
-check("applicant calls are rate-limited per application", /checkRateLimit\("ava-analysis-applicant", applicationId,/.test(src));
+check("applicant calls are rate-limited per application, by the hour and by the day (the Phase 7 security audit)", /\[\["ava-analysis-applicant", 20, 3600\], \["ava-analysis-applicant-day", 40, 86400\]\] as const\) \{\s*const limit = await checkRateLimit\(bucket, applicationId, max, windowSecs\);/.test(src));
+check("an applicant's call on a manual-mode job never asks for a move or a preview", /if \(callerIsOnlyCandidate && !autoMode\) \{\s*autopilotDecision = false;\s*previewOnly = false;\s*\}/.test(src) && src.indexOf("if (callerIsOnlyCandidate && !autoMode)") < src.indexOf("if (autoMode && (autopilotDecision || previewOnly))"));
+check("an applicant's call is fingerprinted on the stored phase, not the step the request names", /currentPhaseId: \(applicantCall \? null : currentPhaseId\) \|\| application\.phase \|\| "application",/.test(src) && /applicantCall: callerIsOnlyCandidate,/.test(src));
 // From the moment the caller is known to the end of the try block (the
 // catch's generic 500 is outside the caller's scope and carries no score).
 const afterCaller = src.slice(src.indexOf("const callerIsOnlyCandidate ="));

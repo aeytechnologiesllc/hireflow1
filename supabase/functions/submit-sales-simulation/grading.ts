@@ -6,13 +6,17 @@
  * Node, so nothing with a top-level side effect can live in the same file
  * as anything a plain-Node test needs to import.
  *
- * Zero imports, zero I/O — every function here is a straight port of what
+ * One import-free helper (_shared/promptFence.ts, which fences the
+ * applicant's words in the grading call), no I/O — every function here is a
+ * straight port of what
  * SalesSimulationPhase.tsx's own (now-removed) client-side handleSubmit used
  * to compute locally before writing `applications.notes` itself. Keeping it
  * here, not inline in index.ts, is what lets a test actually prove the
  * server-side computation still matches that original client logic on
  * realistic inputs, rather than just asserting against itself.
  */
+
+import { fenceApplicantText, withApplicantTextRule } from "../_shared/promptFence.ts";
 
 export interface EvalChatMessage {
   role: "user" | "assistant";
@@ -51,7 +55,9 @@ export function buildEvaluationPrompt(params: {
   candidateName: string;
 }): string {
   const { prospectName, prospectCompany, scenario, productService, candidateName } = params;
-  return `You are roleplaying as ${prospectName}, a decision-maker at ${prospectCompany} in a sales meeting simulation.
+  // The applicant's own words in the transcript are fenced as evidence, never
+  // instructions (the Phase 7 security audit; _shared/promptFence.ts).
+  return withApplicantTextRule(`You are roleplaying as ${prospectName}, a decision-maker at ${prospectCompany} in a sales meeting simulation.
 
 The sales representative you're meeting with is named ${candidateName}.
 IMPORTANT: Use their name "${candidateName}" only in your FIRST message as a greeting, then do NOT repeat their name. After the initial greeting, just respond naturally without using their name. NEVER use placeholder text like [Sales Rep's Name], [Name], or any brackets.
@@ -101,7 +107,7 @@ EVALUATION MODE: Analyze the sales rep's performance and return JSON:
   "improvements": ["area1", "area2"],
   "wouldBuy": "yes" | "maybe" | "no",
   "overallFeedback": "Summary of sales performance"
-}`;
+}`);
 }
 
 // ai-sales-simulation/index.ts's own callOpenAIJson fallback for evaluate
@@ -155,7 +161,9 @@ export function buildApiMessages(
     { role: "system", content: systemPrompt },
     ...messages.map((m) => ({
       role: m.role === "user" ? ("assistant" as const) : ("user" as const),
-      content: m.content,
+      // Fenced: the rep's words are always the applicant's, and a transcript
+      // the page sent holds the prospect's lines as the page wrote them.
+      content: fenceApplicantText(m.role === "user" ? "sales rep message" : "prospect message", m.content),
     })),
     { role: "user" as const, content: userContent },
   ];
@@ -205,6 +213,13 @@ export interface SalesSimulationResult {
    * the attempt (assessment_sessions) for the hiring team to read.
    */
   graded?: false;
+  /**
+   * "browser" when the grade was made from the transcript the page sent, not
+   * from turns the server recorded (the sales practice does not record its
+   * turns yet). The scorer never trusts such a mark: it is flagged and the
+   * card stays on "review" (trigger-ava-analysis browserTranscriptPhases).
+   */
+  transcriptSource?: "browser";
   antiCheatSummary: AntiCheatSummary;
 }
 
@@ -222,8 +237,11 @@ export function buildSalesSimulationResult(params: {
   violations: AntiCheatViolation[];
   /** false when `evaluation` is one of the fixed fallbacks: no grade is stored. */
   graded?: boolean;
+  /** "browser" when the grade was made from the transcript the page sent. */
+  transcriptSource?: "browser";
 }): SalesSimulationResult {
   const { scenario, prospectCompany, messageCount, evaluation, violations } = params;
+  const source = params.transcriptSource === "browser" ? { transcriptSource: "browser" as const } : {};
   if (params.graded === false) {
     // No number, no "would buy": nothing a reader could mistake for a grade.
     return {
@@ -235,6 +253,7 @@ export function buildSalesSimulationResult(params: {
       completed: true,
       graded: false,
       antiCheatSummary: computeAntiCheatSummary(violations),
+      ...source,
     };
   }
   return {
@@ -251,6 +270,7 @@ export function buildSalesSimulationResult(params: {
     improvements: evaluation.improvements,
     completed: true,
     antiCheatSummary: computeAntiCheatSummary(violations),
+    ...source,
   };
 }
 

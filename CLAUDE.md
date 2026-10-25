@@ -172,7 +172,8 @@ these either; each has a guard or a test that CI runs:
 `scripts/guards/phase-5-launch-locks.mjs`:
 - Every OpenAI call names its business (`business:`), and takes from that
   business's daily AI budget (`ai_business_daily_call_cap`, 2,000) as well as
-  the platform's; platform admins are never counted; the owner is told in the
+  the platform's; HireFlow's own business counts against its own day
+  (6,000; Phase 7 below); the owner is told in the
   app at 80%/100% and when a business hits its cap. A cost guard, never a
   paywall. Guard `ai-budget-enforced`.
 - The legal pages name **Southern Digital Technologies LLC**; the contact
@@ -211,6 +212,40 @@ these either; each has a guard or a test that CI runs:
   email confirmation off and no Turnstile yet, any sign-up is a business; a
   job saved as closed is no test, a live job is (only a confirmed business can
   publish one, so changing the sign-in address later keeps the full day).
+
+**Phase 7 security audit, round 1 (2026-10-25).** Guards in
+`scripts/guards/phase-7-launch-locks.mjs`:
+- Reports pause a business only from people it has been in touch with
+  (`business_has_contacted`); three that merely applied leave it open and
+  ring the admins once. Guard `reports-pause-needs-contact`.
+- HireFlow's own jobs have their own AI day
+  (`ai_platform_business_daily_call_cap`, 6,000 of the platform's 10,000;
+  `20261025300000_ai_budget_own_jobs.sql`): they were uncounted, so one
+  open job's applicants could take everyone's day. Guard
+  `own-jobs-have-their-own-ai-day`.
+- An applicant's AI steps are checked before anything is spent: the
+  portfolio review needs the step open (`stepOpenForResult` in
+  `_shared/trustedResults.ts`: not offered/hired/rejected, reached, not
+  already handed in) and is limited to 6 an hour per account and 10 a day per
+  application; Ava's scoring from an applicant's call, 20 an hour and 40 a
+  day per application, fingerprinted on the stored phase; performance
+  reports, 6 a day per application. On a manual-mode job an applicant's call
+  is scoring only (no move, no preview). Guard
+  `portfolio-review-checks-before-spending`; `scripts/ava_analysis_applicant_limits.test.mjs`.
+- What a signed-in account writes into someone else's bell or inbox is
+  bounded (`20261025310000_notification_and_message_limits.sql`): cards
+  160/600 characters, in-app links only, an applicant's card never "system",
+  30 an hour to one person and 300 in all (past that quietly not written);
+  messages 10,000 characters, 120 an hour to one person and 600 in all
+  (refused). The server's own notifications are untouched. Guard
+  `client-notifications-and-messages-limited`.
+- The sales practice is graded only on one of its step's own cases, with
+  the applicant's words fenced; its turns are not recorded yet, so every
+  sales grade says `transcriptSource: "browser"` and the scorer never
+  trusts it (no live job has a sales step; Ava's builder never adds one).
+  Guard `sales-grading-own-case`.
+- ava-voice-session reads the resume only through `_shared/resume.ts`
+  (the applicant's own file). Guard `voice-session-reads-only-own-resume`.
 
 **Trusted-results foundation is built AND live-enforced.** The
 `recordStepResult` path and the `public.trusted_result_enforcement` table
@@ -284,8 +319,10 @@ the hire, from the ID asked for with "Ask for ID or papers".
 
 **No business approval (the owner, 2026-10-11: "I don't want the
 headache").** Every business is open from sign-up, ID papers included; three
-reports from three different people pause one by itself
-(`20261011190000_open_by_default_report_pause.sql`, docs/BUSINESS-TRUST.md).
+reports from three different people it has been in touch with (a message
+from it or its team, papers asked for, an interview) pause one by itself
+(`20261011190000_open_by_default_report_pause.sql`, narrowed by
+`20261025290000_reports_need_contact.sql`; docs/BUSINESS-TRUST.md).
 No TIN check: no law requires one. Don't bring back an approval step.
 New businesses get one-time guided tips (`src/cockpit/tips`, table
 `ui_tips_seen`; accounts made from 2026-10-11 08:00 UTC, never

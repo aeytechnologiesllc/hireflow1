@@ -116,7 +116,10 @@ export default [
       // A business that has not confirmed its email gets the smaller day (the third and fourth Phase 5 reviews).
       const code = latest.replace(/'(?:[^']|'')*'/g, (str) => (/^'(ai_new_business_daily_call_cap|published)'$/.test(str) ? str : "''"));
       if (
-        !/if not public\.business_email_verified\(v_business\)\s+and not exists \(select 1 from public\.jobs j where j\.employer_id = v_business and j\.status = 'published'\)/.test(code) ||
+        !/if (?:not v_own\s+and\s+)?not public\.business_email_verified\(v_business\)\s+and not exists \(select 1 from public\.jobs j where j\.employer_id = v_business and j\.status = 'published'\)/.test(code) ||
+        // HireFlow's own jobs skip the small day (Phase 7); v_own means a platform admin and nothing else.
+        (/\bv_own\b/.test(code) && (code.match(/v_own :=/g) ?? []).length !== 1) ||
+        (/\bv_own\b/.test(code) && !/v_own := exists \(select 1 from public\.platform_admins a where a\.user_id = v_business\);/.test(code)) ||
         !/where key = 'ai_new_business_daily_call_cap'\)/.test(code) ||
         !/v_business_cap := v_new_cap;/.test(code) ||
         /business_email_verified\(v_business\)\s+and\s+false/.test(code)

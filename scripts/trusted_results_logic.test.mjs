@@ -31,6 +31,7 @@ import {
   analysisCoversStep,
   shouldScoreAfterStep,
   withoutNulCharacters,
+  stepOpenFor,
 } from "../supabase/functions/_shared/trustedResults.ts";
 import { buildCandidateJourney, DECISION_STAGE_ID } from "../supabase/functions/_shared/candidateJourney.ts";
 import { readChatInterviewResult, readChatSimulationResult } from "../supabase/functions/_shared/autopilot.ts";
@@ -1436,6 +1437,30 @@ console.log("\nAn ungraded result still moves the candidate on, and is not a sco
   check("and the written interview (nested shape) as no score", readChatInterviewResult(parsed.chatInterviewResult)?.score === null && readChatInterviewResult(parsed.chatInterviewResult)?.graded === false);
   check("a placeholder 70 marked graded:false is still no score", readChatSimulationResult({ graded: false, score: 70 })?.score === null);
   check("a graded 0 is a score", readChatSimulationResult({ score: 0 })?.score === 0 && readChatInterviewResult({ score: 0 })?.score === 0);
+}
+
+// ---------------------------------------------------------------------------
+// stepOpenFor: what a step checks BEFORE anything is spent on it (the Phase 7
+// security audit: the portfolio's AI review ran first and recordStepResult
+// refused afterwards, so one account could loop it against an AI budget).
+{
+  console.log("\nA step is open before anything is spent on it\n");
+  const jobs = { processing_mode: "manual", workflow_steps: [
+    { id: "wf-app", type: "application_form", title: "Application" },
+    { id: "wf-folio", type: "portfolio_upload", title: "Work samples" },
+    { id: "wf-chat", type: "chat_simulation", title: "Chat" },
+  ], quiz_questions: undefined };
+  const app = (over) => ({ id: "app-1", candidate_id: "cand-1", phase: "wf-folio", status: "in_progress", notes: "{}", jobs, ...over });
+  const ask = { callerUserId: "cand-1", stepId: "wf-folio", stepType: "portfolio_upload" };
+  check("an applicant on the step may hand it in", stepOpenFor(app({}), ask).ok === true);
+  check("someone else may not", stepOpenFor(app({}), { ...ask, callerUserId: "cand-2" }).code === "not_candidate");
+  for (const status of ["offered", "hired", "rejected"]) check(`${status === "offered" ? "an" : "a"} ${status} application takes nothing (no late result moves it back)`, stepOpenFor(app({ status }), ask).code === "application_decided");
+  check("a step not reached yet is refused", stepOpenFor(app({ phase: "wf-app" }), ask).code === "step_not_reached");
+  check("a step id of another type is refused", stepOpenFor(app({}), { ...ask, stepId: "wf-chat" }).code === "step_not_reached");
+  const sent = JSON.stringify({ "wf-folio": { type: "portfolio_upload", completed: true }, portfolioResult: { completed: true } });
+  check("a step already handed in is refused before the review runs again", stepOpenFor(app({ notes: sent, phase: "wf-chat" }), ask).code === "already_submitted");
+  check("…and while it waits for the team (reviewing on the step)", stepOpenFor(app({ notes: sent, status: "reviewing" }), ask).code === "already_submitted");
+  check("…unless the team sent the applicant back to it (pending on this step)", stepOpenFor(app({ notes: sent, status: "pending" }), ask).ok === true);
 }
 
 console.log(`\n${passed} passed, ${failed} failed.`);

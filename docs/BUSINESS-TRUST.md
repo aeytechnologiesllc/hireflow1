@@ -12,8 +12,9 @@ what stops that. Migration `20261011100000_business_trust.sql`; proof in
 business ... I don't want the headache").** Every business is open from the
 moment it signs up (`business_standing.status` defaults to `approved`, and no
 row means approved), ID papers included. It is paused (`suspended`) only by an
-admin on the Admin page, or by itself when three different people report it
-(migration `20261011190000_open_by_default_report_pause.sql`). No law asks a
+admin on the Admin page, or by itself when three different people it has been
+in touch with report it (migration `20261011190000_open_by_default_report_pause.sql`,
+narrowed by `20261025290000_reports_need_contact.sql`). No law asks a
 hiring app to check a business's tax number, so there is no TIN check.
 
 | | Open (approved) | Paused (suspended) |
@@ -26,9 +27,10 @@ hiring app to check a business's tax number, so there is no TIN check.
   and tells the business in its bell. Opening it again reopens exactly those
   jobs and closes its open reports, so one more report can't pause it again
   straight away.
-- Three reports from three different people pause a business by itself, and
-  every admin is told. HireFlow's own account (`platform_admins`) is never
-  paused, by reports or by hand.
+- Three reports from three different people the business has been in touch
+  with pause it by itself, and every admin is told (see Reports for what
+  counts). HireFlow's own account (`platform_admins`) is never paused, by
+  reports or by hand.
 - The `new` status is still allowed in the table but nothing sets it; the
   ID-paper gate for it (`id_requests_need_approval`) is unreachable.
 
@@ -98,7 +100,22 @@ suspicious documents, fake job, unsafe, or something else, with a note. One
 open report per person per job (a second adds to the first), at most five a
 day. Every admin is told in their bell. A reporter reads only their own
 reports; the reported business never sees who reported it. Three open
-reports from different people pause the business by itself (see Standing).
+reports from different people it has been in touch with pause the business by
+itself (see Standing).
+
+What counts as "in touch" (`business_has_contacted`, Phase 7 security audit,
+2026-10-25): a message to the reporter from the business or anyone on its
+team, a document or a document request on the reporter's application, or an
+interview on it. Only the business can make any of these, so a stranger
+cannot manufacture them; Ava never messages, sends papers or books
+interviews. Before, three people who had merely applied were enough, and
+applying costs nothing (no email confirmation, no bot check yet): three
+throwaway accounts could close every job of any business, again after each
+reopen. Three reports from people who applied but were never contacted keep
+the business open and ring every admin's bell once ("A business was reported
+3 times"); every report already rings it. Proof:
+`scripts/business_trust.pglite.test.mjs` section 9; guard
+`reports-pause-needs-contact`.
 
 ## Admins
 

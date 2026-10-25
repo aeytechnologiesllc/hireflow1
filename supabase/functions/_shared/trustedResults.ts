@@ -500,6 +500,67 @@ export type RecordStepResultOutcome =
       error: string;
     };
 
+/** Statuses where the hiring team has made its decision: no step takes a new result. */
+const DECIDED_STATUSES = new Set(["offered", "hired", "rejected"]);
+
+export type StepOpenOutcome =
+  | { ok: true }
+  | {
+      ok: false;
+      code: "application_not_found" | "not_candidate" | "application_decided" | "step_not_reached" | "already_submitted";
+      error: string;
+    };
+
+/**
+ * Whether this applicant may hand in this step now, checked BEFORE anything
+ * is spent on it (the Phase 7 security audit, 2026-10-25: the portfolio's AI
+ * review ran first and recordStepResult refused afterwards, so one account
+ * could loop the expensive call against a business's, or the platform's,
+ * daily AI budget). The same checks recordStepResult makes, and two more:
+ *   - an offered, hired or rejected application takes nothing (a late
+ *     result would move a hired applicant back to "reviewing");
+ *   - a step already handed in (notes[stepId]) takes nothing again, unless
+ *     the hiring team sent the applicant back to it (status "pending" with
+ *     the phase on this step), exactly as the step's own page decides.
+ */
+export function stepOpenFor(application: ApplicationLike, input: { callerUserId: string; stepId: string; stepType: string }): StepOpenOutcome {
+  if (application.candidate_id !== input.callerUserId) {
+    return { ok: false, code: "not_candidate", error: "Caller is not this application's candidate" };
+  }
+  if (application.status && DECIDED_STATUSES.has(application.status)) {
+    return { ok: false, code: "application_decided", error: "This application has been decided" };
+  }
+  const job = application.jobs ?? {};
+  const quizQuestions = job.quiz_questions as unknown[] | undefined;
+  const steps = buildCandidateJourney((job.workflow_steps ?? []) as WorkflowStepLike[], { hasQuiz: Array.isArray(quizQuestions) && quizQuestions.length > 0 });
+  const reached = hasReachedStep(steps, { stepId: input.stepId, expectedType: input.stepType, phase: application.phase, status: application.status });
+  if (!reached.reached) {
+    return { ok: false, code: "step_not_reached", error: `Candidate has not reached step "${input.stepId}"` };
+  }
+  const sentBack = application.status === "pending" && application.phase === input.stepId;
+  const handedIn = parseNotesObject(application.notes)[input.stepId];
+  if (handedIn != null && handedIn !== false && !sentBack) {
+    return { ok: false, code: "already_submitted", error: "This step has already been handed in" };
+  }
+  return { ok: true };
+}
+
+/** stepOpenFor, reading the application first. */
+export async function stepOpenForResult(
+  admin: MinimalSupabaseAdmin,
+  input: { applicationId: string; callerUserId: string; stepId: string; stepType: string },
+): Promise<StepOpenOutcome> {
+  const { data, error } = await admin
+    .from("applications")
+    .select("id, candidate_id, phase, status, notes, jobs:job_id ( workflow_steps, quiz_questions, processing_mode )")
+    .eq("id", input.applicationId)
+    .maybeSingle();
+  if (error || !data) {
+    return { ok: false, code: "application_not_found", error: "Application not found" };
+  }
+  return stepOpenFor(data as ApplicationLike, input);
+}
+
 /** Minimal shape of the Supabase JS client this file needs — deliberately
  *  not importing `@supabase/supabase-js`'s own types (that package is a
  *  Deno URL import in every edge function; this file stays import-free so

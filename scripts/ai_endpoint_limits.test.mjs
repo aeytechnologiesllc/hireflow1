@@ -238,6 +238,8 @@ await db.exec(`create table if not exists public.zz_verified (user_id uuid prima
 await db.exec(read("supabase/migrations/20261025240000_phase5_review4.sql"));
 await db.exec(read("supabase/migrations/20261025250000_phase5_review5.sql"));
 await db.exec(read("supabase/migrations/20261025270000_phase5_review6.sql"));
+// The Phase 7 security audit: HireFlow's own jobs count against their own day.
+await db.exec(read("supabase/migrations/20261025300000_ai_budget_own_jobs.sql"));
 // The businesses the older checks below use have confirmed their email (they hire).
 await db.exec(`insert into public.zz_verified values ('${B_SHOP}'), ('${B_OTHER}') on conflict do nothing;`);
 const b_bcap = await db.query(`select value #>> '{}' as v from public.app_settings where key = 'ai_business_daily_call_cap'`);
@@ -253,7 +255,8 @@ check("…and a team member's calls count against the business they work for", (
 check("another business is not held back by it", (await b_take(B_OTHER)) === true);
 const b_owner = [];
 for (let i = 0; i < 6; i += 1) b_owner.push(await b_take(B_OWNER));
-check("a platform admin's own business is never counted against a business budget", b_owner.every(Boolean) && (await db.query(`select count(*)::int as n from private.ai_business_daily_usage where business_id = '${B_OWNER}'`)).rows[0].n === 0);
+check("HireFlow's own business is not held to a business's budget (here 3)…", b_owner.every(Boolean));
+check("…but its calls are counted, against its own day (the Phase 7 security audit)", (await db.query(`select calls from private.ai_business_daily_usage where business_id = '${B_OWNER}'`)).rows[0]?.calls === 6);
 check("a call with no business takes only from the platform budget", (await b_take(null)) === true);
 check("a refused business call does not spend the platform's budget", (await db.query(`select calls from private.ai_daily_usage`)).rows[0]?.calls === 3 + 1 + 6 + 1, String((await db.query(`select calls from private.ai_daily_usage`)).rows[0]?.calls));
 const b_told = await db.query(`select title from public.notifications where user_id = '${B_OWNER}'`);
@@ -328,7 +331,17 @@ check("the old one-argument function is gone (one budget function, no way round 
   const equal = (await db.query(`select message from public.notifications where message like '%${B_EQUAL}%'`)).rows.map((r) => r.message);
   check("…equal caps: one full-day alert, never 'confirm for the full day'", equal.length === 1 && !/before confirming/.test(equal[0]), JSON.stringify(equal));
   const owner = [await b_take(B_OWNER), await b_take(B_OWNER), await b_take(B_OWNER)];
-  check("…a platform admin's business is never capped", owner.every(Boolean));
+  check("…HireFlow's own business is held to neither the business nor the new-business day", owner.every(Boolean));
+  // The Phase 7 security audit: one job's applicants could take the platform's whole day.
+  check("HireFlow's own jobs start with 6,000 calls a day of their own", (await db.query(`select value #>> '{}' as v from public.app_settings where key = 'ai_platform_business_daily_call_cap'`)).rows[0]?.v === "6000");
+  const ownUsed = (await db.query(`select calls from private.ai_business_daily_usage where business_id = '${B_OWNER}' and day = (now() at time zone 'utc')::date`)).rows[0].calls;
+  await db.exec(`update public.app_settings set value = '${ownUsed + 2}'::jsonb where key = 'ai_platform_business_daily_call_cap';`);
+  const platformBefore = (await db.query(`select calls from private.ai_daily_usage`)).rows[0].calls;
+  const ownDay = [await b_take(B_OWNER), await b_take(B_OWNER), await b_take(B_OWNER), await b_take(B_OWNER)];
+  check("…refused past them, so the rest of the platform's day stays for everyone else", JSON.stringify(ownDay) === JSON.stringify([true, true, false, false]) && (await db.query(`select calls from private.ai_daily_usage`)).rows[0].calls === platformBefore + 2, JSON.stringify(ownDay));
+  check("…while another business still goes ahead", (await b_take(B_OTHER)) === true);
+  const ownAlert = (await db.query(`select title, message from public.notifications where title like 'HireFlow''s own jobs%'`)).rows;
+  check("…and the owner is told once, naming ai_platform_business_daily_call_cap", ownAlert.length === 1 && /ai_platform_business_daily_call_cap/.test(ownAlert[0].message) && /other businesses are not held back/.test(ownAlert[0].message), JSON.stringify(ownAlert));
 }
 const b_aiBudgetTs = read("supabase/functions/_shared/aiBudget.ts");
 check("the helper sends the business only when it is a uuid", /UUID\.test\(business\) \? \{ p_calls: calls, p_business: business \} : \{ p_calls: calls \}/.test(b_aiBudgetTs));

@@ -329,6 +329,77 @@ async function main() {
   const zulu = (await pg(`select status from public.business_standing where employer_id = $1`, [ZACK]))[0]?.status ?? "approved";
   const zuluJob = (await pg(`select status::text from public.jobs where id = $1`, [JOB_Z]))[0]?.status;
   check("8. HireFlow's own account is never paused by reports", zulu === "approved" && zuluJob === "published", show({ zulu, zuluJob }));
+
+  // 9. Only reports from people the business was in touch with pause it ────
+  // (20261025290000, the Phase 7 security audit: three throwaway accounts
+  // could apply to any job, report it and close every job the business had.)
+  const contact = await migration("reports_need_contact");
+  check("9. the reports-need-contact migration is there, once", !!contact);
+  if (!contact) return;
+  await db.exec(`create table if not exists public.messages (id uuid primary key default gen_random_uuid(), sender_id uuid, receiver_id uuid, application_id uuid, content text);
+    alter table public.documents add column if not exists application_id uuid;`);
+  await db.exec(contact);
+  await db.exec(contact);
+  check("9. it applies twice", true);
+  const ACME = "10000000-0000-4000-8000-000000000004";
+  const SCAM = "10000000-0000-4000-8000-000000000005";
+  const TEAMMATE = "10000000-0000-4000-8000-000000000006";
+  const JOB_A = "30000000-0000-4000-8000-000000000010";
+  const JOB_S = "30000000-0000-4000-8000-000000000011";
+  const P = [1, 2, 3, 4].map((n) => `20000000-0000-4000-8000-00000000010${n}`);
+  const Q = [1, 2, 3].map((n) => `20000000-0000-4000-8000-00000000020${n}`);
+  for (const id of [ACME, SCAM, TEAMMATE, ...P, ...Q]) await pg(`insert into auth.users (id, email) values ($1, $2)`, [id, `${id.slice(-4)}@example.com`]);
+  await pg(`insert into public.user_roles values ($1, 'employer'), ($2, 'employer')`, [ACME, SCAM]);
+  await pg(`insert into public.profiles values ($1, 'Amy', 'Acme Clinic'), ($2, 'Sam', 'Quick Cash Jobs')`, [ACME, SCAM]);
+  await pg(`insert into public.jobs values ($1, $2, 'Front desk', 'published'), ($3, $4, 'Typing job', 'published')`, [JOB_A, ACME, JOB_S, SCAM]);
+  await pg(`insert into public.team_members (user_id, employer_id, status) values ($1, $2, 'active')`, [TEAMMATE, SCAM]);
+  const appOf = {};
+  for (const who of P) appOf[who] = (await pg(`insert into public.applications (job_id, candidate_id) values ($1, $2) returning id`, [JOB_A, who]))[0].id;
+  for (const who of Q) appOf[who] = (await pg(`insert into public.applications (job_id, candidate_id) values ($1, $2) returning id`, [JOB_S, who]))[0].id;
+  await pg(`delete from public.notifications`);
+
+  // Three accounts that applied and were never contacted: the audit's attack.
+  for (const who of P.slice(0, 3)) await as(who, "authenticated", `select public.report_employer($1, 'fake_job', 'made up')`, [JOB_A]);
+  const acmeAfter3 = (await pg(`select status from public.business_standing where employer_id = $1`, [ACME]))[0]?.status ?? "approved";
+  const acmeJob = (await pg(`select status::text from public.jobs where id = $1`, [JOB_A]))[0].status;
+  check("9. three people who applied but were never contacted do not pause it", acmeAfter3 === "approved" && acmeJob === "published", show({ acmeAfter3, acmeJob }));
+  let toldThree = await pg(`select message from public.notifications where user_id = $1 and title = 'A business was reported 3 times'`, [ZACK]);
+  check("9. …the admin is told it was reported 3 times and stays open", toldThree.length === 1 && /Acme Clinic/.test(toldThree[0].message) && /stays open/.test(toldThree[0].message), show(toldThree));
+  await as(P[0], "authenticated", `select public.report_employer($1, 'other', 'again')`, [JOB_A]);
+  // Contact that is not the business's: another business, or the applicant themself.
+  await pg(`insert into public.messages (sender_id, receiver_id, content) values ($1, $2, 'from another business')`, [NEWBIZ, P[0]]);
+  await pg(`insert into public.messages (sender_id, receiver_id, application_id, content) values ($1, $2, $3, 'my own message')`, [P[1], ACME, appOf[P[1]]]);
+  await as(P[3], "authenticated", `select public.report_employer($1, 'fake_job', 'made up too')`, [JOB_A]);
+  const acmeAfter4 = (await pg(`select status from public.business_standing where employer_id = $1`, [ACME]))[0]?.status ?? "approved";
+  toldThree = await pg(`select id from public.notifications where user_id = $1 and title = 'A business was reported 3 times'`, [ZACK]);
+  check("9. a fourth, a message from another business and the applicant's own message change nothing", acmeAfter4 === "approved", show(acmeAfter4));
+  check("9. …and the admin is told about the three only once", toldThree.length === 1, show(toldThree));
+
+  // A real scam: it messaged one, its teammate messaged another, it asked the third for papers.
+  await pg(`insert into public.messages (sender_id, receiver_id, application_id, content) values ($1, $2, $3, 'Pay 500 pesos for training')`, [SCAM, Q[0], appOf[Q[0]]]);
+  await pg(`insert into public.messages (sender_id, receiver_id, content) values ($1, $2, 'Send the fee to this GCash')`, [TEAMMATE, Q[1]]);
+  await pg(`insert into public.document_requests (application_id, employer_id, candidate_id, document_type) values ($1, $2, $3, 'id')`, [appOf[Q[2]], SCAM, Q[2]]);
+  await as(Q[0], "authenticated", `select public.report_employer($1, 'asked_for_money', 'asked for a fee')`, [JOB_S]);
+  await as(Q[1], "authenticated", `select public.report_employer($1, 'asked_for_money', 'same')`, [JOB_S]);
+  const scamAfter2 = (await pg(`select status from public.business_standing where employer_id = $1`, [SCAM]))[0]?.status ?? "approved";
+  check("9. two people it was in touch with do not pause it yet", scamAfter2 === "approved", show(scamAfter2));
+  await as(Q[2], "authenticated", `select public.report_employer($1, 'suspicious_documents', 'wanted my ID')`, [JOB_S]);
+  const scamNow = (await pg(`select status, reason from public.business_standing where employer_id = $1`, [SCAM]))[0];
+  const scamJob = (await pg(`select status::text from public.jobs where id = $1`, [JOB_S]))[0].status;
+  check("9. three people it messaged (itself or its team) or asked for papers pause it, saying why", scamNow?.status === "suspended" && /in touch with/.test(scamNow.reason ?? "") && scamJob === "closed", show({ scamNow, scamJob }));
+  const scamBells = await pg(`select title from public.notifications where user_id = $1 and (message like 'Quick Cash Jobs%')`, [ZACK]);
+  check("9. …and the admin is told it was paused (not the stays-open bell)", scamBells.some((n) => n.title === "A business was paused") && !scamBells.some((n) => n.title === "A business was reported 3 times"), show(scamBells));
+
+  // A document or an interview is contact too; nobody calls the check from a client.
+  const before = (await pg(`select public.business_has_contacted($1, $2) as c`, [ACME, P[2]]))[0].c;
+  await pg(`insert into public.documents (application_id) values ($1)`, [appOf[P[2]]]);
+  await pg(`insert into public.interviews (application_id, status) values ($1, 'scheduled')`, [appOf[P[3]]]);
+  const afterDoc = (await pg(`select public.business_has_contacted($1, $2) as c`, [ACME, P[2]]))[0].c;
+  const afterInterview = (await pg(`select public.business_has_contacted($1, $2) as c`, [ACME, P[3]]))[0].c;
+  const otherBiz = (await pg(`select public.business_has_contacted($1, $2) as c`, [NEWBIZ, P[3]]))[0].c;
+  check("9. a document or an interview on their application counts as contact, for that business only", before === false && afterDoc === true && afterInterview === true && otherBiz === false, show({ before, afterDoc, afterInterview, otherBiz }));
+  const fromClient = await as(P[0], "authenticated", `select public.business_has_contacted($1, $2)`, [ACME, P[0]]);
+  check("9. a client cannot ask who a business has been in touch with", !fromClient.ok, show(fromClient));
 }
 
 await main();

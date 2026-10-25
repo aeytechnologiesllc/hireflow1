@@ -62,6 +62,7 @@ import {
   type AssessmentAdmin,
 } from "../_shared/assessmentSession.ts";
 import { scheduleStepMoveOn } from "../_shared/stepMoveOn.ts";
+import { isKnownSalesCase, salesScenariosOf } from "../_shared/salesScenarios.ts";
 import { computerRequiredBody, deviceKindOfRequest, needsComputer } from "../_shared/deviceKind.ts";
 import {
   buildApiMessages,
@@ -218,8 +219,6 @@ Deno.serve(async (req) => {
       prospectName,
       prospectCompany,
       productService,
-      jobTitle = "",
-      candidateName = "the sales representative",
       messages,
       violations = [],
     } = body;
@@ -246,10 +245,30 @@ Deno.serve(async (req) => {
     // Only the applicant on this application can have it graded: checked
     // before anything is opened or spent (recordStepResult refuses anyone
     // else too, but only after the grading had already cost a call).
-    const { data: owned } = await admin.from("applications").select("candidate_id").eq("id", applicationId).maybeSingle();
+    const { data: owned } = await admin.from("applications").select("candidate_id, jobs(title, workflow_steps)").eq("id", applicationId).maybeSingle();
     if (!owned || (owned as { candidate_id?: string }).candidate_id !== callerId) {
       return jsonResponse({ error: "This is not your application." }, 403);
     }
+    // The case graded must be one of this step's own (or the built-in three
+    // when the business set none), exactly as ai-sales-simulation serves its
+    // turns; the job title and the applicant's name come from the database.
+    // The request's own scenario text went into the grading instructions as
+    // written (the Phase 7 security audit).
+    const ownedJob = (owned as { jobs?: { title?: unknown; workflow_steps?: unknown } | null }).jobs ?? null;
+    const ownedSteps = Array.isArray(ownedJob?.workflow_steps) ? (ownedJob!.workflow_steps as Array<Record<string, unknown>>) : [];
+    const salesStep = ownedSteps.find((s) => s && s.id === stepId && s.type === "sales_simulation");
+    if (!salesStep) {
+      return jsonResponse({ error: "This step isn't open for you right now. Reload the page.", code: "unknown_step" }, 409);
+    }
+    if (!isKnownSalesCase(salesScenariosOf(salesStep.config), body)) {
+      return jsonResponse({ error: "This practice changed. Reload the page.", code: "unknown_case" }, 409);
+    }
+    const jobTitle = typeof ownedJob?.title === "string" ? ownedJob.title : "";
+    const { data: candidateProfile } = await admin.from("profiles").select("full_name").eq("user_id", callerId).maybeSingle();
+    const candidateName = (typeof (candidateProfile as { full_name?: unknown } | null)?.full_name === "string"
+      // A name, nothing else: it sits inside the grading instructions.
+      ? ((candidateProfile as { full_name: string }).full_name.replace(/[^\p{L}\p{M} .'-]/gu, "").replace(/\s+/g, " ").trim().slice(0, 80))
+      : "") || "the sales representative";
 
     // The sales practice is taken on a computer (docs/COMPUTER-ONLY-TESTS.md),
     // from the request's headers AND the page's own reading in its body. A
@@ -350,6 +369,10 @@ Deno.serve(async (req) => {
       // A fallback is not a grade (2026-10-06): stored as graded:false with
       // no score, never as the fallback's 70.
       graded: !usedFallback,
+      // Graded from the page's own transcript (the sales practice does not
+      // record its turns yet): the applicant wrote both sides, so the scorer
+      // flags the mark and keeps the card on "review".
+      transcriptSource: transcript.source === "stored" ? undefined : "browser",
     });
 
     // The real supabase-js client's query builder is a thenable, not a

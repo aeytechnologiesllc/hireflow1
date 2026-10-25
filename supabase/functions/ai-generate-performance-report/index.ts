@@ -2,10 +2,13 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { callOpenAIJson, openAIErrorStatus } from "../_shared/openai.ts";
-import { guardPublicAiCall } from "../_shared/rateLimit.ts";
+import { checkRateLimit, guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { canAccessPerformanceReport } from "../_shared/performanceReportAccess.ts";
 import { withEvaluation } from "../_shared/applicationEvaluation.ts";
 import { validateBlueprintReport, REQUIRED_DEVELOPMENTAL_DISCLAIMER, type ImprovementBlueprintData } from "../_shared/blueprintReport.ts";
+
+/** The page keeps the first report; this leaves room for a retry or two. */
+const REPORTS_PER_APPLICATION_PER_DAY = 6;
 
 // Model is configurable so a retirement is a config change, not a code change.
 // Set OPENAI_REPORT_MODEL to the replacement model when swapping.
@@ -123,6 +126,17 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ error: 'You do not have permission to access this report' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // A few reports a day per application, whoever asks (the Phase 7 security
+    // audit: ten an hour per account had no daily end, each one billed to the
+    // job's business). The page keeps the first report and never asks again.
+    const perApplication = await checkRateLimit('performance-report-per-application', `application:${applicationId}`, REPORTS_PER_APPLICATION_PER_DAY, 86400);
+    if (!perApplication.allowed) {
+      return new Response(
+        JSON.stringify({ error: 'rate_limited', message: 'This report was asked for too many times today. Please try again tomorrow.', retryAfter: perApplication.retryAfter }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': String(perApplication.retryAfter) } }
       );
     }
 

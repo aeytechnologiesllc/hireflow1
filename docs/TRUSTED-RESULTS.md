@@ -251,6 +251,25 @@ navigate straight into the next step's route.
 | `equipment_check` | `"never"` | Built server-recorded from day one (`connection-test`, docs/EQUIPMENT-CHECK.md): no page ever wrote its result. Like typing it decides nothing itself; in an auto-mode job the move on is `scheduleStepMoveOn` → `trigger-ava-analysis`. |
 | `voice_interview` | `"never"` | VoiceInterviewPhase.tsx:281-296 wrote only `voice_interview_transcript` + `phase_ai_analysis`; `ava-voice-tools`'s `end_interview` handler (already server-side before this cycle) wrote only `voice_interview_result` + `phase_ai_analysis`. Every advance past the final interview waits on a human or `trigger-ava-analysis`. |
 
+**Before anything is spent (2026-10-25, Phase 7 security audit).** A step whose
+result costs an AI call checks `stepOpenForResult` (`_shared/trustedResults.ts`)
+first: the caller is the applicant, the application is not offered, hired or
+rejected, the step is reached, and it was not already handed in
+(`notes[stepId]`), unless the team sent the applicant back to it (status
+`pending` with the phase on that step). `ai-analyze-portfolio` uses it before
+downloading a file or calling the model (it used to review first and let
+`recordStepResult` refuse afterwards), with 6 reviews an hour per account and
+10 a day per application. A resend that already landed answers
+`already_submitted`, which the page treats as sent.
+
+**The sales practice records no turns yet**, so `submit-sales-simulation`
+grades the transcript the page sends: it checks the case is one of the
+step's own (`isKnownSalesCase`), reads the job title and the applicant's name
+from the database, fences the applicant's words, and marks the result
+`transcriptSource: "browser"`, which the scorer never trusts (flagged, the
+card stays on "review"). Recording the turns like the chat practice is the
+real fix (docs/LAUNCH-PLAN.md, "Later").
+
 `advance` is a **required** input (no default) precisely so a new phase
 conversion has to make this choice consciously — read that phase's own
 pre-conversion `.update()` call (step 1 of the recipe below) and match

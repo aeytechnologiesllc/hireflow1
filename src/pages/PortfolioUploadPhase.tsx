@@ -370,6 +370,19 @@ export default function PortfolioUploadPhase() {
 
       setIsAnalyzing(false);
 
+      // A send that already landed (a retry after a dropped connection) is
+      // refused as "already_submitted": it is sent, not failed.
+      const refusal = submitError
+        ? await (submitError as { context?: { json?: () => Promise<unknown> } }).context?.json?.().catch(() => null)
+        : null;
+      if ((refusal as { code?: unknown } | null)?.code === "already_submitted") {
+        queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
+        queryClient.invalidateQueries({ queryKey: ["candidate-application", id] });
+        toast.success("Portfolio sent", { description: "Your work is saved." });
+        navigate(`/applications/${id}`, { replace: true });
+        return;
+      }
+
       if (submitError || !submitData?.ok) {
         console.error("[PortfolioUploadPhase] server-side submit failed:", submitError || submitData?.error);
         toast.error("Failed to submit portfolio", {

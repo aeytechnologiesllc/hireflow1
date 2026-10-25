@@ -574,6 +574,10 @@ interface AnalysisContext {
   currentPhaseId: string | null;
   /** jobs.processing_mode === "auto", read from the database row. */
   autoMode: boolean;
+  /** The applicant's own call: the fingerprint reads the stored phase, never
+   *  the step the request names (the Phase 7 security audit: a new
+   *  currentPhaseId on every call re-ran the whole analysis each time). */
+  applicantCall?: boolean;
 }
 
 type AnalysisOutcome =
@@ -598,7 +602,7 @@ type AnalysisOutcome =
  * is advanceAfterStep's job (auto mode) or handleAutopilotDecision's (manual).
  */
 async function runAvaAnalysis(ctx: AnalysisContext): Promise<AnalysisOutcome> {
-  const { supabaseAdmin, application, applicationId, job, employerId, force, currentPhaseId, autoMode } = ctx;
+  const { supabaseAdmin, application, applicationId, job, employerId, force, currentPhaseId, autoMode, applicantCall } = ctx;
   const runStartedAt = new Date().toISOString();
   try {
     // Fetch profile separately using candidate_id
@@ -793,7 +797,7 @@ Purpose: This is a supplementary document for the above question. It is NOT a re
       workflowSteps.filter((step) => step?.type === "equipment_check").map((step) => String(step.id)),
     );
     const evidenceFingerprint = buildEvidenceFingerprint({
-      currentPhaseId: currentPhaseId || application.phase || "application",
+      currentPhaseId: (applicantCall ? null : currentPhaseId) || application.phase || "application",
       passingScore: job?.passing_score || 60,
       workflowSteps: workflowSteps.map((step: any) => ({ id: step.id, type: step.type, title: step.title || step.type })),
       quizQuestionCount: Array.isArray(job?.quiz_questions) ? job.quiz_questions.length : 0,
@@ -1897,12 +1901,16 @@ serve(async (req) => {
     const {
       applicationId,
       force = false,
-      autopilotDecision = false,
-      previewOnly = false,
+      autopilotDecision: askedAutopilot = false,
+      previewOnly: askedPreview = false,
       currentPhaseId = null,
       // autopilot-batch: wait for Ava's analysis before answering (see handleAutoModeStep).
       awaitAnalysis = false,
     } = await req.json();
+    // What the caller asked for; an applicant's call on a manual-mode job is
+    // cut back to scoring only below.
+    let autopilotDecision = askedAutopilot;
+    let previewOnly = askedPreview;
     
     if (!applicationId) {
       return new Response(
@@ -2065,10 +2073,15 @@ serve(async (req) => {
     // first reply was not final); twenty an hour per application is far above
     // that and stops a loop from running up the AI bill. Fails open, like
     // every limiter here: it is cost protection, not access control.
+    // Forty a day as well (the Phase 7 security audit): twenty an hour is
+    // still 480 a day against the business's AI budget, or the platform's on
+    // HireFlow's own jobs.
     if (callerIsOnlyCandidate) {
-      const limit = await checkRateLimit("ava-analysis-applicant", applicationId, 20, 3600);
-      if (!limit.allowed) {
-        return reply(jsonResponse({ success: false, error: "rate_limited", retryAfter: limit.retryAfter }, 429));
+      for (const [bucket, max, windowSecs] of [["ava-analysis-applicant", 20, 3600], ["ava-analysis-applicant-day", 40, 86400]] as const) {
+        const limit = await checkRateLimit(bucket, applicationId, max, windowSecs);
+        if (!limit.allowed) {
+          return reply(jsonResponse({ success: false, error: "rate_limited", retryAfter: limit.retryAfter }, 429));
+        }
       }
     }
 
@@ -2082,6 +2095,15 @@ serve(async (req) => {
     const job = application.jobs as any;
     // processing_mode comes from the database row, never from the request.
     const autoMode = job?.processing_mode === "auto";
+    // On a manual-mode job the hiring team moves people on. An applicant's
+    // call there is scoring only: no page sends autopilotDecision or
+    // previewOnly in manual mode, and a hand-made one moved the applicant to
+    // the next step whenever Ava said advance or defer, without the step's
+    // result (the Phase 7 security audit).
+    if (callerIsOnlyCandidate && !autoMode) {
+      autopilotDecision = false;
+      previewOnly = false;
+    }
     const analysisContext: AnalysisContext = {
       supabaseAdmin,
       application,
@@ -2091,6 +2113,7 @@ serve(async (req) => {
       force: effectiveForce,
       currentPhaseId: typeof currentPhaseId === "string" && currentPhaseId ? currentPhaseId : null,
       autoMode,
+      applicantCall: callerIsOnlyCandidate,
     };
 
     if (autoMode && (autopilotDecision || previewOnly)) {

@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 // Import unpdf for proper PDF text extraction
-import { extractText } from "https://esm.sh/unpdf@0.12.1";
+import { fetchResumeText } from "../_shared/resume.ts";
 import { hasSubscriptionBypassForUser } from "../_shared/subscriptionBypass.ts";
 import { computeSessionTimeLimitMinutes, HARD_CAP_MINUTES } from "../_shared/voiceSessionCharge.ts";
 import { computerRequiredBody, deviceKindOfRequest, needsComputer, stepNeedsComputer } from "../_shared/deviceKind.ts";
@@ -80,27 +80,6 @@ function detectResumeUrl(resumeUrlField: string | null | undefined, parsedNotes:
   return null;
 }
 
-// Parse Supabase storage URL to extract bucket and path
-function parseStorageUrl(url: string): { bucket: string; path: string } | null {
-  // Match patterns like /storage/v1/object/public/bucket/path or /storage/v1/object/bucket/path
-  const match = url.match(/\/storage\/v1\/object\/(?:public\/)?([^/]+)\/(.+)/);
-  if (match) {
-    return { bucket: match[1], path: decodeURIComponent(match[2]) };
-  }
-  return null;
-}
-
-function looksLikeImageFile(url: string, contentType?: string | null): boolean {
-  const lowerUrl = url.toLowerCase();
-  const lowerContentType = (contentType || "").toLowerCase();
-  return (
-    lowerContentType.startsWith("image/") ||
-    [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".heic", ".heif"].some((extension) =>
-      lowerUrl.endsWith(extension),
-    )
-  );
-}
-
 function formatApplicationAnswersForPrompt(rawAnswers: unknown): string {
   if (Array.isArray(rawAnswers)) {
     const formatted = rawAnswers
@@ -141,111 +120,12 @@ function formatApplicationAnswersForPrompt(rawAnswers: unknown): string {
   return "Not available";
 }
 
-// Attempt to fetch and extract text from a PDF URL with signed URL fallback
-async function fetchResumeText(resumeUrl: string, adminClient?: any): Promise<string | null> {
-  try {
-    console.log('[fetchResumeText] Attempting to fetch resume from:', resumeUrl);
-    
-    let fetchUrl = resumeUrl;
-    let response = await fetch(resumeUrl);
-    
-    // If public fetch fails and we have an admin client, try generating a signed URL
-    if (!response.ok && adminClient) {
-      console.log('[fetchResumeText] Public fetch failed with status:', response.status, '- trying signed URL');
-      const storageInfo = parseStorageUrl(resumeUrl);
-      
-      if (storageInfo) {
-        console.log('[fetchResumeText] Generating signed URL for bucket:', storageInfo.bucket, 'path:', storageInfo.path);
-        const { data: signedData, error: signedError } = await adminClient.storage
-          .from(storageInfo.bucket)
-          .createSignedUrl(storageInfo.path, 120); // 2 minute expiry
-        
-        if (!signedError && signedData?.signedUrl) {
-          fetchUrl = signedData.signedUrl;
-          response = await fetch(fetchUrl);
-          console.log('[fetchResumeText] Signed URL fetch status:', response.status);
-        } else {
-          console.log('[fetchResumeText] Signed URL generation failed:', signedError);
-        }
-      }
-    }
-    
-    if (!response.ok) {
-      console.log('[fetchResumeText] Failed to fetch resume, final status:', response.status);
-      return null;
-    }
-    
-    const contentType = response.headers.get('content-type') || '';
-    console.log('[fetchResumeText] Content-Type:', contentType);
-
-    if (looksLikeImageFile(resumeUrl, contentType)) {
-      console.log('[fetchResumeText] Resume is an image file - skipping text decode and relying on interview questions instead');
-      return null;
-    }
-    
-    // Get the PDF as array buffer
-    const arrayBuffer = await response.arrayBuffer();
-    console.log('[fetchResumeText] Downloaded file size:', arrayBuffer.byteLength, 'bytes');
-    
-    // If it's a PDF, use unpdf for proper text extraction
-    if (contentType.includes('pdf') || resumeUrl.toLowerCase().endsWith('.pdf')) {
-      try {
-        console.log('[fetchResumeText] Extracting text using unpdf library...');
-        const { text } = await extractText(new Uint8Array(arrayBuffer));
-        // unpdf returns text as string or array - normalize it
-        const textStr = Array.isArray(text) ? text.join('\n') : String(text);
-        const cleanedText = textStr.trim();
-        
-        if (cleanedText.length > 50) {
-          // Limit to ~10k chars for context window
-          const truncatedText = cleanedText.slice(0, 10000);
-          console.log('[fetchResumeText] Successfully extracted PDF text, length:', truncatedText.length);
-          return truncatedText;
-        } else {
-          console.log('[fetchResumeText] PDF text extraction yielded insufficient content:', cleanedText.length, 'chars');
-        }
-      } catch (pdfError) {
-        console.error('[fetchResumeText] PDF parsing error with unpdf:', pdfError);
-        
-        // Fallback: try basic text extraction for text-based PDFs
-        try {
-          const decoder = new TextDecoder('utf-8', { fatal: false });
-          const rawText = decoder.decode(new Uint8Array(arrayBuffer));
-          const textMatches = rawText.match(/\(([^)]+)\)/g);
-          if (textMatches && textMatches.length > 20) {
-            const fallbackText = textMatches
-              .map(m => m.slice(1, -1))
-              .filter(t => t.length > 2 && !/^[\d\s.]+$/.test(t))
-              .join(' ')
-              .replace(/\\n/g, '\n')
-              .replace(/\\/g, '')
-              .slice(0, 5000);
-            if (fallbackText.length > 100) {
-              console.log('[fetchResumeText] Fallback extraction yielded text length:', fallbackText.length);
-              return fallbackText;
-            }
-          }
-        } catch (fallbackErr) {
-          console.error('[fetchResumeText] Fallback extraction also failed:', fallbackErr);
-        }
-      }
-      return null;
-    }
-    
-    // For other file types (doc, txt), try to read as text
-    const textContent = new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(arrayBuffer));
-    if (textContent.length > 50) {
-      console.log('[fetchResumeText] Extracted non-PDF text length:', textContent.length);
-      return textContent.slice(0, 10000);
-    }
-    
-    console.log('[fetchResumeText] Could not extract meaningful content from file');
-    return null;
-  } catch (error) {
-    console.error('[fetchResumeText] Error fetching resume:', error);
-    return null;
-  }
-}
+// The resume is read only through _shared/resume.ts's fetchResumeText: the
+// applicant's own file in the resumes bucket, nothing else. This function had
+// its own copy that fetched resume_url (which the applicant can edit) as a
+// raw address and signed any bucket and path with the service key, and the
+// text went into the session details the browser receives (the Phase 7
+// security audit).
 
 // =============== VOICE-INTERVIEW PHASE GATE ===============
 // A candidate who has not actually reached the voice_interview step in their workflow must
@@ -1504,7 +1384,7 @@ Keep greetings to ONE short sentence - don't ramble.`;
       if (resumeUrl) {
         console.log('[Interview Mode] Resume URL detected:', resumeUrl);
         // Pass adminClient for signed URL fallback if public fetch fails
-        const extractedText = await fetchResumeText(resumeUrl, adminClient);
+        const extractedText = await fetchResumeText(resumeUrl, adminClient, application.candidate_id);
         if (extractedText) {
           resumeContent = `
 === RESUME CONTENT (EXTRACTED FROM PDF) ===
