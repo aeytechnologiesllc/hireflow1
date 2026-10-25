@@ -405,9 +405,13 @@ the next. Same migration, different version stamp, as in section 2: match by
 | `20261025090000_protect_voice_evidence.sql` | `20261025021107` | `protect_voice_evidence` |
 | `20261025110000_voice_recording_this_project.sql` | `20261025025118` | `voice_recording_this_project` |
 | `20261025120000_admin_growth_one_role.sql` | `20261025025146` | `admin_growth_one_role` |
+| `20261025100000_business_email_check.sql` | `20261025025537` | `business_email_check` |
 
 The live copies carry a short header pointing at the repo file instead of
 the repo file's full comment block; the SQL statements are identical.
+`business_email_check` went live after the two migrations numbered after it,
+on purpose: the code screen had to be on the site before the rule that opens
+it (matching is by name, so the order of the numbers does not matter).
 `drop_leftover_open_policies` dropped nothing live (checked with its own
 selection immediately before applying: no rows).
 
