@@ -21,6 +21,7 @@ import {
   canVoid,
   canWithdraw,
   resolveDocumentRole,
+  signedInTime,
   validateDeclineReason,
   validateReviewConfirmed,
   validateSignaturePayload,
@@ -238,13 +239,59 @@ check(
   canCountersign(doc({ candidateSignedAt: "2026-09-01T00:00:00Z", isLocked: true }), "employer", NOW).error ===
     "locked",
 );
+// The eighth product review: the sign-by date is the applicant's deadline.
+// Signed in time, the team may countersign after it has passed (it was
+// refused with "expired", and nothing could move the date once signed).
 check(
-  "an expired document cannot be countersigned (expired)",
+  "signed before the sign-by date, countersigned after it: allowed",
   canCountersign(
     doc({ candidateSignedAt: "2026-09-01T00:00:00Z", expiresAt: "2026-09-10T00:00:00Z" }),
     "employer",
     NOW,
+  ).ok === true,
+);
+check(
+  "…the dental office's Thursday-night signature, opened Friday morning past a Thursday 23:59:59 date: allowed",
+  canCountersign(
+    doc({ candidateSignedAt: "2026-09-17T13:00:00Z", expiresAt: "2026-09-17T15:59:59Z" }),
+    "employer",
+    new Date("2026-09-18T00:00:00Z"),
+  ).ok === true,
+);
+check(
+  "a signature recorded after the sign-by date is still refused (expired)",
+  canCountersign(
+    doc({ candidateSignedAt: "2026-09-11T00:00:00Z", expiresAt: "2026-09-10T00:00:00Z" }),
+    "employer",
+    NOW,
   ).error === "expired",
+);
+check(
+  "…and one recorded at the very second of the date too (the sign step needs the date still ahead)",
+  canCountersign(
+    doc({ candidateSignedAt: "2026-09-10T00:00:00Z", expiresAt: "2026-09-10T00:00:00Z" }),
+    "employer",
+    NOW,
+  ).error === "expired",
+);
+check(
+  "not signed by the date: still nothing to countersign (candidate_has_not_signed), and the applicant can no longer sign (expired)",
+  canCountersign(doc({ expiresAt: "2026-09-10T00:00:00Z" }), "employer", NOW).error === "candidate_has_not_signed" &&
+    canSign(doc({ expiresAt: "2026-09-10T00:00:00Z" }), "candidate", NOW).error === "expired",
+);
+check(
+  "signedInTime: before the date, or no date; never with no signature",
+  signedInTime({ candidateSignedAt: "2026-09-01T00:00:00Z", expiresAt: "2026-09-10T00:00:00Z" }) === true &&
+    signedInTime({ candidateSignedAt: "2026-09-01T00:00:00Z", expiresAt: null }) === true &&
+    signedInTime({ candidateSignedAt: null, expiresAt: "2026-09-10T00:00:00Z" }) === false &&
+    signedInTime({ candidateSignedAt: null, expiresAt: null }) === false,
+);
+check(
+  "every other countersign check still holds past the date: voided, already countersigned, locked, the applicant",
+  canCountersign(doc({ candidateSignedAt: "2026-09-01T00:00:00Z", expiresAt: "2026-09-10T00:00:00Z", isVoided: true }), "employer", NOW).error === "voided" &&
+    canCountersign(doc({ candidateSignedAt: "2026-09-01T00:00:00Z", expiresAt: "2026-09-10T00:00:00Z", employerSignedAt: "2026-09-12T00:00:00Z" }), "employer", NOW).error === "already_signed" &&
+    canCountersign(doc({ candidateSignedAt: "2026-09-01T00:00:00Z", expiresAt: "2026-09-10T00:00:00Z", isLocked: true }), "employer", NOW).error === "locked" &&
+    canCountersign(doc({ candidateSignedAt: "2026-09-01T00:00:00Z", expiresAt: "2026-09-10T00:00:00Z" }), "candidate", NOW).error === "role_mismatch",
 );
 check(
   "a voided document cannot be countersigned (voided)",
@@ -284,6 +331,16 @@ check(
 check(
   "a signed document cannot be declined by either party (not_pending)",
   canDecline(doc({ status: "signed" }), "candidate", NOW).error === "not_pending",
+);
+// The eighth product review: the team's turn is not bound by the applicant's date.
+check(
+  "signed in time, the team may still decline on its turn after the date (the countersign panel's Decline)",
+  canDecline(doc({ candidateSignedAt: "2026-09-01T00:00:00Z", expiresAt: "2026-09-10T00:00:00Z" }), "employer", NOW).ok === true,
+);
+check(
+  "…but the applicant cannot decline past the date, nor the team on a document never signed",
+  canDecline(doc({ expiresAt: "2026-09-10T00:00:00Z" }), "candidate", NOW).error === "expired" &&
+    canDecline(doc({ expiresAt: "2026-09-10T00:00:00Z" }), "employer", NOW).error === "expired",
 );
 
 // ---------------------------------------------------------------------------

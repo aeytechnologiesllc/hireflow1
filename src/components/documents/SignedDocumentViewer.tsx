@@ -39,7 +39,12 @@ import {
   Ban,
   ChevronDown,
 } from "lucide-react";
-import { format } from "date-fns";
+// Every time on the record in UTC for real, the same text on every device
+// (the eighth product review: date-fns printed the viewer's own clock under
+// a "UTC" label).
+import { utcDay, utcStamp, utcTime } from "@/lib/utcTime";
+import { recordClosedUnfinished, recordFinalHash, recordFinalHashCell, recordState, recordStatusLabel } from "@/lib/signingRecord";
+import { applicantDocumentState } from "@/lib/applicantDocumentTurn";
 import type { DocumentWithApplication } from "@/hooks/useDocuments";
 import { AuditCertificate } from "./AuditCertificate";
 import { downloadAuditTrailPDF, downloadAuditTrailJSON, AuditExportData, AuditExportEntry } from "@/lib/auditExport";
@@ -150,7 +155,7 @@ const getActionIcon = (action: string) => {
  *  document-signing's withdraw/void actions), instead of the view assuming
  *  completion regardless of where the document really is in its lifecycle. */
 const DOCUMENT_STATUS_META: Record<
-  "signed" | "declined" | "pending" | "withdrawn" | "voided",
+  "signed" | "declined" | "pending" | "withdrawn" | "voided" | "expired",
   {
     icon: typeof CheckCircle;
     badgeClass: string;
@@ -214,8 +219,47 @@ const DOCUMENT_STATUS_META: Record<
     bannerTitle: "Voided",
     bannerSubtitle: "Cancelled after signing, before it was countersigned",
   },
+  // Not signed by its date (the eighth product review: the applicant was
+  // still shown the place to sign, and signing answered "This document has
+  // expired"). Signed in time, a document is never this: the date is theirs.
+  expired: {
+    icon: Clock,
+    badgeClass: "bg-muted text-muted-foreground",
+    badgeLabel: "Expired",
+    iconBoxClass: "bg-muted",
+    iconClass: "text-muted-foreground",
+    stripBgClass: "bg-muted/50",
+    bannerTitle: "Expired",
+    bannerSubtitle: "The date to sign passed before it was signed",
+  },
 };
 
+
+/** The audit trail's closing card for a document that is not finished (the
+ *  seventh product review; withdrawn, declined and expired since the eighth,
+ *  which found a withdrawn one called "Voided" under a "Withdrawn" badge). */
+const RECORD_SUMMARY: Record<"voided" | "withdrawn" | "declined" | "expired" | "in-progress", { title: string; text: string }> = {
+  voided: {
+    title: "Voided before it was finished",
+    text: "This record shows every step up to the void. A voided document was never finalized, so it has no final hash.",
+  },
+  withdrawn: {
+    title: "Withdrawn before it was signed",
+    text: "This record shows every step up to the withdrawal. A withdrawn document was never finalized, so it has no final hash.",
+  },
+  declined: {
+    title: "Declined before it was finished",
+    text: "This record shows every step up to the decline. A declined document was never finalized, so it has no final hash.",
+  },
+  expired: {
+    title: "Expired before it was signed",
+    text: "This record shows every step up to the date to sign. A document not signed in time was never finalized, so it has no final hash.",
+  },
+  "in-progress": {
+    title: "Not finished yet",
+    text: "This record shows every step so far. The final hash is made once both sides have signed.",
+  },
+};
 
 /** "Offer letter.pdf": the name a phone saves the document under. */
 function pdfFileName(title: string | null | undefined): string {
@@ -247,9 +291,16 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
   // employer/team member may countersign once the candidate has. Mirrors
   // the same preconditions the document-signing edge function enforces
   // server-side — this is just what shows the panel, not what authorizes
-  // the write.
+  // the write. The applicant's turn ends at the date to sign (the eighth
+  // product review: an expired PDF still offered the panel); the team's
+  // countersign does not (signedInTime in document-signing).
   const canSignAsCandidate =
-    role === "candidate" && document?.status === "pending" && !document?.candidate_signed_at && !document?.is_voided;
+    role === "candidate" &&
+    !!document &&
+    document.status === "pending" &&
+    !document.candidate_signed_at &&
+    !document.is_voided &&
+    applicantDocumentState(document) !== "expired";
   const canCountersignAsEmployer =
     (role === "employer" || role === "team_member") &&
     document?.status === "pending" &&
@@ -429,7 +480,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
       v1Hash: document.v1_hash,
       v2Hash: document.v2_hash,
       v3Hash: document.v3_hash,
-      finalHash: document.v3_hash || document.v2_hash || document.document_hash,
+      finalHash: recordFinalHash(document),
       entries: auditLogs as AuditExportEntry[]
     };
     
@@ -449,7 +500,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
       v1Hash: document.v1_hash,
       v2Hash: document.v2_hash,
       v3Hash: document.v3_hash,
-      finalHash: document.v3_hash || document.v2_hash || document.document_hash,
+      finalHash: recordFinalHash(document),
       entries: auditLogs as AuditExportEntry[]
     };
     
@@ -640,7 +691,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     pdf.setTextColor(100);
     pdf.text(`Document ID: ${getDocumentCode()}`, margin, yPosition);
     pdf.text(
-      `Completed: ${document.signed_at ? format(new Date(document.signed_at), "PPpp") : ""}`,
+      `Completed: ${utcStamp(document.signed_at)}`,
       pageWidth - margin,
       yPosition,
       { align: "right" }
@@ -900,9 +951,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                 <span className="text-foreground">Date: </span>
                 <div className="mt-2 border-b-2 border-foreground/30 pb-1">
                   <span className="text-primary font-medium">
-                    {document?.candidate_signed_at 
-                      ? format(new Date(document.candidate_signed_at), "MM/dd/yyyy")
-                      : ""}
+                    {utcDay(document?.candidate_signed_at)}
                   </span>
                 </div>
               </div>
@@ -928,9 +977,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                 <span className="text-foreground">Date: </span>
                 <div className="mt-2 border-b-2 border-foreground/30 pb-1">
                   <span className="text-primary font-medium">
-                    {document?.employer_signed_at 
-                      ? format(new Date(document.employer_signed_at), "MM/dd/yyyy")
-                      : ""}
+                    {utcDay(document?.employer_signed_at)}
                   </span>
                 </div>
               </div>
@@ -949,7 +996,11 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
 
   if (!document) return null;
 
-  const finalHash = document.v3_hash || document.v2_hash || document.document_hash;
+  // The newest hash in the chain, shown unlabelled in the document view's
+  // identity bar. It is not the final hash: that is recordFinalHash's, made
+  // only at the countersign (the eighth product review: the audit trail
+  // called the applicant's signature hash "Final Hash").
+  const latestHash = document.v3_hash || document.v2_hash || document.document_hash;
   // A withdrawn/voided document is still status='pending' underneath (see
   // document-signing's withdraw/void actions) — is_voided must win over the
   // raw status, or this would keep reading as "Awaiting Signature".
@@ -957,8 +1008,13 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     ? document.candidate_signed_at
       ? "voided"
       : "withdrawn"
-    : document.status;
+    : applicantDocumentState(document) === "expired"
+      ? "expired"
+      : document.status;
   const statusMeta = DOCUMENT_STATUS_META[displayStatusKey] ?? DOCUMENT_STATUS_META.pending;
+  // The audit trail's own reading of the same state (src/lib/signingRecord.ts).
+  const record = recordState(document);
+  const recordSummaryKey = recordClosedUnfinished(record) ? record : "in-progress";
   const voidAuditLog = document.is_voided
     ? [...auditLogs].reverse().find((log) => log.action === "document_withdrawn" || log.action === "document_voided")
     : null;
@@ -1002,7 +1058,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                       <p className="hidden sm:block text-sm text-muted-foreground">
                         {document.document_type?.replace(/_/g, " ")}
                         {document.status === "signed" && document.signed_at
-                          ? ` • Completed ${format(new Date(document.signed_at), "MMM d, yyyy")}`
+                          ? ` • Completed ${utcDay(document.signed_at)}`
                           : ""}
                       </p>
                     </div>
@@ -1028,16 +1084,16 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                       <span className="text-muted-foreground">Completed:</span>
                       <span className="font-medium">
                         {document.status === "signed" && document.signed_at
-                          ? format(new Date(document.signed_at), "PPpp 'UTC'")
+                          ? utcStamp(document.signed_at)
                           : statusMeta.badgeLabel}
                       </span>
                     </div>
                   </div>
-                  {finalHash && (
+                  {latestHash && (
                     <div className="flex items-center gap-2">
                       <Hash className="h-4 w-4 text-muted-foreground" />
                       <span className="font-mono text-xs text-muted-foreground">
-                        {finalHash.substring(0, 16)}...
+                        {latestHash.substring(0, 16)}...
                       </span>
                     </div>
                   )}
@@ -1087,9 +1143,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                           <div>
                             <p className="text-sm font-medium">Candidate</p>
                             <p className="text-xs text-muted-foreground">
-                              {document.candidate_signed_at 
-                                ? format(new Date(document.candidate_signed_at), "MMM d, yyyy 'at' h:mm a")
-                                : "Not signed"}
+                              {document.candidate_signed_at ? utcStamp(document.candidate_signed_at, false) : "Not signed"}
                             </p>
                           </div>
                         </div>
@@ -1121,9 +1175,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                           <div>
                             <p className="text-sm font-medium">Employer</p>
                             <p className="text-xs text-muted-foreground">
-                              {document.employer_signed_at 
-                                ? format(new Date(document.employer_signed_at), "MMM d, yyyy 'at' h:mm a")
-                                : "Not signed"}
+                              {document.employer_signed_at ? utcStamp(document.employer_signed_at, false) : "Not signed"}
                             </p>
                           </div>
                         </div>
@@ -1167,7 +1219,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                             Document ID: {getDocumentCode()}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Completed: {document.signed_at ? format(new Date(document.signed_at), "MMMM d, yyyy") : ""}
+                            Completed: {utcDay(document.signed_at)}
                           </p>
                         </div>
                       </div>
@@ -1186,7 +1238,9 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                                   : `Withdrawn by ${voidedByName}${document.voided_reason ? `: ${document.voided_reason}` : "."}`
                                 : document.status === "declined"
                                   ? "This document hasn't been completed, so there's no certificate to show."
-                                  : "A certificate is issued once every signature has been collected."}
+                                  : displayStatusKey === "expired"
+                                    ? "The date to sign has passed, so it can no longer be signed."
+                                    : "A certificate is issued once every signature has been collected."}
                             </p>
                           </div>
                         </div>
@@ -1270,21 +1324,25 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
               transition={{ duration: 0.2 }}
               className="flex flex-col h-full overflow-hidden"
             >
-              {/* Audit Trail Header */}
-              <DialogHeader className="p-6 pb-4 border-b border-border shrink-0">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
+              {/* Audit Trail Header. On a phone it keeps clear of the dialog's
+                  close button and its 44px tap area (right-3: 12 + 44 = 56px,
+                  pr-14), as the document's own header does: the eighth product
+                  review found the X over "Back to Document", where a tap
+                  closed the whole viewer. */}
+              <DialogHeader className="p-4 pb-3 pr-14 sm:p-6 sm:pb-4 sm:pr-12 border-b border-border shrink-0" data-audit-header>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="hidden sm:flex w-12 h-12 shrink-0 rounded-xl bg-primary/20 items-center justify-center">
                       <History className="h-6 w-6 text-primary" />
                     </div>
-                    <div>
-                      <DialogTitle className="text-xl">Audit Trail</DialogTitle>
+                    <div className="min-w-0 text-left">
+                      <DialogTitle className="text-lg sm:text-xl text-left">Audit Trail</DialogTitle>
                       <p className="text-sm text-muted-foreground">
                         Complete history of document activity
                       </p>
                     </div>
                   </div>
-                  <Button variant="outline" onClick={() => setShowAuditTrail(false)}>
+                  <Button variant="outline" className="shrink-0" onClick={() => setShowAuditTrail(false)}>
                     Back to Document
                   </Button>
                 </div>
@@ -1297,9 +1355,9 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                     <CheckCircle className="h-3 w-3 mr-1.5" />
                     Finalized Audit Trail
                   </Badge>
-                ) : document.is_voided ? (
-                  <Badge className="bg-destructive/20 text-destructive font-medium">
-                    <Ban className="h-3 w-3 mr-1.5" />
+                ) : recordClosedUnfinished(record) ? (
+                  <Badge className={`${statusMeta.badgeClass} font-medium`}>
+                    <statusMeta.icon className="h-3 w-3 mr-1.5" />
                     {statusMeta.badgeLabel}
                   </Badge>
                 ) : (
@@ -1322,19 +1380,24 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                     {/* A voided document is still stored as pending; an applicant
                         who signed opens this screen too, before the countersign
                         and after a void (the seventh product review: it said
-                        "Pending Signatures" under a red "Voided"). */}
-                    <Badge variant={document.is_voided ? 'destructive' : 'default'} className="mt-0.5">
-                      {document.is_voided ? 'Voided' : document.status === 'signed' ? 'Fully Executed' : document.candidate_signed_at ? 'Waiting for countersign' : 'Pending Signatures'}
+                        "Pending Signatures" under a red "Voided"). Withdrawn
+                        before they signed reads "Withdrawn", as the badge above
+                        does (the eighth product review). */}
+                    <Badge variant={record === 'voided' || record === 'declined' ? 'destructive' : record === 'withdrawn' || record === 'expired' ? 'secondary' : 'default'} className="mt-0.5" data-audit-status>
+                      {recordStatusLabel(document)}
                     </Badge>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Final Hash (SHA-256)</p>
-                    <p className="font-mono text-xs truncate">{finalHash || (document.is_voided ? 'None' : 'Pending')}</p>
+                    {/* Only a finished, unvoided document has a final hash (made at
+                        the countersign); never the applicant's signature hash
+                        (the eighth product review). */}
+                    <p className="font-mono text-xs truncate" data-audit-final-hash>{recordFinalHashCell(document)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Completed</p>
                     <p className="font-medium">
-                      {document.signed_at ? format(new Date(document.signed_at), "PPpp 'UTC'") : document.is_voided ? "Not completed" : "Pending"}
+                      {document.signed_at ? utcStamp(document.signed_at) : recordClosedUnfinished(record) ? "Not completed" : "Pending"}
                     </p>
                   </div>
                 </div>
@@ -1378,10 +1441,10 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                             </div>
                             <div className="text-right shrink-0">
                               <p className="text-sm font-medium text-muted-foreground">
-                                {format(new Date(log.created_at), "MMM d, yyyy")}
+                                {utcDay(log.created_at)}
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                {format(new Date(log.created_at), "h:mm:ss a 'UTC'")}
+                                {utcTime(log.created_at)}
                               </p>
                             </div>
                           </div>
@@ -1436,7 +1499,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                               )}
                               <div className="flex items-center gap-2 text-muted-foreground">
                                 <Calendar className="h-3 w-3" />
-                                <span>{format(new Date(log.created_at), "PPpp 'UTC'")}</span>
+                                <span>{utcStamp(log.created_at)}</span>
                               </div>
                               {log.document_hash && (
                                 <div className="flex items-center gap-2 text-muted-foreground col-span-2">
@@ -1470,16 +1533,12 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-6 p-4 rounded-xl bg-muted/50 border border-border" data-audit-summary={document.is_voided ? "voided" : "in-progress"}>
+                  <div className="mt-6 p-4 rounded-xl bg-muted/50 border border-border" data-audit-summary={recordSummaryKey}>
                     <div className="flex items-center gap-3">
                       <Shield className="h-8 w-8 text-muted-foreground" />
                       <div>
-                        <p className="font-semibold text-foreground">{document.is_voided ? "Voided before it was finished" : "Not finished yet"}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {document.is_voided
-                            ? "This record shows every step up to the void. A voided document was never finalized, so it has no final hash."
-                            : "This record shows every step so far. The final hash is made once both sides have signed."}
-                        </p>
+                        <p className="font-semibold text-foreground">{RECORD_SUMMARY[recordSummaryKey].title}</p>
+                        <p className="text-sm text-muted-foreground">{RECORD_SUMMARY[recordSummaryKey].text}</p>
                       </div>
                     </div>
                   </div>

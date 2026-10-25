@@ -5,7 +5,10 @@
  */
 
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import { format } from 'date-fns';
+// In UTC for real, word for word as the server's final PDF prints it (the
+// eighth product review: date-fns printed the browser's own clock, some of it
+// under a "UTC" label).
+import { utcStamp } from './utcTime';
 
 export interface SignatureOverlay {
   signatureDataUrl: string;
@@ -137,7 +140,7 @@ export async function burnSignaturesIntoPdf(
       });
       
       if (sig.signedAt) {
-        const formattedDate = format(new Date(sig.signedAt), "MM/dd/yyyy 'at' h:mm a");
+        const formattedDate = utcStamp(sig.signedAt, false);
         page.drawText(formattedDate, {
           x: sigX,
           y: infoY - 9,
@@ -234,7 +237,7 @@ export async function burnSignaturesIntoPdf(
   drawLabelValue('Document Type:', certificateData.documentType?.replace(/_/g, ' ') || 'Custom Document');
   drawLabelValue('Status:', 'FULLY EXECUTED');
   if (certificateData.completedAt) {
-    drawLabelValue('Completed:', format(new Date(certificateData.completedAt), "MMMM d, yyyy 'at' h:mm:ss a 'UTC'"));
+    drawLabelValue('Completed:', utcStamp(certificateData.completedAt));
   }
   y -= 10;
 
@@ -262,7 +265,7 @@ export async function burnSignaturesIntoPdf(
     drawLabelValue('Email:', certificateData.candidateEmail);
   }
   if (certificateData.candidateSignedAt) {
-    drawLabelValue('Signed At:', format(new Date(certificateData.candidateSignedAt), "MMMM d, yyyy 'at' h:mm:ss a 'UTC'"));
+    drawLabelValue('Signed At:', utcStamp(certificateData.candidateSignedAt));
   }
   if (certificateData.candidateIp) {
     drawLabelValue('IP Address:', certificateData.candidateIp);
@@ -284,7 +287,7 @@ export async function burnSignaturesIntoPdf(
     drawLabelValue('Email:', certificateData.employerEmail);
   }
   if (certificateData.employerSignedAt) {
-    drawLabelValue('Signed At:', format(new Date(certificateData.employerSignedAt), "MMMM d, yyyy 'at' h:mm:ss a 'UTC'"));
+    drawLabelValue('Signed At:', utcStamp(certificateData.employerSignedAt));
   }
   // No address for the team: the applicant downloads this too (2026-10-11).
   drawLabelValue('Signature Method:', 'Electronic (Drawn)');
@@ -424,7 +427,7 @@ export async function burnSignaturesIntoPdf(
     font: helvetica,
     color: rgb(0.5, 0.5, 0.5),
   });
-  certPage.drawText(`Generated: ${format(new Date(), "MMMM d, yyyy 'at' h:mm:ss a 'UTC'")}`, {
+  certPage.drawText(`Generated: ${utcStamp(new Date())}`, {
     x: margin,
     y: footerY - 10,
     size: 7,

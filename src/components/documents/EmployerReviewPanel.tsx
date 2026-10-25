@@ -16,6 +16,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { format } from "date-fns";
+import { utcStamp } from "@/lib/utcTime";
 import { fetchAuditTrail, type AuditLogEntry } from "@/lib/auditTrail";
 
 interface EmployerReviewPanelProps {
@@ -127,7 +128,8 @@ export function EmployerReviewPanel({
           <div className="flex-1">
             <p className="font-medium text-success">Candidate Has Signed</p>
             <p className="text-xs text-muted-foreground">
-              {candidateSignedAt && format(new Date(candidateSignedAt), "MMMM d, yyyy 'at' h:mm a")} (UTC)
+              {/* In UTC for real (the eighth product review). */}
+              {utcStamp(candidateSignedAt, false)}
             </p>
           </div>
           <Badge variant="outline" className="bg-success/10 text-success border-success/30">

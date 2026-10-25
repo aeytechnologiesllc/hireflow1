@@ -1,6 +1,8 @@
 import { jsPDF } from "jspdf";
-import { format } from "date-fns";
 import { CompletionCertificate } from "./completionCertificate";
+// In UTC for real, as the server's certificate prints it (the eighth product
+// review: date-fns printed the browser's own clock under a "UTC" label).
+import { utcStamp } from "./utcTime";
 
 /**
  * Generate a PDF Certificate of Completion
@@ -73,7 +75,7 @@ export async function generateCertificatePDF(
   pdf.text(`Status: FULLY EXECUTED`, rightCol, y);
   y += 6;
   pdf.text(`Certificate ID: ${cert.certificate_id}`, leftCol, y);
-  pdf.text(`Completion: ${format(new Date(cert.completion_timestamp_utc), "PPpp 'UTC'")}`, rightCol, y);
+  pdf.text(`Completion: ${utcStamp(cert.completion_timestamp_utc)}`, rightCol, y);
   
   y += 15;
 
@@ -120,7 +122,7 @@ export async function generateCertificatePDF(
     pdf.text(`Name: ${cert.candidate_signature.name}`, leftCol, y);
     pdf.text(`Email: ${cert.candidate_signature.email}`, rightCol, y);
     y += 5;
-    pdf.text(`Signed: ${format(new Date(cert.candidate_signature.timestamp_utc), "PPpp 'UTC'")}`, leftCol, y);
+    pdf.text(`Signed: ${utcStamp(cert.candidate_signature.timestamp_utc)}`, leftCol, y);
     pdf.text(`IP Address: ${cert.candidate_signature.ip_address}`, rightCol, y);
     y += 5;
     const loc = cert.candidate_signature.location;
@@ -149,7 +151,7 @@ export async function generateCertificatePDF(
     pdf.text(`Name: ${cert.employer_signature.name}`, leftCol, y);
     pdf.text(`Email: ${cert.employer_signature.email}`, rightCol, y);
     y += 5;
-    pdf.text(`Signed: ${format(new Date(cert.employer_signature.timestamp_utc), "PPpp 'UTC'")}`, leftCol, y);
+    pdf.text(`Signed: ${utcStamp(cert.employer_signature.timestamp_utc)}`, leftCol, y);
     // No address or place for the team: the applicant downloads this too (2026-10-11).
     
     y += 12;

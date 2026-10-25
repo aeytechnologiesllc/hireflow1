@@ -6,7 +6,7 @@ import { StaggeredBarsLoader } from "@/components/animations/StaggeredBarsLoader
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { format } from "date-fns";
+import { utcStamp } from "@/lib/utcTime";
 
 interface VerificationData {
   documentName: string;
@@ -200,9 +200,10 @@ export default function VerifyDocument() {
                   <Clock className="h-4 w-4 text-muted-foreground" />
                   <div>
                     <p className="text-sm text-muted-foreground">Completion Timestamp (UTC)</p>
-                    <p className="font-mono text-sm">
-                      {format(new Date(data.completionTimestamp), "yyyy-MM-dd HH:mm:ss 'UTC'")}
-                    </p>
+                    {/* In UTC for real, the same words as the certificate and the
+                        signing record (the eighth product review: it was the
+                        visitor's own clock under a "UTC" label). */}
+                    <p className="text-sm font-medium">{utcStamp(data.completionTimestamp)}</p>
                   </div>
                 </div>
               </>

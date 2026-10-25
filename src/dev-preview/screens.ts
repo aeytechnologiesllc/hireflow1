@@ -145,6 +145,10 @@ export const PREVIEW_SCREENS: PreviewScreen[] = [
   { id: "pdf-signed", group: "On-site jobs and files to sign", label: "My documents: uploaded PDF, signed, the team's turn", role: "candidate", path: "/my-documents?__previewDocs=pdf,signed" },
   { id: "pdf-voided", group: "On-site jobs and files to sign", label: "My documents: uploaded PDF, voided after signing", role: "candidate", path: "/my-documents?__previewDocs=pdf,voided" },
   { id: "pdf-team", group: "On-site jobs and files to sign", label: "Documents: uploaded PDF, the team's turn", role: "employer", path: "/documents?__previewDocs=pdf,signed" },
+  // The eighth product review: the date to sign is the applicant's.
+  { id: "pdf-expired", group: "On-site jobs and files to sign", label: "My documents: uploaded PDF, its date passed before signing", role: "candidate", path: "/my-documents?__previewDocs=pdf,expired" },
+  { id: "pdf-team-late", group: "On-site jobs and files to sign", label: "Documents: signed in time, the date passed, the team's turn", role: "employer", path: "/documents?__previewDocs=pdf,signed,expired" },
+  { id: "pdf-team-done", group: "On-site jobs and files to sign", label: "Documents: uploaded PDF, countersigned (the signing record)", role: "employer", path: "/documents?__previewDocs=pdf,done" },
 
   // -------------------------------------------------------------- extra states
   { id: "cand-app-offered", group: "Extra states", label: "Application detail — offered", role: "candidate", path: `/applications/${APP_OFFERED_ID}` },

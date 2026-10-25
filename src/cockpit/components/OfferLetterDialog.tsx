@@ -563,11 +563,18 @@ export function OfferLetterDialog({
 
                 <Step n={2} title="Pay">
                   <Field id="ck-offer-pay" label="Pay" problem={problemFor("payAmount") ?? problemFor("payCurrency")}>
-                    {/* On a phone the amount takes its own line, so the currency
-                        and the period are wide enough to read ("USD", "an hour";
-                        the seventh product review: they read "USI", "an hou"). */}
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,0.8fr)_minmax(0,1fr)]" data-offer-pay-row>
-                      <input id="ck-offer-pay" className={`${INPUT} col-span-2 sm:col-span-1`} value={payAmount} inputMode="decimal" disabled={busy} placeholder="500" onChange={(e) => edit(setPayAmount)(e.target.value)} autoComplete="off" aria-label="Amount" />
+                    {/* The amount takes its own line, so the currency and the
+                        period are wide enough to read ("USD", "an hour"; the
+                        seventh product review: they read "USI", "an hou"), on
+                        a phone and wherever the dialog has two columns
+                        (md to lg: the eighth product review found them cut
+                        again at 768px, an iPad held upright). One line only
+                        where three boxes fit, the "Currency" placeholder
+                        included (about 107px): sm, where the dialog is one
+                        column, and lg up (scripts/offer_letter.test.mjs
+                        works the widths through). */}
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3" data-offer-pay-row>
+                      <input id="ck-offer-pay" className={`${INPUT} col-span-2 sm:col-span-1 md:col-span-2 lg:col-span-1`} value={payAmount} inputMode="decimal" disabled={busy} placeholder="500" onChange={(e) => edit(setPayAmount)(e.target.value)} autoComplete="off" aria-label="Amount" />
                       <select className={INPUT} value={payCurrency} disabled={busy} onChange={(e) => edit(setPayCurrency)(e.target.value)} aria-label="Currency">
                         {payCurrency === "" ? (
                           <option value="" disabled>

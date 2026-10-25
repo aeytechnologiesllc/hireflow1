@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { waitingOnApplicant } from "@/lib/applicantDocumentTurn";
 
 export function usePendingDocumentsCount() {
   const { user, role } = useAuth();
@@ -36,13 +37,16 @@ export function usePendingDocumentsCount() {
 
       // Count both unsigned documents AND pending document requests
       const [docResult, requestResult] = await Promise.all([
-        // Count documents that are pending and candidate hasn't signed yet.
-        // Excludes is_voided: a withdrawn document is still status='pending'
-        // (see document-signing's "withdraw" action) but there is nothing
-        // left for the candidate to do — it must not inflate "waiting on you".
+        // Documents waiting on the candidate: pending, not signed by them yet,
+        // not withdrawn (a withdrawn document is still status='pending', see
+        // document-signing's "withdraw" action), and still in time. The date
+        // is read here by the same rule as My Documents' "To sign"
+        // (waitingOnApplicant; the eighth product review: an expired letter
+        // was counted, though signing it only answers "This document has
+        // expired").
         supabase
           .from("documents")
-          .select("id", { count: "exact", head: true })
+          .select("id, status, candidate_signed_at, is_voided, expires_at")
           .in("application_id", applicationIds)
           .eq("status", "pending")
           .is("candidate_signed_at", null)
@@ -59,7 +63,9 @@ export function usePendingDocumentsCount() {
       if (docResult.error) throw docResult.error;
       if (requestResult.error) throw requestResult.error;
 
-      return (docResult.count || 0) + (requestResult.count || 0);
+      const now = new Date();
+      const waiting = (docResult.data ?? []).filter((d) => waitingOnApplicant(d, now)).length;
+      return waiting + (requestResult.count || 0);
     },
     enabled: !!user && role === "candidate",
   });

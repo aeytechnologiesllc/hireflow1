@@ -83,6 +83,44 @@ same day): the letter, then "Sign to accept"; no PDF, certificate or audit
 buttons until both have signed. The full viewer
 (`SignedDocumentViewer.tsx`) stays for uploaded PDFs and the "Signing record".
 
+## The eighth product review (2026-10-25)
+
+- **The date to sign is the applicant's.** A document the applicant signed
+  before its date is countersigned whenever the team gets to it:
+  `signedInTime` in `document-signing/stateMachine.ts` (`canCountersign`, and
+  the team's `canDecline` on its turn), and the countersign reservation
+  compares `expires_at` with the applicant's own `candidate_signed_at`, not
+  with the time of the countersign. Before, a letter signed Thursday night
+  and opened Friday morning answered "This document has expired", and nothing
+  could move the date (`protect_document_columns` freezes it once they have
+  signed): only a void and a new letter. A signature recorded after the date
+  stays refused, and an unsigned document past its date still cannot be
+  signed. The database needed no change: no trigger or policy reads
+  `expires_at` on the countersign (the service role passes
+  `protect_document_columns`). Proof: `scripts/document_signing_state_machine.test.mjs`,
+  `scripts/document_signing_guard_pglite_check.mjs`, guard
+  `countersign-after-the-applicants-date`. The team's decline no longer writes
+  the team's address and browser onto the document row the applicant reads
+  (the countersign stopped doing that on 2026-10-11).
+- **Times on the record are UTC for real.** `src/lib/utcTime.ts`
+  (`utcStamp`, word for word the server's `utcStamp`): the viewer, the audit
+  and certificate PDFs made in the browser, the exported audit trail and
+  /verify. date-fns had printed the viewer's own clock under a "UTC" label,
+  twelve hours apart between Manila and New York. Proof:
+  `scripts/utc_times.test.mjs` (two time zones), guard
+  `signing-record-times-are-utc`.
+- **The audit trail's words** (`src/lib/signingRecord.ts`): a final hash only
+  for a finished, unvoided document ("None" when voided, withdrawn, declined
+  or expired; "Pending" otherwise; never the applicant's v2), the same in the
+  exported audit trail; "Withdrawn" for a document withdrawn before the
+  applicant signed, in the Status cell and the card as in the badge; and on a
+  phone the header keeps clear of the dialog's close button.
+- **My Documents and the badge** (`src/lib/applicantDocumentTurn.ts`): "To
+  sign" holds only documents waiting on the applicant and still in time; one
+  they signed (the team's turn) and one past its date ("Expired", "View") go
+  under "Signed or closed", and the sidebar's badge counts the same. The full
+  viewer no longer offers the place to sign once the date has passed.
+
 ## Revision log (2026-09-16)
 
 A pre-implementation review raised six must-change findings and nine
@@ -890,7 +928,10 @@ Preconditions:
   countersign before the candidate's signature lands, because this check
   runs on every call)
 - `document.employer_signed_at IS NULL` (`already_signed`)
-- `document.is_locked === false`, not expired, same as above
+- `document.is_locked === false`
+- not expired, unless the candidate signed before the date (`expired`; since
+  the eighth product review the date binds the candidate only: see "The
+  eighth product review" above)
 - `reviewConfirmed === true` (`review_required`)
 - `signature.consentAccepted === true` (`consent_required`)
 - same typed/drawn validation as `sign`
@@ -922,7 +963,9 @@ finished document:
   void, not a decline, and voiding stays a direct employer column write
   under the new trigger (§5), not part of this function; nothing in the
   product exercises it today so it's out of scope here.
-- `document.status === 'pending'`, not locked, not expired, same as above.
+- `document.status === 'pending'`, not locked, not expired, same as above
+  (the employer's decline on its turn passes the date when the candidate
+  signed in time, as its countersign does).
 - `declineReason` required, 3–500 chars trimmed.
 
 `UPDATE documents SET status = 'declined', declined_at = now(), decline_reason

@@ -4,6 +4,7 @@
  */
 
 import { format } from "date-fns";
+import { utcStamp, utcTechnical } from "@/lib/utcTime";
 
 /**
  * Standardized action labels with consistent capitalization
@@ -96,15 +97,12 @@ export function getAuditActionColor(action: string): string {
 
 /**
  * Format timestamp consistently across all audit displays
- * Standard format: "January 15, 2025 at 3:45:23 PM UTC"
+ * Standard format: "January 15, 2025 at 3:45:23 PM UTC", in UTC for real
+ * (src/lib/utcTime.ts; the eighth product review: it was the viewer's own
+ * clock under a "UTC" label).
  */
 export function formatAuditTimestamp(timestamp: string | Date): string {
-  try {
-    const date = typeof timestamp === "string" ? new Date(timestamp) : timestamp;
-    return format(date, "MMMM d, yyyy 'at' h:mm:ss a 'UTC'");
-  } catch {
-    return "Invalid timestamp";
-  }
+  return utcStamp(timestamp) || "Invalid timestamp";
 }
 
 /**
@@ -121,16 +119,12 @@ export function formatAuditTimestampCompact(timestamp: string | Date): string {
 }
 
 /**
- * Format timestamp for technical/log display
- * Format: "2025-01-15 15:45:23"
+ * Format timestamp for technical/log display, in UTC (it sits under
+ * "Timestamp (UTC)" headings)
+ * Format: "2025-01-15 15:45:23 UTC"
  */
 export function formatAuditTimestampTechnical(timestamp: string | Date): string {
-  try {
-    const date = typeof timestamp === "string" ? new Date(timestamp) : timestamp;
-    return format(date, "yyyy-MM-dd HH:mm:ss");
-  } catch {
-    return "Invalid";
-  }
+  return utcTechnical(timestamp) || "Invalid";
 }
 
 /**

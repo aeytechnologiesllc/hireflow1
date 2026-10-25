@@ -6,6 +6,7 @@ import { DocumentRequestCard } from "@/components/documents/DocumentRequestCard"
 import { DocumentUploadDialog } from "@/components/documents/DocumentUploadDialog";
 import { SignedDocumentViewer } from "@/components/documents/SignedDocumentViewer";
 import { ApplicantDocumentSheet, isWrittenDocument } from "@/components/documents/ApplicantDocumentSheet";
+import { applicantDocumentState, waitingOnApplicant } from "@/lib/applicantDocumentTurn";
 import { EmptyStateCard } from "@/components/EmptyStateCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -20,28 +21,28 @@ const LetterIdentityGlyph = GlyphLetter as unknown as LucideIcon;
 /** Mirrors the chip vocabulary the employer's own Documents drawer uses
  *  (src/cockpit/pages/Documents.tsx) so "pending" reads the same color on
  *  both sides of the product. */
-function signStatusChip(doc: DocumentWithApplication): { label: string; bg: string; fg: string } {
+function signStatusChip(doc: DocumentWithApplication, now: Date): { label: string; bg: string; fg: string } {
   // A withdrawn/voided document is still status='pending' underneath (see
-  // document-signing's withdraw/void actions) — is_voided must be checked
-  // first, or it would show as "Awaiting your signature"/"Sent to the
-  // employer" instead of the honest terminal state.
-  if (doc.is_voided) {
+  // document-signing's withdraw/void actions), so whose turn it is comes from
+  // applicantDocumentState, never the raw status.
+  const state = applicantDocumentState(doc, now);
+  if (state === "withdrawn") {
     return doc.candidate_signed_at
       ? { label: "Voided", bg: "var(--crit-bg)", fg: "var(--crit)" }
       : { label: "Withdrawn", bg: "var(--surface-2)", fg: "var(--ink-3)" };
   }
-  if (doc.status === "declined") return { label: "Declined", bg: "var(--crit-bg)", fg: "var(--crit)" };
-  if (doc.status === "signed") return { label: "Signed", bg: "var(--action-soft)", fg: "var(--action-soft-fg)" };
-  if (doc.candidate_signed_at) {
-    return { label: "Sent to the employer", bg: "var(--surface-2)", fg: "var(--ink-2)" };
-  }
+  if (state === "declined") return { label: "Declined", bg: "var(--crit-bg)", fg: "var(--crit)" };
+  if (state === "done") return { label: "Signed", bg: "var(--action-soft)", fg: "var(--action-soft-fg)" };
+  if (state === "theirs") return { label: "Sent to the employer", bg: "var(--surface-2)", fg: "var(--ink-2)" };
+  // The date to sign has passed: no longer theirs to sign (the eighth product review).
+  if (state === "expired") return { label: "Expired", bg: "var(--surface-2)", fg: "var(--ink-3)" };
   return { label: "Awaiting your signature", bg: "var(--amber-bg)", fg: "var(--amber-fg)" };
 }
 
-function SignDocumentRow({ doc, onView, askedBy }: { doc: DocumentWithApplication; onView: () => void; askedBy?: string | null }) {
-  const chip = signStatusChip(doc);
+function SignDocumentRow({ doc, onView, askedBy, now }: { doc: DocumentWithApplication; onView: () => void; askedBy?: string | null; now: Date }) {
+  const chip = signStatusChip(doc, now);
   // Waiting on them: the button says what to do.
-  const theirTurn = doc.status === "pending" && !doc.candidate_signed_at && !doc.is_voided;
+  const theirTurn = waitingOnApplicant(doc, now);
   return (
     <div className="ck-card flex flex-wrap items-center gap-x-3.5 gap-y-2.5 px-4 py-3.5">
       <span
@@ -117,14 +118,17 @@ export default function MyDocuments() {
   const pendingUpload = documentRequests.filter(
     (r) => r.status === "pending" || r.status === "rejected"
   ).length;
-  const pendingSignature = signDocuments.filter(
-    (d) => d.status === "pending" && !d.candidate_signed_at && !d.is_voided
-  ).length;
-  // "To sign" holds only documents still open; signed, declined, voided and
-  // withdrawn ones go under their own heading (the seventh product review: a
-  // just-voided letter sat at the top of "To sign", above two to sign).
-  const openDocuments = signDocuments.filter((d) => d.status === "pending" && !d.is_voided);
-  const closedDocuments = signDocuments.filter((d) => !(d.status === "pending" && !d.is_voided));
+  // "To sign" holds only documents waiting on them: theirs to sign, and still
+  // in time. Everything else goes under its own heading: signed, declined,
+  // voided and withdrawn (the seventh product review: a just-voided letter
+  // sat at the top of "To sign"), and, since the eighth, one they signed and
+  // the team has not countersigned yet ("Sent to the employer") and one whose
+  // date to sign has passed ("Expired"; it read "1 waiting on you" with "Read
+  // and sign", though signing it only answers "This document has expired").
+  // The sidebar's badge counts by the same rule (usePendingDocumentsCount).
+  const now = new Date();
+  const toSign = signDocuments.filter((d) => waitingOnApplicant(d, now));
+  const closedDocuments = signDocuments.filter((d) => !waitingOnApplicant(d, now));
   const hasAny = documentRequests.length > 0 || signDocuments.length > 0;
 
   return (
@@ -152,16 +156,17 @@ export default function MyDocuments() {
         />
       ) : (
         <>
-          {openDocuments.length > 0 && (
+          {toSign.length > 0 && (
             <section className="space-y-3" data-documents-section="to-sign">
               <h2 className="px-1 text-xs font-medium uppercase tracking-wide" style={{ color: "var(--ink-3)" }}>
-                To sign{pendingSignature > 0 ? ` — ${pendingSignature} waiting on you` : ""}
+                To sign — {toSign.length} waiting on you
               </h2>
               <div className="space-y-3">
-                {openDocuments.map((doc) => (
+                {toSign.map((doc) => (
                   <SignDocumentRow
                     key={doc.id}
                     doc={doc}
+                    now={now}
                     onView={() => openDocument(doc)}
                     askedBy={businessJobLine(companies.get(doc.applications?.jobs?.employer_id ?? ""), doc.applications?.jobs?.title)}
                   />
@@ -199,6 +204,7 @@ export default function MyDocuments() {
                   <SignDocumentRow
                     key={doc.id}
                     doc={doc}
+                    now={now}
                     onView={() => openDocument(doc)}
                     askedBy={businessJobLine(companies.get(doc.applications?.jobs?.employer_id ?? ""), doc.applications?.jobs?.title)}
                   />

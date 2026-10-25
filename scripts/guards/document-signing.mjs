@@ -541,4 +541,43 @@ export default [
       };
     },
   },
+  {
+    id: "countersign-after-the-applicants-date",
+    why:
+      "The sign-by date is the applicant's deadline (the eighth product review): a document they signed in " +
+      "time must stay countersignable after the date passes, since nothing can move the date once they have " +
+      "signed. Fails if canCountersign refuses `expired` without asking signedInTime, if the reservation " +
+      "compares the date with the time of the countersign instead of the applicant's signature, or if the " +
+      "team's decline writes the team's address onto the row the applicant reads.",
+    run: async ({ read }) => {
+      const bad = [];
+      const machine = await read(STATE_MACHINE);
+      const fn = await read(FUNCTION);
+      if (!machine || !fn) return { ok: false, detail: [`${STATE_MACHINE} or ${FUNCTION} not found`] };
+      const code = stripTsComments(machine);
+      const countersign = /export function canCountersign\([\s\S]*?\n}/.exec(code)?.[0] ?? "";
+      if (!/isExpired\(doc, now\) && !signedInTime\(doc\)\) return \{ ok: false, error: "expired" \}/.test(countersign)) {
+        bad.push("canCountersign must refuse `expired` only when the applicant did not sign in time (isExpired && !signedInTime)");
+      }
+      if ((countersign.match(/isExpired\(/g) ?? []).length !== 1) bad.push("canCountersign must check the date exactly once, together with signedInTime");
+      const inTime = /export function signedInTime\([\s\S]*?\n}/.exec(code)?.[0] ?? "";
+      if (!/candidateSignedAt === null\) return false/.test(inTime) || !/new Date\(doc\.candidateSignedAt\)\.getTime\(\) < new Date\(doc\.expiresAt\)\.getTime\(\)/.test(inTime)) {
+        bad.push("signedInTime must be false with no signature and true only for a signature strictly before the date");
+      }
+      const body = stripTsComments(fn);
+      const start = body.indexOf('if (action === "countersign")');
+      const end = body.indexOf("const reserved = reservedRows[0]", start);
+      const reserve = start === -1 || end === -1 ? "" : body.slice(start, end);
+      if (!/expires_at\.gt\.\$\{new Date\(document\.candidate_signed_at\)\.toISOString\(\)\}/.test(reserve)) {
+        bad.push("the countersign reservation must compare expires_at with the applicant's signing time");
+      }
+      if (/expires_at\.gt\.\$\{nowIso\}/.test(reserve)) bad.push("the countersign reservation still refuses a document whose date has passed (expires_at > now)");
+      const declineStart = body.indexOf('if (action === "decline")');
+      const decline = declineStart === -1 ? "" : body.slice(declineStart, body.indexOf('.select("id")', declineStart));
+      if (!/\.\.\.\(role === "candidate" \? \{ ip_address: ip, user_agent: userAgent \} : \{\}\)/.test(decline) || /^\s*ip_address: ip,/m.test(decline)) {
+        bad.push("the decline must write ip_address/user_agent for the applicant only, never the team's");
+      }
+      return { ok: bad.length === 0, detail: bad };
+    },
+  },
 ];

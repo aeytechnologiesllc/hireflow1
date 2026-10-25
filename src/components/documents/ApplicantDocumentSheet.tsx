@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { invokeDocumentSigning } from "@/lib/documentSigningErrors";
 import { collectSignerContext } from "@/lib/signerContext";
 import { generateV1Hash } from "@/lib/documentHash";
+import { applicantDocumentState } from "@/lib/applicantDocumentTurn";
 import type { DocumentWithApplication } from "@/hooks/useDocuments";
 import { LetterText } from "./LetterText";
 import { SignaturePad } from "./SignaturePad";
@@ -56,16 +57,8 @@ export function isWrittenDocument(fileUrl: string | null | undefined): boolean {
   return !!body && !body.uploadedFileUrl && typeof body.content === "string" && body.content.trim().length > 0;
 }
 
-export type ApplicantDocumentState = "yours" | "theirs" | "done" | "declined" | "withdrawn" | "expired";
-
-export function applicantDocumentState(doc: Pick<DocumentWithApplication, "status" | "candidate_signed_at" | "is_voided" | "expires_at">, now = new Date()): ApplicantDocumentState {
-  if (doc.is_voided) return "withdrawn";
-  if (doc.status === "declined") return "declined";
-  if (doc.status === "signed") return "done";
-  if (doc.candidate_signed_at) return "theirs";
-  if (doc.expires_at && new Date(doc.expires_at).getTime() < now.getTime()) return "expired";
-  return "yours";
-}
+// Whose turn it is: one rule with My Documents and the sidebar's badge.
+export { applicantDocumentState, type ApplicantDocumentState } from "@/lib/applicantDocumentTurn";
 
 function signatureOf(raw: string | null | undefined, side: "recipient" | "employer"): { value: string; name: string } | null {
   if (!raw) return null;

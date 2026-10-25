@@ -55,10 +55,69 @@ check("PDF viewer: the footer only where it has a button: everywhere with the au
 // The seventh product review: an applicant now opens the audit trail before
 // the countersign and after a void, so the screen must not call a voided one
 // "Pending Signatures", nor say an unfinished one's final hash was verified.
-check("PDF viewer: the audit trail's status says Voided, or Waiting for countersign", /document\.is_voided \? 'Voided' : document\.status === 'signed' \? 'Fully Executed' : document\.candidate_signed_at \? 'Waiting for countersign' : 'Pending Signatures'/.test(viewer));
-check("PDF viewer: 'Integrity Verified' only for a finished, unvoided document", /\{document\.status === 'signed' && !document\.is_voided \? \(\s*<div[^>]*data-audit-summary="verified"/.test(viewer) && /data-audit-summary=\{document\.is_voided \? "voided" : "in-progress"\}/.test(viewer) && (viewer.match(/Integrity Verified via SHA-256/g) ?? []).length === 1);
-// …and My Documents keeps "To sign" for documents still open.
-check("My Documents: 'To sign' lists only open documents; signed, declined, voided and withdrawn ones are under 'Signed or closed'", /const openDocuments = signDocuments\.filter\(\(d\) => d\.status === "pending" && !d\.is_voided\);/.test(myDocs) && /data-documents-section="to-sign"[\s\S]*?\{openDocuments\.map\(/.test(myDocs) && /data-documents-section="closed"[\s\S]*?Signed or closed[\s\S]*?\{closedDocuments\.map\(/.test(myDocs) && !/\{signDocuments\.map\(\(doc\) => \(\s*<SignDocumentRow/.test(myDocs));
+check("PDF viewer: the audit trail's status and final hash come from the record's own rule (src/lib/signingRecord.ts)", /<Badge variant=\{record === 'voided' \|\| record === 'declined' \? 'destructive' : record === 'withdrawn' \|\| record === 'expired' \? 'secondary' : 'default'\} className="mt-0\.5" data-audit-status>\s*\{recordStatusLabel\(document\)\}/.test(viewer) && /data-audit-final-hash>\{recordFinalHashCell\(document\)\}<\/p>/.test(viewer) && !/\{finalHash \|\| \(document\.is_voided \? 'None' : 'Pending'\)\}/.test(viewer));
+check("PDF viewer: 'Integrity Verified' only for a finished, unvoided document", /\{document\.status === 'signed' && !document\.is_voided \? \(\s*<div[^>]*data-audit-summary="verified"/.test(viewer) && /data-audit-summary=\{recordSummaryKey\}/.test(viewer) && /const recordSummaryKey = recordClosedUnfinished\(record\) \? record : "in-progress";/.test(viewer) && (viewer.match(/Integrity Verified via SHA-256/g) ?? []).length === 1);
+// The eighth product review: the "Final Hash" cell showed the applicant's
+// signature hash (v2) on a voided or unfinished document, under a card saying
+// there was none; a withdrawn document read "Voided" under a "Withdrawn"
+// badge; the record's exports carried the same v2 as the final hash.
+check("PDF viewer: the withdrawn, voided, declined and expired cards say so in their own words", /withdrawn: \{\s*title: "Withdrawn before it was signed"/.test(viewer) && /voided: \{\s*title: "Voided before it was finished"/.test(viewer) && /declined: \{\s*title: "Declined before it was finished"/.test(viewer) && /expired: \{\s*title: "Expired before it was signed"/.test(viewer));
+check("PDF viewer: the exported audit trail's final hash is the record's too", (viewer.match(/finalHash: recordFinalHash\(document\),/g) ?? []).length === 2 && !/finalHash: document\.v3_hash \|\| document\.v2_hash/.test(viewer));
+check("PDF viewer: the phase badge of a closed, unfinished document wears its own word and colours (muted when withdrawn or expired, red when voided or declined)", /recordClosedUnfinished\(record\) \? \(\s*<Badge className=\{`\$\{statusMeta\.badgeClass\} font-medium`\}>\s*<statusMeta\.icon className="h-3 w-3 mr-1\.5" \/>\s*\{statusMeta\.badgeLabel\}/.test(viewer));
+// The eighth product review: on a phone the close X sat on "Back to Document".
+check("PDF viewer: the audit trail's header keeps clear of the close button's tap area on a phone (pr-14), as the document's header does", /<DialogHeader className="p-4 pb-3 pr-14 sm:p-6 sm:pb-4 sm:pr-12 border-b border-border shrink-0" data-audit-header>/.test(viewer) && /<DialogHeader className="p-4 pb-3 pr-12 sm:p-6 sm:pb-4 border-b border-border shrink-0">/.test(viewer));
+// The eighth product review: an expired PDF still offered the place to sign.
+check("PDF viewer: the applicant's place to sign only while it is theirs and in time", /const canSignAsCandidate =\s*role === "candidate" &&\s*!!document &&\s*document\.status === "pending" &&\s*!document\.candidate_signed_at &&\s*!document\.is_voided &&\s*applicantDocumentState\(document\) !== "expired";/.test(viewer) && /: applicantDocumentState\(document\) === "expired"\s*\? "expired"/.test(viewer));
+// …and My Documents keeps "To sign" for documents waiting on them.
+check("My Documents: 'To sign' lists only documents waiting on them; the rest (signed by them or both, declined, voided, withdrawn, expired) are under 'Signed or closed'", /const toSign = signDocuments\.filter\(\(d\) => waitingOnApplicant\(d, now\)\);/.test(myDocs) && /const closedDocuments = signDocuments\.filter\(\(d\) => !waitingOnApplicant\(d, now\)\);/.test(myDocs) && /data-documents-section="to-sign"[\s\S]*?To sign — \{toSign\.length\} waiting on you[\s\S]*?\{toSign\.map\(/.test(myDocs) && /data-documents-section="closed"[\s\S]*?Signed or closed[\s\S]*?\{closedDocuments\.map\(/.test(myDocs) && !/\{signDocuments\.map\(\(doc\) => \(\s*<SignDocumentRow/.test(myDocs));
+check("My Documents: an expired one wears an 'Expired' chip and 'View', never 'Read and sign'", /if \(state === "expired"\) return \{ label: "Expired"/.test(myDocs) && /const theirTurn = waitingOnApplicant\(doc, now\);/.test(myDocs) && /\{theirTurn \? "Read and sign" : "View"\}/.test(myDocs));
+const badge = read("src/hooks/usePendingDocumentsCount.ts");
+check("the sidebar's badge counts by the same rule (the date read, not only the status)", /select\("id, status, candidate_signed_at, is_voided, expires_at"\)/.test(badge) && /\.filter\(\(d\) => waitingOnApplicant\(d, now\)\)\.length/.test(badge) && !/select\("id", \{ count: "exact", head: true \}\)\s*\.in\("application_id"/.test(badge));
+check("the letter's own screen reads whose turn it is by the same rule", /export \{ applicantDocumentState, type ApplicantDocumentState \} from "@\/lib\/applicantDocumentTurn";/.test(applicant) && !/export function applicantDocumentState/.test(applicant));
+{
+  // The rules themselves, through every state.
+  const { build } = await import("esbuild");
+  const load = async (rel) => {
+    const out = await build({ entryPoints: [resolve(root, rel)], bundle: true, write: false, format: "esm", platform: "node", logLevel: "silent" });
+    return import(`data:text/javascript;base64,${Buffer.from(out.outputFiles[0].text).toString("base64")}`);
+  };
+  const turn = await load("src/lib/applicantDocumentTurn.ts");
+  const rec = await load("src/lib/signingRecord.ts");
+  const NOW = new Date("2026-10-25T12:00:00Z");
+  const past = "2026-10-24T15:59:59Z";
+  const future = "2026-10-28T15:59:59Z";
+  const docs = {
+    yours: { status: "pending", candidate_signed_at: null, is_voided: false, expires_at: future },
+    expired: { status: "pending", candidate_signed_at: null, is_voided: false, expires_at: past },
+    theirs: { status: "pending", candidate_signed_at: "2026-10-24T13:00:00Z", is_voided: false, expires_at: future, v2_hash: "v2", document_hash: "v2" },
+    theirsLate: { status: "pending", candidate_signed_at: "2026-10-24T13:00:00Z", is_voided: false, expires_at: past, v2_hash: "v2", document_hash: "v2" },
+    voided: { status: "pending", candidate_signed_at: "2026-10-24T13:00:00Z", is_voided: true, expires_at: future, v2_hash: "v2", document_hash: "v2" },
+    withdrawn: { status: "pending", candidate_signed_at: null, is_voided: true, expires_at: future },
+    done: { status: "signed", candidate_signed_at: "2026-10-24T13:00:00Z", is_voided: false, expires_at: past, v2_hash: "v2", v3_hash: "v3", document_hash: "v3" },
+    declined: { status: "declined", candidate_signed_at: null, is_voided: false, expires_at: future },
+  };
+  const states = Object.fromEntries(Object.entries(docs).map(([k, d]) => [k, turn.applicantDocumentState(d, NOW)]));
+  check("whose turn: theirs to sign only while in time; signed in time it is the team's, whatever the date", JSON.stringify(states) === JSON.stringify({ yours: "yours", expired: "expired", theirs: "theirs", theirsLate: "theirs", voided: "withdrawn", withdrawn: "withdrawn", done: "done", declined: "declined" }), JSON.stringify(states));
+  check("…and only 'yours' waits on them (To sign, the badge)", Object.entries(docs).filter(([, d]) => turn.waitingOnApplicant(d, NOW)).map(([k]) => k).join() === "yours");
+  check("…at the very second of the date it has passed, as the server reads it", turn.applicantDocumentState({ ...docs.yours, expires_at: NOW.toISOString() }, NOW) === "expired");
+  const cells = Object.fromEntries(Object.entries(docs).map(([k, d]) => [k, `${rec.recordStatusLabel(d, NOW)} | ${rec.recordFinalHashCell(d, NOW)}`]));
+  check(
+    "the record: one word per state, and a final hash only once finished (never the applicant's v2)",
+    JSON.stringify(cells) ===
+      JSON.stringify({
+        yours: "Pending Signatures | Pending",
+        expired: "Expired | None",
+        theirs: "Waiting for countersign | Pending",
+        theirsLate: "Waiting for countersign | Pending",
+        voided: "Voided | None",
+        withdrawn: "Withdrawn | None",
+        done: "Fully Executed | v3",
+        declined: "Declined | None",
+      }),
+    JSON.stringify(cells),
+  );
+  check("…and the exports' final hash is null until finished", rec.recordFinalHash(docs.voided) === null && rec.recordFinalHash(docs.theirs) === null && rec.recordFinalHash(docs.done) === "v3");
+}
 check("…and the record still keeps the team's address from the applicant: the trail is read through document_audit_log, and an IP shows only on their own rows", /supabase\.rpc\("document_audit_log" as never/.test(viewer) && /\(role !== "candidate" \|\| log\.user_id === user\?\.id\) && \(/.test(viewer));
 {
   // The footer's rule, worked through every state the viewer can be in.

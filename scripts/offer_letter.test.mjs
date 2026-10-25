@@ -257,7 +257,53 @@ eq("…and none for a year or a day, which the box cannot say", `${lib.payPerFro
   check("the screen takes the job's currency even for a range, and never a default one", /setPayCurrency\(person\.jobCurrency\);/.test(dialog) && /problemFor\("payAmount"\) \?\? problemFor\("payCurrency"\)/.test(dialog));
   check("…and the range's period with it", /setPayCurrency\(person\.jobCurrency\);\s*setPayPer\(person\.jobPer \?\? OFFER_DEFAULTS\.payPer\);/.test(dialog) && /jobPer: payPerFromJob\(job\),/.test(hook));
   // The seventh product review: on a phone the three pay boxes cut "USD" to "USI" and "an hour" to "an hou".
-  check("on a phone the amount takes its own line, the currency and the period share the next", /className="grid grid-cols-2 gap-2 sm:grid-cols-\[minmax\(0,1\.3fr\)_minmax\(0,0\.8fr\)_minmax\(0,1fr\)\]" data-offer-pay-row/.test(dialog) && /id="ck-offer-pay" className=\{`\$\{INPUT\} col-span-2 sm:col-span-1`\}/.test(dialog));
+  // The eighth: from 768px to about 1000px (the dialog's two columns) they were cut again, and the
+  // "Currency" placeholder (about 107px) at every width up to about 1040px. Worked through every width:
+  // the field's width from the dialog's own measures, the layout from the row's own classes.
+  {
+    const row = /<div className="([^"]+)" data-offer-pay-row>/.exec(dialog)?.[1] ?? "";
+    const amount = /id="ck-offer-pay" className=\{`\$\{INPUT\} ([^`]+)`\}/.exec(dialog)?.[1] ?? "";
+    const BREAKPOINTS = { "": 0, sm: 640, md: 768, lg: 1024, xl: 1280, "2xl": 1536 };
+    // The class with the widest breakpoint at or under the width wins, as in Tailwind's own order.
+    const at = (classes, pattern, width) => {
+      let best = null;
+      for (const cls of classes.split(/\s+/)) {
+        const m = new RegExp(`^(?:(sm|md|lg|xl|2xl):)?${pattern}$`).exec(cls);
+        if (m && BREAKPOINTS[m[1] ?? ""] <= width && (!best || BREAKPOINTS[m[1] ?? ""] >= best.bp)) best = { bp: BREAKPOINTS[m[1] ?? ""], value: m[2] };
+      }
+      return best?.value ?? null;
+    };
+    const tracks = (value) => (value == null ? null : /^\d+$/.test(value) ? Array(Number(value)).fill(1) : [...value.matchAll(/minmax\(0,([\d.]+)fr\)/g)].map((m) => Number(m[1])));
+    // The dialog's measures (kept in step with the source: the check below fails if they change).
+    const measures = /className="fixed inset-0 z-\[60\] flex items-center justify-center p-3 md:p-4"/.test(dialog) && /max-w-\[1040px\]/.test(dialog) && /gap-x-6 gap-y-5 overflow-y-auto px-5 pb-5 pt-4 md:grid-cols-\[minmax\(0,5fr\)_minmax\(0,6fr\)\]" data-offer-body/.test(dialog);
+    check("the dialog's measures are the ones this check works from", measures);
+    const SCROLLBAR = 17; // a classic scrollbar (Windows) inside the scrolling body
+    const fieldWidth = (w) => {
+      const dialogWidth = Math.min(w - 2 * (w >= 768 ? 16 : 12), 1040);
+      const inner = dialogWidth - 2 * 20 - SCROLLBAR;
+      return w >= 768 ? ((inner - 24) * 5) / 11 : inner;
+    };
+    const cut = [];
+    let oneLine = 0;
+    for (let w = 320; w <= 1600; w += 1) {
+      const cols = tracks(at(row, "grid-cols-(\\d+|\\[.+\\])", w));
+      const span = Number(at(amount, "col-span-(\\d+)", w) ?? 1);
+      if (!cols) {
+        cut.push(`${w}px: no columns`);
+        continue;
+      }
+      const field = fieldWidth(w);
+      const free = field - 8 * (cols.length - 1);
+      const sum = cols.reduce((a, b) => a + b, 0);
+      // The amount on its own line: the currency and the period share the next.
+      const boxes = span >= cols.length ? cols.map((c) => (free * c) / sum) : cols.slice(1).map((c) => (free * c) / sum);
+      if (span < cols.length) oneLine += 1;
+      const narrow = Math.min(...boxes);
+      if (narrow < 107) cut.push(`${w}px: ${narrow.toFixed(0)}px`);
+    }
+    check("the currency and the period are at least 107px wide (\"Currency\") at every width from 320px to 1600px", cut.length === 0, cut.slice(0, 6).join(", ") + (cut.length > 6 ? ` … ${cut.length} widths` : ""));
+    check("…on one line where they fit (a one-column dialog from sm, and from lg), the amount on its own line elsewhere", oneLine > 0 && at(amount, "col-span-(\\d+)", 375) === "2" && at(amount, "col-span-(\\d+)", 700) === "1" && at(amount, "col-span-(\\d+)", 800) === "2" && at(amount, "col-span-(\\d+)", 1100) === "1");
+  }
   // The worker type on its own line, outside the folded terms (the sixth product review).
   const step3 = dialog.slice(dialog.indexOf('<Step n={3} title="Terms">'), dialog.indexOf('<Step n={4} title="Sending">'));
   const folded = step3.indexOf("{!showTerms ? (");

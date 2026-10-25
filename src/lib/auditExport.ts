@@ -1,5 +1,7 @@
 import { jsPDF } from "jspdf";
-import { format } from "date-fns";
+// In UTC for real: date-fns printed the browser's own clock under a "UTC"
+// label (the eighth product review).
+import { utcStamp, utcTechnical } from "@/lib/utcTime";
 
 export interface AuditExportEntry {
   id: string;
@@ -117,7 +119,7 @@ export function exportAuditTrailJSON(data: AuditExportData): string {
       event: getActionLabel(entry.action),
       action: entry.action,
       timestamp: entry.created_at,
-      timestampUTC: format(new Date(entry.created_at), "yyyy-MM-dd HH:mm:ss 'UTC'"),
+      timestampUTC: utcTechnical(entry.created_at),
       actor: {
         name: entry.signer_name || 'System',
         email: entry.signer_email || null,
@@ -226,7 +228,7 @@ export function generateAuditTrailPDF(data: AuditExportData): jsPDF {
   pdf.text(`Type: ${data.documentType || 'Not specified'}`, pageWidth / 2, y);
   
   y += 5;
-  pdf.text(`Completed: ${data.completedAt ? format(new Date(data.completedAt), "PPpp 'UTC'") : 'Pending'}`, margin + 5, y);
+  pdf.text(`Completed: ${data.completedAt ? utcStamp(data.completedAt) : 'Pending'}`, margin + 5, y);
   
   y += 15;
 
@@ -295,7 +297,7 @@ export function generateAuditTrailPDF(data: AuditExportData): jsPDF {
     pdf.setFont("helvetica", "normal");
     pdf.text(getActionLabel(entry.action).substring(0, 25), margin + 2, y + 3);
     pdf.text((entry.signer_name || 'System').substring(0, 20), margin + 45, y + 3);
-    pdf.text(format(new Date(entry.created_at), "yyyy-MM-dd HH:mm:ss"), margin + 90, y + 3);
+    pdf.text(utcTechnical(entry.created_at), margin + 90, y + 3);
     
     // Explicitly show IP status - never silently omit
     const ipDisplay = entry.ip_address && entry.ip_address !== 'unknown' 
@@ -343,7 +345,7 @@ export function generateAuditTrailPDF(data: AuditExportData): jsPDF {
   // Footer
   pdf.setFontSize(7);
   pdf.setTextColor(150);
-  pdf.text(`Generated: ${format(new Date(), "PPpp 'UTC'")}`, margin, pageHeight - 10);
+  pdf.text(`Generated: ${utcStamp(new Date())}`, margin, pageHeight - 10);
   pdf.text(`Document ID: ${data.documentCode}`, pageWidth - margin, pageHeight - 10, { align: "right" });
 
   return pdf;

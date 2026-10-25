@@ -684,9 +684,84 @@ function installPreviewPdf(address: string, lines: string[]): void {
   };
 }
 
+/**
+ * The hashes document-signing writes, as the preview's stand-ins: at the
+ * applicant's signature v2_hash, and document_hash with it; at the countersign
+ * v3_hash, document_hash and final_pdf_hash. A void clears none of them (the
+ * eighth product review: with no v2_hash here, the preview's audit trail
+ * showed "None" where live showed the applicant's hash as "Final Hash").
+ */
+const PREVIEW_V2 = "9c2e4f7a1b3d5e6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7";
+const PREVIEW_V3 = "4b7d1e9a2c3f5b6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f";
+const PREVIEW_FINAL_PDF = "e1d2c3b4a5968778695a4b3c2d1e0f1a2b3c4d5e6f708192a3b4c5d6e7f80912";
+
+/** The sign-by date has passed (document-signing's isExpired). */
+function previewExpired(row: FixtureRow, now = Date.now()): boolean {
+  return typeof row.expires_at === "string" && new Date(row.expires_at).getTime() <= now;
+}
+
+/**
+ * `document_audit_log` (the signing record) answered from the preview's own
+ * `document_audit_logs` rows, oldest first, as the real function returns
+ * them: every column to the hiring team; to the applicant their own rows
+ * whole and the team's without address, browser, place or device
+ * (20261011120000_signing_record_privacy.sql). The preview seeds a row for
+ * each step a fixture document has taken, and the offline document-signing
+ * adds one per action.
+ */
+function previewDocumentAuditHandlers(tables: FixtureTables, user: FixtureAuthUser, role: PreviewRole): Record<string, (args: unknown) => unknown> {
+  const applicant = role === "candidate" || role === "rejected_candidate";
+  return {
+    document_audit_log: (args) => {
+      const id = String((args as { p_document_id?: unknown } | undefined)?.p_document_id ?? "");
+      return (tables.document_audit_logs ?? [])
+        .filter((row) => row.document_id === id)
+        .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
+        .map((row) =>
+          applicant && row.user_id !== user.id
+            ? { ...row, ip_address: null, user_agent: null, location_city: null, location_region: null, location_country: null, details: {}, signer_email: null }
+            : row,
+        );
+    },
+  };
+}
+
 function previewDocuments(tables: FixtureTables, user: FixtureAuthUser, role: PreviewRole, spec: string | null) {
   const flags = (spec ?? "").split(",").map((w) => w.trim()).filter(Boolean);
   const documents: FixtureRow[] = [];
+  const auditRows = (tables.document_audit_logs ??= []);
+  /** One row of the signing record, as document-signing writes it. */
+  const audit = (documentId: unknown, action: string, at: string, who: { name: string; role: "candidate" | "employer"; userId?: unknown }, extra: FixtureRow = {}) => {
+    auditRows.push({
+      id: `a0d00000-0000-4000-8000-${String(auditRows.length + 1).padStart(12, "0")}`,
+      document_id: documentId,
+      action,
+      created_at: at,
+      user_id: who.userId ?? null,
+      signer_name: who.name,
+      signer_role: who.role,
+      ip_address: who.role === "candidate" ? "49.145.1.1" : "99.74.0.227",
+      user_agent: null,
+      location_city: who.role === "candidate" ? "Manila" : "New York",
+      location_region: null,
+      location_country: who.role === "candidate" ? "PH" : "US",
+      details: who.role === "candidate" ? { device: { deviceType: "phone", platform: "Android", timeZone: "Asia/Manila" } } : null,
+      ...extra,
+    });
+  };
+  /** The steps a fixture document has already taken, in the record. */
+  const seedRecord = (row: FixtureRow, candidate: { name: string; userId: unknown }, team: { name: string; userId: unknown }) => {
+    const t = (v: unknown) => String(v);
+    audit(row.id, "document_created", t(row.created_at), { ...team, role: "employer" });
+    if (row.viewed_at) audit(row.id, "document_viewed", t(row.viewed_at), { ...candidate, role: "candidate" });
+    if (row.candidate_signed_at) audit(row.id, "candidate_signed", t(row.candidate_signed_at), { ...candidate, role: "candidate" }, { signature_method: "typed", document_hash: PREVIEW_V2 });
+    if (row.is_voided) audit(row.id, row.candidate_signed_at ? "document_voided" : "document_withdrawn", t(row.voided_at), { ...team, role: "employer" }, { details: { reason: row.voided_reason ?? null } });
+    if (row.status === "signed") {
+      audit(row.id, "employer_review_confirmed", t(row.employer_signed_at), { ...team, role: "employer" }, { document_hash: PREVIEW_V2 });
+      audit(row.id, "employer_countersigned", t(row.employer_signed_at), { ...team, role: "employer" }, { signature_method: "typed", document_hash: PREVIEW_V3 });
+      audit(row.id, "document_completed", t(row.signed_at), { ...team, role: "employer" }, { document_hash: PREVIEW_FINAL_PDF });
+    }
+  };
   const dress = (row: FixtureRow): FixtureRow => {
     if (!row.applications) {
       const application = (tables.applications ?? []).find((a) => a.id === row.application_id);
@@ -734,6 +809,10 @@ function previewDocuments(tables: FixtureTables, user: FixtureAuthUser, role: Pr
     const signedAt = new Date(Date.now() - 40 * 60_000).toISOString();
     const signed = flags.includes("signed") || flags.includes("done");
     const done = flags.includes("done");
+    // `offer,expired`: its date to sign has passed, unsigned; with `signed`,
+    // signed before the date and the date passed since (the team may still
+    // countersign: the eighth product review).
+    const expired = flags.includes("expired");
     documents.push({
       id: "d0c00000-0000-4000-8000-000000000001",
       application_id: application?.id ?? null,
@@ -746,9 +825,13 @@ function previewDocuments(tables: FixtureTables, user: FixtureAuthUser, role: Pr
       recipient_id: candidateId,
       created_at: new Date(Date.now() - 3 * 3600_000).toISOString(),
       updated_at: new Date(Date.now() - 3 * 3600_000).toISOString(),
-      expires_at: offerExpiry(fields.replyBy)?.toISOString() ?? null,
+      expires_at: expired ? new Date(Date.now() - (signed ? 20 : 120) * 60_000).toISOString() : offerExpiry(fields.replyBy)?.toISOString() ?? null,
       viewed_at: signed ? signedAt : null,
       v1_hash: "preview".padEnd(64, "0"),
+      v2_hash: signed ? PREVIEW_V2 : null,
+      v3_hash: done ? PREVIEW_V3 : null,
+      document_hash: done ? PREVIEW_V3 : signed ? PREVIEW_V2 : null,
+      final_pdf_hash: done ? PREVIEW_FINAL_PDF : null,
       version_number: 1,
       candidate_signature_data: signed ? JSON.stringify({ signatures: { recipient: name }, method: "typed", signerName: name, signerEmail: profile?.email ?? user.email }) : null,
       candidate_signed_at: signed ? signedAt : null,
@@ -757,6 +840,7 @@ function previewDocuments(tables: FixtureTables, user: FixtureAuthUser, role: Pr
       signed_at: done ? new Date(Date.now() - 10 * 60_000).toISOString() : null,
       is_locked: done,
     });
+    seedRecord(documents[documents.length - 1], { name, userId: candidateId }, { name: fields.signerName, userId: job?.employer_id ?? null });
   }
 
   // `?__previewDocs=pdf`: a file the business uploaded to sign (house rules),
@@ -781,6 +865,9 @@ function previewDocuments(tables: FixtureTables, user: FixtureAuthUser, role: Pr
     const signed = flags.includes("signed") || flags.includes("voided") || flags.includes("done");
     const done = flags.includes("done");
     const signedAt = new Date(Date.now() - 50 * 60_000).toISOString();
+    // `pdf,expired`: its date to sign has passed before they signed;
+    // `pdf,signed,expired`: they signed in time and the date has passed since.
+    const expired = flags.includes("expired");
     documents.push({
       id: "d0c00000-0000-4000-8000-000000000002",
       application_id: application?.id ?? null,
@@ -793,9 +880,13 @@ function previewDocuments(tables: FixtureTables, user: FixtureAuthUser, role: Pr
       recipient_id: candidateId,
       created_at: new Date(Date.now() - 5 * 3600_000).toISOString(),
       updated_at: new Date(Date.now() - 5 * 3600_000).toISOString(),
-      expires_at: new Date(Date.now() + 5 * 24 * 3600_000).toISOString(),
+      expires_at: new Date(Date.now() + (expired ? -(signed ? 20 : 120) * 60_000 : 5 * 24 * 3600_000)).toISOString(),
       viewed_at: signed ? signedAt : null,
       v1_hash: "preview".padEnd(64, "0"),
+      v2_hash: signed ? PREVIEW_V2 : null,
+      v3_hash: done ? PREVIEW_V3 : null,
+      document_hash: done ? PREVIEW_V3 : signed ? PREVIEW_V2 : null,
+      final_pdf_hash: done ? PREVIEW_FINAL_PDF : null,
       version_number: 1,
       candidate_signature_data: signed ? JSON.stringify({ signatures: { recipient: name }, method: "typed", signerName: name, signerEmail: profile?.email ?? user.email }) : null,
       candidate_signed_at: signed ? signedAt : null,
@@ -807,6 +898,7 @@ function previewDocuments(tables: FixtureTables, user: FixtureAuthUser, role: Pr
       voided_at: flags.includes("voided") ? new Date(Date.now() - 30 * 60_000).toISOString() : null,
       voided_reason: flags.includes("voided") ? "We changed the house rules; a new copy is on its way." : null,
     });
+    seedRecord(documents[documents.length - 1], { name, userId: candidateId }, { name: "Maria", userId: job?.employer_id ?? null });
   }
 
   return async (name: string, options?: InvokeOptions): Promise<{ data: unknown; error: unknown } | null> => {
@@ -819,25 +911,45 @@ function previewDocuments(tables: FixtureTables, user: FixtureAuthUser, role: Pr
     if (body.action === "original") return previewPdfAddress ? { data: { url: previewPdfAddress }, error: null } : { data: { error: "preview", message: "Not available in the dev preview." }, error: null };
     const now = new Date().toISOString();
     const signer = String(user.user_metadata?.full_name ?? "");
+    const me = { name: signer, userId: user.id };
+    // The date binds the applicant only: signed in time, the team may finish
+    // after it (document-signing's signedInTime; the eighth product review).
+    const signedInTime = !!row.candidate_signed_at && (!row.expires_at || new Date(String(row.candidate_signed_at)).getTime() < new Date(String(row.expires_at)).getTime());
+    const expiredAnswer = { data: { error: "expired", message: "This document has expired." }, error: null };
     if (body.action === "view") {
       row.viewed_at ??= now;
     } else if (body.action === "sign") {
       if (row.candidate_signed_at) return { data: { error: "already_signed" }, error: null };
+      if (previewExpired(row)) return expiredAnswer;
       row.candidate_signature_data = JSON.stringify({ signatures: { recipient: body.signature?.value }, method: body.signature?.method, signerName: signer, signerEmail: user.email });
       row.candidate_signed_at = now;
+      row.v2_hash = PREVIEW_V2;
+      row.document_hash = PREVIEW_V2;
+      audit(row.id, "candidate_signed", now, { ...me, role: "candidate" }, { signature_method: body.signature?.method ?? null, document_hash: PREVIEW_V2 });
     } else if (body.action === "countersign") {
       if (!row.candidate_signed_at) return { data: { error: "candidate_has_not_signed" }, error: null };
+      if (previewExpired(row) && !signedInTime) return expiredAnswer;
       row.employer_signature_data = JSON.stringify({ signatures: { employer: body.signature?.value }, method: body.signature?.method, signerName: signer });
       row.employer_signed_at = now;
       row.signed_at = now;
       row.status = "signed";
       row.is_locked = true;
+      row.v3_hash = PREVIEW_V3;
+      row.document_hash = PREVIEW_V3;
+      row.final_pdf_hash = PREVIEW_FINAL_PDF;
+      audit(row.id, "employer_review_confirmed", now, { ...me, role: "employer" }, { document_hash: PREVIEW_V2 });
+      audit(row.id, "employer_countersigned", now, { ...me, role: "employer" }, { signature_method: body.signature?.method ?? null, document_hash: PREVIEW_V3 });
+      audit(row.id, "document_completed", now, { ...me, role: "employer" }, { document_hash: PREVIEW_FINAL_PDF });
     } else if (body.action === "decline") {
+      const team = role === "employer" || role === "team_member";
+      if (previewExpired(row) && !(team && signedInTime)) return expiredAnswer;
       row.status = "declined";
+      audit(row.id, "document_declined", now, { ...me, role: team ? "employer" : "candidate" });
     } else if (body.action === "withdraw" || body.action === "void") {
       row.is_voided = true;
       row.voided_at = now;
       row.voided_reason = body.reason ?? null;
+      audit(row.id, body.action === "void" ? "document_voided" : "document_withdrawn", now, { ...me, role: "employer" }, { details: { reason: body.reason ?? null } });
     } else {
       return { data: { error: "preview", message: "Not available in the dev preview." }, error: null };
     }
@@ -1400,6 +1512,7 @@ export function install(params: URLSearchParams): void {
       ...previewRatingHandlers(tables, signedIn, params.get("__previewGuide")),
       ...previewTrustHandlers(tables, signedIn, params),
       ...previewPushHandlers(tables, signedIn),
+      ...previewDocumentAuditHandlers(tables, signedIn, role),
     },
   });
   const realtime = liveRealtime(base, tables, params.get("__previewLive"));

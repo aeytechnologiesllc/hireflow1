@@ -584,8 +584,14 @@ Deno.serve(async (req) => {
         .is("employer_signed_at", null)
         .eq("is_locked", false)
         .eq("is_voided", false);
-      reserveQuery = document.expires_at
-        ? reserveQuery.or(`expires_at.is.null,expires_at.gt.${nowIso}`)
+      // The sign-by date is the applicant's (the eighth product review;
+      // signedInTime in stateMachine.ts): the reservation takes a document
+      // they signed before its date, however late the team countersigns.
+      // Their signing time cannot move once set (only the sign
+      // compare-and-swap writes it, and only while it is null), nor can the
+      // date once they have signed (protect_document_columns).
+      reserveQuery = document.expires_at && document.candidate_signed_at
+        ? reserveQuery.or(`expires_at.is.null,expires_at.gt.${new Date(document.candidate_signed_at).toISOString()}`)
         : reserveQuery;
       const { data: reservedRows, error: reserveError } = await reserveQuery.select("*");
 
@@ -923,8 +929,12 @@ Deno.serve(async (req) => {
           status: "declined",
           declined_at: nowIso,
           decline_reason: reasonCheck.value,
-          ip_address: ip,
-          user_agent: userAgent,
+          // The row's address and device are the applicant's: the applicant
+          // reads this row, and never the team's (the owner, 2026-10-11, as
+          // the countersign keeps them). The team's decline, now possible
+          // after the date too (the eighth product review), is recorded in
+          // its audit row only.
+          ...(role === "candidate" ? { ip_address: ip, user_agent: userAgent } : {}),
         })
         .eq("id", documentId)
         .eq("status", "pending")

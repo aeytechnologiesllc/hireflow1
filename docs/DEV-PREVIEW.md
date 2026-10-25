@@ -175,7 +175,14 @@ for it. `&__previewDocs=pdf` adds a file the business uploaded to sign
 ("House rules"), which opens the full viewer; `pdf,signed` is it signed by the
 applicant (the team's turn), `pdf,voided` voided after they signed, `pdf,done`
 countersigned. Its one-page PDF is made in the page and answered for that one
-address only, so nothing reaches storage.
+address only, so nothing reaches storage. `expired` (with `pdf` or `offer`)
+puts the date to sign in the past: before the applicant signed, or, with
+`signed`, after they signed in time (the team can still countersign; the
+eighth product review). Signed documents carry the hashes document-signing
+writes (`v2_hash` and `document_hash` at the applicant's signature, `v3_hash`
+at the countersign), and the signing record (`document_audit_log`) is answered
+from the preview's own rows, the team's address and place left out for the
+applicant as live, so the audit trail can be looked at offline.
 
 | Screen | URL |
 |---|---|
@@ -188,6 +195,9 @@ address only, so nothing reaches storage.
 | Uploaded PDF, signed, the team's turn (the audit trail is theirs) | `/my-documents?__preview=1&__previewRole=candidate&__previewDocs=pdf,signed` |
 | Uploaded PDF, voided after they signed | `/my-documents?__preview=1&__previewRole=candidate&__previewDocs=pdf,voided` |
 | Uploaded PDF, the team's turn, as the team | `/documents?__preview=1&__previewRole=employer&__previewDocs=pdf,signed` |
+| Uploaded PDF, its date passed before signing ("Expired", out of "To sign") | `/my-documents?__preview=1&__previewRole=candidate&__previewDocs=pdf,expired` |
+| Signed in time, the date passed since: the team countersigns | `/documents?__preview=1&__previewRole=employer&__previewDocs=pdf,signed,expired` |
+| Uploaded PDF, countersigned (the signing record, in UTC) | `/documents?__preview=1&__previewRole=employer&__previewDocs=pdf,done` |
 
 The café's Barista job ($15 to $18 an hour) shows an hourly range's letter
 starting on "an hour".

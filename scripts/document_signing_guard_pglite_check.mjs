@@ -571,6 +571,74 @@ async function main() {
     !(await asUser(EMP_A, "authenticated", `update public.documents set file_url = 'data:text/plain;base64,eA==' where id = '${DOC_SIGNED}'`)).ok,
   );
 
+  // =====================================================================
+  // The eighth product review: the sign-by date is the applicant's. A
+  // document they signed in time is countersigned after the date has passed;
+  // the database must agree with document-signing (nothing in it reads
+  // expires_at on the countersign, and the date cannot move once signed).
+  // =====================================================================
+  console.log("\n-- the eighth product review: signed in time, countersigned after the date --");
+
+  const DOC_LATE = "70000000-0000-0000-0000-00000000000d";
+  const DOC_SIGNED_LATE = "70000000-0000-0000-0000-00000000000e";
+  const DOC_NEVER_SIGNED = "70000000-0000-0000-0000-00000000000f";
+  await asPostgres(
+    `insert into public.documents (id, application_id, name, sender_id, recipient_id, status, candidate_signed_at, expires_at, v1_hash, v2_hash)
+     values ($1, $2, 'Offer (signed Thursday night, date passed at midnight)', $3, $4, 'pending', now() - interval '10 hours', now() - interval '8 hours', 'v1-late', 'v2-late'),
+            ($5, $2, 'Offer (a signature recorded after its date)', $3, $4, 'pending', now() - interval '2 hours', now() - interval '8 hours', 'v1-x', 'v2-x'),
+            ($6, $2, 'Offer (never signed, date passed)', $3, $4, 'pending', null, now() - interval '8 hours', 'v1-y', null)`,
+    [DOC_LATE, APP_AX, EMP_A, CAND_X, DOC_SIGNED_LATE, DOC_NEVER_SIGNED],
+  );
+  async function serviceRows(sql, params = []) {
+    await db.exec(`select set_config('request.jwt.claim.sub', '', false); select set_config('request.jwt.claim.role', 'service_role', false); set role service_role;`);
+    try {
+      return (await db.query(sql, params)).rows;
+    } finally {
+      await db.exec(`reset role;`);
+    }
+  }
+  // The countersign reservation exactly as document-signing sends it: the
+  // date compared with the applicant's own signing time.
+  const reserve = async (id) => {
+    const [{ candidate_signed_at: signedAt }] = (await asPostgres(`select candidate_signed_at from public.documents where id = $1`, [id])).rows;
+    return serviceRows(
+      `update public.documents set employer_signed_at = now()
+        where id = $1 and status = 'pending' and candidate_signed_at is not null and employer_signed_at is null
+          and is_locked = false and is_voided = false and (expires_at is null or expires_at > $2)
+        returning id`,
+      [id, signedAt],
+    );
+  };
+  {
+    const before = await serviceRows(
+      `select id from public.documents where id = $1 and (expires_at is null or expires_at > now())`,
+      [DOC_LATE],
+    );
+    check("(the bug) the old reservation, the date against the time of the countersign, finds nothing to take", before.length === 0);
+  }
+  const moveDate = await asUser(EMP_A, "authenticated", `update public.documents set expires_at = now() + interval '7 days' where id = '${DOC_LATE}'`);
+  check("the team cannot move the date once the applicant has signed (so the date they met is the one that counts)", !moveDate.ok, moveDate.ok ? "UPDATE unexpectedly succeeded" : moveDate.error);
+  check("signed in time, date passed: the reservation takes the document", (await reserve(DOC_LATE)).length === 1);
+  {
+    const finalize = await asUser(
+      null,
+      "service_role",
+      `update public.documents set employer_signature_data = '{}', v3_hash = 'v3-late', document_hash = 'v3-late', final_pdf_hash = 'pdf-late', status = 'signed', is_locked = true, locked_at = now(), completion_certificate = '{}'::jsonb, signed_at = now() where id = '${DOC_LATE}'`,
+    );
+    const res = await asPostgres(`select status::text, is_locked, v3_hash from public.documents where id = $1`, [DOC_LATE]);
+    check("…and the database accepts the finished countersign (no trigger reads the date)", finalize.ok && res.rows[0]?.status === "signed" && res.rows[0]?.is_locked === true && res.rows[0]?.v3_hash === "v3-late", finalize.ok ? JSON.stringify(res.rows[0]) : finalize.error);
+  }
+  check("a signature recorded after its date is still not taken", (await reserve(DOC_SIGNED_LATE)).length === 0);
+  {
+    const lateSign = await serviceRows(
+      `update public.documents set candidate_signed_at = now() where id = $1 and status = 'pending' and candidate_signed_at is null
+         and is_locked = false and is_voided = false and (expires_at is null or expires_at > now()) returning id`,
+      [DOC_NEVER_SIGNED],
+    );
+    check("not signed by the date: the applicant's sign write (the date against now) takes nothing", lateSign.length === 0);
+    check("…and there is nothing for the team to countersign", (await reserve(DOC_NEVER_SIGNED)).length === 0);
+  }
+
   console.log("\n-- service_role (the document-signing edge function) is unaffected --");
 
   await asUser(

@@ -87,4 +87,63 @@ export default [
       return { ok: detail.length === 0, detail };
     },
   },
+  {
+    id: "signing-record-final-hash-and-words",
+    why:
+      "The eighth product review: the audit trail's \"Final Hash\" showed the applicant's signature hash (v2) on a " +
+      "voided or unfinished document, under a card saying there was none, and a withdrawn document read \"Voided\" " +
+      "under a \"Withdrawn\" badge. Fails if the cell or the exports go back to v3 || v2 || document_hash, or the " +
+      "record stops telling withdrawn from voided.",
+    run: async ({ read }) => {
+      const detail = [];
+      const viewer = await read("src/components/documents/SignedDocumentViewer.tsx");
+      const record = await read("src/lib/signingRecord.ts");
+      if (!viewer || !record) return { ok: false, detail: ["SignedDocumentViewer.tsx or src/lib/signingRecord.ts is missing"] };
+      if (!/data-audit-final-hash>\{recordFinalHashCell\(document\)\}/.test(viewer)) detail.push("the audit trail's Final Hash cell must be recordFinalHashCell(document)");
+      if (/finalHash: document\.v3_hash \|\| document\.v2_hash/.test(viewer)) detail.push("the audit exports must take recordFinalHash(document), not v3 || v2 || document_hash");
+      if (!/\{recordStatusLabel\(document\)\}/.test(viewer)) detail.push("the audit trail's Status cell must be recordStatusLabel(document)");
+      const finalHash = /export function recordFinalHash\([\s\S]*?\n}/.exec(record)?.[0] ?? "";
+      if (!/if \(recordState\(doc\) !== "done"\) return null;/.test(finalHash)) detail.push("recordFinalHash must give a hash for a finished document only");
+      if (!/if \(doc\.is_voided\) return doc\.candidate_signed_at \? "voided" : "withdrawn";/.test(record)) detail.push("recordState must tell voided (after signing) from withdrawn (before)");
+      if (!/withdrawn: "Withdrawn"/.test(record)) detail.push('the record must call a withdrawn document "Withdrawn"');
+      return { ok: detail.length === 0, detail };
+    },
+  },
+  {
+    id: "signing-record-times-are-utc",
+    why:
+      "The eighth product review: every time on the signing record was the viewer's own clock printed with \"UTC\" " +
+      "after it (date-fns reads the browser's zone), so Manila and New York saw times twelve hours apart for one " +
+      "signature. Fails on any date-fns format() with a 'UTC' label in src, or if the record's screens and PDFs stop " +
+      "reading their times from src/lib/utcTime.ts.",
+    run: async ({ read, sources }) => {
+      const detail = [];
+      for (const { rel, text } of await sources([".ts", ".tsx"])) {
+        if (!rel.startsWith("src/")) continue;
+        if (/\bformat\([^;\n]*'UTC'/.test(text)) detail.push(`${rel}: a date-fns format with a 'UTC' label prints local time; use src/lib/utcTime.ts`);
+      }
+      for (const rel of ["src/components/documents/SignedDocumentViewer.tsx", "src/lib/auditExport.ts", "src/lib/certificatePDF.ts", "src/lib/pdfSignatureBurner.ts", "src/pages/VerifyDocument.tsx", "src/lib/auditFormatting.ts"]) {
+        const src = await read(rel);
+        if (!src) detail.push(`${rel} is missing`);
+        else if (!/from ["'](@\/lib|\.)\/utcTime["']/.test(src)) detail.push(`${rel} no longer reads its times from utcTime`);
+      }
+      const helper = await read("src/lib/utcTime.ts");
+      if (!helper || !/getUTCHours\(\)/.test(helper) || /from "date-fns"/.test(helper)) detail.push("src/lib/utcTime.ts must read the instant's UTC parts, not date-fns");
+      return { ok: detail.length === 0, detail };
+    },
+  },
+  {
+    id: "audit-trail-header-clears-close-button",
+    why:
+      "The eighth product review: on a phone the dialog's close X (and its 44px tap area at right-3) sat on " +
+      "\"Back to Document\" in the audit trail, so a tap there closed the whole viewer. Fails if the audit header " +
+      "loses its phone padding (pr-14).",
+    run: async ({ read }) => {
+      const viewer = await read("src/components/documents/SignedDocumentViewer.tsx");
+      const header = /<DialogHeader className="([^"]*)"[^>]*data-audit-header>/.exec(viewer ?? "")?.[1];
+      if (!header) return { ok: false, detail: ["the audit trail's header (data-audit-header) is gone"] };
+      const ok = /(^|\s)pr-14(\s|$)/.test(header) && !/(^|\s)p-6(\s|$)/.test(header);
+      return { ok, detail: ok ? [] : [`the audit header's classes ("${header}") must keep pr-14 on a phone`] };
+    },
+  },
 ];

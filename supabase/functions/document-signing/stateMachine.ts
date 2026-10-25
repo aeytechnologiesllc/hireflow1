@@ -83,6 +83,25 @@ function isExpired(doc: DocumentSigningState, now: Date): boolean {
   return doc.expiresAt !== null && new Date(doc.expiresAt).getTime() <= now.getTime();
 }
 
+/**
+ * The sign-by date is the applicant's deadline, not the team's (the eighth
+ * product review). Once they signed before it, the team may countersign, or
+ * decline on its turn, after it has passed. Before this, a dental office
+ * that opened a Thursday-night signature on Friday morning was told "This
+ * document has expired", and nothing could move the date
+ * (protect_document_columns freezes it once the applicant has signed): the
+ * only way out was to void the letter and have them sign a new one.
+ *
+ * True only for a signature made before the date. The sign step refuses one
+ * made after it (canSign, and the sign compare-and-swap in index.ts), so a
+ * later signature here means something went wrong, and it stays refused.
+ */
+export function signedInTime(doc: Pick<DocumentSigningState, "candidateSignedAt" | "expiresAt">): boolean {
+  if (doc.candidateSignedAt === null) return false;
+  if (doc.expiresAt === null) return true;
+  return new Date(doc.candidateSignedAt).getTime() < new Date(doc.expiresAt).getTime();
+}
+
 /** §1 "sign" (candidate) preconditions, in the order the design lists them. */
 export function canSign(
   doc: DocumentSigningState,
@@ -115,7 +134,8 @@ export function canCountersign(
   if (doc.candidateSignedAt === null) return { ok: false, error: "candidate_has_not_signed" };
   if (doc.employerSignedAt !== null) return { ok: false, error: "already_signed" };
   if (doc.isLocked) return { ok: false, error: "locked" };
-  if (isExpired(doc, now)) return { ok: false, error: "expired" };
+  // The date binds the applicant only: signed in time, the team may finish late.
+  if (isExpired(doc, now) && !signedInTime(doc)) return { ok: false, error: "expired" };
   return { ok: true };
 }
 
@@ -133,7 +153,10 @@ export function canDecline(
   if (doc.isVoided) return { ok: false, error: "voided" };
   if (doc.status !== "pending") return { ok: false, error: "not_pending" };
   if (doc.isLocked) return { ok: false, error: "locked" };
-  if (isExpired(doc, now)) return { ok: false, error: "expired" };
+  // The team's turn is not bound by the applicant's date either (see
+  // signedInTime): the countersign panel's Decline must not answer "expired"
+  // where its Countersign works.
+  if (isExpired(doc, now) && !(role === "employer" && signedInTime(doc))) return { ok: false, error: "expired" };
   if (role === "candidate" && doc.candidateSignedAt !== null) {
     return { ok: false, error: "not_your_turn" };
   }
