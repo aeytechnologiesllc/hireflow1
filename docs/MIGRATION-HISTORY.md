@@ -409,6 +409,8 @@ the next. Same migration, different version stamp, as in section 2: match by
 | `20261025130000_business_email_check_hardening.sql` | `20261025032629` | `business_email_check_hardening` |
 | `20261025140000_business_email_check_round3.sql` | `20261025034709` | `business_email_check_round3` |
 | `20261025150000_business_email_check_after_trigger.sql` | `20261025045451` | `business_email_check_after_trigger` |
+| `20261025160000_ai_business_budget.sql` | `20261025062228` | `ai_business_budget` |
+| `20261025170000_remove_applicant.sql` | `20261025062303` | `remove_applicant` |
 
 The live copies carry a short header pointing at the repo file instead of
 the repo file's full comment block; the SQL statements are identical.
