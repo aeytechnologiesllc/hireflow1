@@ -601,7 +601,7 @@ function postProcessWorkflowData(
   const data = {
     // No age, birth date or marital status, whatever the model wrote (_shared/ageWording.ts).
     application_questions: withoutAgeAsks(Array.isArray(workflowData.application_questions) ? workflowData.application_questions : [], (q) => q?.question),
-    quiz_questions: Array.isArray(workflowData.quiz_questions) ? workflowData.quiz_questions : [],
+    quiz_questions: withoutAgeAsks(Array.isArray(workflowData.quiz_questions) ? workflowData.quiz_questions : [], (q) => q?.question),
     workflow_steps: Array.isArray(workflowData.workflow_steps) ? workflowData.workflow_steps : [],
     screening_plan_summary: workflowData.screening_plan_summary,
   };
@@ -649,7 +649,8 @@ function postProcessWorkflowData(
     return normalizedQuestion;
   });
 
-  data.application_questions = enrichApplicationQuestions(data.application_questions, request.guided_setup, request.title);
+  // The guided questions carry the employer's own deal-breaker text as a placeholder: the same rule after them (the third Phase 6 review).
+  data.application_questions = withoutAgeAsks(enrichApplicationQuestions(data.application_questions, request.guided_setup, request.title), (q) => `${q?.question ?? ""} ${(q as { placeholder?: string })?.placeholder ?? ""}`);
 
   data.workflow_steps = data.workflow_steps.filter((step) => step.type !== "voice_interview");
   ensureFamilyWorkflowSteps(data.workflow_steps, family, request.guided_setup, requirePortfolio);

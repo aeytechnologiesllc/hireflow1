@@ -946,8 +946,9 @@ session stops mid-phase (say exactly where).
   under 18), and every "a person makes every decision" names that check. The
   three job writers now drop age, birth-date and marital-status questions and
   age limits (`_shared/ageWording.ts`, test `age_wording.test.mjs`); deployed.
-  An unchecked "$500 a month" left the cost draft (still in public git
-  history). Round 3 running.
+  The cost draft's "$500 a month" is the owner's real figure (this plan,
+  docs/OFFER-LETTER.md); it was taken out by mistake and put back. Round 3
+  running.
 - **Phase 7, task 6 (staff columns), built on a branch, not shipped:** the
   worker's branch moves the five hiring-team columns into
   `application_evaluations`; merged with main, full suite green (216 guards,

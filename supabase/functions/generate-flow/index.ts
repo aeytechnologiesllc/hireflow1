@@ -13,7 +13,7 @@ import { takeDailyAiBudget } from "../_shared/aiBudget.ts";
 import { guardAuthenticatedAiCall, guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { jobWritingBusiness } from "../_shared/signedIn.ts";
 import { scenarioPack } from "../_shared/scenarioPacks.ts";
-import { AGE_RULE, withoutAgeAsks } from "../_shared/ageWording.ts";
+import { AGE_RULE, textWithoutAgeAsks, withoutAgeAsks } from "../_shared/ageWording.ts";
 
 const CS_CHANNELS = { chat: "chat", phone: "phone calls", email: "email", mixed: "chat, phone and email" } as const;
 
@@ -234,6 +234,8 @@ Tailor everything to: ${brief.roleTitle || brief.title || "this role"}.`;
     const jobPost = content.jobPost && typeof content.jobPost === "object"
       ? {
           ...content.jobPost,
+          title: textWithoutAgeAsks(content.jobPost.title),
+          summary: textWithoutAgeAsks(content.jobPost.summary),
           requirements: withoutAgeAsks(content.jobPost.requirements),
           niceToHaves: withoutAgeAsks(content.jobPost.niceToHaves),
           responsibilities: withoutAgeAsks(content.jobPost.responsibilities),
@@ -242,9 +244,9 @@ Tailor everything to: ${brief.roleTitle || brief.title || "this role"}.`;
     return json({
       jobPost,
       application: take<string>(withoutAgeAsks(content.application), spec.app),
-      quiz: take(content.quiz, spec.quiz),
+      quiz: take(withoutAgeAsks(content.quiz, (q: { scenario?: unknown }) => q?.scenario), spec.quiz),
       simulation: take(content.simulation, spec.sim),
-      voiceQuestions: take<string>(content.voiceQuestions, spec.voice),
+      voiceQuestions: take<string>(withoutAgeAsks(content.voiceQuestions), spec.voice),
       voiceDimensions: take<string>(content.voiceDimensions, 4),
       shortlistWeights: take<string>(content.shortlistWeights, 5),
       phaseRationales: take<string>(content.phaseRationales, 8),

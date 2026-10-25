@@ -1,6 +1,6 @@
 ---
 title: How we hired a support team lead from 153 applicants in four days
-description: Our own hire, step by step - where we posted, how 153 applicants became three calls, and what we would do the same way again.
+description: A real hire by the people behind HireFlow, step by step - where it was posted, how 153 applicants became three calls, and what worked.
 date: 2026-10-25
 slug: how-we-hired-a-team-lead-from-153-applicants
 author: HireFlow
@@ -26,8 +26,8 @@ We posted on a Philippine job board. [Owner: which one, and anything you learned
 Every applicant went through the same steps [Owner: confirm these were the job's steps]:
 
 1. A short application form.
-2. A connection check (their internet and computer).
-3. A skills check: situations a team lead meets every week, each timed.
+2. A skills check: situations a team lead meets every week, each timed.
+3. A connection check (their internet and computer).
 4. A written interview, answered in writing on a computer.
 
 We did not read 153 résumés. We read the ranked results and started with the strongest. [Owner: what made the top three stand out from the rest; one concrete example without names.]

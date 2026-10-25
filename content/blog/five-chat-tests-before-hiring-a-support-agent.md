@@ -144,7 +144,7 @@ If you can, hide names while you score. That way you judge the writing, not the 
 
 Tests also let you start with the strongest few instead of reading every application in full. When the people behind HireFlow hired a support team lead for their own business, 153 people applied in the first four days, 71 finished the written interview, and 3 were worth a call. They hired from those three.
 
-If you would rather not build tests by hand, HireFlow builds a realistic customer chat from your kind of business and measures typing speed and reply time as people write. Apart from the "Are you 18 or older?" question every application starts with, a person on your team makes every decision.
+If you would rather not build tests by hand, HireFlow gives each applicant a realistic customer chat picked for your kind of business and measures typing speed and reply time as people write. Apart from the "Are you 18 or older?" question every application starts with, a person on your team makes every decision.
 
 ## In short
 

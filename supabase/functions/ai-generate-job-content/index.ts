@@ -6,7 +6,7 @@ import {
 } from "../_shared/openai.ts";
 import { guardAuthenticatedAiCall, guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { jobWritingBusiness, signedInUserId } from "../_shared/signedIn.ts";
-import { AGE_RULE, bulletsWithoutAgeAsks } from "../_shared/ageWording.ts";
+import { AGE_RULE, commaListWithoutAgeAsks, textWithoutAgeAsks } from "../_shared/ageWording.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -384,8 +384,11 @@ serve(async (req) => {
 
       const parsed = data as Record<string, unknown>;
       // No age, birth date or marital status, whatever the model wrote (_shared/ageWording.ts).
-      parsed.requirements = bulletsWithoutAgeAsks(parsed.requirements);
-      parsed.responsibilities = bulletsWithoutAgeAsks(parsed.responsibilities);
+      parsed.description = textWithoutAgeAsks(parsed.description);
+      parsed.requirements = textWithoutAgeAsks(parsed.requirements);
+      parsed.responsibilities = textWithoutAgeAsks(parsed.responsibilities);
+      parsed.skills = commaListWithoutAgeAsks(parsed.skills);
+      parsed.benefits = commaListWithoutAgeAsks(parsed.benefits);
       return new Response(
         JSON.stringify(parsed),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -417,7 +420,9 @@ serve(async (req) => {
       retries: 3,
     });
 
-    const normalized = field === "requirements" || field === "responsibilities" ? String(bulletsWithoutAgeAsks(content.trim())) : content.trim();
+    const normalized = String(
+      field === "skills_required" || field === "benefits" ? commaListWithoutAgeAsks(content.trim()) : textWithoutAgeAsks(content.trim()),
+    );
     const result = { content: normalized };
 
     return new Response(

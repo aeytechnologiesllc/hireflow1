@@ -78,7 +78,7 @@ Before the person starts, agree three things in writing: the pay, the currency, 
 
 A Philippine law, Republic Act No. 10911, makes it unlawful for an employer to require a declaration of age or birth date during the application process, or to publish a job notice that suggests an age preference.
 
-If you must confirm that someone is an adult, ask your lawyer whether a yes-or-no question such as "Are you 18 or older?" fits your role. Collect the exact date of birth after the hire, from the ID or papers you ask for then.
+HireFlow's own form asks only "Are you 18 or older?" and takes applications from people 18 and over; it never asks for a birth date. Collect the exact date of birth after the hire, from the ID or papers you ask for then.
 
 You can read more in [what you can't ask Filipino applicants](/blog/what-you-cannot-ask-filipino-applicants). This is general information, not legal advice. Check with a lawyer for your own case.
 
@@ -100,4 +100,4 @@ A good hire still needs a good start. Before day one:
 - Give everyone the same steps, and score them the same way.
 - Call the best three to five.
 - Agree the pay, the currency and the payment method in writing.
-- Never ask for age or birth date while people apply.
+- Never ask for an exact age or a birth date while people apply (HireFlow asks only "Are you 18 or older?").

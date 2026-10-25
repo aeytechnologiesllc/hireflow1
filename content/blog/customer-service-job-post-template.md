@@ -125,7 +125,7 @@ Ask only for what helps you judge the work. A photo, religion or family plans te
 
 Two things need special care when your applicants are in the Philippines.
 
-**Never ask for age or birth date.** Republic Act No. 10911, the Anti-Age Discrimination in Employment Act, makes it unlawful in Section 5(a) for an employer to "require the declaration of age or birth date during the application process." The same section covers job notices that suggest an age preference or limit, so leave out age ranges and words like "young." Section 6 allows an age limit only in narrow cases, such as when age is a bona fide occupational qualification. Section 7 sets a fine of ₱50,000 to ₱500,000, or 3 months to 2 years in prison, or both. You can read the [full text of RA 10911](https://library.laborlaw.ph/republic-act-no-10911/).
+**Never ask for an exact age or birth date** (HireFlow's form asks only "Are you 18 or older?"). Republic Act No. 10911, the Anti-Age Discrimination in Employment Act, makes it unlawful in Section 5(a) for an employer to "require the declaration of age or birth date during the application process." The same section covers job notices that suggest an age preference or limit, so leave out age ranges and words like "young." Section 6 allows an age limit only in narrow cases, such as when age is a bona fide occupational qualification. Section 7 sets a fine of ₱50,000 to ₱500,000, or 3 months to 2 years in prison, or both. You can read the [full text of RA 10911](https://library.laborlaw.ph/republic-act-no-10911/).
 
 **Do not ask for marital status.** The Data Privacy Act (Republic Act No. 10173) lists age and marital status among "sensitive personal information." That kind of information may be processed only in the cases the law allows, consent being the usual one. You do not need either to hire a good agent. The [Data Privacy Act](https://www.privacy.gov.ph/data-privacy-act/) is online in full.
 
@@ -145,5 +145,5 @@ Give one clear step: a link, or one email address. Keep it to that.
 - The hours are in your time zone and the applicant's.
 - Pay is a number or a range, with the currency.
 - The tests are named under "How we hire."
-- Nothing asks for or hints at age, birth date or marital status.
+- Nothing asks for an exact age, a birth date or marital status, or hints at an age preference.
 - Every square bracket is replaced, and lines that do not fit are deleted.

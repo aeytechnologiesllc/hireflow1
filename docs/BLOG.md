@@ -33,9 +33,10 @@ U+FFFF) in a field, a link to a guide that is not published (a draft or a
 typo, however it is written: with a `#part` or `?query`, as a full
 `hireflownow.com` address, or in capitals), a published post dated in the
 future (a draft may be), a slug over 60 characters (the longest campaign tag
-sign-up keeps), a missing field, a slug the page counter would hide (words,
-or numbers between hyphens, starting with a word: `screening-150-applicants`,
-never `5-chat-tests`; the counter's `WORD_SLUG_RE`) or one used twice, a date
+sign-up keeps), a missing field, a slug outside the page counter's shape for a
+page name (words, or numbers between hyphens, starting with a word:
+`screening-150-applicants`, never `5-chat-tests`; the counter's `WORD_SLUG_RE`,
+so a long one is never counted as redacted) or one used twice, a date
 that is not a real day, a description outside 50-160 characters, a `# `
 heading in the body (the title is the page's only h1), raw HTML, an image
 (not supported yet), a bare `www.` address in the text (write it as a link),
@@ -122,7 +123,6 @@ on GitHub. Keep anything private out of a draft until it is meant to be read.
 
 Drafted 2026-10-25 for the owner to add their own experience to. Posts 1-3
 of the plan wait for the owner's read (`draft: true`): how to hire from the
-Philippines, what a remote agent costs (the owner's real figure: none is
-written in; an unchecked "$500 a month" was in the draft until 2026-10-25 and
-is still in the public git history), and the owner's own team-lead hire
-(their details).
+Philippines, what a remote agent costs (the owner's real figure, $500 a
+month, from the plan and docs/OFFER-LETTER.md; the owner confirms what it
+covers), and the owner's own team-lead hire (their details).

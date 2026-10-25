@@ -77,6 +77,7 @@ check("refused: a slug the page counter would hide ('5-chat-tests', 'top10-quest
   check("the build's slug rule is the page counter's (WORD_SLUG_RE)", !!counter && counter === build, `${counter} vs ${build}`);
 }
 check("refused: 'https:evil.com' (it opens as a broken path here)", throws(() => B.renderMarkdown("[x](https:evil.com)"), /link/));
+check("refused: a link with a user part ('https://hireflownow.com@evil.example/' opens evil.example)", throws(() => B.renderMarkdown("[x](https://hireflownow.com@evil.example/)"), /link/));
 check("refused: a bare www address, with a message that says how to write it", throws(() => B.renderMarkdown("Go to www.example.com for more."), /bare web address/));
 check("a refusal reads as the post's own problem, never 'Please report this to …marked'", (() => { try { B.renderMarkdown("<b>x</b>", "x.md"); return false; } catch (e) { return !/Please report this/.test(e.message) && /raw HTML/.test(e.message); } })());
 check("refused: raw HTML in the body", throws(() => B.renderMarkdown("Hello <script>alert(1)</script>"), /raw HTML/) && throws(() => B.renderMarkdown("<div>x</div>"), /raw HTML/));
@@ -131,7 +132,7 @@ writeFileSync(path.join(content, "e.md"), post({ ...GOOD, title: "Links to a dra
 check("a link to a draft or a missing guide stops the build", throws(() => B.loadPosts(content), /not a published guide/));
 rmSync(path.join(content, "e.md"));
 // The second Phase 6 review: a #part, a ?query, a full address or capitals got past the check.
-for (const link of ["/blog/not-ready#intro", "/blog/not-ready?x=1", "https://hireflownow.com/blog/not-ready", "https://www.hireflownow.com/blog/not-ready", "/blog/typo#a", "/Blog/an-older-guide", "/BLOG"]) {
+for (const link of ["/blog/not-ready#intro", "/blog/not-ready?x=1", "https://hireflownow.com/blog/not-ready", "https://www.hireflownow.com/blog/not-ready", "/blog/typo#a", "/Blog/an-older-guide", "/BLOG", "/%62log/not-ready", "https://hireflownow.com./blog/not-ready"]) {
   writeFileSync(path.join(content, "e.md"), post({ ...GOOD, title: "Links", slug: "links-to-a-draft" }, `## A\n\nSee [this](${link}) for more words here.\n`));
   check(`a link to no published guide stops the build: ${link}`, throws(() => B.loadPosts(content), /not a published guide/));
   rmSync(path.join(content, "e.md"));
@@ -171,12 +172,15 @@ for (const p of all.filter((x) => !x.draft)) {
 }
 // Drafts too: the repository is public, so a draft is read before the owner publishes it (the second Phase 6 review).
 for (const p of all) {
-  check(`${p.slug}: no price but the free first job (the law's own fines aside)`, !/\$\s?\d|₱\s?\d|\d[\d,.]*\s*(\/|a|per)\s*(mo|month)\b/i.test(p.body.replace(/₱50,000 to ₱500,000|₱50,000|₱500,000/g, "")));
-  check(`${p.slug}: under the HireFlow byline, never "our own" team or agents (the team lead was hired for the owner's own business)`, !/HireFlow's own team|\bour own (support )?(team|agents|staff)\b/i.test(p.body));
+  // The cost guide is about an agent's pay (the owner's real figure); no post names a HireFlow price.
+  check(`${p.slug}: no price but the free first job (the law's own fines and the cost guide's pay aside)`, !/\$\s?\d|₱\s?\d|\d[\d,.]*\s*(\/|a|per)\s*(mo|month)\b/i.test(p.body.replace(/₱50,000 to ₱500,000|₱50,000|₱500,000/g, "").replace(p.slug === "what-a-remote-support-agent-really-costs" ? /\$500 a month/g : /$^/g, "")));
+  check(`${p.slug}: under the HireFlow byline, never "our own" team, agents or hire (the team lead was hired for the owner's own business)`, !/HireFlow's own team|\bour own (support )?(team|agents|staff|hire)\b/i.test(p.body + p.description));
 }
 {
   const age = all.find((p) => p.slug === "what-you-cannot-ask-filipino-applicants");
-  check("the age guide says HireFlow requires 18 or older on every job, and why (RA 9231's night hours), and never tells a business to doubt it", !!age && /does not take an application that answers "No"/.test(age.body) && /Republic Act No\. 9231/.test(age.body) && /10 p\.m\. and 6 a\.m\./.test(age.body) && !/turning away a "No"/.test(age.body) && !/ask your lawyer whether[^.]*18 or older/i.test(age.body));
+  check("the age guide says HireFlow takes only people 18 and over, as its own rule, and why (RA 9231's night hours)", !!age && /does not take one that answers "No"/.test(age.body) && /That is HireFlow's own rule/.test(age.body) && /Republic Act No\. 9231/.test(age.body) && /10 p\.m\. and 6 a\.m\./.test(age.body));
+  check("…never recommends an age floor to the reader as lawful (the third review: 'an age limit above 18 is a different matter' implied it)", !!age && !/age limit above 18 is a different matter/i.test(age.body) && !/many employers ask one yes-or-no question/i.test(age.body));
+  for (const p of all) check(`${p.slug}: never casts HireFlow's 18-or-older question as doubtful ("ask your lawyer whether ... 18 or older")`, !/turning away a "No"/.test(p.body) && !/ask your lawyer whether[^.]*18 or older/i.test(p.body) && !/Never ask for age or birth date/.test(p.body));
   for (const p of all) check(`${p.slug}: "a person makes every decision" names the built-in 18-or-older check`, !/makes every decision/.test(p.body) || /18 or older\?" question every application starts with, a person on your team makes every decision/.test(p.body));
 }
 

@@ -41,10 +41,11 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const SITE = "https://hireflownow.com";
 export const SIGNUP = "https://staff.hireflownow.com/auth?mode=signup";
 const SHARE_IMAGE = `${SITE}/share/hireflow.jpg`;
-// The page counter keeps a path part only in this shape (WORD_SLUG_RE in
+// The page counter's own shape for a page name (WORD_SLUG_RE in
 // supabase/functions/_shared/telemetry.ts): words, or a number between
-// hyphens, starting with a word ("screening-150-applicants"). Any other slug
-// would count as "/blog/<redacted>" (the second Phase 6 review).
+// hyphens, starting with a word ("screening-150-applicants"). A long slug in
+// any other shape could be counted as "/blog/<redacted>" (the second Phase 6
+// review), so every slug keeps to it.
 const SLUG = /^[a-z]+(?:-(?:[a-z]+|[0-9]+))+$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const FIELDS = ["title", "description", "date", "slug", "author"];
@@ -137,7 +138,8 @@ export function allowedHref(href) {
   if (!/^https:\/\/[^/\\]/i.test(h)) return false;
   try {
     const u = new URL(h);
-    return u.protocol === "https:" && !!u.hostname;
+    // "https://hireflownow.com@evil.example/" reads as this site and opens another (the third Phase 6 review).
+    return u.protocol === "https:" && !!u.hostname && !u.username && !u.password;
   } catch {
     return false;
   }
@@ -230,8 +232,14 @@ export function guideSlugOf(href) {
   } catch {
     return null;
   }
-  if (!/^(www\.)?hireflownow\.com$/i.test(url.hostname)) return null;
-  const path = url.pathname.replace(/\/$/, "");
+  // "hireflownow.com." is the same site; "/%62log/" is "/blog/" (the third Phase 6 review).
+  if (!/^(www\.)?hireflownow\.com\.?$/i.test(url.hostname)) return null;
+  let path = url.pathname.replace(/\/$/, "");
+  try {
+    path = decodeURIComponent(path);
+  } catch {
+    // a broken escape is no guide's address; read it as written
+  }
   if (!/^\/blog(\/|$)/i.test(path)) return null;
   if (path === "/blog" || path === "/blog/feed.xml") return null;
   // "/Blog/..." or "/blog/a/b" is no guide's address (addresses are case-sensitive): return it as written.
@@ -289,7 +297,7 @@ const STYLE = `
   .body li { margin: 0.3em 0; }
   .body blockquote { margin-left: 0; padding: 4px 0 4px 18px; border-left: 3px solid var(--brass); color: var(--ink-2); }
   .body code { font: 500 0.88em/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: rgba(16, 22, 19, 0.06); padding: 2px 5px; border-radius: 5px; }
-  .body pre { background: #101613; color: #F4F0E6; padding: 16px 18px; border-radius: 10px; overflow-x: auto; }
+  .body pre { background: #101613; color: #F4F0E6; padding: 16px 18px; border-radius: 10px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
   .body pre code { background: none; padding: 0; color: inherit; }
   .body table { width: 100%; border-collapse: collapse; font-size: 16px; display: block; overflow-x: auto; }
   .body th, .body td { text-align: left; padding: 9px 12px 9px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
