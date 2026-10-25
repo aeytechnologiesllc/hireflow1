@@ -63,6 +63,8 @@ passes("an .or(...) filter on other columns", `supabase.from("applications").sel
 fails("notes.avaScorecard read", `const card = notes.avaScorecard;`);
 fails("notes.avaScorecard written", `await admin.rpc("merge_application_notes", { p_application_id: id, p_patch: { avaScorecard: scorecard } });`);
 passes("ai_scorecard from the evaluation", `const card = application.ai_scorecard;`);
+fails("an upsert into applications", `await admin.from("applications").upsert({ id, status: "pending" });`);
+fails("resume_score written again", `await admin.from("applications").update({ resume_score: 70, ai_score: 70 }).eq("id", id);`);
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);
 process.exit(failed === 0 ? 0 : 1);

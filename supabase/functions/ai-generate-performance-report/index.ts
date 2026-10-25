@@ -304,7 +304,7 @@ Return ONLY the JSON object described in the system prompt.`;
       // The hiring team's own score goes back only to the hiring team: an
       // applicant's copy of this report (it is cached in their own notes)
       // never carries it (application_evaluations, 2026-10-25).
-      overallScore: (isEmployerSide ? application.ai_score : null) || parsedNotes?.overallScore || 0,
+      overallScore: isEmployerSide ? application.ai_score || parsedNotes?.overallScore || 0 : null,
       passingScore,
       generatedAt: new Date().toISOString(),
       applicationId,

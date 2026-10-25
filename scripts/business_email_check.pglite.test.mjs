@@ -43,6 +43,7 @@ const NOT_THE_CHECK = {
   "20261025200000_help_for_applicants.sql": "Help messages from applicants to the platform admin; nothing of jobs, profiles or the email check",
   "20261025190000_ai_budget_count_only_taken.sql": "the AI budget again (ai_budget_take gives a business its unit back when the platform refuses); nothing of jobs or profiles",
   "20261025180000_remove_applicant_review.sql": "the same removal, tightened (assigned jobs, documents by id, its notifications, a file retry queue); no job, profile or email-check object",
+  "20261025280000_applicant_reports_without_scores.sql": "applications' notes and resume_score only; nothing of jobs, profiles or the check",
   "20261025270000_phase5_review6.sql": "the AI budget's new-business day only when smaller (no change to the check)",
   "20261025250000_phase5_review5.sql": "the AI budget reads business_email_verified and live jobs (no change to either); nothing of jobs, profiles or the check's tables",
   "20261025260000_drop_evaluation_move_backup.sql": "drops the evaluations move's private backup; nothing of jobs, profiles or the check's tables",

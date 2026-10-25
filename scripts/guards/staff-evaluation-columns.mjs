@@ -27,6 +27,11 @@
  *   6. notes.avaScorecard read or written anywhere: that second copy of the
  *      scorecard sat in the applicant-readable notes, so it moved into
  *      ai_scorecard too (the staff-columns review).
+ *   7. an .upsert(...) on applications: the move's insert trigger files the
+ *      values before PostgreSQL knows whether the row conflicts, so an upsert
+ *      would lose or overwrite the evaluation (the move's second review);
+ *   8. resume_score written again (Ava's score of the resume, on the
+ *      applicant's own row; nothing reads it).
  * It reads src/, supabase/functions/ and api/.
  */
 
@@ -181,6 +186,8 @@ export function evaluationReadProblems(rel, text) {
     }
     const filter = new RegExp(`\\.(eq|neq|gt|gte|lt|lte|like|ilike|is|in|not|order|contains|containedBy|filter|match)\\(\\s*["'\`](${FIVE.join("|")})["'\`]`).exec(chain.text);
     if (filter) problems.push(`${rel}:${chain.at} filters applications by ${filter[2]} (NULL there: filter application_evaluations.${filter[2]} through an !inner embed)`);
+    if (/\.upsert\(/.test(chain.text)) problems.push(`${rel}:${chain.at} upserts into applications (the evaluation's insert trigger cannot tell an upsert from an insert: update or insert instead)`);
+    if (/\bresume_score\s*:/.test(chain.text)) problems.push(`${rel}:${chain.at} writes resume_score (Ava's score of the resume, on the applicant's own row)`);
     for (const or of chain.text.matchAll(/\.or\(\s*(["'`])([\s\S]*?)\1/g)) {
       const hit = new RegExp(`(^|[,(])\\s*(${FIVE.join("|")})\\.`).exec(or[2]);
       if (hit) problems.push(`${rel}:${chain.at} filters applications by ${hit[2]} in .or(...) (NULL there: filter application_evaluations through an !inner embed)`);

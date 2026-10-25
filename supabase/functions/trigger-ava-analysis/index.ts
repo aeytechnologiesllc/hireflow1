@@ -592,9 +592,9 @@ type AnalysisOutcome =
 /**
  * Ava's analysis of everything this application has submitted so far: the
  * ai-analyze call (~40 s), the weighted score and the scorecard, saved into
- * ai_analysis / ai_score / ai_scorecard / resume_score (and, in auto mode,
- * phase_ai_analysis as information) plus notes.avaScorecard /
- * notes.avaAnalysisMeta. It NEVER writes phase or status: moving a candidate
+ * ai_analysis / ai_score / ai_scorecard (and, in auto mode,
+ * phase_ai_analysis as information) plus notes.avaAnalysisMeta (what ran
+ * and when; the scorecard is application_evaluations.ai_scorecard). It NEVER writes phase or status: moving a candidate
  * is advanceAfterStep's job (auto mode) or handleAutopilotDecision's (manual).
  */
 async function runAvaAnalysis(ctx: AnalysisContext): Promise<AnalysisOutcome> {
@@ -1619,8 +1619,6 @@ ${interviewType} Interview with AVA Results:
         // with the structured scores beside it (they were in notes.avaAnalysisMeta,
         // which the applicant can read).
         ai_scorecard: scorecard ? { ...scorecard, structuredScoring: analysisMeta.structuredScoring } : null,
-        // Only set resume_score if the resume was actually analyzed (not RESUME_UNAVAILABLE)
-        resume_score: resumeUnavailable ? null : (typeof newScore === "number" && newScore >= 0 && newScore <= 100 ? newScore : null),
         ...(phaseAnalysisNote ? { phase_ai_analysis: phaseAnalysisNote } : {}),
       })
       .eq("id", applicationId);

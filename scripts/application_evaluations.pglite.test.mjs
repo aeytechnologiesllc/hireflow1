@@ -323,12 +323,13 @@ const allNull = (row) => !!row && FIVE.every((c) => row[c] === null);
     check(`the system's write of ${col} lands in application_evaluations`, w.error === null && landed(e), w.error ?? JSON.stringify(e));
     check(`...and applications.${col} stays NULL`, a[col] === null, JSON.stringify(a[col]));
   }
+  await db.exec(`update public.application_evaluations set updated_at = '2026-01-01 00:00:00+00' where application_id = '${APP}'`);
   const before = await evalOf(APP);
   await as(null, "service_role", `update public.applications set ai_score = 91, ai_scorecard = '{"overallScore":91}', ai_analysis = 'Third read.' where id = '${APP}'`);
   const three = await evalOf(APP);
   check("one write of three columns (what trigger-ava-analysis sends) lands all three", three.ai_score === 91 && three.ai_scorecard?.overallScore === 91 && three.ai_analysis === "Third read.");
   check("...and leaves the other two as they were", three.phase_ai_analysis === before.phase_ai_analysis && three.employer_notes === before.employer_notes);
-  check("...and stamps the evaluation's updated_at", new Date(three.updated_at) >= new Date(before.updated_at));
+  check("...and stamps the evaluation's updated_at", new Date(three.updated_at) > new Date("2026-01-02T00:00:00Z"), String(three.updated_at));
 
   const noteBlank = await as(null, "service_role", `update public.applications set ai_score = 50 where id = '${APP_BLANK}'`);
   check("the first value for an application with no evaluation yet makes its row", noteBlank.error === null && (await evalOf(APP_BLANK))?.ai_score === 50, noteBlank.error);
