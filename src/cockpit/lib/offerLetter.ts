@@ -33,7 +33,7 @@
  * Pure: no React, no Supabase.
  */
 
-import { placeSaysRemote } from "../../lib/jobLocation";
+import { isOnlyAUsState, placeSaysHybrid, placeSaysRemote } from "../../lib/jobLocation";
 
 export type WorkerType = "contractor" | "employee";
 export type WorkSchedule = "full" | "part";
@@ -67,7 +67,9 @@ export interface OfferLetterFields {
   shift: string;
   /** True for a role done from home. */
   remote: boolean;
-  /** Where an on-site job is done: the job's own place, as the business wrote it. */
+  /** Partly from home and partly in person (only when not `remote`). */
+  hybrid?: boolean;
+  /** Where an on-site or hybrid job is done: the job's own place, as the business wrote it. */
   place?: string;
   /** "Zack, Owner". Optional. */
   reportsTo: string;
@@ -250,6 +252,7 @@ export function cleanFields(fields: OfferLetterFields): OfferLetterFields {
     hours: oneLine(fields.hours, OFFER_LIMITS.line),
     shift: oneLine(fields.shift, OFFER_LIMITS.line),
     remote: fields.remote !== false,
+    hybrid: fields.remote === false && fields.hybrid === true,
     place: oneLine(fields.place ?? "", OFFER_LIMITS.line),
     reportsTo: oneLine(fields.reportsTo, OFFER_LIMITS.name),
     trialDays: pick(Number(fields.trialDays), TRIAL_CHOICES, 0),
@@ -294,25 +297,141 @@ export function currencyFromJob(job: { salary_currency?: string | null } | null 
   return oneLine(job?.salary_currency ?? "", 8).toUpperCase();
 }
 
-const ONLY_A_COUNTRY = /^(?:the\s+)?(?:philippines|ph|usa?|u\.s\.a?\.?|united states(?: of america)?|united kingdom|uk|canada|australia|new zealand|india|pakistan|singapore|uae|united arab emirates|mexico|colombia|south africa|kenya|nigeria)\.?$/i;
+/** Folded for comparing names: no accents, no case, words split by single spaces. */
+function foldName(text: string): string {
+  return (text ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036F]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/^the /, "");
+}
 
-/** The job's place as the letter's "Where", when it names a place someone goes
- *  to: not a remote or hybrid place, and not just a country (the fifth product
- *  review: "In person, at Work from home (Philippines)", "In person, at
- *  Philippines"). Otherwise empty, and the letter says the business's own
- *  workplace until the business types the address. */
-export function placeForLetter(location: string | null | undefined): string {
-  const place = oneLine(location ?? "", OFFER_LIMITS.line);
+/** What people write for a country that Intl does not name that way. */
+const COUNTRY_SPELLINGS = ["usa", "us", "america", "united states of america", "uk", "britain", "great britain", "england", "scotland", "wales", "northern ireland", "uae", "emirates", "holland", "korea", "republic of the philippines"];
+/** Compared without spaces: "Viet Nam" is Vietnam, "U.S.A." is USA. */
+const unspaced = (text: string) => foldName(text).replace(/ /g, "");
+/** Region codes Intl names that are not a country. */
+const NOT_A_COUNTRY = new Set(["EU", "EZ", "UN", "QO", "XA", "XB", "ZZ"]);
+let countryNames: Set<string> | null = null;
+
+/** A country and nothing more ("Malaysia", "Viet Nam", "the Philippines", "PH"):
+ *  every name Intl knows in English, and its two letters, rather than a list
+ *  that is always one country short (the sixth product review: "Malaysia" and
+ *  "Vietnam" were not on the old one). */
+function isOnlyACountry(part: string): boolean {
+  const key = unspaced(part);
+  if (!key) return false;
+  if (!countryNames) {
+    const names = new Set(COUNTRY_SPELLINGS.map(unspaced));
+    try {
+      const regions = new Intl.DisplayNames(["en"], { type: "region", fallback: "none" });
+      for (let i = 0; i < 26; i += 1) {
+        for (let j = 0; j < 26; j += 1) {
+          const code = String.fromCharCode(65 + i, 65 + j);
+          if (NOT_A_COUNTRY.has(code)) continue;
+          let name: string | undefined;
+          try {
+            name = regions.of(code);
+          } catch {
+            name = undefined;
+          }
+          if (!name || name === code) continue;
+          names.add(code.toLowerCase());
+          // "Myanmar (Burma)" answers to both; "Hong Kong SAR China" to "Hong Kong".
+          for (const spelling of [name, name.replace(/\s*\(.*\)\s*/g, " "), ...(name.match(/\(([^)]+)\)/g) ?? []).map((p) => p.slice(1, -1)), name.replace(/\s+SAR China$/, "")]) {
+            names.add(unspaced(spelling));
+          }
+        }
+      }
+    } catch {
+      // No region names in this runtime: the spellings above only.
+    }
+    countryNames = names;
+  }
+  return countryNames.has(key);
+}
+
+/** Work-mode words, which say how and not where ("On-site - Makati", "Makati
+ *  (Hybrid)"): the letter's own words say in person or hybrid. */
+const WORK_MODE_WORDS = /\b(?:work(?:ing)?\s+)?(?:on[-\s]?site|onsite|in[-\s]?office|office[-\s]based|in[-\s]?person|face[-\s]to[-\s]face|hybrid)\b/gi;
+
+function withoutWorkMode(place: string): string {
+  let text = place
+    .replace(WORK_MODE_WORDS, " ")
+    .replace(/\(\s*[,;:/|-]*\s*\)/g, " ")
+    .replace(/\(\s*[,;:/|-]+\s*/g, "(")
+    .replace(/\s*[,;:/|-]+\s*\)/g, ")")
+    .replace(/^[\s,;:/|()\u2013\u2014-]+|[\s,;:/|(\u2013\u2014-]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  // A bracket left without its pair ("Taguig)" from "Hybrid (Taguig)").
+  if (!text.includes("(")) text = text.replace(/\)/g, "").trim();
+  if (!text.includes(")")) text = text.replace(/\(/g, "").trim();
+  return text;
+}
+
+/** What the job's own geocoded place says (location_city, _region, _country). */
+export interface JobPlaceParts {
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
+}
+
+/**
+ * The job's place as the letter's "Where", when it names a place someone goes
+ * to. Otherwise empty, and the letter says the business's own workplace until
+ * the business types the address.
+ *
+ * - Its work-mode words go: "On-site - Makati" is Makati, "Hybrid (Taguig)" is
+ *   Taguig (the sixth product review: "In person, at On-site - Makati").
+ * - A remote place is no workplace ("Work from home (Philippines)", "Remote
+ *   (no onsite)"; the fifth product review).
+ * - Nor is a place that is only a country or a state, part by part: "Texas",
+ *   "Malaysia", "Texas, USA", or the region the job's own place was found in
+ *   ("Selangor", "Metro Manila"), unless a part is the job's city ("New York").
+ *   "Austin, Texas" and "Makati, Philippines" name a city and stay whole.
+ */
+export function placeForLetter(location: string | null | undefined, found?: JobPlaceParts | null): string {
+  const written = oneLine(location ?? "", OFFER_LIMITS.line);
   // Any remote word at all, even beside a negated on-site one ("Remote (no onsite)").
-  if (!place || placeSaysRemote(place) === "remote" || /\b(?:hybrid|remote|wfh|work(?:ing)?[-\s]?(?:from|at)[-\s]?home|home[-\s]?based)\b/i.test(place) || ONLY_A_COUNTRY.test(place)) return "";
-  return place;
+  if (!written || placeSaysRemote(written) === "remote" || /\b(?:remote|wfh|work(?:ing)?[-\s]?(?:from|at)[-\s]?home|home[-\s]?based)\b/i.test(written)) return "";
+  const place = withoutWorkMode(written);
+  if (!place) return "";
+  const city = foldName(found?.city ?? "");
+  const wide = [found?.region, found?.country].map((v) => foldName(v ?? "")).filter(Boolean);
+  const parts = place.split(/[,;/|]|\s[-\u2013\u2014]\s/).map((p) => p.trim()).filter(Boolean);
+  const onlyWide = parts.every((part) => {
+    const key = foldName(part);
+    if (city && key === city) return false;
+    return isOnlyACountry(part) || isOnlyAUsState(part.replace(/\.$/, "")) || wide.includes(key);
+  });
+  return onlyWide ? "" : place;
+}
+
+export type WorkMode = "remote" | "hybrid" | "onsite";
+
+/** How the job is worked, as the job says it: hybrid when its place says so
+ *  (the job builder saves a hybrid job as not remote, jobFromFlow; the sixth
+ *  product review: the letter said "In person" and lost the word), else
+ *  remote or in person from jobs.is_remote. */
+export function workModeFromJob(job: { is_remote?: boolean | null; location?: string | null } | null | undefined): WorkMode {
+  if (placeSaysHybrid(job?.location)) return "hybrid";
+  return job?.is_remote === false ? "onsite" : "remote";
+}
+
+/** The job's pay period as the screen's "Per" box: a month, a week or an hour; null for any other (a year, a day) or none. */
+export function payPerFromJob(job: { salary_period?: string | null } | null | undefined): PayPer | null {
+  const per = (job?.salary_period ?? "").trim().toLowerCase();
+  return per === "month" || per === "week" || per === "hour" ? per : null;
 }
 
 /** The job's pay as the screen's three boxes, when the job states one figure a month, a week or an hour. */
 export function payPartsFromJob(job: { salary_min?: number | null; salary_max?: number | null; salary_currency?: string | null; salary_period?: string | null } | null | undefined): { payAmount: string; payCurrency: string; payPer: PayPer } | null {
   if (!job || !payFromJob(job)) return null;
-  const per = (job.salary_period ?? "").trim().toLowerCase();
-  if (per !== "month" && per !== "week" && per !== "hour") return null;
+  const per = payPerFromJob(job);
+  if (!per) return null;
   const amount = typeof job.salary_min === "number" && job.salary_min > 0 ? job.salary_min : (job.salary_max as number);
   return { payAmount: amount.toLocaleString("en-US"), payCurrency: (job.salary_currency ?? "").trim().toUpperCase(), payPer: per };
 }
@@ -352,11 +471,13 @@ export function arrangementWords(fields: Pick<OfferLetterFields, "schedule" | "w
   return `${fields.schedule === "part" ? "Part-time" : "Full-time"}, ${fields.workerType === "employee" ? "employee" : "independent contractor"}`;
 }
 
-/** The usual terms, as the screen's one-line summary. */
+/** The usual terms, as the screen's one-line summary. Not the worker type:
+ *  the screen shows that on its own line, outside the summary, so nobody
+ *  sends "Independent contractor ... your own taxes" without seeing it (the
+ *  sixth product review). */
 export function termsSummary(fields: OfferLetterFields): string {
   const f = cleanFields(fields);
   return [
-    f.workerType === "employee" ? "Employee" : "Independent contractor",
     f.trialDays ? `${periodWords(f.trialDays)} trial` : "No trial period",
     `${f.noticeDays} days' notice to end`,
     f.ownEquipment ? "Own computer and internet" : "",
@@ -380,8 +501,10 @@ export function offerLetterText(fields: OfferLetterFields): string {
   if (f.startDate) role.push(`Start date: ${longDate(f.startDate)}`);
   role.push(`Type: ${arrangementWords(f)}`);
   // An on-site offer said nothing about where the work is (the third product
-  // audit): in person, at the business's own place.
-  role.push(f.remote ? "Where: Remote, working from home" : f.place ? `Where: In person, at ${f.place}` : `Where: In person, at ${f.companyName ? `${f.companyName}'s` : "our"} workplace`);
+  // audit): in person, at the business's own place. A hybrid one says so (the
+  // sixth product review: it read "In person" and lost the word).
+  const workplace = f.place || `${f.companyName ? `${f.companyName}'s` : "our"} workplace`;
+  role.push(f.remote ? "Where: Remote, working from home" : f.hybrid ? `Where: Hybrid, partly from home and partly in person at ${workplace}` : `Where: In person, at ${workplace}`);
   if (f.hours) role.push(`Hours: ${f.hours}`);
   if (f.shift) role.push(`Shift: ${f.shift}`);
   if (f.reportsTo) role.push(`Reports to: ${f.reportsTo}`);

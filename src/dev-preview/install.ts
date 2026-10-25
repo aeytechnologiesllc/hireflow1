@@ -5,7 +5,7 @@
  * fixture user is "signed in", so every real page, hook and mapper in the app
  * runs completely unmodified against canned data — no network, no auth.
  */
-import { __setPreviewSupabaseClient } from "@/integrations/supabase/client";
+import { __setPreviewSupabaseClient, SUPABASE_URL } from "@/integrations/supabase/client";
 import { STAMP_TAIL_BYTES } from "@/lib/connectionTest";
 import { parseApplicationNotes } from "@/utils/applicationNotes";
 import { OFFER_DEFAULTS, addDays, dayOf, encodeDocumentBody, offerDocumentBody, offerExpiry, offerLetterName, type OfferLetterFields } from "@/cockpit/lib/offerLetter";
@@ -651,6 +651,39 @@ function previewShortlistHandlers(tables: FixtureTables, user: FixtureAuthUser):
  * decline, withdraw and void move the row as the real function does (the
  * hashes, the locked PDF and the certificate are the real function's alone).
  */
+/** A one-page PDF of plain lines, made here (no file, no library). ASCII only, so each character is one byte. */
+function previewPdfBytes(lines: string[]): Uint8Array {
+  const text = lines.map((line, i) => `BT /F1 ${i === 0 ? 20 : 12} Tf 72 ${720 - i * 28} Td (${line.replace(/[()\\]/g, "\\$&")}) Tj ET`).join("\n");
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    `<< /Length ${text.length} >>\nstream\n${text}\nendstream`,
+  ];
+  let out = "%PDF-1.4\n";
+  const offsets: number[] = [];
+  objects.forEach((body, i) => {
+    offsets.push(out.length);
+    out += `${i + 1} 0 obj\n${body}\nendobj\n`;
+  });
+  const xref = out.length;
+  out += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("")}`;
+  out += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return new TextEncoder().encode(out);
+}
+
+/** Answers a fetch of exactly `address` with a PDF made here; every other fetch goes out as before. */
+function installPreviewPdf(address: string, lines: string[]): void {
+  const bytes = previewPdfBytes(lines);
+  const realFetch = window.fetch.bind(window);
+  window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (url === address) return Promise.resolve(new Response(bytes.slice(), { status: 200, headers: { "Content-Type": "application/pdf" } }));
+    return realFetch(input, init);
+  };
+}
+
 function previewDocuments(tables: FixtureTables, user: FixtureAuthUser, role: PreviewRole, spec: string | null) {
   const flags = (spec ?? "").split(",").map((w) => w.trim()).filter(Boolean);
   const documents: FixtureRow[] = [];
@@ -726,12 +759,64 @@ function previewDocuments(tables: FixtureTables, user: FixtureAuthUser, role: Pr
     });
   }
 
+  // `?__previewDocs=pdf`: a file the business uploaded to sign (house rules),
+  // which opens the full viewer (SignedDocumentViewer), not the letter
+  // sheet. `pdf,signed`: the applicant has signed, the team's turn;
+  // `pdf,voided`: the team voided it after they signed; `pdf,done`:
+  // countersigned. The file is a one-page PDF made here and answered by a
+  // stand-in for that one address only, so nothing reaches storage (the sixth
+  // product review: the applicant's footer, and their audit trail once signed).
+  let previewPdfAddress: string | null = null;
+  if (flags.includes("pdf")) {
+    const job = (tables.jobs ?? [])[0] ?? null;
+    const mine = (tables.applications ?? []).find((a) => a.candidate_id === user.id);
+    const someone = (tables.applications ?? []).find((a) => a.status === "interview" || a.status === "offered") ?? (tables.applications ?? [])[0];
+    const team = role === "employer" || role === "team_member";
+    const application = team ? someone : mine ?? someone;
+    const candidateId = team ? String(application?.candidate_id ?? "") : user.id;
+    const profile = (tables.profiles ?? []).find((p) => p.user_id === candidateId);
+    const name = String(profile?.full_name ?? user.user_metadata?.full_name ?? "Ana Maria Reyes");
+    previewPdfAddress = `${SUPABASE_URL}/storage/v1/object/sign/documents/${String(job?.employer_id ?? "preview")}/house-rules.pdf?token=preview`;
+    installPreviewPdf(previewPdfAddress, ["House rules", "Please read these before your first day.", "1. Be on time for your shift.", "2. Keep customer information private."]);
+    const signed = flags.includes("signed") || flags.includes("voided") || flags.includes("done");
+    const done = flags.includes("done");
+    const signedAt = new Date(Date.now() - 50 * 60_000).toISOString();
+    documents.push({
+      id: "d0c00000-0000-4000-8000-000000000002",
+      application_id: application?.id ?? null,
+      applications: application ? { id: application.id, candidate_id: candidateId, jobs: job } : null,
+      name: "House rules",
+      document_type: "custom",
+      file_url: encodeDocumentBody({ content: null, uploadedFileUrl: previewPdfAddress, uploadedFileName: "house-rules.pdf", uploadedFileType: "application/pdf", signatureFields: [], metadata: { recipientName: name, recipientEmail: profile?.email ?? user.email, hasPositionedSignatures: true } }),
+      status: done ? "signed" : "pending",
+      sender_id: job?.employer_id ?? null,
+      recipient_id: candidateId,
+      created_at: new Date(Date.now() - 5 * 3600_000).toISOString(),
+      updated_at: new Date(Date.now() - 5 * 3600_000).toISOString(),
+      expires_at: new Date(Date.now() + 5 * 24 * 3600_000).toISOString(),
+      viewed_at: signed ? signedAt : null,
+      v1_hash: "preview".padEnd(64, "0"),
+      version_number: 1,
+      candidate_signature_data: signed ? JSON.stringify({ signatures: { recipient: name }, method: "typed", signerName: name, signerEmail: profile?.email ?? user.email }) : null,
+      candidate_signed_at: signed ? signedAt : null,
+      employer_signature_data: done ? JSON.stringify({ signatures: { employer: "Maria" }, method: "typed", signerName: "Maria" }) : null,
+      employer_signed_at: done ? new Date(Date.now() - 20 * 60_000).toISOString() : null,
+      signed_at: done ? new Date(Date.now() - 20 * 60_000).toISOString() : null,
+      is_locked: done,
+      is_voided: flags.includes("voided"),
+      voided_at: flags.includes("voided") ? new Date(Date.now() - 30 * 60_000).toISOString() : null,
+      voided_reason: flags.includes("voided") ? "We changed the house rules; a new copy is on its way." : null,
+    });
+  }
+
   return async (name: string, options?: InvokeOptions): Promise<{ data: unknown; error: unknown } | null> => {
     if (name !== "document-signing") return null;
     const body = (options?.body ?? {}) as { documentId?: string; action?: string; reason?: string; signature?: { method?: string; value?: string } };
     const row = documents.find((d) => d.id === body.documentId);
     await new Promise((resolve) => setTimeout(resolve, 250));
     if (!row) return { data: { error: "not_found", message: "Document not found." }, error: null };
+    // The copy the server kept of an uploaded file: here, the preview's own PDF.
+    if (body.action === "original") return previewPdfAddress ? { data: { url: previewPdfAddress }, error: null } : { data: { error: "preview", message: "Not available in the dev preview." }, error: null };
     const now = new Date().toISOString();
     const signer = String(user.user_metadata?.full_name ?? "");
     if (body.action === "view") {
@@ -759,6 +844,44 @@ function previewDocuments(tables: FixtureTables, user: FixtureAuthUser, role: Pr
     row.updated_at = now;
     return { data: { success: true }, error: null };
   };
+}
+
+/**
+ * `?__previewJob=on-site,hybrid,no-typing-step`: the scenario's jobs (the
+ * shared rows and the copies applications carry) reshaped, so each kind of
+ * job can be looked at with the same applicants (the sixth product review):
+ *  - `on-site`: not remote, at "On-site - Makati" (Makati, Metro Manila);
+ *  - `hybrid`: not remote, at "Hybrid - Makati", as the job builder saves a
+ *    hybrid job;
+ *  - `no-typing-step`: the typing test left out, so the chat practice's
+ *    typing is the job's typing measure (on a remote job).
+ * `&__previewPlace=Texas` writes the job's place as given instead, with no
+ * city found for it (the offer letter's "Where").
+ * Analytics: a remote job with no typing step shows "Typing in the chat" and
+ * "Time to reply"; one with a typing step shows that test; an on-site one
+ * shows no chat typing meter.
+ */
+function previewJobShape(tables: FixtureTables, spec: string | null, placeParam: string | null): void {
+  const flags = (spec ?? "").split(",").map((w) => w.trim()).filter(Boolean);
+  const placeText = (placeParam ?? "").trim();
+  if (flags.length === 0 && !placeText) return;
+  const reshape = (job: FixtureRow): FixtureRow => {
+    const next: FixtureRow = { ...job };
+    const makati = { location_city: "Makati", location_region: "Metro Manila", location_country: "Philippines", location_country_code: "PH" };
+    if (flags.includes("on-site")) Object.assign(next, { is_remote: false, location: "On-site - Makati", ...makati });
+    if (flags.includes("hybrid")) Object.assign(next, { is_remote: false, location: "Hybrid - Makati", ...makati });
+    if (flags.includes("no-typing-step") && Array.isArray(next.workflow_steps)) {
+      next.workflow_steps = (next.workflow_steps as Array<{ type?: string }>).filter((s) => s?.type !== "typing_test");
+    }
+    if (placeText) Object.assign(next, { location: placeText.slice(0, 120), location_city: null, location_region: null, location_country: null });
+    return next;
+  };
+  for (const name of ["jobs", "published_jobs_public"] as const) {
+    if (tables[name]) tables[name] = (tables[name] ?? []).map(reshape);
+  }
+  for (const application of tables.applications ?? []) {
+    if (application.jobs && typeof application.jobs === "object") application.jobs = reshape(application.jobs as FixtureRow);
+  }
 }
 
 /**
@@ -1256,6 +1379,7 @@ export function install(params: URLSearchParams): void {
   }
 
   const tables = buildFixtureTables(scenario);
+  previewJobShape(tables, params.get("__previewJob"), params.get("__previewPlace"));
   previewCrowd(tables, params.get("__previewCrowd"));
   previewInterviewTimes(tables, params.get("__previewWhen"));
   // Signing in as the second business's owner (`?__previewEmployer=lucky`,

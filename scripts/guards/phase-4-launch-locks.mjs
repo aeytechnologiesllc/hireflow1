@@ -10,6 +10,12 @@
  *     the server grades with the pack it knows.
  *   - no-gaming-nouns-in-generic-packs: only the gaming pack says player or
  *     game; no pack sells sweepstakes, casinos or cash-outs.
+ *   - chat-typing-only-where-it-is-the-jobs-measure: the chat practice's
+ *     typing is measured against the job's bar only on a job that is not
+ *     on-site and has no typing step, everywhere it is read: Ava's score, the
+ *     record and the list, Analytics, and the interview guide's material (the
+ *     sixth product review: Analytics and the guide still read an on-site
+ *     job's phone typing).
  */
 
 const CLIENT = "src/content/scenarioPacks/packs.ts";
@@ -102,6 +108,46 @@ export default [
         if (id !== "gaming" && /\bplayers?\b|\bgames?\b|\bgaming\b|in-game/i.test(text)) detail.push(`${id}: says ${/\bplayers?\b|\bgames?\b|\bgaming\b|in-game/i.exec(text)[0]} (only the gaming pack may)`);
         if (id !== "gaming" && pack.counterpart === "player") detail.push(`${id}: its counterpart is "player"`);
       }
+      return detail.length ? { ok: false, detail } : { ok: true };
+    },
+  },
+  {
+    id: "chat-typing-only-where-it-is-the-jobs-measure",
+    why:
+      "An on-site job's chat practice may be taken on a phone (nothing of it is computer-only), and a phone's typing " +
+      "read against a computer keyboard's bar fails the applicant for the phone; a job that still has a typing step " +
+      "reads typing from that test. So the chat's typing is no measure on either, everywhere: Ava's score " +
+      "(chatTypingThisJob, chatTypingForJob), the record and the list (chatTypingOf's jobMeasure), Analytics' " +
+      "typing and reply-time meters, and what the interview guide's writer is given (the sixth product review: " +
+      "Analytics showed the dental office's receptionists '0 of 3 reached it' in the warning colour).",
+    run: async ({ read, walk }) => {
+      const detail = [];
+      const noComments = (t) => t.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+      // Ava's score: one reading of the chat's typing, null on an on-site job.
+      const scorer = noComments((await read("supabase/functions/trigger-ava-analysis/index.ts")) ?? "");
+      if (!/const chatTypingThisJob = job\?\.is_remote === false \? null : \(chatSimulation\?\.typing \?\? null\);/.test(scorer)) detail.push("trigger-ava-analysis: chatTypingThisJob must be null on an on-site job (job.is_remote === false)");
+      if (!/const chatTypingInUse = chatTypingForJob\(workflowSteps, chatTypingThisJob\);/.test(scorer)) detail.push("trigger-ava-analysis: chatTypingInUse must come from chatTypingThisJob through chatTypingForJob (no chat typing on a job with a typing step)");
+      if ((scorer.match(/chatSimulation\??\.typing\b/g) ?? []).length !== 1) detail.push("trigger-ava-analysis: the chat's typing is read somewhere other than chatTypingThisJob");
+      // The staff screens: every reading says whether it is the job's measure
+      // (chatTypingOf's second argument; left out, it reads as the measure).
+      for (const rel of await walk("src", [".ts", ".tsx"])) {
+        if (rel.startsWith("src/dev-preview/")) continue;
+        const text = noComments((await read(rel)) ?? "");
+        for (const m of text.matchAll(/\bchatTypingOf\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g)) {
+          if (/^value: unknown, jobMeasure/.test(m[1])) continue; // the definition
+          if (!/,/.test(m[1])) detail.push(`${rel}: chatTypingOf(${m[1]}) does not say whether the chat's typing is the job's measure`);
+        }
+      }
+      const record = noComments((await read("src/cockpit/lib/assessmentRecord.ts")) ?? "");
+      if (!/const onSite = \(ctx\.app\.jobs as \{ is_remote\?: unknown \} \| null \| undefined\)\?\.is_remote === false;/.test(record) || !/chatTypingOf\(r\?\.typing, !jobHasTypingStep && !onSite\)/.test(record)) detail.push("assessmentRecord.ts: the chat practice's typing must be the job's measure only with no typing step and not on-site");
+      const view = noComments((await read("src/cockpit/lib/analyticsView.ts")) ?? "");
+      if (!/const chatTypingCounts = !jobHasTypingStep && input\.onSite !== true;/.test(view) || !/chatTypingOf\(sim\.typing, chatTypingCounts\)/.test(view) || !/if \(typing\?\.jobMeasure\) \{/.test(view)) detail.push("analyticsView.ts: the typing and reply-time meters must count only a job with no typing step that is not on-site");
+      const page = noComments((await read("src/cockpit/pages/Analytics.tsx")) ?? "");
+      if (!/onSite: job \? job\.is_remote === false : null,/.test(page)) detail.push("Analytics.tsx: the page must say whether the job is on-site (onSite from job.is_remote)");
+      const guide = noComments((await read("supabase/functions/interview-guide/guideMaterial.ts")) ?? "");
+      const guideFn = noComments((await read("supabase/functions/interview-guide/index.ts")) ?? "");
+      if (!/const typing = chatTypingIsTheJobsMeasure\(record\) \? asRecord\(chat\.typing\) : null;/.test(guide) || (guide.match(/chat\.typing\b/g) ?? []).length !== 1 || !/return record\.onSite !== true && record\.typingStep !== true;/.test(guide)) detail.push("interview-guide/guideMaterial.ts: the writer must be given the chat's typing only where it is the job's measure");
+      if (!/onSite: \(jobRow as \{ is_remote\?: unknown \}\)\.is_remote === false,/.test(guideFn) || !/typingStep: jobHasTypingStep\(/.test(guideFn) || !/\bis_remote\b/.test(/const JOB_COLUMNS =\s*"([^"]*)"/.exec(guideFn)?.[1] ?? "")) detail.push("interview-guide/index.ts: the guide's record must say whether the job is on-site and has a typing step (is_remote in JOB_COLUMNS)");
       return detail.length ? { ok: false, detail } : { ok: true };
     },
   },

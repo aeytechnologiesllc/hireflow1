@@ -44,6 +44,7 @@ import {
   guideFingerprint,
   GUIDE_PROMPT_VERSION,
   GUIDE_REQUIRED_KEYS,
+  jobHasTypingStep,
   personalGuideFrom,
   type GuideRecord,
   type GuideTurn,
@@ -59,7 +60,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /** A person preparing interviews writes a handful an hour; this only stops a loop. */
 const GUIDES_PER_HOUR = 40;
 const JOB_COLUMNS =
-  "id, employer_id, title, description, requirements, responsibilities, benefits, skills_required, location, job_type, experience_level, required_wpm, salary_min, salary_max, salary_currency, salary_period, quiz_questions, workflow_steps";
+  "id, employer_id, title, description, requirements, responsibilities, benefits, skills_required, location, job_type, experience_level, required_wpm, salary_min, salary_max, salary_currency, salary_period, quiz_questions, workflow_steps, is_remote";
 
 // SupabaseClient's own declared defaults (Database = any) are what createClient(url, key) returns here.
 type Admin = SupabaseClient;
@@ -216,6 +217,9 @@ Deno.serve(async (req) => {
         const step = customerServiceStepOf((jobRow as { workflow_steps?: unknown }).workflow_steps);
         return step && scenarioPack(step.pack) ? step : null;
       })(),
+      // Whether the chat's typing is this job's measure (the sixth product review).
+      onSite: (jobRow as { is_remote?: unknown }).is_remote === false,
+      typingStep: jobHasTypingStep((jobRow as { workflow_steps?: unknown }).workflow_steps),
       notes: parseNotes((application as { notes?: unknown }).notes),
       interview,
       practiceLines: practice.filter((t) => t.role === "user").map((t) => t.content),

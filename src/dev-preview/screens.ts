@@ -133,6 +133,19 @@ export const PREVIEW_SCREENS: PreviewScreen[] = [
   { id: "create-job-typed", group: "Create job", label: "Typed", role: "employer", path: "/jobs/create?__previewInputMode=form&__previewStep=0" },
   { id: "create-job-voice-readback", group: "Create job", label: "Voice readback (follow-up questions)", role: "employer", path: "/jobs/create?__previewInputMode=voice&__previewStep=1" },
 
+  // ------------------------- on-site and hybrid jobs, uploaded files to sign
+  // (the sixth product review: __previewJob reshapes the scenario's jobs,
+  // __previewDocs=pdf adds a file the business uploaded; install.ts)
+  { id: "analytics-onsite", group: "On-site jobs and files to sign", label: "Analytics: on-site job, no chat typing meters", role: "employer", path: "/analytics?__previewScenario=zulu&__previewJob=on-site,no-typing-step" },
+  { id: "analytics-chat-typing", group: "On-site jobs and files to sign", label: "Analytics: remote, typing measured in the chat", role: "employer", path: "/analytics?__previewScenario=zulu&__previewJob=no-typing-step" },
+  { id: "analytics-typing-test", group: "On-site jobs and files to sign", label: "Analytics: job with a typing test", role: "employer", path: "/analytics?__previewScenario=zulu" },
+  { id: "offer-hybrid", group: "On-site jobs and files to sign", label: "Documents: offer letter for a hybrid job (Hybrid - Makati)", role: "employer", path: "/documents?__previewJob=hybrid" },
+  { id: "offer-state-only", group: "On-site jobs and files to sign", label: "Documents: offer letter, place only a state (Texas)", role: "employer", path: "/documents?__previewPlace=Texas" },
+  { id: "pdf-to-sign", group: "On-site jobs and files to sign", label: "My documents: uploaded PDF, before signing", role: "candidate", path: "/my-documents?__previewDocs=pdf" },
+  { id: "pdf-signed", group: "On-site jobs and files to sign", label: "My documents: uploaded PDF, signed, the team's turn", role: "candidate", path: "/my-documents?__previewDocs=pdf,signed" },
+  { id: "pdf-voided", group: "On-site jobs and files to sign", label: "My documents: uploaded PDF, voided after signing", role: "candidate", path: "/my-documents?__previewDocs=pdf,voided" },
+  { id: "pdf-team", group: "On-site jobs and files to sign", label: "Documents: uploaded PDF, the team's turn", role: "employer", path: "/documents?__previewDocs=pdf,signed" },
+
   // -------------------------------------------------------------- extra states
   { id: "cand-app-offered", group: "Extra states", label: "Application detail — offered", role: "candidate", path: `/applications/${APP_OFFERED_ID}` },
   { id: "cand-app-hired", group: "Extra states", label: "Application detail — hired", role: "candidate", path: `/applications/${APP_HIRED_ID}` },

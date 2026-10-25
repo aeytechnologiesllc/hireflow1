@@ -28,8 +28,21 @@ const COUNTRY_TEXT_HINTS: Array<[RegExp, string]> = [
 
 // In capitals, as a state is written: ", or Makati" is no Oregon (the eleventh
 // Phase 4 review: "Pasig, Mandaluyong, or Makati" was a US job).
-const US_STATE_HINT = /,\s*(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|IA|ID|IL|IN|KS|KY|LA|MA|MD|ME|MI|MN|MO|MS|MT|NC|ND|NE|NH|NJ|NM|NV|NY|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VA|VT|WA|WI|WV|WY)\b/;
-const US_STATE_NAME_HINT = /,\s*(alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming)\b/i;
+const US_STATE_CODES = "AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|IA|ID|IL|IN|KS|KY|LA|MA|MD|ME|MI|MN|MO|MS|MT|NC|ND|NE|NH|NJ|NM|NV|NY|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VA|VT|WA|WI|WV|WY";
+const US_STATE_NAMES = "alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming";
+const US_STATE_HINT = new RegExp(String.raw`,\s*(${US_STATE_CODES})\b`);
+const US_STATE_NAME_HINT = new RegExp(String.raw`,\s*(${US_STATE_NAMES})\b`, "i");
+const ONLY_A_US_STATE = new RegExp(String.raw`^(?:${US_STATE_NAMES}|district of columbia)\.?$`, "i");
+const ONLY_A_US_STATE_CODE = new RegExp(String.raw`^(?:${US_STATE_CODES}|DC)$`);
+
+/** A US state and nothing more ("Texas", "New York", "TX"): somewhere in the
+ *  country, not a place someone goes to work (the sixth product review: an
+ *  offer letter read "In person, at Texas"). The two letters in capitals, as
+ *  a state is written. */
+export function isOnlyAUsState(text?: string | null): boolean {
+  const t = (text ?? "").trim().replace(/\s+/g, " ");
+  return ONLY_A_US_STATE.test(t) || ONLY_A_US_STATE_CODE.test(t);
+}
 const NOT_FULLY_REMOTE_HINT = /\b(hybrid|remote[-\s]?friendly|remote optional|occasional(?:ly)? remote|some remote|partly remote|partial(?:ly)? remote|negotiable|office|on[-\s]?site|onsite)\b/i;
 const DEFINITIVE_REMOTE_HINT = /\b(fully remote|100% remote|remote only|work from home|wfh|telecommute)\b/i;
 const REMOTE_PREFIX = /^remote(?:\b|[\s—–\-,:|])/i;

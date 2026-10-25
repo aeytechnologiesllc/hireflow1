@@ -249,6 +249,18 @@ const record = (over = {}) => ({ job, family: "team_lead", notes: baseNotes(), i
   check("the skills check, with its figures", /Skills check: 80% \(4\/5 correct\)/.test(lines));
   check("the chat practice, the reviewer's notes, and that one line read as a new promise", /Chat practice[^\n]*: 40%\./.test(lines) && /NEW PROMISE/.test(lines) && /Did not correct the earlier agent plainly/.test(lines));
   check("typing as plain figures", /about 44 words a minute; a typical reply took 200 seconds/.test(lines));
+  // The sixth product review: the chat's typing only where it is the job's
+  // measure (trigger-ava-analysis chatTypingThisJob, chatTypingForJob).
+  const onSite = M.recordLines(record({ onSite: true })).join("\n");
+  check("an on-site job's chat typing is not handed to the writer (a phone's speed is no measure), the rest of the chat is", !/Typing in that chat|words a minute|typical reply took/.test(onSite) && /Chat practice[^\n]*: 40%\./.test(onSite), onSite);
+  check("…nor a job that still has a typing step (that test is its typing measure)", !/Typing in that chat/.test(M.recordLines(record({ typingStep: true })).join("\n")));
+  check("…and a remote job with no typing step keeps it", /Typing in that chat: about 44 words a minute/.test(M.recordLines(record({ onSite: false, typingStep: false })).join("\n")));
+  check("…nor anywhere in the request", !/words a minute|typical reply took/.test(M.buildGuideMessages(record({ onSite: true })).map((m) => m.content).join("\n")));
+  check("a typing step is a step of type typing_test, in any case", M.jobHasTypingStep([{ type: "chat_simulation" }, { type: "TYPING_TEST" }]) && !M.jobHasTypingStep([{ type: "chat_simulation" }]) && !M.jobHasTypingStep(null) && !M.jobHasTypingStep("typing_test"));
+  {
+    const fn = await read("supabase/functions/interview-guide/index.ts");
+    check("the function reads the job's place and steps, and says both", /const JOB_COLUMNS =\s*"[^"]*\bworkflow_steps\b[^"]*\bis_remote\b[^"]*";/.test(fn) && /onSite: \(jobRow as \{ is_remote\?: unknown \}\)\.is_remote === false,/.test(fn) && /typingStep: jobHasTypingStep\(\(jobRow as \{ workflow_steps\?: unknown \}\)\.workflow_steps\),/.test(fn));
+  }
   check("the written interview: how many answers, that THEY ended it, the marks, what it never reached", /Written interview: 2 answers, and THEY ended it before the interviewer had finished\./.test(lines) && /leading a team 75, working the chats themselves 72, handling change 78, written English 68/.test(lines) && /Topics it never reached: the hours they can cover/.test(lines));
   check("how they took the tests, as counts", /in the chat practice they left the test window 5 times/.test(lines) && /in the written interview they left the test window 3 times and tried to copy or paste 1 time\b/.test(lines), lines);
   check("our own outage is named as ours", /Our own system was down the first time/.test(lines) && /our doing, not theirs/.test(lines));

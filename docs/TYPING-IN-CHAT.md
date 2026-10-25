@@ -136,6 +136,14 @@ scorecard does not read it, and staff see it as information only ("This job
 also has a typing test; that test is its typing measure"; no WPM on the chat
 practice's gem, so one row never shows two WPM figures).
 
+Nor on an on-site job (`jobs.is_remote = false`, a hybrid job too): its chat
+practice may be done on a phone, which no computer keyboard's bar fits. Ava's
+score reads nothing of it (`chatTypingThisJob` in trigger-ava-analysis), the
+record shows the line as information, the list's Typing filter leaves it out,
+Analytics shows no typing or reply-time meter for the job, and the interview
+guide's writer is not given it (the sixth product review; guard
+`chat-typing-only-where-it-is-the-jobs-measure`).
+
 - **Score** (`chatTypingScore`), for a team lead's tests blend, where it is
   typing's 0.10:
   `round(0.8 × min(100, wpm ÷ minWpm × 100) + 0.2 × reply)`, where

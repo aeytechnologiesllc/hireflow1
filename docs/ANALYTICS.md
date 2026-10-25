@@ -33,7 +33,15 @@ from his own week's totals was approved, then built here on live numbers.
 4. **Test by test.** Each test the job has, under the job's name for it: the
    skills check average, the middle typing speed and reply time from the chat
    practice (with the job's own bar marked, and red when worse than it), the
-   chat practice and written interview averages.
+   chat practice and written interview averages. The two typing meters are
+   there only where the chat's typing is the job's measure, as Ava's score
+   reads it: not on an on-site or hybrid job (`is_remote = false`: its
+   practice may be done on a phone), and not on a job that still has a typing
+   step, whose typing meter is the typing test's own (its middle speed against
+   the bar stored with each result). They are left out rather than shown without a bar, because a speed
+   on this page reads as a measure either way (the sixth product review: the
+   dental office's phone typists showed "0 of 3 reached it" in red; guard
+   `chat-typing-only-where-it-is-the-jobs-measure`).
 5. **What holds them back.** Ava's "why down" lines on the finishers, ranked
    by how many people carry each. The figures that make a line one person's
    own are taken out (`reasonLabel`), a person counts once per mark, and one

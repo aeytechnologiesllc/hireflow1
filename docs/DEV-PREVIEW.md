@@ -164,6 +164,34 @@ which no scenario has; its logic is covered by `scripts/applicant_list.test.mjs`
 | Record sheet: below the bar on upload, ran here anyway, sent after 3 runs (Jordan) | `/applicants/30000000-0000-4000-8000-000000000017?__preview=1&__previewRole=employer&__previewScenario=zulu&record=step_connection` |
 | Full profile: running the speed test right now (Priya) | `/applicants/30000000-0000-4000-8000-000000000019?__preview=1&__previewRole=employer&__previewScenario=zulu` |
 
+### On-site and hybrid jobs, files to sign (the sixth product review)
+
+`&__previewJob=on-site,hybrid,no-typing-step` reshapes the scenario's jobs
+(the shared rows and the copies applications carry): `on-site` is not remote
+at "On-site - Makati", `hybrid` is not remote at "Hybrid - Makati" (as the
+job builder saves a hybrid job), `no-typing-step` drops the typing test.
+`&__previewPlace=Texas` writes the job's place as given, with no city found
+for it. `&__previewDocs=pdf` adds a file the business uploaded to sign
+("House rules"), which opens the full viewer; `pdf,signed` is it signed by the
+applicant (the team's turn), `pdf,voided` voided after they signed, `pdf,done`
+countersigned. Its one-page PDF is made in the page and answered for that one
+address only, so nothing reaches storage.
+
+| Screen | URL |
+|---|---|
+| Analytics: an on-site job, no chat typing meters | `/analytics?__preview=1&__previewRole=employer&__previewScenario=zulu&__previewJob=on-site,no-typing-step` |
+| Analytics: remote, typing measured in the chat | `/analytics?__preview=1&__previewRole=employer&__previewScenario=zulu&__previewJob=no-typing-step` |
+| Analytics: a job with a typing test (its own meter) | `/analytics?__preview=1&__previewRole=employer&__previewScenario=zulu` |
+| Offer letter for a hybrid job (Documents → Offer letter) | `/documents?__preview=1&__previewRole=employer&__previewJob=hybrid` |
+| Offer letter, the place only a state | `/documents?__preview=1&__previewRole=employer&__previewPlace=Texas` |
+| Uploaded PDF, before signing (no footer on a computer, "Sign" on a phone) | `/my-documents?__preview=1&__previewRole=candidate&__previewDocs=pdf` |
+| Uploaded PDF, signed, the team's turn (the audit trail is theirs) | `/my-documents?__preview=1&__previewRole=candidate&__previewDocs=pdf,signed` |
+| Uploaded PDF, voided after they signed | `/my-documents?__preview=1&__previewRole=candidate&__previewDocs=pdf,voided` |
+| Uploaded PDF, the team's turn, as the team | `/documents?__preview=1&__previewRole=employer&__previewDocs=pdf,signed` |
+
+The café's Barista job ($15 to $18 an hour) shows an hourly range's letter
+starting on "an hour".
+
 ### Create job
 
 | Screen | URL |

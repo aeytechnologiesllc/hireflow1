@@ -81,6 +81,24 @@ check("it says most things are not deleted on a timer, and names what stays afte
 check("the Terms say which papers are deleted after opening, and that a named one is kept", /A government ID, NBI clearance or proof of address asked for with its own choice is deleted 24 hours after you first open it\. A paper you name yourself/.test(read("src/content/legal.ts")) && !/ID papers are deleted 24 hours after you first open them\./.test(read("src/content/legal.ts")));
 check("…and so does the request screen, with a warning when the named paper is an ID", /The ID papers above \(government ID, NBI clearance, proof of address\) are deleted/.test(read("src/cockpit/components/RequestDocumentsDialog.tsx")) && /\{looksLikeAnId\(other\) && \(/.test(read("src/cockpit/components/RequestDocumentsDialog.tsx")));
 {
+  // The sixth product review: "kept until you delete it" promised a control
+  // that does not exist. A request can be deleted only while nothing has been
+  // sent (the live policy, 20261011140000_cancel_only_unanswered_requests.sql);
+  // after that only Delete their information (the whole application) or a
+  // deleted account removes the file.
+  const legal = read("src/content/legal.ts");
+  const dialog = read("src/cockpit/components/RequestDocumentsDialog.tsx");
+  const cancel = read("supabase/migrations/20261011140000_cancel_only_unanswered_requests.sql");
+  check(
+    "…and neither promises a deletion the business cannot do: a named paper is kept until the application or the account is deleted (the sixth product review)",
+    !/kept until you delete|until you delete it\b|kept until it, the application/i.test(legal + dialog) &&
+      /A paper you name yourself \(under \\"Something else\\"\) is kept, even if it is an ID, until the application is deleted \(Delete their information, in the applicant's ⋯ menu\) or the applicant's account is\./.test(legal) &&
+      /Any other paper the team asks for by its own name is kept until the application or your account is deleted\./.test(legal) &&
+      (dialog.match(/is kept until their application is deleted \(⋯ → Delete their information\) or their account is\./g) ?? []).length === 2,
+  );
+  check("…which is what the database allows: a request is deleted only while it holds no file and no typed answer", /file_url is null/i.test(cancel) && /answer_text is null/i.test(cancel));
+}
+{
   // The one timer (docs/DOCUMENT-REQUESTS.md): identity papers, deleted by the
   // document-cleanup function. The page's number and kinds must be the code's.
   const kinds = read("src/lib/documentRequests.ts");

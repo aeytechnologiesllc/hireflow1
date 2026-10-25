@@ -16,9 +16,13 @@ import {
   offerLetterText,
   offerProblems,
   payPartsFromJob,
+  payPerFromJob,
   currencyFromJob,
+  workModeFromJob,
+  type JobPlaceParts,
   type OfferLetterFields,
   type PayPer,
+  type WorkMode,
 } from "../lib/offerLetter";
 
 /**
@@ -46,12 +50,18 @@ export interface OfferPerson {
   jobPay: { payAmount: string; payCurrency: string; payPer: PayPer } | null;
   /** The job's currency, when it has one ("" when it has none). */
   jobCurrency: string;
+  /** The job's pay period, when it is a month, a week or an hour (a range's too). */
+  jobPer: PayPer | null;
   /** The job is done from home. */
   jobRemote: boolean;
+  /** How the job is worked: remote, hybrid (its place says so) or in person. */
+  jobWorkMode: WorkMode;
   /** The job's own type ("full-time", "part-time", "contract"…), when it has one. */
   jobType: string | null;
   /** The job's place as the business wrote it. */
   jobLocation: string | null;
+  /** Where that place was found: its city, region and country (the job's location_* columns). */
+  jobPlace: JobPlaceParts;
 }
 
 /** The stages an offer can go out from, the likeliest first. */
@@ -76,7 +86,7 @@ export function useOfferPeople(enabled: boolean, stages: readonly string[] = OFF
       const employerId = await resolveEmployerIdForJobAccess(user!.id, !!isTeamMember);
       const { data: jobs, error: jobsError } = await supabase
         .from("jobs")
-        .select("id, title, salary_min, salary_max, salary_currency, salary_period, is_remote, job_type, location")
+        .select("id, title, salary_min, salary_max, salary_currency, salary_period, is_remote, job_type, location, location_city, location_region, location_country")
         .eq("employer_id", employerId);
       if (jobsError) throw jobsError;
       if (!jobs || jobs.length === 0) return [];
@@ -109,9 +119,12 @@ export function useOfferPeople(enabled: boolean, stages: readonly string[] = OFF
             jobTitle: job?.title ?? "",
             jobPay: payPartsFromJob(job),
             jobCurrency: currencyFromJob(job),
+            jobPer: payPerFromJob(job),
             jobRemote: job?.is_remote !== false,
+            jobWorkMode: workModeFromJob(job),
             jobType: job?.job_type ?? null,
-            jobLocation: (job as { location?: string | null } | undefined)?.location ?? null,
+            jobLocation: job?.location ?? null,
+            jobPlace: { city: job?.location_city ?? null, region: job?.location_region ?? null, country: job?.location_country ?? null },
           };
         })
         .sort((a, b) => stages.indexOf(a.status) - stages.indexOf(b.status) || a.name.localeCompare(b.name));

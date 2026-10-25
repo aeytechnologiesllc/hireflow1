@@ -120,7 +120,9 @@ for (const word of ["at-will", "at will", "salary", "benefits", "terminate", "la
   check(`the letter uses plain words, not "${word}"`, !letter.toLowerCase().includes(word));
 }
 check("no placeholder is ever printed", !/\[|\]|undefined|null|NaN/.test(letter) && !/\[|\]|undefined|null|NaN/.test(lib.offerLetterText({ ...base, hours: "", shift: "", extra: "", payEvery: "", payMethod: "", signerTitle: "", trialDays: 0 })));
-eq("the usual terms in one line", lib.termsSummary(base), "Independent contractor · 30 days trial · 14 days' notice to end · Own computer and internet · Keeps information private");
+// The worker type is not folded into it: the screen shows it on its own line (the sixth product review).
+eq("the usual terms in one line", lib.termsSummary(base), "30 days trial · 14 days' notice to end · Own computer and internet · Keeps information private");
+check("…which never carries the worker type, either one", !/contractor|employee/i.test(lib.termsSummary(base) + lib.termsSummary({ ...base, workerType: "employee" })));
 eq("a two-week trial is said in weeks", lib.periodWords(14), "2 weeks");
 eq("the document is named for the person", lib.offerLetterName(base), "Offer letter - Ana Maria Reyes");
 eq("with no name yet it is still named", lib.offerLetterName({ ...base, applicantName: " " }), "Offer letter");
@@ -191,16 +193,69 @@ for (const [place, want] of [
   ["Remote (no onsite)", ""],
   ["Philippines", ""],
   ["United States", ""],
-  ["Hybrid - Makati", ""],
   ["2F Ayala Tower, Makati", "2F Ayala Tower, Makati"],
   ["Makati office", "Makati office"],
   ["Cebu City", "Cebu City"],
+  // The sixth product review: the work-mode words go, and a place that is
+  // only a country or a state is no workplace, by rule (every country Intl
+  // names, every US state), not by a list of twenty.
+  ["On-site - Makati", "Makati"],
+  ["Onsite, Cebu City", "Cebu City"],
+  ["Makati (On-site)", "Makati"],
+  ["In-office, 2F Ayala Tower, Makati", "2F Ayala Tower, Makati"],
+  ["Hybrid - Makati", "Makati"],
+  ["Hybrid (Taguig)", "Taguig"],
+  ["On-site", ""],
+  ["Texas", ""],
+  ["TX", ""],
+  ["New York", ""],
+  ["Texas, USA", ""],
+  ["On-site - Texas", ""],
+  ["Malaysia", ""],
+  ["Vietnam", ""],
+  ["Viet Nam", ""],
+  ["Brazil", ""],
+  ["the Philippines", ""],
+  ["Philippines.", ""],
+  ["PH", ""],
+  ["Austin, Texas", "Austin, Texas"],
+  ["Makati, Philippines", "Makati, Philippines"],
+  ["Kuala Lumpur, Malaysia", "Kuala Lumpur, Malaysia"],
 ]) eq(`the letter's place for "${place}"`, lib.placeForLetter(place), want);
+// A state of another country, by the job's own geocoded place (location_region / location_country).
+eq("a place that is only the region the job was found in is no workplace", lib.placeForLetter("Selangor", { city: null, region: "Selangor", country: "Malaysia" }), "");
+eq("…nor 'Metro Manila', when that is the region", lib.placeForLetter("Metro Manila", { city: null, region: "Metro Manila", country: "Philippines" }), "");
+eq("…while a part that is the job's own city stays ('New York', the city)", lib.placeForLetter("New York", { city: "New York", region: "New York", country: "United States" }), "New York");
+eq("…and a city with its region stays whole", lib.placeForLetter("Shah Alam, Selangor", { city: "Shah Alam", region: "Selangor", country: "Malaysia" }), "Shah Alam, Selangor");
+
+// A hybrid job (saved is_remote = false, jobFromFlow) says hybrid where the job says it.
+eq("a hybrid job's place says hybrid: the work mode is hybrid", lib.workModeFromJob({ is_remote: false, location: "Hybrid - Makati" }), "hybrid");
+eq("…'Hybrid (Taguig)' too", lib.workModeFromJob({ is_remote: false, location: "Hybrid (Taguig)" }), "hybrid");
+eq("an on-site job is in person", lib.workModeFromJob({ is_remote: false, location: "Makati" }), "onsite");
+eq("a remote job is remote, 'no hybrid' and all", lib.workModeFromJob({ is_remote: true, location: "Remote (100%, no hybrid)" }), "remote");
+eq("no job is the letter's default, remote", lib.workModeFromJob(null), "remote");
+check("the letter says hybrid, and where the in-person days are", lib.offerLetterText({ ...base, remote: false, hybrid: true, place: "Makati" }).includes("Where: Hybrid, partly from home and partly in person at Makati"));
+check("…at the business's own workplace when no place is given", lib.offerLetterText({ ...base, remote: false, hybrid: true }).includes("Where: Hybrid, partly from home and partly in person at Zulu Support Team's workplace"));
+check("…never on a remote letter", lib.offerLetterText({ ...base, hybrid: true }).includes("Where: Remote, working from home") && !lib.offerLetterText({ ...base, hybrid: true }).includes("Hybrid"));
+check("…and an in-person letter is unchanged", lib.offerLetterText({ ...base, remote: false, place: "Makati" }).includes("Where: In person, at Makati"));
+
+// An hourly range takes the job's period with its currency (the sixth product review: "USD 16 a month").
+eq("the job's period, for a range too: an hour", lib.payPerFromJob({ salary_min: 15, salary_max: 18, salary_currency: "USD", salary_period: "HOUR" }), "hour");
+eq("…a week, a month", `${lib.payPerFromJob({ salary_period: "week" })} ${lib.payPerFromJob({ salary_period: "MONTH" })}`, "week month");
+eq("…and none for a year or a day, which the box cannot say", `${lib.payPerFromJob({ salary_period: "YEAR" })} ${lib.payPerFromJob({ salary_period: "DAY" })} ${lib.payPerFromJob(null)}`, "null null null");
 {
   const { readFileSync } = await import("node:fs");
   const dialog = readFileSync(resolve(root, "src/cockpit/components/OfferLetterDialog.tsx"), "utf8");
-  check("the screen fills the place only with placeForLetter, and lets the business type it", /setPlace\(placeForLetter\(person\.jobLocation\)\);/.test(dialog) && /id="ck-offer-place"[^>]*onChange=\{\(e\) => edit\(setPlace\)\(e\.target\.value\)\}/.test(dialog));
+  const hook = readFileSync(resolve(root, "src/cockpit/hooks/useOfferLetter.ts"), "utf8");
+  check("the screen fills the place only with placeForLetter, with the job's geocoded place, and lets the business type it", /setPlace\(placeForLetter\(person\.jobLocation, person\.jobPlace\)\);/.test(dialog) && /id="ck-offer-place"[^>]*onChange=\{\(e\) => edit\(setPlace\)\(e\.target\.value\)\}/.test(dialog) && /location_city, location_region, location_country/.test(hook) && /jobPlace: \{ city: job\?\.location_city \?\? null, region: job\?\.location_region \?\? null, country: job\?\.location_country \?\? null \}/.test(hook));
   check("the screen takes the job's currency even for a range, and never a default one", /setPayCurrency\(person\.jobCurrency\);/.test(dialog) && /problemFor\("payAmount"\) \?\? problemFor\("payCurrency"\)/.test(dialog));
+  check("…and the range's period with it", /setPayCurrency\(person\.jobCurrency\);\s*setPayPer\(person\.jobPer \?\? OFFER_DEFAULTS\.payPer\);/.test(dialog) && /jobPer: payPerFromJob\(job\),/.test(hook));
+  // The worker type on its own line, outside the folded terms (the sixth product review).
+  const step3 = dialog.slice(dialog.indexOf('<Step n={3} title="Terms">'), dialog.indexOf('<Step n={4} title="Sending">'));
+  const folded = step3.indexOf("{!showTerms ? (");
+  check("the worker type is out in the open in step 3, before the folded terms, with its guidance", step3.indexOf('id="ck-offer-worker"') > 0 && step3.indexOf('id="ck-offer-worker"') < folded && (step3.match(/id="ck-offer-worker"/g) ?? []).length === 1 && /Most remote hires in another country are contractors and handle their own taxes\./.test(step3.slice(0, folded)) && /Someone who works at your place on your schedule is usually an employee\./.test(step3.slice(0, folded)));
+  check("…and the default is unchanged (the owner's call): a remote job starts as a contractor", lib.OFFER_DEFAULTS.workerType === "contractor" && /setWorkerType\(kept\.workerType \?\? \(remoteJob \? OFFER_DEFAULTS\.workerType : "employee"\)\);/.test(dialog));
+  check("in person, hybrid or remote is chosen in step 1 from the job's own words, not a box in the folded terms", /setWorkMode\(person\.jobWorkMode\);/.test(dialog) && /options=\{\[\{ value: "onsite", label: "In person" \}, \{ value: "hybrid", label: "Hybrid" \}, \{ value: "remote", label: "Remote" \}\]\}/.test(dialog) && !/ck-offer-remote/.test(dialog) && /hybrid: workMode === "hybrid",/.test(dialog) && /jobWorkMode: workModeFromJob\(job\),/.test(hook));
 }
 
 console.log(`offer letter: ${passed} passed, ${failed} failed`);

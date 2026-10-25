@@ -198,6 +198,8 @@ export default function CockpitAnalytics() {
       now: hour * 3_600_000 + 1,
       viewerZone,
       applicantZone: job ? zoneFromJob({ countryCode: job.location_country_code, text }) : null,
+      // On-site (and hybrid) jobs: the chat's typing is no measure (the sixth product review).
+      onSite: job ? job.is_remote === false : null,
       traffic: traffic ?? null,
     });
   }, [list.rows, list.apps, list.sessions, job, jobId, hour, traffic]);

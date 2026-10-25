@@ -15,6 +15,10 @@
  *   - applicant-data-can-be-removed: a business can delete an applicant's
  *     information (the Terms ask it to act on such a request), only through
  *     the remove-applicant function, which names the actor from the sign-in.
+ *   - named-papers-kept-until-the-application-goes: the Terms and the request
+ *     screen never promise the business can delete a paper it named itself;
+ *     once something is sent, only Delete their information (or a deleted
+ *     account) removes it (the sixth product review).
  */
 
 const ENTITY = "Southern Digital Technologies LLC";
@@ -264,6 +268,39 @@ export default [
       if (!/p_actor: caller\.userId/.test(fn) || !/requireSignedInUser\(req, corsHeaders\)/.test(fn)) detail.push("remove-applicant: the actor must come from the caller's sign-in");
       const menu = (await read("src/cockpit/components/ApplicantRowMenu.tsx")) ?? "";
       if (!/key: "delete", label: "Delete their information"/.test(menu)) detail.push("ApplicantRowMenu.tsx: 'Delete their information' is gone from the ⋯ menu");
+      return detail.length ? { ok: false, detail } : { ok: true };
+    },
+  },
+  {
+    id: "named-papers-kept-until-the-application-goes",
+    why:
+      "A paper the business names itself (\"Something else\") is not deleted after opening, and once anything is " +
+      "sent its request cannot be deleted on its own (\"Employers can delete document requests\" allows it only " +
+      "while it holds no file and no typed answer). The Terms and the request screen said it was \"kept until you " +
+      "delete it\", a control that does not exist (the sixth product review). They say it is kept until the " +
+      "application is deleted (Delete their information) or the account is.",
+    run: async ({ read, walk }) => {
+      const detail = [];
+      // Comments out first: a sentence kept only in a comment shows no one anything.
+      const noComments = (t) => t.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+      for (const rel of await walk("src", [".ts", ".tsx"])) {
+        if (rel.startsWith("src/dev-preview/")) continue;
+        const text = noComments((await read(rel)) ?? "");
+        if (/kept until you delete|until you delete it\b|kept until it, the application/i.test(text)) detail.push(`${rel}: promises the business can delete a paper it named (\"until you delete it\"); say it is kept until the application or the account is deleted`);
+      }
+      const legal = noComments((await read("src/content/legal.ts")) ?? "");
+      if (!/A paper you name yourself \(under \\"Something else\\"\) is kept, even if it is an ID, until the application is deleted \(Delete their information, in the applicant's ⋯ menu\) or the applicant's account is\./.test(legal)) detail.push("legal.ts: the Terms no longer say a named paper is kept until the application (Delete their information) or the account is deleted");
+      if (!/Any other paper the team asks for by its own name is kept until the application or your account is deleted\./.test(legal)) detail.push("legal.ts: the Privacy Policy no longer says a named paper is kept until the application or the account is deleted");
+      const dialog = noComments((await read("src/cockpit/components/RequestDocumentsDialog.tsx")) ?? "");
+      if ((dialog.match(/is kept until their application is deleted \(⋯ → Delete their information\) or their account is\./g) ?? []).length !== 2) detail.push("RequestDocumentsDialog.tsx: the ID warning and the privacy note must both say a named paper is kept until their application (⋯ → Delete their information) or their account is deleted");
+      // If a delete for a sent paper is ever added, these words change with it.
+      let policy = "";
+      for (const rel of (await walk("supabase/migrations", [".sql"])).sort()) {
+        const text = (await read(rel)) ?? "";
+        const at = text.search(/create policy "Employers can delete document requests"/i);
+        if (at >= 0) policy = text.slice(at, text.indexOf(";", at));
+      }
+      if (!/file_url is null/i.test(policy) || !/answer_text is null/i.test(policy)) detail.push("supabase/migrations: a sent request can now be deleted; change the Terms and the request screen to say so (they say only the application's deletion removes a named paper)");
       return detail.length ? { ok: false, detail } : { ok: true };
     },
   },

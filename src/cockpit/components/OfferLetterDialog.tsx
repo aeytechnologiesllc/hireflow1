@@ -28,6 +28,7 @@ import {
   type OfferLetterFields,
   type PayEvery,
   type PayPer,
+  type WorkMode,
   type WorkSchedule,
   type WorkerType,
 } from "../lib/offerLetter";
@@ -237,7 +238,10 @@ export function OfferLetterDialog({
   const [payEvery, setPayEvery] = useState<PayEvery>(OFFER_DEFAULTS.payEvery);
   const [payMethod, setPayMethod] = useState("");
   const [workerType, setWorkerType] = useState<WorkerType>(OFFER_DEFAULTS.workerType);
-  const [remote, setRemote] = useState<boolean>(OFFER_DEFAULTS.remote);
+  // In person, hybrid or remote, as the job says (the sixth product review:
+  // a hybrid job's letter said "In person").
+  const [workMode, setWorkMode] = useState<WorkMode>(OFFER_DEFAULTS.remote ? "remote" : "onsite");
+  const remote = workMode === "remote";
   // Where an on-site job is done, from the job's own place (the fourth product audit).
   const [place, setPlace] = useState("");
   const [trialDays, setTrialDays] = useState<number>(OFFER_DEFAULTS.trialDays);
@@ -273,10 +277,12 @@ export function OfferLetterDialog({
     if (!person) return;
     setName(person.name === "Applicant" ? "" : person.name);
     setRoleTitle(person.jobTitle);
-    setRemote(person.jobRemote);
-    // Only a place someone goes to, never "Work from home" or a bare country
-    // (the fifth product review); the business can type the address.
-    setPlace(placeForLetter(person.jobLocation));
+    setWorkMode(person.jobWorkMode);
+    const remoteJob = person.jobWorkMode === "remote";
+    // Only a place someone goes to, never "Work from home", a bare country or
+    // state, or the work-mode words (the fifth and sixth product reviews); the
+    // business can type the address.
+    setPlace(placeForLetter(person.jobLocation, person.jobPlace));
     if (person.jobPay) {
       const pay = person.jobPay;
       setPayAmount((now) => now || pay.payAmount);
@@ -284,7 +290,10 @@ export function OfferLetterDialog({
       setPayPer(pay.payPer);
     } else {
       // A range or a yearly figure still says its currency; none is guessed.
+      // And a range's period with it: an hourly range is "an hour", not the
+      // month the box starts on (the sixth product review: "USD 16 a month").
       setPayCurrency(person.jobCurrency);
+      setPayPer(person.jobPer ?? OFFER_DEFAULTS.payPer);
     }
     const kept = remembered(person.jobId);
     setHours((now) => now || kept.hours || "");
@@ -297,8 +306,8 @@ export function OfferLetterDialog({
     // the remote defaults (contractor, own computer, own taxes) are for work
     // from home (the Phase 7 product audit: a dental office's front-desk
     // offer called its employee a contractor on their own computer).
-    setWorkerType(kept.workerType ?? (person.jobRemote ? OFFER_DEFAULTS.workerType : "employee"));
-    setOwnEquipment(person.jobRemote ? OFFER_DEFAULTS.ownEquipment : false);
+    setWorkerType(kept.workerType ?? (remoteJob ? OFFER_DEFAULTS.workerType : "employee"));
+    setOwnEquipment(remoteJob ? OFFER_DEFAULTS.ownEquipment : false);
     // Full or part time from the job itself (the second Phase 7 product
     // audit: a part-time job's offer said "Full-time").
     setSchedule(kept.schedule ?? (person.jobType === "part-time" ? "part" : "full"));
@@ -333,6 +342,7 @@ export function OfferLetterDialog({
     hours,
     shift,
     remote,
+    hybrid: workMode === "hybrid",
     place,
     reportsTo,
     trialDays,
@@ -539,8 +549,13 @@ export function OfferLetterDialog({
                   <Field id="ck-offer-shift" label="Shift" hint="optional" problem={problemFor("shift")} help="With the time zone, so nobody reads it on the wrong clock.">
                     <input id="ck-offer-shift" className={INPUT} value={shift} maxLength={OFFER_LIMITS.line} disabled={busy} placeholder="3:00 AM to 11:00 AM Philippine time" onChange={(e) => edit(setShift)(e.target.value)} autoComplete="off" />
                   </Field>
+                  {/* Out in the open, as the job says it (it was a box ticked
+                      inside the folded terms; the sixth product review). */}
+                  <Field id="ck-offer-where" label="Where they work">
+                    <Choice<WorkMode> name="Where they work" value={workMode} disabled={busy} onChange={edit(setWorkMode)} options={[{ value: "onsite", label: "In person" }, { value: "hybrid", label: "Hybrid" }, { value: "remote", label: "Remote" }]} />
+                  </Field>
                   {!remote && (
-                    <Field id="ck-offer-place" label="Where they work" hint="optional" problem={problemFor("place")} help={`Left empty, the letter says ${company.trim() ? `${company.trim()}'s` : "your"} workplace.`}>
+                    <Field id="ck-offer-place" label="Workplace address" hint="optional" problem={problemFor("place")} help={`Left empty, the letter says ${company.trim() ? `${company.trim()}'s` : "your"} workplace.`}>
                       <input id="ck-offer-place" className={INPUT} value={place} maxLength={OFFER_LIMITS.line} disabled={busy} placeholder="2/F Ayala Tower, Makati" onChange={(e) => edit(setPlace)(e.target.value)} autoComplete="off" />
                     </Field>
                   )}
@@ -589,6 +604,23 @@ export function OfferLetterDialog({
                 </Step>
 
                 <Step n={3} title="Terms">
+                  {/* Always open, never folded into the summary: the letter
+                      says a contractor pays their own taxes, and a business
+                      must see which it is before it sends (the sixth product
+                      review: a US company's remote phone agents went out as
+                      contractors from a collapsed line). The default is
+                      unchanged; that is the owner's call. */}
+                  <Field
+                    id="ck-offer-worker"
+                    label="Working as"
+                    help={remote
+                      ? "Most remote hires in another country are contractors and handle their own taxes. Choose employee only if you run payroll for them."
+                      : "Someone who works at your place on your schedule is usually an employee. Choose contractor only if they run their own business and bill you."}
+                  >
+                    <div data-offer-worker>
+                      <Choice<WorkerType> name="Working as" value={workerType} disabled={busy} onChange={edit(setWorkerType)} options={[{ value: "contractor", label: "Independent contractor" }, { value: "employee", label: "Employee" }]} />
+                    </div>
+                  </Field>
                   {!showTerms ? (
                     <div className="rounded-[12px] border px-3.5 py-3" style={{ borderColor: "var(--line)" }} data-offer-terms="summary">
                       <p className="text-[13.5px] leading-snug" style={{ color: "var(--hf-text)" }}>
@@ -603,15 +635,6 @@ export function OfferLetterDialog({
                     </div>
                   ) : (
                     <div className="flex flex-col gap-3.5" data-offer-terms="open">
-                      <Field
-                        id="ck-offer-worker"
-                        label="Working as"
-                        help={remote
-                          ? "Most remote hires in another country are contractors and handle their own taxes. Choose employee only if you run payroll for them."
-                          : "Someone who works at your place on your schedule is usually an employee. Choose contractor only if they run their own business and bill you."}
-                      >
-                        <Choice<WorkerType> name="Working as" value={workerType} disabled={busy} onChange={edit(setWorkerType)} options={[{ value: "contractor", label: "Independent contractor" }, { value: "employee", label: "Employee" }]} />
-                      </Field>
                       <div className="grid gap-3.5 sm:grid-cols-2">
                         <Field id="ck-offer-trial" label="Trial period" help="Lets either side end it quickly if it is not a fit.">
                           <select id="ck-offer-trial" className={INPUT} value={trialDays} disabled={busy} onChange={(e) => edit(setTrialDays)(Number(e.target.value))}>
@@ -633,9 +656,6 @@ export function OfferLetterDialog({
                         </Field>
                       </div>
                       <div className="flex flex-col gap-2">
-                        <Check id="ck-offer-remote" checked={remote} disabled={busy} onChange={edit(setRemote)}>
-                          Remote, working from home
-                        </Check>
                         <Check id="ck-offer-equipment" checked={ownEquipment} disabled={busy} onChange={edit(setOwnEquipment)}>
                           They use their own computer and internet
                         </Check>

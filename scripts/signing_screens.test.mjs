@@ -46,7 +46,26 @@ for (const [who, src] of [["applicant", applicant], ["team", team]]) {
 // (the fifth product review: on a computer they showed before signing).
 const viewer = read("src/components/documents/SignedDocumentViewer.tsx");
 check("PDF viewer: the applicant's copies only once signed", /\$\{document\.status === "signed" \? "flex" : role === "candidate" \? "hidden" : "hidden sm:flex"\}/.test(viewer));
-check("PDF viewer: the applicant's audit trail only once signed", /\{\(document\.status === "signed" \|\| role !== "candidate"\) && \(\s*<Button onClick=\{\(\) => setShowAuditTrail\(true\)\}/.test(viewer));
+// The sixth product review: the audit trail is the applicant's once THEY have
+// signed (it waited for the countersign, and was gone for good after a void),
+// and the footer shows only on a screen where it holds a button (it was an
+// empty strip on a computer before signing, and everywhere while waiting).
+check("PDF viewer: the applicant's audit trail once they have signed, countersigned or not, voided or not; never before", /const auditTrailOffered = document\?\.status === "signed" \|\| role !== "candidate" \|\| !!document\?\.candidate_signed_at;/.test(viewer) && /\{auditTrailOffered && \(\s*<Button onClick=\{\(\) => setShowAuditTrail\(true\)\}/.test(viewer) && !/\{\(document\.status === "signed" \|\| role !== "candidate"\) && \(\s*<Button onClick=\{\(\) => setShowAuditTrail/.test(viewer));
+check("PDF viewer: the footer only where it has a button: everywhere with the audit trail, on a phone for 'Sign' alone, else none", /const footerOn: "both" \| "phone" \| "none" = auditTrailOffered \? "both" : canSignAsCandidate \|\| canCountersignAsEmployer \? "phone" : "none";/.test(viewer) && /\{footerOn !== "none" && \(\s*<div className=\{`p-3 sm:p-4 border-t border-border bg-card shrink-0 \$\{footerOn === "phone" \? "sm:hidden" : ""\}`\}/.test(viewer) && /className="gap-2 whitespace-nowrap sm:hidden"\s*data-go-to-sign/.test(viewer));
+check("…and the record still keeps the team's address from the applicant: the trail is read through document_audit_log, and an IP shows only on their own rows", /supabase\.rpc\("document_audit_log" as never/.test(viewer) && /\(role !== "candidate" \|\| log\.user_id === user\?\.id\) && \(/.test(viewer));
+{
+  // The footer's rule, worked through every state the viewer can be in.
+  const footer = ({ role, status = "pending", signed = false, countersigned = false, voided = false }) => {
+    const canSign = role === "candidate" && status === "pending" && !signed && !voided;
+    const canCountersign = role !== "candidate" && status === "pending" && signed && !countersigned && !voided;
+    const audit = status === "signed" || role !== "candidate" || signed;
+    return audit ? "both" : canSign || canCountersign ? "phone" : "none";
+  };
+  check("…the applicant before signing: 'Sign' on a phone, no strip on a computer", footer({ role: "candidate" }) === "phone");
+  check("…after signing, waiting on the team, or voided: the audit trail, on every screen", footer({ role: "candidate", signed: true }) === "both" && footer({ role: "candidate", signed: true, voided: true }) === "both");
+  check("…declined or withdrawn before signing: nothing, so no footer", footer({ role: "candidate", status: "declined" }) === "none" && footer({ role: "candidate", voided: true }) === "none");
+  check("…the team: always", footer({ role: "employer" }) === "both" && footer({ role: "team_member", signed: true }) === "both");
+}
 check("PDF viewer: 'before you sign' only to the one who signs next", /: canSignAsCandidate\s*\? "Read it here, or open it in its own tab, before you sign\."/.test(viewer));
 check("applicant: 'Sign and accept the offer'", /Sign and accept the offer/.test(applicant));
 check("team: says it waits on the applicant when it does", /Nothing to do yet\.<\/strong> \{First\} signs first/.test(team));

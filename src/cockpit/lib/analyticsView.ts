@@ -79,6 +79,10 @@ export interface AnalyticsInput {
   viewerZone: string;
   /** The applicants' clock when the job says where it is posted for; null when it does not. */
   applicantZone?: string | null;
+  /** The job is done on-site (jobs.is_remote === false, a hybrid job too):
+   *  its chat practice may be taken on a phone, so the chat's typing is no
+   *  measure of anyone (the sixth product review). */
+  onSite?: boolean | null;
   traffic?: readonly AnalyticsTrafficDay[] | null;
 }
 
@@ -367,6 +371,21 @@ export function buildAnalyticsView(input: AnalyticsInput): AnalyticsView {
   const advice = advised.length ? { look: advised.filter((r) => r.recommendedAction !== "reject").length, decline: advised.filter((r) => r.recommendedAction === "reject").length } : null;
 
   /* Test by test, and Ava's marks, from each application's own results. */
+  // The chat practice's typing is measured against the job's bar only where
+  // Ava's score reads it (trigger-ava-analysis: chatTypingThisJob leaves an
+  // on-site job out, chatTypingForJob a job with a typing step), and so the
+  // record and the list's Typing filter. Elsewhere its two meters are left
+  // out, not shown without a bar: on a page of measures, a typing speed with
+  // no bar beside it still reads as one, and on an on-site job it is a
+  // phone's speed (the sixth product review: the dental office's
+  // receptionists, 21 WPM on their phones, "0 of 3 reached it" in the
+  // warning colour). Each person's record still shows the line, as
+  // information. A job with a typing step has its typing meter from that
+  // test, as the scorer and the list read it. The job's steps as the list's
+  // dots read them.
+  const typingStepId = template.find((d) => d.stepType === "typing_test")?.stepId ?? null;
+  const jobHasTypingStep = rows.some((r) => r.dots.some((d) => d.stepType === "typing_test"));
+  const chatTypingCounts = !jobHasTypingStep && input.onSite !== true;
   const quiz: number[] = [];
   const chat: number[] = [];
   const interview: number[] = [];
@@ -388,10 +407,17 @@ export function buildAnalyticsView(input: AnalyticsInput): AnalyticsView {
     const sim = obj(notes.chatSimulationResult);
     const simScore = num(sim?.score);
     if (simScore != null) chat.push(clamp(simScore, 0, 100));
-    const typing = sim ? chatTypingOf(sim.typing) : null;
-    if (typing) {
+    const typing = sim ? chatTypingOf(sim.typing, chatTypingCounts) : null;
+    if (typing?.jobMeasure) {
       if (typing.wpm != null) { wpm.push(typing.wpm); wpmBar = typing.minWpm; }
       if (typing.medianReplySeconds != null) { reply.push(typing.medianReplySeconds); replyBar = typing.maxMedianReplySeconds; }
+    }
+    if (jobHasTypingStep) {
+      // Where the record reads the typing test (typingTestResult, else the step's own entry).
+      const test = obj(notes.typingTestResult) ?? (typingStepId ? obj(notes[typingStepId]) : null);
+      const testWpm = num(test?.wpm);
+      const testBar = num(test?.requiredWpm);
+      if (testWpm != null) { wpm.push(testWpm); if (testBar != null && testBar > 0) wpmBar = testBar; }
     }
     const ivScore = num(obj(obj(notes.chatInterviewResult)?.evaluation)?.score);
     if (ivScore != null) interview.push(clamp(ivScore, 0, 100));
@@ -417,7 +443,7 @@ export function buildAnalyticsView(input: AnalyticsInput): AnalyticsView {
     const top = Math.max(80, (wpmBar ?? 0) * 2);
     const made = wpmBar != null ? wpm.filter((w) => w >= (wpmBar as number)).length : null;
     tests.push({
-      key: "typing", label: "Typing in the chat", value, unit: "words a minute", fill: clamp((value / top) * 100, 0, 100),
+      key: "typing", label: jobHasTypingStep ? named(["typing_test"], "Typing test") : "Typing in the chat", value, unit: "words a minute", fill: clamp((value / top) * 100, 0, 100),
       barAt: wpmBar != null ? clamp((wpmBar / top) * 100, 0, 100) : null,
       barWords: wpmBar != null ? `The job asks for ${wpmBar}.` : null,
       note: made != null ? `${made} of ${wpm.length} reached it.` : null,

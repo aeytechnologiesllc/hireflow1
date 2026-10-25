@@ -257,6 +257,19 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     !document?.employer_signed_at &&
     !document?.is_voided;
 
+  // The audit trail: the team's at any time; the applicant's once they have
+  // signed, and still after a void (the record of their own signature is
+  // theirs to read: document_audit_log gives them the team's rows without
+  // its address, place or device). Before they sign it stays out of their way
+  // (the fifth product review). The sixth product review: shown to them only
+  // once countersigned, it was out of reach while the team took its time, and
+  // for good once the team voided what they had signed.
+  const auditTrailOffered = document?.status === "signed" || role !== "candidate" || !!document?.candidate_signed_at;
+  // Which screens the footer has a button for: the copies (finished; the
+  // team's on a computer) and the audit trail go with auditTrailOffered, and
+  // only a phone has "Sign" / "Countersign". Nothing at all: no footer.
+  const footerOn: "both" | "phone" | "none" = auditTrailOffered ? "both" : canSignAsCandidate || canCountersignAsEmployer ? "phone" : "none";
+
   const fetchAuditLogs = useCallback(async () => {
     if (!document) return;
 
@@ -1202,8 +1215,11 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
 
               {/* Footer Actions */}
               {/* The copies to keep belong to a finished document. Until then,
-                  on a phone, they would only squeeze the place to sign. */}
-              <div className="p-3 sm:p-4 border-t border-border bg-card shrink-0">
+                  on a phone, they would only squeeze the place to sign.
+                  The bar itself shows only on a screen where it holds a button
+                  (the sixth product review: an applicant saw an empty strip). */}
+              {footerOn !== "none" && (
+              <div className={`p-3 sm:p-4 border-t border-border bg-card shrink-0 ${footerOn === "phone" ? "sm:hidden" : ""}`} data-viewer-footer={footerOn}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   {/* …and to the applicant only once it is finished, on any screen (the
                       fifth product review: before signing they saw Signed PDF,
@@ -1222,7 +1238,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                       Audit PDF
                     </Button>
                   </div>
-                  {(document.status === "signed" || role !== "candidate") && (
+                  {auditTrailOffered && (
                     <Button onClick={() => setShowAuditTrail(true)} variant={document.status === "signed" ? "default" : "outline"} size="sm" className="gap-2 whitespace-nowrap">
                       <History className="h-4 w-4" />
                       View Audit Trail
@@ -1243,6 +1259,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                   )}
                 </div>
               </div>
+              )}
             </motion.div>
           ) : (
             <motion.div

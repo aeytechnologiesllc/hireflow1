@@ -234,10 +234,15 @@ export function RequestDocumentsDialog({ open, applicationId, onClose }: { open:
                     </label>
                     <input id="ck-request-other" className={`${INPUT} mt-1.5`} value={other} maxLength={80} disabled={busy} placeholder="A signed copy of the house rules" onChange={(e) => { setOther(e.target.value); setArmed(false); }} autoComplete="off" />
                     {/* Only the papers chosen above are deleted after opening;
-                        an ID named here is kept (the tenth Phase 5 review). */}
+                        an ID named here is kept (the tenth Phase 5 review).
+                        Kept until the application goes, not "until you delete
+                        it": once something is sent, a request cannot be
+                        deleted on its own (the live policy allows it only
+                        while it holds nothing), and only Delete their
+                        information removes it (the sixth product review). */}
                     {looksLikeAnId(other) && (
                       <p className="mt-1.5 text-[12px] leading-snug" style={{ color: "var(--amber-fg)" }} data-request-other-id>
-                        A paper named here is kept until you delete it. For an ID that is deleted {ID_DELETE_HOURS_AFTER_OPENED} hours after you open it, choose Government ID above.
+                        A paper named here is kept until their application is deleted (⋯ → Delete their information) or their account is. For an ID that is deleted {ID_DELETE_HOURS_AFTER_OPENED} hours after you open it, choose Government ID above.
                       </p>
                     )}
                   </div>
@@ -294,7 +299,7 @@ export function RequestDocumentsDialog({ open, applicationId, onClose }: { open:
             </div>
             <div className="mt-3 flex gap-2.5 rounded-[12px] px-3 py-2.5 text-[12.5px] leading-snug" style={{ background: "var(--surface-2)", color: "var(--ink-2)" }}>
               <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-              <span>Files are private: only you and {person ? first : "the applicant"} can open them, through a link that lasts five minutes, and every opening is recorded. The ID papers above (government ID, NBI clearance, proof of address) are deleted {ID_DELETE_HOURS_AFTER_OPENED} hours after you first open them (download a copy if you need to keep one), or after 7 days if you never do; a paper you name yourself is kept until you delete it. Never ask for bank account numbers here. If you pay through Wise or PayPal, the email they use there is enough.</span>
+              <span>Files are private: only you and {person ? first : "the applicant"} can open them, through a link that lasts five minutes, and every opening is recorded. The ID papers above (government ID, NBI clearance, proof of address) are deleted {ID_DELETE_HOURS_AFTER_OPENED} hours after you first open them (download a copy if you need to keep one), or after 7 days if you never do; a paper you name yourself is kept until their application is deleted (⋯ → Delete their information) or their account is. Never ask for bank account numbers here. If you pay through Wise or PayPal, the email they use there is enough.</span>
             </div>
           </div>
         </div>

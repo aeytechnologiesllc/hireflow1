@@ -63,6 +63,10 @@ back the exact text. The old screens use it too now.
 **The applicant's side on a phone** (`SignedDocumentViewer.tsx`): the letter
 has the whole screen, the copies to download appear once the document is
 finished, and a "Sign" button in the bar goes straight to the place to sign.
+(Since the sixth product review, for an uploaded PDF: the audit trail is
+theirs once they have signed, while the team has still to countersign and
+after a void too, and the bar shows only on a screen where it holds a button;
+before, a computer showed an empty strip.)
 
 ## Guided, and the parts a real offer has (2026-10-10)
 
@@ -87,6 +91,8 @@ The screen is four numbered steps, each box with one line on what to write:
    employee), a 30-day trial (none, 2 weeks, 30, 60 or 90 days), 14 days'
    notice to end (7, 14 or 30), remote, their own computer and internet,
    keeping company and customer information private, and who they report to.
+   (Since the sixth product review the worker type is always shown above
+   that line, and remote, hybrid or in person is chosen in step 1; below.)
 4. **Sending**: "Time to sign" as 3, 5 or 7 days (5 by default) instead of a
    date picker, with the day it ends spelled out; anything else; and who signs
    it (name, and a title such as Owner).
@@ -102,6 +108,30 @@ the terms, his title) is remembered on the device for the next offer.
 
 The stored body says `writtenBy: "offer-letter-2"` and keeps the arrangement,
 trial and notice beside the pay and start date.
+
+## The sixth product review (2026-10-25)
+
+- **Working as** (independent contractor or employee) is out in the open at
+  the top of step 3, with its guidance beside it, never folded into the
+  terms' one-line summary (which no longer names it): the letter tells a
+  contractor they pay their own taxes, and a US company's remote phone agents
+  went out as contractors from a collapsed line. The default is unchanged (a
+  remote job starts as a contractor, an in-person or hybrid one as an
+  employee); whether a remote hire in the business's own country should
+  start as an employee is the owner's call.
+- **Where they work** is in step 1: In person, Hybrid or Remote, from the job
+  (`workModeFromJob`: hybrid when its place says so, since the job builder
+  saves a hybrid job as not remote), and a hybrid letter says "Where: Hybrid,
+  partly from home and partly in person at …". It was a box inside the folded
+  terms, and a hybrid letter said "In person".
+- **The address** starts from the job's place without its work-mode words
+  ("On-site - Makati" is Makati) and is left empty when the place is only a
+  country or a state (`placeForLetter`): every country Intl names in English,
+  every US state (`isOnlyAUsState` in `src/lib/jobLocation.ts`), and the
+  region or country the job's own place was found in (its `location_*`
+  columns), unless a part is the job's city.
+- **Pay per**: a range or yearly job gives its currency, and now its period
+  too when it is a month, a week or an hour (an hourly range said "a month").
 
 ## Not done
 

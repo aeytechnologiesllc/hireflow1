@@ -170,6 +170,34 @@ console.log("\nTest by test");
   check("notes that are not JSON are read as no results, not an error", A.buildAnalyticsView({ ...input, apps: apps.map((a) => ({ ...a, notes: "plain words" })) }).tests.length === 0);
 }
 
+console.log("\nThe chat's typing, only where it is the job's measure (the sixth product review)");
+{
+  const keys = (view) => view.tests.map((t) => t.key).join(",");
+  // The dental office: an on-site receptionist job, the chat practice taken on phones at 20 to 22 WPM.
+  const dental = [20, 21, 22].map((wpm, i) => ({
+    row: { id: `dental-${i}`, jobId: "dental", status: "reviewing", tab: "needs-review", dots: dots(5), finished: true, score: 70, scoreKind: "final", recommendedAction: "review", appliedAt: at(6, i) },
+    app: { id: `dental-${i}`, ai_score: 70, notes: JSON.stringify({ chatSimulationResult: { score: 72, typing: typing(wpm, 140) } }), ai_scorecard: null },
+  }));
+  const dentalInput = { rows: dental.map((d) => d.row), apps: dental.map((d) => d.app), sessions: [], passingScore: 60, now: NOW, viewerZone: "Asia/Manila" };
+  const onSite = A.buildAnalyticsView({ ...dentalInput, onSite: true });
+  check("an on-site job's chat typing is no measure: no 'Typing in the chat' meter, no 'Time to reply' bar, no warning", keys(onSite) === "chat" && !onSite.tests.some((t) => t.warn || /reached it|made it/.test(t.note ?? "")), JSON.stringify(onSite.tests));
+  const remote = A.buildAnalyticsView({ ...dentalInput, onSite: false });
+  check("…the same answers on a remote job are measured against the job's bar, as before", keys(remote) === "typing,chat,reply" && remote.tests[0].note === "0 of 3 reached it." && remote.tests[0].warn === true, keys(remote));
+  check("…and a job not known to be on-site is read as before (the existing week above)", keys(A.buildAnalyticsView({ ...input, onSite: null })) === keys(v) && keys(v).includes("typing"));
+  check("a hybrid job is on-site here, as it is to the scorer (saved is_remote = false)", keys(A.buildAnalyticsView({ ...input, onSite: true })) === "skills,interview,chat");
+  // A job that still has a typing step reads typing from that test (chatTypingForJob, the list's Typing filter).
+  const withTypingStep = rows.map((r) => ({ ...r, dots: [r.dots[0], { stepId: "typing", stepType: "typing_test", title: "Typing test", state: "done" }, ...r.dots.slice(1)] }));
+  const stepped = A.buildAnalyticsView({ ...input, rows: withTypingStep });
+  check("a job with a typing step: the chat's typing has no meter of its own", !/typing|reply/.test(keys(stepped)) && keys(stepped) === "skills,interview,chat", keys(stepped));
+  const tested = A.buildAnalyticsView({ ...input, rows: withTypingStep, apps: apps.map((a, i) => (i < 3 ? { ...a, notes: JSON.stringify({ ...JSON.parse(a.notes), typingTestResult: { wpm: [52, 44, 39][i], accuracy: 95, requiredWpm: 45, passed: false } }) } : a)) });
+  const testMeter = tested.tests.find((t) => t.key === "typing");
+  check("…its typing meter is the typing test's, under the job's name for it and against its own bar", keys(tested) === "skills,typing,interview,chat" && testMeter.label === "Typing test" && testMeter.value === 44 && testMeter.barWords === "The job asks for 45." && testMeter.note === "1 of 3 reached it." && testMeter.warn === true, JSON.stringify(testMeter));
+  const testedOnSite = A.buildAnalyticsView({ ...input, rows: withTypingStep, apps: tested === null ? apps : apps.map((a, i) => (i < 3 ? { ...a, notes: JSON.stringify({ ...JSON.parse(a.notes), typingTestResult: { wpm: [52, 44, 39][i], requiredWpm: 45 } }) } : a)), onSite: true });
+  check("…on an on-site job too (the business set that test itself; Ava's score reads it there as well)", keys(testedOnSite) === "skills,typing,interview,chat" && testedOnSite.tests[1].label === "Typing test", keys(testedOnSite));
+  const page = code(await read("src/cockpit/pages/Analytics.tsx"));
+  check("the page says whether the job is on-site, from the job row", /onSite: job \? job\.is_remote === false : null,/.test(page));
+}
+
 console.log("\nWhat holds them back");
 {
   check("the figures are taken out, so one mark on many people is one line", A.reasonLabel("Little evidence of leading a team (1/5)") === "Little evidence of leading a team" && A.reasonLabel("Little evidence of leading a team (3/5)") === "Little evidence of leading a team");

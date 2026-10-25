@@ -76,6 +76,11 @@ export interface GuideRecord {
   homeBusiness?: boolean;
   /** The job's customer-service chat practice (customerServiceStepOf): its plan is the support plan. */
   customerService?: { pack: string; channel: string | null } | null;
+  /** The job is done on-site (jobs.is_remote === false, a hybrid job too): its
+   *  chat practice may be taken on a phone. Absent: not known to be. */
+  onSite?: boolean;
+  /** The job still has a typing step (jobHasTypingStep): that test is its typing measure. */
+  typingStep?: boolean;
   /** applications.notes, parsed. */
   notes: Record<string, unknown>;
   /** The applicant's latest written interview, oldest first; empty when there is none. */
@@ -145,6 +150,16 @@ export function guideNoun(record: Pick<GuideRecord, "homeBusiness" | "customerSe
   return scenarioPack(record.customerService?.pack)?.counterpart ?? counterpartFor(record.homeBusiness);
 }
 
+/** The job's steps include a typing test (a step of type typing_test, as the scorer's chatTypingForJob reads them). */
+export function jobHasTypingStep(workflowSteps: unknown): boolean {
+  return Array.isArray(workflowSteps) && workflowSteps.some((step) => String(asRecord(step)?.type ?? "").toLowerCase() === "typing_test");
+}
+
+/** The chat practice's typing counts for this job: not on-site, and no typing step. */
+export function chatTypingIsTheJobsMeasure(record: Pick<GuideRecord, "onSite" | "typingStep">): boolean {
+  return record.onSite !== true && record.typingStep !== true;
+}
+
 export function recordLines(record: GuideRecord): string[] {
   const { notes, job } = record;
   const lines: string[] = [];
@@ -169,7 +184,13 @@ export function recordLines(record: GuideRecord): string[] {
     }
     if (improve.length > 0) line += ` What the reviewer would improve: ${improve.join("; ")}.`;
     lines.push(line);
-    const typing = asRecord(chat.typing);
+    // The chat's typing only where it is the job's measure, as Ava's score
+    // reads it (trigger-ava-analysis chatTypingThisJob, chatTypingForJob):
+    // not on an on-site job, whose practice may be done on a phone, and not on
+    // a job that still has a typing step. Otherwise the writer could ask the
+    // dental office's receptionist about a phone's typing speed (the sixth
+    // product review).
+    const typing = chatTypingIsTheJobsMeasure(record) ? asRecord(chat.typing) : null;
     const wpm = num(typing?.wpm);
     const reply = num(typing?.medianReplySeconds);
     if (wpm !== null || reply !== null) {
