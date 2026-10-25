@@ -1435,7 +1435,7 @@ check("the bell has an icon for integrity cards", /integrity:\s*ShieldAlert/.tes
 // open list is bounded, and transcript flags sit on the server's clock.
 check(
   "on a phone every card says where they are and who is live (no separate strip)",
-  /export function ApplicantCard\(/.test(applicantRow) && /<JourneyDots dots=\{row\.dots\} size=\{17\} \/>/.test(applicantRow) &&
+  /export function ApplicantCard\(/.test(applicantRow) && /<MilestoneRail view=\{row\.milestones\} size=\{10\} \/>/.test(applicantRow) &&
     /<CardLine row=\{row\} \/>/.test(applicantRow) && /row\.liveNow &&/.test(applicantRow) && !/data-ck-live-strip/.test(applicantsPage),
 );
 check("file links are re-minted while on screen and on return", /refetchInterval: FILE_LINK_REFRESH_MS/.test(sessionsHook) && /useApplicantFileUrl[\s\S]{0,900}refetchOnWindowFocus: true/.test(sessionsHook));

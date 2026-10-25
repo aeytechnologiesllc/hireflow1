@@ -171,9 +171,11 @@ Desktop columns: Applicant · Where they are · Last active · Flags · Score ·
   form). Applied is `created_at`, when they pressed Apply: the same moment the
   profile's header and timeline show (the form's own end would make the two
   disagree). The line wraps after "Country ·" rather than cutting the age off.
-- **Where they are**: the journey strip, one dot per journey step of THAT
-  applicant's job (Application, Skills check if any, each workflow step,
-  Decision), joined by a line. Under it, one line.
+- **Where they are**: four milestones, Applied → Tested → Interview →
+  Hired, on a line (since 2026-10-25; it was one dot per journey step, eleven
+  on the owner's job, and the owner: "I don't like how these weird dots
+  appear"). Under the rail the four names, the current one stressed; under
+  that, one line with the step detail. See "Milestones" below.
 - **Last active**: "Active now" (jade) within 2 minutes; "Active 6 min ago"
   (jade only while the attempt is live: doing, away, or checking inside the
   claim limit);
@@ -190,9 +192,36 @@ Desktop columns: Applicant · Where they are · Last active · Flags · Score ·
   when `ai_score` is null. Never a quiz percentage standing in for it.
 
 Phone: a card per applicant (name, country · applied, score on the right; the
-strip full width; the line plus flags under it), exactly as the mockup.
+milestones full width; the line plus flags under it).
+
+### Milestones (2026-10-25; docs/LAUNCH-PLAN.md, Phase 3, task 8)
+
+`milestonesFor` in `src/cockpit/lib/milestones.ts` turns the row into the
+milestone they are at, how many are lit (drawn solid), and the words for it.
+The test steps are the journey's dots without the application form and the
+Decision; "done" counts done, done below the bar and skipped.
+
+| application | at | lit | current label | the line under it says |
+| --- | --- | --- | --- | --- |
+| filling in the form | Applied | none | Applied | Filling in the form · n of m answered |
+| applied, job has no tests | Applied | Applied | Applied | Applied / Finished every test |
+| taking the tests | Tested | Applied | Tested | Skills check · step 2 of 7 · live |
+| waiting for a computer | Tested | Applied | Tested | (the record's own words) |
+| left part-way | Tested | Applied | Tested | Left at chat practice, reply 3 |
+| every test done, not decided | Tested | Applied, Tested | Tested | Finished every test · Ava suggests: … |
+| interview | Interview | Applied, Tested | Interview | Moved to interview / Interview Mon 3 PM |
+| offered | Hired | Applied, Tested, Interview | Offer | Offer made |
+| hired | Hired | all four (brass) | Hired | Hired |
+| declined | where they were | what was behind them | Declined (red) | Declined |
+
+Hired, once reached, is the one brass moment on the rail (brass means Ava,
+a score, "hired" or money); everything else is ink on paper by day and ivory
+on ink at night. The aria-label reads "Tested: Testing · 3 of 5". The full
+profile keeps its detailed per-step rail (section 4).
 
 ### Dot states: decided by the RECORD, never by position
+
+(The profile's per-step rail; the list used the same dots until 2026-10-25.)
 
 `buildAssessmentRecord(app, { sessions, now })` is the one reader; the full
 profile uses the same call, so the list and the profile always agree.
@@ -205,8 +234,8 @@ profile uses the same call, so the list and the profile always agree.
 | skipped (dashed ring) | not done and before the applicant's position: "No result on file" (for example a step the job gained after they passed it) |
 | not reached (empty) | everything else, including "Not taken" by someone decided before reaching it |
 
-The legend under the list on desktop names the five. "Not reached" and the
-unlit line are `--ink-3` at 75%: at least 3:1 on the card in both themes.
+The list's desktop footnote no longer names dot states; the milestones say
+their own names.
 
 ### The one line
 

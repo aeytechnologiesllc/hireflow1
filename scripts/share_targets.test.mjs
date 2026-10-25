@@ -31,7 +31,8 @@ check("Facebook shares the job's own link, tagged facebook", fb.origin === "http
 const li = new URL(targets[1].href);
 check("LinkedIn shares the job's own link, tagged linkedin", li.origin === "https://www.linkedin.com" && li.searchParams.get("url") === `${link}?utm_source=linkedin&utm_medium=job_share`);
 check("Indeed and OnlineJobs.ph open the place to post (they take a pasted post)", targets[2].href === "https://employers.indeed.com/" && targets[3].href === "https://www.onlinejobs.ph/");
-check("OnlineJobs.ph says it is for the Philippines", /Philippines/.test(targets[3].hint));
+check("OnlineJobs.ph says it is for the Philippines, on the button too (a phone has no hover)", /Philippines/.test(targets[3].hint) && targets[3].short === "Philippines");
+check("the guide shows the short words on the button", /\{t\.short && <span/.test(readFileSync(path.join(ROOT, "src/cockpit/components/journey/GuideStages.tsx"), "utf8")));
 check("every place is an https address", targets.every((t) => t.href.startsWith("https://")));
 check("tags a link that already has a query", S.taggedLink("https://hireflownow.com/jobs/AB12?ref=x", "linkedin") === "https://hireflownow.com/jobs/AB12?ref=x&utm_source=linkedin&utm_medium=job_share");
 check("keeps tags it already has", S.taggedLink("https://hireflownow.com/j/x?utm_source=mine", "facebook") === "https://hireflownow.com/j/x?utm_source=mine&utm_medium=job_share");

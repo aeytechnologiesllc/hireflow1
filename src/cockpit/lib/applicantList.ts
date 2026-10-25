@@ -35,6 +35,7 @@ import {
   type StepReopenRow,
 } from "@/cockpit/lib/assessmentRecord";
 import { buildCandidateJourney, DECISION_STAGE_ID, titleFor, type CandidateJourneyStep, type WorkflowStepLike } from "@/lib/candidateJourney";
+import { milestonesFor, type MilestoneView } from "@/cockpit/lib/milestones";
 import { parseApplicationNotes } from "@/lib/applicationNotes";
 import {
   applicantChip,
@@ -183,6 +184,8 @@ export interface ApplicantListRow {
   onForm: boolean;
   /** One dot per journey step of THIS applicant's job, Decision last. */
   dots: ApplicantDot[];
+  /** "Where they are" as four milestones, Applied → Tested → Interview → Hired (lib/milestones.ts). */
+  milestones: MilestoneView;
   /** Where they are (0-based, into `dots`), null once finished or decided. */
   stepIndex: number | null;
   currentStepId: string | null;
@@ -864,6 +867,13 @@ export function listRowFor(
   // request died, and nothing else would ever move them off "Taking tests now".
   const liveSession = live ? sessions.find((s) => s.id === steps.find((d) => d.id === live.stepId)?.entry?.session?.id) ?? null : null;
   const liveState = !decided ? effectiveLiveState(live, liveSession, now) : null;
+  const milestones = milestonesFor({
+    status,
+    onForm,
+    finished,
+    testStates: stepDots.filter((d) => d.stepType !== "application").map((d) => d.state),
+    liveState,
+  });
 
   // ── The line under the dots: the profile's rail says the same words ──
   const recommendedAction = str(scorecard?.recommendedAction);
@@ -952,6 +962,7 @@ export function listRowFor(
     appliedAgo,
     onForm,
     dots,
+    milestones,
     stepIndex,
     currentStepId: current?.id ?? null,
     stepTotal,

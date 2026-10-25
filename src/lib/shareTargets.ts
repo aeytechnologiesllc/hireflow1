@@ -23,6 +23,8 @@ export interface ShareTarget {
   label: string;
   /** One line under the button: what to do there. */
   hint: string;
+  /** Said on the button itself where there is no room for the hint (a phone has no hover). */
+  short?: string;
   href: string;
 }
 
@@ -67,6 +69,7 @@ export function shareTargets(link: string): ShareTarget[] {
       id: "onlinejobs",
       label: "OnlineJobs.ph",
       hint: "For hiring in the Philippines. Paste the full post.",
+      short: "Philippines",
       href: ONLINEJOBS_URL,
     },
   ];

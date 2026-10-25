@@ -12,7 +12,7 @@ import { SearchInput } from "../components/controls";
 import { CockpitErrorCard } from "../components/ErrorCard";
 import { ShareJobCompact, applyLinkFor } from "../components/ShareJobCard";
 import { ShareKitDialog } from "../components/ShareKitDialog";
-import { APPLICANT_TABLE_MIN, ApplicantCard, ApplicantTableHeader, ApplicantTableRow, DotLegend } from "../components/ApplicantRow";
+import { APPLICANT_TABLE_MIN, ApplicantCard, ApplicantTableHeader, ApplicantTableRow, ListFootnote } from "../components/ApplicantRow";
 import {
   ApplicantFilterBar,
   ApplicantFilterSheet,
@@ -1142,7 +1142,7 @@ export default function CockpitApplicants({ jobId = null }: { jobId?: string | n
         )}
       </div>
 
-      {wide && <DotLegend className="pt-0.5" />}
+      {wide && <ListFootnote className="pt-0.5" />}
 
       {/* What is picked, and Remove and block: one bar at the foot. The
           spacer keeps the last row and "Show more" clear of it. */}

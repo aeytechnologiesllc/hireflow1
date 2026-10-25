@@ -6,7 +6,7 @@ import { alertsWords, appliedDetail, appliedHeadline, readyHeadline, type Applic
 import type { ApplicantListRow } from "../../lib/applicantList";
 import type { Candidate } from "../../data";
 import CkAvatar from "../Avatar";
-import { JourneyDots, LineText } from "../ApplicantRow";
+import { LineText, MilestoneRail } from "../ApplicantRow";
 import type { GuideNotifications } from "./types";
 import { shareTargets } from "@/lib/shareTargets";
 
@@ -133,6 +133,7 @@ export function ShareStage({ link, onCopyPost, wide }: { link: string; onCopyPos
             data-guide-share={t.id}
           >
             {t.label}
+            {t.short && <span style={{ color: "var(--ink-3)", fontWeight: 400 }}>· {t.short}</span>}
             <ArrowUpRight className="h-4 w-4" aria-hidden />
           </a>
         ))}
@@ -157,9 +158,8 @@ export function ShareStage({ link, onCopyPost, wide }: { link: string; onCopyPos
 
 const ROW_RULE = "1px solid var(--line-soft)";
 
-/** One person who is still in the tests: name, where they are, the dots. */
+/** One person who is still in the tests: name, where they are, the milestones. */
 function TestingRow({ person, row, candidate, first, wide, onOpen }: { person: GuideApplicant; row: ApplicantListRow | undefined; candidate: Candidate | undefined; first: boolean; wide: boolean; onOpen: () => void }) {
-  const dots = row?.dots ?? [];
   const where = row ? <LineText line={row.line} /> : <>{candidate?.appliedAgo ?? "Applied"}</>;
   const who = (
     <span className="min-w-0">
@@ -185,9 +185,9 @@ function TestingRow({ person, row, candidate, first, wide, onOpen }: { person: G
             <CkAvatar who={person.name} size={32} />
             {who}
           </span>
-          {dots.length > 0 && (
+          {row && (
             <span className="min-w-0 max-w-[340px] flex-1 basis-0">
-              <JourneyDots dots={dots} size={12} />
+              <MilestoneRail view={row.milestones} size={8} />
             </span>
           )}
           <ChevronRight className="h-4 w-4 shrink-0" style={{ color: "var(--ink-3)" }} aria-hidden />
@@ -195,7 +195,7 @@ function TestingRow({ person, row, candidate, first, wide, onOpen }: { person: G
       ) : (
         <>
           {who}
-          {dots.length > 0 && <JourneyDots dots={dots} size={12} />}
+          {row && <MilestoneRail view={row.milestones} size={8} />}
         </>
       )}
     </button>

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Bookmark, ChevronRight, ShieldAlert, StickyNote } from "lucide-react";
 import { noteTitle } from "../lib/applicantNotes";
 import { TONE_VAR, type ApplicantDot, type ApplicantListRow, type DotState, type LineSegment } from "../lib/applicantList";
+import { MILESTONE_LABELS, type MilestoneView } from "../lib/milestones";
 import { samePhoneWords } from "../lib/blockedApplicants";
 import { applicantPath, useJobScope } from "../lib/jobScope";
 
@@ -28,97 +29,69 @@ export const APPLICANT_GRID = "minmax(220px,1.45fr) minmax(210px,1.4fr) 146px 80
  *  this the Score column is cut off, so the page draws cards instead. */
 export const APPLICANT_TABLE_MIN = 768 + 5 * 16 + 2 * 20 + 2;
 
-const DOT_WORDS: Record<DotState, string> = {
-  done: "done",
-  below: "done, below the job's bar",
-  now: "on it now",
-  skipped: "skipped",
-  todo: "not reached",
-};
+/* ── Where they are ───────────────────────────────────────────────────── */
 
-/* ── The journey strip ─────────────────────────────────────────────────── */
-
-function Check({ size }: { size: number }) {
+/**
+ * "Where they are": four milestones, Applied → Tested → Interview → Hired
+ * (lib/milestones.ts; the owner's Option C, 2026-10-24). Solid dots on a line
+ * for what is behind them, the one they are at larger, and its name stressed
+ * under it; the step detail is the line under the rail. Hired, once reached,
+ * is the one brass moment; a declined applicant's dot is drawn stopped.
+ */
+export function MilestoneRail({ view, labels = true, size = 9 }: { view: MilestoneView; labels?: boolean; size?: number }) {
+  const big = size + 4;
   return (
-    <svg aria-hidden viewBox="0 0 24 24" width={size} height={size} fill="none" style={{ stroke: "var(--ground)", strokeWidth: 3.2, strokeLinecap: "round", strokeLinejoin: "round" }}>
-      <path d="M5 12.5l4.5 4.5L19 7.5" />
-    </svg>
-  );
-}
-
-/** A step not reached, and the line to it: --ink-3 at 75% is 3.5:1 on DAY's
- *  card and 3.3:1 on NIGHT's. */
-const UNLIT = "color-mix(in srgb, var(--ink-3) 75%, transparent)";
-
-/** One node, in one of the five states. `left` is a ring they walked away from. */
-export function JourneyDot({ state, left = false, size = 16 }: { state: DotState; left?: boolean; size?: number }) {
-  const base: CSSProperties = {
-    width: size,
-    height: size,
-    flex: `0 0 ${size}px`,
-    borderRadius: 999,
-    display: "grid",
-    placeItems: "center",
-    boxSizing: "border-box",
-  };
-  const look: Record<DotState, CSSProperties> = {
-    done: { background: "var(--jade)", border: "1.5px solid var(--jade)" },
-    below: { background: "var(--brass)", border: "1.5px solid var(--brass)" },
-    now: left
-      ? { background: "var(--ground)", border: "2px solid var(--ink-3)" }
-      : { background: "var(--ground)", border: "2px solid var(--jade)", boxShadow: "0 0 0 4px var(--jade-soft)" },
-    skipped: { background: "transparent", border: "1.5px dashed var(--ink-3)" },
-    // At least 3:1 on the card in both themes (--line was about 1.5:1, and the
-    // empty end of the strip all but disappeared), and still quieter than
-    // the dashed skipped ring.
-    todo: { background: "transparent", border: `1.5px solid ${UNLIT}` },
-  };
-  return <span aria-hidden style={{ ...base, ...look[state] }}>{state === "done" || state === "below" ? <Check size={Math.round(size * 0.58)} /> : null}</span>;
-}
-
-/** The line between two nodes: jade once they have gone past the one before it. */
-function lineLit(prev: DotState, cur: DotState): boolean {
-  return (prev === "done" || prev === "below" || prev === "skipped") && cur !== "todo";
-}
-
-/** One dot per journey step of THIS applicant's job, Decision last, joined by
- *  a line. Each dot names its step on hover; the row's own line says the rest. */
-export function JourneyDots({ dots, size = 16 }: { dots: readonly ApplicantDot[]; size?: number }) {
-  return (
-    <div className="flex items-center" aria-hidden>
-      {dots.map((dot, i) => (
-        <span key={dot.stepId} className={`flex items-center ${i === 0 ? "" : "min-w-0 flex-1"}`} title={`${dot.title} · ${dot.left ? "left part-way" : DOT_WORDS[dot.state]}`}>
-          {i > 0 && (
+    <div aria-label={`${MILESTONE_LABELS[view.at]}: ${view.detail}`} role="img">
+      <div className="flex items-center" style={{ height: big + 6 }}>
+        {MILESTONE_LABELS.map((label, i) => {
+          const lit = i < view.lit;
+          const here = i === view.at;
+          const won = view.tone === "won" && i === 3;
+          const fill = won ? "var(--brass)" : lit ? "var(--ink)" : "transparent";
+          const ring = won ? "var(--brass)" : here && view.tone === "stopped" ? "var(--crit)" : lit || here ? "var(--ink)" : "var(--hair)";
+          const d = here ? big : size;
+          return (
+            <span key={label} className={`flex items-center ${i === 0 ? "" : "min-w-0 flex-1"}`}>
+              {i > 0 && <span className="h-[2px] min-w-[8px] flex-1" style={{ background: i < view.lit ? "var(--ink)" : "var(--track)" }} />}
+              <span
+                className="shrink-0 rounded-full"
+                style={{
+                  width: d,
+                  height: d,
+                  background: fill,
+                  border: `2px solid ${ring}`,
+                  boxShadow: here && view.tone !== "stopped" ? `0 0 0 3px color-mix(in srgb, ${won ? "var(--brass)" : "var(--ink)"} 14%, transparent)` : undefined,
+                }}
+              />
+            </span>
+          );
+        })}
+      </div>
+      {labels && (
+        <div className="mt-1 flex justify-between text-[11px] leading-none tracking-[0.01em]">
+          {MILESTONE_LABELS.map((label, i) => (
             <span
-              className="h-[2px] min-w-[6px] flex-1"
-              style={{ background: lineLit(dots[i - 1].state, dot.state) ? "var(--jade)" : UNLIT }}
-            />
-          )}
-          <JourneyDot state={dot.state} left={dot.left} size={size} />
-        </span>
-      ))}
+              key={label}
+              style={{
+                color: i === view.at ? (view.tone === "stopped" ? "var(--crit)" : view.tone === "won" ? "var(--brass)" : "var(--ink)") : "var(--ink-3)",
+                fontWeight: i === view.at ? 600 : 400,
+              }}
+            >
+              {i === view.at && view.tone === "stopped" ? "Declined" : i === 3 && view.at === 3 && view.tone !== "won" ? "Offer" : label}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-/** The five states, named once under the table (contract §2). */
-export function DotLegend({ className = "" }: { className?: string }) {
-  const items: Array<[DotState, string]> = [
-    ["done", "Done"],
-    ["below", "Done, below the job's bar"],
-    ["now", "On it now"],
-    ["skipped", "Skipped"],
-    ["todo", "Not reached"],
-  ];
+/** Under the table: where the rest is. (The five dot states it used to name
+ *  went with the dots: the milestones say their own names.) */
+export function ListFootnote({ className = "" }: { className?: string }) {
   return (
-    <div className={`flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] ${className}`} style={{ color: "var(--ink-3)" }}>
-      {items.map(([state, label]) => (
-        <span key={state} className="inline-flex items-center gap-1.5">
-          <JourneyDot state={state} size={12} />
-          {label}
-        </span>
-      ))}
-      <span className="ml-auto">Tap a row to open their full profile: every answer, test and flag.</span>
+    <div className={`text-[12px] ${className}`} style={{ color: "var(--ink-3)" }}>
+      Tap a row to open their full profile: every answer, test and flag.
     </div>
   );
 }
@@ -425,8 +398,8 @@ export function ApplicantTableRow({ row, onOpen, index = 0, reveal = true, inter
 
       {/* Where they are */}
       <span className="min-w-0">
-        <JourneyDots dots={row.dots} />
-        <LineText line={row.line} title={row.lineText} className="mt-[7px] block text-[12.5px] leading-[1.45]" style={{ color: "var(--ink-2)" }} />
+        <MilestoneRail view={row.milestones} />
+        <LineText line={row.line} className="mt-[7px] block text-[12.5px] leading-[1.45]" style={{ color: "var(--ink-2)" }} />
       </span>
 
       {/* Last active */}
@@ -508,7 +481,7 @@ export function ApplicantCard({ row, onOpen, index = 0, reveal = true, interview
         </span>
       </span>
       <span className="mt-[13px] block">
-        <JourneyDots dots={row.dots} size={17} />
+        <MilestoneRail view={row.milestones} size={10} />
       </span>
       {/* data-card-foot: keeps clear of the card's ⋯ / checkbox corner (ApplicantRowFrame).
           Always two lines tall, never more: a live line that grows, or a
