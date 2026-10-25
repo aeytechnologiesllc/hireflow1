@@ -13,7 +13,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { User, Loader2, Bell, AlertTriangle } from "lucide-react";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -29,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getSignedOutRoute } from "@/lib/authRouting";
 import { CareersPageCard } from "@/components/business/CareersPageCard";
 import { TipsSettingCard } from "@/cockpit/tips/TipsSettingCard";
+import { TwoStepSignIn } from "@/components/settings/TwoStepSignIn";
 
 export default function Settings() {
   const { user, role, loading, isTeamMember } = useAuth();
@@ -41,6 +41,10 @@ export default function Settings() {
   const isStaff = isEmployer || isTeamMember || role === "team_member";
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  // Deleting asks for the password again (supabase/functions/delete-account).
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const { data: emailPrefs, isLoading: prefsLoading } = useEmailPreferences();
   const updatePrefs = useUpdateEmailPreferences();
@@ -117,9 +121,17 @@ export default function Settings() {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
+        body: { password: deletePassword },
       });
 
       if (error) {
+        // A wrong or missing password is said in the dialog, which stays open.
+        const status = (error as { context?: { status?: number } }).context?.status;
+        if (status === 401) {
+          const reply = await (error as { context?: Response }).context?.json?.().catch(() => null);
+          setDeleteError(reply?.code === "wrong_password" ? "That password is not right." : "Enter your password to delete your account.");
+          return;
+        }
         throw error;
       }
 
@@ -140,6 +152,73 @@ export default function Settings() {
       setIsDeleting(false);
     }
   };
+
+  // One dialog for both layouts (applicants and the hiring team).
+  const deleteAccountDialog = (
+    <AlertDialog
+      open={deleteOpen}
+      onOpenChange={(open) => {
+        setDeleteOpen(open);
+        if (!open) {
+          setDeletePassword("");
+          setDeleteError(null);
+        }
+      }}
+    >
+      <AlertDialogTrigger asChild>
+        <Button variant="destructive" disabled={isDeleting}>
+          {isDeleting ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Deleting...</> : "Delete Account"}
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+            Delete Account
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            This action is permanent and cannot be undone. All your data, including your profile, applications, messages, and documents will be permanently deleted. You can register again with the same email afterwards.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="delete-account-password">Your password</Label>
+          <Input
+            id="delete-account-password"
+            type="password"
+            autoComplete="current-password"
+            value={deletePassword}
+            onChange={(e) => {
+              setDeletePassword(e.target.value);
+              setDeleteError(null);
+            }}
+            aria-invalid={!!deleteError}
+            aria-describedby={deleteError ? "delete-account-password-error" : undefined}
+          />
+          {deleteError && (
+            <p id="delete-account-password-error" className="text-sm text-destructive">
+              {deleteError}
+            </p>
+          )}
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <Button
+            onClick={() => {
+              if (!deletePassword) {
+                setDeleteError("Enter your password to delete your account.");
+                return;
+              }
+              void handleDeleteAccount();
+            }}
+            disabled={isDeleting}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {isDeleting ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Deleting...</> : "Yes, Delete My Account"}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
 
   // Candidate Settings - Simple view (no subscription tab)
   if (!isStaff) {
@@ -209,33 +288,7 @@ export default function Settings() {
                   Permanently delete your account and all data
                 </p>
               </div>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" disabled={isDeleting}>
-                    {isDeleting ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Deleting...</> : "Delete Account"}
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle className="flex items-center gap-2">
-                      <AlertTriangle className="h-5 w-5 text-destructive" />
-                      Delete Account
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action is permanent and cannot be undone. All your data, including your profile, applications, messages, and documents will be permanently deleted. You can register again with the same email afterwards.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleDeleteAccount}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
-                      Yes, Delete My Account
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              {deleteAccountDialog}
             </div>
           </CardContent>
         </Card>
@@ -398,6 +451,9 @@ export default function Settings() {
           {/* One-time tips (a business or team member who joined from 2026-10-11). */}
           <TipsSettingCard />
 
+          {/* The platform admin's two-step sign-in (shows for that account only). */}
+          <TwoStepSignIn />
+
           {/* Danger Zone */}
           <Card className="bg-card border-destructive/50">
             <CardHeader>
@@ -412,33 +468,7 @@ export default function Settings() {
                     Permanently delete your account and all associated data
                   </p>
                 </div>
-                <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" disabled={isDeleting}>
-                    {isDeleting ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Deleting...</> : "Delete Account"}
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle className="flex items-center gap-2">
-                      <AlertTriangle className="h-5 w-5 text-destructive" />
-                      Delete Account
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action is permanent and cannot be undone. All your data, including your profile, applications, messages, and documents will be permanently deleted. You can register again with the same email afterwards.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleDeleteAccount}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
-                      Yes, Delete My Account
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                {deleteAccountDialog}
               </div>
             </CardContent>
           </Card>

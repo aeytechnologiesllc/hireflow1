@@ -18,6 +18,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { GOOGLE_AUTH_ENABLED } from "@/lib/googleAuth";
 import { candidateOrigin, isStaffHost } from "@/lib/hosts";
 import { cleanAddress } from "@/components/business/CareersPageCard";
+import { SecondStepForm } from "@/components/auth/SecondStepForm";
+import { needsSecondStep } from "@/lib/secondStep";
 
 // Google OAuth isn't enabled on the Supabase backend yet (authorize endpoint
 // returns 400) — keep the UI hidden until credentials exist. Flip
@@ -42,7 +44,11 @@ const isWebView = () => {
 // mistyped TLD is not worth refusing real ones, and if we ever want that it
 // belongs in a "did you mean?" hint, never a hard block.
 const emailSchema = z.string().email("Please enter a valid email address");
-const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
+// New passwords: at least 8 characters (2026-10-25; docs/LAUNCH-PLAN.md,
+// Phase 1, task 7). Signing in only asks for one: an older account may still
+// have a shorter password, and the server is the judge of whether it is right.
+const passwordSchema = z.string().min(8, "Password must be at least 8 characters");
+const signInPasswordSchema = z.string().min(1, "Enter your password");
 const nameSchema = z.string().min(2, "Name must be at least 2 characters");
 
 /** The careers address a business name would make (as slugify_business does),
@@ -63,7 +69,7 @@ function careersAddressPreview(name: string): string {
 // Real-time password requirements component
 const PasswordRequirements = ({ password }: { password: string }) => {
   const requirements = [
-    { label: "At least 6 characters", met: password.length >= 6 },
+    { label: "At least 8 characters", met: password.length >= 8 },
     { label: "Contains a letter", met: /[a-zA-Z]/.test(password) },
     { label: "Contains a number", met: /\d/.test(password) },
   ];
@@ -102,6 +108,9 @@ export default function Auth() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
+  // Two-step sign-in: the password was right and the account has an
+  // authenticator; the 6-digit code comes next (SecondStepForm).
+  const [secondStep, setSecondStep] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
   const [resetEmailSent, setResetEmailSent] = useState(false);
@@ -208,6 +217,12 @@ export default function Auth() {
         return;
       }
 
+      // The second step before anything opens (docs/LAUNCH-PLAN.md, Phase 1, task 7).
+      if (await needsSecondStep()) {
+        setSecondStep(true);
+        return;
+      }
+
       const { role: signedInRole, route } = await resolvePostAuthDestination({
         userId: currentUser.id,
         portalRole: "employer",
@@ -259,7 +274,7 @@ export default function Auth() {
 
     try {
       emailSchema.parse(signInEmail);
-      passwordSchema.parse(signInPassword);
+      signInPasswordSchema.parse(signInPassword);
     } catch (err) {
       if (err instanceof z.ZodError) {
         toast({
@@ -667,7 +682,18 @@ export default function Auth() {
             )}
 
             {/* Tabs - only show when not in password reset flows */}
-            {isResettingPassword ? (
+            {secondStep ? (
+              <SecondStepForm
+                onDone={() => {
+                  setSecondStep(false);
+                  void routeAuthenticatedUser();
+                }}
+                onCancel={() => {
+                  setSecondStep(false);
+                  void supabase.auth.signOut();
+                }}
+              />
+            ) : isResettingPassword ? (
               <motion.div
                 key="reset-password"
                 initial={reduceMotion ? false : { opacity: 0, x: -8 }}
@@ -954,7 +980,7 @@ export default function Auth() {
                         id="signup-password"
                         type={showSignUpPassword ? "text" : "password"}
                         autoComplete="new-password"
-                        placeholder="At least 6 characters"
+                        placeholder="At least 8 characters"
                         value={signUpPassword}
                         onChange={(e) => setSignUpPassword(e.target.value)}
                         onFocus={scrollFormIntoView}

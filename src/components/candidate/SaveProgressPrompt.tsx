@@ -52,8 +52,8 @@ export function SaveProgressPrompt({
 
   const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.length < 6) {
-      toast.error("Password must be at least 6 characters");
+    if (password.length < 8) {
+      toast.error("Password must be at least 8 characters");
       return;
     }
     setSignupLoading(true);
@@ -127,8 +127,8 @@ export function SaveProgressPrompt({
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="At least 6 characters"
-                  minLength={6}
+                  placeholder="At least 8 characters"
+                  minLength={8}
                 />
               </div>
               <Button type="submit" className="w-full" disabled={signupLoading}>

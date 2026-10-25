@@ -43,7 +43,11 @@ const isWebView = () => {
 // mistyped TLD is not worth refusing real ones, and if we ever want that it
 // belongs in a "did you mean?" hint, never a hard block.
 const emailSchema = z.string().email("Please enter a valid email address");
-const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
+// New passwords: at least 8 characters (2026-10-25; docs/LAUNCH-PLAN.md,
+// Phase 1, task 7). Signing in only asks for one: an older account may still
+// have a shorter password, and the server is the judge of whether it is right.
+const passwordSchema = z.string().min(8, "Password must be at least 8 characters");
+const signInPasswordSchema = z.string().min(1, "Enter your password");
 const nameSchema = z.string().min(2, "Name must be at least 2 characters");
 
 /**
@@ -86,7 +90,7 @@ function takeResetRedirect(): string | null {
 // Real-time password requirements component
 const PasswordRequirements = ({ password }: { password: string }) => {
   const requirements = [
-    { label: "At least 6 characters", met: password.length >= 6 },
+    { label: "At least 8 characters", met: password.length >= 8 },
     { label: "Contains a letter", met: /[a-zA-Z]/.test(password) },
     { label: "Contains a number", met: /\d/.test(password) },
   ];
@@ -379,7 +383,7 @@ export default function CandidateAuth() {
 
     try {
       emailSchema.parse(signInEmail);
-      passwordSchema.parse(signInPassword);
+      signInPasswordSchema.parse(signInPassword);
     } catch (err) {
       if (err instanceof z.ZodError) {
         toast({

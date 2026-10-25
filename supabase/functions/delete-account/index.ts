@@ -234,6 +234,26 @@ serve(async (req) => {
       );
     }
 
+    // Deleting an account is permanent, so a session alone is not enough: the
+    // person types their password again and Supabase Auth checks it here. A
+    // session someone else got hold of (a shared computer, a stolen token)
+    // cannot delete the account behind it (docs/LAUNCH-PLAN.md, Phase 1, task 7).
+    const body = await req.json().catch(() => ({})) as { password?: unknown };
+    const password = typeof body?.password === 'string' ? body.password : '';
+    if (!password || !user.email) {
+      return new Response(
+        JSON.stringify({ error: 'Enter your password to delete your account.', code: 'password_required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    const { error: passwordError } = await supabaseUser.auth.signInWithPassword({ email: user.email, password });
+    if (passwordError) {
+      return new Response(
+        JSON.stringify({ error: 'That password is not right.', code: 'wrong_password' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     console.log('Deleting account for user:', user.id);
 
     // Create admin client with service role to delete the user
