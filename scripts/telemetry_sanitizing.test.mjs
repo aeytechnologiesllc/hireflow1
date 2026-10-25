@@ -183,6 +183,9 @@ console.log("\nRoute normalization:\n");
   const inviteRoute = normalizeRoute("/join-team/TEAM-A1B2C3D4");
   check("redacts a team-invite code embedded in a route segment", !inviteRoute.includes("TEAM-A1B2C3D4"), inviteRoute);
   check("an ordinary lowercase, dash-separated route segment is left untouched", normalizeRoute("/join-team") === "/join-team");
+  // 2026-10-25: a blog post's address is 24+ characters of words and hyphens, and was counted as "<redacted>".
+  check("a long page name made of words (a blog post, a job's short link) is kept", normalizeRoute("/blog/five-chat-tests-before-hiring-a-support-agent") === "/blog/five-chat-tests-before-hiring-a-support-agent" && normalizeRoute("/customer-service-representative-night-2") === "/customer-service-representative-night-2");
+  check("…but a token, a UUID or a key that has hyphens is still redacted", !normalizeRoute("/x/3f3d9dd7-22a1-4641-9903-a065a8ab2d97").includes("3f3d9dd7") && !normalizeRoute("/x/eyJhbGciOiJIUzI1NiJ9-abc123def456").includes("eyJhbGci") && !normalizeRoute("/x/a1b2c3d4e5f6a7b8c9d0e1f2a3b4").includes("a1b2c3d4"));
   check("an ordinary lowercase, dash-separated route segment with an id is left untouched", normalizeRoute("/candidates/jane-doe") === "/candidates/jane-doe");
 
   const docCodeRoute = normalizeRoute("/verify/DOC-A1B2C3");

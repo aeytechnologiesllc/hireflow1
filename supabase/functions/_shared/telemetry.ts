@@ -239,8 +239,18 @@ const TOKEN_RE = /\b[a-z0-9_-]{24,}\b/gi;
 // "/join-team" or "/sign-document" — only an actual generated code matches.
 const CODE_RE = /\b[A-Z]{2,10}-[A-Z0-9]{6,}\b/g;
 
+// Words joined by hyphens ("five-chat-tests-before-hiring-a-support-agent",
+// a blog post's address; "team-lead-2", a job's short link) are page names,
+// not tokens: every part is letters only or digits only. A random token, a
+// JWT piece or a UUID mixes letters and digits inside a part, so it is still
+// redacted (2026-10-25: every guide was counted as "/blog/<redacted>").
+const WORD_SLUG_RE = /^[a-z]+(?:-(?:[a-z]+|[0-9]+))+$/;
+
 function redactPii(input: string): string {
-  return input.replace(EMAIL_RE, "<email>").replace(CODE_RE, "<redacted>").replace(TOKEN_RE, "<redacted>");
+  return input
+    .replace(EMAIL_RE, "<email>")
+    .replace(CODE_RE, "<redacted>")
+    .replace(TOKEN_RE, (match) => (WORD_SLUG_RE.test(match) ? match : "<redacted>"));
 }
 
 /**
