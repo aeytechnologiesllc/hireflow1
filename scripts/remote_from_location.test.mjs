@@ -116,6 +116,16 @@ for (const [text, code] of [["Makati (US-based clients)", "PH"], ["Cebu - US hea
   check(`${JSON.stringify(text)} is in ${code}`, M.inferCountryCode(text) === code, String(M.inferCountryCode(text)));
 }
 
+// The thirteenth Phase 4 review: "-based" is a client's only before a client word, so where the people are picks the country
+// ("US-based applicants only"); a negation reaches the next word in a list ("no hybrid or onsite"), never past a comma.
+for (const [text, code] of [["Remote (US-based applicants only)", "US"], ["Remote, US-based candidates only", "US"], ["US-based remote", "US"], ["Remote — US-based team", "US"], ["Remote, USA-based only", "US"], ["Remote (Canada-based employees only)", "CA"], ["Remote - UK-based applicants", "GB"], ["Remote (Australia-based candidates)", "AU"], ["Makati (US-based clients)", "PH"], ["Makati, US-based company", "PH"]]) {
+  check(`${JSON.stringify(text)} is in ${code}`, M.inferCountryCode(text) === code, String(M.inferCountryCode(text)));
+}
+for (const place of ["Remote (no hybrid or onsite)", "Remote, never onsite or hybrid", "Remote - no hybrid/onsite"]) {
+  check(`place ${JSON.stringify(place)} is a remote job`, brief(place, "Full-time").workMode === "remote" && R(place, "full-time", "") === true, `${brief(place, "Full-time").workMode} ${R(place, "full-time", "")}`);
+}
+check("…while \"No hybrid, onsite only\" is still on-site", brief("No hybrid, onsite only", "Full-time").workMode === "onsite");
+
 {
   const editor = (await import("node:fs")).readFileSync(path.join(ROOT, "src/pages/CreateJob.tsx"), "utf8");
   check("Edit job: remote work is the business's own switch, shown beside the place, never re-worked unseen", /isEditMode && existingJob\s*\? formData\.is_remote === true/.test(editor) && /data-edit-remote/.test(editor) && /handleChange\("is_remote", remoteAfterPlaceEdit\(/.test(editor));

@@ -15,7 +15,7 @@
 import { SCENARIO_PACKS, type ScenarioPack, type ScenarioPackId } from "../../content/scenarioPacks/packs.ts";
 import type { JobBrief, QuizConfig, ScreeningPhase, SimulationConfig, VoiceConfig } from "./types";
 import { bankForFamily } from "./questionBanks.ts";
-import { inferCountryCode } from "../jobLocation.ts";
+import { inferCountryCode, isFullyRemoteText } from "../jobLocation.ts";
 
 /** The "What kind of business is it?" chips, in order, and the pack each picks. */
 export const CS_INDUSTRY_CHIPS: ReadonlyArray<readonly [string, ScenarioPackId]> = [
@@ -146,7 +146,7 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
   const tWritten = /\bnon[- ]?\s?voice\b|\bwritten\b/.test(titleRole);
   const tEmail = new RegExp(String.raw`\b(e-?mails?|tickets?|ticketing)\b${NOT_A_PRODUCT}`).test(titleRole);
   const tPhone =
-    new RegExp(String.raw`(?<!\b(mobile|cell|cellular|smart)\s)\b(phones?|voice|telephone|calls?(?!\s+cent(er|re))|answering service|switchboard)\b${NOT_A_PRODUCT}`).test(titleNoVoice) ||
+    new RegExp(String.raw`(?<!\b(mobile|cell|cellular|smart)\s)\b(phones?|voice|telephone|calls?(?!\s+cent(er|re))|answering service|switchboard|hotlines?)\b${NOT_A_PRODUCT}`).test(titleNoVoice) ||
     // "Call Center Customer Service Representative", "Customer Service - Call Center", "Contact Center Agent".
     (!tChat && !tEmail && !tWritten && new RegExp(String.raw`\b(call|contact) cent(er|re)\b${NOT_A_PRODUCT}`).test(titleRole)) ||
     (/\binbound\b/.test(titleNoVoice) && !tChat && !tEmail && !tWritten);
@@ -207,7 +207,10 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
       // calls someone else took that the agent follows up on ("Follow up on calls from the sales team"; the eleventh).
       // (Only "on" calls: following up via, over or through calls is the agent's own calling; the twelfth.)
       // (Missed calls and voicemails are the agent's to return: "Follow up on missed calls and voicemails from customers"; the twelfth.)
-      String.raw`|\b(respond|responding|reply|replying|attend|attending|tend|tending|listen|listening)\s+to\s+((the|all|our|incoming|inbound|customer|client|patient|every|their)\s+){0,2}calls\b|\b(up to|over|about|around|at least)?\s*(\d+\+?|ten|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|a hundred|hundreds of|dozens of)\s+((inbound|incoming|customer|phone)\s+)?calls\b|(?<!\bfollow(s|ed|ing)?[- ]up\s)\bon (customer |client |live |phone |inbound |incoming )?calls\b|\b(during|over|through|thru|via) (customer |client |live |phone |inbound |incoming )?calls\b|\bcalls? (are|is|get|gets) (answered|picked up|returned)\b(?!\s+(by|elsewhere|separately|in-house)\b)|\b(every|each) (customer |inbound |incoming )?call\b|\bmissed calls\b|\bvoice ?mails?\b`,
+      // (...when a verb returns or follows them up, never a bare mention: "no more missed calls or voicemails for our customers",
+      // "Turn customer voicemails into tickets"; the thirteenth. A hotline is the phone line, as Philippine posts say it: "Answer the
+      // customer hotline", "Man the hotline", "through our hotline and email"; the thirteenth.)
+      String.raw`|\b(respond|responding|reply|replying|attend|attending|tend|tending|listen|listening)\s+to\s+((the|all|our|incoming|inbound|customer|client|patient|every|their)\s+){0,2}calls\b|\b(up to|over|about|around|at least)?\s*(\d+\+?|ten|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|a hundred|hundreds of|dozens of)\s+((inbound|incoming|customer|phone)\s+)?calls\b|(?<!\bfollow(s|ed|ing)?[- ]up\s)\bon (customer |client |live |phone |inbound |incoming )?calls\b|\b(during|over|through|thru|via) (customer |client |live |phone |inbound |incoming )?calls\b|\bcalls? (are|is|get|gets) (answered|picked up|returned)\b(?!\s+(by|elsewhere|separately|in-house)\b)|\b(every|each) (customer |inbound |incoming )?call\b|\b(return|returns|returning|check|checks|checking|follow(s|ed|ing)?[- ]up on|respond to|responding to|listen to|listening to|answer|answering|call back|calling back)\s+((the|all|any|our|their|customer|client|patient)\s+){0,2}(missed calls|voice ?mails?)\b|\b(answer|answering|man|manning|staff|staffing|handle|handling|cover|covering|take|taking|monitor|monitoring)\s+(the\s+|our\s+)?([\w-]+\s+)?hotlines?\b|\b(on|through|thru|via|by|over)\s+(the\s+|our\s+)?([\w-]+\s+)?hotlines?\b`,
   ).test(positiveWork);
   const phoneMention = new RegExp(String.raw`\b(phone (support|agent|rep|csr|calls?)|voice (agent|csr|support|account)|outbound calls?|telephone|bpo)\b${NOT_A_RULE}|\bcall cent(er|re)\b${NOT_A_PRODUCT}${NOT_A_RULE}`).test(work);
   // Call-centre, BPO or phone support experience, asked for or not ("no call
@@ -225,8 +228,11 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
   // Only those: Intercom in a list of tools is the chat tool wherever it stands, "via email and
   // Intercom", "Use Zendesk and Intercom", "Tools: Intercom, Zendesk", never the door's "intercom calls"
   // or "intercom buzzes"; the twelfth.)
+  // (The thirteenth review: only in a list with a written channel or a help-desk tool, as all the twelfth's were; a door's
+  // intercom is beside the phones: "Answer phones and intercom, schedule appointments", "Answer phones, intercom and greet guests".)
   // (Messages a receptionist takes are phone messages: "Answer phones, take messages and schedule appointments"; the twelfth.)
-  const chatIn = /\b(chats?|live chat|messaging|messenger|whatsapp)\b|(?<!\b(take|takes|taking|took|leave|leaves|leaving|relay|relays|relaying)\s)\bmessages\b|(?<!\b(the|building|door|gate|lobby)\s)\bintercom\b(?!\s+(calls?|buzz\w*|systems?|phones?|panels?)\b)|\bintercom (chats?|messages?|inbox|tickets?|conversations?|messenger)\b|\b(by|via|over) (text|sms)\b|\b(text|sms) (support|messages? from)\b/.test(work);
+  const HELP_TOOL = String.raw`(e-?mails?|live chat|chats?|tickets?|zendesk|freshdesk|slack)`;
+  const chatIn = new RegExp(String.raw`\b(chats?|live chat|messaging|messenger|whatsapp)\b|(?<!\b(take|takes|taking|took|leave|leaves|leaving|relay|relays|relaying)\s)\bmessages\b|\b(via|in|on|through|thru|using|with) intercom\b|\bintercom (chats?|messages?|inbox|tickets?|conversations?|messenger)\b|\b${HELP_TOOL}\s*(,|&|\/|\band\b|\bor\b)\s*(and\s+)?intercom\b|\bintercom\s*(,|&|\/|\band\b|\bor\b)\s*(and\s+)?${HELP_TOOL}\b|\b(by|via|over) (text|sms)\b|\b(text|sms) (support|messages? from)\b`).test(work);
   const emailIn = new RegExp(String.raw`\b(e-?mails?)\b(?!\s+(accounts?|address(es)?|settings))${NOT_A_PRODUCT}|\b(answer|answering|resolve|resolving|respond to|responding to|reply to|replying to|handle|handling|work|working)\b[^.;]{0,25}\btickets?\b|\btickets? only\b|\bonly tickets\b|\bticket(ing)? support\b|\bsupport tickets\b|\bzendesk\b|\bfreshdesk\b`).test(work);
 
   const titleNames = tChat || tEmail || tPhone || tWritten;
@@ -287,7 +293,12 @@ export function applyCustomerServicePack(phases: ScreeningPhase[], brief: JobBri
   // will be (a remote job, or a place outside the English-first countries);
   // and no step is promised that this flow does not build (no practice call:
   // the written interview's call questions are what a phone job gets).
-  const remote = brief.workMode === "remote";
+  // Remote is what Publish saves as is_remote (jobFromFlow.ts), which is what
+  // trigger-ava-analysis reads: the Type field, or a place or words that say
+  // so ("Permanent work from home" in What they do with the Type left on
+  // On-site; the thirteenth Phase 4 review: those plans said the typing was
+  // not counted, and it was).
+  const remote = brief.workMode !== "hybrid" && (brief.workMode === "remote" || isFullyRemoteText(brief.location, brief.employmentType, brief.whatTheyDo));
   const country = inferCountryCode(brief.location);
   const secondLanguage = remote || (!!country && !ENGLISH_FIRST.has(country));
   const hasInterview = out.some((p) => p.kind === "voice_interview");
@@ -414,8 +425,12 @@ export function applyCustomerServicePack(phases: ScreeningPhase[], brief: JobBri
         return [...parts, ...pairs.map(([a, b]) => `${a} ${b}`)];
       };
       // (Frustrated, aggressive or difficult callers are angry ones too: "Tell me about a time you handled a difficult caller"; the twelfth review.)
+      // (...frustrated or aggressive only of the other person, "a frustrated caller", "a caller who becomes aggressive", "A customer
+      // on the line is frustrated", never the agent's own: "How do you keep from getting frustrated on busy call days?", "...calls
+      // when you are frustrated"; the thirteenth.)
+      const OTHERS_TEMPER = /\b(frustrated|aggressive) (callers?|customers?|patients?)\b|\b(callers?|customers?|patients?|calls?|they|he|she)\b((?!\b(you|i|we)\b)[^.?!]){0,30}?\b(is|are|was|were|gets?|got|getting|becomes?|became|becoming|turns?|turned|seems?|sounds?)\s+((very|really|so|quite|increasingly|already|more)\s+)?(frustrated|aggressive)\b/i;
       const asksAngryCaller = (prompt: string) =>
-        sentences(prompt).some((x) => onCall(x) && /\b(angry|upset|furious|irate|rude|abusive|frustrat\w*|aggressive|difficult (callers?|customers?|patients?|calls?)|shout\w*|yell\w*|scream\w*|swear\w*|talk\w* over)\b/i.test(x));
+        sentences(prompt).some((x) => onCall(x) && (OTHERS_TEMPER.test(x) || /\b(angry|upset|furious|irate|rude|abusive|difficult (callers?|customers?|patients?|calls?)|shout\w*|yell\w*|scream\w*|swear\w*|talk\w* over)\b/i.test(x)));
       // On hold is a person on hold ("put a caller on hold", "put patients on
       // hold"), or on a call; never a project, a ticket or a feeling (the sixth).
       const PERSON = String.raw`(them|him|her|someone|somebody|anyone|people|callers?|customers?|patients?|players?|guests?|members?|clients?|users?|shoppers?|buyers?)`;

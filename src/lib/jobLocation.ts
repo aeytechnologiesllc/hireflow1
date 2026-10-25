@@ -58,8 +58,11 @@ const PH_PLACE_HINT = /\b(metro manila|manila|quezon city|makati|pasig|taguig|bg
  *  became US jobs). With what kind of account or hours between, or "-based"
  *  after it: "Cebu - US healthcare account", "Quezon City (US Mortgage
  *  Account)", "Remote, US office hours", "Makati (US-based clients)",
- *  "Iloilo (US healthcare)" (the fifth product review: still US jobs). */
-const CLIENT_COUNTRY = /\b(united states|u\.s\.a\.?|usa|us|u\.s\.|uk|united kingdom|canada|canadian|australia|australian)(?:-based\s+[\w-]+|\s+(?:(?!(?:remote|only|residents?|citizens?)\b)[\w-]+\s+){0,2}?(?:accounts?|shifts?|clients?|customers?|time(?:zone)?|hours|market|campaigns?)\b|\s+(?:healthcare|health care|mortgage|telco|insurance|banking|retail|e-?commerce)\b)/gi;
+ *  "Iloilo (US healthcare)" (the fifth product review: still US jobs).
+ *  "-based" only before a client word: "US-based applicants only", "UK-based
+ *  team" are where the people are (the thirteenth Phase 4 review: those had
+ *  no country, so a job the geocoder missed was in no feed). */
+const CLIENT_COUNTRY = /\b(united states|u\.s\.a\.?|usa|us|u\.s\.|uk|united kingdom|canada|canadian|australia|australian)(?:-based\s+(?:clients?|customers?|accounts?|compan(?:y|ies)|brands?|business(?:es)?)\b|\s+(?:(?!(?:remote|only|residents?|citizens?)\b)[\w-]+\s+){0,2}?(?:accounts?|shifts?|clients?|customers?|time(?:zone)?|hours|market|campaigns?)\b|\s+(?:healthcare|health care|mortgage|telco|insurance|banking|retail|e-?commerce)\b)/gi;
 
 export function inferCountryCode(locationText?: string | null): string | null {
   const text = (locationText ?? "").trim().replace(CLIENT_COUNTRY, " ");
@@ -76,7 +79,9 @@ export function inferCountryCode(locationText?: string | null): string | null {
 // onsite)", "Remote; not on-site", "Remote — never on-site", "Fully remote -
 // non-office based", "Remote (100%, no hybrid)"; the fifth product review:
 // those were on-site or hybrid jobs.)
-const NEGATED = String.raw`(?<!\b(?:no|not|non|never)[-\s]+)`;
+// (...and the next word in a list after it: "Remote (no hybrid or onsite)", "Remote, never onsite or hybrid"; the thirteenth
+// Phase 4 review. A comma ends the negation: "No hybrid, onsite only" is on-site.)
+const NEGATED = String.raw`(?<!\b(?:no|not|non|never)[-\s]+(?:(?:hybrid|on[-\s]?site|onsite|in[-\s]?office|office[-\s]based)\s*(?:or|nor|\/)\s*)?)`;
 /** What a place (or the builder's Type field) says about working from home:
  *  "remote", "not_remote" (hybrid, an office, on-site, "remote-friendly"), or
  *  null when it says neither ("Cebu", "Austin, TX"). Not only a leading
@@ -89,7 +94,8 @@ const PLACE_NOT_REMOTE = new RegExp(String.raw`\b(${NEGATED}(?:hybrid|on[-\s]?si
 // Manila"; the twelfth Phase 4 review: the first was an on-site job).
 // "Online" is how many Philippine posts say it ("Philippines (online)"; the
 // fifth product review).
-const A_COUNTRY = COUNTRY_TEXT_HINTS.map(([pattern]) => pattern.source).join("|");
+// (Exported for the job classifier's "our stores across the US"; the thirteenth Phase 4 review.)
+export const A_COUNTRY = COUNTRY_TEXT_HINTS.map(([pattern]) => pattern.source).join("|");
 const PLACE_REMOTE = new RegExp(String.raw`\b(remote|work(?:ing)?[-\s]?(?:from|at)[-\s]?home|wfh|home[-\s]?based|telecommut\w*|telework\w*|virtual|online|anywhere(?!\s+in\s+(?!(?:the\s+)?(?:${A_COUNTRY}|world|globe)))|worldwide)\b`, "i");
 /** An office named with no remote word ("Makati office") is on-site; with
  *  one, it is the hours or the kind of work ("Remote (US office hours)",
