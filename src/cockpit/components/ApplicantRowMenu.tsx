@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Ban, BookmarkMinus, BookmarkPlus, CheckSquare, ExternalLink, MoreHorizontal, RotateCcw, XCircle } from "lucide-react";
+import { Ban, BookmarkMinus, BookmarkPlus, CheckSquare, ExternalLink, MoreHorizontal, RotateCcw, Trash2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { ActionDialog } from "./ActionDialog";
 import { DeclineNotePreview, passDialogWords } from "./ApplicantDecisionDialogs";
 import { useCockpitActions } from "../hooks/useCockpitData";
 import { useApplicantBlockActions, type BlockTarget } from "../hooks/useApplicantBlocks";
 import { useBulkPass } from "../hooks/useBulkPass";
+import { useRemoveApplicant } from "../hooks/useRemoveApplicant";
 import { bulkPassDoneWords, bulkPassProgressWords, bulkPassWords, type BulkPassPlan } from "../lib/bulkPass";
 import { blockConfirmWords, firstNameOf, unblockConfirmWords } from "../lib/blockedApplicants";
 import { canShortlist, shortlistActionLabel } from "../lib/shortlist";
@@ -245,7 +246,9 @@ export type ApplicantActionRequest =
   | { kind: "pass"; target: BlockTarget; offered: boolean; /** The job they applied for: the note names it. */ jobTitle?: string | null }
   | { kind: "passMany"; plan: BulkPassPlan }
   | { kind: "block"; targets: BlockTarget[] }
-  | { kind: "unblock"; target: BlockTarget };
+  | { kind: "unblock"; target: BlockTarget }
+  /** Delete their information for good (remove-applicant; the Terms ask businesses to act on such a request). */
+  | { kind: "delete"; target: BlockTarget };
 
 /** The items for one applicant, in the order they read. */
 export function applicantMenuItems({
@@ -312,6 +315,7 @@ export function applicantMenuItems({
   }
   items.push({ key: "block", label: "Remove and block", icon: <Ban aria-hidden className="h-4 w-4 shrink-0" />, danger: true, onSelect: () => onRequest({ kind: "block", targets: [target] }) });
   if (blocked) items.push(unblock);
+  items.push({ key: "delete", label: "Delete their information", icon: <Trash2 aria-hidden className="h-4 w-4 shrink-0" />, danger: true, onSelect: () => onRequest({ kind: "delete", target }) });
   return items;
 }
 
@@ -340,8 +344,9 @@ export function ApplicantActionDialogs({
   const { block, unblock, busy: blockBusy } = useApplicantBlockActions();
   const { reject, isUpdating } = useCockpitActions();
   const { passMany, progress: passProgress } = useBulkPass();
+  const { remove, busy: removeBusy } = useRemoveApplicant();
   const [working, setWorking] = useState(false);
-  const busy = working || blockBusy || isUpdating;
+  const busy = working || blockBusy || isUpdating || removeBusy;
 
   const finish = useCallback(
     async (run: () => Promise<boolean>) => {
@@ -402,6 +407,23 @@ export function ApplicantActionDialogs({
             return said.ok;
           })
         }
+        onClose={onClose}
+      />
+    );
+  } else if (request.kind === "delete") {
+    const who = firstNameOf(request.target.name);
+    dialog = (
+      <ActionDialog
+        open
+        title={`Delete ${who}'s information?`}
+        description={`This deletes ${who}'s application to this job for good: their answers, test results, notes, interview, documents and the files they sent. Their messages stay in Messages, and their own account is not touched. Use this when they ask you to delete their information. It cannot be undone.`}
+        confirmLabel="Delete for good"
+        tone="danger"
+        busy={busy}
+        withReason
+        reasonLabel="Why? Optional, and kept only in the deletion record."
+        reasonPlaceholder="e.g. They asked us to delete their information."
+        onConfirm={(reason) => void finish(() => remove(request.target.applicationId, reason))}
         onClose={onClose}
       />
     );

@@ -10,6 +10,9 @@
  *     the business sign-up links the Privacy Policy as well as the Terms.
  *   - legal-pages-name-entity-and-contact: both pages name the company that
  *     runs the site and end with how to reach it.
+ *   - applicant-data-can-be-removed: a business can delete an applicant's
+ *     information (the Terms ask it to act on such a request), only through
+ *     the remove-applicant function, which names the actor from the sign-in.
  */
 
 const ENTITY = "Southern Digital Technologies LLC";
@@ -106,6 +109,28 @@ export default [
         if (!intro.includes(ENTITY)) detail.push(`legal.ts: ${doc} does not name ${ENTITY} in its opening`);
         if (!/id: "contact",\s*title: "How to reach us",/.test(block)) detail.push(`legal.ts: ${doc} no longer ends with "How to reach us"`);
       }
+      return detail.length ? { ok: false, detail } : { ok: true };
+    },
+  },
+  {
+    id: "applicant-data-can-be-removed",
+    why:
+      "The Terms ask every business to act on an applicant's request to delete their information. 'Delete their " +
+      "information' on the applicant's ⋯ menu calls remove-applicant, which takes the actor from the caller's " +
+      "sign-in and lets public.remove_applicant (service role only) decide (owner, or a teammate who manages " +
+      "applicants), log it and delete the application before any file goes.",
+    run: async ({ read }) => {
+      const detail = [];
+      const sql = (await read("supabase/migrations/20261025170000_remove_applicant.sql")) ?? "";
+      if (!/grant execute on function public\.remove_applicant\(uuid, uuid, text\) to service_role;/.test(sql) || !/revoke all on function public\.remove_applicant\(uuid, uuid, text\) from public, anon, authenticated;/.test(sql)) {
+        detail.push("remove_applicant must be callable by the system only (it trusts the actor it is given)");
+      }
+      if (!/tm\.can_manage_pipeline is true/.test(sql) || !/p_actor = v_app\.employer_id/.test(sql)) detail.push("remove_applicant no longer limits it to the owner and teammates who manage applicants");
+      if (!/insert into private\.applicant_removals/.test(sql)) detail.push("remove_applicant no longer logs the removal");
+      const fn = (await read("supabase/functions/remove-applicant/index.ts")) ?? "";
+      if (!/p_actor: caller\.userId/.test(fn) || !/requireSignedInUser\(req, corsHeaders\)/.test(fn)) detail.push("remove-applicant: the actor must come from the caller's sign-in");
+      const menu = (await read("src/cockpit/components/ApplicantRowMenu.tsx")) ?? "";
+      if (!/key: "delete", label: "Delete their information"/.test(menu)) detail.push("ApplicantRowMenu.tsx: 'Delete their information' is gone from the ⋯ menu");
       return detail.length ? { ok: false, detail } : { ok: true };
     },
   },

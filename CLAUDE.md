@@ -154,6 +154,21 @@ these either; each has a guard or a test that CI runs:
   account keeps `signup_source`; Admin → Growth reads `admin_growth()`.
   Guards `landing-has-beacon`, `signup-carries-utm`.
 
+**Phase 5 of docs/LAUNCH-PLAN.md (2026-10-25).** Guards in
+`scripts/guards/phase-5-launch-locks.mjs`:
+- Every OpenAI call names its business (`business:`), and takes from that
+  business's daily AI budget (`ai_business_daily_call_cap`, 2,000) as well as
+  the platform's; platform admins are never counted; the owner is told in the
+  app at 80%/100% and when a business hits its cap. A cost guard, never a
+  paywall. Guard `ai-budget-enforced`.
+- The legal pages name **Southern Digital Technologies LLC**; the contact
+  email and governing-law state are still owner inputs. Both sign-ups and the
+  application form link the Privacy Policy. Guards
+  `legal-pages-name-entity-and-contact`, `applicant-signup-shows-privacy-notice`.
+- "Delete their information" (⋯ menu) deletes one application and its files
+  through `remove-applicant` → `remove_applicant` (service role only, logged).
+  Guard `applicant-data-can-be-removed`.
+
 **Trusted-results foundation is built AND live-enforced.** The
 `recordStepResult` path and the `public.trusted_result_enforcement` table
 (one boolean flag per self-reported step type: `chatInterviewResult`,

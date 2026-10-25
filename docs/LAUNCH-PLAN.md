@@ -907,6 +907,36 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
 
+### 2026-10-25 (night) — Phase 4 reviewed and fixed; Phase 5 built
+
+- **Phase 4, Pass C round 1** (fresh reviewer on 90b63ad6, 12 findings):
+  detection read barista/cashier/cleaner ads that ask for "great customer
+  service" as customer-service jobs (now title-first, role-defining work
+  only); the support interview guide reached any "support" job (now only a
+  job whose chat step has a pack; the phone version reads the stored
+  channel); "team player" picked the gaming pack; the channel chip always
+  started on Chat; a phone job could get one call question; the owner's
+  "player" overrode a pack's word; generate-flow's allow-list; the applicant
+  page did not split pack cases; employer-note grammar and a false claim; three
+  pack conflicts. Transcript labels now resist look-alikes. Commit 78ab7b73,
+  functions redeployed. Round 2 running on it.
+- **Phase 5, built** (branch merged after its suite): the legal pages name
+  Southern Digital Technologies LLC and say a hiring account keeps its
+  campaign tags (LEGAL-PAGES.md's 30-day line fixed: IDs go 24 hours after
+  first opened); consent notices on both sign-ups and the application form;
+  a daily AI budget per business (2,000 calls; team members count against
+  their business; platform admins exempt; in-app alerts to the owner, not
+  email, since the error alerts already work that way) wired into every
+  OpenAI call; "Delete their information" (remove-applicant +
+  remove_applicant, logged; messages and the signing audit stay).
+- **Deferred, with the reason:** removing the dead "showcase" schema mode
+  (threaded through dozens of files; dead in production; a large refactor
+  for little gain) goes to the final audit. The developer area's Stripe
+  dashboard link is admin-only and shows no price.
+- **Owner inputs still open:** the LLC's state of registration (governing
+  law) and a contact email for legal and privacy; www → apex 308; Turnstile
+  keys; OpenAI spending cap (later).
+
 ### 2026-10-25 (evening) — Pass C round 6; Phase 4 built
 
 - **Pass C round 6** (fresh reviewer on the round-5 fixes and all Phase 3

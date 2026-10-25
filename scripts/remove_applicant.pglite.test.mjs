@@ -140,11 +140,21 @@ check("the resume uploaded for this application goes", toRemove.includes(`${ANA}
 check("a form file another application of hers still uses stays", !toRemove.includes(`${ANA}/1700000000001_q1.pdf`));
 check("her profile's resume stays, even when this application pointed at it", !toRemove.includes(`${ANA}/profile-cv.pdf`));
 check("nothing outside her own folder is ever named", toRemove.every((p) => p.startsWith(`${ANA}/`)));
+const sneaky = FILES.resumeFilesToRemove(ANA, null, `{"q":"${ANA}/../${STRANGER}/cv.pdf","r":"${ANA}//x.pdf","s":"${ANA}/folder/"}`, "");
+check("a path in her answers that climbs out of her folder (..), or is not a plain file, is never deleted", sneaky.length === 0, JSON.stringify(sneaky));
 check("a storage link is read as its path in the bucket", FILES.storagePathIn(`https://x.supabase.co/storage/v1/object/sign/documents/documents/abc/final.pdf?token=1`, "documents") === "documents/abc/final.pdf" && FILES.storagePathIn("uid/file.pdf", "resumes") === "uid/file.pdf" && FILES.storagePathIn("https://elsewhere.test/file.pdf", "resumes") === null && FILES.storagePathIn("", "resumes") === null);
 
 const fn = read("supabase/functions/remove-applicant/index.ts");
 check("the function takes the actor from the sign-in, never the request", /const caller = await requireSignedInUser\(req, corsHeaders\);/.test(fn) && /p_actor: caller\.userId/.test(fn) && !/body\.actor|body\.userId/.test(fn));
 check("files go only after the database removed the application", fn.indexOf('admin.rpc("remove_applicant"') < fn.indexOf("await removeAll(storage"));
+
+console.log("\nOn the applicant's page\n");
+const menu = read("src/cockpit/components/ApplicantRowMenu.tsx");
+check("the ⋯ menu offers 'Delete their information', only to whoever may decide", /if \(!canDecide\) return items;[\s\S]*key: "delete", label: "Delete their information"/.test(menu));
+check("…confirmed in a dialog that says it cannot be undone and that messages and their account stay", /Delete \$\{who\}'s information\?/.test(menu) && /It cannot be undone\./.test(menu) && /Their messages stay in Messages, and their own account is not touched\./.test(menu) && /confirmLabel="Delete for good"/.test(menu));
+const hook = read("src/cockpit/hooks/useRemoveApplicant.ts");
+check("the page asks the function, never deletes rows itself", /functions\.invoke\("remove-applicant"/.test(hook) && !/\.from\("applications"\)[\s\S]{0,40}\.delete\(/.test(hook + menu));
+check("the profile goes back to the list once they are deleted", /request\.kind === "block" \|\| request\.kind === "delete"\) && ok\) goBack\(\);/.test(read("src/cockpit/pages/CandidateDetail.tsx")));
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);
 process.exit(failed === 0 ? 0 : 1);

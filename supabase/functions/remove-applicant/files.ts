@@ -30,5 +30,8 @@ export function resumeFilesToRemove(candidateId: string, resumeUrl: unknown, not
   if (own && own.startsWith(`${candidateId}/`)) found.add(own);
   const escaped = candidateId.replace(/[-]/g, "\\-");
   for (const m of String(notes ?? "").matchAll(new RegExp(`${escaped}/[A-Za-z0-9._\\-/]+`, "g"))) found.add(m[0]);
-  return [...found].filter((path) => !otherRefs.includes(path));
+  // Only a plain path inside their own folder: never "..", an empty segment
+  // or another folder, whatever the notes (partly their own writing) say.
+  const safe = (path: string) => path.startsWith(`${candidateId}/`) && !path.includes("..") && !path.includes("//") && !path.endsWith("/");
+  return [...found].filter((path) => safe(path) && !otherRefs.includes(path));
 }

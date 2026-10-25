@@ -680,3 +680,34 @@ end.
 
 Proof: `scripts/pass_by_score.test.mjs` (who it reaches and never reaches,
 the picture, the words, the wiring), and a walk-through in the dev preview.
+
+## 11. Delete their information (2026-10-25)
+
+The Terms ask every business to act on an applicant's request to delete their
+information (docs/LAUNCH-PLAN.md, Phase 5, task 3). **Delete their
+information** on the ⋯ menu (list row, phone card and profile), for the owner
+or a teammate with Manage pipeline, after a confirm that says it cannot be
+undone (an optional reason is kept in the deletion record only):
+
+- `remove-applicant` (edge function) takes who is asking from their sign-in;
+  `public.remove_applicant(p_application, p_actor, p_reason)` (service role
+  only) checks they are the job's owner or an active teammate who manages
+  applicants, logs it in `private.applicant_removals` (who, when, why), and
+  deletes the application. The existing cascades take its interviews,
+  documents and document requests (their files are queued for deletion by
+  `document_requests_trash_file`), test sessions and events, notes, ratings,
+  views, guides, shortlist entries and typing starts.
+- Then the function deletes the files: the application's video and portfolio
+  uploads (`<person>/<application>-…`), voice recordings (`<application>/…`),
+  documents and their signed copies (`documents/<id>/…`), and the resume and
+  form files no other application of theirs, and not their profile, still
+  uses. A file that cannot be deleted at once is logged, never a reason to
+  undo.
+- **Stays:** their messages (their conversation too; they lose the link to
+  the application), the signing audit log (it cannot be changed, by design;
+  it loses the link to the document), their own account and their other
+  applications. Not the same as Remove and block: that hides and blocks
+  without deleting anything.
+- Proof: `scripts/remove_applicant.pglite.test.mjs`; guard
+  `applicant-data-can-be-removed`.
+

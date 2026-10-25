@@ -60,8 +60,11 @@ On 2026-10-09, against the repo and the live project.
    Act expects a data-protection contact) and the postal address, if any.
 2. **Which state's law applies** to the terms: the state the LLC is
    registered in (owner input).
-3. **Agreement at sign-up.** Neither sign-up screen asks anyone to agree to
-   these or links to them; the only links are in the careers page's footer.
+3. **Agreement at sign-up.** Done 2026-10-25: the business sign-up's
+   agreement links the Terms and the Privacy Policy; the applicant sign-up
+   says creating an account agrees to the Terms and links the Privacy Policy;
+   the application form says who sees it (guard
+   `applicant-signup-shows-privacy-notice`).
 4. **How long information is kept.** Apart from identity papers (deleted 24
    hours after first opened, or 7 days after sending, since 2026-10-10),
    nothing is deleted on a timer. A set
@@ -71,7 +74,9 @@ On 2026-10-09, against the repo and the live project.
 6. **A profile photo is at a public address.** The policy says so. A private
    bucket would be better.
 7. **A copy of your information** is promised on request and is done by hand:
-   there is no export.
+   there is no export. Deletion on request is in the product since
+   2026-10-25: a business uses "Delete their information" (docs/APPLICANTS-LIST.md,
+   section 11); an applicant deletes their own account in Settings.
 
 If the site changes (a new step, a new provider, a price), change
 `src/content/legal.ts` and its date in the same change.

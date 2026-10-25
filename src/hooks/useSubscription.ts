@@ -7,8 +7,10 @@ import { useSchemaMode } from "./useSchemaMode";
 /**
  * Account state for the signed-in employer / team member.
  *
- * This is Zulu's own hiring tool now (2026-10-04): there is no Stripe, no
- * plan, no trial and no usage limit anywhere in the product. The hook keeps
+ * Billing is off while it is built new (CLAUDE.md, "Distribution & billing
+ * state"; since 2026-10-04): there is no Stripe, no plan, no trial and no
+ * usage limit anywhere in the product (a daily AI budget per business guards
+ * cost, never access: 20261025160000_ai_business_budget.sql). The hook keeps
  * its name so the many callers stay untouched, but everything it answers
  * is now about ACCESS, not billing:
  *

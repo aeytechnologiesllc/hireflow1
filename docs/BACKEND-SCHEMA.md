@@ -68,6 +68,8 @@ these buckets by a permanent public URL any more.
 - `protect_application_columns`, `protect_document_columns` — triggers that block a client write from forging server-owned columns (scores, signing state)
 - The business email check (2026-10-25; docs/BUSINESS-TRUST.md): `profiles.email_verified_at` / `email_verified_for` (server-written only, trigger `profiles_email_verified_from_server`); `private.business_email_codes` and `private.business_email_code_sends` (no client access); `issue_business_email_code` (service role only), `verify_business_email_code` and `my_business_email_verified` (signed in), `business_email_verified` (internal); trigger `jobs_publish_needs_email_check` on `jobs`
 - `job_limit_for_user` / `subscription_plan_for_limits` — billing limit lookups, currently relaxed to unlimited while Stripe is off (`20260904110000_free_tier_open.sql`)
+- The AI budget (2026-10-25; Phase 1 and Phase 5): `ai_budget_take(p_calls, p_business)` (service role only) takes from the business's own day (`private.ai_business_daily_usage`, cap `app_settings.ai_business_daily_call_cap`, 2,000; a team member counts against their business, platform admins never) and then the platform's (`private.ai_daily_usage`, cap `ai_daily_call_cap`, 10,000). Platform admins are told in the app once a day at 80% and 100% of the platform budget and when a business reaches its own (`private.ai_budget_alerts`). Every OpenAI call passes `business` (guard `ai-budget-enforced`)
+- `remove_applicant(p_application, p_actor, p_reason)` (service role only, called by `remove-applicant`): a business deletes an applicant's information; logged in `private.applicant_removals` (docs/APPLICANTS-LIST.md, section 11)
 
 ## Reachable without sign-in (2026-10-25)
 

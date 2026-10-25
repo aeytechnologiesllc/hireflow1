@@ -957,7 +957,8 @@ function CandidateProfile({
           request={blockRequest}
           onClose={() => setBlockRequest(null)}
           onDone={(request, ok) => {
-            if (request.kind === "block" && ok) goBack();
+            // Blocked or deleted: back to the list, which no longer shows them.
+            if ((request.kind === "block" || request.kind === "delete") && ok) goBack();
           }}
         />
 
