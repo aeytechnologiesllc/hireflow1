@@ -3,31 +3,31 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>HireFlow: hire remote chat support agents while you sleep</title>
-<meta name="description" content="Post a chat support role tonight. By morning every applicant has taken a real customer chat test, been scored and ranked, and you only meet the best.">
+<title>HireFlow: hire customer service agents while you sleep</title>
+<meta name="description" content="Hire chat and phone customer service agents for any business. Post the role tonight; by morning every applicant has taken a real customer test, been scored and ranked. Your first job is free.">
 <link rel="canonical" href="https://hireflownow.com/">
 <meta name="robots" content="index, follow">
 <meta name="theme-color" content="#05070B">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="HireFlow">
 <meta property="og:url" content="https://hireflownow.com/">
-<meta property="og:title" content="HireFlow: hire chat agents while you sleep">
-<meta property="og:description" content="Post the role tonight. By morning every applicant has been tested on a real customer chat, scored and ranked. You only meet the best.">
+<meta property="og:title" content="HireFlow: hire customer service agents while you sleep">
+<meta property="og:description" content="Chat and phone, any business. Post the role tonight. By morning every applicant has been tested on a real customer conversation, scored and ranked.">
 <meta property="og:image" content="https://hireflownow.com/share/hireflow.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="HireFlow: hire chat agents while you sleep">
+<meta property="og:image:alt" content="HireFlow: hire customer service agents while you sleep">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="HireFlow: hire chat agents while you sleep">
-<meta name="twitter:description" content="Post the role tonight. By morning every applicant has been tested on a real customer chat, scored and ranked.">
+<meta name="twitter:title" content="HireFlow: hire customer service agents while you sleep">
+<meta name="twitter:description" content="Chat and phone, any business. Post the role tonight; by morning every applicant has been tested, scored and ranked.">
 <meta name="twitter:image" content="https://hireflownow.com/share/hireflow.jpg">
-<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=6">
-<link rel="alternate icon" href="/favicon.ico?v=6" sizes="any">
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=6">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"HireFlow","url":"https://hireflownow.com/","logo":"https://hireflownow.com/icon-512.png"}</script>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=7">
+<link rel="alternate icon" href="/favicon.ico?v=7" sizes="any">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=7">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://hireflownow.com/#org","name":"HireFlow","legalName":"Southern Digital Technologies LLC","url":"https://hireflownow.com/","logo":"https://hireflownow.com/icon-512.png"},{"@type":"SoftwareApplication","name":"HireFlow","applicationCategory":"BusinessApplication","operatingSystem":"Web","url":"https://hireflownow.com/","description":"Hire chat and phone customer service agents. Every applicant takes a real customer test and is scored before you meet them.","publisher":{"@id":"https://hireflownow.com/#org"},"offers":{"@type":"Offer","price":"0","priceCurrency":"USD","description":"Your first job is free."}}]}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" media="print" onload="this.media='all'">
 <script src="/beacon.js" defer></script>
 <script src="/carry-source.js" defer></script>
 <!-- HireFlow's front page (docs/LANDING.md). Served at hireflownow.com/ by
@@ -78,10 +78,18 @@
   .grain { position: absolute; inset: 0; pointer-events: none; opacity: 0.07; mix-blend-mode: overlay;
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/></svg>"); }
 
-  .bar { position: absolute; inset: 0 0 auto 0; z-index: 6; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px clamp(18px, 4vw, 48px); padding-top: calc(22px + env(safe-area-inset-top, 0px)); }
+  /* The bar stays at the top for the whole page (2026-10-25: one button,
+     "Post your first job free", always in reach), on a dark glass so it
+     reads over the night and the morning alike. */
+  .bar { position: fixed; inset: 0 0 auto 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px clamp(18px, 4vw, 48px); padding-top: calc(14px + env(safe-area-inset-top, 0px)); color: var(--ink); background: rgba(5, 7, 11, 0.62); -webkit-backdrop-filter: blur(14px) saturate(140%); backdrop-filter: blur(14px) saturate(140%); border-bottom: 1px solid rgba(244, 240, 230, 0.08); }
   .brand { display: inline-flex; align-items: center; gap: 10px; font: 600 17px/1 "Geist", sans-serif; letter-spacing: -0.01em; color: inherit; text-decoration: none; }
-  .brand b { width: 24px; height: 24px; border-radius: 6px; background: var(--ink); color: #0A0D12; display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+  .brand svg { width: 26px; height: 26px; flex: none; display: block; }
   .bar .btn { padding: 11px 15px; font-size: 14px; }
+  /* over the morning: the same bar in its daylight colours */
+  .bar { transition: background .3s ease, color .3s ease, border-color .3s ease; }
+  .bar.day { color: var(--day-ink); background: rgba(246, 241, 230, 0.86); border-bottom-color: rgba(16, 22, 19, 0.1); }
+  .bar.day .plain { color: rgba(16, 22, 19, 0.62); } .bar.day .plain:hover { color: var(--day-ink); }
+  .bar.day .btn.solid { background: var(--day-ink); color: #F6F1E6; } .bar.day .btn.solid:hover { background: #000; }
   .bar .plain { color: var(--ink-3); font-size: 14px; margin-right: 20px; }
   .bar .plain .short, .bar .btn .short { display: none; }
   .bar > span { display: inline-flex; align-items: center; white-space: nowrap; }
@@ -98,19 +106,20 @@
   /* scene 0: what it does, at once */
   .hero { position: absolute; inset: 0; z-index: 4; display: grid; justify-items: center; align-content: start; text-align: center; padding: clamp(104px, 15vh, 168px) clamp(18px, 5vw, 60px) 0; transition: opacity .6s var(--ease), transform .8s var(--ease); }
   .hero > div { display: grid; justify-items: center; gap: clamp(14px, 2.2vh, 24px); width: 100%; }
-  .hero h1 { font: 700 clamp(42px, min(7vw, 10.5vh), 104px)/0.98 "Geist", system-ui, sans-serif; letter-spacing: -0.045em; }
+  .hero h1 { font: 700 clamp(38px, min(6.2vw, 9.5vh), 92px)/0.98 "Geist", system-ui, sans-serif; letter-spacing: -0.045em; text-wrap: balance; }
   .hero h1 em { font-size: 1.16em; letter-spacing: -0.03em; }
   .ln { display: block; overflow: hidden; padding: 0.06em 0.06em 0.16em; margin-bottom: -0.16em; }
-  .ln > span { display: block; transform: translateY(112%); animation: rise 1.1s var(--ease) forwards; }
-  .ln + .ln > span { animation-delay: .14s; }
-  @keyframes rise { to { transform: none; } }
-  .hero .tag, .hero .small, .hero .cta { opacity: 0; animation: arrive .9s var(--ease) forwards; }
-  .hero .tag { animation-delay: .05s; } .hero .small { animation-delay: .5s; } .hero .cta { animation-delay: .65s; }
+  /* The headline is there from the first paint: it used to rise in from
+     below, hidden for a second (and as the page's largest text, late). */
+  .ln > span { display: block; }
+  .hero .tag, .hero .small, .hero .cta, .hero .nocard { opacity: 0; animation: arrive .9s var(--ease) forwards; }
+  .hero .tag { animation-delay: .05s; } .hero .small { animation-delay: .3s; } .hero .cta, .hero .nocard { animation-delay: .4s; }
   @keyframes arrive { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
   .tag { font: 500 12px/1 "Geist", sans-serif; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-3); }
   .tag.gold { color: var(--gold); }
   .small { color: var(--ink-2); font-size: clamp(16.5px, 1.5vw, 19px); max-width: 43ch; text-wrap: pretty; }
   .cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 4px; }
+  .nocard { font-size: 13.5px; color: var(--ink-3); margin-top: -4px; }
   .stage:not([data-beat="0"]) .hero { opacity: 0; transform: translateY(-40px); pointer-events: none; }
   @media (max-height: 700px) { .hero .small { display: none; } }
 
@@ -245,19 +254,29 @@
   .niche { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 26px; align-items: baseline; padding: 22px 0; border-top: 1px solid rgba(16, 22, 19, 0.16); border-bottom: 1px solid rgba(16, 22, 19, 0.16); }
   .niche .tag { color: #8A6420; letter-spacing: .18em; white-space: nowrap; }
   .niche p { font: 500 clamp(19px, 2vw, 25px)/1.3 "Geist", system-ui, sans-serif; letter-spacing: -0.02em; color: var(--day-ink); text-wrap: pretty; max-width: 46ch; }
-  @media (max-width: 720px) { .niche { grid-template-columns: minmax(0, 1fr); } }
+  .kinds { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px 26px; }
+  .kinds li { font-size: 15px; line-height: 1.45; color: rgba(16, 22, 19, 0.72); }
+  .kinds b { display: block; font: 600 17px/1.3 "Geist", system-ui, sans-serif; letter-spacing: -0.01em; color: var(--day-ink); margin-bottom: 2px; }
+  .end .go { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+  .end .go small { font-size: 13px; color: rgba(16, 22, 19, 0.6); }
+  .about { font-size: 13.5px; line-height: 1.55; color: rgba(16, 22, 19, 0.62); max-width: 70ch; margin: 0 auto; text-align: center; }
+  @media (max-width: 720px) { .niche { grid-template-columns: minmax(0, 1fr); } .niche .tag { white-space: normal; line-height: 1.5; } }
   .foot { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 22px; font-size: 13.5px; color: rgba(16, 22, 19, 0.56); }
   .foot a { color: inherit; text-decoration: none; } .foot a:hover { color: var(--day-ink); text-decoration: underline; }
 
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
     .hero, .story, .cap, .sec, .mark, .tick, .time, .thread .fill, .btn, .pin, .veil { transition: none !important; }
-    .ln > span { transform: none; animation: none; } .hero .tag, .hero .small, .hero .cta { opacity: 1; animation: none; }
+    .hero .tag, .hero .small, .hero .cta, .hero .nocard { opacity: 1; animation: none; }
   }
 </style>
 </head>
 <body>
 <main>
+  <div class="bar" id="bar">
+    <a class="brand" href="#night"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#14120E"/><rect x="0.5" y="0.5" width="63" height="63" rx="13.5" fill="none" stroke="rgba(224,185,106,0.28)"/><path d="M13 46 L25 19 L37 39 L51 17" fill="none" stroke="#E0B96A" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>HireFlow</a>
+    <span><a class="plain" id="jobLink" href="/open-jobs"><span class="long">Looking for a job?</span><span class="short">Jobs</span></a><a class="plain" href="https://staff.hireflownow.com/auth" id="signIn">Sign in</a><a class="btn solid" href="https://staff.hireflownow.com/auth?mode=signup" id="startFree"><span class="long">Post your first job free</span><span class="short">Start free</span></a></span>
+  </div>
   <section class="night" id="night" aria-label="One night with HireFlow">
     <div class="stage" id="stage" data-beat="0">
       <div class="stars" aria-hidden="true"></div>
@@ -269,19 +288,17 @@
       <div class="pin" id="pinYou" aria-hidden="true"><i></i><span>You<small id="pinYouTime">9:00 pm</small></span></div>
       <div class="pin" id="pinHer" aria-hidden="true"><i></i><span>Cebu<small id="pinHerTime">9:00 am</small></span></div>
 
-      <div class="bar">
-        <a class="brand" href="#night"><b>H</b>HireFlow</a>
-        <span><a class="plain" id="jobLink" href="/open-jobs"><span class="long">Looking for a job?</span><span class="short">Jobs</span></a><a class="plain" href="https://staff.hireflownow.com/auth" id="signIn">Sign in</a><a class="btn solid" href="https://staff.hireflownow.com/auth?mode=signup" id="startFree"><span class="long">Start hiring free</span><span class="short">Start free</span></a></span>
-      </div>
 
       <div class="hero">
         <div>
-          <span class="tag gold">Hiring remote chat support</span>
-          <h1><span class="ln"><span>Hire Chat Agents</span></span><span class="ln"><span><em>while you sleep.</em></span></span></h1>
-          <p class="small">Post the role tonight. By morning every applicant has been tested on a real customer chat, scored and ranked. You only meet the best.</p>
+          <span class="tag gold">Customer service hiring · chat and phone</span>
+          <h1><span class="ln"><span>Hire customer service agents</span></span><span class="ln"><span><em>while you sleep.</em></span></span></h1>
+          <p class="small">For any business that answers customers. Post the role tonight. By morning every applicant has been tested on a real customer conversation, scored and ranked. You only meet the best.</p>
           <div class="cta">
-            <button class="btn solid" type="button" id="watch">Watch one night</button>
+            <a class="btn solid" href="https://staff.hireflownow.com/auth?mode=signup" id="heroStart">Post your first job free</a>
+            <button class="btn ghost" type="button" id="watch">Watch one night</button>
           </div>
+          <p class="nocard">First job free. No card.</p>
         </div>
       </div>
 
@@ -292,17 +309,17 @@
         <div class="caps">
           <p class="cap" data-cap="1">You post the role, and go to bed.</p>
           <p class="cap" data-cap="2">On the other side of the world, <em>she applies.</em></p>
-          <p class="cap" data-cap="3">Her test: a payout <em>six days late.</em></p>
+          <p class="cap" data-cap="3">Her test: an order <em>six days late.</em></p>
           <p class="cap" data-cap="4">Scored, with the reasons.</p>
           <p class="cap" data-cap="5">Good morning. <em>Three to call.</em></p>
         </div>
 
         <div class="card" id="card">
-          <div class="sec" data-on="1"><div><div class="pad"><span class="live">Live in the Philippines</span><div class="row"><div class="who"><b>Chat Support Agent</b><span>Your evening is their morning. Their day is just starting.</span></div></div></div></div></div>
+          <div class="sec" data-on="1"><div><div class="pad"><span class="live">Live in the Philippines</span><div class="row"><div class="who"><b>Customer Support Agent</b><span>Your evening is their morning. Their day is just starting.</span></div></div></div></div></div>
           <div class="sec" data-on="2 3 4 5"><div><div class="pad"><div class="row"><span class="ava">MA</span><div class="who"><b>Maria, Cebu</b><span>Three years in chat support. Applied 11:47 pm, your time.</span></div><span class="mark" id="mark"><span id="score">0</span><small> /100</small></span></div></div></div></div>
-          <div class="sec" data-on="3"><div><div class="pad"><div class="bub them"><small>Customer</small>Your site says 1 to 3 business days. It has been SIX. Where is my money??</div><div class="bub me"><small>Maria</small><span id="typed"></span><span class="caret" id="caret"></span></div></div></div></div>
+          <div class="sec" data-on="3"><div><div class="pad"><div class="bub them"><small>Customer</small>Your site said 2 to 3 days. It has been SIX. Where is my order??</div><div class="bub me"><small>Maria</small><span id="typed"></span><span class="caret" id="caret"></span></div></div></div></div>
           <div class="sec" data-on="3 4"><div><div class="pad ticks"><span class="tick">Replied in 41 seconds</span><span class="tick">Found the real reason</span><span class="tick">Promised nothing she could not keep</span></div></div></div>
-          <div class="sec rest" data-on="5"><div><div><div class="row"><span class="ava">JR</span><div class="who"><b>Jun, Davao</b><span>Team leader for two years</span></div><span class="n">88</span></div><div class="row"><span class="ava">AS</span><div class="who"><b>Ana, Manila</b><span>Night shifts for a gaming brand</span></div><span class="n">84</span></div><p>138 more applied overnight. All tested, all scored, sorted under these three.</p></div></div></div>
+          <div class="sec rest" data-on="5"><div><div><div class="row"><span class="ava">JR</span><div class="who"><b>Jun, Davao</b><span>Team leader for two years</span></div><span class="n">88</span></div><div class="row"><span class="ava">AS</span><div class="who"><b>Ana, Manila</b><span>Night shifts for an online store</span></div><span class="n">84</span></div><p>138 more applied overnight. All tested, all scored, sorted under these three.</p></div></div></div>
         </div>
       </div>
 
@@ -319,18 +336,25 @@
       <div class="three">
         <div><b>153</b><p>people applied to one of our own roles in its first four days.</p></div>
         <div><b>71</b><p>finished a written interview without one of us in the room.</p></div>
-        <div><b>3</b><p>were worth a call. Those are the only ones we spoke to.</p></div>
+        <div><b>3</b><p>were worth a call. We hired from those three.</p></div>
       </div>
       <div class="niche">
-        <span class="tag">Sweepstakes &amp; social casino</span>
-        <p>Made by an operator, for operators. The tests come from real player chats: cash&#8209;outs, redemptions, ID checks and angry players. You hire people who have already handled them.</p>
+        <span class="tag">Built for any team that answers customers</span>
+        <ul class="kinds">
+          <li><b>Medical and dental</b> Front desks that book, move and remind patients.</li>
+          <li><b>Online stores</b> Orders, returns and late deliveries.</li>
+          <li><b>Software</b> Logins, billing questions and first-line help.</li>
+          <li><b>Home services</b> Calls, quotes and booking the next visit.</li>
+          <li><b>Gaming</b> Players, payments and account checks.</li>
+        </ul>
       </div>
       <div class="end">
-        <p>For any team hiring remote chat agents and team leaders.</p>
-        <span class="cta" style="margin: 0"><a class="btn ghost" href="#night">Watch it again</a></span>
+        <p>Chat or phone, one hire or a whole team. The tests are written for the work they will do.</p>
+        <span class="go"><a class="btn solid" href="https://staff.hireflownow.com/auth?mode=signup" id="endStart">Post your first job free</a><small>First job free. No card.</small></span>
       </div>
       <p class="fine">The night above shows how it works; Maria, Jun and Ana are not real applicants. The three numbers are real, from our own role.</p>
-      <nav class="foot" aria-label="More"><a href="/open-jobs">Open jobs</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="https://staff.hireflownow.com/auth">Team sign in</a></nav>
+      <p class="about" id="about"><b>About.</b> HireFlow is made by Southern Digital Technologies LLC. We built it to hire our own customer support team, then opened it to every business that answers customers.</p>
+      <nav class="foot" aria-label="More"><a href="/open-jobs">Open jobs</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="#about">About</a><a href="https://staff.hireflownow.com/auth">Team sign in</a></nav>
     </div>
   </section>
 </main>
@@ -351,7 +375,7 @@
   var N = 6;
   var TAGS = ["", "Tonight", "While you sleep", "The test", "Scored and sealed", "The next morning"];
   var MINUTES = [0, 2, 167, 186, 238, 600];             // after 9:00 pm, your time
-  var REPLY = "I have your withdrawal from the 3rd open. It is held at the ID check: the photo came through too dark. Send a new one here and it moves today. I cannot give you a payout date until that clears.";
+  var REPLY = "I have your order from the 3rd open. It is held at the warehouse: the address is missing the unit number. Send it here and it ships today. I cannot promise a delivery date until it does.";
 
   function clamp(v, a, b) { return Math.min(b, Math.max(a, v)); }
   function ease(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
@@ -763,6 +787,15 @@
       jobLink.setAttribute("href", "/applications");
     }
   } catch (e) { /* storage blocked: the plain link stays */ }
+  // The pinned bar takes the morning's daylight colours once the morning is under it.
+  (function () {
+    var bar = document.getElementById("bar"), morning = document.getElementById("morning");
+    if (!bar || !morning) return;
+    var paint = function () { bar.classList.toggle("day", morning.getBoundingClientRect().top <= bar.offsetHeight); };
+    window.addEventListener("scroll", paint, { passive: true });
+    window.addEventListener("resize", paint);
+    paint();
+  })();
   document.getElementById("watch").addEventListener("click", function () {
     stopWalk();
     var waits = [0, 2200, 2500, 3600, 2300], at = 0;

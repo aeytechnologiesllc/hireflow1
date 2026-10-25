@@ -1,6 +1,13 @@
 # HireFlow — App Icon & Brand Mark
 
-## Current app icon — "A: the logo's own mark" (chosen 2026-10-11)
+## Current app icon — "A: the logo's own mark" (chosen 2026-10-11), in ink and brass since 2026-10-25
+
+**2026-10-25:** the colour the owner locked on 2026-10-24 (ink and ivory,
+brass accent; docs/LAUNCH-PLAN.md, Phase 3) recoloured the mark: the same
+rising line, **brass `#E0B96A` on an ink tile `#14120E`**. One logo
+everywhere: the app's `Wordmark.tsx`, every icon size, the front page's bar
+and both share pictures (`scripts/make-share-images.mjs`). Icon links are
+`?v=7`. The history below is kept as it was.
 
 The owner, 2026-10-10: "I'm not really loving this HireFlow app icon ... Logo
 is fine. The app icon and the favicon, we need to [change]." Of four options

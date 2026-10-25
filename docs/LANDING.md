@@ -30,11 +30,14 @@ and `next()` are the two response headers the file sets itself.
 - The landing has "Looking for a job?" in its bar (just "Jobs" on a phone)
   and "Open jobs" in its footer, both to `/careers`. Someone already signed
   in on the site (an applicant) sees "My applications" instead.
-- A shared job link shows the Zulu Support Team careers picture
-  (`public/share/zulu-careers.jpg`), never HireFlow's: the shell's
-  `og:image`, and the job page's server render
-  (`api/job-prerender.mjs`). The landing's own picture is
-  `public/share/hireflow.jpg`.
+- A shared job link shows a plain "Now hiring. Apply online." picture
+  (`public/share/careers.jpg`) for any business, and the owner's own business
+  keeps its careers picture (`public/share/zulu-careers.jpg`): the shell's
+  `og:image`, and the job and careers pages' server renders
+  (`api/job-prerender.mjs`, `api/careers-prerender.mjs`). It used to say
+  "Remote jobs" and "Work from home" for every business. The landing's own
+  picture is `public/share/hireflow.jpg`. Both are made by
+  `node scripts/make-share-images.mjs`.
 
 ## The page
 
@@ -44,10 +47,23 @@ takes a real customer chat test, is scored, and in the morning there are
 three to call. One gesture moves one scene; the last section scrolls like
 any page. The Earth is drawn only while something moves; nothing loops.
 
-- Words: "Hire chat agents while you sleep", for any team hiring remote chat
-  agents and team leaders. The sweepstakes highlight is its own band:
-  "Made by an operator, for operators" (cash-outs, redemptions, ID checks,
-  angry players).
+- Words (2026-10-25; docs/LAUNCH-PLAN.md, Phase 3, task 3): "Hire customer
+  service agents while you sleep", chat and phone, for any business that
+  answers customers. The story's test is an order six days late (it was a
+  casino payout). The sweepstakes band became "Built for any team that
+  answers customers": medical and dental, online stores, software, home
+  services, gaming. No prices while billing is off.
+- One button, "Post your first job free", to the sign-up tab: in the bar,
+  which stays pinned for the whole page (dark glass over the night, daylight
+  colours over the morning), as the opening's main button with "Watch one
+  night" second, and again at the end ("Watch it again" is gone). "First job
+  free. No card." under it.
+- The headline is there from the first paint (it used to rise in, hidden);
+  the fonts load without blocking it. Structured data: the organisation (with
+  its legal name, Southern Digital Technologies LLC) and the app. An About
+  line in the footer; Contact comes with the legal pages (Phase 5).
+- One logo: the brass rising line on the ink tile (BRANDING.md), in the bar
+  and every icon. The unused videos (about 12 MB) are gone.
 - The three numbers are real, from the owner's own role, as of 2026-10-09:
   153 applied in its first four days, 71 finished the written interview,
   3 were worth a call (`interviews`). The mock-up's 141 / 56 hours / 16 were

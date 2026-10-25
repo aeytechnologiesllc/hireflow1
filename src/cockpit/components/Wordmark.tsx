@@ -6,13 +6,19 @@ interface WordmarkProps {
   className?: string;
 }
 
+/** The mark's own colours: the app icon's (scripts/make-app-icons.mjs), in both themes. */
+const MARK_TILE = "#14120E";
+const MARK_LINE = "#E0B96A";
+
 /**
- * HireFlow — a rising line pressed into a jade tile, then the name.
+ * HireFlow — a brass rising line on an ink tile, then the name (one logo
+ * everywhere since 2026-10-25: the app icon, the favicon, the front page, the
+ * share picture; docs/LAUNCH-PLAN.md, Phase 3, task 1).
  *
  * The line is the product: applications come in flat and Ava lifts the ones
- * worth your time. Drawn in code so it stays crisp at any size and follows the
- * theme. This is the mark from the design; the old Fraunces "Hireflow" with a
- * brass sprout is retired.
+ * worth your time. Drawn in code so it stays crisp at any size. The tile keeps
+ * the icon's colours in both themes; at night a hairline keeps it from
+ * melting into the dark ground.
  */
 export function Wordmark({ size = 26, markOnly = false, className }: WordmarkProps) {
   const glyph = Math.round(size * 0.58);
@@ -24,8 +30,8 @@ export function Wordmark({ size = 26, markOnly = false, className }: WordmarkPro
           width: size,
           height: size,
           borderRadius: "var(--r-ctl, 8px)",
-          background: "var(--slab)",
-          boxShadow: "var(--shadow-sm)",
+          background: MARK_TILE,
+          boxShadow: "var(--shadow-sm), inset 0 0 0 1px rgba(224, 185, 106, 0.22)",
         }}
       >
         <svg
@@ -33,7 +39,7 @@ export function Wordmark({ size = 26, markOnly = false, className }: WordmarkPro
           height={glyph}
           viewBox="0 0 24 24"
           fill="none"
-          stroke="var(--jade-bright)"
+          stroke={MARK_LINE}
           strokeWidth="2.5"
           strokeLinecap="round"
           strokeLinejoin="round"
