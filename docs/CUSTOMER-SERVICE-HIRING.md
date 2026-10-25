@@ -23,9 +23,10 @@ The guess (`isCustomerService`) reads the title's role phrase, then the
 description. The title is read in parts, split at " - ", " | ", commas and
 brackets; a part after "for", "at", "in" or "with" names the business, never
 the role ("Recruiter - BPO" is a recruiter, "Quality Analyst - Call Center" an
-analyst). The role phrase is the first part naming a person's role (an
-industry or an account part does not: "Healthcare Account - CSR", "Tech -
-Customer Support Agent"), else the first support phrase, else the first part
+analyst). The role phrase is the first part naming a person's role or a
+support line (an industry or an account part does not: "Healthcare Account -
+CSR", "Tech - Customer Support Agent"; a support line keeps the people after
+it as its own: "Customer Service - Night Shift Agents"), else the first part
 with any role word, so a place, the hours or "hiring" around it does not hide
 it ("Remote - Customer Support Agent", "Makati | CSR", "Hiring for Customer
 Service Representative"), and a bare role noun takes the part after it
@@ -33,7 +34,9 @@ Service Representative"), and a bare role noun takes the part after it
 Customer Service"; never an analyst or a consultant, who is that
 department's: "Analyst - Customer Support"). Its last word is the role noun.
 A benefits line or sentence ("Benefits include medical and dental", "HMO",
-"13th month pay") is not read, on its own line only. In this order:
+"13th month pay", "medical and dental insurance included", "what you get:
+medical, dental, 401(k)") is not read, one line or sentence at a time, never
+a sentence about patients' own insurance. In this order:
 
 1. the role noun is a shop-floor, kitchen, road, trade or gym one (barista,
    cashier, server, cook, driver, teller, mechanic, instructor, trainer…;
@@ -41,24 +44,28 @@ A benefits line or sentence ("Benefits include medical and dental", "HMO",
    "Customer Service Clerk", "Live Chat Host", or a clinic's front desk; a
    desk you stand at is a place, so "Front Desk Clerk" at a hotel and
    "Customer Service Desk Clerk" at a supermarket are not), a store or warehouse associate
-   (not an online shop's), a store named as its own part of the title
-   ("Retail - Customer Service Associate", "Grocery | Customer Service
-   Clerk"), the front desk of a hotel, gym, salon or spa (phones or not), a
-   pharmacy technician, or a clinical assistant who is not virtual or remote:
+   (not an online shop's), a store named as its own part of the title before
+   the role ("Retail - Customer Service Associate", "Grocery | Customer
+   Service Clerk"; after it, with a channel in the title or remote work in
+   the words, it is the account: "CSR | Retail", "Chat Support - Retail"),
+   the front desk of a hotel, gym, salon, spa (not a med spa), museum or an
+   office (phones or not), a pharmacy technician, or a clinical assistant who is not virtual or remote:
    not customer service. "Online Store Chat Agent", "Driver Support Agent" and
    "Maid Service Customer Service Representative" name the business, not the
    role, and are;
 2. a support title whose people are colleagues (HR, payroll, finance,
    operations, logistics, sales, admin, office, clinical, field, facilities,
    peer or mental health support): not, unless the work is customers'
-   calls, emails, chats or tickets (a payroll app's support, a game's
-   community support); admin and office support never, even when it answers
-   customer calls;
+   calls, emails, chats or tickets and the function is a business one a
+   product serves (HR, payroll, finance, accounting, logistics, operations,
+   sales, marketing, a game's community support); admin, office, clinical,
+   peer, field, production or facilities support never;
 3. work done in person with nothing remote about it (in-store, on the floor,
    at the register or a counter, working the counter or the service desk, at
-   the gate, the branch or the airport, in a grocery store, in the lobby,
-   greeting or checking guests, members or passengers in; tickets, a help
-   desk, the phone or a messaging app count as remote): not. A clinic's
+   the gate, the branch or the airport, at a post office, ticket or check-in
+   counter, in a grocery store, in the lobby, greeting guests or members, or
+   customers as they arrive, checking guests, clients, vehicles or bags in;
+   tickets, a help desk, the phone or a messaging app count as remote): not. A clinic's
    front desk greets and checks in patients and is left to item 6;
 3a. a clinic's appointment setter or patient admin role whose work is
    patients' calls or bookings: customer service; then selling or collecting
@@ -82,9 +89,11 @@ A benefits line or sentence ("Benefits include medical and dental", "HMO",
    and appointment schedulers; telephone, switchboard and answering-service
    operators; customer, client, member, guest and billing advisors; a virtual
    assistant whose title names the support ("Virtual Assistant - Customer
-   Service"). A reservations or booking agent is customer service unless its
-   work is in person or books musicians, artists, bands, DJs, gigs or
-   performers (or "speakers", "talent", "acts"), greets or seats diners;
+   Service"). A reservations agent is customer service unless its work is in
+   person or books what is not guests' stays (musicians, entertainers,
+   models, talent, freight, shipments, crews, a venue, group tours); a
+   booking agent likewise, when its words name guests, bookings or a
+   channel, or say nothing;
 5. outbound calling (cold calls, telemarketing, booking demos): not;
 6. a front-office role at a clinic (a receptionist, a medical office or
    office assistant, with patients or a clinic in the words); a patient admin
@@ -120,7 +129,7 @@ Its follow-ups (one chip each, the default in brackets):
 
 | id | Question | Chips |
 |---|---|---|
-| `cs-channel` | How will they talk to your customers? | Chat, Phone, Email, A mix of these; the default is what the business's own words say (`channelForBrief`), read channel by channel. The title's channel words lead, in any part of its role ("Customer Service (Phone)", "Customer Service - Voice", "Customer Service – Inbound Calls"), never in a "for …" part ("Chat CSR — for a call center" is chat) or as a product ("Phone Repair Store Chat Agent", "Call Center Software Support", "Mobile Phone Customer Support"). The description adds a channel when the agent does that work ("answer calls", "inbound calls", "some phone"), or by a list of channels ("phone, email and chat", "calls and emails", "SMS and phone", "voice and non-voice"), but not what customers own ("their phone and email accounts"); its mere mentions count only when the title names no channel. A channel is out when the words rule it out: always for "non-voice", "chat only" or "chat/email only"; for "no phone calls", "we don't take calls", "you won't need to make or take calls", "this role does not involve phone calls", "phone support isn't required" or "phone support is handled by another team" unless they also take calls ("You won't need to make calls. You will answer incoming calls."); "no emails" for email. Never a rule: "no call center experience", "no voice account experience", "no phone sales", "no email marketing", "billing calls are handled by another team", "all calls are handled from home", "never call a customer by their first name", or a rule about when ("no calls on weekends", "after 8pm", "outside business hours"). How to apply ("send your CV by email or call us"), a "brand voice" and "on-call" say nothing about the channel; "calls for patience" is no call, and "a company laptop and phone" or "phones and accessories" no phone work. A call or contact centre in the title's own parts is phone unless the title names a written channel ("Call Center Agent - Chat" is chat); blended or omnichannel work is a mix. Phone and a written channel is a mix; chat and email, chat; tickets, email. A bare "CSR", a receptionist or an operator with no channel in the words is phone (the Philippine meaning of CSR; any written channel in the words decides instead) |
+| `cs-channel` | How will they talk to your customers? | Chat, Phone, Email, A mix of these; the default is what the business's own words say (`channelForBrief`), read channel by channel. The title's channel words lead, in any part of its role ("Customer Service (Phone)", "Customer Service - Voice", "Customer Service – Inbound Calls"), never in a "for …" part ("Chat CSR — for a call center" is chat) or as a product ("Phone Repair Store Chat Agent", "Call Center Software Support", "Mobile Phone Customer Support"). The description adds a channel when the agent does that work ("answer calls", "inbound calls", "some phone"), or by a list of channels ("phone, email and chat", "calls and emails", "SMS and phone", "voice and non-voice"), but not what customers own ("their phone and email accounts"); its mere mentions count only when the title names no channel. A channel is out when the words rule it out: always for "non-voice", "chat only" or "chat/email only"; for "no phone calls", "we don't take calls", "you won't need to make or take calls", "this role does not involve phone calls", "phone support isn't required" or "phone support is handled by another team" unless they also take calls ("You won't need to make calls. You will answer incoming calls."; "handled by our call center" or "by our sales team" counts as someone else); "no emails" for email. Never a rule: "no call center experience", "no voice account experience", "no phone sales", "no email marketing", "billing calls are handled by another team", "all calls are handled from home", "never call a customer by their first name", or a rule about when ("no calls on weekends", "after 8pm", "outside business hours"). How to apply ("send your CV by email or call us", from that phrase on) and a "brand voice" or "on-call" say nothing about the channel; "calls for patience" is no call, "a company laptop and phone" or "phones and accessories" no phone work, while "answer calls for our clients" and "phone inquiries" are; call centre or BPO experience asked of the applicant points to phone. A call or contact centre in the title's own parts is phone unless the title names a written channel ("Call Center Agent - Chat" is chat); a blended account or omnichannel support is a mix (not "blended coffees" or a "multichannel brand"). Phone and a written channel is a mix; chat and email, chat; tickets, email. A bare "CSR", a receptionist or an operator with no channel in the words is phone (the Philippine meaning of CSR; any written channel in the words decides instead) |
 | `cs-industry` | What kind of business is it? | Medical or dental office, Online store, Software or app, Home services, Gaming, Something else; the default is what the business's own words point to (`industryFromText`) |
 | `cs-load` | How many chats or messages at once? ("Besides calls, …" for phone or a mix) | One at a time, [Two or three], Four or more |
 | `cs-hours` | When will they work? | [Daytime], Evenings or nights, Weekends too, Rotating shifts |
@@ -151,8 +160,9 @@ the same things:
    two questions about calls (`PHONE_INTERVIEW_QUESTIONS`), each unless one of
    the model's questions already asks the same thing about a call: in one
    sentence, or a sentence with the one before it, unless either names a
-   written channel: a call set up first and a question about it ("You're on
-   the phone with a customer. How do you handle it if they start yelling?"),
+   written channel: a call set up first and a question about that caller
+   ("You're on the phone with a customer. How do you handle it if they start
+   yelling?"; never a coworker, a manager, a project or a training),
    or a statement after it ("A patient is shouting. They are on the phone."),
    never an upset line and then a question about something else; "Mr." and "Dr." end no sentence. An
    angry caller is angry, upset, furious, irate, rude, abusive, shouting,
@@ -243,7 +253,8 @@ as a support agent (`rubricForCase`), with:
   owner's own, "customer" for any other). Lines read `PATIENT 4:`. An
   applicant cannot write a line that reads as one (`_shared/reviewText.ts`):
   their text is folded (NFKC, small capitals to capitals), every invisible or
-  format character goes, a combining mark after a digit or a space goes (after
+  format character goes (private-use and unassigned characters and control
+  codes too: the flattening's own colon placeholder is one), a combining mark after a digit or a space goes (after
   a Latin letter, only an accent stays: see below), every punctuation mark or symbol outside a short plain list
   becomes a space (so no colon look-alike survives in any script: a closed
   list of what stays, after four reviews kept extending the list of what

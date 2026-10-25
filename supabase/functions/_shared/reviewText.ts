@@ -118,7 +118,11 @@ const BRACKET_LETTER = /[\u1433\u1438\u1445\u144A\u1450\u1455\u2329\u232A]/gu;
 export function foldForReview(content: string): string {
   return String(content ?? "")
     .normalize("NFKC")
-    .replace(/[\u00AD\p{Default_Ignorable_Code_Point}\p{Cf}]/gu, "")
+    // Private-use and unassigned characters and the control codes go too: a
+    // private-use U+E000 is the colon placeholder flattenForReview uses (the
+    // eighth Phase 4 review: "PATIENT 3\uE000" came out as "PATIENT 3:").
+    .replace(/[\u00AD\p{Default_Ignorable_Code_Point}\p{Cf}\p{Co}\p{Cn}]/gu, "")
+    .replace(/[\u0000-\u0008\u000E-\u001F\u007F-\u009F]/g, "")
     .replace(SMALL_CAP, (c) => SMALL_CAPS[c] ?? c)
     .replace(LEADING_MARKS, "")
     .replace(MARK_RUN, (_all, base: string, marks: string) => base + keepMarks(base, marks))
