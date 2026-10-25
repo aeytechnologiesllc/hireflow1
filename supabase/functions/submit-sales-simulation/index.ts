@@ -38,6 +38,7 @@
 // (_shared/stepMoveOn.ts), so a tab closed during grading still moves on.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { callOpenAIJson, requireJsonKeys, type OpenAIMessage } from "../_shared/openai.ts";
+import { employerOfApplication } from "../_shared/aiBusiness.ts";
 import { guardAuthenticatedAiCall } from "../_shared/rateLimit.ts";
 import { recordStepResult, type MinimalSupabaseAdmin } from "../_shared/trustedResults.ts";
 import {
@@ -133,6 +134,8 @@ async function gradeTranscript(params: {
   jobTitle: string;
   candidateName: string;
   messages: EvalChatMessage[];
+  /** The job's business: its daily AI budget pays for the grading (_shared/aiBudget.ts). */
+  business?: string | null;
 }): Promise<SalesEvaluation> {
   if (!OPENAI_API_KEY) {
     console.error("[submit-sales-simulation] OPENAI_API_KEY is not configured — using fetch-failure fallback evaluation");
@@ -148,6 +151,7 @@ async function gradeTranscript(params: {
     const { data } = await callOpenAIJson<SalesEvaluation>({
       apiKey: OPENAI_API_KEY,
       model: OPENAI_SALES_SIMULATION_EVAL_MODEL,
+      business: params.business ?? null,
       messages: apiMessages,
       temperature: 0.35,
       maxCompletionTokens: 1300,
@@ -304,6 +308,7 @@ Deno.serve(async (req) => {
         jobTitle,
         candidateName,
         messages: gradedMessages,
+        business: await employerOfApplication(admin, applicationId),
       });
     } catch (error) {
       if (session && claimed) await failSession(record, session.id, error instanceof Error ? error.message : String(error));

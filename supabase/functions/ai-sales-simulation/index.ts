@@ -117,6 +117,8 @@ serve(async (req) => {
       });
     }
 
+    // The job's business pays for the turn from its daily AI budget (read below, by the server).
+    let business: string | null = null;
     // Served only for a signed-in applicant's own application: a turn with no
     // application, or from nobody, was a free AI call for anyone
     // (_shared/practiceTurnGuard.ts; docs/LAUNCH-PLAN.md, Phase 1, task 3).
@@ -141,10 +143,11 @@ serve(async (req) => {
       // the business set none). Otherwise any account with any application
       // could send any scenario (Pass C review, 2026-10-25).
       const { data: appRow } = reader && target
-        ? await (reader as unknown as { from: (t: string) => { select: (c: string) => { eq: (k: string, v: string) => { maybeSingle: () => Promise<{ data: { jobs?: { workflow_steps?: unknown } | null } | null }> } } } })
-            .from("applications").select("jobs(workflow_steps)").eq("id", target.applicationId).maybeSingle()
+        ? await (reader as unknown as { from: (t: string) => { select: (c: string) => { eq: (k: string, v: string) => { maybeSingle: () => Promise<{ data: { jobs?: { workflow_steps?: unknown; employer_id?: unknown } | null } | null }> } } } })
+            .from("applications").select("jobs(workflow_steps, employer_id)").eq("id", target.applicationId).maybeSingle()
         : { data: null };
       const steps = Array.isArray(appRow?.jobs?.workflow_steps) ? (appRow!.jobs!.workflow_steps as Array<Record<string, unknown>>) : [];
+      business = typeof appRow?.jobs?.employer_id === "string" ? appRow.jobs.employer_id : null;
       const step = target ? steps.find((s) => s && s.id === target.stepId && s.type === "sales_simulation") : undefined;
       if (!step) {
         return new Response(JSON.stringify({ error: "This step isn't open for you right now. Reload the page.", code: "unknown_step" }), {
@@ -289,6 +292,7 @@ Respond as ${prospectName} from ${prospectCompany}. This is message #${messageCo
     const response = await streamOpenAIChatCompletion({
       apiKey: OPENAI_API_KEY,
       model: OPENAI_SALES_SIMULATION_MODEL,
+      business,
       messages: apiMessages,
       temperature: 0.9,
       maxCompletionTokens: 750,

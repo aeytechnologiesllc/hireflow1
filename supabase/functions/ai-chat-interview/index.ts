@@ -233,7 +233,7 @@ async function loadInterviewRecord(
   admin: AssessmentAdmin,
   applicationId: string,
   userId: string,
-): Promise<{ notes: Record<string, unknown>; job: InterviewJob | null; homeBusiness: boolean } | null> {
+): Promise<{ notes: Record<string, unknown>; job: InterviewJob | null; homeBusiness: boolean; employerId: string | null } | null> {
   try {
     const { data, error } = await admin
       .from("applications")
@@ -253,6 +253,11 @@ async function loadInterviewRecord(
       notes: parseNotesObject(row.notes),
       job: interviewJobFrom(jobRow),
       homeBusiness: await isHomeBusiness(admin, (jobRow as { employer_id?: unknown } | null)?.employer_id),
+      // The job's business: its daily AI budget pays for the interview (_shared/aiBudget.ts).
+      employerId: (() => {
+        const id = (jobRow as { employer_id?: unknown } | null)?.employer_id;
+        return typeof id === "string" ? id : null;
+      })(),
     };
   } catch (error) {
     console.error("[ai-chat-interview] record not read:", error);
@@ -1038,6 +1043,7 @@ IMPORTANT: NEVER skip the "do you have any questions" step. Always give candidat
         const { data } = await callOpenAIJson({
           apiKey: OPENAI_API_KEY,
           model: OPENAI_CHAT_INTERVIEW_EVAL_MODEL,
+          business: serverRecord?.employerId ?? null,
           messages: buildInterviewGraderMessages(
             {
               jobTitle: interviewJobTitle || "",
@@ -1233,6 +1239,7 @@ IMPORTANT: NEVER skip the "do you have any questions" step. Always give candidat
       response = await streamOpenAIChatCompletion({
         apiKey: OPENAI_API_KEY,
         model: OPENAI_CHAT_INTERVIEW_MODEL,
+        business: serverRecord?.employerId ?? null,
         messages: apiMessages,
         temperature: 0.8,
         maxCompletionTokens: 900,

@@ -14,9 +14,12 @@
  *    true of the code and the live setup. docs/LEGAL-PAGES.md lists where
  *    each one was checked. If the site changes (a new step, a new provider,
  *    a retention period), this changes with it.
- * 2. No company name, no postal address and no email address, until the
- *    owner says otherwise. The way to reach the people who run the site is
- *    Messages, as everywhere else. scripts/legal_pages.test.mjs holds both.
+ * 2. The company is named: Southern Digital Technologies LLC (the owner,
+ *    2026-10-24, "that's the main one"). Still no postal address, no email
+ *    address and no governing-law state until the owner gives them
+ *    (docs/LAUNCH-PLAN.md, Phase 5, owner inputs). The way to reach the
+ *    people who run the site is Messages, as everywhere else.
+ *    scripts/legal_pages.test.mjs holds both.
  *
  * Plain words on purpose: an applicant reads this on a phone, often in a
  * second language.
@@ -38,14 +41,14 @@ export interface LegalDocument {
   sections: LegalSection[];
 }
 
-export const LEGAL_UPDATED = "October 11, 2026";
+export const LEGAL_UPDATED = "October 25, 2026";
 
 export const PRIVACY_POLICY: LegalDocument = {
   title: "Privacy Policy",
   updated: LEGAL_UPDATED,
   intro: [
     "This policy says what information this site collects, why, who sees it, and what you can do about it.",
-    "\"This site\" means hireflownow.com and the hiring tools on it. \"We\" means the people who run it. The policy covers two kinds of people: applicants, who apply for a job here, and hiring teams, who use the site to hire.",
+    "\"This site\" means hireflownow.com and the hiring tools on it. \"We\" means Southern Digital Technologies LLC, the company that runs it. The policy covers two kinds of people: applicants, who apply for a job here, and hiring teams, who use the site to hire.",
   ],
   sections: [
     {
@@ -106,6 +109,7 @@ export const PRIVACY_POLICY: LegalDocument = {
         },
         { sub: "If you are on a hiring team" },
         "Your name, email address and password; your company's name, logo and details as you enter them; the jobs you post; your notes, ratings and decisions about applicants; the documents you send and sign; and the name and email address of anyone you invite to your team.",
+        "When you make a hiring account, we keep the campaign tags of the link that brought you to the site (for example, which post or advert), so that we know which ones work.",
       ],
     },
     {
@@ -235,7 +239,7 @@ export const TERMS: LegalDocument = {
   title: "Terms and Conditions",
   updated: LEGAL_UPDATED,
   intro: [
-    "These terms are the agreement between you and the people who run this site (\"we\") for using hireflownow.com and the hiring tools on it (\"this site\").",
+    "These terms are the agreement between you and Southern Digital Technologies LLC (\"we\"), the company that runs hireflownow.com, for using it and the hiring tools on it (\"this site\").",
     "By making an account or using this site, you agree to them. If you do not agree, please do not use the site.",
   ],
   sections: [

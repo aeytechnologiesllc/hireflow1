@@ -1002,6 +1002,12 @@ export default function CandidateAuth() {
                             "Create Account"
                           )}
                         </Button>
+                        {/* Told before they hand anything over (docs/LAUNCH-PLAN.md, Phase 5): new tabs, so the form is not lost. */}
+                        <p className="text-center text-xs leading-relaxed text-muted-foreground" data-signup-privacy>
+                          By creating an account you agree to the{" "}
+                          <a href="/terms" target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">Terms</a>. The{" "}
+                          <a href="/privacy" target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">Privacy Policy</a> says what we keep and who sees it.
+                        </p>
                       </form>
                     </motion.div>
                   )}

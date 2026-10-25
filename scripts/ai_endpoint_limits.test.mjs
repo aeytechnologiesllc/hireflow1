@@ -121,7 +121,7 @@ for (const fn of ["ai-chat-simulation", "ai-chat-interview"]) {
   check("ai-sales-simulation: the guard is not inside a mode check any more", !/if \(mode === "start" \|\| mode === "respond"\) \{\s*const target = recordingTargetFrom\(request\);\s*const turnUserId/.test(sales));
 }
 for (const fn of ["ai-generate-job-content", "ai-generate-workflow"]) {
-  check(`${fn}: requires a signed-in user`, /if \(!\(await signedInUserId\(req\)\)\)/.test(read(`supabase/functions/${fn}/index.ts`)));
+  check(`${fn}: requires a signed-in user`, /const askedBy = await signedInUserId\(req\);\s*if \(!askedBy\)/.test(read(`supabase/functions/${fn}/index.ts`)));
 }
 
 // ---- who is counted ----------------------------------------------------------
@@ -140,9 +140,9 @@ check("the limiter counts by CF-Connecting-IP first", callerFn.indexOf("cf-conne
 
 // ---- the daily budget ---------------------------------------------------------
 const openai = read("supabase/functions/_shared/openai.ts");
-check("callOpenAIChat takes from the daily budget before calling", /if \(!\(await takeDailyAiBudget\(\)\)\) \{\s*throw new AiUnavailableError\("budget_reached"/.test(openai));
-check("the streaming helper does too", /takeDailyAiBudget\(\)/.test(read("supabase/functions/_shared/openaiStreaming.ts")));
-check("generate-flow does too", /takeDailyAiBudget\(\)/.test(read("supabase/functions/generate-flow/index.ts")));
+check("callOpenAIChat takes from the daily budget (the business's, then the platform's) before calling", /if \(!\(await takeDailyAiBudget\(1, business\)\)\) \{\s*throw new AiUnavailableError\("budget_reached"/.test(openai));
+check("the streaming helper does too", /takeDailyAiBudget\(1, business\)/.test(read("supabase/functions/_shared/openaiStreaming.ts")));
+check("generate-flow does too, for the asking business", /takeDailyAiBudget\(1, user\.id\)/.test(read("supabase/functions/generate-flow/index.ts")));
 {
   const budget = await import(path.join(ROOT, "supabase/functions/_shared/aiBudget.ts"));
   check("the budget check fails open when it has no settings (a Node run)", (await budget.takeDailyAiBudget()) === true);
@@ -181,6 +181,71 @@ try {
   await db.exec(`reset role;`);
 }
 check("the usage table is not readable over the API", tableBlocked);
+
+// ---------------------------------------------------------------------------
+// The per-business budget (20261025160000_ai_business_budget.sql; Phase 5, task 4)
+console.log("\nA daily budget per business\n");
+const B_OWNER = "30000000-0000-4000-8000-000000000001";
+const B_SHOP = "30000000-0000-4000-8000-000000000002";
+const B_CLERK = "30000000-0000-4000-8000-000000000003";
+const B_OTHER = "30000000-0000-4000-8000-000000000004";
+await db.exec(`
+  create table public.platform_admins (user_id uuid primary key);
+  create table public.team_members (employer_id uuid, user_id uuid, status text);
+  create type public.notification_type as enum ('message', 'system');
+  create table public.notifications (id uuid primary key default gen_random_uuid(), user_id uuid not null, type public.notification_type not null, title text not null, message text not null, link text, is_read boolean not null default false, created_at timestamptz not null default now());
+  insert into public.platform_admins values ('${B_OWNER}');
+  insert into public.team_members values ('${B_SHOP}', '${B_CLERK}', 'active');
+  delete from private.ai_daily_usage;
+  update public.app_settings set value = '1000'::jsonb where key = 'ai_daily_call_cap';
+`);
+await db.exec(read("supabase/migrations/20261025160000_ai_business_budget.sql"));
+const b_bcap = await db.query(`select value #>> '{}' as v from public.app_settings where key = 'ai_business_daily_call_cap'`);
+check("a business's budget starts at 2,000 calls a day", b_bcap.rows[0]?.v === "2000");
+await db.exec(`update public.app_settings set value = '3'::jsonb where key = 'ai_business_daily_call_cap'`);
+const b_take = async (business) => (await db.query(business ? `select public.ai_budget_take(1, '${business}') as ok` : `select public.ai_budget_take() as ok`)).rows[0].ok;
+const b_shop = [];
+for (let i = 0; i < 3; i += 1) b_shop.push(await b_take(B_SHOP));
+b_shop.push(await b_take(B_CLERK));
+b_shop.push(await b_take(B_SHOP));
+check("a business's calls go ahead up to its budget, then are refused", JSON.stringify(b_shop) === JSON.stringify([true, true, true, false, false]), JSON.stringify(b_shop));
+check("…and a team member's calls count against the business they work for", (await db.query(`select calls from private.ai_business_daily_usage where business_id = '${B_SHOP}'`)).rows[0]?.calls === 5);
+check("another business is not held back by it", (await b_take(B_OTHER)) === true);
+const b_owner = [];
+for (let i = 0; i < 6; i += 1) b_owner.push(await b_take(B_OWNER));
+check("a platform admin's own business is never counted against a business budget", b_owner.every(Boolean) && (await db.query(`select count(*)::int as n from private.ai_business_daily_usage where business_id = '${B_OWNER}'`)).rows[0].n === 0);
+check("a call with no business takes only from the platform budget", (await b_take(null)) === true);
+check("a refused business call does not spend the platform's budget", (await db.query(`select calls from private.ai_daily_usage`)).rows[0]?.calls === 3 + 1 + 6 + 1, String((await db.query(`select calls from private.ai_daily_usage`)).rows[0]?.calls));
+const b_told = await db.query(`select title from public.notifications where user_id = '${B_OWNER}'`);
+check("the owner is told once that a business reached its budget, however many calls it refuses", b_told.rows.filter((r) => /business reached its daily AI budget/.test(r.title)).length === 1, JSON.stringify(b_told.rows));
+check("nobody but the platform admins is told", (await db.query(`select count(*)::int as n from public.notifications where user_id <> '${B_OWNER}'`)).rows[0].n === 0);
+await db.exec(`update public.app_settings set value = '15'::jsonb where key = 'ai_daily_call_cap'`);
+const b_platform = [];
+for (let i = 0; i < 6; i += 1) b_platform.push(await b_take(null));
+check("the platform budget still refuses past its ceiling", JSON.stringify(b_platform) === JSON.stringify([true, true, true, true, false, false]), JSON.stringify(b_platform));
+const b_titles = (await db.query(`select title from public.notifications where user_id = '${B_OWNER}' order by created_at`)).rows.map((r) => r.title);
+check("the owner is told once at 80% and once when it is used up", b_titles.filter((t) => /80% of today/.test(t)).length === 1 && b_titles.filter((t) => /budget is used up/.test(t)).length === 1, JSON.stringify(b_titles));
+let b_directBlocked = false;
+try {
+  await db.exec(`set role authenticated; select public.ai_budget_take(1, '${B_SHOP}');`);
+} catch {
+  b_directBlocked = true;
+} finally {
+  await db.exec(`reset role;`);
+}
+check("a signed-in user cannot call the two-argument ai_budget_take directly", b_directBlocked);
+let b_businessTableBlocked = false;
+try {
+  await db.exec(`set role authenticated; select * from private.ai_business_daily_usage;`);
+} catch {
+  b_businessTableBlocked = true;
+} finally {
+  await db.exec(`reset role;`);
+}
+check("the per-business usage is not readable over the API", b_businessTableBlocked);
+check("the old one-argument function is gone (one budget function, no way round the business count)", (await db.query(`select count(*)::int as n from pg_proc where proname = 'ai_budget_take'`)).rows[0].n === 1);
+const b_aiBudgetTs = read("supabase/functions/_shared/aiBudget.ts");
+check("the helper sends the business only when it is a uuid", /UUID\.test\(business\) \? \{ p_calls: calls, p_business: business \} : \{ p_calls: calls \}/.test(b_aiBudgetTs));
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);
 process.exit(failed === 0 ? 0 : 1);

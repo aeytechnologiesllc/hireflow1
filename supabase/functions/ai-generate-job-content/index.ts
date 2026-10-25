@@ -316,7 +316,8 @@ serve(async (req) => {
   // callers (src/lib/avaJobGeneration.ts, src/pages/CreateJob.tsx) sit behind
   // sign-in, and an open endpoint was a free AI writer for anyone
   // (docs/LAUNCH-PLAN.md, Phase 1, task 3).
-  if (!(await signedInUserId(req))) {
+  const askedBy = await signedInUserId(req);
+  if (!askedBy) {
     return new Response(JSON.stringify({ error: "Sign in to create a job.", code: "sign_in_required" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -350,6 +351,8 @@ serve(async (req) => {
       const { data } = await callOpenAIJson<Record<string, unknown>>({
         apiKey: OPENAI_API_KEY,
         model: OPENAI_MODEL,
+        // The asking account's business pays from its daily AI budget (a team member's, their business's).
+        business: askedBy,
         messages: [
           {
             role: "system",
@@ -384,6 +387,7 @@ serve(async (req) => {
     const { content } = await callOpenAIChat({
       apiKey: OPENAI_API_KEY,
       model: OPENAI_MODEL,
+      business: askedBy,
       messages: [
         {
           role: "system",

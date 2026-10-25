@@ -8,6 +8,8 @@ interface StreamOpenAIChatOptions {
   apiKey: string;
   model: string;
   messages: OpenAIMessage[];
+  /** The business the call is for (a job's employer_id): counted against its daily AI budget (_shared/aiBudget.ts). */
+  business?: string | null;
   temperature?: number;
   maxCompletionTokens?: number;
   /**
@@ -62,12 +64,13 @@ export async function streamOpenAIChatCompletion(options: StreamOpenAIChatOption
     attempts = 2,
     headerTimeoutMs = DEFAULT_HEADER_TIMEOUT_MS,
     pauseMs = defaultPause,
+    business = null,
   } = options;
   const tries = Math.max(1, attempts);
   const headerWaitMs = Number.isFinite(headerTimeoutMs) && headerTimeoutMs > 0 ? headerTimeoutMs : DEFAULT_HEADER_TIMEOUT_MS;
 
-  // Today's platform-wide budget first (fails open; _shared/aiBudget.ts).
-  if (!(await takeDailyAiBudget())) {
+  // Today's budget first: the business's own, then the platform's (fails open; _shared/aiBudget.ts).
+  if (!(await takeDailyAiBudget(1, business))) {
     throw new AiUnavailableError("budget_reached", "The daily AI budget is used up", null);
   }
 

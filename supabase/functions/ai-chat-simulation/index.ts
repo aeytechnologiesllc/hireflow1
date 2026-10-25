@@ -1,4 +1,5 @@
 import { scenarioPack } from "../_shared/scenarioPacks.ts";
+import { employerOfApplication } from "../_shared/aiBusiness.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
@@ -193,6 +194,8 @@ interface PracticeJob {
   step: PracticeStepConfig | null;
   /** The owner's own business (business_pages.home_alias): its jobs say "player". */
   homeBusiness: boolean;
+  /** The job's business: its daily AI budget pays for the grading (_shared/aiBudget.ts). */
+  employerId: string | null;
 }
 
 async function loadPracticeJob(
@@ -222,6 +225,7 @@ async function loadPracticeJob(
       experienceLevel: text(job.experience_level),
       step: practiceStepFrom(job.workflow_steps, stepId),
       homeBusiness: await isHomeBusiness(admin, job.employer_id),
+      employerId: typeof job.employer_id === "string" ? job.employer_id : null,
     };
   } catch (error) {
     console.error("[ai-chat-simulation] job not read:", error);
@@ -463,6 +467,7 @@ serve(async (req) => {
         const { data: reviewed } = await callOpenAIJson({
           apiKey: OPENAI_API_KEY,
           model: OPENAI_CHAT_SIMULATION_EVAL_MODEL,
+          business: practiceJob.employerId,
           messages: buildEvaluatorMessages(
             {
               rubric,
@@ -847,11 +852,14 @@ serve(async (req) => {
 
     // For start/respond modes, stream the response
     console.log("Streaming customer response via OpenAI");
+    // The job's business pays for the turn from its daily AI budget (read by the server).
+    const business = recording ? await employerOfApplication(recording.admin, recording.applicationId) : null;
     let response: Response;
     try {
       response = await streamOpenAIChatCompletion({
         apiKey: OPENAI_API_KEY,
         model: OPENAI_CHAT_SIMULATION_MODEL,
+        business,
         messages: buildSimulationApiMessages(
           customerPromptFor(liveCustomerName, liveScenario, liveMessageCount),
           history,

@@ -223,6 +223,8 @@ Deno.serve(async (req) => {
       const { data } = await callOpenAIJson<Record<string, unknown>>({
         apiKey: OPENAI_API_KEY,
         model: OPENAI_MODEL,
+        // The job's business pays from its daily AI budget (_shared/aiBudget.ts).
+        business: (jobRow as { employer_id?: string }).employer_id ?? null,
         messages: buildGuideMessages(record),
         maxCompletionTokens: 2200,
         validator: (value) => requireJsonKeys(value, GUIDE_REQUIRED_KEYS),

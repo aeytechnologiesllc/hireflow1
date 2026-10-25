@@ -163,6 +163,8 @@ Position each field on the actual blank line/space provided, not overlapping the
       const { data } = await callOpenAIJson<SuggestedFieldsResponse>({
         apiKey: OPENAI_API_KEY,
         model: OPENAI_DOC_FIELDS_MODEL,
+        // The asking account's business pays from its daily AI budget (a team member's, their business's).
+        business: caller.userId,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userPrompt },

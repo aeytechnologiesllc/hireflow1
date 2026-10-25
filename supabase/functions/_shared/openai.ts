@@ -24,6 +24,8 @@ export interface OpenAIChatOptions {
   endpoint?: string;
   retries?: number;
   timeoutMs?: number;
+  /** The business the call is for (a job's employer_id, or the asking account): counted against its daily AI budget (_shared/aiBudget.ts). */
+  business?: string | null;
 }
 
 export interface OpenAIChatResult {
@@ -253,10 +255,11 @@ export async function callOpenAIChat(options: OpenAIChatOptions): Promise<OpenAI
     endpoint = DEFAULT_ENDPOINT,
     retries = 3,
     timeoutMs = 60000,
+    business = null,
   } = options;
 
-  // Today's platform-wide budget first (fails open; _shared/aiBudget.ts).
-  if (!(await takeDailyAiBudget())) {
+  // Today's budget first: the business's own, then the platform's (fails open; _shared/aiBudget.ts).
+  if (!(await takeDailyAiBudget(1, business))) {
     throw new AiUnavailableError("budget_reached", "The daily AI budget is used up", null);
   }
 

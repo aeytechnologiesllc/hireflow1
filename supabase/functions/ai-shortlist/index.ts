@@ -708,6 +708,8 @@ Recommendation values:
     const { data: shortlistData } = await callOpenAIJson<ShortlistResult>({
       apiKey: OPENAI_API_KEY,
       model: OPENAI_MODEL,
+      // The job's business pays from its daily AI budget (_shared/aiBudget.ts).
+      business: job.employer_id ?? null,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },

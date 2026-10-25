@@ -122,7 +122,8 @@ Deno.serve(async (req: Request) => {
     if (!key) return json({ error: "OPENAI_API_KEY not configured" }, 500);
     // Today's platform-wide AI budget (fails open; _shared/aiBudget.ts). The
     // page falls back to its built-in plan on any error.
-    if (!(await takeDailyAiBudget())) return json({ error: "ai_unavailable", reason: "budget_reached" }, 503);
+    // The asking business pays from its own daily AI budget, then the platform's (_shared/aiBudget.ts).
+    if (!(await takeDailyAiBudget(1, user.id))) return json({ error: "ai_unavailable", reason: "budget_reached" }, 503);
     const model = Deno.env.get("OPENAI_MODEL") || "gpt-5.6-luna";
 
     const followUpCtx =

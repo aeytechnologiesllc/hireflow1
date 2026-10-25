@@ -1,0 +1,34 @@
+/**
+ * Which files remove-applicant deletes (index.ts), kept apart from the
+ * handler so scripts/remove_applicant.test.mjs can run them.
+ */
+
+/** A stored file value (a path, or a storage URL) as a path inside `bucket`. */
+export function storagePathIn(value: unknown, bucket: string): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const v = value.trim();
+  if (/^https?:\/\//i.test(v)) {
+    const marker = `/${bucket}/`;
+    const at = v.indexOf(marker);
+    if (at < 0) return null;
+    try {
+      return decodeURIComponent(v.slice(at + marker.length).split("?")[0]) || null;
+    } catch {
+      return null;
+    }
+  }
+  return v.replace(/^\/+/, "") || null;
+}
+
+/**
+ * The resume and form files this application points at (paths under the
+ * person's own folder) that none of their other applications still uses.
+ */
+export function resumeFilesToRemove(candidateId: string, resumeUrl: unknown, notes: unknown, otherRefs: string): string[] {
+  const found = new Set<string>();
+  const own = storagePathIn(resumeUrl, "resumes");
+  if (own && own.startsWith(`${candidateId}/`)) found.add(own);
+  const escaped = candidateId.replace(/[-]/g, "\\-");
+  for (const m of String(notes ?? "").matchAll(new RegExp(`${escaped}/[A-Za-z0-9._\\-/]+`, "g"))) found.add(m[0]);
+  return [...found].filter((path) => !otherRefs.includes(path));
+}

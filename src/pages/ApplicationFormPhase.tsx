@@ -1961,8 +1961,9 @@ export default function ApplicationFormPhase() {
 
           {/* Continue — the one primary action on this screen */}
           <div className="flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-muted-foreground">
-              Everything here is saved to your application when you continue.
+            <p className="text-xs text-muted-foreground" data-application-privacy>
+              Everything here is saved to your application when you continue. The hiring team for this job sees it;{" "}
+              <a href="/privacy" target="_blank" rel="noreferrer" className="underline underline-offset-2">the Privacy Policy</a> says what we keep and who else sees it.
             </p>
             <Button
               onClick={handleSubmit}

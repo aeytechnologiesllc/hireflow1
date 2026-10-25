@@ -9,6 +9,7 @@ import {
   requireNestedJsonPaths,
   type OpenAIMessage,
 } from "../_shared/openai.ts";
+import { employerOfApplication, employerOfJob } from "../_shared/aiBusiness.ts";
 import { guardAuthenticatedAiCall } from "../_shared/rateLimit.ts";
 import { isAiAnalyzeCallAuthorized, type JobAccessFacts } from "../_shared/aiAccess.ts";
 import { fenceApplicantText, withApplicantTextRule } from "../_shared/promptFence.ts";
@@ -1322,6 +1323,11 @@ serve(async (req) => {
       if (rateLimited) return rateLimited;
     }
 
+    // The job's business pays for the analysis from its daily AI budget
+    // (_shared/aiBudget.ts), read by the server from the application or job.
+    const budgetReader = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
+    const business = applicationId ? await employerOfApplication(budgetReader, applicationId) : await employerOfJob(budgetReader, jobId);
+
     const normalizedResumeImages = Array.isArray(resumeImages) && resumeImages.length > 0
       ? resumeImages.filter((entry) => !!entry?.base64)
       : resumeImage
@@ -1467,6 +1473,7 @@ Your skill match analysis should be based on what the candidate stated in their 
           const structured = await withinDeadline(`structured ${type} analysis`, structuredDeadline, STRUCTURED_ATTEMPTS, async (timeoutMs) => {
             const result = await callOpenAIChat({
               apiKey: OPENAI_API_KEY!,
+              business,
               model: OPENAI_MODEL,
               messages: withInstruction(msgs),
               maxCompletionTokens: 4500,
@@ -1502,6 +1509,7 @@ Your skill match analysis should be based on what the candidate stated in their 
       const openAIResult = await withinDeadline(`narrative ${type} analysis`, deadline, NARRATIVE_ATTEMPTS, (timeoutMs) =>
         callOpenAIChat({
           apiKey: OPENAI_API_KEY!,
+          business,
           model: OPENAI_MODEL,
           messages: msgs,
           maxCompletionTokens: 4000,

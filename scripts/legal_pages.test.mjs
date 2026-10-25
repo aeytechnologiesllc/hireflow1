@@ -2,7 +2,7 @@
  * The Privacy Policy and the Terms and Conditions (src/content/legal.ts;
  * docs/LEGAL-PAGES.md).
  *
- * Holds the owner's rule (no company name, no address, no email address, the
+ * Holds the owner's rule (the company named, Southern Digital Technologies LLC; no address, no email address, the
  * way to reach us is Messages) and the statements that must stay true of the
  * site. If one of these fails because the site changed, change the words in
  * legal.ts to match the site: never the other way round.
@@ -38,7 +38,10 @@ const terms = textOf(TERMS);
 
 for (const [name, doc, text] of [["privacy policy", PRIVACY_POLICY, privacy], ["terms", TERMS, terms]]) {
   // --- the owner's rule -----------------------------------------------------------
-  check(`${name}: no company name`, !/\b(LLC|L\.L\.C|Inc\.?|Ltd\.?|Limited|Corp\.?|Corporation|GmbH|AEY|Zulu|HireFlow)\b/.test(text), (text.match(/\b(LLC|Inc\.?|Ltd\.?|AEY|Zulu|HireFlow)\b/) ?? [""])[0]);
+  // The company is named (the owner, 2026-10-24): Southern Digital Technologies LLC, and no other.
+  check(`${name}: names the company that runs it, in its opening`, doc.intro.join(" ").includes("Southern Digital Technologies LLC"));
+  const others = text.replace(/Southern Digital Technologies LLC/g, "");
+  check(`${name}: no other company name`, !/\b(LLC|L\.L\.C|Inc\.?|Ltd\.?|Limited|Corp\.?|Corporation|GmbH|AEY|Zulu|HireFlow)\b/.test(others), (others.match(/\b(LLC|Inc\.?|Ltd\.?|AEY|Zulu|HireFlow)\b/) ?? [""])[0]);
   check(`${name}: no postal address`, !/\b\d{1,5}\s+[A-Z][a-z]+\s+(Street|St\.?|Avenue|Ave\.?|Road|Rd\.?|Boulevard|Blvd\.?|Drive|Suite)\b/.test(text) && !/\bP\.?\s?O\.?\s+Box\b/i.test(text));
   check(`${name}: no email address and no phone number to write to`, !/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.test(text) && !/\+?\d[\d\s().-]{8,}\d/.test(text));
   check(`${name}: the way to reach us is Messages in the account`, /Message us in your account: open Messages/.test(doc.sections.at(-1).body.join(" ")) && doc.sections.at(-1).id === "contact");
@@ -67,6 +70,7 @@ check(
   /the approximate place your internet connection is in/.test(privacy) && /an ID your browser keeps for this site/.test(privacy) &&
     /location_city: entry\.place\?\.city/.test(read("supabase/functions/document-signing/index.ts")) && /hf-device-id/.test(read("src/lib/signerContext.ts")),
 );
+check("it says a new hiring account keeps the campaign tags it arrived with, which sign-up does", /campaign tags of the link that brought you to the site/.test(privacy) && /signup_source/.test(read("src/hooks/useAuth.tsx")));
 check("it says the page counter uses no cookie and honours Do Not Track", /no cookie and no visitor number, stores no IP address/.test(privacy) && /Do Not Track or Global Privacy Control/.test(privacy));
 check("…which the beacon still does", /doNotTrack/.test(read("public/beacon.js")) && /globalPrivacyControl/.test(read("public/beacon.js")) && !/document\.cookie\s*=/.test(read("public/beacon.js")));
 check("it says most things are not deleted on a timer, and names what stays after an account is deleted", /Most things are not deleted on a timer\./.test(privacy) && /a count of your test attempts, the start times of typing tests, a block-list entry/.test(privacy));

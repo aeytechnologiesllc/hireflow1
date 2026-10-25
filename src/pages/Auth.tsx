@@ -1031,7 +1031,8 @@ export default function Auth() {
                     <input type="checkbox" checked={signUpAgreed} onChange={(e) => setSignUpAgreed(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-[hsl(var(--primary))]" />
                     <span>
                       I agree to the{" "}
-                      <a href="https://hireflownow.com/terms" target="_blank" rel="noreferrer" className="text-primary hover:underline">Terms</a>. I will never charge applicants anything, and I will only ask for ID papers I need to hire them.
+                      <a href="https://hireflownow.com/terms" target="_blank" rel="noreferrer" className="text-primary hover:underline">Terms</a> and the{" "}
+                      <a href="https://hireflownow.com/privacy" target="_blank" rel="noreferrer" className="text-primary hover:underline">Privacy Policy</a>. I will never charge applicants anything, and I will only ask for ID papers I need to hire them.
                     </span>
                   </label>
                   <Button type="submit" className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold" disabled={isLoading || !signUpAgreed} data-signup-submit>

@@ -45,20 +45,26 @@ On 2026-10-09, against the repo and the live project.
 | Applicants cannot see scoring or recorded events | `docs/ASSESSMENT-RECORD.md` |
 | The companies named | Supabase, Vercel, OpenAI, Resend are in use; OneSignal only inside the mobile app; the built-in video call needs a key that may not be set (said as "if") |
 | Most things are not deleted on a timer | the only scheduled deletion is `document-cleanup` (below) |
-| Identity papers asked for are deleted 30 days after approval (or 30 days after "send it again", if never re-sent); openings are recorded; no bank numbers asked | `supabase/functions/document-cleanup` (pg_cron `document-cleanup`, daily), `supabase/functions/requested-document-url`, `src/lib/documentRequests.ts`; checked 2026-10-10, see `docs/DOCUMENT-REQUESTS.md` |
+| Identity papers asked for are deleted 24 hours after someone on the hiring team first opens them, or 7 days after they were sent if nobody does; openings are recorded; no bank numbers asked | `supabase/functions/document-cleanup` (pg_cron `document-cleanup`, every hour since 2026-10-10; `20261011130000_id_papers_deleted_after_opening.sql`), `supabase/functions/requested-document-url`, `src/lib/documentRequests.ts`; re-checked 2026-10-25 (this row said 30 days, the rule before 2026-10-10), see `docs/DOCUMENT-REQUESTS.md` |
+| The company that runs the site | Southern Digital Technologies LLC (the owner, 2026-10-24), named in both openings; 2026-10-25 |
+| A new hiring account keeps the campaign tags it arrived with | `src/hooks/useAuth.tsx` (`signup_source`), read by `admin_growth()`; 2026-10-25 |
 | What Delete Account removes, and what stays | `supabase/functions/delete-account`: not in its list are the quiz attempt ledger, typing-test starts, the block list and error reports |
 | Emails can be turned off; an application can be withdrawn | `src/pages/Settings.tsx`, `src/pages/Applications.tsx` |
 | Free at the moment | billing was removed; no price is shown anywhere |
 
 ## Still to add
 
-1. **Who runs the site.** A privacy policy is expected to name the business
-   responsible and how to contact it. Left out at the owner's request, for now.
-2. **Which country's law applies** to the terms. It follows from (1).
+1. **How to contact the company directly.** Southern Digital Technologies LLC
+   is named (2026-10-25). Still waiting on the owner: a contact email for
+   legal and privacy questions (one that is read; the Philippines Data Privacy
+   Act expects a data-protection contact) and the postal address, if any.
+2. **Which state's law applies** to the terms: the state the LLC is
+   registered in (owner input).
 3. **Agreement at sign-up.** Neither sign-up screen asks anyone to agree to
    these or links to them; the only links are in the careers page's footer.
-4. **How long information is kept.** Apart from identity papers (deleted 30
-   days after approval since 2026-10-10), nothing is deleted on a timer. A set
+4. **How long information is kept.** Apart from identity papers (deleted 24
+   hours after first opened, or 7 days after sending, since 2026-10-10),
+   nothing is deleted on a timer. A set
    period for the rest would be better, and needs a job that enforces it.
 5. **Delete Account leaves four technical records behind.** The policy says
    so. Removing them with the account would be cleaner.

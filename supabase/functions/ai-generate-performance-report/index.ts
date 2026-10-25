@@ -271,6 +271,8 @@ Return ONLY the JSON object described in the system prompt.`;
       const { data } = await callOpenAIJson<ImprovementBlueprintData>({
         apiKey: OPENAI_API_KEY,
         model: OPENAI_REPORT_MODEL,
+        // The job's business pays from its daily AI budget (_shared/aiBudget.ts).
+        business: employerId ?? null,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }

@@ -230,6 +230,7 @@ async function runPortfolioAnalysis(
   fileBytes: Map<string, ArrayBuffer>,
   jobTitle: string | null | undefined,
   jobDescription: string | null | undefined,
+  business: string | null = null,
 ): Promise<any | null> {
   if (!OPENAI_API_KEY) {
     console.error("[ai-analyze-portfolio] OPENAI_API_KEY is not configured");
@@ -467,6 +468,7 @@ IMPORTANT: For each PDF, report the number of pages you reviewed and describe ke
       const { data, rawContent } = await callOpenAIJson<any>({
         apiKey: OPENAI_API_KEY,
         model: OPENAI_PORTFOLIO_MODEL,
+        business,
         messages: [
           {
             role: "user",
@@ -606,7 +608,7 @@ serve(async (req) => {
 
     const { data: appRow, error: appError } = await admin
       .from("applications")
-      .select("id, candidate_id, status, jobs:job_id ( title, description )")
+      .select("id, candidate_id, status, jobs:job_id ( title, description, employer_id )")
       .eq("id", applicationId)
       .maybeSingle();
 
@@ -674,7 +676,9 @@ serve(async (req) => {
     const jobTitle = (appRow as any).jobs?.title ?? null;
     const jobDescription = (appRow as any).jobs?.description ?? null;
 
-    const analysis = await runPortfolioAnalysis(items, fileBytes, jobTitle, jobDescription);
+    // The job's business pays for the analysis from its daily AI budget (_shared/aiBudget.ts).
+    const business = typeof (appRow as any).jobs?.employer_id === "string" ? (appRow as any).jobs.employer_id as string : null;
+    const analysis = await runPortfolioAnalysis(items, fileBytes, jobTitle, jobDescription, business);
 
     // Save phase data (NO local pass/fail decision — backend decides).
     // Shape matches PortfolioUploadPhase.tsx's own former write exactly —

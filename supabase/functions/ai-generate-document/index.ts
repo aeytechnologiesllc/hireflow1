@@ -300,6 +300,8 @@ Generate the complete, professionally formatted document now:`;
       const result = await callOpenAIChat({
         apiKey: OPENAI_API_KEY,
         model: OPENAI_DOCUMENT_MODEL,
+        // The asking account's business pays from its daily AI budget (a team member's, their business's).
+        business: caller.userId,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
