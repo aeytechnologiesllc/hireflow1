@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { GlyphCheckSeal, GlyphClock } from "@/components/candidate/glyphs";
 import { EvaluationScreen } from "@/components/EvaluationScreen";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
-import { buildCandidateJourney, DECISION_STAGE_ID, type WorkflowStepLike } from "@/lib/candidateJourney";
+import { buildCandidateJourney, DECISION_STAGE_ID, startLabelFor, type WorkflowStepLike } from "@/lib/candidateJourney";
 import { stepRoute, whereCandidateStands, type CandidateStanding } from "@/lib/journeyProgress";
 import { parseApplicationNotes } from "@/utils/applicationNotes";
 import { standingWithServerDone } from "@/hooks/useAssessmentSession";
@@ -155,7 +155,7 @@ export function NextStepCard({ applicationId, completedTitle, doneStepId }: Next
     body = `Next up: ${standing.step.title}. Step ${standing.index + 1} of ${steps.length}.`;
     if (route) {
       primary = {
-        label: `Start ${standing.step.title}`,
+        label: startLabelFor(standing.step.type),
         onClick: () => window.location.replace(route),
       };
     }

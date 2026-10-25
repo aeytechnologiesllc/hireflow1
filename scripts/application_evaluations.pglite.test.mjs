@@ -114,6 +114,10 @@ await db.exec(`
   grant anon, authenticated, service_role to postgres;
   grant usage on schema auth, public to anon, authenticated, service_role;
   grant execute on function auth.uid(), auth.role() to anon, authenticated, service_role;
+  -- As Supabase does: every new table is granted to the API roles, so the
+  -- migration's own REVOKE is what keeps the evaluation table closed (the
+  -- third review: without these, four checks passed with the REVOKE removed).
+  alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
   create publication supabase_realtime;
 
   create type public.app_role as enum ('employer', 'candidate', 'team_member', 'developer');

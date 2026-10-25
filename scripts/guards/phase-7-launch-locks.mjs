@@ -27,6 +27,11 @@
  *   - product-audit-fixes-hold: the product audit's fixes that no test
  *     reads: posts that print each list once, a fallback post in sentences,
  *     the first-step email that says what is left, the legal page's Back.
+ *   - product-audit-round-2-holds: the second product audit's wording and
+ *     defaults: what applicants are told is shared, no warnings on the form,
+ *     email switches that do something, the editor's own first screen, the
+ *     offer letter from the job, the certificate's claim, plain step buttons
+ *     and sign-up autocomplete.
  */
 
 /** The body of the last migration (by file name) that defines public.<fn>, with its file. */
@@ -176,10 +181,12 @@ export default [
       const nums = a.match(/IF p_kind = 'notification' THEN pair_limit := (\d+); total_limit := (\d+); ELSIF p_kind = 'message' THEN pair_limit := (\d+); total_limit := (\d+);/i);
       if (!nums || Number(nums[1]) > 30 || Number(nums[2]) > 300 || Number(nums[3]) > 120 || Number(nums[4]) > 600) detail.push(`${allowed.rel}: client_send_allowed's limits are missing or raised (30/300 notifications, 120/600 messages an hour)`);
       if (!/me uuid := auth\.uid\(\);/.test(a)) detail.push(`${allowed.rel}: client_send_allowed must count for the signed-in account only`);
-      const file = plain((await ctx.read(notif.rel)) ?? "");
+      const all = [];
+      for (const rel of (await ctx.walk("supabase/migrations", [".sql"])).sort()) all.push(plain((await ctx.read(rel)) ?? ""));
       for (const trig of ["CREATE TRIGGER notifications_client_limits BEFORE INSERT ON public.notifications", "CREATE TRIGGER messages_client_limits BEFORE INSERT ON public.messages"]) {
-        if (!file.includes(trig)) detail.push(`${notif.rel}: missing ${trig}`);
+        if (!all.some((text) => text.includes(trig))) detail.push(`supabase/migrations: missing ${trig}`);
       }
+      if (!/NEW\.created_at := now\(\);/.test(n)) detail.push(`${notif.rel}: notifications_client_limits no longer gives a browser's card the database's own time`);
       for (const def of [notif, msg]) {
         const head = plain(((await ctx.read(def.rel)) ?? "").slice(0, ((await ctx.read(def.rel)) ?? "").indexOf(def.body)));
         const tail = head.slice(head.lastIndexOf("CREATE OR REPLACE FUNCTION"));
@@ -277,6 +284,49 @@ export default [
       if (!/moreSteps: journeyStep\.total > 2,/.test(form)) detail.push("src/pages/ApplicationFormPhase.tsx: the submitted email is no longer told when more steps follow");
       const legal = strip(await read("src/components/LegalPage.tsx"));
       if (/navigate\(-1\) : navigate\("\/"\)\)/.test(legal) || !/window\.location\.assign\("\/"\)/.test(legal)) detail.push("src/components/LegalPage.tsx: Back from a tab with no history goes to the app's \"/\" (HireFlow's own job) again");
+      return { ok: detail.length === 0, detail };
+    },
+  },
+  {
+    id: "product-audit-round-2-holds",
+    why:
+      "The second Phase 7 product audit: applicants were told only what they submit is shared while the team reads the " +
+      "form as they type; the form warned \"That's been noted\" and showed \"1 thing flagged\" though nobody is told; " +
+      "Settings offered email switches for emails that never come; Edit job opened on \"Ava will draft the role\" and said " +
+      "the passing score moves people on; the offer letter said Full-time and remote on part-time and on-site jobs; the " +
+      "signing certificate claimed ESIGN compliance and pointed at a bare /verify; buttons read \"Start Chat Sim\" and " +
+      "\"Start Handle a rush-hour order\"; the applicant sign-up had no autocomplete.",
+    run: async ({ read }) => {
+      const detail = [];
+      const say = (rel, ok, what) => { if (!ok) detail.push(`${rel}: ${what}`); };
+      const wizard = (await read("src/components/candidate/CandidateOnboardingWizard.tsx")) ?? "";
+      say("CandidateOnboardingWizard.tsx", !/Only what you choose to submit/i.test(wizard), "promises again that only what is submitted is shared");
+      const form = (await read("src/pages/ApplicationFormPhase.tsx")) ?? "";
+      say("ApplicationFormPhase.tsx", !/flagged during this session/.test(form) && !/saved to your application when you continue/.test(form), "shows the \"flagged\" strip again, or says answers save only when they continue");
+      const integrity = (await read("src/hooks/useTestIntegrity.ts")) ?? "";
+      say("useTestIntegrity.ts", !/That's been noted/.test(integrity) && !/Looks like you switched tabs/.test(integrity), "warns the applicant on the form for switching away again");
+      const legal = (await read("src/content/legal.ts")) ?? "";
+      say("src/content/legal.ts", !/You can turn some emails off in Settings/.test(legal) && /Answers save as you type/.test(legal), "tells applicants they can turn emails off in Settings, or no longer says form answers are read as typed");
+      const settings = (await read("src/pages/Settings.tsx")) ?? "";
+      say("src/pages/Settings.tsx", !/Receive reminders before scheduled interviews/.test(settings) && /\{voiceAccount && \(\s*<>\s*<Separator \/>\s*<div[^>]*>\s*<div[^>]*>\s*<p[^>]*>Phase Updates</.test(settings), "offers interview reminders a business never gets, or Phase Updates to accounts without the voice interview");
+      const editor = (await read("src/pages/CreateJob.tsx")) ?? "";
+      say("src/pages/CreateJob.tsx", !/Minimum Ava score to auto-advance/.test(editor) && !/moves those who pass on/.test(editor) && /isEditMode \? "Job basics" : "Ava Setup"/.test(editor) && /\{!isEditMode && \(\s*<AvaGuidedSetupFields/.test(editor), "the passing score claims to move people on again, or Edit job shows the setup it never saves");
+      const offer = (await read("src/cockpit/components/OfferLetterDialog.tsx")) ?? "";
+      say("OfferLetterDialog.tsx", /person\.jobType === "part-time" \? "part" : "full"/.test(offer) && !/The usual terms for a remote role are filled in/.test(offer) && /help=\{remote \? "Twice a month/.test(offer), "full or part time no longer comes from the job, or remote wording shows on on-site jobs");
+      const cert = (await read("supabase/functions/_shared/renderFinalPdf.ts")) ?? "";
+      say("_shared/renderFinalPdf.ts", !/ESIGN/.test(cert) && !/in compliance with/i.test(cert) && /\$\{VERIFY_ORIGIN\}\/verify\/\$\{cert\.documentCode\}/.test(cert), "the certificate claims legal compliance again, or its check link lost the document's code");
+      for (const rel of ["src/components/candidate/NextStepCard.tsx", "src/pages/CandidateApplicationDetail.tsx"]) {
+        say(rel, !/`Start \$\{/.test((await read(rel)) ?? ""), "builds \"Start \" + the step's own title again (use startLabelFor)");
+      }
+      for (const rel of ["src/utils/getApplicationDisplayState.ts", "src/lib/terminology.ts"]) {
+        say(rel, !/Start Chat Sim|Take Assessment|Start Sales Pitch/.test((await read(rel)) ?? ""), "jargon button labels are back");
+      }
+      const auth = (await read("src/pages/CandidateAuth.tsx")) ?? "";
+      for (const [id, ac] of [["signin-email", "email"], ["signin-password", "current-password"], ["signup-name", "name"], ["signup-email", "email"], ["signup-password", "new-password"], ["forgot-email", "email"]]) {
+        const at = auth.indexOf(`id="${id}"`);
+        const props = at < 0 ? "" : auth.slice(at, auth.indexOf("/>", at));
+        say("src/pages/CandidateAuth.tsx", new RegExp(`autoComplete="${ac}"`).test(props), `#${id} lost autoComplete="${ac}"`);
+      }
       return { ok: detail.length === 0, detail };
     },
   },

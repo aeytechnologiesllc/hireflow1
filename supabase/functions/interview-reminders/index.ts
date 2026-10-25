@@ -43,7 +43,12 @@ Deno.serve(async (req) => {
     .eq("candidate_response", "confirmed")
     .gt("scheduled_at", now.toISOString())
     .lte("scheduled_at", until.toISOString())
-    .limit(200);
+    // Still owed a reminder, soonest first: one business's many interviews
+    // could fill the pick and starve everyone else's (the Phase 7 security
+    // review, round 2).
+    .or("reminder_day_sent_at.is.null,reminder_hour_sent_at.is.null")
+    .order("scheduled_at", { ascending: true })
+    .limit(500);
   if (error) {
     console.error("[interview-reminders] could not read interviews:", error.message);
     return json({ error: "read_failed" }, 500);

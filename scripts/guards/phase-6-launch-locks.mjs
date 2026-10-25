@@ -42,7 +42,11 @@ export default [
       const crawler = at("/:slug");
       if (at("/blog") < 0 || rewrites[at("/blog")].destination !== "/blog/index.html") detail.push("vercel.json: /blog does not go to /blog/index.html");
       if (at("/blog/:slug") < 0 || rewrites[at("/blog/:slug")].destination !== "/blog/:slug/index.html") detail.push("vercel.json: /blog/:slug does not go to its own page");
-      if (at("/blog/:path*") < 0 || rewrites[at("/blog/:path*")].destination !== "/blog/not-found.html" || at("/blog/:path*") < at("/blog/:slug")) detail.push("vercel.json: an address under /blog that is no guide must get /blog/not-found.html (after /blog/:slug), not the app's page shell");
+      if (at("/blog/:path*") < 0 || rewrites[at("/blog/:path*")].destination !== "/api/blog-not-found" || at("/blog/:path*") < at("/blog/:slug")) detail.push("vercel.json: an address under /blog that is no guide must get /api/blog-not-found (after /blog/:slug), not the app's page shell");
+      // …which answers 404 with the built not-found page (round 2 of the
+      // Phase 7 growth audit: the static file answered 200, a soft 404).
+      const notFound = (await read("api/blog-not-found.mjs")) ?? "";
+      if (!/res\.statusCode = 404;/.test(notFound) || !/\/blog\/not-found\.html/.test(notFound)) detail.push("api/blog-not-found.mjs: a missing guide must answer 404 with /blog/not-found.html");
       if (crawler >= 0 && (at("/blog") > crawler || at("/blog/:slug") > crawler)) detail.push("vercel.json: the blog rules must come before the crawler-only /:slug rule");
       if (rewrites.some((r) => r.source === "/:path+" && at("/blog") > rewrites.indexOf(r))) detail.push("vercel.json: the blog rules must come before the app's catch-all");
       const config = (await read("vercel.json")) ?? "";

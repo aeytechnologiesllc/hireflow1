@@ -38,7 +38,8 @@ export function resumeFilesToRemove(candidateId: string, resumeUrl: unknown, not
   const listSplit = new RegExp(`,\\s*(?=${escaped}/)`);
   for (const m of String(notes ?? "").matchAll(new RegExp(`${escaped}/[^"'\\\\<>\\r\\n]{1,400}`, "g"))) {
     for (const piece of m[0].split(listSplit)) {
-      const path = piece.replace(/\?(token|download|t|X-Amz-[A-Za-z-]+)=[\s\S]*$/, "").replace(/[\s,]+$/, "");
+      // A "#page=2" fragment is no part of a storage name either (keys hold no "#"; the seventh review).
+      const path = piece.replace(/\?(token|download|t|X-Amz-[A-Za-z-]+)=[\s\S]*$/, "").replace(/#[\s\S]*$/, "").replace(/[\s,]+$/, "");
       found.add(path);
       if (/%[0-9a-f]{2}/i.test(path)) {
         try {
@@ -52,7 +53,31 @@ export function resumeFilesToRemove(candidateId: string, resumeUrl: unknown, not
   // Only a plain path inside their own folder: never "..", an empty segment
   // or another folder, whatever the notes (partly their own writing) say.
   const safe = (path: string) => path.startsWith(`${candidateId}/`) && !path.includes("..") && !path.includes("//") && !path.endsWith("/");
-  return [...found].filter((path) => safe(path) && !otherRefs.includes(path));
+  // A file another application or the profile still uses stays, however
+  // that one stored it: compared with the other references both as written
+  // and decoded ("Scan%202026" there is "Scan 2026" here; the seventh review:
+  // a shared file was deleted because only this side was decoded).
+  let decodedRefs = otherRefs;
+  try {
+    decodedRefs = decodeURIComponent(otherRefs);
+  } catch {
+    decodedRefs = otherRefs.replace(/%([0-9a-f]{2})/gi, (all, hex) => {
+      try {
+        return decodeURIComponent(`%${hex}`);
+      } catch {
+        return all;
+      }
+    });
+  }
+  const usedElsewhere = (path: string) => {
+    if (otherRefs.includes(path) || decodedRefs.includes(path)) return true;
+    try {
+      return otherRefs.includes(encodeURI(path)) || otherRefs.includes(encodeURIComponent(path).replace(/%2F/gi, "/"));
+    } catch {
+      return false;
+    }
+  };
+  return [...found].filter((path) => safe(path) && !usedElsewhere(path));
 }
 
 const DOCUMENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

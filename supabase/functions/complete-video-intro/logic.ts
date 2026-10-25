@@ -24,6 +24,21 @@ export interface WorkflowStepLite {
  *  (VideoIntroPhase.tsx:368). */
 export const DEFAULT_VIDEO_STEP_TYPE = "video_intro";
 
+/** The step types this function records: a video intro, or its legacy alias. */
+export const VIDEO_STEP_TYPES: readonly string[] = ["video_intro", "video_message"];
+
+/**
+ * True when `stepId` is one of the job's video steps. Anything else is
+ * refused (the Phase 7 security review, round 2: the step's own type was
+ * recorded as given, so a one-byte "video" for the typing test or the chat
+ * practice marked that step done and passed, and auto mode moved the
+ * applicant on, past every test).
+ */
+export function isVideoStep(workflowSteps: readonly WorkflowStepLite[] | null | undefined, stepId: string): boolean {
+  const step = (workflowSteps ?? []).find((s) => s && s.id === stepId);
+  return !!step && VIDEO_STEP_TYPES.includes(String(step.type));
+}
+
 /**
  * Resolves the real step `type` ("video_intro" or the legacy "video_message"
  * alias) for `stepId` from the job's own `workflow_steps`, exactly the way

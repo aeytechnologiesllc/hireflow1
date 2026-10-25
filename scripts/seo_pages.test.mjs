@@ -43,6 +43,7 @@ for (const page of ["Dashboard", "Jobs", "Applicants", "ApplicantDetails", "Mess
 }
 check("More is not imported up front", !/^import More from/m.test(app) && /const More = lazyWithReload\(routeImporters\["\/more"\]\)/.test(app));
 check("…on the staff host the page being opened (and the dashboard) is fetched as the app starts", /if \(typeof window !== "undefined" && isStaffHost\(\)\) warmStaffPages\(window\.location\.pathname\);/.test(app) && /else prefetchForPath\(pathname\);\s*prefetchRoute\("\/dashboard"\);/.test(prefetch));
+check("…but not for a first-time visitor on the sign-in and sign-up page (the form first)", /if \(SIGNED_OUT_PAGES\.test\(pathname\) && !signedIn\) return;/.test(prefetch) && /const SIGNED_OUT_PAGES = \/\^\\\/\(auth\|/.test(prefetch));
 check("…the rest once the first screen is up, so the team's navigation stays instant", /const STAFF_PAGES_LATER: RoutePrefix\[\] = \["\/dashboard", "\/applicants", "\/jobs", "\/messages", "\/interviews", "\/more"\];/.test(prefetch) && /requestIdleCallback\(later/.test(prefetch));
 check("…and Documents, with the PDF tools, only on a hover or a tap (never at start-up)", !/STAFF_PAGES_LATER[^;]*documents/.test(prefetch) && /"\/documents": \(\) => import\("@\/pages\/Documents"\)/.test(prefetch));
 const vite = await read("vite.config.ts");

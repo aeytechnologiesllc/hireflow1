@@ -54,6 +54,14 @@ for (const key of ["title", "description", "date", "slug", "author"]) {
   check(`refused without "${key}"`, throws(() => B.parsePost(post(rest), "x.md"), new RegExp(`needs "${key}"`)));
 }
 check("refused: a slug with capitals or spaces", throws(() => B.parsePost(post({ ...GOOD, slug: "Hiring Agents" })), /slug/));
+// The fifth review: two ways a draft built as published.
+{
+  const front = (extra) => `---\ntitle: T\ndescription: D\ndate: 2026-10-01\nslug: t\nauthor: A${extra}`;
+  check("refused: a close written \"---draft: true\" (it is no close)", throws(() => B.parsePost(`${front("")}\n---draft: true\nBody text.`, "x.md"), /front matter|key: value/));
+  check("refused: \"draft: true\" written after the closing --- with another --- under it", throws(() => B.parsePost(`${front("")}\n---\ndraft: true\n---\nBody text.`, "x.md"), /after the closing/));
+  check("a link through the staff host is read as a guide link (a draft linked that way is refused)", B.guideSlugOf("https://staff.hireflownow.com/blog/some-draft") === "some-draft");
+  check("a body that only mentions a draft is fine", B.parsePost(post(GOOD, "We keep every draft: true to life.\n\nMore text here.")).draft === false);
+}
 check("refused: a date that is not a real day", throws(() => B.parsePost(post({ ...GOOD, date: "2026-02-30" })), /date/));
 check("refused: an update before the date", throws(() => B.parsePost(post({ ...GOOD, updated: "2026-10-01" })), /updated/));
 check("refused: a description too short or too long for a search result", throws(() => B.parsePost(post({ ...GOOD, description: "Too short." })), /description/) && throws(() => B.parsePost(post({ ...GOOD, description: "x".repeat(161) })), /description/));
@@ -108,6 +116,7 @@ const ld = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>
 const article = ld["@graph"].find((n) => n["@type"] === "BlogPosting");
 check("Article data: headline, dates, publisher, the page it is about", article?.headline === GOOD.title && article.datePublished === "2026-10-20" && article.dateModified === "2026-10-20" && article.publisher?.["@id"] === "https://hireflownow.com/#org" && article.mainEntityOfPage === `https://hireflownow.com/blog/${GOOD.slug}`);
 check("…and a breadcrumb back to Guides", ld["@graph"].some((n) => n["@type"] === "BreadcrumbList" && n.itemListElement?.[1]?.item === "https://hireflownow.com/blog"));
+check("the font loads without holding the first paint: from /blog-fonts.js, with a <noscript> stylesheet, and no stylesheet link outside it", page.includes('<script src="/blog-fonts.js" defer></script>') && /<noscript><link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com/.test(page) && !/(^|[^>])<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com/m.test(page.replace(/<noscript>[\s\S]*?<\/noscript>/g, "")));
 check("the page counter and the source carrier load; no inline script runs (CSP)", page.includes('<script src="/beacon.js" defer></script>') && page.includes('<script src="/carry-source.js" defer></script>') && !/<script(?![^>]*\bsrc=)(?![^>]*application\/ld\+json)[^>]*>/.test(page) && !/\son[a-z]+="/.test(page));
 check("the closing button: Post your first job free, tagged with the post", page.includes(`href="https://staff.hireflownow.com/auth?mode=signup&amp;utm_source=blog&amp;utm_medium=article&amp;utm_campaign=${GOOD.slug}"`) || page.includes(`href="https://staff.hireflownow.com/auth?mode=signup&utm_source=blog&utm_medium=article&utm_campaign=${GOOD.slug}"`));
 check("…and it says Post your first job free", />Post your first job free</.test(page));
@@ -183,6 +192,12 @@ for (const p of all) {
   for (const p of all) check(`${p.slug}: never casts HireFlow's 18-or-older question as doubtful ("ask your lawyer whether ... 18 or older")`, !/turning away a "No"/.test(p.body) && !/ask your lawyer whether[^.]*18 or older/i.test(p.body) );
   // The fourth review: the law's words are "age or birth date", never "an exact age" (which would read as if a bracket question were outside it).
   for (const p of all) check(`${p.slug}: says "age or birth date" as the law does, never "an exact age"`, !/\ban exact age\b/i.test(p.body));
+  // The fifth review: no post may tell a business "never ask for age" or to
+  // leave age out of "the application" while HireFlow's own form asks every
+  // applicant "Are you 18 or older?" (BLOG.md: never make a business doubt
+  // what HireFlow does). Posts say what not to ask: a birth date, an age in
+  // years or a bracket, an age preference.
+  for (const p of all) check(`${p.slug}: never "never ask for age" or "leave age … out of the application" beside HireFlow's own 18+ question`, !/\bnever ask (for |about )?(age|an applicant's age)\b|\bnothing asks for age\b|\bleave age and birth date out of the (post and the )?application\b|\btakes applications from people 18 and over\b/i.test(p.body));
   for (const p of all) check(`${p.slug}: "a person makes every decision" names the built-in 18-or-older check`, !/makes every decision/.test(p.body) || /18 or older\?" question every application starts with, a person on your team makes every decision/.test(p.body));
 }
 

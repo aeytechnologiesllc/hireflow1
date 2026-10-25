@@ -123,7 +123,11 @@
   .cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 4px; }
   .nocard { font-size: 13.5px; color: var(--ink-3); margin-top: -4px; }
   .stage:not([data-beat="0"]) .hero { opacity: 0; transform: translateY(-40px); pointer-events: none; }
-  @media (max-height: 700px) { .hero .small { display: none; } }
+  /* A short screen (a 1366x768 laptop, a budget phone) keeps the one line that
+     says what HireFlow does, a size smaller; only a very short one drops it
+     (the Phase 7 growth review: it was hidden at 700px and below). */
+  @media (max-height: 700px) { .hero .small { font-size: 15px; line-height: 1.38; } }
+  @media (max-height: 520px) { .hero .small { display: none; } }
 
   /* scenes 1 to 5: one clock, one line, one card that grows through the night */
   .story { position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: clamp(8px, 1.5vh, 16px); padding: clamp(92px, 13vh, 150px) clamp(16px, 5vw, 60px) 96px; text-align: center; transition: opacity .7s var(--ease) .15s, transform .8s var(--ease) .15s; }

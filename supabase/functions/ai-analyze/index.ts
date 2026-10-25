@@ -1352,19 +1352,22 @@ serve(async (req) => {
     let userContent = content;
     const resumeExtracted = hasResumeText || hasResumeVisuals;
 
-    // Add cross-reference context data
+    // Add cross-reference context data. Everything the applicant wrote is
+    // fenced as evidence, never instructions (_shared/promptFence.ts; the
+    // Phase 7 security review, round 2: these three went in raw, undoing the
+    // fencing trigger-ava-analysis does in its own content).
     if (applicantName) {
-      userContent += `\n\n--- APPLICANT NAME (for cross-reference) ---\n${applicantName}`;
+      userContent += `\n\n--- APPLICANT NAME (for cross-reference) ---\n${fenceApplicantText("applicant name", String(applicantName).slice(0, 200))}`;
     }
 
     if (coverLetter) {
-      userContent += `\n\n--- COVER LETTER (for cross-reference) ---\n${coverLetter}`;
+      userContent += `\n\n--- COVER LETTER (for cross-reference) ---\n${fenceApplicantText("cover letter", String(coverLetter).slice(0, 8000))}`;
     }
 
     if (applicationAnswers && applicationAnswers.length > 0) {
       userContent += `\n\n--- APPLICATION ANSWERS (for cross-reference) ---`;
-      applicationAnswers.forEach((qa, index) => {
-        userContent += `\n\nQ${index + 1}: ${qa.question}\nA${index + 1}: ${qa.answer}`;
+      applicationAnswers.slice(0, 60).forEach((qa, index) => {
+        userContent += `\n\nQ${index + 1}: ${String(qa.question ?? "").slice(0, 500)}\nA${index + 1}: ${fenceApplicantText(`answer ${index + 1}`, String(qa.answer ?? "").slice(0, 4000))}`;
       });
     }
 

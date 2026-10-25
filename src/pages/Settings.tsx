@@ -29,9 +29,11 @@ import { getSignedOutRoute } from "@/lib/authRouting";
 import { CareersPageCard } from "@/components/business/CareersPageCard";
 import { TipsSettingCard } from "@/cockpit/tips/TipsSettingCard";
 import { TwoStepSignIn } from "@/components/settings/TwoStepSignIn";
+import { usePlatformAdminAccount } from "@/hooks/usePlatformAdmin";
 
 export default function Settings() {
   const { user, role, loading, isTeamMember } = useAuth();
+  const voiceAccount = usePlatformAdminAccount();
   const navigate = useNavigate();
   const isEmployer = role === "employer";
   const isDeveloper = role === "developer";
@@ -415,8 +417,11 @@ export default function Settings() {
               <Separator />
               <div className="flex items-center justify-between gap-4 pr-1">
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium text-foreground">Interview Reminders</p>
-                  <p className="text-sm text-muted-foreground">Receive reminders before scheduled interviews</p>
+                  {/* What it controls (send-notification-email getPreferenceField):
+                      an applicant picking a time, confirming, or asking for
+                      another. Reminders go to the applicant, not here. */}
+                  <p className="font-medium text-foreground">Interview replies</p>
+                  <p className="text-sm text-muted-foreground">When an applicant picks a time, confirms, or asks for another time</p>
                 </div>
                 <Switch 
                   className="shrink-0 ml-3"
@@ -438,11 +443,17 @@ export default function Settings() {
                   disabled={prefsLoading || updatePrefs.isPending || !localPrefs.email_notifications_enabled}
                 />
               </div>
+              {/* "Phase Updates" only for the platform's own account: the one
+                  email it controls comes from the voice interview, which is off
+                  for every other business (the second Phase 7 product audit:
+                  everyone else had a switch for an email that never comes). */}
+              {voiceAccount && (
+                <>
               <Separator />
               <div className="flex items-center justify-between gap-4 pr-1">
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-foreground">Phase Updates</p>
-                  <p className="text-sm text-muted-foreground">Get notified when candidates complete phases</p>
+                  <p className="text-sm text-muted-foreground">Get notified when candidates finish the voice interview</p>
                 </div>
                 <Switch 
                   className="shrink-0 ml-3"
@@ -451,6 +462,8 @@ export default function Settings() {
                   disabled={prefsLoading || updatePrefs.isPending || !localPrefs.email_notifications_enabled}
                 />
               </div>
+                </>
+              )}
             </CardContent>
           </Card>
 

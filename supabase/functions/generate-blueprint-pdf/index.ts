@@ -16,12 +16,13 @@ const COLORS = {
   ground: { r: 0xf0, g: 0xeb, b: 0xdf },      // --ground  #F0EBDF
   surface: { r: 0xfc, g: 0xfa, b: 0xf4 },     // --surface #FCFAF4
   line: { r: 0xd6, g: 0xcd, b: 0xb6 },        // --line    #D6CDB6
-  ink: { r: 0x14, g: 0x20, b: 0x1b },         // --ink     #14201B
-  ink2: { r: 0x3f, g: 0x4b, b: 0x45 },        // --ink-2   #3F4B45
-  ink3: { r: 0x5c, g: 0x65, b: 0x5e },        // --ink-3   #5C655E
-  jade: { r: 0x0f, g: 0x6b, b: 0x4f },        // --jade    #0F6B4F
-  jadeSoft: { r: 0xdc, g: 0xed, b: 0xe3 },    // --jade-soft #DCEDE3
-  brass: { r: 0x8a, g: 0x64, b: 0x20 },       // --brass   #8A6420
+  ink: { r: 0x17, g: 0x15, b: 0x0f },         // --ink     #17150F
+  ink2: { r: 0x45, g: 0x41, b: 0x3a },        // --ink-2   #45413A
+  ink3: { r: 0x66, g: 0x61, b: 0x5a },        // --ink-3   #66615A
+  action: { r: 0x17, g: 0x15, b: 0x0f },      // --action  #17150F (ink; it was jade)
+  actionSoft: { r: 0xe9, g: 0xe3, b: 0xd5 },  // --action-soft #E9E3D5
+  seal: { r: 0x1b, g: 0x18, b: 0x13 },        // --seal-disc #1B1813
+  brass: { r: 0x84, g: 0x60, b: 0x1f },       // --brass   #84601F
   brassLine: { r: 0xc9, g: 0xa4, b: 0x5e },   // --brass-line #C9A45E
   amberBg: { r: 0xf6, g: 0xe7, b: 0xc6 },     // --amber-bg  #F6E7C6
   white: { r: 0xff, g: 0xff, b: 0xff },
@@ -86,7 +87,7 @@ function checkPageBreak(doc: jsPDF, y: number, needed: number, pageH: number, ma
 function drawSectionTitle(doc: jsPDF, title: string, y: number): number {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  setText(doc, COLORS.jade);
+  setText(doc, COLORS.action);
   doc.text(sanitizeText(title), 18, y);
   setDraw(doc, COLORS.brassLine);
   doc.setLineWidth(0.4);
@@ -117,7 +118,7 @@ function drawLetterheadStrip(doc: jsPDF, name: string, job: string, pageW: numbe
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  setText(doc, COLORS.jade);
+  setText(doc, COLORS.action);
   doc.text('HireFlow', margin, 11.5);
 
   doc.setFont('helvetica', 'normal');
@@ -127,20 +128,20 @@ function drawLetterheadStrip(doc: jsPDF, name: string, job: string, pageW: numbe
 }
 
 // The cover page IS the letterhead — a quiet ivory ground, a thin brass
-// rule, HireFlow's mark in jade, and the candidate/job/date set like a
-// letter's opening. No banner colors outside the palette, no large green
+// rule, HireFlow's mark (ink disc, brass ring), and the candidate/job/date set like a
+// letter's opening. No banner colors outside the palette, no large
 // fill (the accent is a hairline and a seal disc, never a filled block).
 function drawCoverLetterhead(doc: jsPDF, name: string, job: string, generatedAt: string | undefined, pageW: number, pageH: number, margin: number, contentW: number): number {
   setFill(doc, COLORS.ground);
   doc.rect(0, 0, pageW, pageH, 'F');
 
-  // Seal disc — the same jade-disc/brass-ring mark used across the product,
+  // Seal disc — the same ink-disc/brass-ring mark used across the product,
   // drawn with vector shapes (never a stock icon).
   const sealX = margin + 7, sealY = 26, sealR = 7;
   setDraw(doc, COLORS.brassLine);
   doc.setLineWidth(0.8);
   doc.circle(sealX, sealY, sealR, 'S');
-  setFill(doc, COLORS.jade);
+  setFill(doc, COLORS.seal);
   doc.circle(sealX, sealY, sealR - 2, 'F');
 
   doc.setFont('helvetica', 'bold');
@@ -258,13 +259,13 @@ serve(async (req) => {
     }
 
     if (summary.keyTakeaway) {
-      setFill(doc, COLORS.jadeSoft);
+      setFill(doc, COLORS.actionSoft);
       const lines = wrapText(doc, summary.keyTakeaway, contentW - 16);
       const boxH = lines.length * 4.6 + 10;
       doc.roundedRect(margin, y, contentW, boxH, 2, 2, 'F');
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
-      setText(doc, COLORS.jade);
+      setText(doc, COLORS.action);
       doc.text('The one thing to remember', margin + 8, y + 6.5);
       doc.setFont('helvetica', 'normal');
       setText(doc, COLORS.ink);
@@ -294,7 +295,7 @@ serve(async (req) => {
         y = checkPageBreak(doc, y, 20, pageH, margin, drawStrip);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9.5);
-        setText(doc, COLORS.jade);
+        setText(doc, COLORS.action);
         const strengthLines = wrapText(doc, `+ ${s.strength || ''}`, contentW - 6);
         strengthLines.forEach((line) => { doc.text(line, margin, y); y += 4.6; });
         if (s.evidence) {
@@ -348,7 +349,7 @@ serve(async (req) => {
           y = checkPageBreak(doc, y, 14, pageH, margin, drawStrip);
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(8.5);
-          setText(doc, COLORS.jade);
+          setText(doc, COLORS.action);
           const actionLines = wrapText(doc, `-> ${step.action || ''}`, contentW - 8);
           actionLines.forEach((line) => { doc.text(line, margin + 3, y); y += 4.2; });
           if (step.example) {
@@ -439,9 +440,9 @@ serve(async (req) => {
       y += 2;
     }
 
-    // Closing — a quiet neutral card with a single jade rule on the left
-    // edge (not a filled green box: see the "no large green fills" rule —
-    // jade-soft is reserved for small callouts, never a page-width block).
+    // Closing — a quiet neutral card with a single ink rule on the left
+    // edge (not a filled box: see the "no large fills" rule —
+    // action-soft is reserved for small callouts, never a page-width block).
     if (closing.note) {
       y = checkPageBreak(doc, y, 26, pageH, margin, drawStrip);
       setFill(doc, COLORS.surface);
@@ -450,7 +451,7 @@ serve(async (req) => {
       const noteLines = wrapText(doc, closing.note, contentW - 16);
       const noteH = noteLines.length * 4.6 + 10;
       doc.roundedRect(margin, y, contentW, noteH, 2, 2, 'FD');
-      setFill(doc, COLORS.jade);
+      setFill(doc, COLORS.action);
       doc.rect(margin, y, 1.4, noteH, 'F');
       doc.setFont('helvetica', 'italic');
       doc.setFontSize(9);

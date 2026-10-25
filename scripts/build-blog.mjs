@@ -85,8 +85,17 @@ function realDate(iso) {
 /** The front matter (key: value lines between two "---") and the body. */
 export function parsePost(source, file = "post") {
   const text = String(source).replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
-  const m = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(text);
+  // The closing "---" stands alone on its line: "---draft: true" is not a
+  // close (it used to be, and the file built as published; the fifth Phase 6
+  // review).
+  const m = /^---\n([\s\S]*?)\n---[ \t]*(?:\n([\s\S]*))?$/.exec(text);
   if (!m) throw new Error(`${file}: no front matter (start the file with ---)`);
+  m[2] = m[2] ?? "";
+  // A front-matter key written after the close ("draft: true" and another
+  // "---" under it) would build as a heading in a published post.
+  if (/^(title|description|date|draft|slug|updated|author|tags):\s*\S[^\n]*\n(-{3,}|={3,})[ \t]*$/m.test(m[2])) {
+    throw new Error(`${file}: a front matter line is written after the closing --- (move it above it)`);
+  }
   const meta = {};
   for (const line of m[1].split("\n")) {
     if (!line.trim()) continue;
@@ -217,6 +226,10 @@ export function loadPosts(dir = path.join(ROOT, "content", "blog"), { includeDra
       const slug = guideSlugOf(m[1].replace(/&amp;/g, "&"));
       if (slug !== null && !published.has(slug)) throw new Error(`${post.file}: links to ${m[1]}, which is not a published guide (guides are at /blog/<slug>, in lower case)`);
     }
+    // …and an address written as plain text names no draft either ("hireflownow.com/blog/<draft>").
+    for (const m of post.html.matchAll(/\b(?:https?:\/\/)?(?:www\.|staff\.)?hireflownow\.com\/blog\/([a-z0-9-]+)/gi)) {
+      if (!published.has(m[1].toLowerCase())) throw new Error(`${post.file}: names hireflownow.com/blog/${m[1]}, which is not a published guide`);
+    }
   }
   return posts.sort((a, b) => (a.date === b.date ? a.slug.localeCompare(b.slug) : a.date < b.date ? 1 : -1));
 }
@@ -233,7 +246,8 @@ export function guideSlugOf(href) {
     return null;
   }
   // "hireflownow.com." is the same site; "/%62log/" is "/blog/" (the third Phase 6 review).
-  if (!/^(www\.)?hireflownow\.com\.?$/i.test(url.hostname)) return null;
+  // The staff host serves the blog too (the fifth review: a draft linked through it built).
+  if (!/^(www\.|staff\.)?hireflownow\.com\.?$/i.test(url.hostname)) return null;
   let path = url.pathname.replace(/\/$/, "");
   try {
     path = decodeURIComponent(path);
@@ -355,7 +369,8 @@ ${extraMeta}<meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json">${jsonLd({ "@context": "https://schema.org", "@graph": graph })}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap">
+<script src="/blog-fonts.js" defer></script>
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap"></noscript>
 <script src="/beacon.js" defer></script>
 <script src="/carry-source.js" defer></script>
 <style>${STYLE}</style>

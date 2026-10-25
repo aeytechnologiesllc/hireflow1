@@ -3,7 +3,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { callOpenAIJson, requireJsonKeys } from "../_shared/openai.ts";
 import { guardAuthenticatedAiCall, guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { jobWritingBusiness, signedInUserId } from "../_shared/signedIn.ts";
-import { AGE_RULE, asksAgeOrStatus, withoutAgeAsks } from "../_shared/ageWording.ts";
+import { AGE_RULE, asksAgeOrStatus, questionAsksAge, withoutAgeAsks } from "../_shared/ageWording.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const OPENAI_MODEL = Deno.env.get("OPENAI_WORKFLOW_MODEL") || "gpt-5.6-luna";
@@ -599,11 +599,23 @@ function postProcessWorkflowData(
   requirePortfolio: boolean,
 ): WorkflowResponse {
   const data = {
-    // No age, birth date or marital status, whatever the model wrote (_shared/ageWording.ts).
-    // A question's options too ("18-25", "26-35" is an age bracket).
-    application_questions: withoutAgeAsks(Array.isArray(workflowData.application_questions) ? workflowData.application_questions : [], (q) => [q?.question, ...(Array.isArray(q?.options) ? q.options : [])].join(". ")),
-    quiz_questions: withoutAgeAsks(Array.isArray(workflowData.quiz_questions) ? workflowData.quiz_questions : [], (q) => [q?.question, ...(Array.isArray(q?.options) ? q.options : [])].join(". ")),
-    workflow_steps: Array.isArray(workflowData.workflow_steps) ? workflowData.workflow_steps : [],
+    // No age, birth date or marital status, whatever the model wrote (_shared/ageWording.ts):
+    // a question by its own words, an option only when it names an age.
+    application_questions: (Array.isArray(workflowData.application_questions) ? workflowData.application_questions : []).filter((q) => !questionAsksAge(q?.question, q?.options)),
+    quiz_questions: (Array.isArray(workflowData.quiz_questions) ? workflowData.quiz_questions : []).filter((q) => !questionAsksAge(q?.question, q?.options)),
+    // A step's own title and description too (the fifth Phase 6 review): the
+    // title falls back to the step's kind, the description to none.
+    workflow_steps: (Array.isArray(workflowData.workflow_steps) ? workflowData.workflow_steps : []).map((step) =>
+      step && typeof step === "object"
+        ? {
+            ...step,
+            ...(asksAgeOrStatus((step as { title?: unknown }).title)
+              ? { title: String((step as { type?: unknown }).type ?? "Step").replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase()) }
+              : {}),
+            ...(asksAgeOrStatus((step as { description?: unknown }).description) ? { description: "" } : {}),
+          }
+        : step
+    ),
     screening_plan_summary: workflowData.screening_plan_summary,
   };
 

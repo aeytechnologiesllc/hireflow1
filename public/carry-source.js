@@ -19,10 +19,15 @@
     var dnt = navigator.doNotTrack || window.doNotTrack;
     if (dnt === "1" || dnt === "yes" || navigator.globalPrivacyControl === true) return;
     var plain = /^[a-z0-9._-]{1,60}$/;
+    // The same tidy value beacon.js counts: lower case, anything else a dash
+    // ("Spring Sale" is "spring-sale", never dropped; the Phase 7 growth review).
+    var tidy = function (v) {
+      return String(v || "").trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+    };
     var params = new URLSearchParams(window.location.search);
     var keep = {};
     ["utm_source", "utm_medium", "utm_campaign"].forEach(function (key) {
-      var v = (params.get(key) || "").trim().toLowerCase();
+      var v = tidy(params.get(key));
       if (plain.test(v)) keep[key] = v;
     });
     var ref = "";
@@ -33,17 +38,34 @@
     }
     if (ref && ref !== window.location.hostname && ref.indexOf("hireflownow.com") === -1 && plain.test(ref)) keep.ref = ref;
     if (!Object.keys(keep).length) return;
+    var broughtTags = Object.keys(keep).some(function (key) { return key !== "ref"; });
     var links = document.querySelectorAll('a[href*="staff.hireflownow.com/auth"]');
     Array.prototype.forEach.call(links, function (a) {
       var url = new URL(a.href);
+      // The visitor's own campaign tags say how they reached the site: when
+      // they brought any, they replace the page's whole set, so a YouTube
+      // visit never reads "medium: bar" (the fifth Phase 6 review). A link's
+      // own ref stays.
+      if (broughtTags) ["utm_source", "utm_medium", "utm_campaign"].forEach(function (key) { url.searchParams.delete(key); });
       Object.keys(keep).forEach(function (key) {
-        // The visitor's own campaign tags say how they reached the site, so they
-        // win over the page's ("blog", the post); a tag they did not bring keeps
-        // the page's (2026-10-25, the second Phase 6 review). A link's own ref stays.
         if (key !== "ref" || !url.searchParams.has(key)) url.searchParams.set(key, keep[key]);
       });
       a.href = url.toString();
     });
+    // …and onward through the site: the guides and the open jobs carry the
+    // visitor's tags to the next page, whose own sign-up links then get them
+    // (front page → Guides → a guide → sign-up used to read "blog").
+    if (broughtTags) {
+      var inside = document.querySelectorAll('a[href^="/blog"], a[href^="/open-jobs"], a[href*="://hireflownow.com/blog"], a[href*="://hireflownow.com/open-jobs"]');
+      Array.prototype.forEach.call(inside, function (a) {
+        var url = new URL(a.href, window.location.href);
+        if (url.hostname !== window.location.hostname && url.hostname !== "hireflownow.com") return;
+        ["utm_source", "utm_medium", "utm_campaign"].forEach(function (key) {
+          if (keep[key]) url.searchParams.set(key, keep[key]);
+        });
+        a.href = url.toString();
+      });
+    }
   } catch (e) {
     // Never let this break the page.
   }

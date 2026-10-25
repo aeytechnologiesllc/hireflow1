@@ -45,6 +45,8 @@ export interface OfferPerson {
   jobPay: { payAmount: string; payCurrency: string; payPer: PayPer } | null;
   /** The job is done from home. */
   jobRemote: boolean;
+  /** The job's own type ("full-time", "part-time", "contract"…), when it has one. */
+  jobType: string | null;
 }
 
 /** The stages an offer can go out from, the likeliest first. */
@@ -69,7 +71,7 @@ export function useOfferPeople(enabled: boolean, stages: readonly string[] = OFF
       const employerId = await resolveEmployerIdForJobAccess(user!.id, !!isTeamMember);
       const { data: jobs, error: jobsError } = await supabase
         .from("jobs")
-        .select("id, title, salary_min, salary_max, salary_currency, salary_period, is_remote")
+        .select("id, title, salary_min, salary_max, salary_currency, salary_period, is_remote, job_type")
         .eq("employer_id", employerId);
       if (jobsError) throw jobsError;
       if (!jobs || jobs.length === 0) return [];
@@ -102,6 +104,7 @@ export function useOfferPeople(enabled: boolean, stages: readonly string[] = OFF
             jobTitle: job?.title ?? "",
             jobPay: payPartsFromJob(job),
             jobRemote: job?.is_remote !== false,
+            jobType: job?.job_type ?? null,
           };
         })
         .sort((a, b) => stages.indexOf(a.status) - stages.indexOf(b.status) || a.name.localeCompare(b.name));

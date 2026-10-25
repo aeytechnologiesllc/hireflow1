@@ -1,7 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
-import { callOpenAIJson, openAIErrorStatus } from "../_shared/openai.ts";
+import { aiUnavailableExtra, aiUnavailableResponse, callOpenAIJson, isAiUnavailable, openAIErrorStatus } from "../_shared/openai.ts";
 import { checkRateLimit, guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { canAccessPerformanceReport } from "../_shared/performanceReportAccess.ts";
 import { withEvaluation } from "../_shared/applicationEvaluation.ts";
@@ -132,7 +132,8 @@ serve(async (req) => {
     // A few reports a day per application, whoever asks (the Phase 7 security
     // audit: ten an hour per account had no daily end, each one billed to the
     // job's business). The page keeps the first report and never asks again.
-    const perApplication = await checkRateLimit('performance-report-per-application', `application:${applicationId}`, REPORTS_PER_APPLICATION_PER_DAY, 86400);
+    // Counted apart for the applicant and the team: neither can use up the other's (round 2).
+    const perApplication = await checkRateLimit(`performance-report-per-application-${isEmployerSide ? 'team' : 'applicant'}`, `application:${applicationId}`, REPORTS_PER_APPLICATION_PER_DAY, 86400);
     if (!perApplication.allowed) {
       return new Response(
         JSON.stringify({ error: 'rate_limited', message: 'This report was asked for too many times today. Please try again tomorrow.', retryAfter: perApplication.retryAfter }),
@@ -301,6 +302,10 @@ Return ONLY the JSON object described in the system prompt.`;
       });
       reportData = data;
     } catch (error) {
+      // The service refused, or the day's AI budget is reached: the calm 503
+      // every applicant page reads ("come back later"), never a 500 (the
+      // seventh Phase 5 review).
+      if (isAiUnavailable(error)) return aiUnavailableResponse(corsHeaders, aiUnavailableExtra(error));
       const status = openAIErrorStatus(error);
       if (status !== null) {
         console.error('AI API error:', status, error);

@@ -588,16 +588,17 @@ const JOB_LOCATION_COLUMNS: ReadonlyArray<string> = [
 ];
 
 /** Each field the editor holds, and the job columns it writes. `is_remote` is
- *  worked out from the location, the job type and the description, so a change
- *  to any of the three sends it. Every column handleSubmit builds is listed here
+ *  worked out again only when the location changes: a new description or job
+ *  type used to re-work it, and "our dental office" in a description turned a
+ *  remote job on-site on save (the second Phase 7 product audit). Every column handleSubmit builds is listed here
  *  (the test checks), so none can silently stop being saved on an edit. */
 const JOB_EDIT_FIELD_COLUMNS: Readonly<Record<string, ReadonlyArray<string>>> = {
   title: ["title"],
-  description: ["description", "is_remote"],
+  description: ["description"],
   requirements: ["requirements"],
   responsibilities: ["responsibilities"],
   location: JOB_LOCATION_COLUMNS,
-  job_type: ["job_type", "is_remote"],
+  job_type: ["job_type"],
   experience_level: ["experience_level"],
   department: ["department"],
   salary_type: ["salary_min", "salary_max"],
@@ -2516,8 +2517,15 @@ export default function CreateJob() {
             >
               <Card className="bg-card border-border">
                 <CardHeader>
-                  <CardTitle className="text-lg">Ava Setup</CardTitle>
-                  <CardDescription>Share the essentials. Ava will draft the role, screening plan, and automation rules for you.</CardDescription>
+                  <CardTitle className="text-lg">{isEditMode ? "Job basics" : "Ava Setup"}</CardTitle>
+                  <CardDescription>
+                    {/* Editing a live job drafts nothing: only what is saved shows here
+                        (the second Phase 7 product audit: it said "Ava will draft the
+                        role" and showed setup answers an edit never saves). */}
+                    {isEditMode
+                      ? "Change the title, link, type, level and pass mark. Nothing changes for applicants until you press Save."
+                      : "Share the essentials. Ava will draft the role, screening plan, and automation rules for you."}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
@@ -2642,6 +2650,7 @@ export default function CreateJob() {
                     </div>
                   </div>
 
+                  {!isEditMode && (
                   <AvaGuidedSetupFields
                     value={{
                       job_family: formData.job_family,
@@ -2659,17 +2668,21 @@ export default function CreateJob() {
                     }}
                     onChange={handleGuidedSetupChange}
                   />
+                  )}
 
                   <Separator />
 
                   <div className="space-y-4">
+                    {!isEditMode && (
                     <div className="space-y-1">
                       <h3 className="text-base font-semibold text-foreground">Ava preferences</h3>
                       <p className="text-sm text-muted-foreground">
                         Decide how rigorous Ava should be before you generate the draft. Ava will use these choices for the job copy and screening plan, then take you straight to review.
                       </p>
                     </div>
+                    )}
 
+                    {!isEditMode && (
                     <div className="space-y-3">
                       <Label className="text-sm font-semibold">Screening rigor</Label>
                       <div className="grid grid-cols-2 gap-3">
@@ -2702,13 +2715,16 @@ export default function CreateJob() {
                         })}
                       </div>
                     </div>
+                    )}
 
                     <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-transparent border border-primary/20 space-y-3">
                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
                         <div className="space-y-0.5">
                           <Label className="text-base sm:text-sm font-bold">Passing Score</Label>
                           <p className="text-xs text-muted-foreground/80 leading-relaxed">
-                            Minimum Ava score to auto-advance candidates
+                            {/* What it does (analytics, test tiles, Ava's read): it is
+                                the mark results are read against. It moves nobody. */}
+                            The mark Ava reads each result against. It never moves anyone on or turns anyone down by itself.
                           </p>
                         </div>
                         <motion.div
@@ -2736,6 +2752,7 @@ export default function CreateJob() {
                       </div>
                     </div>
 
+                    {!isEditMode && (
                     <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
                       <div className="flex items-center gap-2">
                         <HelpCircle className="h-4 w-4 text-muted-foreground" />
@@ -2746,7 +2763,7 @@ export default function CreateJob() {
                           <AvaSeal size={16} className="shrink-0 mt-0.5" />
                           <div>
                             <span className="font-medium text-foreground">Autopilot default:</span>{" "}
-                            Ava scores every candidate against this threshold and moves those who pass on to the next step by herself. She never declines anyone: your team does.
+                            each applicant moves on to the next step as they finish one, and Ava scores every result against this mark. She never declines anyone: your team does.
                           </div>
                         </div>
                         <div className="flex items-start gap-2">
@@ -2758,6 +2775,7 @@ export default function CreateJob() {
                         </div>
                       </div>
                     </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

@@ -249,9 +249,9 @@ const getEmailContent = (
   // opens Messages in their account (through sign-in when they are signed
   // out). The hiring team's own alerts do not carry it.
   const NO_REPLY_NOTE = isCandidateEmail(type, recipientRole)
-    ? `<p style="margin-top: 28px; padding: 12px 14px; background: #f4f6f5; border-radius: 8px; color: #444; font-size: 14px; line-height: 1.5;">
+    ? `<p style="margin-top: 28px; padding: 12px 14px; background: #f6f2ea; border-radius: 8px; color: #444; font-size: 14px; line-height: 1.5;">
         <strong>Have a question?</strong> Please do not reply to this email. Replies do not reach us.
-        <a href="${candidateLink("/messages")}" style="color: #0f7a5a; font-weight: 600;">Message us in your account</a> and we will answer you there.
+        <a href="${candidateLink("/messages")}" style="color: #14120E; font-weight: 600; text-decoration: underline;">Message us in your account</a> and we will answer you there.
       </p>`
     : "";
 
@@ -263,7 +263,7 @@ const getEmailContent = (
       ${content}
       ${buttonText && buttonUrl ? `
         <p style="margin-top: 24px;">
-          <a href="${buttonUrl}" style="display: inline-block; background: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500;">${buttonText}</a>
+          <a href="${buttonUrl}" style="display: inline-block; background: #14120E; color: #FAF7F1; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500;">${buttonText}</a>
         </p>
       ` : ''}
       ${NO_REPLY_NOTE}

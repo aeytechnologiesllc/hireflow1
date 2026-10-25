@@ -141,7 +141,9 @@ export default function CandidateOnboardingWizard({ onComplete }: CandidateOnboa
             {/* quiet reassurance footer + the one way in */}
             <div className="flex-shrink-0 space-y-4 pt-6">
               <p className="text-center text-[12.5px]" style={{ color: "var(--ink-3)" }}>
-                Only what you choose to submit is ever shared with an employer.
+                {/* Not "only what you submit": a form's answers save as they are
+                    typed, and the job's team can read them then. */}
+                Your answers save as you go, and the hiring team of the job you apply to can read them.
               </p>
               <Button onClick={handleComplete} disabled={completing} size="lg" className="group w-full py-6 text-base">
                 <span className="flex items-center justify-center gap-2">

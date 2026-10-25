@@ -61,11 +61,28 @@ export default [
         }
         // Every call made without the helpers, and every direct take from
         // the budget, names the business too.
-        for (const m of text.matchAll(/\btakeDailyAiBudget\(([^)]*)\)/g)) {
+        // Its arguments read with their own brackets (the units are an
+        // expression since the second Phase 7 review: budgetUnitsFor(messages)).
+        for (const m of text.matchAll(/\btakeDailyAiBudget\(/g)) {
           if (rel === "supabase/functions/_shared/aiBudget.ts") continue;
-          const args = m[1].split(",").map((a) => a.trim());
+          const args = [];
+          let depth = 0;
+          let current = "";
+          for (let i = m.index + m[0].length; i < text.length; i += 1) {
+            const ch = text[i];
+            if (ch === "(" || ch === "{" || ch === "[") depth += 1;
+            if (ch === ")" || ch === "}" || ch === "]") {
+              if (depth === 0) break;
+              depth -= 1;
+            }
+            if (ch === "," && depth === 0) {
+              args.push(current.trim());
+              current = "";
+            } else current += ch;
+          }
+          args.push(current.trim());
           if (args.length < 2 || !args[1] || /^(null|undefined)$/.test(args[1])) {
-            detail.push(`${rel}:${text.slice(0, m.index).split("\n").length}: takeDailyAiBudget(${m[1]}) does not say which business the call is for`);
+            detail.push(`${rel}:${text.slice(0, m.index).split("\n").length}: takeDailyAiBudget(${args.join(", ")}) does not say which business the call is for`);
           }
         }
         // Each OpenAI address in code (comments aside; a URL kept in a const
@@ -79,13 +96,13 @@ export default [
         }
       }
       const openai = (await read("supabase/functions/_shared/openai.ts")) ?? "";
-      if (!/takeDailyAiBudget\(1, business\)/.test(openai)) detail.push("_shared/openai.ts: callOpenAIChat no longer passes the business to the budget");
+      if (!/takeDailyAiBudget\((?:1|budgetUnitsFor\(messages\)|budgetUnitsForText\([^;]*?\)), business\)/.test(openai)) detail.push("_shared/openai.ts: callOpenAIChat no longer passes the business to the budget");
       const json = /export async function callOpenAIJson[\s\S]*?const \{ validator, fallback, throwWhenUnavailable = false, retries = 2, \.\.\.chatOptions \} = options;[\s\S]*?callOpenAIChat\(\{\s*\.\.\.chatOptions,/.test(openai);
       if (!json) detail.push("_shared/openai.ts: callOpenAIJson no longer passes its options (and the business) to callOpenAIChat");
       const streaming = (await read("supabase/functions/_shared/openaiStreaming.ts")) ?? "";
-      if (!/takeDailyAiBudget\(1, business\)/.test(streaming)) detail.push("_shared/openaiStreaming.ts: the streaming helper no longer passes the business to the budget");
+      if (!/takeDailyAiBudget\((?:1|budgetUnitsFor\(messages\)|budgetUnitsForText\([^;]*?\)), business\)/.test(streaming)) detail.push("_shared/openaiStreaming.ts: the streaming helper no longer passes the business to the budget");
       const flow = (await read("supabase/functions/generate-flow/index.ts")) ?? "";
-      if (!/const business = await jobWritingBusiness\(user\.id\);/.test(flow) || !/takeDailyAiBudget\(1, business\)/.test(flow)) detail.push("generate-flow: does not take from the asking business's budget (a hiring account's business, jobWritingBusiness)");
+      if (!/const business = await jobWritingBusiness\(user\.id\);/.test(flow) || !/takeDailyAiBudget\((?:1|budgetUnitsFor\(messages\)|budgetUnitsForText\([^;]*?\)), business\)/.test(flow)) detail.push("generate-flow: does not take from the asking business's budget (a hiring account's business, jobWritingBusiness)");
       for (const writer of ["ai-generate-job-content", "ai-generate-workflow"]) {
         const text = (await read(`supabase/functions/${writer}/index.ts`)) ?? "";
         if (!/const askedBy = await jobWritingBusiness\(signedIn\);/.test(text)) detail.push(`${writer}: job-writing AI is not limited to a hiring account (jobWritingBusiness)`);
@@ -106,7 +123,8 @@ export default [
         const at = text.search(/create or replace function public\.ai_budget_take\(/i);
         if (at >= 0) {
           // Its code, not its comments (the fifth and sixth reviews: a commented-out check passed).
-          latest = text.slice(at).replace(/--[^\n]*/g, "");
+          // Block comments too (the seventh review: a /* */-wrapped line passed).
+          latest = text.slice(at).replace(/\/\*[\s\S]*?\*\//g, "").replace(/--[^\n]*/g, "");
           latestFile = rel;
         }
       }
@@ -122,6 +140,10 @@ export default [
         (/\bv_own\b/.test(code) && !/v_own := exists \(select 1 from public\.platform_admins a where a\.user_id = v_business\);/.test(code)) ||
         !/where key = 'ai_new_business_daily_call_cap'\)/.test(code) ||
         !/v_business_cap := v_new_cap;/.test(code) ||
+        // The smaller day only when smaller, never flipped; nothing or'd or and-ed away; HireFlow's own day still refused past its cap (the seventh review).
+        !/and v_new_cap < v_business_cap then/.test(code) ||
+        /\b(and\s+false|or\s+true)\b/i.test(code) ||
+        /if v_own then\s+return true/i.test(code) ||
         /business_email_verified\(v_business\)\s+and\s+false/.test(code)
       ) {
         detail.push(`${latestFile}: the live ai_budget_take no longer gives an unconfirmed business the smaller day`);
@@ -142,7 +164,7 @@ export default [
       if (!/href="\/terms"/.test(notice) || !/href="\/privacy"/.test(notice)) detail.push("CandidateAuth.tsx: the sign-up form no longer links the Terms and the Privacy Policy under Create Account");
       const form = (await read("src/pages/ApplicationFormPhase.tsx")) ?? "";
       const formNotice = /data-application-privacy>([\s\S]*?)<\/p>/.exec(form)?.[1] ?? "";
-      if (!/href="\/privacy"/.test(formNotice) || !/hiring team for this job sees it/.test(formNotice)) detail.push("ApplicationFormPhase.tsx: the application form no longer says who sees it and links the Privacy Policy");
+      if (!/href="\/privacy"/.test(formNotice) || !/hiring team for this job (?:sees it|can read them)/.test(formNotice)) detail.push("ApplicationFormPhase.tsx: the application form no longer says who sees it and links the Privacy Policy");
       const business = (await read("src/pages/Auth.tsx")) ?? "";
       const agree = /data-signup-agree>([\s\S]*?)<\/label>/.exec(business)?.[1] ?? "";
       if (!/hireflownow\.com\/terms/.test(agree) || !/hireflownow\.com\/privacy/.test(agree)) detail.push("Auth.tsx: the business sign-up's agreement must link the Terms and the Privacy Policy");
@@ -189,9 +211,15 @@ export default [
       "information' on the applicant's ⋯ menu calls remove-applicant, which takes the actor from the caller's " +
       "sign-in and lets public.remove_applicant (service role only) decide (owner, or a teammate who manages " +
       "applicants), log it and delete the application before any file goes.",
-    run: async ({ read }) => {
+    run: async ({ read, walk }) => {
       const detail = [];
-      const sql = (await read("supabase/migrations/20261025170000_remove_applicant.sql")) ?? "";
+      // The latest migration that defines remove_applicant, not the first (the
+      // seventh review: a later redefinition without the checks passed).
+      let sql = "";
+      for (const rel of (await walk("supabase/migrations", [".sql"])).sort()) {
+        const text = (await read(rel)) ?? "";
+        if (/create or replace function public\.remove_applicant\(/i.test(text)) sql = text;
+      }
       if (!/grant execute on function public\.remove_applicant\(uuid, uuid, text\) to service_role;/.test(sql) || !/revoke all on function public\.remove_applicant\(uuid, uuid, text\) from public, anon, authenticated;/.test(sql)) {
         detail.push("remove_applicant must be callable by the system only (it trusts the actor it is given)");
       }

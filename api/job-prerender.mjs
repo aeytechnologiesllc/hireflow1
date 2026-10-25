@@ -91,7 +91,7 @@ function jobMetaDescription(job) {
 function withRobots(html, content) {
   const tag = `<meta name="robots" content="${content}" />`;
   const stripped = html.replace(/<meta\s+name="robots"[^>]*>\s*/gi, "");
-  return stripped.includes("</head>") ? stripped.replace("</head>", tag + "</head>") : stripped + tag;
+  return stripped.includes("</head>") ? stripped.replace("</head>", () => tag + "</head>") : stripped + tag;
 }
 
 function sb(path) {
@@ -275,8 +275,11 @@ export default async function handler(req, res) {
       `<link rel="canonical" href="${esc(url)}" />`;
 
     let out = shell
-      .replace(/<title>[\s\S]*?<\/title>/i, `<title>${esc(title)}</title>`)
-      .replace(/<meta\s+name="description"[^>]*>/i, `<meta name="description" content="${esc(desc)}" />`)
+      // Function replacers: a business's own text with "$`" or "$&" in it is
+      // text, never a replacement pattern (the Phase 7 security review, round 2:
+      // "$`" copied the page head into itself).
+      .replace(/<title>[\s\S]*?<\/title>/i, () => `<title>${esc(title)}</title>`)
+      .replace(/<meta\s+name="description"[^>]*>/i, () => `<meta name="description" content="${esc(desc)}" />`)
       // Drop the shell's default canonical (and any og:title/description) so the
       // job page carries EXACTLY ONE canonical — conflicting canonicals can make
       // Google index the homepage instead of the job.
@@ -286,7 +289,7 @@ export default async function handler(req, res) {
       // a prerendered job page still shipped the employer marketing line — and a
       // duplicated twitter:card alongside the one injected above.
       .replace(/<meta\s+name="(twitter:(card|title|description|image)|description)"[^>]*>\s*/gi, "");
-    out = out.includes("</head>") ? out.replace("</head>", injected + "</head>") : out + injected;
+    out = out.includes("</head>") ? out.replace("</head>", () => injected + "</head>") : out + injected;
     // Exactly one robots tag: the shell ships `index, follow`, and appending a
     // second, contradictory noindex tag left the outcome up to the crawler. A job
     // that reaches this line is published and not past its deadline.

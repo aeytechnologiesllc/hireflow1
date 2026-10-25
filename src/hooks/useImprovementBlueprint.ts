@@ -82,7 +82,13 @@ export function useImprovementBlueprint() {
 
     if (error) {
       console.error("Error from edge function:", error);
-      throw new Error(error.message || "Failed to generate blueprint");
+      // The server's own plain sentence ("This report was asked for too many
+      // times today…", "come back later today or tomorrow"), never the
+      // client's "Edge Function returned a non-2xx status code" (the seventh
+      // Phase 5 review).
+      const body = await (error as { context?: { json?: () => Promise<unknown> } }).context?.json?.().catch(() => null);
+      const said = body && typeof body === "object" ? (body as { message?: unknown }).message : null;
+      throw new Error(typeof said === "string" && said.trim() ? said : "Your report could not be made right now. Please try again later.");
     }
 
     if (!data || data.error) {

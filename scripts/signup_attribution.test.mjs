@@ -48,14 +48,17 @@ check("…and the sign-in link", out[1].includes("utm_source=youtube"));
 out = runCarry({ search: "", referrer: "https://www.quora.com/What-is-x?share=1", links: ["https://staff.hireflownow.com/auth?mode=signup"] });
 check("an untagged visit carries the referring host only (never its path or query)", out[0] === "https://staff.hireflownow.com/auth?mode=signup&ref=www.quora.com", out[0]);
 out = runCarry({ search: "?utm_source=a%20b%3Cscript%3E", referrer: "", links: ["https://staff.hireflownow.com/auth?mode=signup"] });
-check("a tag with anything but plain characters is dropped", out[0] === "https://staff.hireflownow.com/auth?mode=signup", out[0]);
+// The Phase 7 growth review: "Spring Sale" was dropped while the counter kept
+// it; both now tidy a tag to plain characters (never anything else).
+check("a tag is tidied to plain characters, never carried raw", out[0] === "https://staff.hireflownow.com/auth?mode=signup&utm_source=a-b-script", out[0]);
 out = runCarry({ search: "?utm_source=youtube", referrer: "", dnt: "1", links: ["https://staff.hireflownow.com/auth?mode=signup"] });
 check("Do Not Track: nothing is carried", out[0] === "https://staff.hireflownow.com/auth?mode=signup", out[0]);
 out = runCarry({ search: "", referrer: "https://hireflownow.com/open-jobs", links: ["https://staff.hireflownow.com/auth?mode=signup"] });
 check("our own pages are not a source", out[0] === "https://staff.hireflownow.com/auth?mode=signup", out[0]);
 // The second Phase 6 review: a guide's own tags gave way to nothing, so a YouTube visitor signed up as "blog".
 out = runCarry({ search: "?utm_source=youtube&utm_campaign=v1", referrer: "", links: ["https://staff.hireflownow.com/auth?mode=signup&utm_source=blog&utm_medium=article&utm_campaign=phone-agent-vs-chat-agent"] });
-check("on a guide, the visitor's own tags win; one they did not bring keeps the page's", out[0] === "https://staff.hireflownow.com/auth?mode=signup&utm_source=youtube&utm_medium=article&utm_campaign=v1", out[0]);
+// The fifth Phase 6 review: mixing them read "youtube / article / v1"; the visitor's set replaces the page's.
+check("on a guide, the visitor's own tags replace the page's whole set", out[0] === "https://staff.hireflownow.com/auth?mode=signup&utm_source=youtube&utm_campaign=v1", out[0]);
 out = runCarry({ search: "", referrer: "https://www.youtube.com/", links: ["https://staff.hireflownow.com/auth?mode=signup&utm_source=blog&utm_medium=article&utm_campaign=phone-agent-vs-chat-agent"] });
 check("…an untagged visit keeps the guide's tags and adds where it came from", out[0] === "https://staff.hireflownow.com/auth?mode=signup&utm_source=blog&utm_medium=article&utm_campaign=phone-agent-vs-chat-agent&ref=www.youtube.com", out[0]);
 

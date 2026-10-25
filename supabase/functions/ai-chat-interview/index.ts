@@ -988,6 +988,9 @@ ${leadMustCoverBlock(candidateContext?.chatSimulationResult, counterpart)}
 6. MUST reference specific things from their assessments, application, or resume
 7. MUST probe any inconsistencies you detect between claims and performance
 `}
+=== NEVER ASK ABOUT ===
+- Age, birth date, the year they were born or graduated, marital or civil status, children, pregnancy or family plans, religion, or health. If their resume or profile shows any of these, do not mention it and do not let it count. (RA 10911 and fair hiring; the application already asks only whether they are 18 or older.)
+
 === CONVERSATION STYLE ===
 - This is a back-and-forth CONVERSATION, not an interrogation
 - Keep your messages SHORT - you're an interviewer, not giving lectures

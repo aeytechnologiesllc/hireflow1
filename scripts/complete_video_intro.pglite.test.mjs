@@ -49,6 +49,7 @@ import { recordStepResult } from "../supabase/functions/_shared/trustedResults.t
 import {
   buildVideoIntroLegacyStepEntry,
   buildVideoIntroResult,
+  isVideoStep,
   resolveVideoStepType,
 } from "../supabase/functions/complete-video-intro/logic.ts";
 
@@ -579,6 +580,18 @@ async function main() {
   });
 
   // --------------------------------------------------------------------
+  // The Phase 7 security review, round 2: a "video" for any other step
+  // marked it done and passed, and auto mode moved the applicant past it.
+  console.log("\n== 5. Only a video step takes a video ==\n");
+  {
+    const steps = [{ id: "wf-video", type: "video_intro" }, { id: "wf-old", type: "video_message" }, { id: "ty1", type: "typing_test" }, { id: "cs1", type: "chat_simulation" }];
+    ok(isVideoStep(steps, "wf-video") && isVideoStep(steps, "wf-old"), "a video intro (and its legacy alias) is a video step");
+    ok(!isVideoStep(steps, "ty1") && !isVideoStep(steps, "cs1") && !isVideoStep(steps, "nope"), "the typing test, the chat practice and an unknown step are not");
+    const src = await readFile(path.join(ROOT, "supabase/functions/complete-video-intro/index.ts"), "utf8");
+    const refuse = src.indexOf("if (!isVideoStep(workflowSteps, stepId)) {");
+    ok(refuse !== -1 && refuse < src.indexOf("await recordStepResult("), "complete-video-intro refuses any other step before recording anything");
+  }
+
   console.log(`\n${pass} passed, ${fail} failed.\n`);
   if (fail > 0) {
     console.log("Failures:");

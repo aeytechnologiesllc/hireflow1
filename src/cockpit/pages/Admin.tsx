@@ -461,6 +461,15 @@ function AdminThread({ thread }: { thread: HelpThread }) {
  * links you post (?utm_source=youtube&utm_campaign=v1) and they show here by
  * name; untagged visits show the site they came from, or "direct".
  */
+const PAGE_KIND_WORDS: Record<string, string> = {
+  front_page: "Front page",
+  blog: "Guides (blog)",
+  open_jobs: "Open jobs",
+  job_page: "Job pages",
+  careers_page: "Business careers pages",
+  apply_with_code: "Apply with a code",
+};
+
 function GrowthTab() {
   const [days, setDays] = useState(30);
   const growth = useQuery({ queryKey: ["admin", "growth", days], queryFn: () => trustApi.adminGrowth(days) });
@@ -533,9 +542,56 @@ function GrowthTab() {
           </table>
         </div>
       </div>
+      <div className="grid gap-3 lg:grid-cols-2">
+        <div className="ck-card overflow-x-auto">
+          <table className="w-full text-[13.5px]" data-admin-growth-pages>
+            <caption className="px-3 pt-3 text-left font-semibold" style={{ color: "var(--hf-text)" }}>Public pages, by kind</caption>
+            <tbody>
+              {(g.pages ?? []).length === 0 ? (
+                <tr><td style={cell}>No visits counted yet.</td></tr>
+              ) : (
+                (g.pages ?? []).map((p) => (
+                  <tr key={p.kind}>
+                    <td style={cell}>{PAGE_KIND_WORDS[p.kind] ?? p.kind}</td>
+                    <td style={{ ...cell, color: "var(--ink-3)" }}>{(p.sources ?? []).map((r) => `${r.source} ${r.visits}`).join(" · ")}</td>
+                    <td style={{ ...cell, textAlign: "right" }}>{p.visits}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="ck-card overflow-x-auto">
+          <table className="w-full text-[13.5px]" data-admin-growth-campaigns>
+            <caption className="px-3 pt-3 text-left font-semibold" style={{ color: "var(--hf-text)" }}>Campaigns</caption>
+            <tbody>
+              {(g.campaigns ?? []).length === 0 && (g.account_campaigns ?? []).length === 0 ? (
+                <tr><td style={cell}>No tagged campaign visits in this period.</td></tr>
+              ) : (
+                <>
+                  {(g.campaigns ?? []).map((c) => (
+                    <tr key={`v-${c.source}-${c.medium}-${c.campaign}`}>
+                      <td style={cell}>{c.campaign || "(no campaign)"}</td>
+                      <td style={{ ...cell, color: "var(--ink-3)" }}>{[c.source, c.medium].filter(Boolean).join(" · ")}</td>
+                      <td style={{ ...cell, textAlign: "right" }}>{c.visits} visits</td>
+                    </tr>
+                  ))}
+                  {(g.account_campaigns ?? []).map((a) => (
+                    <tr key={`a-${a.role}-${a.source}-${a.campaign}`}>
+                      <td style={cell}>{a.campaign}</td>
+                      <td style={{ ...cell, color: "var(--ink-3)" }}>{a.source} · {a.role === "employer" ? "businesses" : a.role === "candidate" ? "applicants" : a.role}</td>
+                      <td style={{ ...cell, textAlign: "right" }}>{a.accounts} new</td>
+                    </tr>
+                  ))}
+                </>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
       <p className="text-[12.5px]" style={{ color: "var(--ink-3)" }}>
-        Tag every link you post, for example <code>hireflownow.com/?utm_source=youtube&amp;utm_campaign=v1</code>, and it shows here by name.
-        Accounts made before 25 October 2026 show as unknown.
+        Tag every link you post, for example <code>hireflownow.com/?utm_source=youtube&amp;utm_campaign=v1</code>, and the campaign shows here by name.
+        The hiring team's own clicks from the staff site are not counted. Accounts made before 25 October 2026 show as unknown.
       </p>
     </div>
   );

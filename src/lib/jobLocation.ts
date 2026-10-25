@@ -1,4 +1,14 @@
 const COUNTRY_TEXT_HINTS: Array<[RegExp, string]> = [
+  // Most applicants and many businesses are here; it was missing, so "Manila,
+  // Philippines" got no country and no currency (the second Phase 7 product audit).
+  [/\bphilippines\b|\b(metro manila|manila|quezon city|makati|pasig|taguig|cebu|davao|baguio|iloilo|cagayan de oro|bacolod|pampanga|cavite|laguna)\b/i, "PH"],
+  [/\bsingapore\b/i, "SG"],
+  [/\bnew zealand\b/i, "NZ"],
+  [/\bmexico\b/i, "MX"],
+  [/\bsouth africa\b/i, "ZA"],
+  [/\bmalaysia\b/i, "MY"],
+  [/\bindonesia\b/i, "ID"],
+  [/\bvietnam\b|\bviet nam\b/i, "VN"],
   [/\b(united states|u\.s\.a\.?|usa|us)\b/i, "US"],
   [/\bcanada\b/i, "CA"],
   [/\bpakistan\b/i, "PK"],
@@ -30,10 +40,21 @@ export function inferCountryCode(locationText?: string | null): string | null {
   return null;
 }
 
-export function isFullyRemoteText(...parts: Array<string | null | undefined>): boolean {
-  const text = parts.filter(Boolean).join(" ").trim();
-  if (!text) return false;
-  if (DEFINITIVE_REMOTE_HINT.test(text)) return true;
-  if (NOT_FULLY_REMOTE_HINT.test(text)) return false;
-  return REMOTE_PREFIX.test(text);
+// What a description says about the place of work. Not every "office" in it:
+// "answer calls for our dental office" is a remote job when the place says
+// Remote (the second Phase 7 product audit: that word made it on-site).
+const DESCRIPTION_ON_SITE_HINT = /\b(hybrid|on[-\s]?site|onsite|in[-\s]office|office[-\s]based|(?:work|working|report|reporting|come|based)\s+(?:in|to|at|from|out of)\s+(?:the|our)\s+office)\b/i;
+
+/** Whether a job is fully remote, from what the business wrote: the place
+ *  first, then the job type, and the description only when it says so in so
+ *  many words. */
+export function isFullyRemoteText(location?: string | null, jobType?: string | null, description?: string | null): boolean {
+  const place = (location ?? "").trim();
+  const where = [place, jobType ?? ""].join(" ").trim();
+  const about = (description ?? "").trim();
+  const aboutOnSite = DESCRIPTION_ON_SITE_HINT.test(about);
+  if (DEFINITIVE_REMOTE_HINT.test(where)) return !/\bhybrid\b/i.test(where) && !aboutOnSite;
+  if (NOT_FULLY_REMOTE_HINT.test(where)) return false;
+  if (REMOTE_PREFIX.test(place) || REMOTE_PREFIX.test((jobType ?? "").trim())) return !aboutOnSite;
+  return DEFINITIVE_REMOTE_HINT.test(about) && !aboutOnSite;
 }

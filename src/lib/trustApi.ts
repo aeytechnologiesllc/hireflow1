@@ -70,6 +70,12 @@ export interface AdminGrowth {
   front_page: { source: string; visits: number }[];
   signup_page: number;
   accounts: { role: string; source: string; accounts: number }[];
+  /** Each kind of public page, with its top sources (20261025390000). Absent before that migration. */
+  pages?: { kind: string; visits: number; sources: { source: string; visits: number }[] | null }[];
+  /** Visits that carried a medium or a campaign tag. */
+  campaigns?: { source: string; medium: string; campaign: string; visits: number }[];
+  /** New accounts whose sign-up carried a campaign tag. */
+  account_campaigns?: { role: string; source: string; campaign: string; accounts: number }[];
 }
 
 async function rpc<T>(name: string, args?: Record<string, unknown>): Promise<T> {

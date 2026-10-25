@@ -88,7 +88,30 @@ const STAFF_PAGES_LATER: RoutePrefix[] = ["/dashboard", "/applicants", "/jobs", 
  * once, and the rest a few seconds after the first screen is up, when the
  * phone is idle, so moving around stays instant.
  */
-export function warmStaffPages(pathname: string) {
+/** The staff host's pages a signed-out visitor opens: sign-in and sign-up,
+ *  and their callbacks. */
+const SIGNED_OUT_PAGES = /^\/(auth|reset-password|join-team)(\/|$)/;
+
+/** Whether this browser holds a Supabase sign-in (supabase-js keeps it in
+ *  localStorage as sb-<project>-auth-token). */
+function hasStoredSession(): boolean {
+  try {
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const key = window.localStorage.key(i);
+      if (key && /^sb-.+-auth-token$/.test(key)) return true;
+    }
+  } catch {
+    /* storage refused: treat as signed out */
+  }
+  return false;
+}
+
+export function warmStaffPages(pathname: string, signedIn: boolean = hasStoredSession()) {
+  // A business opening the sign-up page for the first time has no use for
+  // the staff screens yet: they were about 690 KB, fetched before the form
+  // was usable (the Phase 7 growth audit, round 2). Each page loads when it
+  // is opened instead.
+  if (SIGNED_OUT_PAGES.test(pathname) && !signedIn) return;
   if (/^\/applicants\/[^/]+/.test(pathname)) applicantDetailsImporter().catch(() => {});
   else prefetchForPath(pathname);
   prefetchRoute("/dashboard");

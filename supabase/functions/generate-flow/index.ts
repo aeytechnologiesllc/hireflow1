@@ -9,11 +9,11 @@
  * NOTE (pre-launch): deployed with verify_jwt=false for demo. Gate behind auth + rate-limit before launch.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
-import { takeDailyAiBudget } from "../_shared/aiBudget.ts";
+import { budgetUnitsForText, takeDailyAiBudget } from "../_shared/aiBudget.ts";
 import { guardAuthenticatedAiCall, guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { jobWritingBusiness } from "../_shared/signedIn.ts";
 import { scenarioPack } from "../_shared/scenarioPacks.ts";
-import { AGE_RULE, textWithoutAgeAsks, withoutAgeAsks } from "../_shared/ageWording.ts";
+import { AGE_RULE, blankAgeAsks, textWithoutAgeAsks, withoutAgeAsks } from "../_shared/ageWording.ts";
 
 const CS_CHANNELS = { chat: "chat", phone: "phone calls", email: "email", mixed: "chat, phone and email" } as const;
 
@@ -138,7 +138,8 @@ Deno.serve(async (req: Request) => {
     // Today's platform-wide AI budget (fails open; _shared/aiBudget.ts). The
     // page falls back to its built-in plan on any error.
     // The asking business pays from its own daily AI budget, then the platform's (_shared/aiBudget.ts).
-    if (!(await takeDailyAiBudget(1, business))) return json({ error: "ai_unavailable", reason: "budget_reached" }, 503);
+    // By the size of what the page sent (_shared/aiBudget.ts budgetUnitsForText).
+    if (!(await takeDailyAiBudget(budgetUnitsForText(JSON.stringify(brief ?? {}).length), business))) return json({ error: "ai_unavailable", reason: "budget_reached" }, 503);
     const model = Deno.env.get("OPENAI_MODEL") || "gpt-5.6-luna";
 
     const followUpCtx =
@@ -235,7 +236,8 @@ Tailor everything to: ${brief.roleTitle || brief.title || "this role"}.`;
       ? {
           ...content.jobPost,
           // A title that was only an age phrase ("Young Professionals Wanted") falls back to the role's own.
-          title: textWithoutAgeAsks(content.jobPost.title) || brief.roleTitle || brief.title || content.jobPost.title,
+          // Never the unfiltered title back (the fifth Phase 6 review).
+          title: textWithoutAgeAsks(content.jobPost.title) || brief.roleTitle || brief.title || "Customer Service Agent",
           summary: textWithoutAgeAsks(content.jobPost.summary),
           requirements: withoutAgeAsks(content.jobPost.requirements),
           niceToHaves: withoutAgeAsks(content.jobPost.niceToHaves),
@@ -246,12 +248,16 @@ Tailor everything to: ${brief.roleTitle || brief.title || "this role"}.`;
       jobPost,
       application: take<string>(withoutAgeAsks(content.application), spec.app),
       quiz: take(withoutAgeAsks(content.quiz, (q: { scenario?: unknown; good?: unknown }) => `${q?.scenario ?? ""} ${q?.good ?? ""}`), spec.quiz),
-      simulation: take(content.simulation, spec.sim),
+      // The practice's prompt becomes the applicant's brief on jobs outside customer service (the fifth review).
+      simulation: take(withoutAgeAsks(content.simulation, (s: { title?: unknown; prompt?: unknown }) => `${s?.title ?? ""}. ${s?.prompt ?? ""}`), spec.sim),
       voiceQuestions: take<string>(withoutAgeAsks(content.voiceQuestions), spec.voice),
       // Ranking factors and notes too: an age factor would rank applicants by age (the fourth Phase 6 review).
       voiceDimensions: take<string>(withoutAgeAsks(content.voiceDimensions), 4),
       shortlistWeights: take<string>(withoutAgeAsks(content.shortlistWeights), 5),
-      phaseRationales: take<string>(withoutAgeAsks(content.phaseRationales), 8),
+      // Read by position (the note of the step at the same index): an age note
+      // is emptied in place, never dropped, or every later step shows the
+      // next one's note (the fifth review).
+      phaseRationales: take<string>(blankAgeAsks(content.phaseRationales) as string[], 8),
       generatedBy: { provider: "openai", model, promptVersion: csPack ? "flowgen-cs@1" : "flowgen@1" },
     });
   } catch (e) {

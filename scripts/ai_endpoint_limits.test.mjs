@@ -143,10 +143,10 @@ check("the limiter counts by CF-Connecting-IP first", callerFn.indexOf("cf-conne
 
 // ---- the daily budget ---------------------------------------------------------
 const openai = read("supabase/functions/_shared/openai.ts");
-check("callOpenAIChat takes from the daily budget (the business's, then the platform's) before calling", /if \(!\(await takeDailyAiBudget\(1, business\)\)\) \{\s*throw new AiUnavailableError\("budget_reached"/.test(openai));
-check("the streaming helper does too", /takeDailyAiBudget\(1, business\)/.test(read("supabase/functions/_shared/openaiStreaming.ts")));
+check("callOpenAIChat takes from the daily budget (the business's, then the platform's) before calling", /if \(!\(await takeDailyAiBudget\(budgetUnitsFor\(messages\), business\)\)\) \{\s*throw new AiUnavailableError\("budget_reached"/.test(openai));
+check("the streaming helper does too", /takeDailyAiBudget\(budgetUnitsFor\(messages\), business\)/.test(read("supabase/functions/_shared/openaiStreaming.ts")));
 const flowFn = read("supabase/functions/generate-flow/index.ts");
-check("generate-flow does too: a hiring account only, its business pays, 40 calls an hour per account", /const business = await jobWritingBusiness\(user\.id\);\s*if \(!business\) return json\(\{ error: "not_a_business" \}, 403\);/.test(flowFn) && /takeDailyAiBudget\(1, business\)/.test(flowFn) && /guardAuthenticatedAiCall\("job-writing", user\.id, CORS, 40, 3600\)/.test(flowFn));
+check("generate-flow does too: a hiring account only, its business pays, 40 calls an hour per account", /const business = await jobWritingBusiness\(user\.id\);\s*if \(!business\) return json\(\{ error: "not_a_business" \}, 403\);/.test(flowFn) && /takeDailyAiBudget\(budgetUnitsForText\(JSON\.stringify\(brief \?\? \{\}\)\.length\), business\)/.test(flowFn) && /guardAuthenticatedAiCall\("job-writing", user\.id, CORS, 40, 3600\)/.test(flowFn));
 const signedInTs = read("supabase/functions/_shared/signedIn.ts");
 // The third Phase 5 review: the document endpoints, the plan writer per connection, empty interview answers.
 for (const fn of ["ai-generate-document", "ai-analyze-document-fields"]) {
@@ -175,6 +175,11 @@ check("the rate-limit table keeps two days (a day cap is not reset) and is prune
 {
   const budget = await import(path.join(ROOT, "supabase/functions/_shared/aiBudget.ts"));
   check("the budget check fails open when it has no settings (a Node run)", (await budget.takeDailyAiBudget()) === true);
+// The second Phase 7 security review: one unit paid for a prompt of any size.
+check("an ordinary call takes one unit", budget.budgetUnitsFor([{ content: "x".repeat(30000) }]) === 1);
+check("a 1.2 MB prompt takes 30 units, not one", budget.budgetUnitsFor([{ role: "user", content: "x".repeat(1_200_000) }]) === 30);
+check("each file or image adds one; text parts count their characters", budget.budgetUnitsFor([{ content: [{ type: "text", text: "hi" }, { type: "image_url" }, { type: "file" }] }]) === 3);
+check("never more than 100 at once (what ai_budget_take takes)", budget.budgetUnitsForText(50_000_000) === 100);
 }
 
 const db = new PGlite();
@@ -342,6 +347,18 @@ check("the old one-argument function is gone (one budget function, no way round 
   check("…while another business still goes ahead", (await b_take(B_OTHER)) === true);
   const ownAlert = (await db.query(`select title, message from public.notifications where title like 'HireFlow''s own jobs%'`)).rows;
   check("…and the owner is told once, naming ai_platform_business_daily_call_cap", ownAlert.length === 1 && /ai_platform_business_daily_call_cap/.test(ownAlert[0].message) && /other businesses are not held back/.test(ownAlert[0].message), JSON.stringify(ownAlert));
+}
+// The second Phase 7 product audit: the business is told too, once a day.
+{
+  await db.exec(read("supabase/migrations/20261025380000_ai_budget_tell_business.sql"));
+  const B_TOLD = "30000000-0000-4000-8000-00000000000e";
+  await db.exec(`insert into public.zz_verified values ('${B_TOLD}') on conflict do nothing; update public.app_settings set value = '2'::jsonb where key = 'ai_business_daily_call_cap'; update public.app_settings set value = '100000'::jsonb where key = 'ai_daily_call_cap';`);
+  const told = [await b_take(B_TOLD), await b_take(B_TOLD), await b_take(B_TOLD), await b_take(B_TOLD)];
+  const cards = (await db.query(`select title, message from public.notifications where user_id = '${B_TOLD}'`)).rows;
+  check("a business past its day is told in its own bell, once, that its applicants' tests wait until midnight UTC", JSON.stringify(told) === JSON.stringify([true, true, false, false]) && cards.length === 1 && /paused until tomorrow/.test(cards[0].title) && /place is kept/.test(cards[0].message), JSON.stringify({ told, cards }));
+  await db.exec(`update public.app_settings set value = '2'::jsonb where key = 'ai_platform_business_daily_call_cap'`);
+  for (let i = 0; i < 4; i += 1) await b_take(B_OWNER);
+  check("…HireFlow's own business gets no such card (its admins are told)", (await db.query(`select count(*)::int as n from public.notifications where user_id = '${B_OWNER}' and title like 'Applicants%'`)).rows[0].n === 0);
 }
 const b_aiBudgetTs = read("supabase/functions/_shared/aiBudget.ts");
 check("the helper sends the business only when it is a uuid", /UUID\.test\(business\) \? \{ p_calls: calls, p_business: business \} : \{ p_calls: calls \}/.test(b_aiBudgetTs));

@@ -100,9 +100,9 @@ const FALLBACK_TITLES: Record<string, string> = {
   typing_test: "Typing test",
   video_intro: "Video intro",
   video_message: "Video intro",
-  chat_simulation: "Chat simulation",
+  chat_simulation: "Chat practice",
   chat_interview: "Chat interview",
-  sales_simulation: "Sales simulation",
+  sales_simulation: "Sales practice",
   voice_interview: "Voice interview",
   portfolio_upload: "Portfolio",
   [DECISION_STAGE_ID]: "Decision",
@@ -129,6 +129,27 @@ export function titleFor(type: string, given?: string | null): string {
   const trimmed = given?.trim();
   if (trimmed && !MACHINE_WORDS.test(trimmed)) return trimmed;
   return FALLBACK_TITLES[type] || type;
+}
+
+/** What the button that opens a step says, by the step's kind. Not "Start "
+ *  plus the step's own title: a business names a step after its scenario
+ *  ("Handle a rush-hour order"), and "Start Handle a rush-hour order" is not
+ *  English (the second Phase 7 product audit). The title is shown beside it. */
+const START_LABELS: Record<string, string> = {
+  quiz: "Start the skills check",
+  equipment_check: "Check your computer and connection",
+  typing_test: "Start the typing test",
+  video_intro: "Record your video",
+  video_message: "Record your video",
+  chat_simulation: "Start the chat practice",
+  chat_interview: "Start the interview",
+  sales_simulation: "Start the sales practice",
+  voice_interview: "Start the spoken interview",
+  portfolio_upload: "Send your work samples",
+};
+
+export function startLabelFor(type: string): string {
+  return START_LABELS[type] ?? "Start this step";
 }
 
 /**

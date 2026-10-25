@@ -8,7 +8,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { jobShareUrl } from "@/lib/jobLinks";
 import { shortLinkFor } from "@/lib/jobSlug";
 import { shareTargets } from "@/lib/shareTargets";
-import { hiringLink } from "@/lib/hiringLink";
 import { buildFullJobPost, type FullPostJob } from "@/lib/jobPost";
 
 /**
@@ -134,7 +133,7 @@ function printFlyer(job: ShareKitJob, applyUrl: string, qrCanvas: HTMLCanvasElem
   <div class="scan">${esc(FLYER_SCAN_LINE)}</div>
   ${job.onComputer ? `<div class="sub">${esc(FLYER_SUB_LINE)}</div>` : ""}
   <div class="url">${esc(applyUrl)}</div>
-  <div class="foot">Powered by HireFlow · ${esc(hiringLink("flyer").replace(/^https:\/\//, ""))}</div>
+  <div class="foot">Powered by HireFlow · hireflownow.com</div>
 <script>window.onload = function () { window.print(); };</script>
 </body></html>`);
   w.document.close();

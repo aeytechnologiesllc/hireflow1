@@ -232,6 +232,21 @@ export default [
         const fields = m ? [...m[1].matchAll(/"(\w+)"/g)].map((x) => x[1]) : [];
         if (JSON.stringify(fields) !== JSON.stringify(FIVE)) detail.push(`${rel}: EVALUATION_FIELDS must be exactly ${FIVE.join(", ")} (found ${fields.join(", ") || "none"})`);
       }
+      // An upsert into applications loses the evaluation (the third review: the
+      // insert trigger clears the five on the new row before the conflict is
+      // resolved, so DO UPDATE writes NULL). Never in a migration or an RPC,
+      // and never through a chain split over two lines in the app.
+      for (const rel of (await walk("supabase/migrations", [".sql"])).sort()) {
+        if (rel < "supabase/migrations/20261025235000") continue;
+        const sql = ((await read(rel)) ?? "").replace(/--[^\n]*/g, "");
+        if (/insert\s+into\s+public\.applications\b[\s\S]{0,600}?on\s+conflict[\s\S]{0,200}?do\s+update/i.test(sql)) detail.push(`${rel}: INSERT INTO public.applications ... ON CONFLICT DO UPDATE loses the evaluation (update or insert instead)`);
+      }
+      for (const rel of rels) {
+        const text = (await read(rel)) ?? "";
+        if (/\.from\(\s*["'`]applications["'`]\s*\)\s*;/.test(text) || /=\s*(supabase|admin|client|db)\w*\.from\(\s*["'`]applications["'`]\s*\)\s*;?\s*\n/.test(text)) {
+          if (/\.upsert\(/.test(text)) detail.push(`${rel}: keeps a query on applications in a variable and calls .upsert( (an upsert loses the evaluation)`);
+        }
+      }
       // The table exists in a migration, with its triggers.
       const migration = (await read("supabase/migrations/20261025235000_application_evaluations.sql")) ?? "";
       if (!/CREATE TABLE IF NOT EXISTS public\.application_evaluations/.test(migration) || (migration.match(/CREATE OR REPLACE TRIGGER zz_applications_evaluation_/g) ?? []).length !== 6) {

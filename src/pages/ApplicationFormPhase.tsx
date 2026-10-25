@@ -25,7 +25,6 @@ import {
   X,
   File as FileIcon,
   CalendarIcon,
-  ShieldAlert,
   Eye
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -1307,14 +1306,9 @@ export default function ApplicationFormPhase() {
           </p>
         </div>
 
-        {integrity.flagged > 0 && (
-          <div className="flex items-center gap-2 rounded-lg border border-warning/20 bg-warning/10 px-3 py-2 text-sm text-warning">
-            <ShieldAlert className="h-4 w-4 shrink-0" />
-            <span>
-              <span className="ck-num">{integrity.flagged}</span> thing{integrity.flagged === 1 ? "" : "s"} flagged during this session
-            </span>
-          </div>
-        )}
+        {/* No "N things flagged" strip on the form: nobody is alerted about
+            the form (the staff record leaves its events out), so it only
+            worried the applicant (the second Phase 7 product audit). */}
       </header>
 
       {/* Form — the letterhead moment: brass rule up top, considered fields below */}
@@ -1974,7 +1968,9 @@ export default function ApplicationFormPhase() {
           {/* Continue — the one primary action on this screen */}
           <div className="flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-muted-foreground" data-application-privacy>
-              Everything here is saved to your application when you continue. The hiring team for this job sees it;{" "}
+              {/* The form saves as they type, and the team can read it then
+                  (AvasRead.tsx): say so (the second Phase 7 product audit). */}
+              Your answers save to your application as you type, and the hiring team for this job can read them, even before you continue;{" "}
               <a href="/privacy" target="_blank" rel="noreferrer" className="underline underline-offset-2">the Privacy Policy</a> says what we keep and who else sees it.
             </p>
             <Button

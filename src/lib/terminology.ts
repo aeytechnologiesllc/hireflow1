@@ -69,16 +69,16 @@ export const phaseDisplayNames: Record<string, string> = {
  */
 export const phaseActionMessages: Record<string, { buttonText: string; description: string }> = {
   application: { buttonText: "Complete Application", description: "Fill out your application form" },
-  quiz: { buttonText: "Take Assessment", description: "Complete your skills assessment to continue" },
+  quiz: { buttonText: "Start the skills check", description: "A few questions about the job" },
   equipment_check: { buttonText: "Check your computer and connection", description: "A short speed test on the computer you will work from" },
-  typing_test: { buttonText: "Start Typing Test", description: "Ready to test your typing speed and accuracy" },
+  typing_test: { buttonText: "Start the typing test", description: "Ready to test your typing speed and accuracy" },
   video_intro: { buttonText: "Record Video", description: "Record a short video introducing yourself" },
   video_message: { buttonText: "Record Video", description: "Record a 60-second video about yourself" },
-  chat_simulation: { buttonText: "Start Chat Simulation", description: "Demonstrate your customer support skills" },
-  chat_interview: { buttonText: "Begin Interview", description: "Answer a few questions in the chat" },
-  sales_simulation: { buttonText: "Start Sales Pitch", description: "Show off your sales skills" },
-  portfolio_upload: { buttonText: "Upload Portfolio", description: "Share samples of your work" },
-  voice_interview: { buttonText: "Start Voice Interview", description: "Answer a few questions out loud" },
+  chat_simulation: { buttonText: "Start the chat practice", description: "Answer a practice customer in a chat" },
+  chat_interview: { buttonText: "Start the interview", description: "Answer a few questions in the chat" },
+  sales_simulation: { buttonText: "Start the sales practice", description: "Talk a practice customer through a sale" },
+  portfolio_upload: { buttonText: "Send your work samples", description: "Share samples of your work" },
+  voice_interview: { buttonText: "Start the spoken interview", description: "Answer a few questions out loud" },
 };
 
 // ============================================
@@ -87,14 +87,14 @@ export const phaseActionMessages: Record<string, { buttonText: string; descripti
 
 export const candidatePhaseDisplayNames: Record<string, string> = {
   application: "Application",
-  quiz: "Assessment",
+  quiz: "Skills check",
   equipment_check: "Your computer and connection",
   typing_test: "Typing Test",
   video_intro: "Video Introduction",
   video_message: "Video Message",
-  chat_simulation: "Chat Simulation",
+  chat_simulation: "Chat practice",
   chat_interview: "Interview",
-  sales_simulation: "Sales Simulation",
+  sales_simulation: "Sales practice",
   voice_interview: "Voice Interview",
   portfolio_upload: "Portfolio",
   review: "Review",

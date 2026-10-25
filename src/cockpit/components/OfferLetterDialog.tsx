@@ -290,7 +290,9 @@ export function OfferLetterDialog({
     // offer called its employee a contractor on their own computer).
     setWorkerType(kept.workerType ?? (person.jobRemote ? OFFER_DEFAULTS.workerType : "employee"));
     setOwnEquipment(person.jobRemote ? OFFER_DEFAULTS.ownEquipment : false);
-    if (kept.schedule) setSchedule(kept.schedule);
+    // Full or part time from the job itself (the second Phase 7 product
+    // audit: a part-time job's offer said "Full-time").
+    setSchedule(kept.schedule ?? (person.jobType === "part-time" ? "part" : "full"));
     if (typeof kept.trialDays === "number") setTrialDays(kept.trialDays);
     if (typeof kept.noticeDays === "number") setNoticeDays(kept.noticeDays);
     // Only when the person changes: typing must never be overwritten.
@@ -409,7 +411,7 @@ export function OfferLetterDialog({
             Offer letter
           </h2>
           <p className="mt-0.5 pr-8 text-[13px]" style={{ color: "var(--hf-text-soft)" }}>
-            Four short steps. The usual terms for a remote role are filled in; change anything that is different for you.
+            Four short steps. The usual terms are filled in; change anything that is different for you.
           </p>
         </div>
 
@@ -549,7 +551,7 @@ export function OfferLetterDialog({
                     </div>
                   </Field>
                   <div className="grid gap-3.5 sm:grid-cols-2">
-                    <Field id="ck-offer-every" label="Paid" help="Twice a month is usual for remote workers in the Philippines.">
+                    <Field id="ck-offer-every" label="Paid" help={remote ? "Twice a month is usual for remote workers in the Philippines." : undefined}>
                       <select id="ck-offer-every" className={INPUT} value={payEvery} disabled={busy} onChange={(e) => edit(setPayEvery)(e.target.value as PayEvery)}>
                         {(Object.keys(EVERY_WORDS) as Array<Exclude<PayEvery, "">>).map((key) => (
                           <option key={key} value={key}>
@@ -572,7 +574,7 @@ export function OfferLetterDialog({
                         {termsSummary(fields)}
                       </p>
                       <p className="mt-1 text-[12px] leading-snug" style={{ color: "var(--ink-3)" }}>
-                        The usual terms for a remote support role.{" "}
+                        {remote ? "The usual terms for a remote support role." : "The usual terms for a support role."}{" "}
                         <button type="button" className="underline underline-offset-2" style={{ color: "var(--ink-2)" }} onClick={() => setShowTerms(true)} disabled={busy}>
                           Change
                         </button>
@@ -580,7 +582,13 @@ export function OfferLetterDialog({
                     </div>
                   ) : (
                     <div className="flex flex-col gap-3.5" data-offer-terms="open">
-                      <Field id="ck-offer-worker" label="Working as" help="Most remote hires in another country are contractors and handle their own taxes. Choose employee only if you run payroll for them.">
+                      <Field
+                        id="ck-offer-worker"
+                        label="Working as"
+                        help={remote
+                          ? "Most remote hires in another country are contractors and handle their own taxes. Choose employee only if you run payroll for them."
+                          : "Someone who works at your place on your schedule is usually an employee. Choose contractor only if they run their own business and bill you."}
+                      >
                         <Choice<WorkerType> name="Working as" value={workerType} disabled={busy} onChange={edit(setWorkerType)} options={[{ value: "contractor", label: "Independent contractor" }, { value: "employee", label: "Employee" }]} />
                       </Field>
                       <div className="grid gap-3.5 sm:grid-cols-2">

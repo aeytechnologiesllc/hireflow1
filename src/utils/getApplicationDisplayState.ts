@@ -16,18 +16,18 @@ export const statusLabels = applicationStatusLabels;
 // Map phase types to icons and action labels
 export const phaseActionConfig: Record<string, { icon: React.ElementType; label: string; description: string; route: string }> = {
   application: { icon: FileText, label: "Complete Application", description: "Complete your application", route: "application" },
-  quiz: { icon: ClipboardList, label: "Take Assessment", description: "Complete your skills assessment", route: "quiz" },
+  quiz: { icon: ClipboardList, label: "Start the skills check", description: "A few questions about the job", route: "quiz" },
   // The step's own brand mark, the one glyphForKind resolves everywhere else,
   // so the connection check wears one mark throughout the product.
   equipment_check: { icon: GlyphEcho, label: "Check your computer and connection", description: "A short speed test on the computer you will work from", route: "connection" },
-  typing_test: { icon: Keyboard, label: "Start Typing Test", description: "Ready for your typing test", route: "typing-test" },
+  typing_test: { icon: Keyboard, label: "Start the typing test", description: "Ready for your typing test", route: "typing-test" },
   video_intro: { icon: Video, label: "Record Video", description: "Record your video introduction", route: "video-intro" },
   video_message: { icon: Video, label: "Record Video", description: "Record your video message", route: "video-intro" },
-  chat_simulation: { icon: MessageSquare, label: "Start Chat Sim", description: "Begin customer support simulation", route: "chat-simulation" },
-  chat_interview: { icon: MessageSquare, label: "Start Interview", description: "Ready for your interview", route: "chat-interview" },
-  sales_simulation: { icon: Mic, label: "Start Sales Pitch", description: "Begin your sales simulation", route: "sales-simulation" },
-  voice_interview: { icon: Video, label: "Start Voice Interview", description: "Begin your voice interview", route: "voice-interview" },
-  portfolio_upload: { icon: FileText, label: "Upload Portfolio", description: "Submit your portfolio", route: "portfolio" },
+  chat_simulation: { icon: MessageSquare, label: "Start the chat practice", description: "Answer a practice customer in a chat", route: "chat-simulation" },
+  chat_interview: { icon: MessageSquare, label: "Start the interview", description: "Answer a few questions in the chat", route: "chat-interview" },
+  sales_simulation: { icon: Mic, label: "Start the sales practice", description: "Talk a practice customer through a sale", route: "sales-simulation" },
+  voice_interview: { icon: Video, label: "Start the spoken interview", description: "Answer a few questions out loud", route: "voice-interview" },
+  portfolio_upload: { icon: FileText, label: "Send your work samples", description: "Share samples of your work", route: "portfolio" },
 };
 
 export function getPhaseType(phase: string, workflowSteps?: Array<{ id?: string; key?: string; slug?: string; type?: string }>): string {

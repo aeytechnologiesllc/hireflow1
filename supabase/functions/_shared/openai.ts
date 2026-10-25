@@ -1,4 +1,4 @@
-import { takeDailyAiBudget } from "./aiBudget.ts";
+import { budgetUnitsFor, takeDailyAiBudget } from "./aiBudget.ts";
 export type OpenAIMessageContent =
   | string
   | Array<
@@ -282,7 +282,7 @@ export async function callOpenAIChat(options: OpenAIChatOptions): Promise<OpenAI
   } = options;
 
   // Today's budget first: the business's own, then the platform's (fails open; _shared/aiBudget.ts).
-  if (!(await takeDailyAiBudget(1, business))) {
+  if (!(await takeDailyAiBudget(budgetUnitsFor(messages), business))) {
     throw new AiUnavailableError("budget_reached", "The daily AI budget is used up", null);
   }
 

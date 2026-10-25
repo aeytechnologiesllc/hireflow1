@@ -104,9 +104,11 @@ its reason, or the build fails (docs/LAUNCH-PLAN.md, Phase 1, task 9).
 | `check-email-exists`, `elevenlabs-tts` | retired | answer 410 to everything |
 
 The Vercel functions in `api/` (`job-prerender`, `careers-prerender`,
-`job-feed*`, `sitemap`, `where`) are public by nature: they read only
-`published_jobs_public`, `employer_public_branding` and `business_pages`
-with the public key.
+`page-prerender`, `blog-not-found`, `job-feed*`, `sitemap`, `where`) are
+public by nature: they read only `published_jobs_public`,
+`employer_public_branding` and `business_pages` with the public key, or the
+site's own built pages (`page-prerender` the app's shell for /open-jobs,
+/privacy and /terms; `blog-not-found` /blog/not-found.html, served with 404).
 
 ## Applying migrations
 

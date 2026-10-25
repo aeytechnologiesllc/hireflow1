@@ -170,12 +170,13 @@ const ALLOWED_TAGS = new Set([
 ]);
 const SAFE_HREF = /^(?:https?:|mailto:|tel:|\/|#)/i;
 
-function sanitizeFeedHtml(html) {
+export function sanitizeFeedHtml(html) {
   return String(html ?? "")
     // Drop dangerous elements and everything inside them first.
     .replace(/<(script|style|iframe|object|embed|form|svg|math)[\s\S]*?<\/\1\s*>/gi, "")
     .replace(/<(script|style|iframe|object|embed|form|svg|math)[^>]*>/gi, "")
-    .replace(/<[^>]+>/g, (tag) => {
+    // A tag starts with a letter: "5 < 6" is text (it used to eat up to the next ">").
+    .replace(/<\/?[a-zA-Z][^<>]*>/g, (tag) => {
       const m = /^<\/?([a-zA-Z0-9]+)/.exec(tag);
       const name = m ? m[1].toLowerCase() : "";
       if (!ALLOWED_TAGS.has(name)) return "";
@@ -189,7 +190,11 @@ function sanitizeFeedHtml(html) {
           : "<a>";
       }
       return `<${name}>`;
-    });
+    })
+    // What is left of a tag that never closed ("<img src=x onerror=…" at the
+    // end) is text, never markup (the Phase 7 security review, round 2).
+    .replace(/</g, "&lt;")
+    .replace(/&lt;(\/?(?:p|br|strong|b|em|i|u|s|strike|ul|ol|li|h1|h2|h3|h4|blockquote|code|pre|hr)>|a href="[^"<>]*" rel="noopener noreferrer">|a>|\/a>)/g, "<$1");
 }
 
 const BULLET = /^[•\-*·]\s*/;

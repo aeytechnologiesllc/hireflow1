@@ -168,6 +168,33 @@ check("the 121st message in an hour to one person is refused, saying so", refuse
 const toOther = await as(ANA, `insert into public.messages (sender_id, receiver_id, application_id, content) values ($1, $2, $3, 'hi')`, [ANA, OTHER_BIZ, APP_ANA]);
 check("…while a message to someone else still goes", toOther.ok, show(toOther));
 
+console.log("\nThe database's own time (20261025370000)\n");
+await db.exec(`alter table public.notifications add column if not exists created_at timestamptz default now();`);
+await db.exec(readFileSync(path.join(ROOT, "supabase/migrations/20261025370000_notifications_server_time.sql"), "utf8"));
+await db.exec(`delete from public.notifications; delete from private_rate_limit;`);
+await as(ANA, `insert into public.notifications (user_id, type, title, message, created_at) values ($1, 'system', 'ID papers were not deleted on time', 'x', '2099-01-01')`, [ANA]);
+const dated = (await pg(`select created_at from public.notifications where user_id = $1`, [ANA]))[0];
+check("a card someone writes to themself carries the database's time, never 2099", dated && new Date(dated.created_at).getFullYear() < 2099, JSON.stringify(dated));
+
+console.log("\nInterviews (20261025360000)\n");
+await db.exec(`create table public.interviews (id uuid primary key default gen_random_uuid(), application_id uuid, scheduled_at timestamptz, status text default 'scheduled', candidate_response text, duration_minutes int, proposed_times jsonb, employer_windows jsonb);
+  grant select, insert, update on public.interviews to authenticated;`);
+await db.exec(readFileSync(path.join(ROOT, "supabase/migrations/20261025360000_interview_write_limits.sql"), "utf8"));
+await db.exec(`delete from private_rate_limit`);
+const yearLong = await as(BIZ, `insert into public.interviews (application_id, scheduled_at, duration_minutes) values ($1, now() + interval '1 day', 525600) returning duration_minutes`, [APP_ANA]);
+const longRow = (await pg(`select duration_minutes from public.interviews limit 1`))[0];
+check("an interview lasts at most 240 minutes (a year was accepted)", yearLong.ok && longRow.duration_minutes === 240, JSON.stringify({ yearLong, longRow }));
+let interviewRefused = null;
+for (let i = 2; i <= 25; i += 1) {
+  const res = await as(BIZ, `insert into public.interviews (application_id, scheduled_at, duration_minutes) values ($1, now() + interval '1 day', 30)`, [APP_ANA]);
+  if (!res.ok) { interviewRefused = { i, error: res.error }; break; }
+}
+check("the 21st interview write in an hour for one applicant is refused, saying so", interviewRefused?.i === 21 && /too_many_interview_changes/.test(interviewRefused.error), JSON.stringify(interviewRefused));
+const otherApplicant = await as(BIZ, `insert into public.interviews (application_id, scheduled_at, duration_minutes) values ($1, now() + interval '1 day', 30)`, [APP_BEN]);
+check("…while another applicant can still be invited", otherApplicant.ok, otherApplicant.error);
+const kinds = (await as(ANA, `select public.client_send_allowed('message', $1) as m`, [BIZ]));
+check("messages and notifications keep their own counts", kinds.ok && kinds.rows[0].m === true, JSON.stringify(kinds));
+
 console.log("\nWho may call the counter\n");
 const anon = await as(null, `select public.client_send_allowed('message', $1)`, [BIZ]);
 check("someone not signed in cannot call it", !anon.ok, show(anon));

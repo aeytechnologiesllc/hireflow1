@@ -31,7 +31,10 @@ check("a business's careers page footer", /href=\{hiringLink\("careers_page"\)\}
 check("the open-jobs page's link (the Phase 7 growth audit: it went untagged)", /href=\{hiringLink\("open_jobs"\)\}/.test(read("src/pages/OpenJobs.tsx")));
 check("the job page, for applicants (not the business's own preview)", /\{job && !isEmployer && \(\s*<p[^>]*>\s*<a href=\{hiringLink\("job_page"\)\}/.test(read("src/pages/JobDetails.tsx")));
 check("the 'You've finished every step' screen", /href=\{hiringLink\("application_done"\)\}/.test(read("src/components/EvaluationScreen.tsx")));
-check("the printed flyer carries the address", /Powered by HireFlow · \$\{esc\(hiringLink\("flyer"\)/.test(read("src/cockpit/components/ShareKitDialog.tsx")));
+// The printed flyer names the plain address: a tagged link printed in capitals
+// looked broken, and typed as printed its tags never registered (the Phase 7
+// growth review).
+check("the printed flyer carries the plain address", /Powered by HireFlow · hireflownow\.com</.test(read("src/cockpit/components/ShareKitDialog.tsx")) && !/hiringLink\("flyer"\)/.test(read("src/cockpit/components/ShareKitDialog.tsx")));
 check("the front page carries the tags on to sign-up (so Admin → Growth sees them)", /utm_source/.test(read("public/carry-source.js")) && /staff\.hireflownow\.com\/auth/.test(read("public/carry-source.js")));
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);

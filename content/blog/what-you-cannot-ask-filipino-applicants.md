@@ -39,7 +39,7 @@ You are the employer for every job you post, on HireFlow or anywhere else. Secti
 
 Then wait. Collect the exact date of birth after the hire, from the ID or papers you ask for at that point. You may need it then for a contract, payroll or your records. By then the hiring decision is already made, so the date plays no part in who you hire.
 
-HireFlow never asks for a birth date, and its job writer is set to leave age, birth dates and marital status out of the questions it suggests. Any question you add to your own form is yours to word, so leave age and birth date out of those too, and read what the job writer suggests before you publish.
+HireFlow never asks for a birth date, and its job writer is set to leave age, birth dates and marital status out of the questions it suggests. Any question you add to your own form is yours to word, so leave birth dates and ages, in years or brackets, out of those too, and read what the job writer suggests before you publish.
 
 ## Check your job ad, too
 

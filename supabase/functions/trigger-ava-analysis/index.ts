@@ -714,8 +714,11 @@ async function runAvaAnalysis(ctx: AnalysisContext): Promise<AnalysisOutcome> {
       ? `\n\n=== CUSTOM FILE UPLOADS (NOT RESUMES - DO NOT ANALYZE AS RESUMES) ===
 These are supplementary files uploaded for specific questions. Evaluate them based on their stated purpose only.
 ${customFileAnswers.map((a: any) => 
-  `Question: "${a.question}"
-File URL: ${a.answer}
+  // The question is the business's; the "file" answer is the applicant's own
+  // words (anything mentioning ".pdf" lands here), so it is fenced too (the
+  // Phase 7 security review, round 2).
+  `Question: "${String(a.question ?? "").slice(0, 500)}"
+File: ${fenceApplicantText("uploaded file answer", String(a.answer ?? "").slice(0, 1000))}
 Purpose: This is a supplementary document for the above question. It is NOT a resume.`
 ).join("\n\n")}`
       : "";
@@ -769,7 +772,11 @@ Purpose: This is a supplementary document for the above question. It is NOT a re
     // it is this job's typing measure: the job has no typing step. A job that
     // still has one is judged, fingerprinted and scored on its typing test
     // alone, exactly as before (the judge is never shown a second figure).
-    const chatTypingInUse = chatTypingForJob(workflowSteps, chatSimulation?.typing ?? null);
+    // Not on an on-site job: its practice may be taken on a phone (nothing of
+    // it is computer-only, docs/COMPUTER-ONLY-TESTS.md), and a phone's typing
+    // read against a computer keyboard's bar would flag the applicant for the
+    // phone (the second Phase 7 product audit).
+    const chatTypingInUse = job?.is_remote === false ? null : chatTypingForJob(workflowSteps, chatSimulation?.typing ?? null);
     const salesSimulation = readChatSimulationResult(parsedNotes.salesSimulationResult);
     const chatInterview = readChatInterviewResult(parsedNotes.chatInterviewResult);
     // The owner's own deal-breaker answers on the form (questions with
@@ -968,14 +975,14 @@ ${phaseList.length > 0 ? phaseList.map((p: string) => `- ${p}`).join("\n") : "- 
 CRITICAL INSTRUCTION: In your PHASE PERFORMANCE SUMMARY, you must ONLY include phases that are listed above. Do NOT mention phases that were NOT part of this job's workflow. For example, if there is no "typing_test" in the workflow above, do NOT say "Typing Test: Not Completed" - simply omit it entirely.
 
 === CANDIDATE INFORMATION (from Application Form) ===
-Candidate Name (as provided in application): ${candidateName}
-Candidate Email (as provided in application): ${candidateEmail}
-${applicationPhone ? `Candidate Phone (as provided in application): ${applicationPhone}` : ""}
+Candidate Name (as provided in application): ${fenceApplicantText("name", String(candidateName ?? "").slice(0, 200))}
+Candidate Email (as provided in application): ${fenceApplicantText("email", String(candidateEmail ?? "").slice(0, 200))}
+${applicationPhone ? `Candidate Phone (as provided in application): ${fenceApplicantText("phone", String(applicationPhone).slice(0, 60))}` : ""}
 
 IMPORTANT FOR CROSS-REFERENCE: Compare resume contact info against the ABOVE application-provided values.
 The account login email (${profile?.email || "unknown"}) may differ from the application email - this is NORMAL and should NOT be flagged as a mismatch.
-Only flag as a "name mismatch" if the resume name differs from "${candidateName}" above.
-Only flag as an "email mismatch" if the resume email differs from "${candidateEmail}" above.
+Only flag as a "name mismatch" if the resume name differs from the application name above.
+Only flag as an "email mismatch" if the resume email differs from the application email above.
 
 === PROFILE METADATA (for context only, NOT for cross-reference) ===
 Account Email: ${profile?.email || "Not provided"} (NOTE: This is the login email, may differ from application email - do NOT use for mismatch detection)
@@ -1973,7 +1980,7 @@ serve(async (req) => {
       .from("applications")
       .select(`
         *,
-        jobs(title, description, requirements, responsibilities, skills_required, experience_level, job_type, workflow_steps, passing_score, processing_mode, quiz_questions, application_questions, require_resume, required_wpm, employer_id),
+        jobs(title, description, requirements, responsibilities, skills_required, experience_level, job_type, workflow_steps, passing_score, processing_mode, quiz_questions, application_questions, require_resume, required_wpm, employer_id, is_remote),
         application_evaluations(ai_score, ai_analysis, ai_scorecard, phase_ai_analysis, employer_notes)
       `)
       .eq("id", applicationId)

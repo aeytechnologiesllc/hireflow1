@@ -63,7 +63,7 @@ function edgePayloadToFlow(req: GenerateFlowRequest, payload: EdgeFlowPayload): 
     order: order++,
     title: "A few quick questions",
     candidateDescription: "Availability, experience, and why this role.",
-    rationale: rationales[r++] ?? "A quick filter for fit.",
+    rationale: rationales[r++] || "A quick filter for fit.",
     config: { kind: "application", questions: appQs },
     rubric: {
       criteria: appQs.length
@@ -88,7 +88,7 @@ function edgePayloadToFlow(req: GenerateFlowRequest, payload: EdgeFlowPayload): 
     order: order++,
     title: "Short timed scenarios",
     candidateDescription: "Real situations from a typical day on the job.",
-    rationale: rationales[r++] ?? "Timed judgment under a little pressure.",
+    rationale: rationales[r++] || "Timed judgment under a little pressure.",
     config: {
       kind: "quiz",
       timeLimitSec: spec.quizMin * 60,
@@ -123,7 +123,7 @@ function edgePayloadToFlow(req: GenerateFlowRequest, payload: EdgeFlowPayload): 
       order: order++,
       title: "Handle a real moment",
       candidateDescription: sims[0].prompt,
-      rationale: rationales[r++] ?? "Practical role-play on your biggest risks.",
+      rationale: rationales[r++] || "Practical role-play on your biggest risks.",
       config: {
         kind: "simulation",
         scenarios: sims.map((s, i) => ({ id: `sim${i}`, title: s.title, prompt: s.prompt })),
@@ -154,7 +154,7 @@ function edgePayloadToFlow(req: GenerateFlowRequest, payload: EdgeFlowPayload): 
     order: order++,
     title: WRITTEN_INTERVIEW_TITLE,
     candidateDescription: WRITTEN_INTERVIEW_DESCRIPTION,
-    rationale: rationales[r++] ?? "Their own words, in writing — clarity, judgment, ownership.",
+    rationale: rationales[r++] || "Their own words, in writing — clarity, judgment, ownership.",
     config: {
       kind: "voice_interview",
       maxCallLengthSec: spec.callMin * 60,

@@ -8,6 +8,7 @@ import {
   formatVideoIntroPhaseAnalysis,
   isPlausibleVideoObjectPath,
   isValidDuration,
+  isVideoStep,
   resolveVideoStepType,
   type WorkflowStepLite,
 } from "./logic.ts";
@@ -149,6 +150,9 @@ serve(async (req) => {
 
     const workflowSteps = ((appRow as { jobs?: { workflow_steps?: unknown } }).jobs?.workflow_steps ??
       []) as WorkflowStepLite[];
+    if (!isVideoStep(workflowSteps, stepId)) {
+      return jsonResponse({ error: "This step is not a video step", code: "not_a_video_step" }, 409);
+    }
     const stepType = resolveVideoStepType(workflowSteps, stepId) as StepType;
 
     const recordedAt = new Date().toISOString();

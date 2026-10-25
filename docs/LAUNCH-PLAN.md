@@ -713,7 +713,8 @@ up the owner's AI bill while billing is off.
    `delete-account` for the applicant's own account.
 4. **Cost guardrails, not a paywall** (nothing may be gated while billing is
    off): a per-business daily AI budget (scores, chat turns, job writing)
-   with a plain message when reached and `platform_admins` exempt; the
+   with a plain message when reached (HireFlow's own business on its own,
+   larger day since Phase 7, `ai_platform_business_daily_call_cap`); the
    platform-wide budget from Phase 1; alerts to the owner (email through the
    system-only kind) at 80% and 100%. The "first job free, then pay" gate
    ships with Stripe, not here.
@@ -941,6 +942,113 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
+
+### 2026-10-25 (evening) — Phase 7 security review, round 2; Phase 5 round 7; Phase 6 round 5; staff columns round 3; growth round 2
+
+- **Security, round 2** (a fresh reviewer; 4 high, 10 medium, ~15 low). Fixed:
+  - *High:* a business could insert a document already "signed" and /verify
+    vouched for it: a browser's document now starts pending and unsigned,
+    with a database-made code (`documents_start_unsigned`, live as 20261025140322). The
+    countersign burned the applicant's signature into whatever its address
+    served: it now reads the sender's own upload from the documents bucket
+    and refuses one that does not hash to v1; the signing view frames only
+    such a file. /verify says verified only for a document signed by both
+    and finalized. Any test could be skipped through complete-video-intro:
+    it now refuses every step that is not a video step. One AI budget unit
+    paid for a prompt of any size: units are now one per 40,000 characters
+    plus one per file or image (a normal call is still one).
+  - *Medium:* an applicant may now move their status only from in_progress
+    to pending, rewrite answers only while the form is theirs, and re-apply
+    to a job they withdrew from only after 30 days; nobody but the applicant
+    points resume_url at a file (`applicant_writes_round2`, live as 20261025140330).
+    Applicant text is fenced everywhere in Ava's prompts (name, email, phone,
+    file answers, ai-analyze's cross-reference block). Interview writes are
+    counted (20 an hour to one applicant, 200 in all) and last 5–240 minutes;
+    reminders pick the soonest still owed (`interview_write_limits`, live as 20261025140338).
+  - *Low:* the feed cleaner turns an unclosed tag into text; jooble's job id
+    is letters and digits only; the prerendered pages take a business's "$`"
+    as text; delete-account hands over only the business's own chats; the
+    applicant and the team have separate report allowances.
+  - Left, with reasons: step verdicts in notes (chatInterviewResult's
+    recommendation and concerns, portfolioResult.aiAnalysis) and
+    voice_interview_result stay applicant-readable: moving them into the
+    staff table means moving every reader, as the evaluation move did (next
+    round of staff columns). Many throwaway accounts can still drain AI days
+    and the shared email-code ceiling, and Supabase Auth's email limit is 30
+    an hour for the whole project: Turnstile (the owner's keys) and the
+    Resend plan (the owner's account) decide those. Email confirmation stays
+    off (the owner's call), so HireFlow can be made to mail an address
+    someone signed up with.
+- **Phase 5, round 7:** ID-deletion alerts could be switched off with a
+  self-written card dated 2099: a browser's card now carries the database's
+  time (`notifications_server_time`, live as 20261025140346) and document-cleanup reads only
+  the admins' bells, tells each failure apart and tells leftover files too.
+  The improvement report and the portfolio show the server's own words on a
+  refusal. remove-applicant compares shared files decoded both ways and
+  drops "#" fragments. The Terms, Help and Privacy Policy say the new pause
+  rule and the video introduction. The budget and removal guards read block
+  comments and the latest definitions.
+- **Phase 6, round 5:** the no-age filter rewritten: an age is the
+  applicant's unless it is attached to the person it describes (patients
+  aged 65, a 70-year-old caller); numbers near "applicants", answer options
+  and metrics are no ages; the reviewer's ~130 wordings are in the test (374
+  checks). Rationales keep their positions; the practice prompt, step titles
+  and the written interviewer carry the rule. Posts no longer say "never ask
+  for age" beside HireFlow's own 18+ question; the fake-applications guide
+  says what HireFlow notes during tests; two draft tricks fail the build.
+- **Staff columns, round 3:** nothing exposed or lost; no leftover scores live
+  (0 resume scores, scorecards in notes or scored reports). The test now
+  has Supabase's default grants (it passed without the REVOKE before); the
+  guard refuses an upsert into applications in a migration or a split chain.
+- **Growth, round 2** (a fresh reviewer, read-only): the front page's one
+  explaining line is hidden only below 520 px tall (it was at 700, every
+  laptop); the flyer prints "hireflownow.com", not a tagged address in
+  capitals; campaign tags ride on to the blog and Open jobs and a visitor's
+  tags replace the whole set; the business sign-up headline names the job.
+  Admin → Growth shows every kind of public page with its sources, and
+  campaigns by name, for visits and new accounts (`admin_growth_channels`,
+  live as 20261025140402); the hiring team's own clicks from the staff host are left out.
+  A missing guide answers 404 (`api/blog-not-found.mjs`; it was a 200
+  "soft 404"), guides paint before their font arrives, and /open-jobs,
+  /privacy and /terms carry their own title, description and canonical
+  before scripts run (`api/page-prerender.mjs`). docs/DISTRIBUTION.md no
+  longer says Google for Jobs is working. Left for the owner: a public way to
+  reach HireFlow before sign-up and the LLC's details (owner inputs), Google
+  for Jobs for local businesses, the "chat and phone" claim, the name shared
+  with other "HireFlow" products, "Gaming" in the front page's list.
+- **Product, round 2** (a fresh reviewer; 1 high, 4 medium, 9 low; nothing
+  blocking). Fixed:
+  - *High:* a remote job built with the Type field left on "On-site" and
+    "Remote" as its place went live on-site, with no connection check: the
+    place now decides, "Manila, Philippines" has a country, and Edit job no
+    longer re-decides remote work from the description ("our dental office"
+    made a remote job on-site on save).
+  - *Medium:* on-site jobs are not held to a typing bar a phone cannot meet;
+    a business is told in the app when its day's AI budget is reached
+    (`ai_budget_tell_business`, live as 20261025140354); applicants are told their form
+    answers save as they type and the team can read them (the welcome screen
+    said only what they submit is shared; the Privacy Policy says it too);
+    the form no longer warns "That's been noted" or shows "1 thing flagged"
+    for switching away, since nobody is told.
+  - *Low:* every email button and link, the signing certificate and the
+    improvement report are ink and brass, not green, and the no-green guard
+    now reads the edge functions' emails and PDFs; Settings' interview
+    switch says what it does and Phase Updates shows only to the account
+    with the voice interview; Edit job opens on "Job basics" with only what
+    it saves, and the passing score says it moves nobody; the offer letter
+    takes full or part time from the job and drops "remote" wording on
+    on-site jobs; the certificate says how the document was signed and links
+    /verify/<its code> instead of claiming ESIGN compliance; the Privacy
+    Policy no longer says applicants can turn emails off in Settings;
+    applicant buttons say "Start the chat practice", never "Start Chat Sim"
+    or "Start Handle a rush-hour order"; the applicant sign-in and sign-up
+    fields carry autocomplete. Guard `product-audit-round-2-holds`.
+- **Phase 4, round 9** (fixed in its own session, merged here): a support
+  line keeps only its own people; stores, clinics, booking agents, call
+  centre experience, how-to-apply text, blended channels, call questions,
+  office front desks and stores selling phones read right again (146 new
+  checks, 1472 in all; 4610 of 4660 regression cases, the 50 left are old
+  gaps or conflicts between earlier rounds, listed in the session's report).
 
 ### 2026-10-25 (late afternoon) — Phase 7 security audit, round 1; Phase 4 round 8; Phase 5 round 6; Phase 6 round 4; growth audit
 

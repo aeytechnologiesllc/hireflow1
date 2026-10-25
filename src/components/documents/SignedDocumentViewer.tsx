@@ -3,7 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, SUPABASE_URL } from "@/integrations/supabase/client";
+import { ownDocumentsPath } from "@/lib/ownDocumentFile";
 import { motion, AnimatePresence } from "framer-motion";
 import { jsPDF } from "jspdf";
 import { QRCodeCanvas } from "qrcode.react";
@@ -295,12 +296,15 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
         const jsonString = atob(base64Content);
         const parsed = JSON.parse(jsonString) as DocumentData;
         
-        // Check if this is an uploaded PDF (has uploadedFileUrl in the parsed data)
-        if (parsed.uploadedFileUrl) {
-          setDocumentData(parsed);
-        } else {
-          setDocumentData(parsed);
-        }
+        // An uploaded PDF's address is the sender's own words: it is shown,
+        // fetched and framed only when it is a file in this project's own
+        // documents bucket (src/lib/ownDocumentFile.ts; the Phase 7 security
+        // review: any http(s) address became a frame inside the signing view).
+        setDocumentData(
+          parsed.uploadedFileUrl && !ownDocumentsPath(parsed.uploadedFileUrl, SUPABASE_URL)
+            ? { ...parsed, uploadedFileUrl: undefined }
+            : parsed,
+        );
       } else if (document.file_url.startsWith("data:text/plain;base64,")) {
         const base64Content = document.file_url.split(",")[1];
         const content = atob(base64Content);

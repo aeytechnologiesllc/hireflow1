@@ -20,7 +20,9 @@ export default async function handler(req, res) {
       // correctly however Jooble tokenizes it.
       const region = [e.isRemote ? "Remote" : null, e.city, e.state, e.country].filter(Boolean).join(", ");
       return [
-        `  <job id="${String(e.reference).replace(/"/g, "")}">`,
+        // An id attribute of letters, digits and dashes only: a business's own
+        // job code with "&" or "<" made the whole feed invalid XML (round 2).
+        `  <job id="${String(e.reference).replace(/[^A-Za-z0-9_-]/g, "")}">`,
         `    <link>${cdata(e.urlFor("jooble"))}</link>`,
         `    <name>${cdata(e.job.title)}</name>`,
         `    <region>${cdata(region)}</region>`,

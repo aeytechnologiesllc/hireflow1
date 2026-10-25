@@ -58,7 +58,7 @@
 
 The app icon is **the logo's own mark**: the brass rising line `#E0B96A` on the ink tile `#14120E`, the same mark as `Wordmark.tsx` and the front page's bar (recoloured 2026-10-25 when the owner locked the colours; it was the jade line on a dark jade tile, chosen 2026-10-11).
 
-**The colours are locked (owner, 2026-10-25): ink and ivory with a brass accent.** No green anywhere. The front page stays dark; the app follows the device (Day: ink on ivory; Night: ivory on ink). The action colour is `--action` (ink by day, ivory at night; it was `--jade`); brass is Ava's verdict, the score and anything that costs money, never a plain button. Guards `no-jade-tokens-left` and `brass-only-for-ava-score-money` hold it. Every size is made by `node scripts/make-app-icons.mjs`; docs in [`BRANDING.md`](BRANDING.md). **Do NOT revive the old dark-tile orb icon** (removed 2026-06-30) — see the "DO NOT REVIVE" section in BRANDING.md. Direction 5 (brass flow) is kept as a backup at `branding/backup-icon-flow.png`.
+**The colours are locked (owner, 2026-10-25): ink and ivory with a brass accent.** No green anywhere. The front page stays dark; the app follows the device (Day: ink on ivory; Night: ivory on ink). The action colour is `--action` (ink by day, ivory at night; it was `--jade`); brass is Ava's verdict, the score and anything that costs money, never a plain button. Guards `no-jade-tokens-left` (which also reads the edge functions' emails, the signing certificate and the improvement report, since 2026-10-25) and `brass-only-for-ava-score-money` hold it. Every size is made by `node scripts/make-app-icons.mjs`; docs in [`BRANDING.md`](BRANDING.md). **Do NOT revive the old dark-tile orb icon** (removed 2026-06-30) — see the "DO NOT REVIVE" section in BRANDING.md. Direction 5 (brass flow) is kept as a backup at `branding/backup-icon-flow.png`.
 
 ## The October 2026 hiring run was the owner's own (noted 2026-10-24)
 
@@ -246,6 +246,22 @@ these either; each has a guard or a test that CI runs:
   Guard `sales-grading-own-case`.
 - ava-voice-session reads the resume only through `_shared/resume.ts`
   (the applicant's own file). Guard `voice-session-reads-only-own-resume`.
+- (Round 2.) A document a browser inserts starts pending and unsigned with
+  a database-made code (`20261025340000_documents_start_unsigned.sql`); the
+  countersign reads the sender's own upload from the documents bucket and
+  refuses one that does not hash to v1 (`_shared/ownDocumentFile.ts`); the
+  signing view frames only such a file; /verify says verified only for a
+  document signed by both and finalized. complete-video-intro takes only a
+  video step. AI budget units grow with the prompt (one per 40,000
+  characters, plus one per file or image; `budgetUnitsFor`).
+- (Round 2.) From their own session an applicant moves status only from
+  in_progress to pending, rewrites answers only while the form is theirs,
+  and re-applies to a job they withdrew from after 30 days; only they set
+  resume_url (`20261025350000_applicant_writes_round2.sql`). Interview
+  writes count against the writer (20 an hour to one applicant, 200 in all)
+  and last 5–240 minutes (`20261025360000`). A browser's notification gets
+  the database's time (`20261025370000`). Applicant text is fenced in every
+  scoring prompt, ai-analyze included.
 
 **Trusted-results foundation is built AND live-enforced.** The
 `recordStepResult` path and the `public.trusted_result_enforcement` table

@@ -273,11 +273,21 @@ serve(async (req) => {
       : await supabaseAdmin.from('team_members').select('employer_id').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1);
     const teamOwner = (teamRows ?? [])[0]?.employer_id as string | undefined;
     if (teamOwner) {
-      const handover = [
-        supabaseAdmin.from('messages').update({ sender_id: teamOwner }).eq('sender_id', user.id),
-        supabaseAdmin.from('messages').update({ receiver_id: teamOwner }).eq('receiver_id', user.id),
-        supabaseAdmin.from('documents').update({ sender_id: teamOwner }).eq('sender_id', user.id),
-      ];
+      // Only what belongs to that business: the chats and documents on its own
+      // jobs' applications. Every message of the account went before, so a
+      // person who had left a team (a revoked row is the newest too) handed
+      // their other chats to the business they left (the Phase 7 security
+      // review, round 2).
+      const ownerApplicationIds = await fetchIdsIn(supabaseAdmin, 'applications', 'job_id', await fetchIds(supabaseAdmin, 'jobs', 'employer_id', teamOwner));
+      const handover = [];
+      for (let i = 0; i < ownerApplicationIds.length; i += 200) {
+        const chunk = ownerApplicationIds.slice(i, i + 200);
+        handover.push(
+          supabaseAdmin.from('messages').update({ sender_id: teamOwner }).eq('sender_id', user.id).in('application_id', chunk),
+          supabaseAdmin.from('messages').update({ receiver_id: teamOwner }).eq('receiver_id', user.id).in('application_id', chunk),
+          supabaseAdmin.from('documents').update({ sender_id: teamOwner }).eq('sender_id', user.id).in('application_id', chunk),
+        );
+      }
       for (const step of handover) {
         const { error } = await step;
         if (error) {

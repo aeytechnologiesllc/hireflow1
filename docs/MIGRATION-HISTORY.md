@@ -428,6 +428,12 @@ the next. Same migration, different version stamp, as in section 2: match by
 | `20261025310000_notification_and_message_limits.sql` | `20261025121142` | `notification_and_message_limits` |
 | `20261025320000_team_invite_codes_stronger.sql` | `20261025122545` | `team_invite_codes_stronger` |
 | `20261025330000_salary_keeps_cents.sql` | `20261025123012` | `salary_keeps_cents` |
+| `20261025340000_documents_start_unsigned.sql` | `20261025140322` | `documents_start_unsigned` |
+| `20261025350000_applicant_writes_round2.sql` | `20261025140330` | `applicant_writes_round2` |
+| `20261025360000_interview_write_limits.sql` | `20261025140338` | `interview_write_limits` |
+| `20261025370000_notifications_server_time.sql` | `20261025140346` | `notifications_server_time` |
+| `20261025380000_ai_budget_tell_business.sql` | `20261025140354` | `ai_budget_tell_business` |
+| `20261025390000_admin_growth_channels.sql` | `20261025140402` | `admin_growth_channels` |
 
 The live copies carry a short header pointing at the repo file instead of
 the repo file's full comment block; the SQL statements are identical.

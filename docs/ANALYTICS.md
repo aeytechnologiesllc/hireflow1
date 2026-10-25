@@ -107,8 +107,14 @@ and an account kept no trace of how its owner arrived. Now:
    counted since before 2026-10-25, including a 121-view day on 2026-10-04).
 
 The platform admin reads it all on **Admin → Growth** (`admin_growth(p_days)`,
-`supabase/migrations/20261025080000_admin_growth.sql`): front-page visits by
-source, sign-up page visits, and new accounts by role and source.
+`supabase/migrations/20261025080000_admin_growth.sql`, now
+`20261025390000_admin_growth_channels.sql`): front-page visits by source,
+sign-up page visits, new accounts by role and source, and (since the growth
+audit's second round) every kind of public page — front page, guides, Open
+jobs, job pages, business careers pages, apply-with-a-code — with its top
+sources, plus campaigns by name (source, medium, campaign) for visits and
+for new accounts. Visits from the staff host (the hiring team's own clicks)
+are left out of the page kinds and campaigns.
 
 **Tag every link you post**, so each channel shows by name:
 

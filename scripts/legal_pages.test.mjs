@@ -62,7 +62,7 @@ check("it says a person, not software, declines an application", /No application
   const code = scoring.split("\n").filter((line) => !line.trim().startsWith("//") && !line.trim().startsWith("*")).join("\n");
   check("…and the scoring code still never declines anyone itself: it only recommends", !/status:\s*["']rejected["']/.test(code) && !/rejected_by_type:\s*["']ava["']/.test(code) && /NEVER auto-rejects/.test(scoring));
 }
-check("it says what the fairness checks record, and that the screen is not recorded", /We do not record your screen, your camera or your microphone\./.test(privacy) && /leaving the tab or window/.test(privacy) && /developer tools/.test(privacy));
+check("it says what the fairness checks record, that the screen is not recorded, and when the camera is (a job's video introduction; the seventh Phase 5 review)", /We do not record your screen, and we do not record your camera or microphone, except for a video introduction or a spoken interview a job asks for, recorded only while you record it\./.test(privacy) && /Video introduction, if a job asks for one/.test(privacy) && /leaving the tab or window/.test(privacy) && /developer tools/.test(privacy));
 check("…which is what the integrity hook records", ["paste", "contextmenu", "visibilitychange"].every((word) => read("src/hooks/useTestIntegrity.ts").includes(word)));
 check("it says the connection check keeps IP addresses and device details", /the IP addresses seen during the check/.test(privacy) && /operating system, browser, screen size/.test(privacy));
 check("it says signing keeps the IP address and browser", /your IP address and your browser type/.test(privacy));

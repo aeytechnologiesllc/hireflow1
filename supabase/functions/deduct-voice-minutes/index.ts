@@ -525,7 +525,7 @@ async function sendVoiceNotification(
           ${activeJobsCount > 0 ? `<p>Candidates applying to your <strong>${activeJobsCount} active job${activeJobsCount > 1 ? 's' : ''}</strong> cannot complete AI voice interviews until you purchase more minutes.</p>` : '<p>Candidates cannot complete AI voice interviews until you purchase more minutes.</p>'}
           <p style="color: #666;">Purchase more voice minutes immediately to restore AI voice interview functionality.</p>
           <p style="margin-top: 24px;">
-            <a href="${baseUrl}/settings?tab=subscription" style="display: inline-block; background: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500;">Purchase Voice Minutes Now</a>
+            <a href="${baseUrl}/settings?tab=subscription" style="display: inline-block; background: #14120E; color: #FAF7F1; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500;">Purchase Voice Minutes Now</a>
           </p>
           <p style="color: #666; font-size: 13px; margin-top: 32px; border-top: 1px solid #eee; padding-top: 16px;">
             — The HireFlow Team
@@ -541,7 +541,7 @@ async function sendVoiceNotification(
           ${activeJobsCount > 0 ? `<p style="color: #666;">You have <strong>${activeJobsCount} active job${activeJobsCount > 1 ? 's' : ''}</strong> that may be affected if you run out of minutes.</p>` : ''}
           <p style="color: #666;">Purchase more voice minutes to ensure uninterrupted AI voice interviews for your candidates.</p>
           <p style="margin-top: 24px;">
-            <a href="${baseUrl}/settings?tab=subscription" style="display: inline-block; background: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500;">Purchase Voice Minutes</a>
+            <a href="${baseUrl}/settings?tab=subscription" style="display: inline-block; background: #14120E; color: #FAF7F1; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500;">Purchase Voice Minutes</a>
           </p>
           <p style="color: #666; font-size: 13px; margin-top: 32px; border-top: 1px solid #eee; padding-top: 16px;">
             — The HireFlow Team

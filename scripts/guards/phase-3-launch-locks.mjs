@@ -181,6 +181,26 @@ export default [
           }
         });
       }
+      // What the server draws: emails, the signing certificate and the
+      // improvement report (product audit, round 2: the email button, its
+      // link and the certificate were still green). A PDF writes colours as
+      // fractions, rgb(0.13, 0.55, 0.13), or as { r: 0x0f, g: 0x6b, b: 0x4f }.
+      const fraction = /\brgb\(\s*([01]?(?:\.\d+)?)\s*,\s*([01]?(?:\.\d+)?)\s*,\s*([01]?(?:\.\d+)?)\s*\)/g;
+      const channels = /\{\s*r:\s*(0x[0-9a-f]{1,2}|\d{1,3})\s*,\s*g:\s*(0x[0-9a-f]{1,2}|\d{1,3})\s*,\s*b:\s*(0x[0-9a-f]{1,2}|\d{1,3})\s*\}/gi;
+      for (const rel of await walk("supabase/functions", [".ts"])) {
+        if (/\.test\.ts$/.test(rel)) continue;
+        const text = (await read(rel)) ?? "";
+        text.split("\n").forEach((line, i) => {
+          const where = `${rel}:${i + 1}`;
+          const found = [];
+          for (const m of line.matchAll(values)) found.push([m[0], rgbOf(m[0])]);
+          for (const m of line.matchAll(fraction)) found.push([m[0], m.slice(1, 4).map((v) => Math.round(Number(v) * 255))]);
+          for (const m of line.matchAll(channels)) found.push([m[0], m.slice(1, 4).map((v) => Number(v))]);
+          for (const [value, rgb] of found) {
+            if (rgb && isGreen(rgb)) detail.push(`${where}  green colour ${value}: ${line.trim().slice(0, 100)}`);
+          }
+        });
+      }
       if ((await read("src/styles/candidate-jade.css")) != null) detail.push("src/styles/candidate-jade.css is back (it is candidate-theme.css)");
       return detail.length ? { ok: false, detail } : { ok: true };
     },

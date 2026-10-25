@@ -105,10 +105,17 @@
   var sessionUtm = (function () {
     try {
       var params = new URLSearchParams(window.location.search);
+      // The same tidy value carry-source.js puts on the sign-up link, so a
+      // visit and the account it makes say the same source ("YouTube" and
+      // "youtube" were two; the Phase 7 growth review).
+      var tidy = function (v) {
+        var t = String(v || "").trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+        return t || null;
+      };
       return {
-        source: params.get("utm_source") || null,
-        medium: params.get("utm_medium") || null,
-        campaign: params.get("utm_campaign") || null,
+        source: tidy(params.get("utm_source")),
+        medium: tidy(params.get("utm_medium")),
+        campaign: tidy(params.get("utm_campaign")),
       };
     } catch (e) {
       return { source: null, medium: null, campaign: null };

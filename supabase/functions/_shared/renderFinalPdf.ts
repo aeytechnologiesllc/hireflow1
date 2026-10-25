@@ -24,6 +24,14 @@ import { ALLURA_TTF_BASE64 } from "./fonts/allura.ts";
 // esm.sh serves fontkit as a default export; its types declare named ones only.
 const fontkit = (fontkitModule as unknown as { default?: typeof fontkitModule }).default ?? fontkitModule;
 
+// The locked colours (CLAUDE.md, "Branding"): ink, ivory, and brass for the
+// accent. The certificate used to be green.
+const INK = rgb(0.078, 0.071, 0.055); // #14120E
+const BRASS = rgb(0.541, 0.392, 0.125); // #8A6420, brass dark enough to read on white
+const IVORY = rgb(0.98, 0.969, 0.945); // #FAF7F1
+// Where anyone checks a copy (src/App.tsx, /verify/:documentCode).
+const VERIFY_ORIGIN = "hireflownow.com";
+
 export interface SignatureOverlay {
   signatureDataUrl: string;
   x: number; // percentage (0-100)
@@ -389,7 +397,7 @@ function appendCertificatePage(pdfDoc: PDFDocument, helvetica: PDFFont, helvetic
     y,
     size: 20,
     font: helveticaBold,
-    color: rgb(0.13, 0.55, 0.13),
+    color: INK,
   });
   // The rule sits under the title (it used to be drawn through it).
   certPage.drawRectangle({
@@ -397,7 +405,7 @@ function appendCertificatePage(pdfDoc: PDFDocument, helvetica: PDFFont, helvetic
     y: y - 10,
     width: certWidth - margin * 2,
     height: 2,
-    color: rgb(0.13, 0.55, 0.13),
+    color: BRASS,
   });
   y -= 36;
 
@@ -457,23 +465,26 @@ function appendCertificatePage(pdfDoc: PDFDocument, helvetica: PDFFont, helvetic
     y: complianceBoxY,
     width: certWidth - margin * 2 + 10,
     height: 75,
-    color: rgb(0.95, 0.98, 0.95),
-    borderColor: rgb(0.13, 0.55, 0.13),
+    color: IVORY,
+    borderColor: BRASS,
     borderWidth: 1,
   });
   y -= 10;
-  certPage.drawText("LEGAL COMPLIANCE STATEMENT", {
+  certPage.drawText("HOW THIS WAS SIGNED", {
     x: margin,
     y,
     size: 10,
     font: helveticaBold,
-    color: rgb(0.13, 0.55, 0.13),
+    color: INK,
   });
   y -= 16;
+  // No claim that the signing "complies with" a law: whether an e-signature
+  // holds depends on the document and the place (product audit, round 2).
+  // Say what was done, and where anyone can check it.
   const complianceText = [
-    "This document was electronically signed and verified in compliance with the U.S. ESIGN Act",
-    "and applicable state laws. Document integrity is protected by SHA-256 cryptographic hashing,",
-    "and every signing event is recorded in a tamper-evident audit trail available at /verify.",
+    "Both parties signed this document electronically. Each version was fingerprinted with SHA-256,",
+    "and every signing event is kept in an audit trail that cannot be edited afterwards.",
+    `Check this copy at ${VERIFY_ORIGIN}/verify/${cert.documentCode}`,
   ];
   for (const line of complianceText) {
     certPage.drawText(line, { x: margin, y, size: 8, font: helvetica, color: rgb(0.3, 0.3, 0.3) });

@@ -86,11 +86,12 @@ function inject(shell, head) {
     `<meta name="twitter:image" content="${esc(head.image)}" />` +
     `<link rel="canonical" href="${esc(head.url)}" />`;
   let out = shell
-    .replace(/<title>[\s\S]*?<\/title>/i, `<title>${esc(head.title)}</title>`)
+    // Function replacers: "$`" in a business's text is text (round 2).
+    .replace(/<title>[\s\S]*?<\/title>/i, () => `<title>${esc(head.title)}</title>`)
     .replace(/<link\s+rel="canonical"[^>]*>\s*/gi, "")
     .replace(/<meta\s+property="og:(title|description|url|type|site_name|image(:[a-z]+)?)"[^>]*>\s*/gi, "")
     .replace(/<meta\s+name="(twitter:(card|title|description|image)|description)"[^>]*>\s*/gi, "");
-  out = out.includes("</head>") ? out.replace("</head>", tags + "</head>") : out + tags;
+  out = out.includes("</head>") ? out.replace("</head>", () => tags + "</head>") : out + tags;
   return out;
 }
 

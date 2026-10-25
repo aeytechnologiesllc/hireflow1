@@ -107,10 +107,18 @@ Deno.serve(async (req) => {
     // Determine final hash
     const finalHash = document.v3_hash || document.v2_hash || document.document_hash;
 
-    // Verify integrity (simple check - document has expected data)
-    const isComplete = document.status === 'signed';
-    const hasRequiredHashes = isComplete ? !!finalHash : true;
-    const verified = hasRequiredHashes && !document.is_voided;
+    // "Verified" means signed by both and finalized by the signing function:
+    // signed, locked, its final PDF hashed and its v3 hash set, and not voided.
+    // A pending or declined document used to read "verified" too (the Phase 7
+    // security review, round 2): a business could title a pending one "Signed
+    // agreement" and the page showed it green.
+    const isComplete = document.status === 'signed' && document.is_locked === true && !!document.final_pdf_hash && !!document.v3_hash;
+    const verified = isComplete && !document.is_voided;
+    const notFinishedMessage = !isComplete && !document.is_voided
+      ? document.status === 'declined'
+        ? 'This document was declined. It was never signed.'
+        : 'This document has not been signed by everyone yet.'
+      : undefined;
 
     // Report a voided document truthfully — it was cancelled by the
     // employer, not tampered with. Withdrawn (candidate never signed) and
@@ -129,7 +137,7 @@ Deno.serve(async (req) => {
       finalHash,
       verified,
       isVoided: !!document.is_voided,
-      errorMessage: verified ? undefined : voidedMessage ?? 'Document integrity could not be verified',
+      errorMessage: verified ? undefined : voidedMessage ?? notFinishedMessage ?? 'Document integrity could not be verified',
     };
 
     // Signer names are only ever handed out to a caller who is actually a

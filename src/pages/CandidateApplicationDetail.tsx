@@ -43,7 +43,7 @@ import { useDocumentRequests, DocumentRequestWithDetails } from "@/hooks/useDocu
 import { DocumentRequestCard } from "@/components/documents/DocumentRequestCard";
 import { DocumentUploadDialog } from "@/components/documents/DocumentUploadDialog";
 import { phaseDurationEstimates } from "@/lib/phaseDurations";
-import { buildCandidateJourney, positionFor, titleFor } from "@/lib/candidateJourney";
+import { buildCandidateJourney, positionFor, startLabelFor, titleFor } from "@/lib/candidateJourney";
 import { stepHasResult, stepIsDone, stepRoute, whereCandidateStands } from "@/lib/journeyProgress";
 import { glyphForKind } from "@/components/glyphForKind";
 
@@ -795,12 +795,11 @@ export default function CandidateApplicationDetail() {
                     ) : (
                       <Play className="h-4 w-4" />
                     )}
-                    {/* Named after the step itself, the same words the
-                        next-step card uses ("Start Player chat practice"),
-                        not a generic label for its type. */}
+                    {/* The same words the next-step card uses, by the step's
+                        kind (startLabelFor); its own title is shown above. */}
                     {currentPhase.type === "application"
                       ? phaseActionMessages.application?.buttonText || "Complete Application"
-                      : `Start ${currentPhase.title}`}
+                      : startLabelFor(currentPhase.type)}
                   </Button>
                 )}
               </div>

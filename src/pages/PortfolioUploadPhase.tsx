@@ -385,8 +385,14 @@ export default function PortfolioUploadPhase() {
 
       if (submitError || !submitData?.ok) {
         console.error("[PortfolioUploadPhase] server-side submit failed:", submitError || submitData?.error);
+        // A limit or a refusal says what to do in its own words ("come back
+        // later today or tomorrow"); "please try again" made a limit worse
+        // (the seventh Phase 5 review).
+        const said = (refusal as { message?: unknown } | null)?.message;
         toast.error("Failed to submit portfolio", {
-          description: "Your files were uploaded, but we couldn't save your submission. Please try again.",
+          description: typeof said === "string" && said.trim()
+            ? `Your files were uploaded. ${said}`
+            : "Your files were uploaded, but we couldn't save your submission. Please try again.",
         });
         setIsSubmitting(false);
         return;

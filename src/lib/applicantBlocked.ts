@@ -31,5 +31,8 @@ export function applicationClosedMessage(error: unknown): string | null {
   const message = String((error as { message?: unknown }).message ?? "");
   if (/job_not_open/.test(message)) return "This job isn't taking applications right now.";
   if (/deadline has passed/i.test(message)) return "Applications for this job have closed.";
+  // A withdrawn, sent application starts over only after 30 days
+  // (20261025350000_applicant_writes_round2.sql).
+  if (/withdrew_recently/.test(message)) return "You withdrew from this job recently, so you can apply to it again 30 days after that. Message the hiring team if this was a mistake.";
   return null;
 }

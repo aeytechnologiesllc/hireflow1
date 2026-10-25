@@ -623,7 +623,8 @@ export default function Auth() {
               {authMode === "signup" ? "Start hiring" : "Sign in"}
             </span>
             <h1 className="mt-4 text-3xl lg:text-[2.6rem] leading-[1.08] text-center lg:text-left">
-              Hiring, handled by Ava.
+              {/* Says what the front page says: Ava is introduced inside, once they have an account (the Phase 7 growth review). */}
+              Hire support agents, tested before you meet them.
             </h1>
             <p className="mt-3 text-sm text-muted-foreground text-center lg:text-left">
               Looking for work?{" "}

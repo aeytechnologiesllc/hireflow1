@@ -441,7 +441,7 @@ console.log("\nThe application form keeps its own rules:\n");
   t.setHidden(false);
   t.h.visibilitychange(ev("visibilitychange"));
   check("a real tab switch on the form is counted", t.monitor.snapshot().flagged === 2);
-  check("…and gets the form's own wording", integrityToastFor(t.seen[2], "form")?.title === "Looks like you switched tabs");
+  check("…and the applicant is told nothing (the record keeps it; nobody is alerted)", integrityToastFor(t.seen[2], "form") === null);
 }
 
 /* --------------------------------------------------------------- sending */

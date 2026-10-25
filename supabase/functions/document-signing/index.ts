@@ -22,6 +22,7 @@ import {
 } from "./stateMachine.ts";
 import { computeV2Hash, computeV3Hash, sha256HexOfBytes, signatureHashInput } from "../_shared/documentHashChain.ts";
 import { reconcileCandidateSignatureChain } from "../_shared/countersignReconciliation.ts";
+import { ownDocumentsPath } from "../_shared/ownDocumentFile.ts";
 import { buildCompletionCertificate, type CertificateAuditEntry } from "../_shared/completionCertificateServer.ts";
 import { renderSignedUploadedPdf, renderTextDocumentPdf, type SignatureOverlay } from "../_shared/renderFinalPdf.ts";
 import { bestEffortIp } from "../_shared/bestEffortIp.ts";
@@ -115,6 +116,8 @@ interface DocumentRow {
   ip_address: string | null;
   document_code: string;
   created_at: string;
+  /** Who sent it (an uploaded file lives under their id in the documents bucket). */
+  sender_id?: string | null;
 }
 
 function toSigningState(doc: DocumentRow): DocumentSigningState {
@@ -680,9 +683,25 @@ Deno.serve(async (req) => {
 
         let finalBytes: Uint8Array;
         if (contentData.uploadedFileUrl) {
-          const originalResp = await fetch(contentData.uploadedFileUrl);
-          if (!originalResp.ok) throw new Error("Could not fetch the original uploaded PDF");
-          const originalBytes = await originalResp.arrayBuffer();
+          // From this project's own documents bucket only, and only the file
+          // that was sent: its bytes must hash to the v1_hash fixed when it
+          // was sent (_shared/ownDocumentFile.ts). A business could otherwise
+          // swap the file, or serve another one, and have the applicant's
+          // signature burned into a PDF they never saw.
+          const ownPath = ownDocumentsPath(contentData.uploadedFileUrl, Deno.env.get("SUPABASE_URL") ?? "");
+          if (!ownPath) throw new ChainReconciliationError("the uploaded file is not in this project's document storage");
+          // The sender's own upload (DocumentWizard stores it under their id),
+          // with its hash fixed when it was sent: never another business's file.
+          if (!reserved.sender_id || !ownPath.startsWith(`${reserved.sender_id}/`)) {
+            throw new ChainReconciliationError("the uploaded file is not the sender's own upload");
+          }
+          if (!reserved.v1_hash) throw new ChainReconciliationError("the uploaded file has no hash fixed when it was sent");
+          const { data: original, error: originalError } = await admin.storage.from("documents").download(ownPath);
+          if (originalError || !original) throw new Error("Could not read the original uploaded PDF");
+          const originalBytes = await original.arrayBuffer();
+          if ((await sha256HexOfBytes(new Uint8Array(originalBytes))) !== reserved.v1_hash) {
+            throw new ChainReconciliationError("the uploaded file is not the one that was sent (its hash is not v1)");
+          }
           finalBytes = await renderSignedUploadedPdf(originalBytes, candidateOverlay, employerOverlay, certificateData);
         } else {
           finalBytes = await renderTextDocumentPdf(contentData.content ?? "", candidateOverlay, employerOverlay, certificateData);

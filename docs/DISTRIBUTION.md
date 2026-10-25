@@ -1,16 +1,25 @@
 # Where a HireFlow job goes, automatically
 
-Last verified 2026-09-04. Rule: a channel is listed here only if it ingests jobs
-by itself once set up — no per-job copy-paste, ever. Channels that need a paying
-partner, a minimum client count, or a manual post per job are in "Won't work".
+Last verified 2026-10-25 (Google for Jobs and the indexing calls were removed
+on 2026-10-05; this file said "Working" until the Phase 7 growth audit).
+Rule: a channel is listed here only if it ingests jobs by itself once set up —
+no per-job copy-paste, ever. Channels that need a paying partner, a minimum
+client count, or a manual post per job are in "Won't work".
 
 ## Live today (nothing for the owner to do)
 
 | Channel | How | Status |
 |---|---|---|
-| **Google for Jobs** | Every published job page carries `JobPosting` JSON-LD (`api/job-prerender.mjs`). On publish/close the app calls the Google Indexing API (`supabase/functions/_shared/googleIndexing.ts`, `URL_UPDATED` / `URL_DELETED`). | **Working.** The service account is a Search Console owner; Google answers `200` with `urlNotificationMetadata`. Quota 200 URLs/day. |
-| **Bing / Yandex / Naver / Seznam** | IndexNow ping fired alongside every Google call (same file). Key file: `public/<key>.txt`. | Working once the frontend deploy that ships the key file is live. Gets pages indexed; Bing has no jobs carousel to feed. |
-| **Sitemap** | `/sitemap.xml` → Supabase function `sitemap`. Lists only jobs that pass the same gate as the feed (company, city, country, live deadline, not `exclude_from_feed`). | Working. |
+| **Sitemap** | `/sitemap.xml` (`api/sitemap.mjs` → Supabase function `sitemap`). Lists live jobs that pass the feed's gate. | Working. Search engines find job pages through it; they get no special jobs treatment. |
+| **Open jobs** | `hireflownow.com/open-jobs` lists every business's live jobs; the front page's "Looking for a job?" goes there. | Working. Little traffic of its own yet (Admin → Growth, "Public pages"). |
+| **The business's own links** | Short link, careers page (`/c/<business>`), share kit and flyer, each tagged so Admin → Growth shows it. | Working. Today this is how almost every applicant arrives. |
+
+## Removed (owner, 2026-10-05: "Google Jobs is removed")
+
+| Channel | What it was | Why it is off |
+|---|---|---|
+| **Google for Jobs** | `JobPosting` JSON-LD on job pages and Indexing API calls on publish/close (`_shared/googleIndexing.ts`, deleted in 87f7628). | The owner's worldwide-remote role could not be listed without a country. For a local business (a clinic's front desk) it is the channel that matters most, so it is worth asking the owner again before other businesses join (docs/LAUNCH-PLAN.md, owner inputs). |
+| **IndexNow (Bing, Yandex, Naver, Seznam)** | A ping beside every Google call. | Removed with it. |
 
 ## Free feeds worth submitting (one-time, owner's yes needed — forms ask for a contact name and email)
 

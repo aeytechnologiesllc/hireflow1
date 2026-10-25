@@ -221,9 +221,29 @@ const CS = [
   ["Customer Service - Part-Time Staff", ""], ["Tech Support - Level 1 Agents", ""], ["Customer Service - Night Shift Supervisor", ""],
   ["Customer Support - Uber Drivers", "Help drivers by chat with their trips and payouts"],
   ["Customer Support Agent - Store", "Answer customer chats for our online store"], ["CSR - Retail", "Inbound calls for a US retail account"],
-  ["Customer Care Representative - Pharmacy", "Answer calls from members about their prescriptions"], ["Customer Service Representative | Retail", ""], ["Chat Support - Retail", ""],
+  ["Customer Care Representative - Pharmacy", "Answer calls from members about their prescriptions"], ["CSR | Retail", ""], ["Chat Support - Retail", ""],
   ["Med Spa Front Desk Coordinator", ""], ["Urgent Care Receptionist", ""], ["Dermatology Receptionist", ""], ["Pediatric Office Receptionist", ""],
   ["Booking Coordinator", "Coordinate bookings for our cleaning company"], ["Reservations Specialist", "We are looking for talent with great phone manners to book hotel stays"],
+  // The ninth Phase 4 review: a clinic described as "medical and dental" is still a clinic; booking agents of customers'
+  // appointments, flights and cars; an office front desk by its hours or from home; tier and level 1 analysts with support work.
+  ["Receptionist", "Receptionist needed for a medical and dental clinic in Pasig. Answer calls and schedule appointments."],
+  ["Front Office Staff", "Medical & Dental Clinic in Makati. Scheduling, billing, answering phones."],
+  ["Receptionist", "We are a medical and dental center. Answer calls, schedule appointments, handle walk-ins."],
+  ["Receptionist", "Check in clients, collect co-pays and confirm their dental insurance coverage"],
+  ["Receptionist", "Check dental insurance eligibility and schedule appointments"], ["Receptionist", "Verify patients' HMO and schedule appointments"],
+  ["Receptionist", "Our clinic provides medical and dental services. Answer calls and book appointments."],
+  ["Reservations Agent", "Take inbound calls from hotel guests in a high call load environment"], ["Reservations Agent", "Book flights on major carriers for our travel agency's clients"],
+  ["Booking Agent", "Answer customer calls and book appointments with our technicians"], ["Booking Agent", "Take calls from customers and schedule our cleaning crews"],
+  ["Booking Specialist", "Book appointments for our plumbing technicians by phone"], ["Reservations Agent", "Help customers book rental cars; explain models and rates"],
+  ["Reservations Agent", "Take reservations for our 5 restaurant venues by phone"], ["Booking Agent", "At least 6 months BPO experience. Willing to work night shift."],
+  ["Booking Agent", "Must have excellent English communication skills"], ["Booking Coordinator", "Book patients for their scans"], ["Trainee - Reservations Agent", ""],
+  ["Front Desk Coordinator", "Office hours Monday to Friday. Answer customer calls."], ["Front Desk Agent", "Work in our office in Ortigas. Handle customer emails."],
+  ["Front Desk Agent", "Work from home. Answer calls for our clients' office."], ["Tier 1 Analyst", "Answer customer tickets"], ["Level 1 Analyst", "Handle customer calls and tickets for our software"],
+  // ...and what a support line keeps as its own: the people it hires (by shift, language, level) or serves; a store part with work off the floor.
+  ["Customer Service - Spanish Speaking Agents", ""], ["Customer Service - Trainee", ""], ["Night Shift Agents - Customer Service", ""],
+  ["Customer Support - Drivers", "Answer calls and chats from our delivery drivers"], ["Technical Support - Minecraft Server", ""],
+  ["Retail - Customer Service Associate", "Reply to customer chats and emails for our online shop"], ["Customer Service Associate - Retail", "At least 6 months BPO experience. Night shift."],
+  ["Customer Service - Online Store", ""], ["Engineering Support Specialist", "Answer customer emails about our engineering software"],
 ];
 for (const [title, work] of CS) {
   check(`"${title}${work ? ` — ${work}` : ""}" is customer service`, M.detectFamily(brief(title, work)) === "customer_service", M.detectFamily(brief(title, work)));
@@ -385,6 +405,34 @@ const NOT_CS = [
   ["Receptionist", "Greet visitors at our corporate office.\nWhat you get: medical, dental, 401(k)", "admin"],
   ["Clinical Support Specialist", "Take patient calls and triage symptoms", "clinical"], ["Field Support Technician", "Visit customer sites and answer customer calls", "trade"],
   ["L1 Analyst (SOC)", "", "general"],
+  // The ninth: another job beside a support line is that job (singular); a store part before or after the role is the store
+  // unless the work is off the floor; a front desk that greets visitors at an office; bookers of loads, models and their own crews.
+  ["Customer Service - Cashier", "", "cash"], ["Customer Service | Cashier", "", "cash"], ["Customer Service, Cashier", "", "cash"],
+  ["Customer Service - Delivery Driver", "Deliver furniture to customers' homes and assemble it", "general"], ["Customer Service - Medical Assistant", "Take vitals and room patients", "admin"],
+  ["Call Center - Recruiter", "Source and screen applicants for our BPO accounts", "general"], ["BPO - Recruiter", "", "general"], ["Call Center Recruiter", "", "general"],
+  ["Call Center - Quality Analyst", "", "general"], ["Call Center - Trainer", "", "general"], ["Contact Center - Workforce Analyst", "", "general"],
+  ["Guest Services - Valet Attendant", "", "general"], ["Guest Services - Housekeeper", "", "cleaner"], ["Member Services - Lifeguard", "", "general"],
+  ["Patient Services - Phlebotomist", "", "general"], ["Front Desk - Security Officer", "", "general"], ["Customer Service - Admin Assistant", "", "admin"],
+  ["Help Desk - Network Engineer", "", "developer"], ["Technical Support - Software Developer", "", "developer"], ["Customer Service - Store Manager", "", "cash"],
+  ["Customer Service - Cashiers", "", "cash"], ["Customer Service - Insurance Agent", "", "general"], ["Customer Service - Night Shift - Cashier", "", "cash"],
+  ["Call Center - Recruiters", "Source and screen applicants for our call center", "general"], ["Customer Service - Courier", "Deliver documents around Makati", "general"],
+  ["Customer Service Associate - Cashier", "", "cash"], ["Customer Service Rep - Cashier", "", "cash"], ["Cashier/Customer Service Rep", "", "cash"], ["Customer Service Rep/Cashier", "", "cash"],
+  // (The eighth review had "Customer Service Representative | Retail" with no words as customer service; the doc's rule, a store
+  // part after the role is the account only with a channel in the title or work off the floor, makes it the store's.)
+  ["Customer Service Representative | Retail", "", "cash"], ["Customer Service Associate - Retail", "", "cash"], ["Customer Service Associate - Grocery", "", "cash"],
+  ["Customer Service Rep - Restaurant", "", "cash"], ["Customer Service - Store", "", "cash"], ["Customer Service - Restaurant", "", "cash"],
+  ["Customer Service Associate - Retail", "Assist customers in our store, process returns and exchanges, and answer phone calls.", "cash"],
+  ["Retail - Customer Service Associate", "Assist customers in our store, process returns and exchanges, and answer phone calls.", "cash"],
+  ["Grocery | Customer Service Clerk", "Help customers at our store. Send your resume via email.", "cash"], ["Grocery | Customer Service Clerk", "Help customers at our store. Send your CV via WhatsApp.", "cash"],
+  ["Pharmacy - Customer Service Associate", "Answer phone calls from customers at our drugstore and help at the counter", "general"],
+  ["Customer Service Representative - Pharmacy", "Help customers at our pharmacy counter and answer phone calls", "general"], ["Customer Service Representative (Retail Store)", "", "cash"],
+  ["Customer Service Associate", "Help guests with ticket purchases at the box office and answer phones.", "cash"],
+  ["Customer Service Representative", "Work at our showroom: greet walk-in customers, answer phones and process orders.", "cash"],
+  ["Receptionist", "Answer calls for our law office. Excellent medical and dental plans.", "admin"], ["Receptionist", "Answer calls for our law office. We offer medical and dental.", "admin"],
+  ["Receptionist", "Answer calls for our law office. Medical, dental and vision insurance from day one.", "admin"], ["Receptionist", "Answer calls for our law office.\nBenefits:\n- HMO\n- Medical and dental", "admin"],
+  ["Receptionist", "Answer calls and schedule meetings for our CPA firm. Medical/dental/vision.", "admin"], ["Front Desk Agent", "Work in our office in Ortigas. Greet visitors and answer phones.", "general"],
+  ["Booking Agent", "Book loads for our drivers", "general"], ["Booking Coordinator", "Schedule our crews and assign jobs to technicians", "admin"], ["Booking Agent", "Book models for fashion shows", "general"],
+  ["Tier 1 Analyst", "", "general"], ["Level 1 Analyst", "Monitor security alerts", "general"],
 ];
 for (const [title, work, want] of NOT_CS) {
   const got = M.detectFamily(brief(title, work));
@@ -534,6 +582,38 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Support Agent", "Taking inbound calls for a US telco! Apply now", "phone"], ["Support Agent", "Handle inbound calls from US customers, interested applicants may send their CV", "phone"],
     ["Customer Service Representative", "This is a non-phone position.", "chat"], ["Support Agent", "Answer emails for our multichannel e-commerce brand", "email"],
     ["Support Agent", "Purely email and chat", "chat"], ["Dental Front Desk", "", "phone"],
+    // The ninth: call-centre or BPO experience points to phone only with no written channel in the words; how to apply in its
+    // common forms; blended and omnichannel titles; a phone a preposition points to; a rule on its own line; "through phone".
+    ["Customer Service Representative", "Reply to customer emails and chats for our online store. No call center experience required.", "chat"],
+    ["Customer Support Representative", "Email and chat support for a US e-commerce account. At least 6 months BPO experience.", "chat"],
+    ["Customer Service Associate", "Handle customer tickets in Zendesk. BPO experience is a plus.", "email"], ["Customer Support Agent", "Answer customer emails for our app. With or without call center experience.", "email"],
+    ["Customer Support Associate", "Answer customer emails. No call center experience needed.", "email"], ["Customer Service Representative", "No call center experience required.", "phone"],
+    ["Customer Service Representative", "With or without BPO experience. Fresh grads welcome.", "phone"],
+    ["Customer Service Representative", "Answer inbound calls from US customers. Email your resume to hr@company.com", "phone"],
+    ["Customer Service Representative", "Answer inbound calls from US customers.\nHow to apply: email your resume to hr@bpo.ph", "phone"],
+    ["Customer Service Representative", "Handle customer concerns. Email your resume to hr@company.com", "chat"],
+    ["Customer Service Representative", "Answer inbound calls from US customers. Please email your CV to careers@bpo.ph", "phone"],
+    ["Customer Service Representative", "Answer inbound calls from US customers. Kindly send your updated resume to hr@bpo.ph", "phone"],
+    ["Customer Service Representative", "Answer inbound calls from US customers. Submit your resume through email.", "phone"], ["Customer Service Representative", "Handle customer calls.\nEmail resume to hr@abc.com", "phone"],
+    ["Customer Service Representative", "Answer customer calls. To apply, send your CV to hr@abc.com", "phone"], ["Customer Service Representative", "Answer customer emails. For inquiries, email us at hr@abc.com", "email"],
+    ["Customer Service Representative", "Interested applicants should be comfortable handling inbound calls", "phone"],
+    ["Customer Service Representative", "Know when to apply discounts while handling inbound calls", "phone"], ["Customer Service Representative", "Teach customers how to apply promo codes by chat", "chat"],
+    ["Customer Service Representative", "Help customers submit applications by phone", "phone"],
+    ["Blended CSR", "", "mixed"], ["Blended Customer Service Representative", "", "mixed"], ["Customer Service Representative (Blended)", "", "mixed"], ["Blended Agent", "", "mixed"],
+    ["Omnichannel CSR", "", "mixed"], ["Omnichannel Agent", "", "mixed"], ["Multichannel Customer Support Representative", "", "mixed"], ["CSR", "Blended", "mixed"],
+    ["Customer Service Representative", "Our agents work in an omnichannel environment", "mixed"], ["Customer Service Representative", "Sell blended coffees and answer customer emails", "email"],
+    ["Customer Support Agent", "Answer emails for our omnichannel retail brand", "email"],
+    ["Live Chat Agent", "Help customers who are making returns for their phones", "chat"], ["Customer Support Agent", "Handle customer emails and chats. Place orders for replacement phones.", "chat"],
+    ["Chat Support Agent", "Answer chats and handle requests for call backs", "chat"], ["Customer Service Representative", "Answer emails about phone orders for our online store", "email"],
+    ["Customer Support Agent", "Make sure phones are shipped on time and answer customer emails", "email"], ["Email Support", "Field questions about smart phones", "email"],
+    ["Customer Support Agent", "Handle a high volume of calls", "phone"], ["Customer Support Agent", "Process phone orders", "phone"],
+    ["Customer Service Representative", "Can work with minimal or without supervision\nHandle inbound calls\nResolve complaints", "phone"],
+    ["Customer Service Representative", "Willing to work without supervision\nAnswer customer calls", "phone"],
+    ["Customer Service Representative", "Handle customer concerns through phone", "phone"], ["Customer Service Representative", "Assist customers thru phone", "phone"],
+    ["Customer Service Representative", "Respond to inquiries from callers", "phone"],
+    ["Customer Service Representative", "This job does not involve phone calls or sales.", "chat"], ["Customer Service Representative", "Reply to emails. This role does not involve phone calls or sales.", "email"],
+    ["Customer Service Representative", "Answer calls. No phone or sales experience required.", "phone"], ["Customer Service Representative", "Voice account. No calls and no sales quotas", "phone"],
+    ["Customer Support", "No calls. Only tickets and live chat.", "chat"], ["Customer Support Agent", "Only phone and email", "mixed"], ["Customer Service Representative", "Inbound only, no sales", "phone"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
 }
 
@@ -764,6 +844,17 @@ let aiFlow;
   // The eighth: a question after a call sentence pairs only when it is about that caller.
   check("a phone queue, then an angry coworker, is not the angry-caller question", callQs(["Have you worked on a phone queue before? How do you handle an angry coworker?", "Why us?", "Q3"]).includes("vphone0"));
   check("…nor calls all day, then a training put on hold, the hold question", callQs(["You take calls all day. What would you do if your manager put your training on hold?", "Why us?", "Q3"]).includes("vphone1"));
+  // The ninth: "an irate customer" is the caller, and a caller who asks for a manager is still the caller.
+  for (const prompt of [
+    "You're on a call with a customer. How would you calm down an irate customer?",
+    "You're taking calls all day. How do you handle an angry customer?",
+    "You are on the phone with a patient. What would you do if they started shouting and asked for your manager?",
+    "A customer calls in. What would you do if they became rude and demanded a supervisor?",
+    "Imagine you are answering phones at our store. How would you handle an angry shopper?",
+  ]) check(`a call, then a question about an angry caller (even one who wants a manager), counts: ${JSON.stringify(prompt)}`, !callQs([prompt, "Why us?", "Q3"]).includes("vphone0"));
+  for (const prompt of ["You're on the phone. Your manager is angry with you. What do you do?", "You take calls all day. How would you deal with a rude coworker?"])
+    check(`…but an angry manager or coworker is not the angry-caller question: ${JSON.stringify(prompt)}`, callQs([prompt, "Why us?", "Q3"]).includes("vphone0"));
+  check("…and a caller who demands a supervisor, put on hold, is the hold question", !callQs(["A caller demands your supervisor. How do you put them on hold while you get one?", "Why us?", "Q3"]).includes("vphone1"));
   globalThis.fetch = async () =>
     new Response(JSON.stringify({ jobPost: { title: "Front desk", summary: "", responsibilities: [], requirements: [], niceToHaves: [] }, application: [], quiz: [], simulation: [], voiceQuestions: ["Why us?", "How do you stay calm?", "What hours?"], voiceDimensions: [], shortlistWeights: [], phaseRationales: [] }), { status: 200, headers: { "Content-Type": "application/json" } });
   const worded = (await M.generateJobFlow({ brief: formFor("Medical or dental office", "Phone", "Remote"), rigor: "standard" })).flow.phases.find((p) => p.kind === "voice_interview").config.questions;

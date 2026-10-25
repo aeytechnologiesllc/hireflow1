@@ -793,12 +793,11 @@ export function integrityToastFor(
   if (event.kind === "tab_hidden" || event.kind === "window_blur") {
     const ms = event.duration_ms ?? 0;
     if (ms < SHORT_AWAY_MS) return null;
-    if (mode === "form") {
-      // A file picker or password manager takes focus without leaving the
-      // page; only a real tab or app switch gets a word on the form.
-      if (event.kind !== "tab_hidden") return null;
-      return { id: "integrity-away", title: "Looks like you switched tabs", description: "That's been noted — stay on this page if you can." };
-    }
+    // Nothing on the form: applicants leave it for good reasons (finding a
+    // resume, a translator), the record keeps it, and nobody is alerted, so
+    // the old "noted" warning only worried them (the second Phase 7 product
+    // audit).
+    if (mode === "form") return null;
     return {
       id: "integrity-away",
       title: `You left the test for ${formatAway(ms)}`,

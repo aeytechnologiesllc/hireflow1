@@ -737,6 +737,7 @@ export default function CandidateAuth() {
                         <Label htmlFor="forgot-email" className="text-foreground">Email</Label>
                         <Input
                           id="forgot-email"
+                          autoComplete="email"
                           type="email"
                           placeholder="you@example.com"
                           value={forgotPasswordEmail}
@@ -865,6 +866,7 @@ export default function CandidateAuth() {
                           <Label htmlFor="signin-email" className="text-foreground">Email</Label>
                           <Input
                             id="signin-email"
+                            autoComplete="email"
                             type="email"
                             placeholder="you@example.com"
                             value={signInEmail}
@@ -879,6 +881,7 @@ export default function CandidateAuth() {
                           <div className="relative">
                             <Input
                               id="signin-password"
+                              autoComplete="current-password"
                               type={showSignInPassword ? "text" : "password"}
                               placeholder="••••••••"
                               value={signInPassword}
@@ -943,6 +946,7 @@ export default function CandidateAuth() {
                           <Label htmlFor="signup-name" className="text-foreground">Full Name</Label>
                           <Input
                             id="signup-name"
+                            autoComplete="name"
                             type="text"
                             placeholder="John Doe"
                             value={signUpName}
@@ -956,6 +960,7 @@ export default function CandidateAuth() {
                           <Label htmlFor="signup-email" className="text-foreground">Email</Label>
                           <Input
                             id="signup-email"
+                            autoComplete="email"
                             type="email"
                             placeholder="you@example.com"
                             value={signUpEmail}
@@ -970,6 +975,7 @@ export default function CandidateAuth() {
                           <div className="relative">
                             <Input
                               id="signup-password"
+                              autoComplete="new-password"
                               type={showSignUpPassword ? "text" : "password"}
                               placeholder="••••••••"
                               value={signUpPassword}
