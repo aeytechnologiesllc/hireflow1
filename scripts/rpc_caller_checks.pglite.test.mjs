@@ -723,6 +723,16 @@ async function run() {
     check("legit: EMP_1 can still view CAND_1's profile (real applicant to EMP_1's job)", r.ok && r.rows.length === 1, JSON.stringify(r));
     const r2 = await asUser(EMP_2, "authenticated", `select 1 from public.profiles where user_id = $1`, [CAND_1]);
     check("unchanged: EMP_2 (unrelated) still cannot view CAND_1's profile", r2.ok && r2.rows.length === 0, JSON.stringify(r2));
+    // 2026-10-25 (docs/LAUNCH-PLAN.md, Phase 1, task 10): the other directions.
+    await asPostgres(`insert into public.profiles (user_id) values ($1), ($2) on conflict do nothing`, [CAND_2, EMP_1]);
+    const r3 = await asUser(CAND_2, "authenticated", `select 1 from public.profiles where user_id = $1`, [CAND_1]);
+    check("an applicant cannot read another applicant's profile", r3.ok && r3.rows.length === 0, JSON.stringify(r3));
+    const r4 = await asUser(CAND_1, "authenticated", `select 1 from public.profiles where user_id = $1`, [EMP_1]);
+    check("an applicant cannot read the business owner's profile row (they see employer_public_branding)", r4.ok && r4.rows.length === 0, JSON.stringify(r4));
+    const r5 = await asUser(STRANGER, "authenticated", `select count(*)::int as n from public.profiles`);
+    check("a stranger reads no profiles at all", r5.ok && r5.rows[0].n === 0, JSON.stringify(r5));
+    const r6 = await asUser(CAND_1, "authenticated", `select 1 from public.profiles where user_id = $1`, [CAND_1]);
+    check("an applicant still reads their own profile", r6.ok && r6.rows.length === 1, JSON.stringify(r6));
   }
 
   console.log(`\n${passed} of ${passed + failed} checks passed.`);

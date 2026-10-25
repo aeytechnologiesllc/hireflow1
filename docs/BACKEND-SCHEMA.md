@@ -68,6 +68,37 @@ these buckets by a permanent public URL any more.
 - `protect_application_columns`, `protect_document_columns` — triggers that block a client write from forging server-owned columns (scores, signing state)
 - `job_limit_for_user` / `subscription_plan_for_limits` — billing limit lookups, currently relaxed to unlimited while Stripe is off (`20260904110000_free_tier_open.sql`)
 
+## Reachable without sign-in (2026-10-25)
+
+Every edge function the gateway lets through without a user's sign-in
+(`verify_jwt = false` in `supabase/config.toml`), and what stops it being
+misused. The gateway accepts the site's public key as a bearer token, so
+each of these checks its caller itself. A new one must be added here AND to
+`PUBLIC_FUNCTIONS` in `scripts/guards/public-functions-allow-list.mjs`, with
+its reason, or the build fails (docs/LAUNCH-PLAN.md, Phase 1, task 9).
+
+| Function | Why it is public | What limits it |
+|---|---|---|
+| `ai-chat-interview`, `ai-chat-simulation`, `ai-sales-simulation` | the applicant's practice steps; the page sends the applicant's own sign-in | a turn is served only for a signed-in applicant's own application; field sizes; per-caller limit by Cloudflare IP; the daily AI budget (`_shared/practiceTurnGuard.ts`) |
+| `ai-generate-job-content`, `ai-generate-workflow` | historical (the guest job creator, gone) | require a signed-in user (`_shared/signedIn.ts`); per-caller limit; daily AI budget |
+| `trigger-ava-analysis` | called by the applicant's page and by other functions with the service key | resolves the caller; applicant calls cannot force, are limited per application and get the move only (`_shared/applicantReply.ts`) |
+| `autopilot-batch` | the hiring team's batch run | resolves the caller; forwards their own sign-in |
+| `ava-voice-session`, `ava-voice-tools` | the voice interview's realtime session | resolve the caller; voice is for `platform_admins` only |
+| `delete-account` | the account's own deletion | resolves the caller and asks for the password again |
+| `deduct-voice-minutes`, `get-subscription` | the app's own billing reads | resolve the caller |
+| `verify-document` | anyone may check a signed document's code | per-caller limit; answers only whether a document with that code exists and is intact |
+| `client-errors`, `page-views` | crash reports and the cookieless page counter, from signed-out pages | body size caps; per-caller limits; sanitised before writing |
+| `geolocate-ip` | the connection check, before sign-in | per-caller limit |
+| `sitemap` | search engines | reads published jobs only |
+| `send-push-notification` | called by the database's notification trigger | takes only a notification id; sends that row once (claims `push_sent_at`); the content is the stored row |
+| `interview-reminders`, `document-cleanup` | the database's own scheduler (pg_cron) | refuse without the secret the scheduler reads from Vault |
+| `check-email-exists`, `elevenlabs-tts` | retired | answer 410 to everything |
+
+The Vercel functions in `api/` (`job-prerender`, `careers-prerender`,
+`job-feed*`, `sitemap`, `where`) are public by nature: they read only
+`published_jobs_public`, `employer_public_branding` and `business_pages`
+with the public key.
+
 ## Applying migrations
 
 From the repo root, with the Supabase CLI linked to `yqklrkpptnhubsnijqze`:
