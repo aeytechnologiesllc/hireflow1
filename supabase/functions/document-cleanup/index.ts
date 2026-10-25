@@ -162,6 +162,29 @@ Deno.serve(async (req) => {
   // A failed read of the ID papers still answers as a failure (after the
   // queues ran), so a lasting error shows in the scheduler's history instead
   // of quietly stopping the 24-hour deletion (the third Phase 5 review).
-  if (error) return json({ error: "read_failed", ...counts, orphans, leftoversRemoved, leftoversFailed }, 500);
+  if (error) {
+    // The scheduler's history only shows the request was sent, so the
+    // platform admins are told in the app, once a day (the fourth Phase 5
+    // review): a lasting failure would quietly stop the 24-hour deletion.
+    const since = new Date(Date.now() - 86_400_000).toISOString();
+    const { count: told } = await admin
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("title", "ID papers were not deleted on time")
+      .gte("created_at", since);
+    if (!told) {
+      const { data: admins } = await admin.from("platform_admins").select("user_id");
+      for (const a of admins ?? []) {
+        await admin.from("notifications").insert({
+          user_id: a.user_id,
+          type: "system",
+          title: "ID papers were not deleted on time",
+          message: `document-cleanup could not read the ID-paper requests: ${String(error.message ?? error).slice(0, 200)}. The 24-hour deletion waits until it can.`,
+          is_read: false,
+        });
+      }
+    }
+    return json({ error: "read_failed", ...counts, orphans, leftoversRemoved, leftoversFailed }, 500);
+  }
   return json({ ok: true, ...counts, orphans, leftoversRemoved, leftoversFailed });
 });

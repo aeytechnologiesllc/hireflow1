@@ -153,7 +153,14 @@ for (const fn of ["ai-generate-document", "ai-analyze-document-fields"]) {
   const text = read(`supabase/functions/${fn}/index.ts`);
   check(`${fn}: a hiring account only (owner or team member), billed to its business`, /const business = await hiringBusiness\(caller\.userId\);\s*if \(!business\)/.test(text) && /\n\s*business,\n/.test(text) && !/business: caller\.userId/.test(text));
 }
-check("a hiring business is the owner, or the business of any active team member (never an applicant)", /export async function hiringBusiness/.test(read("supabase/functions/_shared/signedIn.ts")));
+{
+  const helper = read("supabase/functions/_shared/signedIn.ts");
+  const body = helper.slice(helper.indexOf("export async function hiringBusiness"));
+  check("document AI's business is the owner's own, or a teammate's who may send documents (never an applicant)", /r\.role === "employer"\)\) return userId;/.test(body) && /\.eq\("status", "active"\)\s*\.neq\("can_send_documents", false\)/.test(body) && /return typeof team\?\.employer_id === "string" \? team\.employer_id : null;/.test(body) && !/return userId;\s*\}\s*catch/.test(body));
+}
+check("generate-flow checks the connection before the account, so a refused request costs the account nothing", read("supabase/functions/generate-flow/index.ts").indexOf('guardPublicAiCall(req, "generate-flow"') < read("supabase/functions/generate-flow/index.ts").indexOf('guardAuthenticatedAiCall("job-writing"'));
+check("the written interview bills the application's business even when its record could not be read", /const billedBusiness = serverRecord\?\.employerId\s*\?\? \(recordApplicationId && recordReader \? await employerOfApplication/.test(read("supabase/functions/ai-chat-interview/index.ts")) && !/business: serverRecord\?\.employerId \?\? null/.test(read("supabase/functions/ai-chat-interview/index.ts")));
+check("no AI function speaks of credits or funds to add (nothing is paid for while billing is off)", !/add funds|credits exhausted/i.test(read("supabase/functions/ai-generate-document/index.ts")));
 check("generate-flow is also limited per connection, like the other job writers", /guardPublicAiCall\(req, "generate-flow", CORS, 15, 3600\)/.test(read("supabase/functions/generate-flow/index.ts")));
 check("the written interview refuses an empty answer before any model call", /if \(mode === "respond" && !\(typeof userMessage === "string" && userMessage\.trim\(\)\)\)/.test(read("supabase/functions/ai-chat-interview/index.ts")));
 check("a hiring account is a business owner, or a teammate allowed to create jobs (never an applicant)", /r\.role === "employer"\)\) return userId;/.test(signedInTs) && /\.eq\("can_create_jobs", true\)/.test(signedInTs) && /return typeof team\?\.employer_id === "string" \? team\.employer_id : null;/.test(signedInTs));
@@ -221,6 +228,12 @@ await db.exec(read("supabase/migrations/20261025160000_ai_business_budget.sql"))
 await db.exec(read("supabase/migrations/20261025190000_ai_budget_count_only_taken.sql"));
 await db.exec(`create table if not exists public.jobs (id uuid primary key default gen_random_uuid(), employer_id uuid, status text);`);
 await db.exec(read("supabase/migrations/20261025230000_phase5_review3.sql").split("CREATE OR REPLACE FUNCTION public.admin_reply_help")[0]);
+// The confirmed-email check the full day waits for (20261025240000), as a stand-in.
+await db.exec(`create table if not exists public.zz_verified (user_id uuid primary key);
+  create or replace function public.business_email_verified(p_user uuid) returns boolean language sql stable as $$ select exists (select 1 from public.zz_verified v where v.user_id = p_user) or exists (select 1 from public.platform_admins a where a.user_id = p_user) $$;`);
+await db.exec(read("supabase/migrations/20261025240000_phase5_review4.sql"));
+// The businesses the older checks below use have confirmed their email (they hire).
+await db.exec(`insert into public.zz_verified values ('${B_SHOP}'), ('${B_OTHER}') on conflict do nothing;`);
 const b_bcap = await db.query(`select value #>> '{}' as v from public.app_settings where key = 'ai_business_daily_call_cap'`);
 check("a business's budget starts at 2,000 calls a day", b_bcap.rows[0]?.v === "2000");
 await db.exec(`update public.app_settings set value = '3'::jsonb where key = 'ai_business_daily_call_cap'`);
@@ -272,18 +285,18 @@ try {
 }
 check("the per-business usage is not readable over the API", b_businessTableBlocked);
 check("the old one-argument function is gone (one budget function, no way round the business count)", (await db.query(`select count(*)::int as n from pg_proc where proname = 'ai_budget_take'`)).rows[0].n === 1);
-// The third Phase 5 review: a business that never had a job past draft gets a smaller day.
+// The third and fourth Phase 5 reviews: until a business confirms its sign-in email it gets a smaller day.
 {
   const B_NEW = "30000000-0000-4000-8000-000000000009";
   await db.exec(`update public.app_settings set value = '100000'::jsonb where key = 'ai_daily_call_cap'; update public.app_settings set value = '2000'::jsonb where key = 'ai_business_daily_call_cap'; insert into public.app_settings (key, value) values ('ai_new_business_daily_call_cap', '2'::jsonb) on conflict (key) do update set value = excluded.value;`);
   const fresh = [await b_take(B_NEW), await b_take(B_NEW), await b_take(B_NEW)];
-  check("a business with no job past draft gets the smaller day (here 2), not the full 2,000", JSON.stringify(fresh) === JSON.stringify([true, true, false]), JSON.stringify(fresh));
-  await db.exec(`insert into public.jobs (employer_id, status) values ('${B_NEW}', 'draft');`);
-  check("…a draft does not lift it", (await b_take(B_NEW)) === false);
-  await db.exec(`insert into public.jobs (employer_id, status) values ('${B_NEW}', 'published');`);
-  check("…its first live job does (the full day)", (await b_take(B_NEW)) === true);
-  await db.exec(`update public.jobs set status = 'closed' where employer_id = '${B_NEW}' and status = 'published';`);
-  check("…and closing the job keeps it (its applicants are still being scored)", (await b_take(B_NEW)) === true);
+  check("a business that has not confirmed its email gets the smaller day (here 2), not the full 2,000", JSON.stringify(fresh) === JSON.stringify([true, true, false]), JSON.stringify(fresh));
+  await db.exec(`insert into public.jobs (employer_id, status) values ('${B_NEW}', 'closed'), ('${B_NEW}', 'archived');`);
+  check("…a job saved as closed or archived without publishing does not lift it (the fourth review)", (await b_take(B_NEW)) === false);
+  const alert = await db.query(`select message from public.notifications where title = 'A business reached its daily AI budget' and message like '%${B_NEW}%'`);
+  check("…and the owner's alert names the setting that applies (ai_new_business_daily_call_cap)", alert.rows.length === 1 && /ai_new_business_daily_call_cap/.test(alert.rows[0].message) && !/ai_business_daily_call_cap/.test(alert.rows[0].message), JSON.stringify(alert.rows));
+  await db.exec(`insert into public.zz_verified values ('${B_NEW}');`);
+  check("…confirming its sign-in email does (the full day)", (await b_take(B_NEW)) === true);
   const owner = [await b_take(B_OWNER), await b_take(B_OWNER), await b_take(B_OWNER)];
   check("…a platform admin's business is never capped", owner.every(Boolean));
 }

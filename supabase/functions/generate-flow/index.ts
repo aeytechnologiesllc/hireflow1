@@ -113,11 +113,13 @@ Deno.serve(async (req: Request) => {
     // applicants' included, could spend here, each with its own daily budget).
     const business = await jobWritingBusiness(user.id);
     if (!business) return json({ error: "not_a_business" }, 403);
-    const perAccount = await guardAuthenticatedAiCall("job-writing", user.id, CORS, 40, 3600);
-    if (perAccount) return perAccount;
-    // And by connection, like the other two job writers (the third Phase 5 review).
+    // By connection first, like the other two job writers (the third Phase 5
+    // review), so a request the connection limit refuses never uses up one
+    // of the account's 40 (the fourth).
     const perConnection = await guardPublicAiCall(req, "generate-flow", CORS, 15, 3600);
     if (perConnection) return perConnection;
+    const perAccount = await guardAuthenticatedAiCall("job-writing", user.id, CORS, 40, 3600);
+    if (perAccount) return perAccount;
 
     const body = await req.json().catch(() => ({}));
     const brief = body?.brief ?? body;

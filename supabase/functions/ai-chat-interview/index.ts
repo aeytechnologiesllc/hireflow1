@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { aiUnavailableExtra, aiUnavailableResponse, callOpenAIJson, isAiUnavailable, requireJsonKeys, type OpenAIMessage } from "../_shared/openai.ts";
 import { streamOpenAIChatCompletion } from "../_shared/openaiStreaming.ts";
 import { guardPracticeTurnsForApplication, guardPublicAiCall } from "../_shared/rateLimit.ts";
+import { employerOfApplication } from "../_shared/aiBusiness.ts";
 import { recordStepResult, type MinimalSupabaseAdmin } from "../_shared/trustedResults.ts";
 import {
   afterReplyAskFailed,
@@ -512,6 +513,12 @@ serve(async (req) => {
     const serverRecord = recordApplicationId && recordUserId && recordReader
       ? await loadInterviewRecord(recordReader, recordApplicationId, recordUserId)
       : null;
+    // The business that pays for this interview's calls: from the record, or,
+    // when the record could not be read (a passing database error), from the
+    // application itself, so a turn is never counted against nobody (the
+    // fourth Phase 5 review; the chat practice had this already).
+    const billedBusiness = serverRecord?.employerId
+      ?? (recordApplicationId && recordReader ? await employerOfApplication(recordReader as never, recordApplicationId) : null);
     const serverContext = serverRecord ? buildServerCandidateContext(serverRecord.notes, serverRecord.job) : undefined;
     candidateContext = serverContext;
 
@@ -1059,7 +1066,7 @@ IMPORTANT: NEVER skip the "do you have any questions" step. Always give candidat
         const { data } = await callOpenAIJson({
           apiKey: OPENAI_API_KEY,
           model: OPENAI_CHAT_INTERVIEW_EVAL_MODEL,
-          business: serverRecord?.employerId ?? null,
+          business: billedBusiness,
           messages: buildInterviewGraderMessages(
             {
               jobTitle: interviewJobTitle || "",
@@ -1255,7 +1262,7 @@ IMPORTANT: NEVER skip the "do you have any questions" step. Always give candidat
       response = await streamOpenAIChatCompletion({
         apiKey: OPENAI_API_KEY,
         model: OPENAI_CHAT_INTERVIEW_MODEL,
-        business: serverRecord?.employerId ?? null,
+        business: billedBusiness,
         messages: apiMessages,
         temperature: 0.8,
         maxCompletionTokens: 900,
