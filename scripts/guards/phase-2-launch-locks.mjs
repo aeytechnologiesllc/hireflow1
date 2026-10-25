@@ -284,8 +284,11 @@ export default [
       if (!/export const HIRING_LINK_MARK = "hiring_link";/.test(lib) || !/url\.searchParams\.set\(HIRING_LINK_MARK, "1"\);\s*return url\.toString\(\);/.test(lib)) {
         detail.push("src/lib/hiringLink.ts: hiringLink() no longer carries the mark hiring_link=1");
       }
-      if (!/const marked = url\.searchParams\.get\(HIRING_LINK_MARK\) === "1" && !throughHiringLink && !fromHireFlow\(referrer\);/.test(lib) || !/if \(marked\) url\.searchParams\.set\(HIRING_LINK_MARK, "1"\);/.test(lib)) {
-        detail.push("src/lib/hiringLink.ts: withVisitorTags must drop the mark for a visitor already through a hiring link, and on a page opened from another HireFlow page (the seventh growth review)");
+      if (!/const backFromFrontPage = hadMark && fromFrontPage\(referrer\);/.test(lib) || !/const marked = url\.searchParams\.get\(HIRING_LINK_MARK\) === "1" && !throughHiringLink && !backFromFrontPage;/.test(lib) || !/if \(marked\) url\.searchParams\.set\(HIRING_LINK_MARK, "1"\);/.test(lib)) {
+        detail.push("src/lib/hiringLink.ts: withVisitorTags must drop the mark for a visitor already through a hiring link, and on a page opened from the front page (the seventh and eighth growth reviews)");
+      }
+      if (!/if \(backFromFrontPage\) \{\s*for \(const key of \["utm_source", "utm_medium", "utm_campaign"\]\) url\.searchParams\.delete\(key\);/.test(lib) || !/from\.pathname === "\/"/.test(lib)) {
+        detail.push("src/lib/hiringLink.ts: a hiring link opened from the front page must take back only the visitor's own channel (never its own source as a campaign), and only the front page itself counts as that (the eighth growth review)");
       }
       if (!/\} else if \(marked \|\| !hadMark\) \{\s*return base;/.test(lib)) {
         detail.push("src/lib/hiringLink.ts: with nothing to carry, withVisitorTags must still take off a mark it dropped (the seventh growth review)");

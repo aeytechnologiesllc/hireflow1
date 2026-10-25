@@ -142,10 +142,13 @@ sources, the page kinds and campaigns
   front page whatever channel the visitor brought: its link carries a mark,
   `hiring_link=1`, that nothing carries on and the counter takes off the
   address, and only a visitor's first hiring link has it: never one on a
-  page opened from another HireFlow page (the visitor was counted when they
-  arrived, so Open jobs' "Post a job free" after the front page is not a new
-  visit), nor one after their tags already name a hiring link. Applicants'
-  "Sign in" links on public pages carry the channel as Apply does.
+  page opened from the front page itself (the visitor was counted there, so
+  Open jobs' "Post a job free" after the front page is not a new visit, and
+  it takes back only the visitor's own tags, never its own source as a
+  campaign), nor one after their tags already name a hiring link. From a
+  guide, the staff sign-up or a new tab, the first one still counts.
+  Applicants' "Sign in" links on public pages carry the channel as Apply
+  does.
 - The short ways in (`hireflownow.com/youtube`…) match in any capitals in
   vercel.json (`shortWaySource`, `src/lib/shortWays.ts`).
 - Channel names (`growth_source_name`, now
