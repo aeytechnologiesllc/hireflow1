@@ -93,7 +93,7 @@ const ANALYSIS_VERSION = 9;
 /** What capped a lead's escalated chat score, in words (readChatSimulationResult.cappedBy). */
 const CHAT_CAP_LABELS: Record<string, string> = {
   new_promise: "a new promise",
-  disrespect: "disrespect to the player",
+  disrespect: "disrespect to the person in the chat",
   tone: "tone",
 };
 
@@ -1050,7 +1050,7 @@ ${quizAreas.areas.length > 0 ? `- By area: ${formatQuizAreas(quizAreas.areas)}\n
         ? `- Owned the team's mistake: ${chatSimulation.ownership ?? 'N/A'}/100
 - Corrected the agent plainly: ${chatSimulation.correctedAgent ?? 'N/A'}/100
 - New promise made: ${chatSimulation.newPromiseMade ? `YES, "${chatSimulation.newPromiseQuote ?? ''}" (score capped at 40)` : 'No'}
-${chatSimulation.disrespectMade ? `- Disrespectful to the player: YES, "${chatSimulation.disrespectQuote ?? ''}"\n` : ""}${chatSimulation.newPromiseUnverified ? `- Possible new promise, not confirmed: "${chatSimulation.newPromiseUnverified}"\n` : ""}${chatSimulation.cappedBy.length > 0 ? `- Score capped by: ${chatSimulation.cappedBy.map((cap) => CHAT_CAP_LABELS[cap] ?? cap).join(", ")}\n` : ""}`
+${chatSimulation.disrespectMade ? `- Disrespectful to the person in the chat: YES, "${chatSimulation.disrespectQuote ?? ''}"\n` : ""}${chatSimulation.newPromiseUnverified ? `- Possible new promise, not confirmed: "${chatSimulation.newPromiseUnverified}"\n` : ""}${chatSimulation.cappedBy.length > 0 ? `- Score capped by: ${chatSimulation.cappedBy.map((cap) => CHAT_CAP_LABELS[cap] ?? cap).join(", ")}\n` : ""}`
         : "";
       content += chatSimulation.graded
         ? `

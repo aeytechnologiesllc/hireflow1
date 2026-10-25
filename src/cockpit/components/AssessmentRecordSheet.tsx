@@ -41,6 +41,7 @@ import {
 } from "../hooks/useAssessmentSessions";
 import { EntryIcon, LiveDot } from "./AssessmentRecordList";
 import { externalHref } from "@/lib/safeLink";
+import { useBusinessPageFor, useOwnBusiness } from "@/hooks/useBusinessPage";
 
 /**
  * The full record behind one row of "What they submitted": every answer,
@@ -1289,6 +1290,12 @@ function ChatPracticeBody({
   flags: IntegrityEvent[];
   loading: boolean;
 }) {
+  // "Player" only on the owner's own business (business_pages.home_alias);
+  // every other business, and not knowing yet, reads "Customer"
+  // (supabase/functions/_shared/counterpart.ts, the same rule).
+  const { data: ownBusiness } = useOwnBusiness();
+  const { data: ownPage } = useBusinessPageFor(ownBusiness?.employerId);
+  const who = ownPage?.home_alias === true ? "player" : "customer";
   return (
     <>
       {detail.live && (
@@ -1298,7 +1305,7 @@ function ChatPracticeBody({
         />
       )}
       {detail.scenario && (
-        <Section title={detail.customerName ? `The ${detail.counterpart} · ${detail.customerName}` : "The situation"}>
+        <Section title={detail.customerName ? `The ${who} · ${detail.customerName}` : "The situation"}>
           <p className="rounded-[10px] px-3.5 py-3 text-[13px] leading-[1.6]" style={{ background: "var(--ground-2)", color: "var(--ink-2)" }}>
             {detail.scenario}
           </p>
@@ -1330,7 +1337,7 @@ function ChatPracticeBody({
           <Transcript
             turns={detail.transcript}
             candidateName={candidate}
-            otherName={detail.customerName ? `${detail.customerName} (${detail.counterpart})` : detail.counterpart === "player" ? "Player" : "Customer"}
+            otherName={detail.customerName ? `${detail.customerName} (${who})` : who === "player" ? "Player" : "Customer"}
             events={flags}
           />
         ) : loading ? (

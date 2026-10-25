@@ -36,6 +36,7 @@
  * reads the skills check and the chat practice the one way every scorer does).
  */
 import { flattenForReview, quoteIsApplicants } from "../_shared/reviewText.ts";
+import { counterpartFor } from "../_shared/counterpart.ts";
 import { applyPlanEdits, interviewPlanFor, planQuestions, readPersonalGuide, readPlanEdits, GUIDE_SOURCES, type PersonalGuide } from "../_shared/interviewGuide.ts";
 import {
   buildServerCandidateContext,
@@ -132,9 +133,12 @@ function integrityLine(label: string, summary: unknown): string | null {
  * Figures and the reviewers' plain notes only. No verdicts, no credibility
  * rating, no list of "inconsistencies", and nothing about latency.
  */
+
 export function recordLines(record: GuideRecord): string[] {
   const { notes, job } = record;
   const lines: string[] = [];
+  // "player" only for the owner's own business (_shared/counterpart.ts).
+  const noun = counterpartFor(record.homeBusiness);
   const context = buildServerCandidateContext(notes, { quizQuestions: job.quizQuestions });
 
   if (typeof context.quizScore === "number") {
@@ -144,9 +148,9 @@ export function recordLines(record: GuideRecord): string[] {
   const chat = asRecord(notes.chatSimulationResult);
   if (chat && chat.graded !== false && num(chat.score) !== null) {
     const improve = strings(chat.improvements, 4);
-    let line = `- Chat practice (they answered an upset player as the one in charge): ${num(chat.score)}%.`;
+    let line = `- Chat practice (they answered an upset ${noun} as the one in charge): ${num(chat.score)}%.`;
     if (chat.newPromiseMade === true) {
-      line += " The reviewer read one of their lines as a NEW PROMISE to the player, and the mark was capped for it (their words are in <candidate_wrote>).";
+      line += ` The reviewer read one of their lines as a NEW PROMISE to the ${noun}, and the mark was capped for it (their words are in <candidate_wrote>).`;
     }
     if (chat.disrespectMade === true) {
       const quote = str(chat.disrespectQuote, 300);
@@ -251,6 +255,7 @@ export function buildGuideMessages(record: GuideRecord): Array<{ role: "system" 
   const wrote = candidateWrittenBlock(context);
   const facts = recordLines(record);
   const title = flattenForReview(job.title ?? "") || "this role";
+  const noun = counterpartFor(record.homeBusiness);
   const alreadyAnswered = plan.alreadyAsked.length > 0
     ? `\n=== WHAT THIS APPLICANT HAS ALREADY ANSWERED IN WRITING ===
 Before this call they filled in the application form and took a written interview. Both asked about:
@@ -262,7 +267,7 @@ Their answers are below. Do NOT ask any of this again as if for the first time: 
 === HOW A QUESTION MUST SOUND ===
 Write each question the way a friendly person talks, not the way a form reads.
 - Everyday words and short sentences. One thing at a time.
-- Start with "Can you tell me about...", "You wrote that... Can you tell me more about that?", "In the practice chat, you told the player... Can you tell me...", or "Let's say...".
+- Start with "Can you tell me about...", "You wrote that... Can you tell me more about that?", "In the practice chat, you told the ${noun}... Can you tell me...", or "Let's say...".
 - Never the bare command "Tell me about..." or "Walk me through...", and never "Why did you...".
 - Warm and curious. When it is about something that went wrong, say plainly what you noticed and ask for their side. It must never sound like a cross-examination.
 
@@ -282,7 +287,7 @@ It is in the next message inside <transcript> tags, one numbered line per messag
 === HOW TO READ THE RECORD ===
 - The application's choice answers are RANGES. "More than 4 years", "More than 2 years" and "9 or more people" are the top choices: someone with ten years, or a team of twenty, picks them correctly. Never treat a top choice as contradicting a larger number said elsewhere.
 - Most applicants write English as a second language. Small grammar and spelling mistakes are normal: write no question about them.
-- A "new promise" is the reviewer's reading of ONE line. Asking a player for a few minutes to check something is not a promise about money. Quote the line and ask about it; assume nothing.
+- A "new promise" is the reviewer's reading of ONE line. Asking a ${noun} for a few minutes to check something is not a promise about money. Quote the line and ask about it; assume nothing.
 - Leaving the test window can be innocent. If it happened several times, one neutral question about how they took the tests is fair. Never accuse.
 - A second attempt at a test after our own outage means nothing about the applicant.
 - Invent nothing. Every question must rest on something written above or in the transcript.

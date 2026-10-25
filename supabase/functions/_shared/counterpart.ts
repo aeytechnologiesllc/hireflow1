@@ -5,20 +5,22 @@
  * The prompts were written for the owner's own gaming jobs, where the people
  * writing in are "players". Any other business's applicant must never be
  * asked about players: a doctor's office has patients, a shop has customers.
- * The word comes from the job's own text (its practice cases, or its title
- * and description): "player" only when that text says players, else
- * "customer". ("patient" and "caller" come with Phase 4.)
+ * The word is a property of the job's business, not a guess from its text
+ * (a dental office's "you are a team player" once read as gaming, Pass C
+ * review 2026-10-25): "player" only for the home business
+ * (business_pages.home_alias, _shared/homeBusiness.ts), "customer" for every
+ * other business and whenever that is unknown. ("patient" and "caller" come
+ * with Phase 4.)
  *
- * Pure, no imports: ai-chat-simulation and ai-chat-interview use it, and
- * scripts/lead_practice_grading.test.mjs and scripts/interview_guide.test.mjs
- * load it in Node.
+ * Pure, no imports: ai-chat-simulation, ai-chat-interview and interview-guide
+ * use it, and scripts/lead_practice_grading.test.mjs loads it in Node.
  */
 
 export type Counterpart = "player" | "customer";
 
-/** "player" when the text talks about players, else "customer". */
-export function counterpartNoun(text: string | null | undefined): Counterpart {
-  return /\bplayers?\b/i.test(text ?? "") ? "player" : "customer";
+/** "player" only for the owner's own business; "customer" otherwise, unknown included. */
+export function counterpartFor(homeBusiness: boolean | null | undefined): Counterpart {
+  return homeBusiness === true ? "player" : "customer";
 }
 
 /** The text with "player" swapped for this job's word. JSON keys (playerDisrespected) are words inside a longer name, so they stay. */

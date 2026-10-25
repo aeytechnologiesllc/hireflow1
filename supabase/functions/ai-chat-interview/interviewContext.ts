@@ -45,8 +45,10 @@ import {
 import { clampScore, cleanText, flattenForReview, quoteIsApplicants, readFlag, textList } from "../_shared/reviewText.ts";
 import type { Counterpart } from "../_shared/counterpart.ts";
 
-/** Named in session.grading.prompt_version; bump when the evaluation prompt changes. */
-export const INTERVIEW_EVAL_PROMPT_VERSION = "chat-interview-eval-3";
+/** Named in session.grading.prompt_version; bump when the evaluation prompt changes.
+ *  4 (2026-10-25): a lead's marks name the business's own word ("customer",
+ *  or "player" for the owner's own business; _shared/counterpart.ts). */
+export const INTERVIEW_EVAL_PROMPT_VERSION = "chat-interview-eval-4";
 
 /**
  * Where the server-built context is pinned on the attempt

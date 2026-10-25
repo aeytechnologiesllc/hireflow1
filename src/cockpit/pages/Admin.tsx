@@ -490,7 +490,7 @@ function GrowthTab() {
       <div className="grid gap-3 sm:grid-cols-3">
         {[
           { label: "Front page visits", value: frontTotal },
-          { label: "Sign-up page visits", value: g.signup_page },
+          { label: "Sign-in and sign-up page visits", value: g.signup_page },
           { label: "New businesses", value: businessTotal },
         ].map((k) => (
           <div key={k.label} className="ck-card p-4">

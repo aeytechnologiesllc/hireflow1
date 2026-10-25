@@ -83,7 +83,8 @@ import {
   type InterviewJob,
 } from "./interviewContext.ts";
 import { parseNotesObject } from "../_shared/trustedResults.ts";
-import { counterpartNoun } from "../_shared/counterpart.ts";
+import { counterpartFor } from "../_shared/counterpart.ts";
+import { isHomeBusiness } from "../_shared/homeBusiness.ts";
 import { MAX_PRACTICE_BODY_BYTES, candidateIdLoader, readJsonWithin, isRefusedStep, oversizedPracticeField, practiceTurnVerdict } from "../_shared/practiceTurnGuard.ts";
 
 const corsHeaders = {
@@ -232,12 +233,12 @@ async function loadInterviewRecord(
   admin: AssessmentAdmin,
   applicationId: string,
   userId: string,
-): Promise<{ notes: Record<string, unknown>; job: InterviewJob | null } | null> {
+): Promise<{ notes: Record<string, unknown>; job: InterviewJob | null; homeBusiness: boolean } | null> {
   try {
     const { data, error } = await admin
       .from("applications")
       .select(
-        "candidate_id, notes, jobs(title, description, requirements, responsibilities, benefits, skills_required, location, job_type, experience_level, required_wpm, salary_min, salary_max, salary_currency, salary_period, quiz_questions)",
+        "candidate_id, notes, jobs(title, description, requirements, responsibilities, benefits, skills_required, location, job_type, experience_level, required_wpm, salary_min, salary_max, salary_currency, salary_period, quiz_questions, employer_id)",
       )
       .eq("id", applicationId)
       .maybeSingle();
@@ -247,9 +248,11 @@ async function loadInterviewRecord(
     }
     const row = data as { candidate_id?: unknown; notes?: unknown; jobs?: unknown };
     if (row.candidate_id !== userId) return null;
+    const jobRow = Array.isArray(row.jobs) ? row.jobs[0] : row.jobs;
     return {
       notes: parseNotesObject(row.notes),
-      job: interviewJobFrom(Array.isArray(row.jobs) ? row.jobs[0] : row.jobs),
+      job: interviewJobFrom(jobRow),
+      homeBusiness: await isHomeBusiness(admin, (jobRow as { employer_id?: unknown } | null)?.employer_id),
     };
   } catch (error) {
     console.error("[ai-chat-interview] record not read:", error);
@@ -723,10 +726,10 @@ serve(async (req) => {
     // description: never by the "Lead / Principal" seniority level alone)
     // gets the lead plan and the lead marks.
     const leadRole = isLeadRole({ title: interviewJobTitle, description: interviewJobDescription });
-    // Who the applicant talks to in this job, in the job's own word: "player"
-    // only when the job says players (the owner's own gaming jobs), else
-    // "customer" (_shared/counterpart.ts; docs/LAUNCH-PLAN.md, Phase 2).
-    const counterpart = counterpartNoun([interviewJobTitle, interviewJobDescription, jobFacts.responsibilities].filter(Boolean).join("\n"));
+    // Who the applicant talks to in this job: "player" only for the owner's
+    // own business (its gaming jobs), else "customer"; unknown (no server
+    // record) is "customer" too (_shared/counterpart.ts; docs/LAUNCH-PLAN.md, Phase 2).
+    const counterpart = counterpartFor(serverRecord?.homeBusiness);
     const requiredWpm = typeof jobFacts.requiredWpm === "number" && jobFacts.requiredWpm > 0 ? jobFacts.requiredWpm : null;
     const payPosted = postedPay(jobFacts as InterviewJob);
     const chatPracticeName = leadRole ? "Escalated chat practice" : "Chat Simulation";

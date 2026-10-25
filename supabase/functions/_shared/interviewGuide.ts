@@ -264,11 +264,14 @@ const GENERAL_PLAN: InterviewPlan = {
  * The plan for a job. The team-lead plan was written from the home
  * business's own role (six agents); another business gets the same plan
  * without the number (the owner, 2026-10-11: "Same script, no number").
- * Not knowing whose job it is means the home business's, as before.
+ * Not knowing whose job it is (the page still loading, a failed look-up, a
+ * business with no page) means the general one: the home script names the
+ * owner's players and tools, and any other business must never see it
+ * (Pass C review, 2026-10-25; until then unknown meant the home script).
  */
 export function interviewPlanFor(family: string | null | undefined, options: { homeBusiness?: boolean } = {}): InterviewPlan {
   if (family !== "team_lead") return GENERAL_PLAN;
-  return options.homeBusiness === false ? TEAM_LEAD_PLAN_ANY_BUSINESS : TEAM_LEAD_PLAN;
+  return options.homeBusiness === true ? TEAM_LEAD_PLAN : TEAM_LEAD_PLAN_ANY_BUSINESS;
 }
 
 /**

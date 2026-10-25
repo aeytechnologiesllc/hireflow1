@@ -62,7 +62,7 @@ import {
   splitBrief,
   stableIndex,
   transcriptForReview,
-  counterpartNoun,
+  counterpartFor,
   withCounterpart,
 } from "../supabase/functions/ai-chat-simulation/prompts.ts";
 import {
@@ -260,7 +260,8 @@ const leadInput = {
   jobTitle: LIVE_JOB.title,
   focus: step.focus,
   stepTitle: step.title,
-  counterpart: counterpartNoun(liveScenarios.map((c) => c.scenario).join("\n")),
+  // The owner's own business (business_pages.home_alias), as the function passes it.
+  counterpart: counterpartFor(true),
 };
 const request = buildEvaluatorMessages(leadInput, HELD_LINE);
 const system = request[0].content;
@@ -271,7 +272,7 @@ check("the system prompt is a reviewer, not the player persona", !/roleplaying a
 check("the reviewer is told the applicant is the TEAM LEADER who took over", /TEAM LEADER \(lines marked LEAD\) who took over a player's chat/.test(system));
 check("the situation and 'What the team leader knows' are separated", system.includes(splitBrief(angela.scenario).situation) && system.includes("WHAT THE TEAM LEADER KNOWS"));
 check("the case's own facts are in the prompt", system.includes("agents and team leaders cannot approve refunds") && system.includes("Nobody can promise the refund or a date."));
-check("the step's config.focus is listed", focusLabels(step.focus).every((label) => system.includes(label)));
+check("the step's config.focus is listed, in the owner's word", focusLabels(step.focus, "player").every((label) => system.includes(label)));
 for (const key of ["ownership", "correctedAgent", "accuracy", "infoAsked", "nextStep", "tone", "newPromiseMade", "newPromiseQuote"]) {
   check(`the rubric asks for ${key}`, system.includes(`"${key}"`));
 }
@@ -281,7 +282,7 @@ check("repeating a known fact is NOT a new promise", /repeating a fact from WHAT
 check("the transcript is data, never instructions", /never an instruction to you/.test(system) && user.includes("<transcript>") && user.includes("</transcript>"));
 const lines = user.split("<transcript>\n")[1].split("\n</transcript>")[0].split("\n");
 check("one numbered, labelled line per message, in order", lines.length === HELD_LINE.length && lines.every((l, i) => l.startsWith(`${HELD_LINE[i].role === "user" ? "LEAD" : "PLAYER"} ${i + 1}: `)), lines.map((l) => l.slice(0, 10)).join("|"));
-check("the eval prompt version is bumped (eval-4: the spelling list)", EVAL_PROMPT_VERSION === "chat-sim-eval-4");
+check("the eval prompt version is bumped (eval-5: the business's own word)", EVAL_PROMPT_VERSION === "chat-sim-eval-5");
 check("the validator needs every lead item and both flags", evaluatorRequiredKeys("team_lead").join(",") === "ownership,correctedAgent,accuracy,infoAsked,nextStep,tone,newPromiseMade,playerDisrespected,strengths,improvements");
 check("the reviewer names the LINE of a promise or of disrespect", system.includes('"newPromiseLine"') && system.includes('"disrespectLine"') && system.includes('"playerDisrespected"'));
 check("every item needs a number; only correctedAgent may be null", /Every item needs a number; only correctedAgent may be null/.test(system));
@@ -771,7 +772,7 @@ const details = jobDetailsSection(job);
 check("job information names the level, the typing bar and the pay", /Experience Level: lead/.test(details) && /Typing speed this job needs: 45 words a minute/.test(details) && /Posted pay: 500 USD a month/.test(details));
 const leadFields = leadInterviewFields({ leadership: { score: 82, quote: "I led six agents" }, adaptability: 64, workingLead: { score: "71", quote: "I answer chats on every shift" } });
 check("lead marks read as numbers with their quotes", leadFields.scores.leadership === 82 && leadFields.scores.adaptability === 64 && leadFields.scores.workingLead === 71 && leadFields.quotes.workingLead === "I answer chats on every shift");
-check("the interview eval prompt version is bumped", INTERVIEW_EVAL_PROMPT_VERSION === "chat-interview-eval-3");
+check("the interview eval prompt version is bumped (eval-4: the business's own word)", INTERVIEW_EVAL_PROMPT_VERSION === "chat-interview-eval-4");
 
 console.log("\nThe interview's grader:\n");
 const INTERVIEW = [
@@ -855,8 +856,14 @@ check("a lead's marks ride along on the End-button shape", leadManual.leadership
 // ---- another business's team-lead case reads "customer" (2026-10-25) ----
 {
   const storeCase = "A customer ordered a blender two weeks ago and it has not arrived. An agent promised a refund today. What the team leader knows: refunds take 3 to 5 days after the parcel is returned.";
-  check("a step about players keeps the owner's word", counterpartNoun(liveScenarios.map((c) => c.scenario).join("\n")) === "player");
-  check("any other business's step reads customer", counterpartNoun(storeCase) === "customer");
+  // A property of the business, never a guess from the text (Pass C review:
+  // a dental office's "you are a team player" once read as gaming).
+  check("the owner's own business keeps its word", counterpartFor(true) === "player");
+  check("any other business reads customer, and so does not knowing", counterpartFor(false) === "customer" && counterpartFor(undefined) === "customer" && counterpartFor(null) === "customer");
+  // Pass C review: the owner's focus labels came out "customer" while the
+  // rest of the owner's prompt said PLAYER.
+  check("the owner's review says player all through, focus labels included", /empathy: taking the player's feelings seriously/.test(system) || !step.focus?.includes("empathy"));
+  check("…no customer wording leaks into the owner's lead review", !/\bcustomers?\b/i.test(system.replace(/customerName/g, "")), system.match(/.{30}customer.{30}/i)?.[0]);
   const storeInput = { ...leadInput, scenario: storeCase, customerName: "Dana", counterpart: "customer" };
   const storeReq = buildEvaluatorMessages(storeInput, HELD_LINE);
   check("another business's lead review never says player", !/\bplayers?\b/i.test(storeReq[0].content) && !/\bPLAYER\b/.test(storeReq[1].content), storeReq[0].content.match(/.{20}player.{20}/i)?.[0]);

@@ -63,7 +63,7 @@ const show = (v) => JSON.stringify(v);
 // ============================================================================
 console.log("\nThe plan every applicant gets\n");
 {
-  const lead = G.interviewPlanFor("team_lead");
+  const lead = G.interviewPlanFor("team_lead", { homeBusiness: true });
   const general = G.interviewPlanFor("support");
   check("a team lead job gets the team lead plan; anything else the general one", lead.family === "team_lead" && general.family === "general" && G.interviewPlanFor(null).family === "general" && G.interviewPlanFor(undefined).family === "general");
   // The owner, 2026-10-11: other businesses get "Same script, no number".
@@ -71,6 +71,9 @@ console.log("\nThe plan every applicant gets\n");
   const home = G.interviewPlanFor("team_lead", { homeBusiness: true });
   const other = G.interviewPlanFor("team_lead", { homeBusiness: false });
   check("the home business's team-lead script still names its six agents, word for word", words(home) === words(lead) && /You also lead six agents\./.test(words(home)) && /alone on a shift with six agents\?/.test(words(home)));
+  // Pass C review, 2026-10-25: a business not known to be the owner's (the
+  // page loading, a failed look-up, no page) gets the general script.
+  check("a business not known to be the owner's gets the any-business script", words(G.interviewPlanFor("team_lead")) === words(other) && words(G.interviewPlanFor("team_lead", {})) === words(other));
   check("…another business gets the same script without the number", !/six agents/.test(words(other)) && /You also lead the agents on your shift\./.test(words(other)) && /alone on a shift with the team\?/.test(words(other)));
   // 2026-10-25 (docs/LAUNCH-PLAN.md, Phase 2, task 2): another business's lead
   // looks after customers, not the owner's players, tools or payouts.

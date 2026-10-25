@@ -392,16 +392,21 @@ cannot change it at all, full stop.
 
 ## `voice_interview` is special
 
-`VoiceInterviewPhase.tsx` writes `applications.voice_interview_transcript`
-directly from the browser, **after** `voice_interview_result` has already
-been set server-side (by `ava-voice-tools`' `end_interview` tool call, or by
-`submit_voice_interview_manual_end`). If your conversion flips
-`voiceInterviewResult` on, you must also move the transcript write
-server-side (into the same `recordStepResult` call, or its own service-role
-write) first — otherwise the candidate's own interview-end flow breaks the
-moment the flag flips, because the migration blocks
-`voice_interview_transcript` once `voice_interview_result` is non-null AND
-`voiceInterviewResult` is enforced.
+Until October 2026 `VoiceInterviewPhase.tsx` wrote
+`applications.voice_interview_transcript` from the browser, after
+`voice_interview_result` had been set server-side, so the flag could not be
+flipped without moving that write first. That write is gone: the transcript
+is written by `ava-voice-tools` (service role) and
+`submit_voice_interview_manual_end` (its own `hireflow.in_voice_interview_submit`
+flag), and since 2026-10-25 an applicant cannot write it at all, whatever the
+flag says (`20261025090000_protect_voice_evidence.sql`). The recording link
+(`voice_interview_recording_url`) an applicant may set only to a signed link
+into this project's own `voice-interview-recordings` bucket, under their own
+application's folder: exactly what `useVideoInterviewRecorder.ts` writes
+after the upload (`20261025110000_voice_recording_this_project.sql`; the
+first version accepted any Supabase project's host). Anything else is
+refused. If `voiceInterviewResult` is ever flipped on, nothing in the
+candidate's own interview-end flow writes a column the flag blocks.
 
 ## What an applicant's own call can and cannot do (2026-10-25)
 
@@ -423,6 +428,15 @@ Two holes from the 2026-10-24 audit (docs/LAUNCH-PLAN.md, Phase 1):
   `applications_protect_staff_columns`
   (`20261025030000_protect_application_staff_columns.sql`), refuses that with
   the same exemptions as `protect_application_columns`.
+- **Voice evidence** (found by the Pass C review). The hiring team's read
+  shows "N-minute voice interview", a quote from it and a "Hear it" link. An
+  applicant could write a made-up transcript and link any recording. The same
+  trigger now refuses any applicant write to the transcript, and the
+  recording link only to their own upload in this project's storage (see
+  "`voice_interview` is special" above).
+- **The applicant's reply** from trigger-ava-analysis carries no message (the
+  hiring team's wording) and never "recommend_decline": that reaches the
+  applicant as "waiting on the hiring team", like every held decision.
 
 Still open (planned, docs/LAUNCH-PLAN.md Phase 7): an applicant can still
 *read* the staff columns of their own row, because their pages read the row

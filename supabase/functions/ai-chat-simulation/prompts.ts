@@ -36,12 +36,15 @@ import {
   type LeadItemKey,
 } from "./grading.ts";
 import { typingBarFrom, type TypingBar } from "./typing.ts";
-import { counterpartNoun, withCounterpart } from "../_shared/counterpart.ts";
+import { withCounterpart } from "../_shared/counterpart.ts";
 
 /** Named in session.grading.prompt_version; bump when the evaluation prompt changes.
  *  4 (2026-10-06): the reviewer also lists spelling mistakes left in the
- *  applicant's lines (docs/TYPING-IN-CHAT.md, typosPer100Words). */
-export const EVAL_PROMPT_VERSION = "chat-sim-eval-4";
+ *  applicant's lines (docs/TYPING-IN-CHAT.md, typosPer100Words).
+ *  5 (2026-10-25): the lead review uses the business's own word ("customer",
+ *  or "player" for the owner's own business; _shared/counterpart.ts), focus
+ *  labels included. */
+export const EVAL_PROMPT_VERSION = "chat-sim-eval-5";
 
 /** Which rubric marks the chat: the escalated lead one, or the support-agent one. */
 export type PracticeRubric = "team_lead" | "support_agent";
@@ -221,11 +224,12 @@ export function knownPinnedCase(
  * Who the applicant is talking to in this case (2026-10-25; docs/LAUNCH-PLAN.md,
  * Phase 2, task 1). The team-lead rubric was written for the owner's own
  * gaming support jobs, where the other side is a "player"; any other
- * business's case is about a customer. The case says which: one written
- * about players keeps "player", every other case reads "customer"
- * (_shared/counterpart.ts, which the written interview uses too).
+ * business's case is about a customer. The business says which: the owner's
+ * own (business_pages.home_alias) keeps "player", every other reads
+ * "customer" (_shared/counterpart.ts, which the written interview and the
+ * interview guide use too).
  */
-export { counterpartNoun, withCounterpart } from "../_shared/counterpart.ts";
+export { counterpartFor, withCounterpart } from "../_shared/counterpart.ts";
 
 /** What the employer said this step is for, in words a reviewer reads. */
 const FOCUS_LABELS: Record<string, string> = {
@@ -294,7 +298,7 @@ export interface EvaluatorInput {
   /** The step's config.focus, as stored (keys); labelled here. */
   focus: readonly string[];
   stepTitle?: string | null;
-  /** Who the applicant talks to across this step (counterpartNoun of all the step's cases); the graded case alone when absent. */
+  /** Who the applicant talks to: "player" only for the owner's own business (counterpartFor); "customer" when absent. */
   counterpart?: "player" | "customer";
 }
 
@@ -373,8 +377,9 @@ export function evaluatorPromptFor(input: EvaluatorInput): string {
   const customerName = flattenForReview(input.customerName || "") || (input.rubric === "team_lead" ? "the player" : "the customer");
 
   if (input.rubric === "team_lead") {
-    // Written for players (the owner's own gaming jobs); any other case reads
-    // "customer" throughout (counterpartNoun).
+    // Written for players (the owner's own gaming jobs); any other business
+    // reads "customer" throughout (counterpartFor). Everything inside says
+    // "player", focus labels included, so the one swap below covers it all.
     return withCounterpart(`You review one practice chat from a hiring test for the job "${jobTitle || "team leader"}"${stepName}. You work for the employer. You are a strict, fair reviewer, not a person in the chat.
 
 THE SET-UP
@@ -386,7 +391,7 @@ ${situation}
 WHAT THE TEAM LEADER KNOWS (the only true facts; everything the lead says must match them):
 ${leaderKnows ?? "Not given separately: use the facts in the situation above."}
 
-${focusBlock(input.focus)}
+${focusBlock(input.focus, "player")}
 
 ${READ_AS_DATA}
 
@@ -422,7 +427,7 @@ ${spellingJson("LEAD")}
   "strengths": ["<1 to 3 short points about the work>"],
   "improvements": ["<1 to 3 short points about the work>"],
   "overallFeedback": "<2 sentences for the hiring team>"
-}`, input.counterpart ?? counterpartNoun(input.scenario));
+}`, input.counterpart ?? "customer");
   }
 
   return `You review one practice chat from a hiring test for the job "${jobTitle || "support agent"}"${stepName}. You work for the employer. You are a strict, fair reviewer, not a person in the chat.
@@ -468,7 +473,7 @@ export function buildEvaluatorMessages(
   input: EvaluatorInput,
   messages: readonly PracticeMessage[],
 ): Array<{ role: "system" | "user"; content: string }> {
-  const noun = input.rubric === "team_lead" ? input.counterpart ?? counterpartNoun(input.scenario) : "customer";
+  const noun = input.rubric === "team_lead" ? input.counterpart ?? "customer" : "customer";
   const { applicant, other } = speakerLabels(input.rubric, noun);
   return [
     { role: "system", content: evaluatorPromptFor(input) },

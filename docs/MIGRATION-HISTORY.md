@@ -403,6 +403,8 @@ the next. Same migration, different version stamp, as in section 2: match by
 | `20261025070000_revoke_unneeded_function_access.sql` | `20261025013132` | `revoke_unneeded_function_access` |
 | `20261025080000_admin_growth.sql` | `20261025020953` | `admin_growth` |
 | `20261025090000_protect_voice_evidence.sql` | `20261025021107` | `protect_voice_evidence` |
+| `20261025110000_voice_recording_this_project.sql` | `20261025025118` | `voice_recording_this_project` |
+| `20261025120000_admin_growth_one_role.sql` | `20261025025146` | `admin_growth_one_role` |
 
 The live copies carry a short header pointing at the repo file instead of
 the repo file's full comment block; the SQL statements are identical.

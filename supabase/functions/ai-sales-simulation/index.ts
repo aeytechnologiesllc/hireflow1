@@ -5,8 +5,8 @@ import { streamOpenAIChatCompletion } from "../_shared/openaiStreaming.ts";
 import { guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { computerRequiredBody, deviceKindOfRequest, needsComputer } from "../_shared/deviceKind.ts";
-import { computerOnlyGate, recordingTargetFrom, type AssessmentAdmin } from "../_shared/assessmentSession.ts";
-import { MAX_PRACTICE_BODY_BYTES, candidateIdLoader, readJsonWithin, oversizedPracticeField, practiceTurnVerdict } from "../_shared/practiceTurnGuard.ts";
+import { computerOnlyGate, reasonFromError, recordingTargetFrom, type AssessmentAdmin } from "../_shared/assessmentSession.ts";
+import { MAX_PRACTICE_BODY_BYTES, candidateIdLoader, isRefusedStep, readJsonWithin, oversizedPracticeField, practiceTurnVerdict } from "../_shared/practiceTurnGuard.ts";
 import { isKnownSalesCase, salesScenariosOf } from "../_shared/salesScenarios.ts";
 
 const corsHeaders = {
@@ -154,6 +154,29 @@ serve(async (req) => {
       }
       if (!isKnownSalesCase(salesScenariosOf(step.config), request)) {
         return new Response(JSON.stringify({ error: "This practice changed. Reload the page.", code: "unknown_case" }), {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      // And the step must be open for them now: reached, not finished, the
+      // application not closed. The chat and interview turns get this from
+      // their attempts; this function keeps none, so it asks the same rule
+      // (assessment_step_access) itself (second Pass C review, 2026-10-25: a
+      // rejected applicant could keep calling it). A failed read is not a
+      // refusal: a database hiccup must not stop a practice in progress.
+      const access = await (reader as unknown as AssessmentAdmin).rpc("assessment_step_access", {
+        p_application_id: target!.applicationId,
+        p_step_id: target!.stepId,
+        p_caller: turnUserId,
+      });
+      const accessRow = access.data && typeof access.data === "object" ? (access.data as { finished?: unknown; reopened?: unknown }) : null;
+      const closedBy = access.error
+        ? reasonFromError(access.error)
+        : accessRow?.finished === true && accessRow.reopened !== true
+          ? "step_finished"
+          : null;
+      if (closedBy && isRefusedStep(closedBy)) {
+        return new Response(JSON.stringify({ error: "This step isn't open for you right now. Reload the page.", code: closedBy }), {
           status: 409,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

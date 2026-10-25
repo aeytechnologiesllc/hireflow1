@@ -84,9 +84,9 @@ import {
   rubricForCase,
   scenarioToPin,
   type PracticeStepConfig,
-  practiceScenarios,
-  counterpartNoun,
+  counterpartFor,
 } from "./prompts.ts";
+import { isHomeBusiness } from "../_shared/homeBusiness.ts";
 import { MAX_PRACTICE_BODY_BYTES, candidateIdLoader, readJsonWithin, isRefusedStep, oversizedPracticeField, practiceTurnVerdict } from "../_shared/practiceTurnGuard.ts";
 
 const corsHeaders = {
@@ -190,6 +190,8 @@ interface PracticeJob {
   description: string | null;
   experienceLevel: string | null;
   step: PracticeStepConfig | null;
+  /** The owner's own business (business_pages.home_alias): its jobs say "player". */
+  homeBusiness: boolean;
 }
 
 async function loadPracticeJob(
@@ -201,7 +203,7 @@ async function loadPracticeJob(
   try {
     const { data, error } = await admin
       .from("applications")
-      .select("candidate_id, jobs(title, description, experience_level, workflow_steps)")
+      .select("candidate_id, jobs(title, description, experience_level, workflow_steps, employer_id)")
       .eq("id", applicationId)
       .maybeSingle();
     if (error || !data) {
@@ -218,6 +220,7 @@ async function loadPracticeJob(
       description: text(job.description),
       experienceLevel: text(job.experience_level),
       step: practiceStepFrom(job.workflow_steps, stepId),
+      homeBusiness: await isHomeBusiness(admin, job.employer_id),
     };
   } catch (error) {
     console.error("[ai-chat-simulation] job not read:", error);
@@ -434,11 +437,10 @@ serve(async (req) => {
       // as a support agent (whatever the job's level says).
       const rubric = rubricForCase(gradedScenario);
       const focus = practiceJob.step?.focus ?? [];
-      // A step whose cases are about players (the owner's own gaming jobs) is
-      // graded in players' words; every other business's step, in customers'
-      // (prompts.ts counterpartNoun). Read across all the step's cases: not
-      // every case in a players' step says the word.
-      const counterpart = counterpartNoun([...practiceScenarios(practiceJob.step).map((c) => c.scenario), gradedScenario].join("\n"));
+      // The owner's own business (its gaming jobs) is graded in players'
+      // words; every other business's, in customers' (_shared/counterpart.ts).
+      // A property of the business, never a guess from the cases' text.
+      const counterpart = counterpartFor(practiceJob.homeBusiness);
 
       try {
         // Graded here, server-side, every time, by a REVIEWER (prompts.ts

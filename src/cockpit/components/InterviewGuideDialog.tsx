@@ -441,7 +441,7 @@ export function InterviewGuideDialog({
   // The plan as written here, and the plan this job is actually asked: the
   // same with the job's own changes laid over it.
   // The home business's team-lead script names its own numbers; another
-  // business gets the same script without them (unknown: the home business's).
+  // business gets the same script without them (unknown: the general one).
   const { data: ownBusiness } = useOwnBusiness();
   const { data: ownPage } = useBusinessPageFor(ownBusiness?.employerId);
   const homeBusiness = ownPage ? ownPage.home_alias : undefined;

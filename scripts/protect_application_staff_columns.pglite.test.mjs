@@ -72,8 +72,10 @@ await db.exec(`
   grant select, update on public.applications to authenticated, service_role;
 `);
 await db.exec(readFileSync(MIGRATION, "utf8"));
-// The Pass C follow-up replaces the same function (voice evidence).
+// The Pass C follow-ups replace the same function (voice evidence, then the
+// recording pinned to this project's own storage).
 await db.exec(readFileSync(path.join(ROOT, "supabase/migrations/20261025090000_protect_voice_evidence.sql"), "utf8"));
+await db.exec(readFileSync(path.join(ROOT, "supabase/migrations/20261025110000_voice_recording_this_project.sql"), "utf8"));
 
 async function as(uid, role, sql) {
   await db.exec(`select set_config('request.jwt.claim.sub', '${uid ?? ""}', false); select set_config('request.jwt.claim.role', '${role}', false); set role ${role === "service_role" ? "service_role" : "authenticated"};`);
@@ -106,6 +108,7 @@ for (const [col, value] of [
   check("an applicant can attach their own uploaded recording (what the recorder writes)", okRec === null, okRec);
   for (const [label, url] of [
     ["any other site", "https://evil.example/fake.webm"],
+    ["another Supabase project, same bucket and folder", `https://attackerproject1.supabase.co/storage/v1/object/sign/voice-interview-recordings/${APP}/interview-1.webm?token=abc`],
     ["another application's folder", "https://yqklrkpptnhubsnijqze.supabase.co/storage/v1/object/sign/voice-interview-recordings/30000000-0000-4000-8000-000000000099/interview-1.webm?token=x"],
     ["a public (unsigned) path", `https://yqklrkpptnhubsnijqze.supabase.co/storage/v1/object/public/voice-interview-recordings/${APP}/interview-1.webm`],
     ["another bucket", `https://yqklrkpptnhubsnijqze.supabase.co/storage/v1/object/sign/resumes/${APP}/interview-1.webm?token=x`],

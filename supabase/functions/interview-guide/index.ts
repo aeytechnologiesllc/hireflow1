@@ -203,7 +203,7 @@ Deno.serve(async (req) => {
       admin.from("interview_plans").select("edits").eq("job_id", jobId).maybeSingle(),
     ]);
     // The home business's team-lead script names its own numbers; another
-    // business's says the same without them. Unknown: the home business's.
+    // business's says the same without them. Unknown: the general one.
     const { data: page } = await admin.from("business_pages").select("home_alias").eq("employer_id", (jobRow as { employer_id?: string }).employer_id ?? "").maybeSingle();
     const record: GuideRecord = {
       job,
