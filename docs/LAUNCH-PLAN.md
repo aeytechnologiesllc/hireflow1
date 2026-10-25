@@ -909,6 +909,40 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
 
+### 2026-10-25 (afternoon) — staff columns shipped; Phase 4 round 7; Phase 5 round 5; Phase 6 round 3; npm
+
+- **Phase 7, task 6 shipped:** the staff-columns branch's fresh review found
+  the applicant's voice interview carrying Ava's report and score, the
+  scorecard copied into the applicant-readable notes, the improvement report
+  built from them, a backup that outlived deletion, and a rerun that could
+  wipe values; all fixed (cdc3de7a, b2e88abc). Applied live (migration
+  `application_evaluations`, 20261025101542) with the eight functions and
+  the front end back to back. Checked live: the 109 scored applications'
+  fingerprint identical before and after, nothing left on `applications`,
+  notes without `avaScorecard`, a rolled-back probe as a real applicant
+  (reads nothing, write refused) and owner (reads their own only), the API
+  serving the embed. Backup dropped (`drop_evaluation_move_backup`).
+- **Phase 4, Pass C round 7** found nine regressions from round 6 (clinic
+  check-ins read as in-person, a benefits line erasing pasted lists, "Sales
+  & Service" titles, reservations agents, phone rules overriding phone
+  titles, "calls for", Back from the voice confirm step stuck on
+  "building"); fixed in a14ee8ba with 95 new checks (91 fail on the old
+  code). Every case both reviews listed runs as expected except ~37 rare
+  wordings ranked LOW.
+- **Phase 5, Pass C round 5** (89c0836a): a hiring business with a job live
+  keeps the full AI day after changing its sign-in address; separate alert
+  keys; cleanup alerts on failed ID deletions; path reading stops at "?",
+  "&" and commas; document AI refusals in plain words. Migration
+  `phase5_review5` (20261025103724), probed live.
+- **Phase 6, Pass C round 3** (3c4a6755): the age guide states HireFlow's
+  18+ rule as its own, with its reason, never as the law's approval; the
+  no-age filter catches the common ad wordings, keeps identity checks and
+  score targets, and covers every field the writers return; the owner's
+  real $500/month is back in the cost draft.
+- **npm:** DOMPurify 3.4.17, markdown-it, source-map-js and zod 4 (the last
+  high advisory); left: Tiptap 3, React Router 7, Tailwind 4 (majors, each
+  low risk here, documented in 34ce7302).
+
 ### 2026-10-25 (midday) — Phase 4 rounds 5–6; Phase 5 rounds 3–4; Phase 6 rounds 1–2; staff columns built
 
 - **Phase 4, Pass C round 5** (936ea681): the guess reads the title's role
