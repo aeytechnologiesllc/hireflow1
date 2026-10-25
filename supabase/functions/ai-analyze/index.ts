@@ -486,7 +486,7 @@ Rate AI-generation likelihood: AUTHENTIC, POSSIBLY_AI_ASSISTED, LIKELY_AI_GENERA
 
 ## 4. AUTHENTICITY ASSESSMENT
 Check for signs of fake or fabricated content:
-- Unrealistic career progression (e.g., CEO at age 22 with 10 years experience)
+- Unrealistic career progression (e.g., 10 years of experience claimed across jobs that add up to 3, or a director title one year into a first job)
 - Impossible timelines or overlapping dates
 - Vague descriptions without specifics
 - Claims that seem exaggerated or unverifiable
@@ -674,7 +674,9 @@ Notable Traits: [list 3-4 professional characteristics]
 [One confident, clear sentence summarizing whether to proceed with this candidate and why.]
 ---
 
-Be thorough, objective, and STRICT. High scores must be EARNED with specifics. Flag any inconsistencies. A generic AI-generated resume should NEVER score above 60%.`,
+Be thorough, objective, and STRICT. High scores must be EARNED with specifics. Flag any inconsistencies. A generic AI-generated resume should NEVER score above 60%.
+
+Never mention an applicant's age, birth date, the year they were born or graduated, marital or civil status, children, pregnancy or family plans, even when their resume, profile or answers list them: they count neither for nor against, and never appear in a score, strength, concern, reason or summary. (RA 10911 and fair hiring; the application already asks only whether they are 18 or older.)`,
 
   "resume": `You are AIVA (AI Virtual Assistant), an expert HR analyst specializing in comprehensive resume evaluation with advanced verification capabilities. You are a STRICT but fair evaluator - high scores (90%+) should be RARE and reserved for truly exceptional candidates with verifiable specifics.
 
@@ -797,7 +799,7 @@ Rate AI-generation likelihood: AUTHENTIC, POSSIBLY_AI_ASSISTED, LIKELY_AI_GENERA
 
 ## 4. AUTHENTICITY ASSESSMENT
 Check for signs of fake or fabricated content:
-- Unrealistic career progression (e.g., CEO at age 22 with 10 years experience)
+- Unrealistic career progression (e.g., 10 years of experience claimed across jobs that add up to 3, or a director title one year into a first job)
 - Impossible timelines or overlapping dates
 - Vague descriptions without specifics
 - Buzzword stuffing without substance
@@ -1055,7 +1057,9 @@ Summary wording rule: If quiz is completed, mention the completed quiz result be
 [Explain in plain language WHY this candidate received this score. Be specific about the primary factors that raised or lowered the score. Example: "Score is 45% because the resume contained no company names, only generic job duties without achievements, and skills did not match the job requirements." or "Score is 85% because the candidate has 5 years at named companies with quantifiable achievements that align well with the role."]
 ---
 
-Be thorough, objective, and STRICT. High scores must be EARNED with specifics. Focus on verifiable qualifications. Flag any inconsistencies. A generic AI-generated resume should NEVER score above 60%. When resume is unavailable, provide the best possible analysis using all other data.`,
+Be thorough, objective, and STRICT. High scores must be EARNED with specifics. Focus on verifiable qualifications. Flag any inconsistencies. A generic AI-generated resume should NEVER score above 60%. When resume is unavailable, provide the best possible analysis using all other data.
+
+Never mention an applicant's age, birth date, the year they were born or graduated, marital or civil status, children, pregnancy or family plans, even when their resume, profile or answers list them: they count neither for nor against, and never appear in a score, strength, concern, reason or summary. (RA 10911 and fair hiring; the application already asks only whether they are 18 or older.)`,
 
   "job-bias": `You are an expert in inclusive hiring practices and bias detection.
 Analyze the provided job posting for potential bias or exclusionary language.
@@ -1097,7 +1101,9 @@ IMPORTANT RULES:
 - NEVER end with incomplete phrases like "should:" or "look for:" - always complete the sentence
 - Tailor every question to the specific job title, requirements, and candidate background provided
 - Be creative - avoid overused questions like "Tell me about yourself" or "What's your greatest weakness"
-- Each question must assess different aspects of the candidate's fit for this specific role`,
+- Each question must assess different aspects of the candidate's fit for this specific role
+
+Never mention an applicant's age, birth date, the year they were born or graduated, marital or civil status, children, pregnancy or family plans, even when their resume, profile or answers list them: they count neither for nor against, and never appear in a score, strength, concern, reason or summary. (RA 10911 and fair hiring; the application already asks only whether they are 18 or older.)`,
 
   "phase": `You are an expert at evaluating candidate progress through hiring phases.
 Analyze the candidate's current status and performance in the hiring process.
@@ -1114,7 +1120,9 @@ Provide:
 - Recommended Next Steps
 - Risk Assessment (Low, Medium, High)
 
-Be thorough but concise in your analysis.`,
+Be thorough but concise in your analysis.
+
+Never mention an applicant's age, birth date, the year they were born or graduated, marital or civil status, children, pregnancy or family plans, even when their resume, profile or answers list them: they count neither for nor against, and never appear in a score, strength, concern, reason or summary. (RA 10911 and fair hiring; the application already asks only whether they are 18 or older.)`,
 };
 
 // Not `ReturnType<typeof createClient>`: createClient is overloaded, and

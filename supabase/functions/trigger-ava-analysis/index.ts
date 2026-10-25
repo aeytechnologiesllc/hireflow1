@@ -987,6 +987,8 @@ ${phaseList.length > 0 ? phaseList.map((p: string) => `- ${p}`).join("\n") : "- 
 
 CRITICAL INSTRUCTION: In your PHASE PERFORMANCE SUMMARY, you must ONLY include phases that are listed above. Do NOT mention phases that were NOT part of this job's workflow. For example, if there is no "typing_test" in the workflow above, do NOT say "Typing Test: Not Completed" - simply omit it entirely.
 
+NEVER MARK: Never mention an applicant's age, birth date, the year they were born or graduated, marital or civil status, children, pregnancy or family plans, even when their resume, profile or answers list them: they count neither for nor against, and never appear in a score, strength, concern, reason or summary. (RA 10911 and fair hiring; the application already asks only whether they are 18 or older.)
+
 === CANDIDATE INFORMATION (from Application Form) ===
 Candidate Name (as provided in application): ${fenceApplicantText("name", String(candidateName ?? "").slice(0, 200))}
 Candidate Email (as provided in application): ${fenceApplicantText("email", String(candidateEmail ?? "").slice(0, 200))}

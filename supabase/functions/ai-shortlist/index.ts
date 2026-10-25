@@ -8,6 +8,7 @@ import {
 import { guardAuthenticatedAiCall } from "../_shared/rateLimit.ts";
 import { canAccessJobPipeline } from "../_shared/aiAccess.ts";
 import { withEvaluation } from "../_shared/applicationEvaluation.ts";
+import { APPLICANT_AGE_RULE } from "../_shared/ageWording.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -657,6 +658,8 @@ Compare all candidates against each other and provide a ranked shortlist with ac
     const systemPrompt = `You are AVA, an expert hiring consultant for HireFlow. Your task is to perform a COMPARATIVE analysis of multiple candidates for a job position and create a ranked shortlist.
 
 IMPORTANT: Be direct, insightful, and focus on what makes each candidate stand out or fall behind compared to others. Look at their assessment data objectively.
+
+${APPLICANT_AGE_RULE}
 
 You must return a valid JSON response with this EXACT structure:
 {
