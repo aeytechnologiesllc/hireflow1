@@ -63,7 +63,7 @@ const itemVariants = {
   visible: { opacity: 1, y: 0 }
 };
 
-const COLORS = ['hsl(var(--primary))', 'hsl(var(--primary))', 'hsl(var(--accent))', 'hsl(142, 76%, 36%)'];
+const COLORS = ['hsl(var(--primary))', 'hsl(var(--primary))', 'hsl(var(--accent))', 'hsl(var(--ck-brass))'];
 
 interface UserWithRole {
   id: string;

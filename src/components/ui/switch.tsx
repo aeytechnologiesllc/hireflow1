@@ -25,13 +25,13 @@ const Switch = React.forwardRef<
     <SwitchPrimitives.Thumb
       className={cn(
         "pointer-events-none relative z-10 block h-[20px] w-[20px] rounded-full ring-0 transition-transform duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)] data-[state=unchecked]:translate-x-[3px] data-[state=checked]:translate-x-[23px]",
+        // Off: the warm off-white that is the same in both themes, on the pale
+        // track. On: the button text colour, which is always the opposite of
+        // the action colour (ivory on Day's ink, ink on Night's ivory), so the
+        // knob never melts into the track.
+        "data-[state=unchecked]:bg-[var(--slab-ink)] data-[state=checked]:bg-[var(--btn-fg)]",
       )}
-      style={{
-        // --slab-ink is the one warm off-white that is the same in both themes,
-        // so the knob reads on the pale "off" track and on ink alike.
-        background: "var(--slab-ink)",
-        boxShadow: "var(--shadow-sm)",
-      }}
+      style={{ boxShadow: "var(--shadow-sm)" }}
     />
   </SwitchPrimitives.Root>
 ));

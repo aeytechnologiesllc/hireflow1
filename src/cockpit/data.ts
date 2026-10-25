@@ -12,7 +12,7 @@ export interface PipelineNode {
   label: string;
   count: number;
   pct: string;
-  tone: "green" | "bottleneck" | "muted";
+  tone: "good" | "bottleneck" | "muted";
   dropOff?: number;
   /**
    * When set, the funnel renders in single-candidate progress mode (used when an

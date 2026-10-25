@@ -49,6 +49,10 @@ async function bootstrap() {
       <App />
     </React.StrictMode>
   );
+  // The start screen's light ground (index.html) was only for before the
+  // app's own styles; from here the theme class decides, so a later switch
+  // to Night never leaves an ivory page behind the app.
+  document.documentElement.removeAttribute("data-boot");
 }
 
 void bootstrap();

@@ -965,7 +965,7 @@ function ScoreRing({ score, size = "md", isLoading = false }: { score: number; s
   
   const getScoreColor = (s: number) => {
     if (isLoading) return "stroke-muted-foreground/50";
-    if (s >= 70) return "stroke-emerald-500";
+    if (s >= 70) return "stroke-[var(--action)]";
     if (s >= 50) return "stroke-amber-500";
     return "stroke-red-500";
   };

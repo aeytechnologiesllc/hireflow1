@@ -54,7 +54,8 @@ const itemVariants = {
   visible: { opacity: 1, y: 0 }
 };
 
-const COLORS = ['hsl(142, 76%, 36%)', 'hsl(24, 100%, 50%)', 'hsl(221, 83%, 53%)', 'hsl(var(--muted-foreground))'];
+// Ink and ivory with brass (the owner's lock, 2026-10-25): the first slice is the action colour, then brass and two neutrals.
+const COLORS = ['hsl(var(--primary))', 'hsl(var(--ck-brass))', 'hsl(24, 100%, 50%)', 'hsl(var(--muted-foreground))'];
 
 interface JobWithDetails {
   id: string;

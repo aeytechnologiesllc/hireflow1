@@ -172,7 +172,8 @@
     --ck-action: 45 21% 7%;
     --ck-action-bright: 36 15% 15%;
     --ck-brass: 38 62% 33%;
-    --ck-brass-bright: 39 50% 58%;
+    /* Day has no use for a pale brass: every use is text on paper, so it is the readable one (4.5:1 on the ground). */
+    --ck-brass-bright: 38 62% 30%;
 
     /* ── Premium tokens (--hf-*, hex) ──────────────────────────────────────── */
     --hf-bg: #F0EBDF;

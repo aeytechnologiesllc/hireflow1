@@ -63,7 +63,7 @@ const COUNTRY_TEXT_HINTS: Array<[RegExp, string]> = [
   [/\bspain\b/i, "ES"],
   [/\bitaly\b/i, "IT"],
   [/\bnetherlands\b/i, "NL"],
-  [/\bireland\b/i, "IE"],
+  [/(?<!northern\s)\bireland\b/i, "IE"],
 ];
 const US_STATE_HINT = /,\s*(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|IA|ID|IL|IN|KS|KY|LA|MA|MD|ME|MI|MN|MO|MS|MT|NC|ND|NE|NH|NJ|NM|NV|NY|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VA|VT|WA|WI|WV|WY)\b/i;
 const US_STATE_NAME_HINT = /,\s*(alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming)\b/i;
@@ -93,36 +93,42 @@ const REMOTE_COUNTRY_NAMES: Array<[RegExp, string]> = [
   [/\busx\b|\bunited states(?: of america)?\b/i, "US"],
   [/\bphilippines\b|\bphx\b/i, "PH"],
   [/\bcanada\b/i, "CA"],
-  [/\bunited kingdom\b|\buk\b|\bu\.k\.(?=\s|$|[),;])|\bgreat britain\b/i, "GB"],
+  [/\bunited kingdom\b|\buk\b|\bu\.k\.(?=\s|$|[),;])|\bgreat britain\b|\bnorthern ireland\b/i, "GB"],
   [/\bindia\b/i, "IN"],
   [/\bpakistan\b/i, "PK"],
   [/\baustralia\b/i, "AU"],
-  [/\bmexico\b/i, "MX"],
+  [/(?<!new\s)\bmexico\b/i, "MX"],
   [/\bsouth africa\b/i, "ZA"],
   [/\bnigeria\b/i, "NG"],
   [/\bkenya\b/i, "KE"],
   [/\bcolombia\b/i, "CO"],
-  [/\bireland\b/i, "IE"],
+  [/(?<!northern\s)\bireland\b/i, "IE"],
 ];
 const COUNTRY_WORD = String.raw`(?:usx|phx|united states(?: of america)?|uk|u\.k\.|united kingdom|great britain|canada|australia|philippines|india|pakistan|mexico|south africa|nigeria|kenya|colombia|ireland)`;
-const COUNTRY_LIST = String.raw`${COUNTRY_WORD}(?:\s*(?:\/|&|\+|,|\band\b|\bor\b)\s*${COUNTRY_WORD})*`;
+// Joined by "/", "&", "+", "and" or "or"; never a comma, which more often separates where from whom ("Philippines, US clients").
+const COUNTRY_LIST = String.raw`${COUNTRY_WORD}(?:\s*(?:\/|&|\+|\band\b|\bor\b)\s*${COUNTRY_WORD})*`;
 const ZONE_WORD = String.raw`(?:est|edt|pst|pdt|cst|cdt|mst|mdt|et|pt|ct|mt|eastern|pacific|central|mountain)`;
-const SERVE_WORD = String.raw`(?:night|day|morning|evening|graveyard|overnight|mid|time|zone|timezone|based|${ZONE_WORD}|healthcare|medical|dental|insurance|e-?commerce|retail|real estate|saas|tech|b2b|b2c|english[\s-]speaking)`;
-const SERVE_NOUN = String.raw`(?:shifts?|clients?|customers?|patients?|callers?|consumers?|markets?|accounts?|campaigns?|business hours|working hours|office hours|hours)`;
-const FOR_WHOM = new RegExp(String.raw`\bfor\s+(?:an?\s+|the\s+)?${COUNTRY_LIST}(?:[\s-]+based)?\s+(?:company|companies|clients?|customers?|business(?:es)?|brands?|teams?|employers?|agency|agencies|firms?|startups?)\b`, "gi");
+const SERVE_WORD = String.raw`(?:night|day|morning|evening|graveyard|overnight|mid|time|zone|timezone|based|${ZONE_WORD}|healthcare|medical|dental|law|legal|insurance|e-?commerce|retail|real estate|saas|tech|b2b|b2c|english[\s-]speaking)`;
+const SERVE_NOUN = String.raw`(?:shifts?|clients?|customers?|patients?|callers?|consumers?|markets?|accounts?|campaigns?|business hours|working hours|office hours|hours|compan(?:y|ies)|offices?|practices?|clinics?|brands?|businesses)`;
+const FOR_WHOM = new RegExp(String.raw`\bfor\s+(?:an?\s+|the\s+)?${COUNTRY_LIST}(?:[\s-]+${SERVE_WORD}){0,2}\s+(?:company|companies|clients?|customers?|business(?:es)?|brands?|teams?|employers?|agency|agencies|firms?|startups?|offices?|practices?|clinics?)\b`, "gi");
 const SERVING = new RegExp(String.raw`${COUNTRY_LIST}(?:[\s-]+${SERVE_WORD}){0,3}[\s-]+${SERVE_NOUN}\b`, "gi");
 const RULED_OUT_BEFORE = new RegExp(String.raw`\b(?:not|no|except|excluding|exclude|outside(?:\s+of)?|non)[\s-]+(?:(?:open|available)\s+(?:to|in)\s+|for\s+|in\s+|from\s+|the\s+|applicants?\s+from\s+)*(${COUNTRY_LIST})`, "gi");
 const RULED_OUT_AFTER = new RegExp(String.raw`(${COUNTRY_LIST})(?:[\s-]+(?:applicants?|residents?|candidates?))?[\s-]+(?:is\s+|are\s+)?(?:excluded|not\s+(?:eligible|accepted|allowed|open))`, "gi");
-const US_HOURS = new RegExp(String.raw`\busx[\s-]+${ZONE_WORD}\b`, "gi");
+// "US EST", "US Eastern", "US time", "USA timezone": the hours, when another country is named too.
+const US_HOURS = new RegExp(String.raw`\busx[\s-]+(?:${ZONE_WORD}\b|time(?:\s?zones?)?\b|timezones?\b)`, "gi");
+// "night shift, US", "hours: US": a schedule named before the country.
+const HOURS_FIRST = new RegExp(String.raw`\b(?:shifts?|hours)\s*[,:(-]?\s*(?:in\s+)?${COUNTRY_LIST}`, "gi");
 
 const countriesIn = (text: string) => new Set(REMOTE_COUNTRY_NAMES.filter(([re]) => re.test(text)).map(([, code]) => code));
 
 export function remoteCountryCode(locationText?: string | null): string | null {
   // A capital "US" / "U.S." / "USA" (or "PH") is the country; "us" never is.
-  let where = ` ${String(locationText ?? "")} `
+  // A location is a line, not a page: the patterns below are cheap only on
+  // short text, and the feed reads every job's on every rebuild.
+  let where = ` ${String(locationText ?? "").slice(0, 300)} `
     .replace(/(?<![A-Za-z.])(?:U\.S\.A\.?|U\.S\.?|USA|US)(?![A-Za-z])/g, " usx ")
     .replace(/(?<![A-Za-z])PH(?![A-Za-z])/g, " phx ");
-  where = where.replace(FOR_WHOM, " ").replace(SERVING, " ");
+  where = where.replace(FOR_WHOM, " ").replace(SERVING, " ").replace(HOURS_FIRST, " ");
   const ruledOut = new Set<string>();
   const ruleOut = (_m: string, list: string) => {
     for (const code of countriesIn(list)) ruledOut.add(code);

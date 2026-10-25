@@ -375,14 +375,14 @@ export function buildPipeline(apps: ApplicationWithCandidate[]): PipelineNode[] 
   const drop = (from: number, to: number) => (from > 0 ? Math.max(0, from - to) : 0);
 
   const nodes: PipelineNode[] = [
-    { key: "application", label: "Application", count: application, pct: pct(application), tone: "green", dropOff: drop(application, quiz) },
-    { key: "quiz", label: "Quiz", count: quiz, pct: pct(quiz), tone: "green", dropOff: drop(quiz, voice) },
+    { key: "application", label: "Application", count: application, pct: pct(application), tone: "good", dropOff: drop(application, quiz) },
+    { key: "quiz", label: "Quiz", count: quiz, pct: pct(quiz), tone: "good", dropOff: drop(quiz, voice) },
     {
       key: "voice",
       label: "Voice",
       count: voice,
       pct: pct(voice),
-      tone: voice > 0 && voice / total < 0.25 ? "bottleneck" : "green",
+      tone: voice > 0 && voice / total < 0.25 ? "bottleneck" : "good",
       dropOff: drop(voice, shortlist),
     },
     // "In review", not "Shortlist": every applicant who sends the form lands

@@ -186,9 +186,9 @@ export function buildShowcasePipeline(candidates: Candidate[]): PipelineNode[] {
   const drop = (from: number, to: number) => (from > 0 ? Math.max(0, from - to) : 0);
 
   return [
-    { key: "application", label: "Application", count: application, pct: pct(application), tone: "green", dropOff: drop(application, quiz) },
-    { key: "quiz", label: "Quiz", count: quiz, pct: pct(quiz), tone: "green", dropOff: drop(quiz, voice) },
-    { key: "voice", label: "Voice", count: voice, pct: pct(voice), tone: voice > 0 && voice / total < 0.25 ? "bottleneck" : "green", dropOff: drop(voice, shortlist) },
+    { key: "application", label: "Application", count: application, pct: pct(application), tone: "good", dropOff: drop(application, quiz) },
+    { key: "quiz", label: "Quiz", count: quiz, pct: pct(quiz), tone: "good", dropOff: drop(quiz, voice) },
+    { key: "voice", label: "Voice", count: voice, pct: pct(voice), tone: voice > 0 && voice / total < 0.25 ? "bottleneck" : "good", dropOff: drop(voice, shortlist) },
     { key: "shortlist", label: "Shortlist", count: shortlist, pct: pct(shortlist), tone: "muted", dropOff: drop(shortlist, hired) },
     { key: "hired", label: "Hired", count: hired, pct: pct(hired), tone: "muted" },
   ];

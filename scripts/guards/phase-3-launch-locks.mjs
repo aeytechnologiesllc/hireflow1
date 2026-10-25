@@ -31,7 +31,8 @@ function rgbOf(value) {
   }
   const rgb = /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/.exec(value);
   if (rgb) return rgb.slice(1, 4).map(Number);
-  const hsl = /^\s*(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%\s*$/.exec(value);
+  // hsl(150, 60%, 40%), hsl(150 60% 40%) or a bare "150 60% 40%" token.
+  const hsl = /^\s*(?:hsla?\(\s*)?(\d+(?:\.\d+)?)(?:deg)?\s*[,\s]\s*(\d+(?:\.\d+)?)%\s*[,\s]\s*(\d+(?:\.\d+)?)%/.exec(value);
   if (hsl) {
     const [h, sat, l] = [Number(hsl[1]), Number(hsl[2]) / 100, Number(hsl[3]) / 100];
     const k = (n) => (n + h / 30) % 12;
@@ -156,12 +157,23 @@ export default [
         "scripts/make-share-images.mjs",
       ];
       const tokens = /--(?:jade|hf-green|ck-jade|ck-mint|an-jade|gem-(?:jade|mint|teal|gold))\b|\b(?:bg|text|border|ring|from|to|via|fill|stroke|outline|shadow|decoration)-(?:jade|mint)\b|candidate-jade\.css|auth-jade\b/;
-      const values = /#[0-9a-f]{6}\b|#[0-9a-f]{3}\b|rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+|(?<![\w.-])\d{2,3}(?:\.\d+)?\s+\d{1,3}(?:\.\d+)?%\s+\d{1,3}(?:\.\d+)?%/gi;
+      const values = /#[0-9a-f]{6}\b|#[0-9a-f]{3}\b|rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+|hsla?\(\s*\d+(?:\.\d+)?(?:deg)?\s*,\s*\d+(?:\.\d+)?%\s*,\s*\d+(?:\.\d+)?%|(?<![\w.-])\d{2,3}(?:\.\d+)?\s+\d{1,3}(?:\.\d+)?%\s+\d{1,3}(?:\.\d+)?%/gi;
+      // Greens by name: a Tailwind palette class, or a CSS colour keyword used as a value.
+      const greenClass = /\b(?:bg|text|border|ring|stroke|fill|from|to|via|outline|shadow|decoration|accent|caret|divide|placeholder)-(?:green|emerald|teal|lime)-\d{2,3}\b/;
+      const greenWord = /[:=(,]\s*["'`]?(?:sea|forest|lime|spring|lawn|dark|light|medium|mediumsea|mediumspring|pale|yellow|olive|darksea|darkolive|lightsea)?green["'`]?\s*[;)"'`,]/i;
+      const oklch = /oklch\(\s*([\d.]+)%?\s+([\d.]+)\s+([\d.]+)/gi;
       for (const rel of rels) {
         const text = (await read(rel)) ?? "";
         text.split("\n").forEach((line, i) => {
           const where = `${rel}:${i + 1}`;
           if (tokens.test(line)) detail.push(`${where}  old jade token or class: ${line.trim().slice(0, 110)}`);
+          if (greenClass.test(line)) detail.push(`${where}  a green Tailwind class: ${line.trim().slice(0, 100)}`);
+          // (tidyMessage.ts holds a list of everyday words, not colours.)
+          if (rel !== "src/cockpit/lib/tidyMessage.ts" && greenWord.test(line)) detail.push(`${where}  a green colour by name: ${line.trim().slice(0, 100)}`);
+          for (const m of line.matchAll(oklch)) {
+            const [chroma, hue] = [Number(m[2]), Number(m[3])];
+            if (chroma > 0.05 && hue >= 120 && hue <= 200) detail.push(`${where}  a green oklch colour: ${m[0]}`);
+          }
           for (const m of line.matchAll(values)) {
             if (/^#34A853$/i.test(m[0])) continue; // Google's logo
             const rgb = rgbOf(m[0]);
@@ -196,7 +208,11 @@ export default [
         }
       }
       const variants = (await read("src/components/ui/button-variants.ts")) ?? "";
-      if (!/default: "bg-primary text-primary-foreground/.test(variants)) detail.push("button-variants.ts: the default button is not the primary (action) colour");
+      const defaultButton = /default: "([^"]*)"/.exec(variants)?.[1] ?? "";
+      if (!/^bg-primary text-primary-foreground/.test(defaultButton) || /brass|gold|amber/.test(defaultButton)) detail.push("button-variants.ts: the default button is not the primary (action) colour, or carries brass");
+      const tailwind = (await read("tailwind.config.ts")) ?? "";
+      if (!/action: \{\s*DEFAULT: "hsl\(var\(--ck-action\)\)",\s*bright: "hsl\(var\(--ck-action-bright\)\)",/.test(tailwind)) detail.push("tailwind.config.ts: bg-action / text-action-bright must map to --ck-action / --ck-action-bright");
+      if (!/primary: \{\s*DEFAULT: "hsl\(var\(--primary\)\)"/.test(tailwind)) detail.push("tailwind.config.ts: primary must map to --primary");
       const motion = (await read("src/styles/motion.css")) ?? "";
       const pill = /\.hf-pill--action\.hf-pill--action\.hf-pill--action \{([^}]*)\}/.exec(motion)?.[1] ?? "";
       if (!/var\(--action\)/.test(pill) || /brass/.test(pill)) detail.push("motion.css: .hf-pill--action must fill with --action, never brass");
@@ -224,14 +240,17 @@ export default [
       const defined = new Set();
       const used = new Map();
       const rels = [...(await walk("src", [".ts", ".tsx", ".css"])), "index.html", "tailwind.config.ts"];
+      // A token "defined" only inside a comment is not defined (sixth review).
+      const noComments = (text) => text.replace(/\/\*[\s\S]*?\*\/|(^|[^:"'`\w])\/\/[^\n]*/g, "$1");
       for (const rel of rels) {
-        const text = (await read(rel)) ?? "";
+        const text = noComments((await read(rel)) ?? "");
         for (const re of [/(?<![\w-])--([\w-]+)\s*:/g, /["'`]--([\w-]+)["'`]\s*(?:as\s+\w+\s*)?[:\]]/g, /\[--([\w-]+):/g, /setProperty\(\s*[`"']--([\w-]+)/g]) {
           for (const m of text.matchAll(re)) defined.add(m[1]);
         }
-        if (rel.endsWith(".html") || rel === "tailwind.config.ts") continue;
-        // var(--name) with nothing after the name but ")" has no fallback.
-        for (const m of text.matchAll(/var\(--([\w-]+)\s*\)/g)) {
+        if (rel.endsWith(".html")) continue;
+        // var(--name) with nothing after the name but ")" has no fallback;
+        // tailwind.config.ts counts as a reader (it backs bg-action and the rest), never a definer.
+        for (const m of text.matchAll(/var\(\s*--([\w-]+)\s*\)/g)) {
           if (!used.has(m[1])) used.set(m[1], rel);
         }
       }

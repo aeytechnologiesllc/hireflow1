@@ -253,7 +253,20 @@ console.log("\nThe country in a remote job's words (listingEligibility.ts and ap
     // a time zone alone keeps its country, unless another is named
     ["Remote (US Eastern Time)", "US"], ["Remote - US - Eastern time zone", "US"], ["Remote (US Pacific Time zone)", "US"],
     ["Remote PH (US EST)", "PH"],
+    // the sixth review's strings
+    ["Remote (New Mexico residents only)", null], ["Remote (Northern Ireland)", "GB"],
+    ["Philippines (US Time)", "PH"], ["Philippines (US time zone)", "PH"], ["PH, US Timezone", "PH"], ["Philippines, USA time", "PH"],
+    ["Philippines - for a US dental office", "PH"], ["Philippines, US medical practice", "PH"], ["Philippines (US-based company)", "PH"],
+    ["Philippines (night shift, US)", "PH"], ["Philippines, US clients", "PH"], ["Remote (US time zone)", "US"],
   ];
+  // A location is a line: very long text is cut first, so one business's
+  // page of text cannot slow every board's feed (the sixth review timed 1.5 s).
+  const started = Date.now();
+  for (const long of ["Remote " + "US/".repeat(9000), " and Canada".repeat(9000), "Philippines (".repeat(5000)]) {
+    inApp(long);
+    inFeed(long);
+  }
+  check("very long location text is read in well under a second", Date.now() - started < 300, `${Date.now() - started} ms`);
   for (const [text, want] of COUNTRY_CASES) {
     const app = inApp(text);
     const feed = inFeed(text);

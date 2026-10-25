@@ -30,7 +30,7 @@
          own ground for its theme: the one chosen with the toggle, else the
          device's, and Night on sign-up), so a phone shows the app at once, not a
          white page. -->
-    <script>try{var t=localStorage.getItem("theme");if(t==="light"||((!t||t==="system")&&!/^\/auth(\/|$)/.test(location.pathname)&&matchMedia("(prefers-color-scheme: light)").matches))document.documentElement.setAttribute("data-boot","light");}catch(e){}</script>
+    <script>try{var t=localStorage.getItem("theme");if(!/^\/auth(\/|$)/.test(location.pathname)&&(t==="light"||((!t||t==="system")&&matchMedia("(prefers-color-scheme: light)").matches)))document.documentElement.setAttribute("data-boot","light");}catch(e){}</script>
     <style>
       html,body{background:#17140F;margin:0}
       html[data-boot="light"],html[data-boot="light"] body{background:#F0EBDF}

@@ -38,6 +38,12 @@ const PLAYER_ALLOWED = [
   ["supabase/functions/_shared/reviewText.ts", "neutralises a PLAYER label typed inside a line"],
   ["supabase/functions/_shared/autopilot.ts", "recognises a \"player support\" job title"],
   ["supabase/functions/ai-analyze/index.ts", "\"team player\", the everyday phrase"],
+  ["src/content/scenarioPacks/packs.ts", "the gaming pack's word (no-gaming-nouns-in-generic-packs keeps it to that pack)"],
+  ["supabase/functions/_shared/scenarioPacks.ts", "the same, server copy"],
+  ["src/lib/avaEngine/playbook.ts", "recognises a \"player support\" job title"],
+  ["src/lib/avaEngine/customerService.ts", "recognises a gaming business from its words"],
+  ["supabase/functions/generate-flow/index.ts", "tells the model never to say player unless it is the pack's word"],
+  ["supabase/functions/ai-generate-job-content/index.ts", "tells the model never to say players unless it is a game company"],
 ];
 
 export default [
@@ -137,9 +143,10 @@ export default [
       // "--" and "/* */" comments taken out, so words in a comment or in the
       // next function never count (fourth and fifth Pass C reviews). Names may
       // be quoted, pg_dump style ("public"."fn").
-      const noComments = (sql) => sql.replace(/\/\*[\s\S]*?\*\//g, "").replace(/--[^\n]*/g, "");
+      // One left-to-right pass, so "/* -- */" and "-- /*" each end where they should (sixth review).
+      const noComments = (sql) => sql.replace(/\/\*[\s\S]*?\*\/|--[^\n]*/g, " ");
       const WATCHED = /^(jobs_publish_needs_email_check|business_email_verified|my_business_email_verified|profiles_email_verified_from_server|issue_business_email_code|verify_business_email_code|inbox_key|is_platform_admin)$/i;
-      const header = /create\s+(?:or\s+replace\s+)?function\s+(?:"?(?:public|private)"?\.)?"?(\w+)"?\s*\(/gi;
+      const header = /create\s+(?:or\s+replace\s+)?function\s+(?:"?(?:public|private)"?\s*\.\s*)?"?(\w+)"?\s*\(/gi;
       const trigger = /create\s+(?:or\s+replace\s+)?trigger\s+"?(jobs_publish_needs_email_check|profiles_email_verified_from_server)"?\s+([\s\S]*?)\s+execute\s/gi;
       const latestTrigger = new Map();
       for (const rel of files) {
@@ -172,8 +179,11 @@ export default [
         }
       }
       const publishTrigger = latestTrigger.get("jobs_publish_needs_email_check");
-      if (!publishTrigger || !/^before insert or update of status on public\.jobs for each row$/.test(publishTrigger.events)) {
-        detail.push(`${publishTrigger?.rel ?? "migrations"}: the publish trigger must be "before insert or update of status on public.jobs for each row" (found: ${publishTrigger?.events ?? "none"})`);
+      // AFTER, on every insert and update: a column trigger "of status" never
+      // fires when another trigger sets status (sixth review), and a BEFORE
+      // trigger can be overruled by one that runs after it.
+      if (!publishTrigger || !/^after insert or update on public\.jobs for each row$/.test(publishTrigger.events)) {
+        detail.push(`${publishTrigger?.rel ?? "migrations"}: the publish trigger must be "after insert or update on public.jobs for each row" (found: ${publishTrigger?.events ?? "none"})`);
       }
       const stampTrigger = latestTrigger.get("profiles_email_verified_from_server");
       if (!stampTrigger || !/^before insert or update on public\.profiles for each row$/.test(stampTrigger.events)) {
@@ -184,8 +194,8 @@ export default [
         detail.push(`${admin.rel}: is_platform_admin no longer asks platform_admins about auth.uid() (every publish goes through it)`);
       }
       const test = (await read("scripts/business_email_check.pglite.test.mjs")) ?? "";
-      if (!/const TOUCHES_THE_CHECK = /.test(test) || !/name >= "20261025100000_business_email_check\.sql"/.test(test)) {
-        detail.push("scripts/business_email_check.pglite.test.mjs: must replay every later migration that touches the check (TOUCHES_THE_CHECK), the real lock behind this guard");
+      if (!/const NOT_THE_CHECK = \{/.test(test) || !/name >= "20261025100000_business_email_check\.sql"/.test(test) || !/\.filter\(\(name\) => !\(name in NOT_THE_CHECK\)\)/.test(test)) {
+        detail.push("scripts/business_email_check.pglite.test.mjs: must replay EVERY later migration except the ones it lists with a reason (NOT_THE_CHECK), the real lock behind this guard");
       }
       const must = [
         ["jobs_publish_needs_email_check", /if not public\.business_email_verified\(new\.employer_id\) then/, "refuses a publish for a business that has not confirmed"],

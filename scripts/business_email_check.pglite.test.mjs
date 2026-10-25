@@ -23,27 +23,29 @@ import path from "node:path";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const MIGRATIONS = path.join(ROOT, "supabase/migrations");
-// Every migration from the check onward that defines, replaces, grants, drops
-// or disables any piece of it (or is_platform_admin, which every publish goes
-// through), applied in order, so a later file that weakens the rule fails the
-// checks below however its SQL is written (the fifth Pass C review found
-// text-matching in the guard could be got round: quoted names, 'select true'
-// bodies, grants on all functions, a disabled or re-made trigger). A file
-// picked up here that needs more of the schema fails loudly: add what it
-// needs to the stub below.
-const TOUCHES_THE_CHECK = new RegExp([
-  String.raw`function\s+[\w."]*?\b(issue_business_email_code|verify_business_email_code|business_email_verified|my_business_email_verified|jobs_publish_needs_email_check|profiles_email_verified_from_server|inbox_key|is_platform_admin)\b`,
-  String.raw`trigger\s+(if\s+exists\s+)?"?(jobs_publish_needs_email_check|profiles_email_verified_from_server)\b`,
-  String.raw`\b(disable|enable)\s+(always\s+|replica\s+)?trigger\b`,
-  String.raw`\bon\s+all\s+functions\s+in\s+schema\b`,
-  String.raw`\bsession_replication_role\b`,
-  String.raw`\bprivate\.business_email_code`,
-  String.raw`\btable\s+[\w."]*?\bplatform_admins\b`,
-].join("|"), "i");
+// EVERY migration from the check onward is applied in order, except the ones
+// listed in NOT_THE_CHECK with the reason, so a later file that weakens the
+// rule fails the checks below however its SQL is written (quoted or spaced
+// names, 'select true' bodies, grants on all functions, a disabled or re-made
+// trigger, a trigger that changes status itself: the fifth and sixth Pass C
+// reviews). A new migration is applied here by default: if it needs more of
+// the schema than the stub below has, this test fails until the stub is
+// extended or the file is added to NOT_THE_CHECK with its reason.
+const NOT_THE_CHECK = {
+  "20261025110000_voice_recording_this_project.sql": "voice interview evidence (applications), nothing of the check",
+  "20261025120000_admin_growth_one_role.sql": "the admin growth report, read-only",
+};
 const LATER = readdirSync(MIGRATIONS)
   .filter((name) => name.endsWith(".sql") && name >= "20261025100000_business_email_check.sql")
   .sort()
-  .filter((name) => TOUCHES_THE_CHECK.test(readFileSync(path.join(MIGRATIONS, name), "utf8").replace(/--[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "")));
+  .filter((name) => !(name in NOT_THE_CHECK));
+// One comment-aware pass (whichever of /* or -- starts first wins), for the
+// earlier-file check below.
+const withoutComments = (sql) => sql.replace(/\/\*[\s\S]*?\*\/|--[^\n]*/g, " ");
+const EARLIER_TOUCH = /\b(issue_business_email_code|verify_business_email_code|business_email_verified|jobs_publish_needs_email_check|profiles_email_verified_from_server|business_email_code|email_verified_(at|for))\b/i;
+const EARLIER = readdirSync(MIGRATIONS)
+  .filter((name) => name.endsWith(".sql") && name < "20261025100000_business_email_check.sql")
+  .filter((name) => EARLIER_TOUCH.test(withoutComments(readFileSync(path.join(MIGRATIONS, name), "utf8"))));
 const words = await import(path.join(ROOT, "supabase/functions/_shared/businessEmailCode.ts"));
 
 let passed = 0;
@@ -114,7 +116,9 @@ for (const name of LATER) {
     check(`${name} applies on this test's schema (it touches the email check; extend the stub if it needs more)`, false, e.message ?? String(e));
   }
 }
-check("the three migrations that make the check are among them", ["20261025100000_business_email_check.sql", "20261025130000_business_email_check_hardening.sql", "20261025140000_business_email_check_round3.sql"].every((n) => LATER.includes(n)), LATER.join(", "));
+check("the migrations that make the check are among them", ["20261025100000_business_email_check.sql", "20261025130000_business_email_check_hardening.sql", "20261025140000_business_email_check_round3.sql", "20261025150000_business_email_check_after_trigger.sql"].every((n) => LATER.includes(n)), LATER.join(", "));
+check("no migration named earlier than the check touches it (a back-dated file would run after it live)", EARLIER.length === 0, EARLIER.join(", "));
+check("every skipped migration still exists (the list is not stale)", Object.keys(NOT_THE_CHECK).every((n) => readdirSync(MIGRATIONS).includes(n)));
 // Signed up after the migration: never asked yet.
 await db.exec(`insert into public.profiles (user_id, email) values ('${NEW_BIZ}', 'new@biz.test'); insert into public.user_roles values ('${NEW_BIZ}', 'employer');`);
 
@@ -338,6 +342,24 @@ console.log("\nPutting a job live\n");
   check("a platform admin reopening a business's job is not refused (the business still confirms to publish itself)", adminReopen.error === null, adminReopen.error);
   const forOther = await as(LATE, "authenticated", `insert into public.jobs (employer_id, title, status) values ('${NEW_BIZ}', 'Spoof', 'published')`);
   check("the rule reads the job's business, whoever writes it (RLS decides who may write)", forOther.error === null, forOther.error);
+
+  // Another trigger that puts a job live by itself on an ordinary edit (a
+  // scheduled publish, say): a column trigger "of status" never fired for it
+  // (the sixth Pass C review). The check reads the row as finally written.
+  const later = await as(LATE, "authenticated", `insert into public.jobs (employer_id, title, status) values ('${LATE}', 'Night agent', 'draft') returning id`);
+  await db.exec(`
+    create function public.zz_test_auto_publish() returns trigger language plpgsql as $f$
+    begin if new.title like '%(go live)' then new.status := 'published'; end if; return new; end $f$;
+    create trigger zz_test_auto_publish before insert or update on public.jobs for each row execute function public.zz_test_auto_publish();`);
+  const sneaky = await as(LATE, "authenticated", `update public.jobs set title = 'Night agent (go live)' where id = '${later.rows[0]?.id}'`);
+  check("a job put live by another trigger on an ordinary edit is still checked", !!sneaky.error && /Confirm your email/.test(sneaky.error), sneaky.error ?? "no error");
+  const sneakyNew = await as(LATE, "authenticated", `insert into public.jobs (employer_id, title, status) values ('${LATE}', 'Day agent (go live)', 'draft')`);
+  check("…and on a new job saved as a draft", !!sneakyNew.error && /Confirm your email/.test(sneakyNew.error), sneakyNew.error ?? "no error");
+  const stillDraft = (await db.query(`select status from public.jobs where id = '${later.rows[0]?.id}'`)).rows[0]?.status;
+  check("…and the refused edit is undone", stillDraft === "draft", String(stillDraft));
+  const fine = await as(NEW_BIZ, "authenticated", `insert into public.jobs (employer_id, title, status) values ('${NEW_BIZ}', 'Weekend agent (go live)', 'draft')`);
+  check("a confirmed business's job put live that way is fine", fine.error === null, fine.error);
+  await db.exec(`drop trigger zz_test_auto_publish on public.jobs; drop function public.zz_test_auto_publish();`);
 }
 
 console.log("\nThe email and its answers (_shared/businessEmailCode.ts)\n");

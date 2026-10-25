@@ -78,6 +78,7 @@ const PAIRS = [
   ["foreground", "background", 4.5], ["primary-foreground", "primary", 4.5],
   ["muted-foreground", "background", 4.5], ["muted-foreground", "card", 4.5],
   ["accent-foreground", "accent", 4.5], ["card-foreground", "card", 4.5],
+  ["ck-brass", "background", 4.5], ["ck-brass-bright", "background", 4.5], ["ck-brass-bright", "card", 4.5],
 ];
 
 for (const [theme, t] of [["Day", day], ["Night", night]]) {
