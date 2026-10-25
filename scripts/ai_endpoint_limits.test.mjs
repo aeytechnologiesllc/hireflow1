@@ -75,6 +75,17 @@ for (const fn of ["ai-chat-simulation", "ai-chat-interview", "ai-sales-simulatio
   check(`${fn}: checks the body size before reading it`, /MAX_PRACTICE_BODY_BYTES/.test(src));
   check(`${fn}: refuses oversized fields`, /oversizedPracticeField\(request\)/.test(src));
   check(`${fn}: serves a turn only for the applicant's own application`, /practiceTurnVerdict\(\{/.test(src) && /candidateIdLoader\(/.test(src));
+  // An unknown mode must be refused before anything reaches OpenAI (the sales
+  // practice let one fall through with the caller's own history; Pass C, 2026-10-25).
+  check(`${fn}: refuses an unknown mode`, /code: "unknown_mode"/.test(src));
+}
+{
+  const sales = read("supabase/functions/ai-sales-simulation/index.ts");
+  const unknownAt = sales.indexOf('code: "unknown_mode"');
+  const verdictAt = sales.indexOf("practiceTurnVerdict({");
+  const openaiAt = sales.indexOf("streamOpenAIChatCompletion({");
+  check("ai-sales-simulation: unknown modes are refused, then every turn is guarded, before OpenAI", unknownAt > 0 && unknownAt < verdictAt && verdictAt < openaiAt);
+  check("ai-sales-simulation: the guard is not inside a mode check any more", !/if \(mode === "start" \|\| mode === "respond"\) \{\s*const target = recordingTargetFrom\(request\);\s*const turnUserId/.test(sales));
 }
 for (const fn of ["ai-generate-job-content", "ai-generate-workflow"]) {
   check(`${fn}: requires a signed-in user`, /if \(!\(await signedInUserId\(req\)\)\)/.test(read(`supabase/functions/${fn}/index.ts`)));

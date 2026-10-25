@@ -99,13 +99,21 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (mode === "start" || mode === "respond") {
-      const target = recordingTargetFrom(request);
-      const turnUserId = target ? await resolveCallerId(req) : null;
+    // Only the two turns the page sends. Any other mode used to fall through
+    // to OpenAI with the caller's own history and no guard at all.
+    if (mode !== "start" && mode !== "respond") {
+      return new Response(JSON.stringify({ error: "Unknown mode", code: "unknown_mode" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Served only for a signed-in applicant's own application: a turn with no
     // application, or from nobody, was a free AI call for anyone
     // (_shared/practiceTurnGuard.ts; docs/LAUNCH-PLAN.md, Phase 1, task 3).
-      {
+    {
+      const target = recordingTargetFrom(request);
+      const turnUserId = target ? await resolveCallerId(req) : null;
       const reader = gateClient();
       const verdict = await practiceTurnVerdict({
         target,
@@ -118,7 +126,6 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-    }
     }
 
     // The sales practice is taken on a computer (docs/COMPUTER-ONLY-TESTS.md),

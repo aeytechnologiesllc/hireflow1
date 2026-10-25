@@ -75,8 +75,11 @@ export function buildPolicy({ indexHtml, landingHtml }) {
         "'self'",
         ...hashes,
         ...(handlerHashes.length ? ["'unsafe-hashes'", ...handlerHashes] : []),
+        // A source path that does not end in "/" matches that exact path only,
+        // so the PDF worker (https://unpkg.com/pdfjs-dist@<version>/build/...)
+        // needs the host. The Natively path ends in "/" and matches as a prefix.
         "https://cdn.jsdelivr.net/npm/natively@2.20.0/",
-        "https://unpkg.com/pdfjs-dist@",
+        "https://unpkg.com",
         "https://*.daily.co",
         "blob:",
       ],

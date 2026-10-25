@@ -54,6 +54,9 @@ check("frame-ancestors is 'self' (no framing by other sites)", directive("frame-
 check("reports go to client-errors ?kind=csp", directive("report-uri") === `report-uri ${csp.REPORT_URI}`);
 check("every inline script is hashed", csp.inlineScripts(sources.indexHtml).length + csp.inlineScripts(sources.landingHtml).length === (directive("script-src").match(/'sha256-/g) ?? []).length - csp.inlineHandlers(sources.indexHtml).length);
 check("JSON-LD data blocks are not hashed (they never run)", !csp.inlineScripts('<script type="application/ld+json">{"a":1}</script>').length);
+// A CSP source whose path does not end in "/" matches that exact path only
+// (CSP3 §6.7.2.12): every path-scoped script source must end in "/".
+check("every path-scoped script source ends in / (a prefix, not an exact file)", directive("script-src").split(" ").filter((t) => /^https:\/\/[^/]+\/.+/.test(t)).every((t) => t.endsWith("/")), directive("script-src"));
 
 const edited = csp.buildPolicy({ ...sources, indexHtml: sources.indexHtml.replace("window.__HF_PASSWORD_RECOVERY", "window.__HF_PASSWORD_RECOVERY_X") });
 check("editing an inline script changes the policy", edited !== policy);

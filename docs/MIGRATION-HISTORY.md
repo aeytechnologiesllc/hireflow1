@@ -385,6 +385,28 @@ none of them; `reconcile_orphaned_profiles` is separate follow-up work, one
 migration at a time through the Management API with the 2-second pause
 below, stopping immediately if it fails.
 
+## 4. Phase 1 security migrations, 2026-10-25 (docs/LAUNCH-PLAN.md)
+
+Applied one at a time through the Supabase MCP `apply_migration` (which
+stamps the live version with the time of the call), each checked live before
+the next. Same migration, different version stamp, as in section 2: match by
+**name**.
+
+| Repo file | Live version | Live name |
+|---|---|---|
+| `20261025010000_safe_links.sql` | `20261025012933` | `safe_links` |
+| `20261025020000_ai_daily_budget.sql` | `20261025012953` | `ai_daily_budget` |
+| `20261025030000_protect_application_staff_columns.sql` | `20261025013010` | `protect_application_staff_columns` |
+| `20261025040000_profiles_email_from_account.sql` | `20261025013026` | `profiles_email_from_account` |
+| `20261025050000_drop_leftover_open_policies.sql` | `20261025013059` | `drop_leftover_open_policies` |
+| `20261025060000_platform_admin_two_step.sql` | `20261025013114` | `platform_admin_two_step` |
+| `20261025070000_revoke_unneeded_function_access.sql` | `20261025013132` | `revoke_unneeded_function_access` |
+
+The live copies carry a short header pointing at the repo file instead of
+the repo file's full comment block; the SQL statements are identical.
+`drop_leftover_open_policies` dropped nothing live (checked with its own
+selection immediately before applying: no rows).
+
 ## Why this happens: the Management API stamping rule
 
 `npx supabase db push` (CLI) applies a migration file and records
