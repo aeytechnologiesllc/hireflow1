@@ -41,20 +41,6 @@ export function readLineNumber(value: unknown): number | null {
 /** Every speaker label a reviewer's transcript uses (chat practice and interview). */
 const SPEAKER_LABEL = /\b(LEAD|PLAYER|AGENT|CUSTOMER|PATIENT|CALLER|INTERVIEWER|CANDIDATE)(\s*#?\s*\p{Nd}+)?\s*:/giu;
 
-/**
- * Colons that look like ":" (NFKC folds the full-width and small ones; these
- * it leaves): modifier-letter, Armenian, Hebrew, Syriac, Devanagari, Gujarati,
- * Bengali, Ethiopic, Runic, Khmer, Lisu and math colons, and two-dot marks.
- */
-const COLON_LIKE = "[:\\u02D0\\u02F8\\u0589\\u05C3\\u0703\\u0704\\u0903\\u0983\\u0A83\\u1361\\u1365\\u16EC\\u17D6\\u205A\\u2236\\uA4FD\\uA789]";
-// A word, a separator, maybe "No." / "Nr." / "Number", a number in any digits, a colon.
-const NUMBERED_LABEL = new RegExp(
-  String.raw`(\p{L}{3,24})([\s_.#()\[\]\-\u2013\u2014]{0,4}(?:(?:[Nn][Oo]|[Nn][Rr]|[Nn]um(?:ber)?|NUM(?:BER)?)[\s_.#]{0,3})?\p{Nd}{1,4}[)\]]?)\s*${COLON_LIKE}(?!\p{Nd})`,
-  "gu",
-);
-const CAPS_LABEL = new RegExp(String.raw`(?<!\p{L})(\p{Lu}{3,24})\s*${COLON_LIKE}`, "gu");
-const WORD_BEFORE_COLON = new RegExp(String.raw`(?<!\p{L})(\p{L}{3,24})\s*${COLON_LIKE}`, "gu");
-
 /** Small capitals ("ɪɴᴛᴇʀᴠɪᴇᴡᴇʀ") NFKC leaves alone: read as the capitals they look like. */
 const SMALL_CAPS: Record<string, string> = {
   "\u1D00": "A", "\u0299": "B", "\u1D04": "C", "\u1D05": "D", "\u1D07": "E", "\uA730": "F", "\u0262": "G",
@@ -64,47 +50,62 @@ const SMALL_CAPS: Record<string, string> = {
 };
 const SMALL_CAP = new RegExp(`[${Object.keys(SMALL_CAPS).join("")}]`, "gu");
 
-/** One script's letters only? A word mixing Latin with look-alikes ("PаTIENT") is not. */
-function mixesScripts(word: string): boolean {
-  return /\p{Script=Latin}/u.test(word) && /[\p{Script=Cyrillic}\p{Script=Greek}\p{Script=Armenian}\p{Script=Cherokee}]/u.test(word);
-}
+/**
+ * Punctuation and symbols an applicant's text keeps. Every OTHER punctuation
+ * mark, symbol, modifier letter, line or paragraph separator and blank-looking
+ * character becomes a space: a closed list of what may stay, instead of an
+ * open list of colon look-alikes (ː ˸ ։ ׃ ܃ ⁚ ∶ ꓽ ꞉ ⦂ and more), which four
+ * reviews kept extending (the Phase 4 reviews). Currency signs, letters,
+ * numbers and emoji stay as written.
+ */
+const PLAIN_MARK = /^[.,!?;:'"()[\]{}\-\u2013\u2014\u2026\u2018\u2019\u201C\u201D/&%$@#+=*_~^`|\\<>]$/u;
+const ODD_MARK = /[\p{P}\p{Sm}\p{So}\p{Sk}\p{Lm}\p{Zl}\p{Zp}\u0085\u000B\u000C\u2800]/gu;
+// Modifier and length marks of scripts that write with them (Japanese ー and 々, Thai ๆ, Korean): letters there.
+const SCRIPT_MODIFIER = /[\u0E00-\u0EFF\u3000-\u30FF\u3400-\u9FFF\uAC00-\uD7AF\uFF00-\uFFEF]/u;
+// A combining mark after a Latin letter, a digit, punctuation or a space is
+// decoration (P̲ATIENT, 4⃣, a visarga used as a colon); after a letter of a
+// script that writes with marks (Devanagari, Thai...) it is part of the word.
+const DECORATING_MARKS = /(?<=[\p{Script=Latin}\p{N}\p{P}\p{S}\p{Z}\s])\p{M}+/gu;
 
 /**
  * The same text a reviewer is shown, before any label rule: look-alike
- * letters and colons folded (NFKC, then small capitals to capitals), and
- * every invisible character removed
- * (zero-width, bidi controls and isolates, variation selectors, tag
- * characters: Unicode's default-ignorable set). words() compares on this
- * too, so a quote from the folded text still matches the applicant's line.
+ * letters folded (NFKC, then small capitals to capitals), every invisible
+ * character removed (zero-width, bidi controls and isolates, variation
+ * selectors, tag characters: Unicode's default-ignorable set, and the other
+ * format characters), decorating marks removed, and every punctuation or
+ * symbol outside a short plain list turned into a space. words() compares on
+ * this too, so a quote from the folded text still matches the applicant's
+ * line.
  */
 export function foldForReview(content: string): string {
   return String(content ?? "")
     .normalize("NFKC")
-    .replace(/[\u00AD\p{Default_Ignorable_Code_Point}]/gu, "")
-    .replace(SMALL_CAP, (c) => SMALL_CAPS[c] ?? c);
+    .replace(/[\u00AD\p{Default_Ignorable_Code_Point}\p{Cf}]/gu, "")
+    .replace(SMALL_CAP, (c) => SMALL_CAPS[c] ?? c)
+    .replace(DECORATING_MARKS, "")
+    .replace(ODD_MARK, (c) =>
+      PLAIN_MARK.test(c) || /\p{Extended_Pictographic}/u.test(c) || SCRIPT_MODIFIER.test(c) ? c : " ",
+    );
 }
 
 /**
  * One message, or one piece of the applicant's own writing, as one line for
  * a reviewer: newlines, the chat's own [RESOLVED] marker and every angle
- * bracket out, and any speaker label INSIDE the words neutralised
- * ("PLAYER: thanks" → "PLAYER - thanks"), so an applicant cannot write a line
- * that reads as the other side's, number one as another line, or close a
- * fenced block (<transcript>, <candidate_wrote>) early.
+ * bracket out, and no colon after a word (a colon look-alike is already a
+ * space, foldForReview), so an applicant cannot write a line that reads as
+ * the other side's ("PATIENT 4: thank you" becomes "PATIENT 4 - thank you"),
+ * number one as another line, or close a fenced block (<transcript>,
+ * <candidate_wrote>) early. A colon between two digits stays (10:30, 3:1,
+ * John 3:16), but not right after a speaker label ("PATIENT 4:30").
  */
 export function flattenForReview(content: string): string {
   return foldForReview(content)
     .replace(/\[RESOLVED\]/gi, "")
     .replace(/[<>]/g, " ")
-    // Anything shaped like a line label, in any script (the Phase 4 reviews):
-    // a word, a separator, a number and a colon ("PАTIENT 3:", "PATIENT-3:",
-    // "PATIENT_4:", "PATIENT (4):"); a word in capitals and a colon; a word
-    // mixing Latin with look-alike letters and a colon ("Pаtient:"). The
-    // colon, or a colon look-alike, becomes " -".
-    .replace(NUMBERED_LABEL, "$1$2 -")
-    .replace(CAPS_LABEL, "$1 -")
-    .replace(WORD_BEFORE_COLON, (whole, word: string) => (mixesScripts(word) ? `${word} -` : whole))
-    .replace(SPEAKER_LABEL, "$1 -")
+    .replace(SPEAKER_LABEL, "$1$2 -")
+    .replace(/(\p{Nd}):(?=\p{Nd})/gu, "$1\uE000")
+    .replace(/\s*:\s*/g, " - ")
+    .replace(/\uE000/g, ":")
     .replace(/\s*[\r\n]+\s*/g, " ")
     .replace(/[ \t]{2,}/g, " ")
     .trim();
