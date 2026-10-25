@@ -46,8 +46,9 @@ address and put a job live under it. At its first Publish a business gets a
   job, or any other status turning into it, closed included) unless
   `business_email_verified(job's business)`: the profile's stamp
   (`email_verified_at`) for the address it confirmed (`email_verified_for`)
-  while that is still the sign-in address, or a Google sign-in, or a platform
-  admin. HINT `email_not_verified`; the job editor and Ava's publish open
+  while that is still the sign-in address, or a Google sign-in whose Google
+  address is still the sign-in address, or a platform admin. A platform
+  admin's own writes (reopening a paused business's jobs) are not refused. HINT `email_not_verified`; the job editor and Ava's publish open
   "Confirm your email" on it (`src/components/business/EmailCheckDialog.tsx`)
   and carry on with the publish once confirmed. Service-role writes pass.
 - The code: only a business account (the employer role) gets one; made by the
@@ -58,7 +59,19 @@ address and put a job live under it. At its first Publish a business gets a
 - Nobody stamps themself: an API write to `email_verified_at` or
   `email_verified_for` keeps the old value.
 - Changing the sign-in address ends the stamp until the new address is
-  confirmed.
+  confirmed: the business cannot put another job live (or reopen a closed
+  one) until it does. Jobs already live stay live; the check is for going
+  live.
+- The code is mailed to the address the database recorded it for, never to
+  an address looked up again, so an address changed in between cannot get a
+  code made for another (third Pass C review, 2026-10-25;
+  `20261025140000_business_email_check_round3.sql`).
+- Known limit: the per-inbox limits (ten an hour, twenty a day) also mean a
+  stranger who signs up with "you+tag@" addresses can use up a real
+  business's limit for a day; that business is told to message us from Help.
+  A determined sender with many networks could also fill the 300-an-hour
+  ceiling. A bot check on sign-up (Cloudflare Turnstile, Phase 2 task 5,
+  waiting on the owner's keys) is the fix for both.
 - Applicants are never asked. Team members cannot confirm the owner's address
   (they are told the owner must). A wrong address at sign-up is not a dead
   end: the screen points to Help.

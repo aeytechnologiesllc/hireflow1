@@ -740,13 +740,19 @@ void quiet;
     w.rpcs = { issue_business_email_code: (args) => (issued.push(args), answer) };
     w.profiles.find((p) => p.user_id === OWNER).full_name = "hireflow-verify.example/login Owner";
   };
-  r = await hush(async () => (reset(codeWorld({ ok: true, code: "042917" })), ask("tok-owner", { type: "business_email_code", recipient_user_id: ANA, data: { code: "111111", email: "victim@example.com" } })));
+  r = await hush(async () => (reset(codeWorld({ ok: true, code: "042917", email: emailOf(OWNER) })), ask("tok-owner", { type: "business_email_code", recipient_user_id: ANA, data: { code: "111111", email: "victim@example.com" } })));
   const codeMail = world.sent[0];
   check("the code: sent to the signed-in caller's own address, not the request's", r.status === 200 && show(codeMail?.to) === show([emailOf(OWNER)]) && issued.at(-1)?.p_user === OWNER, show({ r, to: codeMail?.to }));
+  // Third Pass C review: the address is the one the database recorded the
+  // code for, never looked up again (it may have changed in between).
+  r = await hush(async () => (reset((w) => { codeWorld({ ok: true, code: "042917", email: "recorded@zulu.example" })(w); w.accountEmails = { ...(w.accountEmails ?? {}), [OWNER]: "changed@attacker.example" }; }), ask("tok-owner", { type: "business_email_code" })));
+  check("…to the address the database recorded the code for, even if the account's changed since", r.status === 200 && show(world.sent[0]?.to) === show(["recorded@zulu.example"]), show({ r, to: world.sent[0]?.to }));
+  r = await hush(async () => (reset(codeWorld({ ok: true, code: "042917" })), ask("tok-owner", { type: "business_email_code" })));
+  check("…and no address from the database means nothing is sent", r.status === 503 && world.sent.length === 0, show(r));
   check("…with the database's code, never one from the request", textOf(codeMail).includes("042917") && !textOf(codeMail).includes("111111") && codeMail?.subject === "Your HireFlow code: 042917");
   check("…and nothing the account typed (no name)", !/hireflow-verify|Owner/.test(textOf(codeMail)), textOf(codeMail).slice(0, 200));
   check("…and neither the code nor the address in the answer", r.body && !JSON.stringify(r.body).includes("042917") && !JSON.stringify(r.body).includes(emailOf(OWNER)), show(r.body));
-  r = await hush(async () => (reset(codeWorld({ ok: true, code: "042917" })), ask(SERVICE_KEY, { type: "business_email_code", recipient_user_id: OWNER, data: {} })));
+  r = await hush(async () => (reset(codeWorld({ ok: true, code: "042917", email: emailOf(OWNER) })), ask(SERVICE_KEY, { type: "business_email_code", recipient_user_id: OWNER, data: {} })));
   check("…the system cannot send one for someone either", r.status === 401 && world.sent.length === 0, show(r));
   r = await hush(async () => (reset(codeWorld({ ok: false, reason: "too_soon", retry_after: 42 })), ask("tok-owner", { type: "business_email_code" })));
   check("…the database's 'too soon' is a 429 with the wait, and nothing is sent", r.status === 429 && r.body?.code === "too_soon" && r.retryAfter === "42" && world.sent.length === 0, show(r));
@@ -755,15 +761,15 @@ void quiet;
   r = await hush(async () => (reset((w) => { w.databaseDown = true; }), ask("tok-owner", { type: "business_email_code" })));
   check("…a database it cannot ask sends nothing", r.status === 503 && world.sent.length === 0, show(r));
   r = await hush(async () => {
-    reset(codeWorld({ ok: true, code: "042917" }));
+    reset(codeWorld({ ok: true, code: "042917", email: emailOf(OWNER) }));
     let last = null;
-    for (let i = 0; i < 11; i += 1) {
+    for (let i = 0; i < 21; i += 1) {
       world.sent = [];
       last = await ask("tok-owner", { type: "business_email_code" });
     }
     return last;
   });
-  check("…ten an hour from one network: the eleventh is refused", r.status === 429 && world.sent.length === 0, show(r));
+  check("…twenty an hour from one network: the twenty-first is refused", r.status === 429 && world.sent.length === 0, show(r));
 }
 check("nothing in any of this reached outside the stand-ins", world.outside.length === 0 && globalThis.__world.outside.length === 0);
 globalThis.fetch = realFetch;
@@ -789,7 +795,7 @@ console.log("\nC. The wiring\n");
     const at = (needle) => branch.indexOf(needle);
     check("the code branch comes first, before any other kind's decision", start > 0 && start < mainAt);
     check("the code: signed-in callers only (the service key too is refused)", /if \(caller\.kind !== "user"\)/.test(branch) && at("identifyCaller(") < at('rpc("issue_business_email_code"'));
-    check("the code: made by the database for the caller, then sent to the sign-in address", at('rpc("issue_business_email_code", { p_user: caller.id })') > 0 && at("auth.admin.getUserById(caller.id)") > at("issue_business_email_code") && at("resend.emails.send(") > at("getUserById"));
+    check("the code: made by the database for the caller, then sent to the address the database recorded", at('rpc("issue_business_email_code", { p_user: caller.id })') > 0 && at("const to = issued.email;") > at("issue_business_email_code") && at("resend.emails.send(") > at("const to = issued.email;") && at("getUserById") === -1);
     check("the code: nothing from the request, and neither the code nor the address in the answer", !/request\.|data\??\.|recipient_user_id/.test(branch.replace(/data: issuedRow|data: account|data: me|\{ code: issued\.code/g, "")) && /JSON\.stringify\(\{ success: true \}\)/.test(branch));
     check("the code: no email preference can stop it", !/email_notifications_enabled|getPreferenceField/.test(branch));
     check("the code: a kind of its own gate", A.NOTIFICATION_RULES.business_email_code?.who === "own-gate");

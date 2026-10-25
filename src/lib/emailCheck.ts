@@ -96,7 +96,8 @@ export const EMAIL_CHECK_WORDS = {
   confirm: "Confirm and publish",
   confirming: "Checking…",
   resend: "Send a new code",
-  resendIn: (seconds: number) => (seconds > 90 ? `Send a new code in ${Math.ceil(seconds / 60)} min` : `Send a new code in ${seconds}s`),
+  resendIn: (seconds: number) =>
+    seconds >= 3 * 3600 ? "Send a new code tomorrow" : seconds > 90 ? `Send a new code in ${Math.ceil(seconds / 60)} min` : `Send a new code in ${seconds}s`,
   spam: "Not there? Check spam, or send a new code.",
   wrongAddress: "Not your address? Message us from Help and we'll sort it out.",
   done: "Email confirmed.",

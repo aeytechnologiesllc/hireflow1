@@ -127,11 +127,17 @@ export default [
       // Each piece is checked in its LATEST definition, so a later migration
       // cannot quietly weaken it with a `create or replace` (second Pass C
       // review, 2026-10-25), and its trigger cannot be dropped.
+      // Each piece is read from its own body (create ... $$ ... $$;), so a later
+      // migration that weakens it cannot pass on words found elsewhere in the
+      // file, and a redefinition without "public." is seen too (third Pass C
+      // review). Grants are read from the file that holds the latest body.
       const files = (await walk("supabase/migrations", [".sql"])).sort();
       const latest = new Map();
       for (const rel of files) {
         const text = (await read(rel)) ?? "";
-        for (const m of text.matchAll(/create or replace function (public|private)\.(\w+)\(/gi)) latest.set(m[2], { rel, text });
+        for (const m of text.matchAll(/create\s+(?:or\s+replace\s+)?function\s+(?:(?:public|private)\.)?"?(\w+)"?\s*\(([\s\S]*?)\$\$;/gi)) {
+          latest.set(m[1], { rel, text: m[2], file: text });
+        }
         if (/drop\s+trigger\s+(if\s+exists\s+)?(jobs_publish_needs_email_check|profiles_email_verified_from_server)\b/i.test(text) &&
             !/create trigger (jobs_publish_needs_email_check|profiles_email_verified_from_server)\b/i.test(text)) {
           detail.push(`${rel}: drops a trigger of the business email check without creating it again`);
@@ -148,7 +154,8 @@ export default [
         ["profiles_email_verified_from_server", /new\.email_verified_for := old\.email_verified_for/, "keeps email_verified_for the server's"],
         ["issue_business_email_code", /'not_a_business'/, "gives codes to business accounts only"],
         ["issue_business_email_code", /private\.inbox_key\(/, "limits each inbox, however it is written"],
-        ["issue_business_email_code", /pg_advisory_xact_lock\(/, "serialises one account's requests"],
+        ["issue_business_email_code", /business_email_code:/, "serialises one account's requests"],
+        ["issue_business_email_code", /business_email_inbox:/, "serialises one inbox's requests"],
         ["verify_business_email_code", /'address_changed'/, "takes a code only for the address it went to"],
       ];
       for (const [fn, pattern, what] of must) {
@@ -157,7 +164,8 @@ export default [
         else if (!pattern.test(def.text)) detail.push(`${def.rel}: ${fn} no longer ${what}`);
       }
       const issueDef = latest.get("issue_business_email_code");
-      if (issueDef && (!/grant execute on function public\.issue_business_email_code\(uuid\) to service_role;/.test(issueDef.text) || /issue_business_email_code\(uuid\) to authenticated/.test(issueDef.text))) {
+      if (issueDef && !/'email', v_email/.test(issueDef.text)) detail.push(`${issueDef.rel}: issue_business_email_code no longer says which address the code is for`);
+      if (issueDef && (!/grant execute on function public\.issue_business_email_code\(uuid\) to service_role;/.test(issueDef.file) || /issue_business_email_code\(uuid\) to (authenticated|anon|public)/i.test(issueDef.file))) {
         detail.push(`${issueDef.rel}: only the system may make a code`);
       }
       const first = (await read("supabase/migrations/20261025100000_business_email_check.sql")) ?? "";
@@ -172,8 +180,9 @@ export default [
         if (!/isEmailNotVerifiedError\(/.test(src) || !/<EmailCheckDialog/.test(src)) detail.push(`${page}: no longer opens the code screen when the publish is refused`);
       }
       const fn = (await read("supabase/functions/send-notification-email/index.ts")) ?? "";
-      if (!/if \(type === BUSINESS_EMAIL_CODE_TYPE\) \{[\s\S]*?if \(caller\.kind !== "user"\)[\s\S]*?checkRateLimit\("business-email-code-ip"[\s\S]*?getUserById\(caller\.id\)/.test(fn)) {
-        detail.push("send-notification-email: the code must go to the signed-in caller's own sign-in address, ten an hour per IP");
+      const branch = /if \(type === BUSINESS_EMAIL_CODE_TYPE\) \{([\s\S]*?)\n    \/\/ "Email me the link"/.exec(fn)?.[1] ?? "";
+      if (!/if \(caller\.kind !== "user"\)/.test(branch) || !/checkRateLimit\("business-email-code-ip"/.test(branch) || !/const to = issued\.email;/.test(branch) || /getUserById/.test(branch)) {
+        detail.push("send-notification-email: the code goes to the signed-in caller only, at the address the database recorded it for (never looked up again), with a per-IP limit");
       }
       return detail.length ? { ok: false, detail } : { ok: true };
     },

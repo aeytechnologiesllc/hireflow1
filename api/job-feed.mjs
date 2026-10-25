@@ -88,7 +88,10 @@ const REMOTE_COUNTRY_NAMES = [
 export function remoteCountryCode(locationText) {
   const text = String(locationText ?? "");
   if (/\b(not|except|excluding|outside|no)\b/i.test(text)) return null;
-  const found = new Set(REMOTE_COUNTRY_NAMES.filter(([re]) => re.test(text)).map(([, code]) => code));
+  // "US shift", "US clients", "US hours": who they will serve, not where the
+  // job is (third Pass C review: Philippine posts say this all the time).
+  const where = text.replace(/\b(?:U\.?S\.?A?\.?|United States)[\s-]*(?:based\s+)?(?:shifts?|clients?|hours?|time(?:\s?zone)?|customers?|market|accounts?)\b/gi, " ");
+  const found = new Set(REMOTE_COUNTRY_NAMES.filter(([re]) => re.test(where)).map(([, code]) => code));
   return found.size === 1 ? [...found][0] : null;
 }
 

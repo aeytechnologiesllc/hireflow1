@@ -738,9 +738,8 @@ const getEmailContent = (
     })(),
 
     // EMPLOYER-FACING — the email-check code a business asks for at its first
-    // "Publish" (_shared/businessEmailCode.ts). The handler sets `data` to
-    // the code the database made and the account's first name; nothing here
-    // came from the page.
+    // "Publish" (_shared/businessEmailCode.ts). The handler sets `data` to the
+    // code the database made, and nothing else: no name, nothing from the page.
     business_email_code: (() => {
       const words = businessEmailCodeEmail({ code: String(data.code ?? "") });
       return {
@@ -899,9 +898,10 @@ const handler = async (req: Request): Promise<Response> => {
       if (caller.kind !== "user") {
         return refuse(401, { error: "Your sign-in has ended. Sign in again to get a code.", code: "not_signed_in" });
       }
-      // Ten an hour from one network, on top of the database's own limits
-      // (per account, per inbox, for everyone).
-      const ipLimit = await checkRateLimit("business-email-code-ip", callerIp(req), 10, 3600);
+      // Twenty an hour from one network (many people share one on mobile
+      // data), on top of the database's own limits (per account, per inbox,
+      // for everyone).
+      const ipLimit = await checkRateLimit("business-email-code-ip", callerIp(req), 20, 3600);
       if (!ipLimit.allowed) {
         return refuse(429, { error: "That's a lot of codes from here. Try again in an hour.", code: "too_many", retryAfter: ipLimit.retryAfter }, ipLimit.retryAfter);
       }
@@ -912,11 +912,9 @@ const handler = async (req: Request): Promise<Response> => {
         console.log(`[send-notification-email] business_email_code refused: ${issued.code}`);
         return refuse(issued.status, { error: issued.error, code: issued.code, ...(issued.retryAfter ? { retryAfter: issued.retryAfter } : {}) }, issued.retryAfter);
       }
-      const { data: account, error: accountError } = await supabase.auth.admin.getUserById(caller.id);
-      const to = account?.user?.email ?? null;
-      if (accountError || !to) {
-        return refuse(404, { error: "Your account has no email address to send a code to.", code: "no_address" });
-      }
+      // Only the address the database recorded the code for: looking it up
+      // again here could mail a code made for one address to another.
+      const to = issued.email;
       const content = getEmailContent(BUSINESS_EMAIL_CODE_TYPE, { code: issued.code }, "employer");
       const sent = await resend.emails.send({ from: TEAM_SENDER, to: [to], subject: content.subject, html: content.html });
       if (sent?.error) {

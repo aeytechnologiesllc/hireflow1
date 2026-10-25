@@ -51,7 +51,7 @@ The function works out who is asking itself (`identifyCaller`):
 | `new_application`, `phase_completed` | an applicant | the owner of a job they applied to |
 | `document_signed`, `reschedule_requested`, `voice_minutes_low`, `voice_minutes_exhausted`, `interview_ready`, `interview_reminder`, `steps_reopened`, `interview_confirmed`, `interview_time_picked` | the system only | as the system says |
 | `continue_on_computer` | its own gate (`_shared/continueOnComputerEmail.ts`) | the signed-in applicant |
-| `business_email_code` | its own gate (`_shared/businessEmailCode.ts`): a signed-in business account; the code is made by the database (`issue_business_email_code`, business accounts only, one a minute and five an hour per account, five an hour per inbox however it is written, 300 an hour in all) and the function adds ten an hour per IP; no email setting can stop it; the email carries the code and nothing the account typed | the caller's own sign-in address |
+| `business_email_code` | its own gate (`_shared/businessEmailCode.ts`): a signed-in business account; the code is made by the database (`issue_business_email_code`, business accounts only, one a minute and five an hour per account, ten an hour and twenty a day per inbox with case, "+tags" and Gmail's dots ignored, 300 an hour in all, each serialised so a burst cannot slip past) and the function adds twenty an hour per IP; no email setting can stop it; the email carries the code and nothing the account typed | the address the database recorded the code for (the caller's sign-in address at that moment), never looked up again |
 
 A team member limited to some jobs (`assigned_job_ids`) is the hiring team
 only for applicants of those jobs. A membership that is not `active` is no

@@ -212,11 +212,15 @@ Decision; "done" counts done, done below the bar and skipped.
 | interview | Interview | Applied, Tested | Interview | Moved to interview / Interview Mon 3 PM |
 | offered | Hired | Applied, Tested, Interview | Offer | Offer made |
 | hired | Hired | all four (brass) | Hired | Hired |
-| declined | where they were | what was behind them | Declined (red) | Declined |
+| declined | the last test milestone the row shows (an interview or offer before a decline is not on the row) | what was behind them | Declined (red) | Declined |
+| interview no-show | Interview (the status stays `interview`) | Applied, Tested | Interview | the interview's own words |
+| withdrawn | not on the list (withdrawing deletes the application) | | | |
 
 Hired, once reached, is the one brass moment on the rail (brass means Ava,
 a score, "hired" or money); everything else is ink on paper by day and ivory
-on ink at night. The aria-label reads "Tested: Testing · 3 of 5". The full
+on ink at night. Milestones not reached, and the line to them, are `--ink-3`
+at 75% (at least 3:1 on the card in both themes). The aria-label reads
+"Where they are: Tested"; the line under the rail says the rest. The full
 profile keeps its detailed per-step rail (section 4).
 
 ### Dot states: decided by the RECORD, never by position

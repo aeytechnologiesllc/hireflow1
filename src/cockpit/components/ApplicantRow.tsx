@@ -31,6 +31,11 @@ export const APPLICANT_TABLE_MIN = 768 + 5 * 16 + 2 * 20 + 2;
 
 /* ── Where they are ───────────────────────────────────────────────────── */
 
+/** A milestone not reached, and the line to it: --ink-3 at 75% is at least
+ *  3:1 on the card in both themes (--hair and --track were under 2.4:1,
+ *  third Pass C review). */
+const UNLIT = "color-mix(in srgb, var(--ink-3) 75%, transparent)";
+
 /**
  * "Where they are": four milestones, Applied → Tested → Interview → Hired
  * (lib/milestones.ts; the owner's Option C, 2026-10-24). Solid dots on a line
@@ -41,18 +46,18 @@ export const APPLICANT_TABLE_MIN = 768 + 5 * 16 + 2 * 20 + 2;
 export function MilestoneRail({ view, labels = true, size = 9 }: { view: MilestoneView; labels?: boolean; size?: number }) {
   const big = size + 4;
   return (
-    <div aria-label={`${MILESTONE_LABELS[view.at]}: ${view.detail}`} role="img">
+    <div aria-label={`Where they are: ${view.tone === "stopped" ? "Declined" : view.at === 3 && view.tone !== "won" ? "Offer" : MILESTONE_LABELS[view.at]}`} role="img">
       <div className="flex items-center" style={{ height: big + 6 }}>
         {MILESTONE_LABELS.map((label, i) => {
           const lit = i < view.lit;
           const here = i === view.at;
           const won = view.tone === "won" && i === 3;
           const fill = won ? "var(--brass)" : lit ? "var(--ink)" : "transparent";
-          const ring = won ? "var(--brass)" : here && view.tone === "stopped" ? "var(--crit)" : lit || here ? "var(--ink)" : "var(--hair)";
+          const ring = won ? "var(--brass)" : here && view.tone === "stopped" ? "var(--crit)" : lit || here ? "var(--ink)" : UNLIT;
           const d = here ? big : size;
           return (
             <span key={label} className={`flex items-center ${i === 0 ? "" : "min-w-0 flex-1"}`}>
-              {i > 0 && <span className="h-[2px] min-w-[8px] flex-1" style={{ background: i < view.lit ? "var(--ink)" : "var(--track)" }} />}
+              {i > 0 && <span className="h-[2px] min-w-[8px] flex-1" style={{ background: i < view.lit ? "var(--ink)" : UNLIT }} />}
               <span
                 className="shrink-0 rounded-full"
                 style={{
@@ -91,7 +96,7 @@ export function MilestoneRail({ view, labels = true, size = 9 }: { view: Milesto
 export function ListFootnote({ className = "" }: { className?: string }) {
   return (
     <div className={`text-[12px] ${className}`} style={{ color: "var(--ink-3)" }}>
-      Tap a row to open their full profile: every answer, test and flag.
+      Open a row to see their full profile: every answer, test and flag.
     </div>
   );
 }

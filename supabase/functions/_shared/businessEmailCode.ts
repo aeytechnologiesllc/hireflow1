@@ -8,8 +8,11 @@
  * in, at the address on their sign-in account, never to a user id or an
  * address named in the body. The database makes the code and keeps the
  * limits (business accounts only; one a minute and five an hour per account;
- * five an hour per inbox, however it is written; 300 an hour in all); the
- * function adds ten an hour per IP. This file is the words and what each
+ * ten an hour and twenty a day per inbox, case, "+tags" and Gmail's dots
+ * ignored; 300 an hour in all); the function adds twenty an hour per IP. The
+ * database also says which address the code is for, and only that address
+ * gets it (third Pass C review: looking the address up again could mail a
+ * code recorded for one address to another). This file is the words and what each
  * answer means. The email carries nothing its account typed (not even a
  * first name): a name field is free text, and this email is HireFlow's.
  *
@@ -41,7 +44,7 @@ export function businessEmailCodeEmail(input: { code: string }): BusinessEmailCo
 }
 
 export type BusinessEmailCodeAnswer =
-  | { ok: true; code: string }
+  | { ok: true; code: string; email: string }
   | { ok: false; status: 200 | 401 | 403 | 404 | 429 | 503; code: string; error: string; retryAfter?: number };
 
 function waitWords(seconds: number): string {
@@ -53,7 +56,9 @@ function waitWords(seconds: number): string {
 /** What issue_business_email_code's answer means for the caller. Anything unreadable is "try later". */
 export function readIssuedCode(issued: unknown): BusinessEmailCodeAnswer {
   const r = issued && typeof issued === "object" ? (issued as Record<string, unknown>) : null;
-  if (r?.ok === true && typeof r.code === "string" && /^[0-9]{6}$/.test(r.code)) return { ok: true, code: r.code };
+  if (r?.ok === true && typeof r.code === "string" && /^[0-9]{6}$/.test(r.code) && typeof r.email === "string" && r.email.includes("@")) {
+    return { ok: true, code: r.code, email: r.email };
+  }
   const retry = typeof r?.retry_after === "number" && Number.isFinite(r.retry_after) ? Math.max(1, Math.ceil(r.retry_after)) : undefined;
   switch (r?.reason) {
     case "not_signed_in":
@@ -64,6 +69,8 @@ export function readIssuedCode(issued: unknown): BusinessEmailCodeAnswer {
       return { ok: false, status: 429, code: "too_soon", error: `A code is on its way. You can ask for another in ${waitWords(retry ?? 60)}.`, retryAfter: retry ?? 60 };
     case "too_many":
       return { ok: false, status: 429, code: "too_many", error: `That's five codes this hour. You can ask again in ${waitWords(retry ?? 3600)}.`, retryAfter: retry ?? 3600 };
+    case "too_many_today":
+      return { ok: false, status: 429, code: "too_many_today", error: "That's a lot of codes for this address today. Try again tomorrow, or message us from Help.", retryAfter: 86400 };
     case "not_a_business":
       return { ok: false, status: 403, code: "not_a_business", error: "Only a business account confirms its email here." };
     case "no_address":

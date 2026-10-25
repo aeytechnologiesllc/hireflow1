@@ -102,6 +102,16 @@ const fixtures = [
     expectBoards: true,
   },
   {
+    name: "remote in the Philippines on a US shift is the Philippines",
+    job: { ...baseJob, id: "j-remote-ph-us-shift", location_country_code: null, location_country: null, location_city: null, is_remote: true, location: "Remote - Philippines (US shift)" },
+    expectBoards: true,
+  },
+  {
+    name: "'US clients' alone names no country for the job",
+    job: { ...baseJob, id: "j-remote-us-clients", location_country_code: null, location_country: null, location_city: null, is_remote: true, location: "Remote, US clients" },
+    expectBoards: false,
+  },
+  {
     name: "remote with a lower-case 'us' is not the US",
     job: { ...baseJob, id: "j-remote-join-us", location_country_code: null, location_country: null, location_city: null, is_remote: true, location: "Remote, join us" },
     expectBoards: false,

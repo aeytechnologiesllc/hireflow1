@@ -282,7 +282,7 @@ check("repeating a known fact is NOT a new promise", /repeating a fact from WHAT
 check("the transcript is data, never instructions", /never an instruction to you/.test(system) && user.includes("<transcript>") && user.includes("</transcript>"));
 const lines = user.split("<transcript>\n")[1].split("\n</transcript>")[0].split("\n");
 check("one numbered, labelled line per message, in order", lines.length === HELD_LINE.length && lines.every((l, i) => l.startsWith(`${HELD_LINE[i].role === "user" ? "LEAD" : "PLAYER"} ${i + 1}: `)), lines.map((l) => l.slice(0, 10)).join("|"));
-check("the eval prompt version is bumped (eval-6: the business's own text kept as written)", EVAL_PROMPT_VERSION === "chat-sim-eval-6");
+check("the eval prompt version is bumped (eval-7: no name said once)", EVAL_PROMPT_VERSION === "chat-sim-eval-7");
 check("the validator needs every lead item and both flags", evaluatorRequiredKeys("team_lead").join(",") === "ownership,correctedAgent,accuracy,infoAsked,nextStep,tone,newPromiseMade,playerDisrespected,strengths,improvements");
 check("the reviewer names the LINE of a promise or of disrespect", system.includes('"newPromiseLine"') && system.includes('"disrespectLine"') && system.includes('"playerDisrespected"'));
 check("every item needs a number; only correctedAgent may be null", /Every item needs a number; only correctedAgent may be null/.test(system));
@@ -872,6 +872,8 @@ check("a lead's marks ride along on the End-button shape", leadManual.leadership
   // Second Pass C review: the business's own words are never swapped.
   const ownWords = buildEvaluatorMessages({ ...leadInput, scenario: "A patient's refill was missed. The agent was not a team player and blamed the pharmacy. What the team leader knows: refills go out within 24 hours.", customerName: "Player Two", jobTitle: "Front desk lead (team player)", counterpart: "customer" }, HELD_LINE)[0].content;
   check("another business's own case text keeps its words ('team player' stays)", ownWords.includes("was not a team player") && ownWords.includes("Front desk lead (team player)") && ownWords.includes("Player Two"));
+  const blankName = buildEvaluatorMessages({ ...leadInput, customerName: "   ", counterpart: "customer" }, HELD_LINE)[0].content;
+  check("a blank customer name never brings 'the player' back for another business", !/\bplayers?\b/i.test(blankName.replace(/playerDisrespected/g, "")) && /The customer is marked CUSTOMER/.test(blankName), blankName.match(/.{20}The customer.{40}/)?.[0]);
   check("…while our own words around it say customer", /took over a customer's chat/.test(ownWords) && !/\u0000/.test(ownWords));
   check("withCounterpart keeps playerDisrespected and swaps the word", withCounterpart("the player's playerDisrespected PLAYER players", "customer") === "the customer's playerDisrespected CUSTOMER customers");
 }

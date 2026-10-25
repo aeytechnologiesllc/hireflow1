@@ -45,8 +45,10 @@ import { withCounterpart } from "../_shared/counterpart.ts";
  *  or "player" for the owner's own business; _shared/counterpart.ts), focus
  *  labels included.
  *  6 (2026-10-25): the business's own case text, job title and customer name
- *  are no longer swapped with it. */
-export const EVAL_PROMPT_VERSION = "chat-sim-eval-6";
+ *  are no longer swapped with it.
+ *  7 (2026-10-25): a case with no customer name says "the customer" once,
+ *  not "The customer, the customer,". */
+export const EVAL_PROMPT_VERSION = "chat-sim-eval-7";
 
 /** Which rubric marks the chat: the escalated lead one, or the support-agent one. */
 export type PracticeRubric = "team_lead" | "support_agent";
@@ -394,7 +396,7 @@ export function evaluatorPromptFor(input: EvaluatorInput): string {
     const prompt = withCounterpart(`You review one practice chat from a hiring test for the job "${hold(jobTitle || "team leader")}"${hold(stepName)}. You work for the employer. You are a strict, fair reviewer, not a person in the chat.
 
 THE SET-UP
-The applicant played a TEAM LEADER (lines marked LEAD) who took over a player's chat after one of their agents handled it badly. The player, ${input.customerName ? hold(customerName) : "the player"}, is marked PLAYER and was played by the test. Every line is numbered.
+The applicant played a TEAM LEADER (lines marked LEAD) who took over a player's chat after one of their agents handled it badly. The player${flattenForReview(input.customerName || "") ? `, ${hold(customerName)},` : ""} is marked PLAYER and was played by the test. Every line is numbered.
 
 THE SITUATION (the applicant read this before starting):
 ${hold(situation)}
@@ -447,7 +449,7 @@ ${spellingJson("LEAD")}
   return `You review one practice chat from a hiring test for the job "${jobTitle || "support agent"}"${stepName}. You work for the employer. You are a strict, fair reviewer, not a person in the chat.
 
 THE SET-UP
-The applicant played a SUPPORT AGENT (lines marked AGENT). The customer, ${customerName}, is marked CUSTOMER and was played by the test. Every line is numbered.
+The applicant played a SUPPORT AGENT (lines marked AGENT). The customer${flattenForReview(input.customerName || "") ? `, ${customerName},` : ""} is marked CUSTOMER and was played by the test. Every line is numbered.
 
 THE CUSTOMER'S SITUATION:
 ${caseText(input.scenario)}

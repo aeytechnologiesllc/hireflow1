@@ -63,6 +63,7 @@ check("names the address when it is known", W.intro("dana@clinic.test").includes
 check("says how long the code lasts", /15 minutes/.test(W.sent("x@y.test")));
 check("the button says what happens next", W.confirm === "Confirm and publish");
 check("a long wait to resend is said in minutes, not thousands of seconds", W.resendIn(3412) === "Send a new code in 57 min" && W.resendIn(42) === "Send a new code in 42s");
+check("…and a day-long wait is 'tomorrow'", W.resendIn(86400) === "Send a new code tomorrow");
 check("a wrong address is never a dead end: Help is offered", /Help/.test(W.wrongAddress));
 const dialog = readFileSync(path.join(ROOT, "src/components/business/EmailCheckDialog.tsx"), "utf8");
 check("pasting '042 917' is not cut short by a 6-character limit before the digits are kept", !/maxLength=\{6\}/.test(dialog) && /cleanCode\(e\.target\.value\)/.test(dialog));

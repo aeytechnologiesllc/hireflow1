@@ -6,15 +6,19 @@
  *
  * The list drew one dot per journey step (eleven on the owner's own job), in
  * five states, with the step's name only in a tooltip. Now the rail has four
- * stops, and the step detail is written under the one they are at ("Testing ·
- * 3 of 5", "Offer made", "Declined"), so a phone shows it without a hover.
+ * stops with their names under them (the one they are at stressed: "Offer"
+ * for an offer, "Declined" when stopped), and the row's own line under the
+ * rail says the step in words ("Skills check · step 2 of 7 · live"), so a
+ * phone shows it without a hover. `detail` is that state in short words, for
+ * tests and any caller with no line of its own.
  *
  * Every application state lands on a milestone (docs/APPLICANTS-LIST.md has
  * the table): filling in the form → Applied; taking the tests (or waiting
  * for a computer, or gone part-way) → Tested, not lit yet; every test done
  * and waiting on the team → Tested, lit; interview → Interview; offered →
- * Hired, not lit ("Offer made"); hired → Hired, lit; declined → wherever they
- * were, marked stopped.
+ * Hired, not lit ("Offer made"); hired → Hired, lit; declined → the last test
+ * milestone the row shows they reached, marked stopped (the row keeps no
+ * record of an interview or offer before a decline).
  *
  * Pure, no imports: scripts/applicant_milestones.test.mjs loads it in Node.
  */

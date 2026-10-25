@@ -25,6 +25,7 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..")
 const MIGRATION = path.join(ROOT, "supabase/migrations/20261025100000_business_email_check.sql");
 // The second Pass C review's hardening replaces the same functions.
 const HARDENING = path.join(ROOT, "supabase/migrations/20261025130000_business_email_check_hardening.sql");
+const ROUND3 = path.join(ROOT, "supabase/migrations/20261025140000_business_email_check_round3.sql");
 const words = await import(path.join(ROOT, "supabase/functions/_shared/businessEmailCode.ts"));
 
 let passed = 0;
@@ -59,18 +60,21 @@ await db.exec(`
   grant execute on function auth.uid(), auth.role() to anon, authenticated, service_role;
 
   create table auth.users (id uuid primary key, email text);
-  create table auth.identities (user_id uuid, provider text);
+  create table auth.identities (user_id uuid, provider text, identity_data jsonb);
   create type public.job_status as enum ('draft', 'published', 'closed', 'archived');
   create type public.app_role as enum ('employer', 'candidate');
   create table public.profiles (id uuid primary key default gen_random_uuid(), user_id uuid unique, email text, full_name text);
   create table public.user_roles (user_id uuid, role public.app_role);
   create table public.platform_admins (user_id uuid primary key);
   create table public.jobs (id uuid primary key default gen_random_uuid(), employer_id uuid not null, title text, status public.job_status default 'draft');
+  create function public.is_platform_admin() returns boolean language sql stable security definer as $$
+    select exists (select 1 from public.platform_admins where user_id = auth.uid()) $$;
+  grant execute on function public.is_platform_admin() to authenticated;
 
   insert into auth.users values
     ('${OLD_BIZ}', 'old@biz.test'), ('${NEW_BIZ}', 'new@biz.test'), ('${GOOGLE_BIZ}', 'g@biz.test'),
     ('${ADMIN}', 'admin@biz.test'), ('${TEAM}', 'team@biz.test'), ('${APPLICANT}', 'a@x.test');
-  insert into auth.identities values ('${GOOGLE_BIZ}', 'google');
+  insert into auth.identities values ('${GOOGLE_BIZ}', 'google', '{"email":"g@biz.test"}');
   insert into public.profiles (user_id, email) values
     ('${OLD_BIZ}', 'old@biz.test'), ('${GOOGLE_BIZ}', 'g@biz.test'), ('${ADMIN}', 'admin@biz.test'),
     ('${TEAM}', 'team@biz.test'), ('${APPLICANT}', 'a@x.test');
@@ -86,6 +90,7 @@ await db.exec(`
 `);
 await db.exec(readFileSync(MIGRATION, "utf8"));
 await db.exec(readFileSync(HARDENING, "utf8"));
+await db.exec(readFileSync(ROUND3, "utf8"));
 // Signed up after the migration: never asked yet.
 await db.exec(`insert into public.profiles (user_id, email) values ('${NEW_BIZ}', 'new@biz.test'); insert into public.user_roles values ('${NEW_BIZ}', 'employer');`);
 
@@ -129,6 +134,7 @@ let first;
 {
   first = await issue(NEW_BIZ);
   check("the system makes a 6-digit code", first?.ok === true && /^[0-9]{6}$/.test(first.code), JSON.stringify(first));
+  check("…and says which address it is for (the function mails that one only)", first?.email === "new@biz.test", JSON.stringify(first));
   const row = (await db.query(`select code_hash from private.business_email_codes where user_id = '${NEW_BIZ}'`)).rows[0];
   check("only a hash is kept", row && row.code_hash !== first.code && /^[0-9a-f]{64}$/.test(row.code_hash));
   const again = await issue(NEW_BIZ);
@@ -215,12 +221,28 @@ console.log("\nThe hardening (second Pass C review)\n");
   const keys = (await db.query(`select private.inbox_key('Vic.Tim+1@GoogleMail.com') as a, private.inbox_key('victim+2@gmail.com') as b, private.inbox_key('v.i.c.t.i.m@gmail.com') as c, private.inbox_key('Sam.Lee+x@clinic.test') as d`)).rows[0];
   check("the inbox key ignores case, +tags, and Gmail's dots and googlemail.com", keys.a === "victim@gmail.com" && keys.b === "victim@gmail.com" && keys.c === "victim@gmail.com" && keys.d === "sam.lee@clinic.test", JSON.stringify(keys));
   const flood = [];
-  for (let i = 1; i <= 6; i += 1) {
-    const uid = `30000000-0000-4000-8000-00000000000${i}`;
+  let refusal = null;
+  for (let i = 1; i <= 11; i += 1) {
+    const uid = `30000000-0000-4000-8000-0000000000${String(i).padStart(2, "0")}`;
     await db.exec(`insert into auth.users values ('${uid}', 'victim+${i}@gmail.com'); insert into public.profiles (user_id, email) values ('${uid}', 'victim+${i}@gmail.com'); insert into public.user_roles values ('${uid}', 'employer');`);
-    flood.push((await issue(uid))?.ok === true);
+    const r = await issue(uid);
+    flood.push(r?.ok === true);
+    if (!r?.ok) refusal = r;
   }
-  check("six new accounts at victim+N@gmail.com: five codes reach that inbox, the sixth does not", flood.slice(0, 5).every(Boolean) && flood[5] === false, JSON.stringify(flood));
+  check("eleven new accounts at victim+N@gmail.com: ten codes reach that inbox in an hour, the eleventh does not", flood.slice(0, 10).every(Boolean) && flood[10] === false, JSON.stringify(flood));
+  check("…and the wait it gives is the real one, not always an hour", refusal?.reason === "too_many" && refusal.retry_after > 3000 && refusal.retry_after <= 3600, JSON.stringify(refusal));
+  await db.exec(`update private.business_email_code_sends set sent_at = sent_at - interval '61 minutes' where address_key = 'victim@gmail.com'`);
+  const more = [];
+  for (let i = 12; i <= 21; i += 1) {
+    const uid = `30000000-0000-4000-8000-0000000000${String(i).padStart(2, "0")}`;
+    await db.exec(`insert into auth.users values ('${uid}', 'victim+${i}@gmail.com'); insert into public.profiles (user_id, email) values ('${uid}', 'victim+${i}@gmail.com'); insert into public.user_roles values ('${uid}', 'employer');`);
+    more.push((await issue(uid))?.reason ?? "ok");
+  }
+  await db.exec(`update private.business_email_code_sends set sent_at = sent_at - interval '61 minutes' where address_key = 'victim@gmail.com' and sent_at > now() - interval '1 hour'`);
+  const UID22 = "30000000-0000-4000-8000-000000000022";
+  await db.exec(`insert into auth.users values ('${UID22}', 'victim+22@gmail.com'); insert into public.profiles (user_id, email) values ('${UID22}', 'victim+22@gmail.com'); insert into public.user_roles values ('${UID22}', 'employer');`);
+  const day = await issue(UID22);
+  check("an hour later ten more; twenty in a day is the end of it for that inbox", more.every((r) => r === "ok") && day?.reason === "too_many_today", JSON.stringify({ more, day }));
 
   // Everyone together.
   await db.exec(`insert into private.business_email_code_sends (address_key, sent_at) select 'x' || g || '@load.test', now() from generate_series(1, 300) g`);
@@ -276,8 +298,13 @@ console.log("\nPutting a job live\n");
   check("an existing business publishes as before", old.error === null, old.error);
   const g = await as(GOOGLE_BIZ, "authenticated", `insert into public.jobs (employer_id, title, status) values ('${GOOGLE_BIZ}', 'Front desk', 'published')`);
   check("a Google sign-in publishes", g.error === null, g.error);
+  await db.exec(`update auth.users set email = 'other@victim.test' where id = '${GOOGLE_BIZ}'`);
+  check("…but not once its sign-in address is no longer its Google address", (await one(GOOGLE_BIZ, "authenticated", `select public.my_business_email_verified() as v`)).v === false);
+  await db.exec(`update auth.users set email = 'g@biz.test' where id = '${GOOGLE_BIZ}'`);
   const adm = await as(ADMIN, "authenticated", `insert into public.jobs (employer_id, title, status) values ('${ADMIN}', 'Test job', 'published')`);
   check("a platform admin publishes", adm.error === null, adm.error);
+  const adminReopen = await as(ADMIN, "authenticated", `update public.jobs set status = 'published' where id = '${jobId}'`);
+  check("a platform admin reopening a business's job is not refused (the business still confirms to publish itself)", adminReopen.error === null, adminReopen.error);
   const forOther = await as(LATE, "authenticated", `insert into public.jobs (employer_id, title, status) values ('${NEW_BIZ}', 'Spoof', 'published')`);
   check("the rule reads the job's business, whoever writes it (RLS decides who may write)", forOther.error === null, forOther.error);
 }
@@ -290,7 +317,9 @@ console.log("\nThe email and its answers (_shared/businessEmailCode.ts)\n");
   check("it carries nothing the account typed, not even a first name (second Pass C review)", !/hireflow-verify|Hi /.test(JSON.stringify(e)));
   check("it says what to do if they did not ask", /didn't ask for it/.test(e.lines.join(" ")));
   check("no player, Zulu or sweepstakes wording", !/player|zulu|sweepstake/i.test(JSON.stringify(e)));
-  check("a good answer gives the code", JSON.stringify(words.readIssuedCode({ ok: true, code: "123456" })) === JSON.stringify({ ok: true, code: "123456" }));
+  check("a good answer gives the code and the address it is for", JSON.stringify(words.readIssuedCode({ ok: true, code: "123456", email: "a@b.test" })) === JSON.stringify({ ok: true, code: "123456", email: "a@b.test" }));
+  check("…and an answer without an address sends nothing (try later)", words.readIssuedCode({ ok: true, code: "123456" }).ok === false);
+  check("twenty for one inbox in a day: said, with Help offered", /Help/.test(words.readIssuedCode({ ok: false, reason: "too_many_today" }).error));
   check("a code that is not six digits is not sent", words.readIssuedCode({ ok: true, code: "12345" }).ok === false);
   const soon = words.readIssuedCode({ ok: false, reason: "too_soon", retry_after: 42 });
   check("too soon: 429 with the seconds", soon.status === 429 && soon.retryAfter === 42 && /42 seconds/.test(soon.error));

@@ -29,9 +29,12 @@
 -- was never asked and is stamped now, so nothing changes for them. (The plan
 -- said "the 15 that published or signed in since October"; only the owner's
 -- met that, and the others are pre-launch accounts too.) Hardened later by
--- 20261025130000_business_email_check_hardening.sql. published_jobs_public is left as
--- it is: every way a job becomes published passes through this trigger, so
--- a filter there would only hide jobs this rule already let through.
+-- 20261025130000_business_email_check_hardening.sql and
+-- 20261025140000_business_email_check_round3.sql.
+-- published_jobs_public is left as it is: the rule is about going live, and
+-- every way a job becomes published passes through this trigger. (Since
+-- 20261025130000 a stamp can lapse when the sign-in address changes; jobs
+-- already live then stay live, on purpose.)
 
 alter table public.profiles add column if not exists email_verified_at timestamptz;
 
