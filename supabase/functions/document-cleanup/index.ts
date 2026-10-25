@@ -159,5 +159,9 @@ Deno.serve(async (req) => {
     await admin.from("storage_file_trash").delete().eq("id", note.id);
     leftoversRemoved += 1;
   }
+  // A failed read of the ID papers still answers as a failure (after the
+  // queues ran), so a lasting error shows in the scheduler's history instead
+  // of quietly stopping the 24-hour deletion (the third Phase 5 review).
+  if (error) return json({ error: "read_failed", ...counts, orphans, leftoversRemoved, leftoversFailed }, 500);
   return json({ ok: true, ...counts, orphans, leftoversRemoved, leftoversFailed });
 });

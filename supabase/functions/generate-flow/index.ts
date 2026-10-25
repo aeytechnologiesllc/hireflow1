@@ -10,7 +10,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { takeDailyAiBudget } from "../_shared/aiBudget.ts";
-import { guardAuthenticatedAiCall } from "../_shared/rateLimit.ts";
+import { guardAuthenticatedAiCall, guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { jobWritingBusiness } from "../_shared/signedIn.ts";
 import { scenarioPack } from "../_shared/scenarioPacks.ts";
 
@@ -115,6 +115,9 @@ Deno.serve(async (req: Request) => {
     if (!business) return json({ error: "not_a_business" }, 403);
     const perAccount = await guardAuthenticatedAiCall("job-writing", user.id, CORS, 40, 3600);
     if (perAccount) return perAccount;
+    // And by connection, like the other two job writers (the third Phase 5 review).
+    const perConnection = await guardPublicAiCall(req, "generate-flow", CORS, 15, 3600);
+    if (perConnection) return perConnection;
 
     const body = await req.json().catch(() => ({}));
     const brief = body?.brief ?? body;
