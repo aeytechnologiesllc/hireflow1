@@ -130,6 +130,7 @@ export const NOTIFICATION_RULES: Readonly<Record<string, NotificationRule>> = {
   new_message: { who: "message" },
   // Its own gate.
   continue_on_computer: { who: "own-gate" },
+  business_email_code: { who: "own-gate" },
 };
 
 /** The request's own text a kind may keep, each cut to one short plain line. */
@@ -296,8 +297,8 @@ async function overLimit(
 /**
  * Decides one request from a signed-in person or from nobody. (A service
  * caller is not decided here: the function sends what the system asks, as it
- * always has. continue_on_computer is not decided here either: it has its own
- * gate.) Returns who the email goes to and what it may say, or the refusal.
+ * always has. continue_on_computer and business_email_code are not decided
+ * here either: each has its own gate.) Returns who the email goes to and what it may say, or the refusal.
  */
 export async function decideNotification(
   request: { type: unknown; recipient_user_id?: unknown; data?: unknown },

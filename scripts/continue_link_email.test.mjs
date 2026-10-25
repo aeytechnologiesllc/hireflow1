@@ -254,12 +254,14 @@ console.log("\nThe wiring:\n");
   check("the page and the function call the email by one name", P.CONTINUE_LINK_EMAIL_TYPE === S.CONTINUE_ON_COMPUTER_TYPE && S.CONTINUE_ON_COMPUTER_TYPE === "continue_on_computer");
 
   const fn = code(await src("supabase/functions/send-notification-email/index.ts"));
-  check("the function knows the type, as a candidate's email under their phase-updates setting", /\| "continue_on_computer";/.test(fn) && /continue_on_computer: "email_phase_updates",/.test(fn));
+  check("the function knows the type, as a candidate's email under their phase-updates setting", /\| "continue_on_computer"\n/.test(fn) && /continue_on_computer: "email_phase_updates",/.test(fn));
   const employerFacing = /const EMPLOYER_FACING[\s\S]*?\]\);/.exec(fn)?.[0] ?? "";
   check("…signed by the hiring team, not sent as a team alert", employerFacing.length > 0 && !/continue_on_computer/.test(employerFacing));
   const gateAt = fn.indexOf("if (type === CONTINUE_ON_COMPUTER_TYPE) {");
   const profileAt = fn.indexOf('.from("profiles")\n      .select("email, full_name, email_notifications_enabled');
-  const sendAt = fn.indexOf("resend.emails.send(");
+  // The email-check code's own branch sends first (business_email_code); this
+  // is about every other kind's send, after the continue-link gate.
+  const sendAt = fn.indexOf("resend.emails.send(", gateAt);
   check("it is decided BEFORE the recipient is read and long before anything is sent", gateAt > 0 && profileAt > gateAt && sendAt > profileAt, `${gateAt} ${profileAt} ${sendAt}`);
   const gate = fn.slice(gateAt, profileAt);
   check("who is asking comes from their own sign-in, not from the request", /supabase\.auth\.getUser\(token\)/.test(gate) && /req\.headers\.get\("Authorization"\)/.test(gate));

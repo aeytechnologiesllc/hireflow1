@@ -734,10 +734,27 @@ globalThis.fetch = realFetch;
 console.log("\nC. The wiring\n");
 {
   const body = code(fn);
-  const identifyAt = body.indexOf("const caller = await identifyCaller(req, supabase, supabaseUrl, supabaseServiceKey);");
-  const decideAt = body.indexOf("const access = await decideNotification(");
-  const profileAt = body.indexOf('.select("email, full_name, email_notifications_enabled');
-  const sendAt = body.indexOf("resend.emails.send(");
+  // The email-check code has its own branch before everything else (below).
+  const mainAt = body.indexOf("if (type !== CONTINUE_ON_COMPUTER_TYPE) {");
+  const identifyAt = body.indexOf("const caller = await identifyCaller(req, supabase, supabaseUrl, supabaseServiceKey);", mainAt);
+  const decideAt = body.indexOf("const access = await decideNotification(", mainAt);
+  const profileAt = body.indexOf('.select("email, full_name, email_notifications_enabled', mainAt);
+  const sendAt = body.indexOf("resend.emails.send(", mainAt);
+  {
+    // 2026-10-25 (docs/LAUNCH-PLAN.md, Phase 2, task 4): the email-check code
+    // goes to the signed-in caller only, at their sign-in address, with the
+    // database's code; the request's data is never read in that branch.
+    const start = body.indexOf("if (type === BUSINESS_EMAIL_CODE_TYPE) {");
+    const end = body.indexOf("if (type === CONTINUE_ON_COMPUTER_TYPE) {", start);
+    const branch = start > 0 && end > start ? body.slice(start, end) : "";
+    const at = (needle) => branch.indexOf(needle);
+    check("the code branch comes first, before any other kind's decision", start > 0 && start < mainAt);
+    check("the code: signed-in callers only (the service key too is refused)", /if \(caller\.kind !== "user"\)/.test(branch) && at("identifyCaller(") < at('rpc("issue_business_email_code"'));
+    check("the code: made by the database for the caller, then sent to the sign-in address", at('rpc("issue_business_email_code", { p_user: caller.id })') > 0 && at("auth.admin.getUserById(caller.id)") > at("issue_business_email_code") && at("resend.emails.send(") > at("getUserById"));
+    check("the code: nothing from the request, and neither the code nor the address in the answer", !/request\.|data\??\.|recipient_user_id/.test(branch.replace(/data: issuedRow|data: account|data: me|\{ code: issued\.code/g, "")) && /JSON\.stringify\(\{ success: true \}\)/.test(branch));
+    check("the code: no email preference can stop it", !/email_notifications_enabled|getPreferenceField/.test(branch));
+    check("the code: a kind of its own gate", A.NOTIFICATION_RULES.business_email_code?.who === "own-gate");
+  }
   check("whose request it is is settled before the recipient is read, long before anything is sent", identifyAt > 0 && decideAt > identifyAt && profileAt > decideAt && sendAt > profileAt, `${identifyAt} ${decideAt} ${profileAt} ${sendAt}`);
   check("only the service key skips the decision, compared whole in either header, or proven by the database itself", /if \(sameSecret\(token, serviceKey\) \|\| sameSecret\(apikey, serviceKey\)\) return \{ kind: "service" \};/.test(body) && /for \(const candidate of new Set\(\[token, apikey\]\)\) \{\s*if \(!candidate \|\| !looksLikeServiceKey\(candidate\)\) continue;[\s\S]*?rpc\/check_rate_limit[\s\S]*?if \(proof\.ok\) return \{ kind: "service" \};/.test(body));
   check("a person is only ever read from Authorization, never from apikey", /if \(!token\) return \{ kind: "anonymous" \};\s*const \{ data: auth, error \} = await supabase\.auth\.getUser\(token\);/.test(body) && !/getUser\(apikey\)/.test(body));

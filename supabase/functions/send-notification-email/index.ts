@@ -8,6 +8,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { declineNoteLines } from "../_shared/declineNote.ts";
 import { welcomeTodo, type WelcomeTodo } from "../_shared/welcomeTodo.ts";
 import { CONTINUE_ON_COMPUTER_TYPE, continueOnComputerEmail, decideContinueLinkEmail } from "../_shared/continueOnComputerEmail.ts";
+import { BUSINESS_EMAIL_CODE_TYPE, businessEmailCodeEmail, readIssuedCode } from "../_shared/businessEmailCode.ts";
 import { checkRateLimit } from "../_shared/rateLimit.ts";
 import {
   NOTIFICATION_RULES,
@@ -65,7 +66,8 @@ type NotificationType =
   | "voice_minutes_exhausted"
   | "interview_ready"
   | "steps_reopened"
-  | "continue_on_computer";
+  | "continue_on_computer"
+  | "business_email_code";
 
 /** Emails that go to the hiring team; everything else goes to a candidate
  *  (new_message goes either way and is decided by the recipient's role). */
@@ -78,6 +80,7 @@ const EMPLOYER_FACING: ReadonlySet<NotificationType> = new Set<NotificationType>
   "voice_minutes_exhausted",
   "interview_ready",
   "interview_time_picked",
+  "business_email_code",
 ]);
 
 /** Who an email reads as coming from. Candidates applied to the Zulu Support
@@ -171,6 +174,8 @@ interface NotificationRequest {
     todo?: WelcomeTodo;
     /** The recipient's first name, looked up here. */
     first_name?: string;
+    /** business_email_code: the code the database made for the caller. Never read from a request. */
+    code?: string;
     /** document_sent: the document is an offer letter (looked up here), and
      *  how many whole days they have to answer it. */
     offer?: { replyInDays: number | null };
@@ -732,6 +737,23 @@ const getEmailContent = (
       };
     })(),
 
+    // EMPLOYER-FACING — the email-check code a business asks for at its first
+    // "Publish" (_shared/businessEmailCode.ts). The handler sets `data` to
+    // the code the database made and the account's first name; nothing here
+    // came from the page.
+    business_email_code: (() => {
+      const words = businessEmailCodeEmail({ code: String(data.code ?? ""), firstName: data.first_name });
+      return {
+        subject: words.subject,
+        html: wrapEmail(
+          esc(words.title),
+          `<p>${esc(words.lines[0])}</p>
+           <p style="font-size: 32px; font-weight: 700; letter-spacing: 6px; margin: 24px 0; color: #111;">${esc(data.code)}</p>
+           ${words.lines.slice(1).map((line) => `<p>${esc(line)}</p>`).join("\n           ")}`
+        ),
+      };
+    })(),
+
     // EMPLOYER-FACING - Interview Ready
     interview_ready: {
       subject: `Ready for Interview: ${data.candidate_name} scored ${data.score}% for ${data.job_title}`,
@@ -773,6 +795,9 @@ const getPreferenceField = (type: NotificationType): string => {
     interview_ready: "email_new_applications", // Uses new_applications pref since it's about new candidates
     steps_reopened: "email_phase_updates",
     continue_on_computer: "email_phase_updates",
+    // Never consulted: the code is sent before any preference is read (a
+    // business that turned emails off must still be able to confirm).
+    business_email_code: "email_notifications_enabled",
   };
   return mapping[type];
 };
@@ -863,6 +888,39 @@ const handler = async (req: Request): Promise<Response> => {
     // that was not there (a 500). It is simply not one of ours.
     if (typeof type !== "string" || !Object.prototype.hasOwnProperty.call(NOTIFICATION_RULES, type)) {
       return refuse(400, { error: "Unknown notification.", code: "unknown_type" });
+    }
+
+    // The email-check code (_shared/businessEmailCode.ts): asked for by the
+    // signed-in business itself, sent to its own sign-in address, with a code
+    // the database makes and limits. Nothing in the request is read but the
+    // type, and no preference can stop it.
+    if (type === BUSINESS_EMAIL_CODE_TYPE) {
+      const caller = await identifyCaller(req, supabase, supabaseUrl, supabaseServiceKey);
+      if (caller.kind !== "user") {
+        return refuse(401, { error: "Your sign-in has ended. Sign in again to get a code.", code: "not_signed_in" });
+      }
+      const { data: issuedRow, error: issueError } = await supabase.rpc("issue_business_email_code", { p_user: caller.id });
+      if (issueError) console.error("[send-notification-email] business_email_code: could not make a code:", issueError.message);
+      const issued = readIssuedCode(issueError ? null : issuedRow);
+      if (!issued.ok) {
+        console.log(`[send-notification-email] business_email_code refused: ${issued.code}`);
+        return refuse(issued.status, { error: issued.error, code: issued.code, ...(issued.retryAfter ? { retryAfter: issued.retryAfter } : {}) }, issued.retryAfter);
+      }
+      const { data: account, error: accountError } = await supabase.auth.admin.getUserById(caller.id);
+      const to = account?.user?.email ?? null;
+      if (accountError || !to) {
+        return refuse(404, { error: "Your account has no email address to send a code to.", code: "no_address" });
+      }
+      const { data: me } = await supabase.from("profiles").select("full_name").eq("user_id", caller.id).maybeSingle();
+      const first = String(me?.full_name ?? "").trim().split(/\s+/)[0]?.slice(0, 40) || undefined;
+      const content = getEmailContent(BUSINESS_EMAIL_CODE_TYPE, { code: issued.code, first_name: first }, "employer");
+      const sent = await resend.emails.send({ from: TEAM_SENDER, to: [to], subject: content.subject, html: content.html });
+      if (sent?.error) {
+        console.error("[send-notification-email] The provider refused business_email_code:", JSON.stringify(sent.error));
+        return refuse(502, { error: "We couldn't send a code just now. Try again in a minute.", code: "try_later" });
+      }
+      // Never the address or the code in the answer.
+      return new Response(JSON.stringify({ success: true }), { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
 
     // "Email me the link" (Continue on your computer): the applicant presses

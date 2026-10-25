@@ -63,6 +63,8 @@ import {
 } from "@/lib/avaEngine";
 import { candidateApplyUrl } from "@/lib/showcaseApply";
 import { createJobFromFlow, fetchEmployerCompanyName } from "@/lib/jobFromFlow";
+import { EmailCheckDialog } from "@/components/business/EmailCheckDialog";
+import { isEmailNotVerifiedError, OWNER_MUST_CONFIRM_EMAIL } from "@/lib/emailCheck";
 import { geocodePlace, formatPlace } from "@/lib/geocode";
 import TalkToAva from "@/components/ava/createFlow/TalkToAva";
 import type { LucideIcon } from "lucide-react";
@@ -208,6 +210,10 @@ export default function AvaCreateJob() {
   // of the aggregator feed for and shows "Confidential" to candidates. Catch
   // it right here rather than losing the plan the employer just built.
   const [showCompanyNamePrompt, setShowCompanyNamePrompt] = useState(false);
+  // A business confirms its email at its first publish (src/lib/emailCheck.ts);
+  // the publish that was waiting carries on once it has.
+  const [emailCheckOpen, setEmailCheckOpen] = useState(false);
+  const emailCheckRetryRef = useRef<{ companyNameOverride?: string } | null>(null);
   const [companyNameDraft, setCompanyNameDraft] = useState("");
   const [savingCompanyName, setSavingCompanyName] = useState(false);
   // True once the Review-plan cards have actually finished animating in (real render signal) —
@@ -360,6 +366,18 @@ export default function AvaCreateJob() {
       setStep(5);
       toast.success("Role published");
     } catch (err) {
+      // The database asks a business to confirm its email before its first job
+      // goes live (20261025100000_business_email_check.sql). The owner gets the
+      // code screen; a team member cannot confirm the owner's address.
+      if (isEmailNotVerifiedError(err)) {
+        if (ownerId) {
+          toast.error(OWNER_MUST_CONFIRM_EMAIL);
+        } else {
+          emailCheckRetryRef.current = { companyNameOverride };
+          setEmailCheckOpen(true);
+        }
+        return;
+      }
       toast.error(err instanceof Error ? err.message : "Publish failed");
     } finally {
       setPublishing(false);
@@ -792,6 +810,18 @@ export default function AvaCreateJob() {
           </AnimatePresence>
         </div>
       </main>
+
+      <EmailCheckDialog
+        open={emailCheckOpen}
+        onOpenChange={setEmailCheckOpen}
+        email={user?.email}
+        onConfirmed={() => {
+          setEmailCheckOpen(false);
+          const retry = emailCheckRetryRef.current;
+          emailCheckRetryRef.current = null;
+          void handlePublish(retry?.companyNameOverride);
+        }}
+      />
 
       {/* Business name required before publishing. Never a dead end — the
           plan Ava just built stays exactly as it is, and publishing

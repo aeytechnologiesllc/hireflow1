@@ -114,6 +114,8 @@ import {
 } from "@/components/ui/command";
 import { subscribeToAvaFormCommands, AvaFormCommand } from "@/utils/avaFormEvents";
 import { JobPublishedDialog } from "@/components/JobPublishedDialog";
+import { EmailCheckDialog } from "@/components/business/EmailCheckDialog";
+import { isEmailNotVerifiedError, OWNER_MUST_CONFIRM_EMAIL } from "@/lib/emailCheck";
 import { SLUG_MESSAGES, slugCandidates, slugProblem, slugSaveProblem, suggestJobSlug, tidySlugInput } from "@/lib/jobSlug";
 import { claimSuggestedSlug, firstFreeSlug, takenSlugs } from "@/lib/jobSlugAvailability";
 import { useOwnBusiness } from "@/hooks/useBusinessPage";
@@ -1006,6 +1008,9 @@ export default function CreateJob() {
   // employer with a validation error, catch it right here and let them fill
   // it in without losing the job they just wrote.
   const [pendingPublishStatus, setPendingPublishStatus] = useState<"draft" | "published" | null>(null);
+  // A business confirms its email at its first publish (src/lib/emailCheck.ts);
+  // the save that was waiting carries on once it has.
+  const [emailCheckRetry, setEmailCheckRetry] = useState<{ status: "draft" | "published"; companyNameOverride?: string } | null>(null);
   const [companyNameDraft, setCompanyNameDraft] = useState("");
   const [isSavingCompanyName, setIsSavingCompanyName] = useState(false);
   const overlayStartedAtRef = useRef<number | null>(null);
@@ -1806,6 +1811,15 @@ export default function CreateJob() {
       // again, which can never work: say why, and where to go.
       if (isBusinessPausedError(error)) {
         toast.error(BUSINESS_PAUSED_PUBLISH_MESSAGE);
+        return;
+      }
+      // A business confirms its email before its first job goes live
+      // (20261025100000_business_email_check.sql, HINT email_not_verified):
+      // the owner gets the code screen; a team member cannot confirm the
+      // owner's address, so they are told who can.
+      if (isEmailNotVerifiedError(error)) {
+        if (isTeamMember) toast.error(OWNER_MUST_CONFIRM_EMAIL);
+        else setEmailCheckRetry({ status, companyNameOverride });
         return;
       }
       // A team role without "Create jobs" (or a job that's gone) says so (useJobs).
@@ -4291,6 +4305,17 @@ export default function CreateJob() {
           )}
         </div>
       </div>
+
+      <EmailCheckDialog
+        open={!!emailCheckRetry}
+        onOpenChange={(open) => !open && setEmailCheckRetry(null)}
+        email={user?.email}
+        onConfirmed={() => {
+          const retry = emailCheckRetry;
+          setEmailCheckRetry(null);
+          if (retry) void handleSubmit(retry.status, retry.companyNameOverride);
+        }}
+      />
 
       {/* Edit screen: deleting a question from a job that already has one */}
       <AlertDialog open={!!questionPendingDelete} onOpenChange={(open) => !open && setQuestionPendingDelete(null)}>
