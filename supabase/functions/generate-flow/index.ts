@@ -13,6 +13,7 @@ import { takeDailyAiBudget } from "../_shared/aiBudget.ts";
 import { guardAuthenticatedAiCall, guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { jobWritingBusiness } from "../_shared/signedIn.ts";
 import { scenarioPack } from "../_shared/scenarioPacks.ts";
+import { AGE_RULE, withoutAgeAsks } from "../_shared/ageWording.ts";
 
 const CS_CHANNELS = { chat: "chat", phone: "phone calls", email: "email", mixed: "chat, phone and email" } as const;
 
@@ -184,7 +185,8 @@ Deno.serve(async (req: Request) => {
       "jobPost fields are candidate-facing — warm, clear, human language only (no AI/Ava/bot/automated/algorithm). " +
       "phaseRationales are employer-facing first-person Ava notes explaining why each screening phase exists (AI framing OK there). " +
       "For technical/developer roles include practical scenarios; for cash-handling roles include till/de-escalation scenarios; for cleaning roles include trust/reliability scenarios. " +
-      "For a customer service role: write for any country (no country-specific laws, apps or holidays), in plain English a second-language applicant reads easily; use the counterpart word you are given and never 'player' unless that is the word; for phone work, include interview questions about handling calls.";
+      "For a customer service role: write for any country (no country-specific laws, apps or holidays), in plain English a second-language applicant reads easily; use the counterpart word you are given and never 'player' unless that is the word; for phone work, include interview questions about handling calls. " +
+      AGE_RULE;
 
     const userMsg = `${ctx}
 
@@ -228,9 +230,18 @@ Tailor everything to: ${brief.roleTitle || brief.title || "this role"}.`;
 
     const content = JSON.parse(raw);
 
+    // No age, birth date or marital status, whatever the model wrote (_shared/ageWording.ts).
+    const jobPost = content.jobPost && typeof content.jobPost === "object"
+      ? {
+          ...content.jobPost,
+          requirements: withoutAgeAsks(content.jobPost.requirements),
+          niceToHaves: withoutAgeAsks(content.jobPost.niceToHaves),
+          responsibilities: withoutAgeAsks(content.jobPost.responsibilities),
+        }
+      : content.jobPost;
     return json({
-      jobPost: content.jobPost,
-      application: take<string>(content.application, spec.app),
+      jobPost,
+      application: take<string>(withoutAgeAsks(content.application), spec.app),
       quiz: take(content.quiz, spec.quiz),
       simulation: take(content.simulation, spec.sim),
       voiceQuestions: take<string>(content.voiceQuestions, spec.voice),

@@ -65,7 +65,7 @@ How to apply
 [Link or one clear instruction.]
 ```
 
-If you use HireFlow, Ava builds the job and its tests from a few short questions about your business. These notes still work as a check on the result.
+If you use HireFlow, Ava, its job builder, builds the job and its tests from a few short questions about your business. These notes still work as a check on the result.
 
 ## Notes on each part
 

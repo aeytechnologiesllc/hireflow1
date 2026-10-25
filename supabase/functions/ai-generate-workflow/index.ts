@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { callOpenAIJson, requireJsonKeys } from "../_shared/openai.ts";
 import { guardAuthenticatedAiCall, guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { jobWritingBusiness, signedInUserId } from "../_shared/signedIn.ts";
+import { AGE_RULE, withoutAgeAsks } from "../_shared/ageWording.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const OPENAI_MODEL = Deno.env.get("OPENAI_WORKFLOW_MODEL") || "gpt-5.6-luna";
@@ -598,7 +599,8 @@ function postProcessWorkflowData(
   requirePortfolio: boolean,
 ): WorkflowResponse {
   const data = {
-    application_questions: Array.isArray(workflowData.application_questions) ? workflowData.application_questions : [],
+    // No age, birth date or marital status, whatever the model wrote (_shared/ageWording.ts).
+    application_questions: withoutAgeAsks(Array.isArray(workflowData.application_questions) ? workflowData.application_questions : [], (q) => q?.question),
     quiz_questions: Array.isArray(workflowData.quiz_questions) ? workflowData.quiz_questions : [],
     workflow_steps: Array.isArray(workflowData.workflow_steps) ? workflowData.workflow_steps : [],
     screening_plan_summary: workflowData.screening_plan_summary,
@@ -910,7 +912,7 @@ Return ONLY valid JSON with this shape:
       messages: [
         {
           role: "system",
-          content: "You are Ava, an expert AI hiring assistant. Always return valid JSON only.",
+          content: `You are Ava, an expert AI hiring assistant. Always return valid JSON only. ${AGE_RULE}`,
         },
         { role: "user", content: prompt },
       ],

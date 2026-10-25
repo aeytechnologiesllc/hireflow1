@@ -68,7 +68,7 @@ Give every applicant the same steps, in the same order:
 
 Score every answer with the same simple scorecard: did they solve the problem, was the tone right, was the English clear, and did they follow your rules. Then read only the top few closely. There is a full method in [screening 150 applicants without reading 150 résumés](/blog/screening-150-applicants-without-reading-150-resumes), and advice on judging very polished answers fairly in [spotting fake or AI-written applications](/blog/spotting-fake-or-ai-written-applications).
 
-If you would rather not build all of this yourself, HireFlow builds it from the role. Its job builder, Ava, asks a few short questions (how the agent will talk to customers, what kind of business you run, how many chats at once, the hours, what private details they will see, and what tools they will work in) and builds the job and its tests. Applicants are scored and ranked, you get an interview guide for the call, and a person on your team makes every decision.
+If you would rather not build all of this yourself, HireFlow builds it from the role. Its job builder, Ava, asks a few short questions (how the agent will talk to customers, what kind of business you run, how many chats at once, the hours, what private details they will see, and what tools they will work in) and builds the job and its tests. Applicants are scored and ranked, and you get an interview guide for the call. Apart from the "Are you 18 or older?" question every application starts with, a person on your team makes every decision.
 
 ## Paying people
 

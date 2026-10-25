@@ -7,9 +7,9 @@ author: HireFlow
 draft: true
 ---
 
-> **Draft for the owner.** Before this goes live: confirm the pay figure below is what you pay today, and add one or two sentences from your own experience where marked. Remove this note when done.
+> **Draft for the owner.** Before this goes live: give the pay figure below (no figure is written in yet), and add one or two sentences from your own experience where marked. Remove this note when done.
 
-The short answer: a full-time remote support agent in the Philippines can cost around **$500 a month** in pay. That is what we pay our own agents. [Owner: confirm the figure, and say what it covers: full time, which shift, chat or phone.]
+The short answer: a full-time remote support agent in the Philippines can cost around **[Owner: the monthly pay]** in pay. [Owner: say whether that is what your own business pays, and what it covers: full time, which shift, chat or phone.]
 
 The pay is only part of the cost. Here is everything to budget for, so the number you plan with is the number you spend.
 
@@ -49,7 +49,7 @@ The most expensive agent is the one who leaves in a month, or who upsets custome
 
 ## In short
 
-- Pay: [Owner: confirm, about $500 a month full time] plus agreed overtime and holidays, in writing.
+- Pay: [Owner: the monthly pay, full time] plus agreed overtime and holidays, in writing.
 - Your time: keep it small by testing everyone the same way and reading only the best few.
 - Tools: count every seat.
 - Training: plan the first month.
