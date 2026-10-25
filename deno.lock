@@ -560,6 +560,7 @@
         "npm:input-otp@^1.4.2",
         "npm:jspdf@^4.2.1",
         "npm:lucide-react@0.462",
+        "npm:marked@18.0.14",
         "npm:next-themes@0.3",
         "npm:pdf-lib@^1.17.1",
         "npm:playwright@^1.49.1",
