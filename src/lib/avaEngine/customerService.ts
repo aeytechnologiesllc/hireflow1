@@ -15,6 +15,7 @@
 import { SCENARIO_PACKS, type ScenarioPack, type ScenarioPackId } from "../../content/scenarioPacks/packs.ts";
 import type { JobBrief, QuizConfig, ScreeningPhase, SimulationConfig, VoiceConfig } from "./types";
 import { bankForFamily } from "./questionBanks.ts";
+import { inferCountryCode } from "../jobLocation.ts";
 
 /** The "What kind of business is it?" chips, in order, and the pack each picks. */
 export const CS_INDUSTRY_CHIPS: ReadonlyArray<readonly [string, ScenarioPackId]> = [
@@ -77,9 +78,13 @@ const ANY_CHANNEL = String.raw`(live chats?|chats?|e-?mails?|tickets?|phones?|ca
 // the tenth review). Each part starts after a space or a mark and checks its
 // first word before anything else, so a long run of spaces or a huge pasted
 // line costs linear time (the tenth review).
+// The twelfth review: a CV sent by DM or message ("Interested? DM us your CV
+// on Messenger"), and a sentence that is only how to reach the business to
+// apply ("Text or call 0917 123 4567 to apply.", "Chat with us to apply."),
+// never "help customers apply" or "to apply for a loan".
 const CUSTOMER_APPLIES = String.raw`(?<!\b(customers?|clients?|members?|patients?|policyholders?|borrowers?|callers?|users?|people|them|who|that)\s{1,2}(to\s{1,2})?)`;
 export const HOW_TO_APPLY = new RegExp(
-  String.raw`(?<![^\s,;!\-–(])(how to apply\s*[:\-–]|(interested|qualified) (applicants?|candidates?)\s+(may|can|are (invited|encouraged)|please|kindly|send|email|submit|apply|forward|message|call|text|contact|should (send|email|submit|apply|forward))\b|walk[- ]?in (applicants?|candidates?|interviews?|applications?|hiring)\b|walk[- ]?ins? (are )?(welcome|accepted) (for|to) (interviews?|apply|applications?)\b|walk in for (an |your )?interview\b|(shortlisted|qualified|successful|selected) (candidates?|applicants?) will be (contacted|called|notified|texted|emailed)\b|((please|kindly)\s+)?(?=(send|email|e-mail|submit|forward|mail|upload|attach|drop)\s)${CUSTOMER_APPLIES}(send|email|e-mail|submit|forward|mail|upload|attach|drop)\s+(us\s+|in\s+)?(((your|their|an?|the)\s+)?((updated|latest|complete|detailed|recent)\s+)?(cv|resume|résumé)s?|(your|an)\s+(application|portfolio))\b|(?<!\b(how|when|where|what|why|whether)\s)to apply\b(?!\s+(discounts?|coupons?|promo\w*|codes?|credits?|refunds?|polic\w*|the|our|their|your|a|an|this|that|these|it|them|fixes|patches|updates|changes|rules|what|troubleshooting|steps|solutions|knowledge|skills|for (a |an |their |your |our )?([\w-]+ )?(refunds?|loans?|credit|accounts?|cards?|warrant\w*|discounts?|benefits?|assistance|insurance|programs?|mortgages?|rewards?|financing|coverage))\b)|(?=apply )${CUSTOMER_APPLIES}(?<!\b(discounts?|promos?|coupons?|codes?|fees?|charges?|rules?|policies|terms|rates?|taxes)\s)apply (now|today|here|by|via|through|at|online|in person)\b|for (job |more )?(inquiries|enquiries|questions|info|information|details)\s*,\s*((please|kindly|just|you (can|may))\s+)?(e-?mail|call|contact|message|text|reach|send|visit|dm|pm|ring|whatsapp|viber|chat with)\b)[^.;\n!]*`,
+  String.raw`(?<![^\s,;!\-–(])(how to apply\s*[:\-–]|(interested|qualified) (applicants?|candidates?)\s+(may|can|are (invited|encouraged)|please|kindly|send|email|submit|apply|forward|message|call|text|contact|should (send|email|submit|apply|forward))\b|walk[- ]?in (applicants?|candidates?|interviews?|applications?|hiring)\b|walk[- ]?ins? (are )?(welcome|accepted) (for|to) (interviews?|apply|applications?)\b|walk in for (an |your )?interview\b|(shortlisted|qualified|successful|selected) (candidates?|applicants?) will be (contacted|called|notified|texted|emailed)\b|((please|kindly)\s+)?(?=(send|email|e-mail|submit|forward|mail|upload|attach|drop|dm|pm|message)\s)${CUSTOMER_APPLIES}(send|email|e-mail|submit|forward|mail|upload|attach|drop|dm|pm|message)\s+(us\s+|in\s+)?(((your|their|an?|the)\s+)?((updated|latest|complete|detailed|recent)\s+)?(cv|resume|résumé)s?|(your|an)\s+(application|portfolio))\b|(?<!\b(how|when|where|what|why|whether)\s)to apply\b(?!\s+(discounts?|coupons?|promo\w*|codes?|credits?|refunds?|polic\w*|the|our|their|your|a|an|this|that|these|it|them|fixes|patches|updates|changes|rules|what|troubleshooting|steps|solutions|knowledge|skills|for (a |an |their |your |our )?([\w-]+ )?(refunds?|loans?|credit|accounts?|cards?|warrant\w*|discounts?|benefits?|assistance|insurance|programs?|mortgages?|rewards?|financing|coverage))\b)|(?=apply )${CUSTOMER_APPLIES}(?<!\b(discounts?|promos?|coupons?|codes?|fees?|charges?|rules?|policies|terms|rates?|taxes)\s)apply (now|today|here|by|via|through|at|online|in person)\b|(?=(text|call|message|chat|dm|pm|email|e-mail|contact|whatsapp|viber)\s)${CUSTOMER_APPLIES}(text|call|message|chat|dm|pm|email|e-mail|contact|whatsapp|viber)\s+((or|and|\/)\s+(text|call|message|chat|dm|pm|email|e-mail|whatsapp|viber)\s+)?(with\s+)?(us|me|hr|our (hr|recruit\w*)|\+?\d[\d -]{5,20})[^.;\n!]{0,40}?\bto apply\b(?!\s+(for|to|the|our|their|your|a|an|this|that|these|it|them|discounts?|coupons?|promo\w*|codes?|credits?|refunds?|polic\w*)\b)|for (job |more )?(inquiries|enquiries|questions|info|information|details)\s*,\s*((please|kindly|just|you (can|may))\s+)?(e-?mail|call|contact|message|text|reach|send|visit|dm|pm|ring|whatsapp|viber|chat with)\b)[^.;\n!]*`,
   "g",
 );
 // "Blended", "omnichannel", "multichannel": the agent works every channel,
@@ -200,7 +205,9 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
       // respond to calls", "handle up to sixty calls a day", "take care of customers on calls", "calls
       // are answered within 3 rings", "make sure every call is logged"; the tenth review), but not the
       // calls someone else took that the agent follows up on ("Follow up on calls from the sales team"; the eleventh).
-      String.raw`|\b(respond|responding|reply|replying|attend|attending|tend|tending|listen|listening)\s+to\s+((the|all|our|incoming|inbound|customer|client|patient|every|their)\s+){0,2}calls\b|\b(up to|over|about|around|at least)?\s*(\d+\+?|ten|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|a hundred|hundreds of|dozens of)\s+((inbound|incoming|customer|phone)\s+)?calls\b|(?<!\bfollow(s|ed|ing)?[- ]up\s)\b(on|during|over|through|thru|via) (customer |client |live |phone |inbound |incoming )?calls\b|\bcalls? (are|is|get|gets) (answered|picked up|returned)\b(?!\s+(by|elsewhere|separately|in-house)\b)|\b(every|each) (customer |inbound |incoming )?call\b`,
+      // (Only "on" calls: following up via, over or through calls is the agent's own calling; the twelfth.)
+      // (Missed calls and voicemails are the agent's to return: "Follow up on missed calls and voicemails from customers"; the twelfth.)
+      String.raw`|\b(respond|responding|reply|replying|attend|attending|tend|tending|listen|listening)\s+to\s+((the|all|our|incoming|inbound|customer|client|patient|every|their)\s+){0,2}calls\b|\b(up to|over|about|around|at least)?\s*(\d+\+?|ten|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|a hundred|hundreds of|dozens of)\s+((inbound|incoming|customer|phone)\s+)?calls\b|(?<!\bfollow(s|ed|ing)?[- ]up\s)\bon (customer |client |live |phone |inbound |incoming )?calls\b|\b(during|over|through|thru|via) (customer |client |live |phone |inbound |incoming )?calls\b|\bcalls? (are|is|get|gets) (answered|picked up|returned)\b(?!\s+(by|elsewhere|separately|in-house)\b)|\b(every|each) (customer |inbound |incoming )?call\b|\bmissed calls\b|\bvoice ?mails?\b`,
   ).test(positiveWork);
   const phoneMention = new RegExp(String.raw`\b(phone (support|agent|rep|csr|calls?)|voice (agent|csr|support|account)|outbound calls?|telephone|bpo)\b${NOT_A_RULE}|\bcall cent(er|re)\b${NOT_A_PRODUCT}${NOT_A_RULE}`).test(work);
   // Call-centre, BPO or phone support experience, asked for or not ("no call
@@ -214,8 +221,12 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
   // A voice account is phone work whatever else the words rule out ("Voice account. No calls and no sales quotas").
   const voiceAccount = /\b(voice (account|campaign|queue)|inbound voice)\b(?!\s+(\w+\s+)?(experience|background))/.test(s) && !/\bnon[- ]?\s?voice\b/.test(s);
   // (Intercom is a chat tool: "support customers via Intercom"; the tenth review.
-  // A door's or a building's intercom is not: "Answer phones and the intercom"; the eleventh.)
-  const chatIn = /\b(chats?|live chat|messages|messaging|messenger|whatsapp)\b|\b(via|in|on|through|thru|using|with) intercom\b|\bintercom (chats?|messages?|inbox|tickets?|conversations?|messenger)\b|\b(by|via|over) (text|sms)\b|\b(text|sms) (support|messages? from)\b/.test(work);
+  // A door's or a building's intercom is not: "Answer phones and the intercom"; the eleventh.
+  // Only those: Intercom in a list of tools is the chat tool wherever it stands, "via email and
+  // Intercom", "Use Zendesk and Intercom", "Tools: Intercom, Zendesk", never the door's "intercom calls"
+  // or "intercom buzzes"; the twelfth.)
+  // (Messages a receptionist takes are phone messages: "Answer phones, take messages and schedule appointments"; the twelfth.)
+  const chatIn = /\b(chats?|live chat|messaging|messenger|whatsapp)\b|(?<!\b(take|takes|taking|took|leave|leaves|leaving|relay|relays|relaying)\s)\bmessages\b|(?<!\b(the|building|door|gate|lobby)\s)\bintercom\b(?!\s+(calls?|buzz\w*|systems?|phones?|panels?)\b)|\bintercom (chats?|messages?|inbox|tickets?|conversations?|messenger)\b|\b(by|via|over) (text|sms)\b|\b(text|sms) (support|messages? from)\b/.test(work);
   const emailIn = new RegExp(String.raw`\b(e-?mails?)\b(?!\s+(accounts?|address(es)?|settings))${NOT_A_PRODUCT}|\b(answer|answering|resolve|resolving|respond to|responding to|reply to|replying to|handle|handling|work|working)\b[^.;]{0,25}\btickets?\b|\btickets? only\b|\bonly tickets\b|\bticket(ing)? support\b|\bsupport tickets\b|\bzendesk\b|\bfreshdesk\b`).test(work);
 
   const titleNames = tChat || tEmail || tPhone || tWritten;
@@ -250,6 +261,10 @@ export const CS_SKILLS_TITLE = "Skills check";
 export const CS_SKILLS_DESCRIPTION = "Five short questions about real situations in this work.";
 export const CS_CHAT_TITLE = "Customer chat practice";
 export const CS_CHAT_DESCRIPTION = "Answer one realistic customer chat, the way you would on the job.";
+// Where most applicants read English as their first language: no note about second-language readers.
+const ENGLISH_FIRST = new Set(["US", "GB", "CA", "AU", "NZ", "IE"]);
+// The note for a job that is not remote: its typing is not counted (assessmentRecord, trigger-ava-analysis).
+const NOT_TIMED = " Typing speed counts only for a remote job: this one's chat may be done on a phone.";
 
 /**
  * The plan with the pack in it: the skills check becomes the pack's five
@@ -264,6 +279,18 @@ export function applyCustomerServicePack(phases: ScreeningPhase[], brief: JobBri
   const pack = packForBrief(brief);
   const channel = channelForBrief(brief);
   const out = phases.map((p) => ({ ...p }));
+  // What the plan's notes tell the business is only what this job gets (the
+  // fifth product review, a US dental office hiring a receptionist on site):
+  // typing is timed only for a remote job (an on-site job's chat may be done
+  // on a phone, and neither trigger-ava-analysis nor assessmentRecord counts
+  // its typing); second-language readers are named only where the applicants
+  // will be (a remote job, or a place outside the English-first countries);
+  // and no step is promised that this flow does not build (no practice call:
+  // the written interview's call questions are what a phone job gets).
+  const remote = brief.workMode === "remote";
+  const country = inferCountryCode(brief.location);
+  const secondLanguage = remote || (!!country && !ENGLISH_FIRST.has(country));
+  const hasInterview = out.some((p) => p.kind === "voice_interview");
 
   const quizIndex = out.findIndex((p) => p.kind === "quiz");
   const quizSeconds = pack.skills.reduce((sum, q) => sum + q.time_limit_seconds, 0);
@@ -272,7 +299,7 @@ export function applyCustomerServicePack(phases: ScreeningPhase[], brief: JobBri
     kind: "quiz",
     title: CS_SKILLS_TITLE,
     candidateDescription: CS_SKILLS_DESCRIPTION,
-    rationale: `Five situations from ${pack.business}, each with one right answer, written so a careful second-language reader can answer in time.`,
+    rationale: `Five situations from ${pack.business}, each with one right answer, ${secondLanguage ? "written so a careful second-language reader can answer in time" : "in plain words, with time to read each one"}.`,
     config: {
       kind: "quiz",
       timeLimitSec: quizSeconds,
@@ -307,8 +334,8 @@ export function applyCustomerServicePack(phases: ScreeningPhase[], brief: JobBri
     candidateDescription: CS_CHAT_DESCRIPTION,
     rationale:
       channel === "phone" || channel === "mixed"
-        ? `One real ${pack.counterpart} conversation from ${pack.business}, typed, with typing speed measured as they reply. A practice call is coming; until then the written interview asks how they handle calls.`
-        : `One real ${pack.counterpart} chat from ${pack.business}, with typing speed and reply time measured as they write.`,
+        ? `One real ${pack.counterpart} conversation from ${pack.business}, typed${remote ? ", with typing speed measured as they reply" : ""}.${hasInterview ? " The written interview asks how they handle calls." : ""}${remote ? "" : NOT_TIMED}`
+        : `One real ${pack.counterpart} chat from ${pack.business}${remote ? ", with typing speed and reply time measured as they write" : ""}.${remote ? "" : NOT_TIMED}`,
     config: {
       kind: "simulation",
       pack: pack.id,
@@ -386,8 +413,9 @@ export function applyCustomerServicePack(phases: ScreeningPhase[], brief: JobBri
           .filter(([a, b]) => !WRITTEN_CHANNEL.test(a) && !WRITTEN_CHANNEL.test(b) && !aboutColleague(b) && !IN_PERSON_Q.test(b) && (!/\?\s*$/.test(b) || (!/\?\s*$/.test(a) && onCall(a) && CALLER.test(b))));
         return [...parts, ...pairs.map(([a, b]) => `${a} ${b}`)];
       };
+      // (Frustrated, aggressive or difficult callers are angry ones too: "Tell me about a time you handled a difficult caller"; the twelfth review.)
       const asksAngryCaller = (prompt: string) =>
-        sentences(prompt).some((x) => onCall(x) && /\b(angry|upset|furious|irate|rude|abusive|shout\w*|yell\w*|scream\w*|swear\w*|talk\w* over)\b/i.test(x));
+        sentences(prompt).some((x) => onCall(x) && /\b(angry|upset|furious|irate|rude|abusive|frustrat\w*|aggressive|difficult (callers?|customers?|patients?|calls?)|shout\w*|yell\w*|scream\w*|swear\w*|talk\w* over)\b/i.test(x));
       // On hold is a person on hold ("put a caller on hold", "put patients on
       // hold"), or on a call; never a project, a ticket or a feeling (the sixth).
       const PERSON = String.raw`(them|him|her|someone|somebody|anyone|people|callers?|customers?|patients?|players?|guests?|members?|clients?|users?|shoppers?|buyers?)`;
@@ -396,7 +424,8 @@ export function applyCustomerServicePack(phases: ScreeningPhase[], brief: JobBri
         sentences(prompt).some(
           (x) =>
             putOnHold.test(x) ||
-            (onCall(x) && /\b(on hold(?!\s+times?)|transfer(s|red|ring)? (the |a |their )?(call|caller|them|it)|pass\w* (them|the call|the caller|it) (on|to))\b/i.test(x)),
+            // (...or escalating it: "How would you escalate a call to your supervisor?"; the twelfth review.)
+            (onCall(x) && /\b(on hold(?!\s+times?)|(transfer(s|red|ring)?|escalat(e|es|ed|ing)) (the |a |their )?(call|caller|them|it)|pass\w* (them|the call|the caller|it) (on|to))\b/i.test(x)),
         );
       const prompts = questions.map((q) => q.prompt);
       // In the pack's own word: "a patient is angry" at a clinic (the fifth Phase 4 review).

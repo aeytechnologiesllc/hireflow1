@@ -99,6 +99,23 @@ for (const [text, code] of [["Makati City (US Account)", "PH"], ["Cebu City (US 
   check(`${JSON.stringify(text)} is in ${code}`, M.inferCountryCode(text) === code, String(M.inferCountryCode(text)));
 }
 
+// The fifth product review and the twelfth Phase 4 review: a negated on-site, office or hybrid word says remote; "Online" is
+// remote; anywhere in a country is remote, anywhere in a city is not; a place partly at home is hybrid.
+for (const place of ["Remote (no onsite)", "Remote; not on-site", "Remote — never on-site", "Fully remote - non-office based", "Remote, no on-site visits", "100% remote - not office based", "Remote (100%, no hybrid)", "Online", "Philippines (online)", "Anywhere in the Philippines", "Anywhere in the US"]) {
+  check(`place ${JSON.stringify(place)} is a remote job`, brief(place).workMode === "remote" && R(place, "full-time", "") === true, `${brief(place).workMode} ${R(place, "full-time", "")}`);
+}
+for (const place of ["Remote with occasional onsite", "WFH or Onsite (Makati)"]) {
+  check(`place ${JSON.stringify(place)} is a hybrid job, not a remote or an on-site one`, brief(place).workMode === "hybrid" && R(place, "full-time", "") === false, brief(place).workMode);
+}
+for (const place of ["Onsite (no WFH)", "Pasig (Onsite, no remote)", "Not remote - Cebu"]) {
+  check(`place ${JSON.stringify(place)} is still an on-site job`, brief(place).workMode === "onsite", brief(place).workMode);
+}
+check("a negated on-site word keeps an edited job remote", M.remoteAfterPlaceEdit(false, "Remote (no onsite)", "full-time", "") === true && M.placeSaysRemote("Remote — never on-site") === "remote");
+// Words about the clients or the hours never pick the country, and "PH", BGC and Ortigas are the Philippines.
+for (const [text, code] of [["Makati (US-based clients)", "PH"], ["Cebu - US healthcare account", "PH"], ["Quezon City (US Mortgage Account)", "PH"], ["Remote, US office hours", null], ["BGC (U.S. client)", "PH"], ["Remote, PH", "PH"], ["Iloilo (US healthcare)", "PH"], ["Makati, US-based company", "PH"], ["Ortigas (USA account)", "PH"], ["Remote - US", "US"], ["United States", "US"], ["Phoenix, AZ", "US"]]) {
+  check(`${JSON.stringify(text)} is in ${code}`, M.inferCountryCode(text) === code, String(M.inferCountryCode(text)));
+}
+
 {
   const editor = (await import("node:fs")).readFileSync(path.join(ROOT, "src/pages/CreateJob.tsx"), "utf8");
   check("Edit job: remote work is the business's own switch, shown beside the place, never re-worked unseen", /isEditMode && existingJob\s*\? formData\.is_remote === true/.test(editor) && /data-edit-remote/.test(editor) && /handleChange\("is_remote", remoteAfterPlaceEdit\(/.test(editor));

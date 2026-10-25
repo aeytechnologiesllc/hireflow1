@@ -58,8 +58,10 @@ a part whose last word is no role ("Customer Support - Driver Partners"), or
 people the words say it helps or answers, singular or plural ("Customer
 Support - Uber Drivers / help drivers by chat", "Customer Support - Courier /
 help couriers with app issues via chat"; a shop-floor job in the singular
-only by a channel: "Customer Service - Cashier / assist cashiers during busy
-periods" is the cashier, the eleventh review). Any other job named beside it is
+only by a channel or the business's app or platform: "Customer Service -
+Cashier / assist cashiers during busy periods" is the cashier, the eleventh
+review; "Customer Support - Driver / help drivers with app issues, payouts and
+account problems" is the drivers' line, the twelfth). Any other job named beside it is
 the role: "Customer Service - Cashier", "Customer Service - Admin Assistant",
 "Call Center - Recruiter", "Help Desk - Network Engineer", "Guest Services -
 Housekeeper". A channel part names a bare role beside it ("Voice - Agents",
@@ -72,7 +74,10 @@ A benefits line or sentence ("Benefits include medical and dental", "13th
 month pay", "what you get: medical, dental, 401(k)") is not read, one line or
 sentence at a time, nor the bullets under a "Benefits:" or "What we offer:"
 heading wherever the heading is (the eleventh review: after a duty line only
-the heading went, and "- Discounted dental care" stayed behind), nor a
+the heading went, and "- Discounted dental care" stayed behind), except a
+perk that is how the job is worked: remote work or the night shift
+("Perks:\n- Permanent work from home", "What we offer:\n- 100% remote",
+"Night shift differential"; the twelfth review: those jobs read as on site), nor a
 sentence naming an HMO unless the work is about it ("verify
 patients' HMO", "process HMO claims", "coordinate with HMO providers"). A
 plan offered to the employee is taken out by itself wherever it is
@@ -117,25 +122,30 @@ seconds on 90 KB). In this order:
    messages, tickets, an online shop, a mail-order pharmacy, an online
    grocery, inbound calls, a BPO, call centre or voice account, a "US retail
    account", working from home: "CSR - Retail / inbound calls for a US retail
-   account"). With nothing in the words about being in the store (in it, at
-   its counter, helping customers there, its shelves, aisles or fitting
-   rooms, its cash, till or POS, bagging groceries, the front end, a
-   24-hour store, serving food, keeping the store clean, helping people find
-   products, pricing items; "at our 50 stores across Texas" is no one
-   store), it is the account when the words name a client's signs: a named
+   account"). With nothing in the words about being in the store (in it,
+   keeping its counter clean, helping customers there, its shelves, aisles
+   or fitting rooms, cash handled, its till, running its POS or ringing
+   transactions on it, bagging groceries, the front end, a 24-hour store,
+   serving food, keeping the store clean, pricing items as a duty; "at our
+   50 stores across Texas" is no one store), it is the account when the
+   words name a client's signs: a named
    account ("our retail account", "a US retail client"), customers in
    another country ("Assist US customers"; not "Join us and help
    customers"), a US, foreign or Fortune 500 retailer the team works for
    ("for a US retailer", "customers of a Fortune 500 retailer", "Our client
-   is a US retail brand"; not one that is hiring: "Join an American retail
-   brand!", "Walmart is a Fortune 500 retailer"), a BPO site the agent works
-   at or an IT park ("Work in our Pasig site"; not "keep the site clean"),
+   is a US retail brand", "Our client, a leading US retailer,"; not one that
+   is hiring: "Join an American retail brand!", "Walmart is a Fortune 500
+   retailer"), a BPO site the agent works at or ours named by its place, or
+   an IT park ("Work in our Pasig site", "We are hiring for our Makati
+   site!"; not "keep the site clean"),
    policyholders, or members with a plan's claims, coverage, benefits or
    prescriptions (not "help members with returns"), a chain's or a
-   restaurant group's hotline, its delivery orders, software its customers
-   use ("Customer Support Specialist - Retail / support customers of our
-   retail POS software"; not "use our software to look up prices" or
-   "operate the POS system"); after the role, also any remote channel
+   restaurant group's hotline, its delivery orders, customers who shop on its
+   website or orders placed there, software its customers use or set up, or
+   questions about its software ("Customer Support Specialist - Retail /
+   support customers of our retail POS software", "help merchants set up our
+   POS system"; not "use our software to look up prices" or "operate the POS
+   system"); after the role, also any remote channel
    (calls, emails, a telephone, voice, a hotline; not a person's "pleasant
    voice") or the night shift ("Customer Care Representative - Pharmacy /
    answer calls from members"); before it, a written channel ("Shop -
@@ -145,7 +155,15 @@ seconds on 90 KB). In this order:
    tenth review). The eleventh review found the bare words (POS, members,
    software, site, app, website, online orders, a chain or group, a
    Fortune 500 or American brand, the night shift at a 24-hour store) all
-   over stores' own posts, so each now needs what shows a call centre. With
+   over stores' own posts, so each now needs what shows a call centre. The
+   twelfth found the eleventh's own floor words in call centres' posts ("help
+   customers find the right plan", "over the counter items", "counter-check
+   order details", "retailers using our POS system", "cash on delivery
+   concerns", "experience as a cashier"), so those count only as the store's
+   work ("handle cash and keep the counter clean", "process transactions
+   using our POS"), and the phones a store sells are no channel ("Sell
+   phones, tablets and accessories", "Help customers choose phones and
+   plans"). With
    no words at all, a store part after the role is still the store
    ("Customer Service Representative | Retail");
    the front desk or front office of a hotel, gym, salon, spa (not a med
@@ -178,10 +196,19 @@ seconds on 90 KB). In this order:
    never an online platform's shop or stores in many places: "our TikTok
    Shop", "our WooCommerce store", "our web store", "the App Store", "our
    franchise stores", "our store locations nationwide" (the eleventh review);
+   only those: a store "throughout the day", "across from SM City" or
+   "across Metro Manila", "our store location in SM North", "our franchise
+   store in Cebu", "our franchise restaurant" and "our digital printing shop"
+   are one store, and an app, Play or digital store is only the word right
+   before the store (the twelfth review);
    tickets, a help desk, the phone, a messaging app, an online business
-   (in the words or the title: "E-commerce Customer Service") count as
+   (in the words or the title: "E-commerce Customer Service"; a platform
+   shop only when it is the business's own, "our Facebook shop", never "post
+   our products on Facebook Marketplace" or "download apps from the Play
+   Store"; the twelfth) count as
    remote, but not the phone at the showroom, the store or the box office
-   the words name, nor tickets that are sold or refunded): not. A clinic's front desk greets
+   the words name, nor tickets that are sold or refunded, nor a store's
+   lottery tickets): not. A clinic's front desk greets
    and checks in patients and is left to item 6;
 3a. a clinic's appointment setter or patient admin role whose work is
    patients' calls or bookings: customer service; then selling or collecting
@@ -210,12 +237,17 @@ seconds on 90 KB). In this order:
    work is in person, books what is not a customer's (musicians, bands, DJs,
    entertainers, singers, talent, shows, speaking engagements, freight,
    cargo, shipments, containers, truckloads, a model's bookings, a
-   conference or corporate event the work plans or books the venues,
-   catering or AV for (not a hotel's guests: "book hotel rooms for corporate
-   events and conferences", "our hotel hosts weddings and conferences"),
-   logistics as the business (in the title, "a logistics company"; not
-   "travel logistics", "the logistics of each job" or "our logistics team";
-   the eleventh review), planned group tours; models, venues,
+   conference or corporate event the work plans, coordinates, manages or
+   executes, or books the venues, catering or AV for, named before or after
+   it, and an event management company (not a hotel's guests: "book hotel
+   rooms for corporate events and conferences", "our hotel hosts weddings
+   and conferences"; nor an event planner the venue works with: "Coordinate
+   with event planners and handle bookings for our function rooms"; the
+   twelfth review), logistics as the business (in the title, "a logistics
+   company"), or anywhere in the words when they name no customer and no
+   channel ("coordinate with the logistics department"; not "travel
+   logistics", "the logistics of each job" or "our logistics team" beside a
+   customer's calls; the eleventh and twelfth reviews), planned group tours; models, venues,
    loads or carriers only as what is booked or dealt with: "book models",
    "book loads", "freight loads", "negotiate rates with carriers", "call
    carriers", "secure capacity", never "car models", "a high call load",
@@ -255,14 +287,14 @@ seconds on 90 KB). In this order:
    widget"), a quality ("great customer service"), or "answer phones, manage
    calendars".
 
-Every Phase 4 review's cases, about eight hundred and forty, are in the test
+Every Phase 4 review's cases, about nine hundred and twenty, are in the test
 (`scripts/customer_service_hiring.test.mjs`).
 
 Its follow-ups (one chip each, the default in brackets):
 
 | id | Question | Chips |
 |---|---|---|
-| `cs-channel` | How will they talk to your customers? | Chat, Phone, Email, A mix of these; the default is what the business's own words say (`channelForBrief`), read channel by channel. The title's channel words lead, in any part of its role ("Customer Service (Phone)", "Customer Service - Voice", "Customer Service – Inbound Calls"), never in a "for …" part ("Chat CSR — for a call center" is chat) or as a product ("Phone Repair Store Chat Agent", "Call Center Software Support", "Mobile Phone Customer Support"). The description adds a channel when the agent does that work ("answer calls", "inbound calls", "some phone"), or by a list of channels ("phone, email and chat", "calls and emails", "SMS and phone", "voice and non-voice"), but not what customers own ("their phone and email accounts"); its mere mentions count only when the title names no channel. A channel is out when the words rule it out: always for "non-voice", "chat only" or "chat/email only" ("only tickets and live chat" is both, not tickets only; "inbound only" rules nothing out and is phone only when no written channel is named: "Chat Support Agent / Inbound only, no outbound sales" is chat, "Inbound only, no sales" phone); for "no phone calls", "we don't take calls", "you won't need to make or take calls", "this role does not involve phone calls (or sales)", "phone support isn't required" or "phone support is handled by another team" unless they also take calls ("You won't need to make calls. You will answer incoming calls."; "handled by our call center" or "by our sales team" counts as someone else), or the words name a voice account ("Voice account. No calls and no sales quotas" is phone); "no emails" for email. A "without" rule stays on its own line ("Can work without supervision" over a line "Handle inbound calls" keeps its calls). Never a rule: "no call center experience", "no voice account experience", "no phone or sales experience", "no phone sales", "no email marketing", "billing calls are handled by another team", "all calls are handled from home", "never call a customer by their first name", or a rule about when ("no calls on weekends", "after 8pm", "outside business hours"). How to apply, from its phrase on ("send your CV by email or call us", "Email your resume to …", "Please email your CV", "Submit your resume through email", "How to apply:", "interested applicants may send …", "apply via email", "for inquiries, email us at …", "walk-in applicants are welcome …", "shortlisted applicants will be contacted by phone"; never a duty: "know when to apply discounts", "teach customers how to apply promo codes", "interested applicants should be comfortable handling inbound calls", "the first point of contact for inquiries, complaints and requests via phone, email and chat", "help customers apply online for our credit card", "customers who apply by phone", "help customers submit an application for financing"), and a "brand voice" or "on-call" say nothing about the channel. "Calls for patience" is no call, and "a company laptop and phone", "phones and accessories" or a phone a preposition points to is no phone work ("returns for their phones", "requests for call backs", "orders for replacement phones", "questions about smart phones", "make sure phones are shipped"); "answer calls for our clients", "handle a high volume of calls", "through phone", "inquiries from callers", "answer and respond to calls", "handle up to sixty calls a day", "take care of customers on calls", "calls are answered within 3 rings", "make sure every call is logged" (not calls someone else took that the agent follows up on: "Follow up on calls from the sales team"; the eleventh review) and phone orders or inquiries a verb takes ("take phone orders", "answer phone inquiries") are, but not phone orders as a topic ("answer emails about phone orders"). Call-centre, BPO, phone or telephone experience, asked for or not ("at least 6 months BPO experience", "no call center experience required", "with or without call center experience", "1+ years of telephone customer service experience", "experience working in a contact center"), points to phone when the words name no written channel ("Reply to customer emails and chats. No call center experience required." is chat). A call or contact centre in the title's own parts is phone unless the title names a written channel ("Call Center Agent - Chat" is chat); "blended", "omnichannel" or "multichannel" is a mix in the title's role parts ("Blended CSR", "Customer Service Representative (Blended)", "Omnichannel Agent") and in the words unless it names a product or the business ("Blended", "a blended account", "an omnichannel environment" are; "blended coffees", "a multichannel e-commerce brand" and "a blended work setup", which is office and home, are not). Intercom is a chat tool ("via Intercom", "Intercom messages"); a door's or a building's intercom is not ("Answer phones and the intercom"; the eleventh review). Phone and a written channel is a mix; chat and email, chat; tickets, email. A bare "CSR", a receptionist or an operator with no channel in the words is phone (the Philippine meaning of CSR; any written channel in the words decides instead) |
+| `cs-channel` | How will they talk to your customers? | Chat, Phone, Email, A mix of these; the default is what the business's own words say (`channelForBrief`), read channel by channel. The title's channel words lead, in any part of its role ("Customer Service (Phone)", "Customer Service - Voice", "Customer Service – Inbound Calls"), never in a "for …" part ("Chat CSR — for a call center" is chat) or as a product ("Phone Repair Store Chat Agent", "Call Center Software Support", "Mobile Phone Customer Support"). The description adds a channel when the agent does that work ("answer calls", "inbound calls", "some phone"), or by a list of channels ("phone, email and chat", "calls and emails", "SMS and phone", "voice and non-voice"), but not what customers own ("their phone and email accounts"); its mere mentions count only when the title names no channel. A channel is out when the words rule it out: always for "non-voice", "chat only" or "chat/email only" ("only tickets and live chat" is both, not tickets only; "inbound only" rules nothing out and is phone only when no written channel is named: "Chat Support Agent / Inbound only, no outbound sales" is chat, "Inbound only, no sales" phone); for "no phone calls", "we don't take calls", "you won't need to make or take calls", "this role does not involve phone calls (or sales)", "phone support isn't required" or "phone support is handled by another team" unless they also take calls ("You won't need to make calls. You will answer incoming calls."; "handled by our call center" or "by our sales team" counts as someone else), or the words name a voice account ("Voice account. No calls and no sales quotas" is phone); "no emails" for email. A "without" rule stays on its own line ("Can work without supervision" over a line "Handle inbound calls" keeps its calls). Never a rule: "no call center experience", "no voice account experience", "no phone or sales experience", "no phone sales", "no email marketing", "billing calls are handled by another team", "all calls are handled from home", "never call a customer by their first name", or a rule about when ("no calls on weekends", "after 8pm", "outside business hours"). How to apply, from its phrase on ("send your CV by email or call us", "Email your resume to …", "Please email your CV", "Submit your resume through email", "How to apply:", "interested applicants may send …", "apply via email", "for inquiries, email us at …", "walk-in applicants are welcome …", "shortlisted applicants will be contacted by phone", "DM us your CV on Messenger", and a sentence that is only how to reach the business to apply: "Text or call 0917 123 4567 to apply.", "Chat with us to apply."; the twelfth review; never a duty: "know when to apply discounts", "teach customers how to apply promo codes", "interested applicants should be comfortable handling inbound calls", "the first point of contact for inquiries, complaints and requests via phone, email and chat", "help customers apply online for our credit card", "customers who apply by phone", "help customers submit an application for financing"), and a "brand voice" or "on-call" say nothing about the channel. "Calls for patience" is no call, and "a company laptop and phone", "phones and accessories" or a phone a preposition points to is no phone work ("returns for their phones", "requests for call backs", "orders for replacement phones", "questions about smart phones", "make sure phones are shipped"); "answer calls for our clients", "handle a high volume of calls", "through phone", "inquiries from callers", "answer and respond to calls", "handle up to sixty calls a day", "take care of customers on calls", "calls are answered within 3 rings", "make sure every call is logged" (not calls someone else took that the agent follows up on: "Follow up on calls from the sales team"; the eleventh review; following up via, over or through calls is the agent's own, and so are missed calls and voicemails: "follow up via calls when needed", "Follow up on missed calls and voicemails from customers"; the twelfth) and phone orders or inquiries a verb takes ("take phone orders", "answer phone inquiries") are, but not phone orders as a topic ("answer emails about phone orders"). Call-centre, BPO, phone or telephone experience, asked for or not ("at least 6 months BPO experience", "no call center experience required", "with or without call center experience", "1+ years of telephone customer service experience", "experience working in a contact center"), points to phone when the words name no written channel ("Reply to customer emails and chats. No call center experience required." is chat). A call or contact centre in the title's own parts is phone unless the title names a written channel ("Call Center Agent - Chat" is chat); "blended", "omnichannel" or "multichannel" is a mix in the title's role parts ("Blended CSR", "Customer Service Representative (Blended)", "Omnichannel Agent") and in the words unless it names a product or the business ("Blended", "a blended account", "an omnichannel environment" are; "blended coffees", "a multichannel e-commerce brand" and "a blended work setup", which is office and home, are not). Intercom is a chat tool ("via Intercom", "Intercom messages", and wherever it stands in a list of tools: "via email and Intercom", "Use Zendesk and Intercom", "Tools: Intercom, Zendesk"; the twelfth review); a door's or a building's intercom is not ("Answer phones and the intercom", "the building intercom"; the eleventh review; "intercom calls from the gate", "intercom buzzes"; the twelfth). The messages a receptionist takes, leaves or relays are phone messages ("Answer phones, take messages and schedule appointments" is phone; the twelfth). Phone and a written channel is a mix; chat and email, chat; tickets, email. A bare "CSR", a receptionist or an operator with no channel in the words is phone (the Philippine meaning of CSR; any written channel in the words decides instead) |
 | `cs-industry` | What kind of business is it? | Medical or dental office, Online store, Software or app, Home services, Gaming, Something else; the default is what the business's own words point to (`industryFromText`) |
 | `cs-load` | How many chats or messages at once? ("Besides calls, …" for phone or a mix) | One at a time, [Two or three], Four or more |
 | `cs-hours` | When will they work? | [Daytime], Evenings or nights, Weekends too, Rotating shifts |
@@ -288,7 +320,8 @@ the same things:
    (`config.scenarios`, with each person's name), tagged `config.pack`. The
    server picks one case per applicant (the stable pick in
    `ai-chat-simulation/prompts.ts`), and typing speed and reply time are
-   measured inside it (docs/TYPING-IN-CHAT.md);
+   measured inside it (docs/TYPING-IN-CHAT.md), counted only for a remote job
+   (an on-site job's chat may be done on a phone);
 5. the written interview. A phone or mixed job's interview starts with the
    two questions about calls (`PHONE_INTERVIEW_QUESTIONS`), each unless one of
    the model's questions already asks the same thing about a call: in one
@@ -307,10 +340,12 @@ the same things:
    our store?"), or a statement after it ("A patient is shouting. They are on
    the phone."),
    never an upset line and then a question about something else; "Mr." and "Dr." end no sentence. An
-   angry caller is angry, upset, furious, irate, rude, abusive, shouting,
-   yelling, screaming, swearing or talking over you; on hold is a person on
-   hold ("put patients on hold"), or on a call; passing the call on counts
-   too. "Transferable skills", "hold yourself accountable", "notes on hold
+   angry caller is angry, upset, furious, irate, rude, abusive, frustrated,
+   aggressive, a difficult caller, shouting, yelling, screaming, swearing or
+   talking over you (the twelfth review added frustrated, aggressive and
+   difficult); on hold is a person on hold ("put patients on hold"), or on a
+   call; passing the call on counts too, and so does escalating it ("How
+   would you escalate a call to your supervisor?"). "Transferable skills", "hold yourself accountable", "notes on hold
    times", a project, a ticket or a feeling on hold, and an upset customer by
    chat or email are not that. It
    always keeps at least one of the model's own, until the practice call
@@ -320,10 +355,41 @@ the same things:
 The chat step also keeps the channel the business chose (`config.channel`),
 which the interview guide reads.
 
+The plan's notes to the business say only what this job gets (the fifth
+product review, a US dental office hiring on site): the chat practice's says
+typing speed is measured only for a remote job, and otherwise that it counts
+only for a remote job; the skills check's names second-language readers only
+for a remote job or a place outside the English-first countries (US, UK,
+Canada, Australia, New Zealand, Ireland), and otherwise says "in plain
+words, with time to read each one"; a phone or mixed job's says the written
+interview asks how they handle calls, when the plan has one, and promises no
+practice call.
+
 `generate-flow` is told the pack and channel (read against its own
 allow-list) so the post, the application and the interview are written for
 that industry, in plain English for any country, with the pack's word for
 the other person. `ai-generate-job-content` has the same rule.
+
+## Where the job is
+
+`src/lib/jobLocation.ts` reads the place the business typed (and the Type
+field): remote, hybrid or on site (`placeSaysRemote`, `placeSaysHybrid`,
+used by `briefFromForm`), and the country (`inferCountryCode`, for the
+feeds and the currency when the geocoder misses).
+
+- A negated on-site, office or hybrid word says remote: "Remote (no
+  onsite)", "Remote; not on-site", "Remote — never on-site", "Fully remote -
+  non-office based", "Remote (100%, no hybrid)". "Online" and "Philippines
+  (online)" are remote, and so is anywhere in a country ("Anywhere in the
+  Philippines"), never anywhere in a city or a region ("Anywhere in Metro
+  Manila"). A place partly at home is hybrid: "Remote with occasional
+  onsite", "WFH or Onsite (Makati)" (the fifth product review and the
+  twelfth Phase 4 review).
+- Words about the clients or the hours never pick the country: "Makati
+  (US-based clients)", "Cebu - US healthcare account", "Quezon City (US
+  Mortgage Account)", "Iloilo (US healthcare)" are the Philippines, and
+  "Remote, US office hours" names none. "PH", BGC and Ortigas are the
+  Philippines ("Remote, PH", "BGC (U.S. client)").
 
 ## The packs
 

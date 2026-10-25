@@ -306,6 +306,40 @@ const CS = [
   ["Reservations Specialist", "Take reservations by phone for our resort, including weddings, conferences and corporate events."],
   ["Customer Service Representative", "Help customers in our franchise stores with their orders."],
   ["Retail - Customer Service Representative", "Our client is a US retail brand. Handle customer concerns."], ["Reservations Agent", "Handle group reservations for conferences by phone."],
+  // The twelfth Phase 4 review: a call centre's words after a store part are the account again (help customers find, over the
+  // counter, counter-check, retailers using our POS, a cashier's experience); a line serves workers through its app or platform;
+  // our site named by its place, "Our client, a US retailer,"; remote work or the night shift in a perks list; e-commerce and
+  // software words; an event planner the venue works with; the store's records.
+  ["Customer Service Representative - Retail", "Handle calls from customers of a US retailer and help customers find the right products. Night shift in Makati."],
+  ["Customer Care Representative - Pharmacy", "Take calls from US members about prescriptions, refills, claims and over the counter items. Night shift."],
+  ["Customer Care Representative - Pharmacy", "Answer member calls about prescriptions, refills and over the counter products."],
+  ["Customer Service Representative - Retail", "Answer calls and help customers find solutions to their concerns."],
+  ["Customer Service Representative - Retail", "Answer calls from US customers about orders and help customers find answers to their questions. Graveyard shift."],
+  ["Customer Service Representative - Retail", "Help customers find the right plan over the phone and by email."],
+  ["Customer Service Representative - Retail", "Answer calls, counter-check order details and process refunds."],
+  ["Customer Support Specialist - Retail", "Support retailers using our POS system by phone and email."],
+  ["Customer Support Specialist - Retail", "Help store owners using our point of sale software by phone and email."],
+  ["Customer Service Representative - Retail", "Answer customer calls about orders and refunds for a US client. Experience as a cashier or sales clerk is an advantage."],
+  ["Customer Service Representative - Retail", "Answer customer inquiries and handle cash on delivery (COD) concerns over the phone."],
+  ["Customer Service Representative - Retail", "Answer customer inquiries and price items for our online catalog over the phone."],
+  ["Customer Support - Driver", "Help drivers with app issues, payouts and account problems."], ["Customer Support - Courier", "Help couriers with app issues and payouts."],
+  ["Customer Support - Nurse", "Help nurses use our shift-booking app and resolve payment issues."],
+  ["Customer Support - Caregiver", "Help caregivers set up their profiles and get paid through our platform."],
+  ["Customer Support - Cleaner", "Help cleaners with bookings, payouts and the app."], ["Customer Support - Electrician", "Help electricians with app issues and payouts."],
+  ["Customer Support - Mechanic", "Help mechanics with app issues and payouts."], ["Customer Support - Instructor", "Help instructors upload courses and get paid on our platform."],
+  ["Customer Service Representative - Retail", "We are hiring for our Makati site! Fresh grads welcome."],
+  ["Customer Service Representative - Retail", "Our Ortigas site is hiring! Fresh grads are welcome to apply."], ["Customer Service Representative - Retail", "Join our team in our Alabang site."],
+  ["Customer Service Representative - Retail", "Our client, a leading US retailer, needs agents to handle order concerns."],
+  ["Customer Service Representative - Retail", "Answer customer concerns about orders and returns.\nPerks:\n- Permanent work from home\n- HMO"],
+  ["Customer Service Representative - Retail", "Answer customer concerns.\nWhat we offer:\n- 100% remote\n- HMO from day one"],
+  ["Customer Service Associate", "Help customers at our store with returns.\nBenefits:\n- Work from home after training\n- HMO"],
+  ["Front Desk Agent", "Answer guest calls and emails for our hotel.\nWhat you get:\n- Work from home\n- HMO"],
+  ["Customer Service Representative - Retail", "We're hiring!\nBenefits:\n- HMO on day 1\n- Night shift differential\n- Paid training"],
+  ["Retail - Customer Service Representative", "Support customers who shop on our website."],
+  ["Retail - Customer Service Representative", "Handle customer concerns about orders placed on our website and app."],
+  ["Customer Support - Retail", "Help merchants set up our POS system."], ["Customer Service Representative - Retail", "Answer questions about our retail management software."],
+  ["Booking Agent", "Coordinate with event planners and handle bookings for our function rooms."],
+  ["Customer Service Representative - Retail", "Answer customer inquiries and keep the store's records updated over the phone."],
 ];
 for (const [title, work] of CS) {
   check(`"${title}${work ? ` — ${work}` : ""}" is customer service`, M.detectFamily(brief(title, work)) === "customer_service", M.detectFamily(brief(title, work)));
@@ -555,6 +589,37 @@ const NOT_CS = [
   ["Customer Service - Cashier", "Assist cashiers during busy periods and help customers with returns.", "cash"],
   ["Customer Service - Retail Staff", "Assist customers and keep the store tidy.", "cash"], ["Customer Care - Care Staff", "Assist elderly residents with daily activities.", "general"],
   ["Front Desk - Hospitality Staff", "", "general"],
+  // The twelfth: one store is one store "throughout the day", "across from SM City", "across Metro Manila", at a "store location
+  // in SM North", a singular franchise store or restaurant, a digital printing shop; logistics with no customer or channel is a
+  // freight desk; coordinating, managing or executing conferences, an event management company, and AV after the conference, a
+  // planner; the platform shop a counter also uses; the phones a store sells; a store's lottery tickets.
+  ["Customer Service Associate", "Assist customers in our store throughout the day and handle returns and exchanges.", "cash"],
+  ["Customer Service Representative", "Help customers at our showroom throughout the sales process.", "cash"],
+  ["Customer Service Representative", "Assist customers at our dealership throughout the buying process and answer phone inquiries.", "general"],
+  ["Customer Service Representative", "Help customers at our store location in SM North with returns and exchanges.", "cash"],
+  ["Customer Service Representative", "Assist customers at our two store locations in Cebu.", "cash"],
+  ["Customer Service Representative", "Assist customers in our stores across Metro Manila and process their payments.", "cash"],
+  ["Customer Service Associate", "Serve customers at our cafes across BGC.", "cash"], ["Customer Service Associate", "Assist customers in our store across from SM City.", "cash"],
+  ["Customer Service Representative", "Help customers at our franchise store in Cebu with their orders.", "cash"],
+  ["Customer Service Representative", "Serve customers at our franchise restaurant in Cubao.", "cash"],
+  ["Customer Service Representative", "Assist customers at our digital printing shop, take orders and handle payments.", "general"],
+  ["Customer Service Associate - Retail", "Answer phone calls and help customers in our store throughout the day.", "cash"],
+  ["Booking Agent", "Process import and export booking requests and coordinate with our logistics partners.", "admin"],
+  ["Booking Agent", "Prepare booking confirmations and coordinate with the logistics department.", "admin"],
+  ["Booking Agent", "Encode bookings in our logistics system and coordinate deliveries with our truck drivers.", "admin"],
+  ["Booking Agent", "Handle bookings for our logistics department and coordinate pickups with our drivers.", "admin"],
+  ["Booking Coordinator", "Experience in logistics or supply chain is an advantage. Coordinate bookings with truckers.", "admin"],
+  ["Booking Coordinator", "Coordinate conferences and corporate events for our clients.", "admin"],
+  ["Reservations Coordinator", "Plan and execute corporate events, team buildings and conferences.", "admin"],
+  ["Booking Coordinator", "Manage logistics for corporate events and conferences.", "admin"],
+  ["Booking Coordinator", "Event management company: handle client bookings for conferences and product launches.", "admin"],
+  ["Booking Coordinator", "Handle bookings for corporate events and conferences: venues, catering and AV.", "admin"],
+  ["Customer Service Associate", "Assist walk-in customers at the counter and post our products on Facebook Marketplace.", "general"],
+  ["Customer Service Associate", "Help customers in our mobile phone store set up their phones and download apps from the Play Store.", "cash"],
+  ["Customer Service Associate - Electronics Store", "Sell phones, tablets and accessories and process returns.", "cash"],
+  ["Customer Service Associate - Electronics Store", "Recommend phones and accessories and process warranty claims.", "cash"],
+  ["Customer Service Associate - Electronics Store", "Explain phones, tablets and accessories to customers and process returns.", "cash"],
+  ["Customer Service Associate", "Help customers at our grocery store's customer service desk with returns and lottery tickets.", "cash"],
 ];
 for (const [title, work, want] of NOT_CS) {
   const got = M.detectFamily(brief(title, work));
@@ -785,6 +850,24 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Virtual Receptionist", "Answer calls and the building intercom for our clients' offices.", "phone"],
     ["Email Support Specialist", "Reply to customer emails. Follow up on calls from the sales team.", "email"],
     ["Customer Support Agent", "Support customers via Intercom.", "chat"], ["Customer Support Agent", "Reply to Intercom messages from customers.", "chat"],
+    // The twelfth: Intercom in a list of tools is chat wherever it stands, never the door's; following up via, over or through calls
+    // is the agent's own calling, and so are missed calls and voicemails; a receptionist's messages are phone messages; a CV sent
+    // by DM, and a sentence that is only how to reach the business to apply, say nothing about the job.
+    ["Customer Support Specialist", "Respond to support requests via email and Intercom.", "chat"], ["SaaS Support Specialist", "Support customers over email and Intercom.", "chat"],
+    ["Customer Support Agent", "Use Zendesk and Intercom to resolve customer issues.", "chat"], ["Customer Support Specialist", "Answer customer tickets in Zendesk and Intercom.", "chat"],
+    ["Customer Support Specialist", "Tools: Intercom, Zendesk, Slack. Resolve customer issues quickly.", "chat"],
+    ["Security Receptionist", "Answer intercom calls from the gate and greet visitors.", "phone"], ["Virtual Receptionist", "Answer calls and intercom buzzes for our clients.", "phone"],
+    ["Customer Service Representative", "Respond to customer emails and follow up via calls when needed.", "mixed"],
+    ["Customer Support Specialist", "Answer emails and follow up over calls for urgent cases.", "mixed"],
+    ["Customer Support Specialist", "Handle tickets; follow up through calls if the customer prefers.", "mixed"],
+    ["Customer Service Representative", "Follow up on missed calls and voicemails from customers.", "phone"],
+    ["Medical Receptionist", "Answer phones, take messages and schedule appointments.", "phone"], ["Front Desk Receptionist", "Answer multi-line phones, take messages, and greet patients.", "phone"],
+    ["Medical Secretary", "Answer patient calls, take messages, and schedule appointments.", "phone"],
+    ["Virtual Receptionist", "Answer calls for our clients' law firms, take messages and book consultations.", "phone"],
+    ["Customer Service Representative", "Answer customer calls about their orders. Interested? DM us your CV on Messenger.", "phone"],
+    ["Customer Service Representative", "Handle inbound calls. Text or call 0917 123 4567 to apply.", "phone"],
+    ["Customer Service Representative", "Handle inbound calls from US customers. Chat with us to apply.", "phone"],
+    ["Customer Service Representative", "Help customers apply for loans by chat and phone.", "mixed"], ["Customer Support Agent", "Reply to customer messages on our app.", "chat"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
 }
 
@@ -1034,6 +1117,16 @@ let aiFlow;
     "You take calls all day. How would you handle an angry customer in our store?",
     "What phone system did you use? What would you do if an angry customer walked into the office?",
   ]) check(`a question after a question about calls, or an angry customer in person, is not the angry-caller question: ${JSON.stringify(prompt)}`, callQs([prompt, "Why us?", "Q3"]).includes("vphone0"));
+  // The twelfth: a frustrated, aggressive or difficult caller is an angry one, and escalating a call is passing it on, so Ava adds
+  // no near-duplicate (and drops none of the model's questions); a frustrated customer in a live chat is still not on a call.
+  for (const prompt of [
+    "Describe how you'd handle a customer who is frustrated on the phone because they've been transferred multiple times.",
+    "A customer on the line is frustrated and wants to cancel. What do you say?",
+    "Tell me about a time you handled a difficult caller.",
+    "What would you do if a caller became aggressive?",
+  ]) check(`a frustrated, difficult or aggressive caller is the angry-caller question: ${JSON.stringify(prompt)}`, !callQs([prompt, "Why us?", "Q3"]).includes("vphone0"));
+  check("escalating a call to a supervisor is the hold-or-transfer question", !callQs(["How would you escalate a call to your supervisor?", "Why us?", "Q3"]).includes("vphone1"));
+  check("…and a frustrated customer in a live chat is neither", callQs(["How do you handle a frustrated customer in a live chat?", "Why us?", "Q3"]).filter((id) => /^vphone/.test(id)).length === 2);
   globalThis.fetch = async () =>
     new Response(JSON.stringify({ jobPost: { title: "Front desk", summary: "", responsibilities: [], requirements: [], niceToHaves: [] }, application: [], quiz: [], simulation: [], voiceQuestions: ["Why us?", "How do you stay calm?", "What hours?"], voiceDimensions: [], shortlistWeights: [], phaseRationales: [] }), { status: 200, headers: { "Content-Type": "application/json" } });
   const worded = (await M.generateJobFlow({ brief: formFor("Medical or dental office", "Phone", "Remote"), rigor: "standard" })).flow.phases.find((p) => p.kind === "voice_interview").config.questions;
@@ -1058,6 +1151,30 @@ let aiFlow;
   const empty = await M.generateJobFlow({ brief: formFor("Online store", "Chat", "Remote"), rigor: "standard" });
   const filled = empty.flow.phases.find((p) => p.kind === "voice_interview").config.questions;
   check("a model that wrote no interview questions leaves no empty interview (the bank's are used)", filled.length === 6 && filled.every((q) => q.prompt.length > 20), String(filled.length));
+  // The fifth product review: the plan's notes say only what this job gets. A US dental office hiring on site: no typing timed (its
+  // chat may be done on a phone; trigger-ava-analysis and assessmentRecord never count it), no second-language readers, no practice
+  // call promised; a remote job, or one in the Philippines, keeps those words where they are true.
+  {
+    const notes = (location, workMode, industry, channel) => {
+      const b = { ...M.briefFromForm({ role: "Receptionist", location, type: "Full-time", workMode, pay: "$18/hr", start: "ASAP", work: "Answer patient calls" }), followUps: [{ questionId: "cs-channel", question: "", answer: channel }, { questionId: "cs-industry", question: "", answer: industry }] };
+      const phases = M.generateTemplateFlow({ brief: b, rigor: "standard" }).flow.phases;
+      return { quiz: phases.find((p) => p.kind === "quiz").rationale, chat: phases.find((p) => p.kind === "simulation").rationale };
+    };
+    const dental = notes("Austin, TX", "Onsite", "Medical or dental office", "Phone");
+    check("an on-site job's chat practice never says its typing speed is measured", !/typing speed (and reply time )?measured/i.test(dental.chat) && /Typing speed counts only for a remote job/.test(dental.chat), dental.chat);
+    check("…and no practice call is promised; the written interview's call questions are what it gets", !/practice call/i.test(dental.chat) && /The written interview asks how they handle calls\./.test(dental.chat), dental.chat);
+    check("…and a US office's skills check names no second-language readers", !/second-language/i.test(dental.quiz) && /in plain words, with time to read each one/.test(dental.quiz), dental.quiz);
+    const onSiteChat = notes("Austin, TX", "Onsite", "Online store", "Chat");
+    check("an on-site chat job's note times no typing either", !/typing speed (and reply time )?measured/i.test(onSiteChat.chat), onSiteChat.chat);
+    const remoteChat = notes("Remote (worldwide)", "Remote", "Online store", "Chat");
+    check("a remote chat job's note says typing speed and reply time are measured, for second-language readers", /typing speed and reply time measured/.test(remoteChat.chat) && /second-language reader/.test(remoteChat.quiz), JSON.stringify(remoteChat));
+    const remotePhone = notes("Remote - Philippines", "Remote", "Medical or dental office", "Phone");
+    check("…and a remote phone job's, typing speed measured, with no practice call promised", /typing speed measured as they reply/.test(remotePhone.chat) && !/practice call/i.test(remotePhone.chat), remotePhone.chat);
+    const makati = notes("Makati City", "Onsite", "Online store", "Chat");
+    check("an on-site job in the Philippines keeps the second-language note but times no typing", /second-language reader/.test(makati.quiz) && !/typing speed (and reply time )?measured/i.test(makati.chat), JSON.stringify(makati));
+    const noInterview = M.applyCustomerServicePack([{ id: "ph_app", kind: "application", order: 0, title: "App", candidateDescription: "", rationale: "", config: { kind: "application", questions: [] }, rubric: { criteria: [] }, weight: 0.1, scoringMode: "auto" }], formFor("Online store", "Phone", "Remote"));
+    check("a plan with no written interview never says the interview asks about calls", !/written interview/i.test(noInterview.find((p) => p.kind === "simulation").rationale), noInterview.find((p) => p.kind === "simulation").rationale);
+  }
 }
 {
   let sentBody = null;
