@@ -37,7 +37,7 @@
 // an auto-mode job's move to the next step is asked for by the server too
 // (_shared/stepMoveOn.ts), so a tab closed during grading still moves on.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
-import { callOpenAIJson, requireJsonKeys, type OpenAIMessage } from "../_shared/openai.ts";
+import { aiUnavailableExtra, aiUnavailableResponse, callOpenAIJson, isAiUnavailable, requireJsonKeys, type OpenAIMessage } from "../_shared/openai.ts";
 import { employerOfApplication } from "../_shared/aiBusiness.ts";
 import { guardAuthenticatedAiCall } from "../_shared/rateLimit.ts";
 import { recordStepResult, type MinimalSupabaseAdmin } from "../_shared/trustedResults.ts";
@@ -54,6 +54,7 @@ import {
   loadIntegrityEvents,
   loadTurns,
   readStepOnFile,
+  refuseGradingForOutage,
   releaseGrading,
   resolveSession,
   storeSubmittedTranscript,
@@ -169,10 +170,14 @@ async function gradeTranscript(params: {
           "overallFeedback",
         ]),
       fallback: parseFallbackEvaluation,
+      // A refusal (the service, or the day's AI budget) keeps the practice
+      // open to send again, never a "not graded" close (the Phase 5 review).
+      throwWhenUnavailable: true,
     });
 
     return data;
   } catch (error) {
+    if (isAiUnavailable(error)) throw error;
     console.error("[submit-sales-simulation] Grading call failed — using fetch-failure fallback evaluation:", error);
     return fetchFallbackEvaluation();
   }
@@ -311,6 +316,14 @@ Deno.serve(async (req) => {
         business: await employerOfApplication(admin, applicationId),
       });
     } catch (error) {
+      if (isAiUnavailable(error)) {
+        // Nothing is recorded: the attempt goes back to open with the whole
+        // conversation, and the page keeps it to send again.
+        console.warn("[submit-sales-simulation] practice left open, the AI service is unavailable:", error.reason);
+        await refuseGradingForOutage(record, session, gate, error.reason);
+        heldClaim = null;
+        return aiUnavailableResponse(corsHeaders, aiUnavailableExtra(error));
+      }
       if (session && claimed) await failSession(record, session.id, error instanceof Error ? error.message : String(error));
       throw error;
     }

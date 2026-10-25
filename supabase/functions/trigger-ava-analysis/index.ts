@@ -1177,6 +1177,8 @@ ${interviewType} Interview with AVA Results:
       body: {
         type: analyzeType,
         content,
+        // Which business's daily AI budget pays (ai-analyze reads its owner).
+        applicationId: application.id,
         resumeUrl: detectedResumeUrl,
         resumeText,
         resumeImages: resumeVisualInputs,

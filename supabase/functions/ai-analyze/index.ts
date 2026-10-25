@@ -1324,9 +1324,18 @@ serve(async (req) => {
     }
 
     // The job's business pays for the analysis from its daily AI budget
-    // (_shared/aiBudget.ts), read by the server from the application or job.
+    // (_shared/aiBudget.ts), read by the server from the same application or
+    // job the permission check above was made on: a job-bias check is the
+    // job's, never an application named beside it (the Phase 5 review: a
+    // business could bill another's budget). Scoring from
+    // trigger-ava-analysis (service role) names the application.
     const budgetReader = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
-    const business = applicationId ? await employerOfApplication(budgetReader, applicationId) : await employerOfJob(budgetReader, jobId);
+    const business =
+      type === "job-bias"
+        ? await employerOfJob(budgetReader, jobId)
+        : applicationId
+          ? await employerOfApplication(budgetReader, applicationId)
+          : await employerOfJob(budgetReader, jobId);
 
     const normalizedResumeImages = Array.isArray(resumeImages) && resumeImages.length > 0
       ? resumeImages.filter((entry) => !!entry?.base64)

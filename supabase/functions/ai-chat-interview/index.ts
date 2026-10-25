@@ -1,9 +1,9 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { aiUnavailableResponse, callOpenAIJson, isAiUnavailable, requireJsonKeys, type OpenAIMessage } from "../_shared/openai.ts";
+import { aiUnavailableExtra, aiUnavailableResponse, callOpenAIJson, isAiUnavailable, requireJsonKeys, type OpenAIMessage } from "../_shared/openai.ts";
 import { streamOpenAIChatCompletion } from "../_shared/openaiStreaming.ts";
-import { guardPublicAiCall } from "../_shared/rateLimit.ts";
+import { guardPracticeTurnsForApplication, guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { recordStepResult, type MinimalSupabaseAdmin } from "../_shared/trustedResults.ts";
 import {
   afterReplyAskFailed,
@@ -449,6 +449,9 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      // One application's turns a day, all practices together (_shared/rateLimit.ts).
+      const perApplication = target ? await guardPracticeTurnsForApplication(req, target.applicationId, corsHeaders) : null;
+      if (perApplication) return perApplication;
     }
     // A phone or tablet never starts the interview, never opens its attempt
     // and never holds it without a record: a start or an answer goes on only
@@ -1228,7 +1231,7 @@ IMPORTANT: NEVER skip the "do you have any questions" step. Always give candidat
           console.warn("[ai-chat-interview] interview left open, the AI service is unavailable:", error.reason);
           if (record && submitGate) await refuseGradingForOutage(record, submitSession, submitGate, error.reason);
           heldClaim = null;
-          return aiUnavailableResponse(corsHeaders);
+          return aiUnavailableResponse(corsHeaders, aiUnavailableExtra(error));
         }
         if (record && submitSession && claimed) {
           await failSession(record, submitSession.id, error instanceof Error ? error.message : String(error));
@@ -1258,10 +1261,10 @@ IMPORTANT: NEVER skip the "do you have any questions" step. Always give candidat
         const failure = await afterReplyAskFailed(recording.admin, recording.session.id, { held, replyId, error });
         if (failure === "ai_unavailable") {
           console.warn("[ai-chat-interview] no reply, the AI service is unavailable:", isAiUnavailable(error) ? error.reason : "");
-          return aiUnavailableResponse(corsHeaders, mode === "respond" ? { turnSaved: !held } : {});
+          return aiUnavailableResponse(corsHeaders, { ...aiUnavailableExtra(error), ...(mode === "respond" ? { turnSaved: !held } : {}) });
         }
       } else if (isAiUnavailable(error)) {
-        return aiUnavailableResponse(corsHeaders);
+        return aiUnavailableResponse(corsHeaders, aiUnavailableExtra(error));
       }
       throw error;
     }

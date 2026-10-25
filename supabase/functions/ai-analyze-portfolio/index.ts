@@ -2,7 +2,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { callOpenAIJson, openAIErrorStatus, requireJsonKeys } from "../_shared/openai.ts";
+import { isAiUnavailable, callOpenAIJson, openAIErrorStatus, requireJsonKeys } from "../_shared/openai.ts";
 import type { OpenAIMessageContent } from "../_shared/openai.ts";
 import { recordStepResult, type MinimalSupabaseAdmin } from "../_shared/trustedResults.ts";
 import { buildOwnedPortfolioPathPattern } from "./ownedPortfolioPath.ts";
@@ -483,6 +483,14 @@ IMPORTANT: For each PDF, report the number of pages you reviewed and describe ke
       console.log("Raw AI response:", rawContent.substring(0, 500) + "...");
       analysis = data;
     } catch (error) {
+      // The service refused, or the day's AI budget is reached (a business's
+      // own or the platform's): no analysis, never the made-up 60 / CONSIDER
+      // below (the Phase 5 review: a budget refusal was recorded as a score).
+      // The files are submitted and the team reviews them as sent.
+      if (isAiUnavailable(error)) {
+        console.error(`[ai-analyze-portfolio] the AI service is unavailable (${error.reason}); proceeding with aiAnalysis = null`);
+        return null;
+      }
       const status = openAIErrorStatus(error);
 
       // These two used to come back as a non-200 the CLIENT treated as a

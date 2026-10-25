@@ -57,7 +57,7 @@ import { ComputerRequiredError, isComputerRequired, refusedDeviceKind, throwIfCo
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator";
 import { parseApplicationNotes } from "@/utils/applicationNotes";
 import { AvaSeal } from "@/components/ava/AvaSeal";
-import { ServiceDelayError, isServiceDelay } from "@/lib/serviceDelay";
+import { ServiceDelayError, isLongServiceDelay, isServiceDelay } from "@/lib/serviceDelay";
 import { ServiceDelayNotice } from "@/components/candidate/ServiceDelayNotice";
 
 interface Message {
@@ -141,6 +141,8 @@ export default function ChatInterviewPhase() {
   // Our side could not answer just now (the AI service refused): one calm
   // line and Try again, never an error toast (src/lib/serviceDelay.ts).
   const [serviceDelay, setServiceDelay] = useState<ServiceDelay | null>(null);
+  // The day's limit on our side (hours, not minutes): src/lib/serviceDelay.ts.
+  const [delayIsLong, setDelayIsLong] = useState(false);
   // The interviewer owes a message (the greeting, or the next question after
   // an answer on the record): nothing new is sent until it comes.
   const replyOwed = serviceDelay?.kind === "start" || serviceDelay?.kind === "reply";
@@ -548,6 +550,7 @@ export default function ChatInterviewPhase() {
     } catch (error) {
       if (error instanceof ComputerRequiredError && showContinueOnComputer(error.deviceKind)) return;
       if (error instanceof ServiceDelayError) {
+        setDelayIsLong(error.long);
         // Our side could not answer just now. Nothing is lost and nothing
         // is shown as broken: one calm line and Try again (below the box).
         if (mode === "respond" && giveBack && clientMsgId && userMessage && !error.turnSaved) {
@@ -761,6 +764,7 @@ export default function ChatInterviewPhase() {
         if (isServiceDelay(submitResponse.status, errBody)) {
           // Our side could not check it just now. Nothing was recorded: the
           // interview stays open with every answer, and Try again sends it.
+          setDelayIsLong(isLongServiceDelay(errBody));
           advance.cancel();
           setState("interviewing");
           setServiceDelay({ kind: "send", path });
@@ -1233,6 +1237,7 @@ export default function ChatInterviewPhase() {
                   onRetry={retryAfterDelay}
                   busy={isTyping || isSubmitting}
                   disabled={serviceDelay.kind === "message" && !inputValue.trim()}
+                  long={delayIsLong}
                 />
               )}
 

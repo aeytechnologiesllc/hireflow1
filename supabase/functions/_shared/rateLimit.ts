@@ -156,3 +156,20 @@ export async function guardAuthenticatedAiCall(
     },
   );
 }
+
+/**
+ * One application's practice turns in a day, across the chat, interview and
+ * sales practices together (2026-10-25, the Phase 5 review): the per-IP limit
+ * alone let one applicant on two connections use up a business's whole daily
+ * AI budget (2,000 calls) and keep its other applicants out until midnight.
+ * A real applicant takes a few dozen; 200 leaves room for reloads and retries.
+ */
+export const PRACTICE_TURNS_PER_APPLICATION_PER_DAY = 200;
+
+export function guardPracticeTurnsForApplication(
+  req: Request,
+  applicationId: string,
+  corsHeaders: Record<string, string>,
+): Promise<Response | null> {
+  return guardPublicAiCall(req, "practice-turns-per-application", corsHeaders, PRACTICE_TURNS_PER_APPLICATION_PER_DAY, 86400, `application:${applicationId}`);
+}

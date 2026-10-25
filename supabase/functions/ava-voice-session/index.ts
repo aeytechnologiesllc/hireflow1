@@ -2599,9 +2599,11 @@ Style:
       userId: user.id,
     });
 
-    // Today's platform-wide AI budget, like every other OpenAI call (fails
-    // open; _shared/aiBudget.ts). A voice session counts as one unit.
-    if (!(await takeDailyAiBudget())) {
+    // Today's AI budget, like every other OpenAI call (fails open;
+    // _shared/aiBudget.ts): the business the session is for (the job's, or
+    // the asking account's), then the platform's. A voice session counts as
+    // one unit.
+    if (!(await takeDailyAiBudget(1, voiceOwnerUserId))) {
       return new Response(JSON.stringify({ error: "ai_unavailable", reason: "budget_reached" }), {
         status: 503,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

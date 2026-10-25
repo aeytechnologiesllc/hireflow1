@@ -22,6 +22,7 @@ import {
   Building
 } from "lucide-react";
 import { toast } from "sonner";
+import { SERVICE_DELAY_LINE, SERVICE_DELAY_LONG_LINE, ServiceDelayError, isServiceDelay } from "@/lib/serviceDelay";
 import { invokeTriggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
 import { StepAdvanceScreen } from "@/components/candidate/NextStepCard";
@@ -409,6 +410,9 @@ export default function SalesSimulationPhase() {
       for (let resent = false; !response.ok; resent = true) {
         const errorData = await response.json().catch(() => null);
         throwIfComputerRequired(response.status, errorData);
+        // Our side could not answer (before isTurnNotSaved: the same 503 is
+        // retryable on purpose; src/lib/serviceDelay.ts).
+        if (isServiceDelay(response.status, errorData)) throw new ServiceDelayError(errorData);
         if (!isTurnNotSaved(response.status, errorData)) {
           throw new Error(errorData?.error || "Failed to get prospect response");
         }
@@ -487,6 +491,18 @@ export default function SalesSimulationPhase() {
 
     } catch (error) {
       if (error instanceof ComputerRequiredError && showContinueOnComputer(error.deviceKind)) return;
+      if (error instanceof ServiceDelayError) {
+        // Nothing is stored of a refused turn: the text goes back in the box,
+        // with the one calm line (hours when it is the day's limit).
+        if (mode === "respond" && opts.giveBack && opts.clientMsgId && opts.salesRepMessage) {
+          const unsent = opts.salesRepMessage;
+          const unsentId = opts.clientMsgId;
+          setMessages((prev) => prev.filter((m) => m.id !== unsentId));
+          setInputValue((current) => restoreUnsentText(current, unsent));
+        }
+        toast(error.long ? SERVICE_DELAY_LONG_LINE : SERVICE_DELAY_LINE);
+        return;
+      }
       if (error instanceof TurnNotSavedError && mode === "respond" && opts.giveBack && opts.clientMsgId && opts.salesRepMessage) {
         // The server has not got this message and will not answer it: take
         // the bubble back off and give the text back to send again.
@@ -670,6 +686,14 @@ export default function SalesSimulationPhase() {
         if (isComputerRequired(submitResponse.status, submitBody)) {
           advance.cancel();
           if (showContinueOnComputer(refusedDeviceKind(submitBody))) return;
+        }
+        if (isServiceDelay(submitResponse.status, submitBody)) {
+          // Our side could not check it just now. Nothing was recorded: the
+          // conversation stays, and sending again checks it.
+          toast(submitBody?.wait === "long" ? SERVICE_DELAY_LONG_LINE : SERVICE_DELAY_LINE);
+          advance.cancel();
+          setState("selling");
+          return;
         }
         const outcome = gradingReplyOutcome(submitResponse.status, submitBody);
         if (outcome === "checking" || outcome === "on_file") {
