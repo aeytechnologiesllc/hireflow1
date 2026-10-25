@@ -441,7 +441,8 @@ export default function AvaCreateJob() {
   }, []);
 
   // Voice flow keeps Ava mounted across intake (0) → build (3) → review (4), so she's never cut off.
-  const voiceLed = inputMode === "voice" && !publishedCode && (step === 0 || step === 3 || step === 4);
+  // Mounted through the voice path's confirm step too (step 1), so the session is not dropped (the sixth Phase 4 review).
+  const voiceLed = inputMode === "voice" && !publishedCode && (step === 0 || (step === 1 && voiceConfirm) || step === 3 || step === 4);
 
   // The chip that rides the rail is the job being built — initials of the role
   // the employer typed, the same way the applicant rail carries a candidate's.
@@ -598,9 +599,9 @@ export default function AvaCreateJob() {
                 const meetsBar = merged.role.trim().length > 1 && merged.location.trim() && merged.pay.trim() && merged.work.trim();
                 if (!meetsBar) return;
                 setBriefFields(merged);
-                const fam = detectFamily(briefFromForm({ ...merged, followUps: [] }));
-                setRigor(PLAYBOOKS[fam].rigor.recommended);
-                setRigorTouched(true);
+                // The screening level follows the kind of job the business confirms next
+                // (the effect on family), not the guess before it (the sixth Phase 4 review).
+                setRigorTouched(false);
                 // Confirm the kind of job (and the channel) with a click before building.
                 setVoiceConfirm(true);
                 setStep(1);

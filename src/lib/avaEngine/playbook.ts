@@ -78,20 +78,37 @@ const CS_TITLE = new RegExp(
     String.raw`\b(call|contact) cent(er|re)\b`,
     String.raw`\b(help|service) ?desk\b`,
     String.raw`\bcsr\b`,
+    String.raw`\bcs (agent|rep|representative|associate|specialist|advisor)s?\b`,
+    // A virtual receptionist answers calls for businesses; an office's own receptionist is admin.
+    String.raw`\b(virtual|remote|online) (receptionist|front desk)s?\b`,
     String.raw`\bfront desk\b`,
     String.raw`\bpatient (coordinator|services?|scheduler|access|liaison)\b`,
     String.raw`\bappointment (scheduler|coordinator)\b`,
-    String.raw`\b(answering service|telephone) operator\b`,
-    String.raw`\b(reservations?|bookings?)( and bookings?)? (agent|rep|representative|specialist|associate|coordinator|officer)s?\b`,
+    String.raw`\b(answering service|telephone|switchboard) operator\b`,
+    // "Customer Advisor" is a call-centre title (a financial advisor is not).
+    String.raw`\b(customer|client|member|guest|billing) (advisors?|advisers?)\b`,
   ].join("|"),
+);
+// A reservations or booking agent takes guests' bookings by phone, email or
+// chat; one who books bands or greets diners at the host stand does not (the
+// sixth Phase 4 review). A reservations agent with no description is the
+// hotel or airline kind; a booking agent needs the channel in its words.
+const BOOKING_TITLE = /\b(reservations?|bookings?)( and bookings?)? (agent|rep|representative|specialist|associate|coordinator|officer)s?\b/;
+const NOT_GUEST_BOOKING = new RegExp(
+  String.raw`\b(musicians?|artists?|bands?|djs?|gigs?|talent|performers?|speakers?|acts|host stand|greet\w*|seat\w*)\b`,
 );
 // Selling or collecting by phone is sales, whatever support words the title
 // also has ("Outbound CSR", "Telesales CSR", "Voice Account - Sales").
 const SALES_TITLE = /\b(outbound|telesales|tele-sales|sales|cold[- ]?call\w*|collections?|appointment setter|telemarket\w*|lead generation)\b/;
+// After-sales and pre-sales service, or "Sales & Service", is not selling (the sixth Phase 4 review).
+const SERVICE_SALES = /\b(after|pre)[- ]?sales\b|\bsales\s*(&|and|\/)\s*(customer\s+)?service\b|\bservice\s*(&|and|\/)\s*sales\b/g;
 // A professional's role noun: customer service only with real support work
 // in the description ("Support Engineer — answer customer tickets"), never
 // from the title's words alone ("Live Chat Software Developer").
 const PROFESSIONAL_HEAD = /^(engineers?|developers?|programmers?|designers?|analysts?|architects?|scientists?|recruiters?|accountants?|bookkeepers?|marketers?|copywriters?|writers?|testers?|consultants?|lawyers?|attorneys?|paralegals?|veterinarians?|therapists?|coaches?|preparers?)$/;
+// ...except a support desk's analyst or consultant, who IS its agent ("Help Desk
+// Analyst", "Customer Support Consultant"; the sixth Phase 4 review).
+const DESK_ANALYST = /\b((customer|client|player|member) (service|services|support|success|care)|help ?desk|service desk|(technical|tech|it) support|tier[ -]?[123] support) (analyst|consultant)s?$/;
 // A support title whose people are colleagues, not customers.
 // (Unless the work is answering customers by a channel: a game's "Community
 // Support Specialist" who answers player tickets is; an admin's "client calls" are not enough.)
@@ -100,9 +117,12 @@ const NON_CUSTOMER_SUPPORT = /\b(hr|human resources|payroll|finance|financial|ac
 // A clinic's front office is customer service (patients); its clinical
 // assistants (vitals, chairside) are not, unless the job is virtual.
 const FRONT_DESK = /\b(reception(ist)?|front office|front desk|medical office assistant|office assistant)\b/;
-const PATIENT_CONTEXT = /\b(patients?|clinic|dental|dentist|orthodont|medical|doctor'?s?|physician|hospital|optometr|chiropract|physio|vet|veterinar\w*|animal hospital|pets?)\b/;
+// "Pet owners" are a vet's patients; a pet-friendly office is not a clinic (the sixth Phase 4 review).
+const PATIENT_CONTEXT = /\b(patients?|clinic|dental|dentist|orthodont\w*|medical|doctor'?s?|physician|hospital|optometr\w*|chiropract\w*|physio\w*|vet|veterinar\w*|animal hospital|pet owners?)\b/;
+// A benefits line ("Benefits include medical and dental", "HMO") says nothing about the work.
+const PERKS = /[^.;]*\b(benefits?|perks?|hmo|health insurance|medical insurance|dental insurance|insurance coverage)\b[^.;]*/g;
 // Patient admin roles count only when the work is patients' calls and bookings.
-const PATIENT_ADMIN = /\b(medical secretary|scheduling coordinator|patient care coordinator|care coordinator|intake coordinator|appointment setter|(virtual|remote|online) (medical|dental|healthcare|health care) (assistant|receptionist|secretary)|(medical|dental|healthcare) virtual assistant)\b/;
+const PATIENT_ADMIN = /\b(medical secretary|scheduling coordinator|((medical|dental|patient) )?schedulers?|patient care coordinator|care coordinator|intake coordinator|appointment setter|(virtual|remote|online) (medical|dental|healthcare|health care) (assistant|receptionist|secretary)|(medical|dental|healthcare) virtual assistant)\b/;
 const PATIENT_CALLS = /\bpatients?\b[\s\S]*\b(calls?|phones?|schedul\w*|book\w*|appointments?|reminders?)\b|\b(calls?|phones?|schedul\w*|book\w*|appointments?|reminders?)\b[\s\S]*\bpatients?\b/;
 // The work itself is answering customers: a verb, a customer word, a channel;
 // helping customers by a channel; incoming or inbound calls; answering chats;
@@ -129,13 +149,18 @@ const CS_WORK = new RegExp(
 const CLINIC_PHONES = /\banswer(ing)? (the )?(phones?|calls)\b/;
 // Calling out to sell or to book demos is sales, whatever the title.
 const OUTBOUND = /\b(cold[- ]?call\w*|outbound (calls?|calling|sales|dial\w*)|lead generation|telemarket\w*|door[- ]to[- ]door|book(ing)? (demos|sales meetings))\b/;
-// Work done in person, with nothing remote about it.
-const IN_PERSON = /\b(in[- ]store|in[- ]person|on the (shop |sales )?floor|at the (register|counter|till|front counter)|returns counter|walk[- ]in|face[- ]to[- ]face)\b/;
+// Work done in person, with nothing remote about it: a counter, a gate, a
+// branch, a lobby, greeting or checking people in (the sixth Phase 4 review).
+const IN_PERSON = /\b(in[- ]store|in[- ]person|on the (shop |sales )?floor|at the (register|counter|till|front counter|gate|branch|airport|front of|host stand)|(service|returns|parts|bakery|airport) counter|counters?|run the register|ring(ing)? up|walk[- ]in|face[- ]to[- ]face|in the (hotel )?lobby|theme park|greet(ing)? (our |the )?(guests|members|visitors|customers|residents|diners|patrons|shoppers|passengers)|check(ing)? (\w+ ){0,2}in( and out)?|check-?ins?)\b/;
 const REMOTE_CHANNEL = /\b(chats?|e-?mails?|phones?|calls?|tickets?|zendesk|freshdesk|help ?desk|inbox|messages?|remote|virtual|online|work from home|wfh)\b/;
 // Role nouns of the shop floor, the kitchen, the road, the trades and the gym.
 const MAIN_STREET_HEAD = /^(baristas?|cashiers?|servers?|waiters?|waitress(es)?|waitstaff|bartenders?|cooks?|chefs?|dishwashers?|janitors?|housekeepers?|maids?|cleaners?|drivers?|couriers?|pickers?|packers?|tellers?|plumbers?|electricians?|mechanics?|nurses?|caregivers?|pharmacists?|lifeguards?|instructors?|trainers?|stockers?|merchandisers?|baggers?|bussers?|valets?|porters?|guards?|carpenters?|painters?|landscapers?|gardeners?|phlebotomists?)$/;
-// Clerks, attendants and hosts: shop floor unless the role phrase is a support one ("Customer Service Clerk", "Live Chat Host").
+// Clerks, attendants and hosts: shop floor unless the role phrase is a support
+// one ("Customer Service Clerk", "Live Chat Host") or a clinic's front desk. A
+// desk you stand at is a place, not a support role: "Front Desk Clerk" at a
+// hotel, "Customer Service Desk Clerk" at a supermarket (the sixth Phase 4 review).
 const MAIN_STREET_HEAD_WEAK = /^(clerks?|attendants?|hosts?|hostess(es)?)$/;
+const DESK_PLACE = /\b(front|service|information|reception|check-?in) desk\b/;
 const MAIN_STREET_PHRASE = /\b((store|retail|shop|sales|warehouse|stock|floor) (associate|assistant|worker|operative)|pharmacy (tech|technician|assistant))\b/;
 // An online shop's assistant answers customers from a screen, not a counter.
 const ONLINE_SHOP = /\b(online|shopify|etsy|amazon|ebay|e-?commerce|lazada|shopee|web ?shop|virtual|remote)\b/;
@@ -143,39 +168,78 @@ const CLINICAL_ASSISTANT = /\b(dental|medical|veterinary|vet|nursing|physical th
 // Other roles named in the title win over support WORDS in the description
 // (an engineer whose service must "support 10k requests", an executive
 // assistant who answers the phones), but not over a support title.
-const OTHER_ROLE_TITLE = /\b(developer|engineer|programmer|coder|sales|sdr|bdr|account executive|closer|telemarket\w*|cold caller|lead generation|appointment setter|real estate|insurance agent|collections?|aide|designer|accountant|book-?keeper|manager|analyst|tester|qa|writer|copywriter|technician|receptionist|secretary|administrat\w*|admin|executive assistant|personal assistant|legal assistant|office assistant|paralegal|coordinator|marketer|marketing|seo|recruiter|photographer|coach|advisor|adviser|officer|preparer|consultant|veterinarian|vet|doctor|dentist|therapist|lawyer|attorney|tutor|teacher|nutritionist)\b/;
+const OTHER_ROLE_TITLE = /\b(developer|engineer|programmer|coder|sales|sdr|bdr|account executive|closer|telemarket\w*|cold caller|lead generation|appointment setter|real estate|insurance agent|collections?|aide|designer|accountant|book-?keeper|manager|analyst|tester|qa|writer|copywriter|technician|receptionist|secretary|administrat\w*|admin|executive assistant|personal assistant|legal assistant|office assistant|paralegal|coordinator|marketer|marketing|seo|recruiter|photographer|coach|advisor|adviser|officer|preparer|consultant|veterinarian|vet|doctor|dentist|therapist|lawyer|attorney|tutor|teacher|nutritionist|nurse|nursing|triage|caregiver|clinician)\b/;
 
-/** The title's role phrase: before " for ...", " at ...", " - ...", brackets or a comma. */
-function headPhrase(title: string): string {
-  return title
-    .replace(/\([^)]*\)|\[[^\]]*\]/g, " ")
-    .split(/\s+[-–—|]\s+|,|\s+(?:for|at|in|with)\s+/)[0]
-    .trim();
+// A word that names a role. A part of the title without one is where, when or
+// how the job is worked ("Remote", "Makati", "Full Time", "Hiring"), not the role.
+const ROLE_WORD = /\b(agents?|reps?|representatives?|csrs?|specialists?|associates?|advisors?|advisers?|officers?|executives?|operators?|coordinators?|assistants?|receptionists?|secretar(y|ies)|support|services?|care|success|desks?|helpdesk|managers?|leads?|leaders?|supervisors?|analysts?|engineers?|developers?|programmers?|designers?|technicians?|tech|clerks?|attendants?|hosts?|hostess(es)?|moderators?|consultants?|admin|administrators?|staff|workers?|recruiters?|accountants?|book-?keepers?|writers?|copywriters?|testers?|marketers?|scientists?|architects?|trainers?|teachers?|tutors?|coaches?|setters?|callers?|telemarketers?|closers?|sdr|bdr|va|interns?|trainees?|aides?|liaisons?|ambassadors?|experts?|heroe?s?|ninjas?|gurus?|champions?|concierges?|schedulers?|directors?|heads?|paralegals?|lawyers?|attorneys?|preparers?|veterinarians?|therapists?|doctors?|dentists?|nurses?|drivers?|cooks?|chefs?|cashiers?|baristas?|servers?|waiters?|waitress(es)?|waitstaff|bartenders?|cleaners?|janitors?|housekeepers?|maids?|couriers?|pickers?|packers?|tellers?|plumbers?|electricians?|mechanics?|caregivers?|pharmacists?|lifeguards?|instructors?|stockers?|merchandisers?|baggers?|bussers?|valets?|porters?|guards?|carpenters?|painters?|landscapers?|gardeners?|phlebotomists?|photographers?|nutritionists?|bpo|account)\b/;
+// A role noun with nothing to say what kind ("Agent", "Specialist", "Team
+// Leader"): the title says it in the next part ("Agent - Customer Service").
+const BARE_ROLE = /^((senior|sr\.?|junior|jr\.?|lead|head|chief|principal)\s+)*(agents?|reps?|representatives?|specialists?|associates?|advisors?|advisers?|officers?|executives?|operators?|coordinators?|assistants?|leads?|leaders?|team leads?|team leaders?|supervisors?|managers?|staff|consultants?|analysts?|engineers?|technicians?|heroe?s?)$/;
+
+/**
+ * The title's role phrase. The title is read in parts, split at " - ", " | ",
+ * commas and brackets; a part after "for", "at", "in" or "with" names the
+ * business, never the role ("Recruiter - BPO" is a recruiter, "Customer
+ * Service Rep for Nurse Staffing Agency" a rep). The role is the first part
+ * with a role word in it, so "Remote - Customer Support Agent", "Makati |
+ * CSR" and "Hiring for Customer Service Representative" read as the role they
+ * name; a bare role noun takes the part after it ("Specialist, Customer
+ * Support" is a customer support specialist; the sixth Phase 4 review).
+ */
+const HIRING = /^\s*((urgent(ly)?|now|immediate(ly)?|we'?re|we are|actively)\s+)*(hiring|looking|seeking|recruiting|wanted|needed)(\s+for)?\s*[:!]?\s*/;
+
+function titleParts(title: string): { text: string; business: boolean }[] {
+  const parts: { text: string; business: boolean }[] = [];
+  for (const piece of title.replace(HIRING, "").replace(/[()[\]]/g, " | ").split(/\s+[-–—|]\s+|\s*[|,]\s*|\s+[-–—]\s*|\s*[-–—]\s+/)) {
+    const [role, ...rest] = piece.split(/\s+(?:for|at|in|with)\s+/);
+    if (role.trim()) parts.push({ text: role.trim(), business: false });
+    for (const r of rest) if (r.trim()) parts.push({ text: r.trim(), business: true });
+  }
+  return parts;
 }
 
-function isMainStreet(title: string): boolean {
+function headPhrase(title: string): string {
+  const parts = titleParts(title);
+  const roles = parts.filter((p) => !p.business);
+  const i = roles.findIndex((p) => ROLE_WORD.test(p.text));
+  if (i < 0) return (parts.find((p) => ROLE_WORD.test(p.text)) ?? roles[0] ?? parts[0])?.text ?? title.trim();
+  const head = roles[i].text;
+  const next = roles.slice(i + 1).find((p) => !BARE_ROLE.test(p.text)) ?? roles.slice(0, i).reverse().find((p) => ROLE_WORD.test(p.text));
+  return BARE_ROLE.test(head) && next ? `${next.text} ${head}` : head;
+}
+
+function isMainStreet(title: string, work = ""): boolean {
   const head = headPhrase(title);
   const noun = head.split(/\s+/).pop() ?? "";
   if (MAIN_STREET_HEAD.test(noun)) return true;
-  if (MAIN_STREET_HEAD_WEAK.test(noun) && !CS_TITLE.test(head)) return true;
+  if (MAIN_STREET_HEAD_WEAK.test(noun) && !CS_TITLE.test(head.replace(DESK_PLACE, " ")) && !(FRONT_DESK.test(head) && PATIENT_CONTEXT.test(work))) return true;
   if (MAIN_STREET_PHRASE.test(head) && !ONLINE_SHOP.test(title)) return true;
   return CLINICAL_ASSISTANT.test(head) && !/\b(virtual|remote|online)\b/.test(title);
 }
 
 function isCustomerService(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo">): boolean {
   const title = (brief.roleTitle ?? "").toLowerCase();
-  const work = (brief.whatTheyDo ?? "").toLowerCase();
-  // The title's role phrase (before "for …", " - …", brackets): "Recruiter - BPO" is a recruiter.
+  const work = (brief.whatTheyDo ?? "").toLowerCase().replace(PERKS, " ");
+  // The title's role phrase: "Recruiter - BPO" is a recruiter, "Makati | CSR" a CSR.
   const head = headPhrase(title);
   const noun = head.split(/\s+/).pop() ?? "";
-  if (isMainStreet(title)) return false;
-  if (NON_CUSTOMER_SUPPORT.test(title) && !CUSTOMERS_BY_CHANNEL.test(work)) return false;
+  if (isMainStreet(title, work)) return false;
+  // Support of colleagues (HR, admin, operations) keeps its family, answering phones or not
+  // (the sixth Phase 4 review); a game's community support answers players.
+  if (NON_CUSTOMER_SUPPORT.test(title.replace(SERVICE_SALES, " ")) && !(/\bcommunity support\b/.test(title) && CUSTOMERS_BY_CHANNEL.test(work))) return false;
   if (IN_PERSON.test(`${title} ${work}`) && !REMOTE_CHANNEL.test(`${title} ${work}`)) return false;
   // A clinic's appointment setter books patients; any other is selling.
   if (PATIENT_ADMIN.test(title) && PATIENT_CALLS.test(work)) return true;
-  if (SALES_TITLE.test(title)) return false;
-  if (PROFESSIONAL_HEAD.test(noun)) return /\bsupport\b/.test(head) && CS_WORK.test(work);
+  if (SALES_TITLE.test(title.replace(SERVICE_SALES, " "))) return false;
+  if (PROFESSIONAL_HEAD.test(noun)) return DESK_ANALYST.test(head) || (/\bsupport\b/.test(head) && CS_WORK.test(work));
   if (CS_TITLE.test(head)) return true;
+  // A BPO account named by its channel: "Healthcare Account - Voice", "Non-Voice Account".
+  if (/\baccount\b/.test(head) && /\b(non[- ]?\s?voice|voice)\b/.test(title)) return true;
+  if (BOOKING_TITLE.test(head)) {
+    if (NOT_GUEST_BOOKING.test(work)) return false;
+    return REMOTE_CHANNEL.test(work) || CS_WORK.test(work) || (/\breservations?\b/.test(head) && !work.trim());
+  }
   if (OUTBOUND.test(work)) return false;
   if (FRONT_DESK.test(title) && PATIENT_CONTEXT.test(`${title.replace(FRONT_DESK, " ")} ${work}`)) return true;
   if (/\bsupport\b/.test(title) && CS_WORK.test(work)) return true;
