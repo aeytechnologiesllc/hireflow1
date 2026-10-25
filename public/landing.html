@@ -94,6 +94,8 @@
   .bar .plain .short, .bar .btn .short { display: none; }
   .bar > span { display: inline-flex; align-items: center; white-space: nowrap; }
   @media (max-width: 620px) { .bar .plain { margin-right: 14px; font-size: 13.5px; color: var(--ink-2); } .bar .plain .long, .bar .btn .long { display: none; } .bar .plain .short, .bar .btn .short { display: inline; } .bar .btn { padding: 10px 13px; font-size: 13.5px; } }
+  /* Guides (the blog, docs/BLOG.md) only where the bar has room. */
+  @media (max-width: 620px) { .bar .plain.guides { display: none; } }
   @media (max-width: 380px) { .bar .plain { margin-right: 10px; font-size: 13px; } .bar .btn { padding: 9px 11px; font-size: 13px; } .bar .brand { font-size: 15px; } }
 
   /* where you are, and where she is: two quiet labels on the globe */
@@ -275,7 +277,7 @@
 <main>
   <div class="bar" id="bar">
     <a class="brand" href="#night"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#14120E"/><rect x="0.5" y="0.5" width="63" height="63" rx="13.5" fill="none" stroke="rgba(224,185,106,0.28)"/><path d="M13 46 L25 19 L37 39 L51 17" fill="none" stroke="#E0B96A" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>HireFlow</a>
-    <span><a class="plain" id="jobLink" href="/open-jobs"><span class="long">Looking for a job?</span><span class="short">Jobs</span></a><a class="plain" href="https://staff.hireflownow.com/auth" id="signIn">Sign in</a><a class="btn solid" href="https://staff.hireflownow.com/auth?mode=signup" id="startFree"><span class="long">Post your first job free</span><span class="short">Start free</span></a></span>
+    <span><a class="plain guides" href="/blog">Guides</a><a class="plain" id="jobLink" href="/open-jobs"><span class="long">Looking for a job?</span><span class="short">Jobs</span></a><a class="plain" href="https://staff.hireflownow.com/auth" id="signIn">Sign in</a><a class="btn solid" href="https://staff.hireflownow.com/auth?mode=signup" id="startFree"><span class="long">Post your first job free</span><span class="short">Start free</span></a></span>
   </div>
   <section class="night" id="night" aria-label="One night with HireFlow">
     <div class="stage" id="stage" data-beat="0">
@@ -354,7 +356,7 @@
       </div>
       <p class="fine">The night above shows how it works; Maria, Jun and Ana are not real applicants. The three numbers are real, from our own role.</p>
       <p class="about" id="about"><b>About.</b> HireFlow is made by Southern Digital Technologies LLC. We built it to hire our own customer support team, then opened it to every business that answers customers.</p>
-      <nav class="foot" aria-label="More"><a href="/open-jobs">Open jobs</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="#about">About</a><a href="https://staff.hireflownow.com/auth">Team sign in</a></nav>
+      <nav class="foot" aria-label="More"><a href="/open-jobs">Open jobs</a><a href="/blog">Guides</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="#about">About</a><a href="https://staff.hireflownow.com/auth">Team sign in</a></nav>
     </div>
   </section>
 </main>

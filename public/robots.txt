@@ -14,3 +14,4 @@ User-agent: *
 Allow: /
 
 Sitemap: https://hireflownow.com/sitemap.xml
+Sitemap: https://hireflownow.com/blog-sitemap.xml

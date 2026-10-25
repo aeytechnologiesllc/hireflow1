@@ -95,6 +95,9 @@ export const SITE_PATHS: readonly string[] = [
   "media",
   "screenshots",
   "share",
+  // The blog (scripts/build-blog.mjs, docs/BLOG.md): /blog, /blog/<post>, its sitemap.
+  "blog",
+  "blog-sitemap.xml",
 ];
 
 /** Words a page is likely to want one day, held back so a job does not take

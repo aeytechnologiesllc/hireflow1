@@ -26,6 +26,14 @@
       "destination": "/api/job-prerender?id=:id"
     },
     {
+      "source": "/blog",
+      "destination": "/blog/index.html"
+    },
+    {
+      "source": "/blog/:slug",
+      "destination": "/blog/:slug/index.html"
+    },
+    {
       "source": "/careers",
       "destination": "/api/careers-prerender?home=1"
     },
