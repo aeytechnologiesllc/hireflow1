@@ -58,6 +58,36 @@ const COUNTRY_TOKENS = new Set([
   "turkey", "türkiye", "tr", "israel", "il", "remote",
 ]);
 
+/**
+ * The country a REMOTE job names in its location text, for a job with no
+ * stored country ("Remote - Philippines", "Remote (Canada only)"). Country
+ * names only, plus USA / U.S. / UK: a bare "us" ("work with us") is never a
+ * country here. Two different countries, or none, give null: "Remote
+ * (worldwide)" still has no country and stays out (2026-10-25;
+ * docs/LAUNCH-PLAN.md, Phase 2, task 7).
+ */
+const REMOTE_COUNTRY_NAMES = [
+  [/\bunited states(?: of america)?\b|\busa\b|\bu\.s\.a?\.?(?=\s|$|[),;])/i, "US"],
+  [/\bphilippines\b/i, "PH"],
+  [/\bcanada\b/i, "CA"],
+  [/\bunited kingdom\b|\buk\b|\bgreat britain\b/i, "GB"],
+  [/\bindia\b/i, "IN"],
+  [/\bpakistan\b/i, "PK"],
+  [/\baustralia\b/i, "AU"],
+  [/\bmexico\b/i, "MX"],
+  [/\bsouth africa\b/i, "ZA"],
+  [/\bnigeria\b/i, "NG"],
+  [/\bkenya\b/i, "KE"],
+  [/\bcolombia\b/i, "CO"],
+  [/\bireland\b/i, "IE"],
+];
+
+export function remoteCountryCode(locationText) {
+  const text = String(locationText ?? "");
+  const found = new Set(REMOTE_COUNTRY_NAMES.filter(([re]) => re.test(text)).map(([, code]) => code));
+  return found.size === 1 ? [...found][0] : null;
+}
+
 async function sb(path) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
@@ -269,7 +299,8 @@ export async function loadFeedJobs() {
    *   - not explicitly excluded (QA/demo jobs)
    *   - deadline not passed
    *   - a REAL company name (never the "Private employer" placeholder)
-   *   - a country, always — plus a REAL city (never a country or a state
+   *   - a country, always (a remote job may name it in its location text
+   *     instead: remoteCountryCode) — plus a REAL city (never a country or a state
    *     standing in for one) UNLESS the job is explicitly marked remote, in
    *     which case the country alone is enough ("Remote - United States"
    *     geocodes to a country with no city, by design — geocode/index.ts
@@ -284,7 +315,7 @@ export async function loadFeedJobs() {
       if (job.application_deadline && new Date(job.application_deadline).getTime() < now) return false;
       const company = companies.get(job.employer_id);
       if (!company || !String(company).trim()) return false;
-      if (!(job.location_country_code || job.location_country)) return false;
+      if (!(job.location_country_code || job.location_country || (job.is_remote && remoteCountryCode(job.location)))) return false;
       if (!city && !job.is_remote) return false;
       if (plainTextLength(html) < MIN_DESCRIPTION_CHARS) return false;
       return true;
@@ -294,7 +325,7 @@ export async function loadFeedJobs() {
       company: companies.get(job.employer_id),
       city,
       state: stateOf(job),
-      country: job.location_country_code || job.location_country || "US",
+      country: job.location_country_code || job.location_country || (job.is_remote ? remoteCountryCode(job.location) : null) || "US",
       html,
       plainLength: plainTextLength(html),
       salary: salaryText(job),

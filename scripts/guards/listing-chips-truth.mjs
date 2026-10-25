@@ -81,13 +81,15 @@ export default [
     // 2026-10-21: free job boards are not part of HireFlow (the owner: "we're
     // not doing free job boards ... they will have to post it themselves").
     // The boards chip, its tooltip and the Adzuna/Jooble/Talent.com strip went
-    // from the Jobs list; the Share Kit names OnlineJobs.ph instead. The
+    // from the Jobs list; the Share Kit names OnlineJobs.ph instead (since
+    // 2026-10-25 a short list of places, src/lib/shareTargets.ts, of which
+    // OnlineJobs.ph is one: docs/LAUNCH-PLAN.md, Phase 2, task 6). The
     // eligibility mirror above stays only because api/job-feed.mjs still runs.
     id: "jobs-list-makes-no-job-board-claims",
     why:
       "Jobs.tsx must not tell an employer a job board lists their job: HireFlow posts to none. " +
       "No boards chip, no listings link, no free-boards strip, no Google for Jobs; the Share Kit " +
-      "points them to OnlineJobs.ph to post it themselves.",
+      "lists places for them to post it themselves (src/lib/shareTargets.ts).",
     run: async ({ read }) => {
       const src = (await read("src/cockpit/pages/Jobs.tsx")) ?? "";
       const kit = (await read("src/cockpit/components/ShareKitDialog.tsx")) ?? "";
@@ -100,8 +102,9 @@ export default [
       if (/Job boards|job board feed|listings link|jobs\.xml|Adzuna|Jooble|Talent\.com|Google for Jobs/.test(code)) {
         bad.push("Jobs.tsx claims a job board again (a boards chip, the listings link, the free-boards strip or Google for Jobs)");
       }
-      if (!/const ONLINEJOBS_URL = "https:\/\/www\.onlinejobs\.ph\/";/.test(kit) || !/Where to post it/.test(kit)) {
-        bad.push("ShareKitDialog no longer tells the employer where to post the job (OnlineJobs.ph)");
+      const targets = (await read("src/lib/shareTargets.ts")) ?? "";
+      if (!/shareTargets\(applyUrl\)/.test(kit) || !/Where to post it/.test(kit) || !/export const ONLINEJOBS_URL = "https:\/\/www\.onlinejobs\.ph\/";/.test(targets)) {
+        bad.push("ShareKitDialog no longer tells the employer where to post the job (src/lib/shareTargets.ts)");
       }
       return bad.length ? { ok: false, detail: bad } : { ok: true };
     },

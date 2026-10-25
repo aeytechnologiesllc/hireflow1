@@ -24,14 +24,17 @@ export default [
       "when it is explicitly is_remote — a bare `if (!city) return false` with no " +
       "is_remote exception silently drops every fully-remote job from jobs.xml, " +
       "jooble.xml and adzuna.xml (all three share this one loader). The country " +
-      "requirement must stay unconditional — a remote job still needs a real country.",
+      "requirement must stay unconditional — a remote job still needs a real country (stored, or exactly one named in its location text).",
     run: async ({ read }) => {
       const src = (await read("api/job-feed.mjs")) ?? "";
       const bad = [];
       if (!/if\s*\(\s*!city\s*&&\s*!job\.is_remote\s*\)\s*return false;/.test(src)) {
         bad.push("api/job-feed.mjs loadFeedJobs() no longer exempts is_remote jobs from the city requirement");
       }
-      if (!/if\s*\(\s*!\(job\.location_country_code\s*\|\|\s*job\.location_country\)\s*\)\s*return false;/.test(src)) {
+      // 2026-10-25 (docs/LAUNCH-PLAN.md, Phase 2, task 7): a remote job may name
+      // its one country in its location text (remoteCountryCode); a country is
+      // still required of every job.
+      if (!/if\s*\(\s*!\(job\.location_country_code\s*\|\|\s*job\.location_country\s*\|\|\s*\(job\.is_remote\s*&&\s*remoteCountryCode\(job\.location\)\)\)\s*\)\s*return false;/.test(src)) {
         bad.push("api/job-feed.mjs loadFeedJobs() no longer requires a country on every job (remote included)");
       }
       return bad.length ? { ok: false, detail: bad } : { ok: true };

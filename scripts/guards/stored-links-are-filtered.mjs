@@ -53,8 +53,8 @@ const REVIEWED = {
   "src/components/JobPublishedDialog.tsx": ["shareLink"], // built from the job's own slug
   "src/components/business/CareersPageCard.tsx": ["link"], // the business's own careers address
   "src/components/trust/ReportJobDialog.tsx": ["signIn"], // built sign-in route
-  "src/cockpit/components/ShareKitDialog.tsx": ['""', "ONLINEJOBS_URL"], // blank print window; constant
-  "src/cockpit/components/journey/GuideStages.tsx": ["ONLINEJOBS_URL"],
+  "src/cockpit/components/ShareKitDialog.tsx": ['""', "t.href"], // blank print window; shareTargets(): fixed sites, the job's own link encoded
+  "src/cockpit/components/journey/GuideStages.tsx": ["t.href"], // shareTargets(): fixed sites, the job's own link encoded
   "src/components/InterviewSchedulingWizard.tsx": ["authUrl.toString("], // Google OAuth URL built here
   "src/cockpit/components/ApplicantDocumentsPanel.tsx": ['""', "url"], // blank tab, then the server-signed URL
   "src/cockpit/components/DocumentPreviewDialog.tsx": ["`${displayUrl", "displayUrl"], // storage-signed

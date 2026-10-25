@@ -1783,58 +1783,62 @@ export default function InterviewSchedulingWizard({
 
                     {interviewType === "video" && exactTimeMode && (
                       <>
-                        {/* Google Calendar Connection */}
-                        <div className="p-4 rounded-lg border border-border bg-card">
-                          <div className="flex items-start gap-4">
-                            <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ background: "var(--gradient-primary)" }}>
-                              <CalendarIcon className="h-6 w-6" style={{ color: "hsl(var(--primary-foreground))" }} />
-                            </div>
-                            <div className="flex-1">
-                              <h3 className="font-semibold text-foreground">Google Calendar Integration</h3>
-                              <p className="text-sm text-muted-foreground mt-1">
-                                Connect to automatically create calendar events and Google Meet links
-                              </p>
+                        {/* Google Calendar Connection: only when the site has a Google client
+                            (VITE_GOOGLE_CLIENT_ID). Without one the button could only say
+                            it can't connect (docs/LAUNCH-PLAN.md, Phase 2, task 7). */}
+                        {GOOGLE_CLIENT_ID && (
+                          <div className="p-4 rounded-lg border border-border bg-card">
+                            <div className="flex items-start gap-4">
+                              <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ background: "var(--gradient-primary)" }}>
+                                <CalendarIcon className="h-6 w-6" style={{ color: "hsl(var(--primary-foreground))" }} />
+                              </div>
+                              <div className="flex-1">
+                                <h3 className="font-semibold text-foreground">Google Calendar Integration</h3>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  Connect to automatically create calendar events and Google Meet links
+                                </p>
                               
-                              {isGoogleConnected ? (
-                                <div className="mt-3 flex items-center gap-2">
-                                  <Badge className="bg-success/20 text-success">
-                                    <CheckCircle className="h-3 w-3 mr-1" />
-                                    Connected
-                                  </Badge>
+                                {isGoogleConnected ? (
+                                  <div className="mt-3 flex items-center gap-2">
+                                    <Badge className="bg-success/20 text-success">
+                                      <CheckCircle className="h-3 w-3 mr-1" />
+                                      Connected
+                                    </Badge>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        sessionStorage.removeItem("google_access_token");
+                                        sessionStorage.removeItem("google_refresh_token");
+                                        sessionStorage.removeItem("google_token_expiry");
+                                        setIsGoogleConnected(false);
+                                        setGoogleAccessToken(null);
+                                      }}
+                                    >
+                                      Disconnect
+                                    </Button>
+                                  </div>
+                                ) : (
                                   <Button
                                     type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                      sessionStorage.removeItem("google_access_token");
-                                      sessionStorage.removeItem("google_refresh_token");
-                                      sessionStorage.removeItem("google_token_expiry");
-                                      setIsGoogleConnected(false);
-                                      setGoogleAccessToken(null);
-                                    }}
+                                    variant="outline"
+                                    className="mt-3 gap-2"
+                                    onClick={connectGoogleCalendar}
+                                    disabled={isConnectingGoogle}
                                   >
-                                    Disconnect
+                                    {isConnectingGoogle ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <ExternalLink className="h-4 w-4" />
+                                    )}
+                                    Connect Google Calendar
                                   </Button>
-                                </div>
-                              ) : (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  className="mt-3 gap-2"
-                                  onClick={connectGoogleCalendar}
-                                  disabled={isConnectingGoogle}
-                                >
-                                  {isConnectingGoogle ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <ExternalLink className="h-4 w-4" />
-                                  )}
-                                  Connect Google Calendar
-                                </Button>
-                              )}
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        )}
 
                         {/* Meet Link Options */}
                         {isGoogleConnected && (

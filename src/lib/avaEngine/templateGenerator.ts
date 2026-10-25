@@ -118,22 +118,10 @@ function buildPhases(brief: GenerateFlowRequest["brief"], rigor: GenerateFlowReq
     });
   }
 
-  if (family === "developer") {
-    phases.push({
-      id: "ph_code",
-      kind: "coding_test",
-      order: order++,
-      title: "A short practical task",
-      candidateDescription: "Build one focused feature and explain a tradeoff.",
-      rationale: "Real code beats buzzwords — this is the signal that predicts the job.",
-      config: { kind: "coding_test", format: "take_home" },
-      rubric: emptyRubric(),
-      weight: 0.3,
-      scoringMode: "auto",
-      countLabel: "1 task",
-      durationLabel: "~45 min",
-    });
-  }
+  // No code task for a developer job (2026-10-25; docs/LAUNCH-PLAN.md,
+  // Phase 2, task 7): the plan used to show "A short practical task (~45 min)"
+  // that jobFromFlow.ts then dropped, since no applicant screen runs one. The
+  // business was promised a step its applicants never saw.
 
   // The engine still calls its interview phase "voice_interview"; it is saved
   // as a typed chat interview (WRITTEN_INTERVIEW_TITLE in assemble.ts).

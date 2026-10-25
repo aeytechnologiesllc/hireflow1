@@ -62,7 +62,7 @@ The app icon is **"A" — the logo's own mark**: a dark jade tile `#0C2A21` with
 
 The spike in the live data (about 1,400 page views on 2026-10-07; 154 of the
 155 applications between 2026-10-05 and 2026-10-10; 2 hires) was the owner
-hiring a real support team lead for his own business through a Philippines
+hiring a real support team lead for their own business through a Philippines
 job board. It went very well. The app was being built and fixed live during
 that run, so that period's data (accounts confirmed instantly, no
 confirmation emails) shows the settings of the time, not today's: check live
@@ -76,13 +76,13 @@ HireFlow's niche is **hiring customer service agents, chat and phone, for any
 kind of business** (the owner's example: a doctor's office). Ava should build
 the tests to fit the business and the channel. Not a sweepstakes pitch, and
 not main-street roles like barista or cashier. The owner doesn't want the
-green look; blue doesn't feel right to him either.
+green look; blue doesn't feel right to them either.
 
 ## Distribution & billing state (updated 2026-09-16, first set 2026-09-04)
 
 - **Free tier is fully open** while Stripe is off: trials never expire, no job or applicant caps, voice is off for every business but the platform's own account (2026-10-11; get-subscription still reports a 120-minute grant, unused) (migration `20260904110000_free_tier_open`, further relaxed by the recovered `20260627131622_relax_job_limit_billing_deferred`). Nothing may sit behind a paywall or show a price as due while billing is off. Re-gate when the pay-per-job model ships.
 - **Google Indexing API / IndexNow were removed on 2026-10-05** (87f7628, "Google Jobs is removed"): nothing fires on publish/close any more. The job feeds (`jobs.xml`, `adzuna.xml`, `jooble.xml`) only list a job that has a country (`api/job-feed.mjs`), so Zulu's worldwide-remote job (no country) is in none of them (checked 2026-10-11). The sitemap is served by `api/sitemap.mjs` (proxying the `sitemap` edge function) so it goes out as XML.
-- **Email is on**: `RESEND_API_KEY` has been set since 2026-10-04 (checked with `supabase secrets list` on 2026-10-21), so `send-notification-email` sends from `notifications@hireflownow.com` / `no-reply@hireflownow.com`; the owner confirmed staff receive emails. An older line here said it was unset, and a session repeated it to him as a launch blocker. Supabase Auth's own emails (password reset, magic link) go through Resend SMTP too (`smtp.resend.com`, from `hiring@hireflownow.com`); their sender name was "Zulu Support Team" for every business and applicant until the owner had it changed to **"HireFlow"** on 2026-10-24. Email confirmation is off (`mailer_autoconfirm: true`).
+- **Email is on**: `RESEND_API_KEY` has been set since 2026-10-04 (checked with `supabase secrets list` on 2026-10-21), so `send-notification-email` sends from `notifications@hireflownow.com` / `no-reply@hireflownow.com`; the owner confirmed staff receive emails. An older line here said it was unset, and a session repeated it to the owner as a launch blocker. Supabase Auth's own emails (password reset, magic link) go through Resend SMTP too (`smtp.resend.com`, from `hiring@hireflownow.com`); their sender name was "Zulu Support Team" for every business and applicant until the owner had it changed to **"HireFlow"** on 2026-10-24. Email confirmation is off (`mailer_autoconfirm: true`).
 - **Models**: all OpenAI calls run on `gpt-5.6-luna` (cheap) / `gpt-5.6-terra` (scoring), voice on `gpt-realtime-2.1` + `gpt-live-transcribe`. GPT-5 models reject non-default `temperature`; the shared helpers strip it. See `docs/MODEL-DEADLINES.md`.
 - **Stripe**: no key is set and no checkout exists: the old checkout/webhook functions were deleted from Supabase on 2026-10-11. Billing is built new (pricing v9: free first job, $99/job, $299/mo), with the owner's account exempt through `platform_admins`, never `home_alias`. The owner adds the Stripe keys himself, last.
 
@@ -121,7 +121,8 @@ these either; each has a guard or a test that CI runs:
   (`app_settings.ai_daily_call_cap`, 10,000; usage in `private.ai_daily_usage`).
 - Applicants cannot write `phase_ai_analysis`, `employer_notes`, the
   source columns or the voice transcript, and may set the recording link only
-  to their own upload (`20261025090000_protect_voice_evidence.sql`); an
+  to their own upload in this project's storage
+  (`20261025090000_protect_voice_evidence.sql`, `20261025110000_voice_recording_this_project.sql`); an
   applicant's reply from trigger-ava-analysis never carries the team's
   message or a "recommend decline"; notification emails go to the sign-in account's address;
   `profiles.email` is read-only to the API.
@@ -130,6 +131,24 @@ these either; each has a guard or a test that CI runs:
   an authenticator app in Settings, after which admin tools need the code.
 - Everything reachable without sign-in is listed in docs/BACKEND-SCHEMA.md
   ("Reachable without sign-in"), guarded by `public-functions-allow-list`.
+
+**Phase 2 of docs/LAUNCH-PLAN.md (2026-10-25).** Guards in
+`scripts/guards/phase-2-launch-locks.mjs`:
+- "player" is the owner's own gaming customers. It is a property of the
+  business (`business_pages.home_alias`, `_shared/homeBusiness.ts` →
+  `_shared/counterpart.ts`), never guessed from a job's text; every other
+  business, and not knowing, reads "customer". Same for the team-lead
+  interview script (`interviewPlanFor`: the owner's only when
+  `homeBusiness === true`). Guard `no-player-wording-outside-home-business`.
+- A business confirms its sign-in email with a 6-digit code before its first
+  job goes live (`20261025100000_business_email_check.sql`, trigger
+  `jobs_publish_needs_email_check`, HINT `email_not_verified`; the code is
+  `send-notification-email`'s `business_email_code` kind, to the signed-in
+  caller only). Applicants are never asked. Google sign-ins and platform
+  admins pass. Guard `publish-requires-verified-email`.
+- The front page counts visits and carries campaign tags to sign-up; a new
+  account keeps `signup_source`; Admin → Growth reads `admin_growth()`.
+  Guards `landing-has-beacon`, `signup-carries-utm`.
 
 **Trusted-results foundation is built AND live-enforced.** The
 `recordStepResult` path and the `public.trusted_result_enforcement` table

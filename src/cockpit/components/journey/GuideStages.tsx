@@ -8,15 +8,13 @@ import type { Candidate } from "../../data";
 import CkAvatar from "../Avatar";
 import { JourneyDots, LineText } from "../ApplicantRow";
 import type { GuideNotifications } from "./types";
+import { shareTargets } from "@/lib/shareTargets";
 
 /**
  * What each stage of "Your first hire" says under the steps. Plain words, one
  * thing to do, nothing that is not true yet. The card around it, and the
  * steps, are FirstHireGuide.tsx.
  */
-
-/** The one job site the owner hires on; HireFlow posts to no board itself. */
-export const ONLINEJOBS_URL = "https://www.onlinejobs.ph/";
 
 const H2: CSSProperties = { fontSize: "clamp(22px, 2.3vw, 28px)", lineHeight: 1.18, color: "var(--ink)", fontWeight: 500 };
 const SOFT: CSSProperties = { color: "var(--ink-2)" };
@@ -118,15 +116,26 @@ export function ShareStage({ link, onCopyPost, wide }: { link: string; onCopyPos
   const { copied, copy } = useCopyLink(link);
   return (
     <div className="flex flex-col gap-4">
-      <Heading sub="Paste the full post on OnlineJobs.ph. Everyone who applies shows up on this page.">Your job is live. Now share it.</Heading>
+      <Heading sub="Post it where the people you want to hire are looking. Everyone who applies shows up on this page.">Your job is live. Now share it.</Heading>
       <div className={`flex gap-2.5 ${wide ? "flex-wrap items-center" : "flex-col"}`}>
         <button type="button" className="ck-btn ck-btn-primary !min-h-[42px] !px-4 !text-[13px]" onClick={onCopyPost} data-guide-copy-post>
           Copy full post
         </button>
-        <a className="ck-btn ck-btn-outline !min-h-[42px] !px-4 !text-[13px]" href={ONLINEJOBS_URL} target="_blank" rel="noopener noreferrer" data-guide-onlinejobs>
-          Open OnlineJobs.ph
-          <ArrowUpRight className="h-4 w-4" aria-hidden />
-        </a>
+        {/* Where to post it (src/lib/shareTargets.ts): HireFlow posts to no board itself. */}
+        {shareTargets(link).map((t) => (
+          <a
+            key={t.id}
+            className="ck-btn ck-btn-outline !min-h-[42px] !px-4 !text-[13px]"
+            href={t.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={t.hint}
+            data-guide-share={t.id}
+          >
+            {t.label}
+            <ArrowUpRight className="h-4 w-4" aria-hidden />
+          </a>
+        ))}
         <div
           className={`flex min-h-[42px] min-w-0 items-center gap-2 rounded-[10px] py-0.5 pl-3 pr-1 ${wide ? "flex-1 basis-[270px]" : ""}`}
           style={{ background: "var(--surface-2)", border: "1px solid var(--line)" }}

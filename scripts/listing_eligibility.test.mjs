@@ -74,6 +74,28 @@ const fixtures = [
     job: { ...baseJob, id: "j-remote-no-country", location_country_code: null, location_country: null, location_city: null, is_remote: true, location: "Remote" },
     expectBoards: false,
   },
+  // 2026-10-25 (docs/LAUNCH-PLAN.md, Phase 2, task 7): a remote job may name
+  // its applicants' country in its location text instead of a stored one.
+  {
+    name: "remote that names its country only in the text",
+    job: { ...baseJob, id: "j-remote-ph-text", location_country_code: null, location_country: null, location_city: null, is_remote: true, location: "Remote - Philippines" },
+    expectBoards: true,
+  },
+  {
+    name: "remote worldwide still has no country",
+    job: { ...baseJob, id: "j-remote-worldwide", location_country_code: null, location_country: null, location_city: null, is_remote: true, location: "Remote (worldwide)" },
+    expectBoards: false,
+  },
+  {
+    name: "remote naming two countries is not one country",
+    job: { ...baseJob, id: "j-remote-two", location_country_code: null, location_country: null, location_city: null, is_remote: true, location: "Remote (USA or Canada)" },
+    expectBoards: false,
+  },
+  {
+    name: "an onsite job does not get a country from its text this way",
+    job: { ...baseJob, id: "j-onsite-text", location_country_code: null, location_country: null, location_city: null, is_remote: false, location: "Manila, Philippines" },
+    expectBoards: false,
+  },
   {
     name: '"Pakistan" alone is rejected as a city (country token)',
     job: { ...baseJob, id: "j-pakistan-token", location_country_code: "PK", location_city: null, location: "Pakistan, Pakistan" },

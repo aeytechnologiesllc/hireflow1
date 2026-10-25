@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { jobShareUrl } from "@/lib/jobLinks";
 import { shortLinkFor } from "@/lib/jobSlug";
+import { shareTargets } from "@/lib/shareTargets";
 import { buildFullJobPost, type FullPostJob } from "@/lib/jobPost";
 
 /**
@@ -26,7 +27,6 @@ import { buildFullJobPost, type FullPostJob } from "@/lib/jobPost";
  * (src/lib/jobPost.ts).
  */
 /** The job site we hire our own agents on, and the one the kit names. */
-const ONLINEJOBS_URL = "https://www.onlinejobs.ph/";
 
 interface ShareKitJob {
   id: string;
@@ -347,19 +347,30 @@ export function ShareKitDialog({ open, job, applyUrl: callerUrl, onClose }: Shar
             Where to post it
           </div>
           <p className="mt-1.5 text-[13px] leading-relaxed" style={{ color: "var(--hf-text-soft)" }}>
-            Paste the full post on <b style={{ color: "var(--hf-text)", fontWeight: 600 }}>OnlineJobs.ph</b>. It&rsquo;s where we
-            hire our own chat agents. Everyone who applies through the link lands here, read and scored.
+            Post it where the people you want to hire are looking. Everyone who applies through the link lands here, read and
+            scored.
           </p>
-          <a
-            href={ONLINEJOBS_URL}
-            target="_blank"
-            // noreferrer alone also cuts the opener (and this file must never say
-            // the other word: Print flyer's window.open needs its opener).
-            rel="noreferrer"
-            className="ck-btn ck-btn-outline mt-2.5 !px-3 !text-[12.5px]"
-          >
-            Open OnlineJobs.ph <ExternalLink className="h-3.5 w-3.5" />
-          </a>
+          {/* src/lib/shareTargets.ts: HireFlow posts to no board itself. */}
+          <ul className="mt-2.5 space-y-2">
+            {shareTargets(applyUrl).map((t) => (
+              <li key={t.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <a
+                  href={t.href}
+                  target="_blank"
+                  // noreferrer alone also cuts the opener (and this file must never say
+                  // the other word: Print flyer's window.open needs its opener).
+                  rel="noreferrer"
+                  className="ck-btn ck-btn-outline !px-3 !text-[12.5px]"
+                  data-share-target={t.id}
+                >
+                  {t.label} <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+                <span className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>
+                  {t.hint}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
 
         {/* ── Status note ────────────────────────────── */}

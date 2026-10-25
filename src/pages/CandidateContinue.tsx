@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { useSchemaMode } from "@/hooks/useSchemaMode";
 import { CandidateShell } from "@/components/candidate/CandidateShell";
 import { openRolesPath } from "@/lib/openRoles";
 import { SaveProgressPrompt } from "@/components/candidate/SaveProgressPrompt";
@@ -19,7 +20,32 @@ import {
 
 type Step = "phone" | "dashboard";
 
+/** Where an applicant's own applications are, through sign-in. */
+const SIGN_IN_TO_APPLICATIONS = `/candidate/auth?redirect=${encodeURIComponent("/applications")}`;
+
+/**
+ * "Continue your application". The phone-number lookup reads the old
+ * prototype's tables (src/lib/showcaseSchema.ts), which the live project does
+ * not have: there it always failed, and it would have listed anyone's
+ * applications to whoever typed their number, with no sign-in. On the real
+ * schema an applicant signs in and lands on their applications
+ * (docs/LAUNCH-PLAN.md, Phase 2, task 7). The lookup stays for the prototype
+ * schema only.
+ */
 export default function CandidateContinue() {
+  const { data: mode, isLoading } = useSchemaMode();
+  if (isLoading) {
+    return (
+      <CandidateShell className="flex min-h-[70vh] items-center justify-center px-4 py-10">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Loading" />
+      </CandidateShell>
+    );
+  }
+  if (mode !== "showcase") return <Navigate to={SIGN_IN_TO_APPLICATIONS} replace />;
+  return <PhoneLookup />;
+}
+
+function PhoneLookup() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const phoneFromUrl = searchParams.get("phone") ?? "";

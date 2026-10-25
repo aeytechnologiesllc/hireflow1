@@ -144,31 +144,23 @@ export const PLAYBOOKS: Record<Family, Playbook> = {
   },
   developer: {
     label: "software / technical",
-    followUps: (a) => {
-      const remote = a["dev-setup"] ?? 2;
-      return [
-        { id: "dev-stack", question: "What's the core stack?", chips: ["Frontend", "Backend", "Full-stack", "Mobile"], def: 2 },
-        { id: "dev-setup", question: "What's the work setup?", chips: ["On-site", "Hybrid", "Fully remote"], def: 2 },
-        {
-          id: "dev-test",
-          question: remote === 2 ? "Remote role — open to a short practical code test?" : "Open to a short practical code test?",
-          chips: ["Yes — take-home", "Yes — live pairing", "Portfolio only"],
-          def: 0,
-        },
-      ];
-    },
+    // No code-test question: no applicant screen runs one (templateGenerator.ts).
+    followUps: () => [
+      { id: "dev-stack", question: "What's the core stack?", chips: ["Frontend", "Backend", "Full-stack", "Mobile"], def: 2 },
+      { id: "dev-setup", question: "What's the work setup?", chips: ["On-site", "Hybrid", "Fully remote"], def: 2 },
+    ],
     reasoning: [
       "Reading the role and the stack",
       "Weighing skills, ways of working & remote setup",
-      "Choosing a fair, practical screen",
-      "Setting up a real code test, not trivia",
+      "Choosing a fair screen",
+      "Writing questions about real work, not trivia",
       "Building the scorecard",
       "Preparing your shortlist criteria",
     ],
     rigor: {
       recommended: "high",
       rationale:
-        "Skill claims are easy to inflate. A short practical code test plus a structured written interview gives you real signal before you spend live interview time.",
+        "Skill claims are easy to inflate. A structured written interview about work they have really shipped gives you signal before you spend live interview time.",
     },
   },
   general: {

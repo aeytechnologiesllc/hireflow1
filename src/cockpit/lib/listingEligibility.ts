@@ -68,6 +68,36 @@ const COUNTRY_TEXT_HINTS: Array<[RegExp, string]> = [
 const US_STATE_HINT = /,\s*(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|IA|ID|IL|IN|KS|KY|LA|MA|MD|ME|MI|MN|MO|MS|MT|NC|ND|NE|NH|NJ|NM|NV|NY|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VA|VT|WA|WI|WV|WY)\b/i;
 const US_STATE_NAME_HINT = /,\s*(alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming)\b/i;
 
+/**
+ * Mirrors api/job-feed.mjs remoteCountryCode. The country a REMOTE job names in its location text, for a job with no
+ * stored country ("Remote - Philippines", "Remote (Canada only)"). Country
+ * names only, plus USA / U.S. / UK: a bare "us" ("work with us") is never a
+ * country here. Two different countries, or none, give null: "Remote
+ * (worldwide)" still has no country and stays out (2026-10-25;
+ * docs/LAUNCH-PLAN.md, Phase 2, task 7).
+ */
+const REMOTE_COUNTRY_NAMES: Array<[RegExp, string]> = [
+  [/\bunited states(?: of america)?\b|\busa\b|\bu\.s\.a?\.?(?=\s|$|[),;])/i, "US"],
+  [/\bphilippines\b/i, "PH"],
+  [/\bcanada\b/i, "CA"],
+  [/\bunited kingdom\b|\buk\b|\bgreat britain\b/i, "GB"],
+  [/\bindia\b/i, "IN"],
+  [/\bpakistan\b/i, "PK"],
+  [/\baustralia\b/i, "AU"],
+  [/\bmexico\b/i, "MX"],
+  [/\bsouth africa\b/i, "ZA"],
+  [/\bnigeria\b/i, "NG"],
+  [/\bkenya\b/i, "KE"],
+  [/\bcolombia\b/i, "CO"],
+  [/\bireland\b/i, "IE"],
+];
+
+export function remoteCountryCode(locationText?: string | null): string | null {
+  const text = String(locationText ?? "");
+  const found = new Set(REMOTE_COUNTRY_NAMES.filter(([re]) => re.test(text)).map(([, code]) => code));
+  return found.size === 1 ? [...found][0] : null;
+}
+
 function inferCountryCode(locationText?: string | null): string | null {
   const text = (locationText ?? "").trim();
   if (!text) return null;
@@ -226,7 +256,7 @@ export function listingEligibility(
   const city = cityOf(job);
   const remote = Boolean(job.is_remote);
   const hasLocation = Boolean(city) || remote;
-  const countryLiteral = Boolean(job.location_country_code || job.location_country);
+  const countryLiteral = Boolean(job.location_country_code || job.location_country || (remote && remoteCountryCode(job.location)));
   const countryInferred = countryLiteral || Boolean(inferCountryCode(job.location));
   const descLen = plainTextLength(descriptionHtml(job));
 

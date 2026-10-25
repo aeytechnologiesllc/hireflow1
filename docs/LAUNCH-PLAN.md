@@ -5,7 +5,7 @@ the working plan. Whoever picks it up (a later session, or a fresh agent)
 starts here: read **Rules**, read **Known facts**, read the **Progress log**
 at the bottom, then continue the first phase that is not closed.
 
-The owner's instructions, in his words (2026-10-24):
+The owner's instructions, in their words (2026-10-24):
 
 > "Every phase, I want you to spend a detailed amount of time. Even when
 > you're done, go back and do it again. Check again, look for any gaps you may
@@ -70,7 +70,7 @@ Pass C finds nothing new.
   first (other sessions push to main from other folders). Push to `main`;
   CI must be green (`gh run list`); then open the live site in the browser and
   confirm the change is there (public pages; staff pages via the owner's
-  account only if he has said so). For database changes: apply, then re-run
+  account only if the owner has said so). For database changes: apply, then re-run
   the proving query against the live database.
 - **Close-out.** Write the Progress log entry (below): what landed (commits,
   migrations), how each item was verified, what Pass C found and fixed, what
@@ -92,7 +92,7 @@ is kept. Stop and ask only for:
 - creating accounts or submitting forms on the live site. Test on the local
   dev server, the dev preview and PGlite. For a live end-to-end run (a real
   sign-up, a real job, a real application) ask the owner to do it at phase
-  close-out; it takes him minutes;
+  close-out; it takes the owner minutes;
 - anything to do with money.
 
 If one item blocks for more than two honest attempts, log it under "Open" in
@@ -100,7 +100,7 @@ the phase's log entry with what was tried, and move on. Do not loop on a
 single stuck item for hours; the loop is for the phase, not the item.
 
 **Models.** The owner picks this session's model himself in the app's model
-menu (a session may not re-price its own turns); he uses a high-reasoning
+menu (a session may not re-price its own turns); the owner uses a high-reasoning
 model for planning and review and a building model for the phases. Pick the
 model for helpers yourself: cheap models for wide read-only sweeps, the
 session's own model for anything that designs or writes code. Note in each
@@ -356,9 +356,9 @@ audit found, where, and what "fixed" means.
 
 ### Owner inputs
 
-- Ask him to set a monthly spending cap in the OpenAI dashboard (we cannot).
-- His admin login email is in the public repo (`20261011100000_business_trust.sql:429`,
-  `docs/BUSINESS-TRUST.md:55`); suggest a separate admin email + MFA. His
+- Ask the owner to set a monthly spending cap in the OpenAI dashboard (we cannot).
+- The owner's admin login email is in the public repo (`20261011100000_business_trust.sql:429`,
+  `docs/BUSINESS-TRUST.md:55`); suggest a separate admin email + MFA. The owner's
   call; log the suggestion.
 
 ---
@@ -446,7 +446,7 @@ before its job goes live; the share step is not OnlineJobs.ph-only.
 
 ### Owner inputs
 
-- Cloudflare Turnstile site key + secret (free; he creates them). Ask at
+- Cloudflare Turnstile site key + secret (free; the owner creates them). Ask at
   the start of Phase 1 so they are ready here.
 
 ---
@@ -460,11 +460,11 @@ glance.
 
 **Colour: LOCKED by the owner on 2026-10-24 ("lock it"): ink and ivory,
 brass accent — "paper and brass".** The
-landing is already black, ivory and brass; the owner likes it. The green he
+landing is already black, ivory and brass; the owner likes it. The green the owner
 dislikes is the *app*: the jade action colour (`--jade`, `--primary`,
 `--hf-green`, `--ck-jade`), the jade "aurora" layer and the green-tinted
 backdrop on the sign-up page. Real screens were recoloured on 2026-10-24
-and shown to him (`design/mockups/2026-10-24-colour-and-rail/`): brass as
+and shown to the owner (`design/mockups/2026-10-24-colour-and-rail/`): brass as
 the action colour, and "ink and ivory" with brass kept as an accent.
 
 The locked direction: **Ink and ivory, brass accent.** Actions are
@@ -595,7 +595,7 @@ and show the mapping in docs/APPLICANTS-LIST.md.
 ### Owner inputs
 
 - Colour: locked ("lock it", 2026-10-24). Nothing further needed.
-- The Vercel `www` 308 change if it needs his click.
+- The Vercel `www` 308 change if it needs the owner's click.
 
 ---
 
@@ -682,8 +682,8 @@ the right grading, with vetted scenarios per industry.
 
 ### Owner inputs
 
-- None required. Optional: his review of the medical and store packs (he
-  knows what a good agent sounds like).
+- None required. Optional: the owner's review of the medical and store packs (they
+  know what a good agent sounds like).
 
 ---
 
@@ -774,11 +774,11 @@ customer-service hiring searches to the sign-up button.
 3. **Discovery:** the build writes `public/blog-sitemap.xml`; add a second
    `Sitemap:` line to `public/robots.txt`; "Guides" link in the landing's top
    bar and footer; latest three posts on the landing (optional).
-4. **First posts (drafts for the owner to add his experience to):**
+4. **First posts (drafts for the owner to add their experience to):**
    1. How to hire customer service agents from the Philippines
    2. What a remote support agent really costs (use the real $500/month)
    3. How we hired a team lead from 153 applicants in 4 days (the owner's
-      own story; he supplies the details)
+      own story; the owner supplies the details)
    4. Five chat tests to give before you hire a support agent
    5. Phone agent vs. chat agent: which does your business need?
    6. Hiring a front-desk agent for a medical or dental office
@@ -808,7 +808,7 @@ customer-service hiring searches to the sign-up button.
 
 ### Owner inputs
 
-- His details for post 3; his read of posts 1–3 before they go live.
+- The owner's details for post 3; their read of posts 1–3 before they go live.
 
 ---
 
@@ -937,7 +937,7 @@ session stops mid-phase (say exactly where).
   live.
 - Open: everything in Phases 1–7.
 - Owner answers (2026-10-24, later the same day): OpenAI spending cap —
-  "later", not a blocker; Turnstile — fine (free), he will create the keys
+  "later", not a blocker; Turnstile — fine (free), the owner will create the keys
   when Phase 2 asks; legal entity — Southern Digital Technologies LLC;
-  colour — he wants to see the real app screens recoloured before Phase 3
+  colour — the owner wants to see the real app screens recoloured before Phase 3
   starts (mock-up sent the same day; decision pending).
