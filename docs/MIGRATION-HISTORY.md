@@ -406,6 +406,7 @@ the next. Same migration, different version stamp, as in section 2: match by
 | `20261025110000_voice_recording_this_project.sql` | `20261025025118` | `voice_recording_this_project` |
 | `20261025120000_admin_growth_one_role.sql` | `20261025025146` | `admin_growth_one_role` |
 | `20261025100000_business_email_check.sql` | `20261025025537` | `business_email_check` |
+| `20261025130000_business_email_check_hardening.sql` | `20261025032629` | `business_email_check_hardening` |
 
 The live copies carry a short header pointing at the repo file instead of
 the repo file's full comment block; the SQL statements are identical.
