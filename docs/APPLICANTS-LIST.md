@@ -685,28 +685,38 @@ the picture, the words, the wiring), and a walk-through in the dev preview.
 
 The Terms ask every business to act on an applicant's request to delete their
 information (docs/LAUNCH-PLAN.md, Phase 5, task 3). **Delete their
-information** on the ⋯ menu (list row, phone card and profile), for the owner
-or a teammate with Manage pipeline, after a confirm that says it cannot be
-undone (an optional reason is kept in the deletion record only):
+information** on the ⋯ menu (list row, phone card and profile; a blocked
+applicant's too), for the owner or a teammate with Manage pipeline on that
+job, after a confirm that says it cannot be undone (an optional reason is
+kept in the deletion record only):
 
 - `remove-applicant` (edge function) takes who is asking from their sign-in;
   `public.remove_applicant(p_application, p_actor, p_reason)` (service role
   only) checks they are the job's owner or an active teammate who manages
-  applicants, logs it in `private.applicant_removals` (who, when, why), and
-  deletes the application. The existing cascades take its interviews,
+  applicants on that job (an empty assignment list means every job, as for
+  every pipeline action), logs it in `private.applicant_removals` (who,
+  when, why), deletes the hiring team's notifications that link to the
+  applicant, and deletes the application. The existing cascades take its interviews,
   documents and document requests (their files are queued for deletion by
   `document_requests_trash_file`), test sessions and events, notes, ratings,
   views, guides, shortlist entries and typing starts.
 - Then the function deletes the files: the application's video and portfolio
   uploads (`<person>/<application>-…`), voice recordings (`<application>/…`),
-  documents and their signed copies (`documents/<id>/…`), and the resume and
-  form files no other application of theirs, and not their profile, still
-  uses. A file that cannot be deleted at once is logged, never a reason to
-  undo.
+  the copies kept for each of its documents (`documents/<id>/…`, found by
+  the document's id), and the resume and form files no other application of
+  theirs, and not their profile, still uses. Never a file named by a
+  document's own file address: the business writes that address, and the
+  first version deleted whatever it named, another business's signed copy
+  included (the Phase 5 review; `20261025180000`). A file that cannot be
+  deleted at once is queued in `storage_file_trash` and retried every hour by
+  `document-cleanup`; the page says so.
 - **Stays:** their messages (their conversation too; they lose the link to
   the application), the signing audit log (it cannot be changed, by design;
-  it loses the link to the document), their own account and their other
-  applications. Not the same as Remove and block: that hides and blocks
+  it loses the link to the document; the confirm says so), the original file
+  the business uploaded to build a document (its own file, in its own
+  folder, which other documents may share), the quiz attempt count for that
+  job (so re-applying is not a way to retake the skills check), their own
+  account, their own notifications and their other applications. Not the same as Remove and block: that hides and blocks
   without deleting anything.
 - Proof: `scripts/remove_applicant.pglite.test.mjs`; guard
   `applicant-data-can-be-removed`.

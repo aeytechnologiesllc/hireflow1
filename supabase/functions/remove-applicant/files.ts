@@ -35,3 +35,16 @@ export function resumeFilesToRemove(candidateId: string, resumeUrl: unknown, not
   const safe = (path: string) => path.startsWith(`${candidateId}/`) && !path.includes("..") && !path.includes("//") && !path.endsWith("/");
   return [...found].filter((path) => safe(path) && !otherRefs.includes(path));
 }
+
+const DOCUMENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The application's document ids, from the database's answer: the only thing
+ * a document's files are found by (documents/<id>/, the copies the signing
+ * function keeps). Never the document's own file address, which the
+ * business writes and could point at another business's file.
+ */
+export function documentIdsOf(documents: unknown): string[] {
+  if (!Array.isArray(documents)) return [];
+  return [...new Set(documents.map((d) => (d && typeof d === "object" ? (d as { id?: unknown }).id : null)).filter((id): id is string => typeof id === "string" && DOCUMENT_ID.test(id)))];
+}

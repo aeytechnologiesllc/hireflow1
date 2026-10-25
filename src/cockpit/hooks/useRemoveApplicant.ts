@@ -31,7 +31,13 @@ export function useRemoveApplicant() {
           toast.error(said ?? "Their information could not be deleted just now. Try again in a moment.");
           return false;
         }
-        toast.success("Their information is deleted.");
+        // A file storage would not delete yet is retried every hour (document-cleanup).
+        const queued = Number((data as { filesQueued?: unknown }).filesQueued ?? 0);
+        toast.success(
+          queued > 0
+            ? "Their information is deleted. A few of their files could not be removed yet; they are tried again every hour until they are gone."
+            : "Their information is deleted.",
+        );
         // Every list and count that showed them.
         await queryClient.invalidateQueries();
         return true;

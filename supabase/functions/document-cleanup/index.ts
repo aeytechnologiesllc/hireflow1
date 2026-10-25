@@ -15,6 +15,9 @@
 // (file_deleted_at), and the deletion is recorded in document_request_events.
 // Typed answers and other kinds of files are kept.
 //
+// It also retries the files an applicant's removal could not delete at the
+// time (storage_file_trash, filled by remove-applicant).
+//
 // Called every hour by the database's own scheduler (pg_cron, the
 // `document-cleanup` job), never by a browser. The job sends a secret it reads
 // from Vault; this asks the database whether it matches
@@ -28,6 +31,8 @@ const DELETED_KINDS = ["government_id", "nbi_clearance", "proof_of_address"];
 const HOURS_AFTER_OPENED = 24;
 const DAYS_UNOPENED = 7;
 const BUCKET = "requested-documents";
+/** The buckets an applicant's removal may leave a file in (storage_file_trash's own check). */
+const REMOVAL_BUCKETS = new Set(["videos", "portfolios", "resumes", "voice-interview-recordings", "documents"]);
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
@@ -111,5 +116,47 @@ Deno.serve(async (req) => {
     await admin.from("document_file_trash").delete().eq("id", note.id);
     orphans += 1;
   }
-  return json({ ok: true, ...counts, orphans });
+  // Files an applicant's removal could not delete at the time
+  // (remove-applicant; storage_file_trash, 20261025180000): an exact file, or
+  // a folder whose names start with a prefix. Tried again every hour until
+  // storage takes them; the note goes once they are gone.
+  const { data: leftovers, error: leftoverError } = await admin
+    .from("storage_file_trash")
+    .select("id, bucket, path, folder, starts_with, attempts")
+    .order("queued_at", { ascending: true })
+    .limit(200);
+  if (leftoverError) console.error("[document-cleanup] could not read the removal queue:", leftoverError.message);
+  let leftoversRemoved = 0;
+  let leftoversFailed = 0;
+  for (const note of leftovers ?? []) {
+    const bucket = String(note.bucket);
+    const plain = (p: unknown) => typeof p === "string" && p.length >= 3 && !p.startsWith("/") && !p.includes("..") && !p.includes("//");
+    if (!REMOVAL_BUCKETS.has(bucket) || !(plain(note.path) || plain(note.folder))) {
+      console.error(`[document-cleanup] skipped a removal note that is not a plain path (${note.id})`);
+      leftoversFailed += 1;
+      continue;
+    }
+    let paths: string[] = [];
+    let failure: string | null = null;
+    if (note.path) paths = [String(note.path)];
+    else {
+      const prefix = String(note.starts_with ?? "");
+      const { data: listed, error: listError } = await admin.storage.from(bucket).list(String(note.folder), { limit: 1000, ...(prefix ? { search: prefix } : {}) });
+      if (listError) failure = listError.message;
+      else paths = (listed ?? []).filter((f) => f.name && f.name.startsWith(prefix)).map((f) => `${note.folder}/${f.name}`);
+    }
+    if (!failure && paths.length > 0) {
+      const { error: removeError } = await admin.storage.from(bucket).remove(paths);
+      if (removeError) failure = removeError.message;
+    }
+    if (failure) {
+      leftoversFailed += 1;
+      console.error(`[document-cleanup] removal note ${note.id} (${bucket}) failed again, attempt ${Number(note.attempts ?? 0) + 1}:`, failure);
+      await admin.from("storage_file_trash").update({ attempts: Number(note.attempts ?? 0) + 1, last_tried_at: new Date().toISOString() }).eq("id", note.id);
+      continue;
+    }
+    await admin.from("storage_file_trash").delete().eq("id", note.id);
+    leftoversRemoved += 1;
+  }
+  return json({ ok: true, ...counts, orphans, leftoversRemoved, leftoversFailed });
 });
