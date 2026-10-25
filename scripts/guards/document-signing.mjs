@@ -264,7 +264,11 @@ export default [
       if (!src) bad.push(`${FUNCTION} not found`);
       if (!config) bad.push("supabase/config.toml not found");
       if (src) {
-        if (!/resolveCallerId/.test(src)) bad.push("no resolveCallerId(...) helper found");
+        // resolveCaller since 2026-10-25 (it also returns the sign-in address,
+        // which the signing record now uses instead of the editable profile).
+        if (!/const caller = await resolveCaller\(req\);\s*if \(!caller\) return errorResponse\("unauthorized"/.test(src)) {
+          bad.push("the handler must resolve the caller first and 401 when there is none (resolveCaller)");
+        }
         if (!/status:\s*401|,\s*401\)/.test(src) || !/unauthorized/i.test(src)) {
           bad.push("no 401 unauthorized path found for a missing/invalid caller");
         }

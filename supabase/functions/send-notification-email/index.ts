@@ -1004,11 +1004,26 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    console.log(`[send-notification-email] Found profile for ${profile.email}, notifications_enabled: ${profile.email_notifications_enabled}`);
+    // Where the email goes: the address on the recipient's sign-in account,
+    // which changes only through Supabase Auth's confirmed flow. Never the
+    // profile row, which its owner can edit (a business could point an
+    // applicant account at anyone's inbox and use this address as a relay;
+    // docs/LAUNCH-PLAN.md, Phase 1, task 5).
+    const { data: accountData, error: accountError } = await supabase.auth.admin.getUserById(recipient_user_id);
+    const recipientEmail = accountData?.user?.email ?? null;
+    if (accountError || !recipientEmail) {
+      console.error(`[send-notification-email] No sign-in address for user ${recipient_user_id}:`, accountError);
+      return new Response(
+        JSON.stringify({ error: "Recipient has no email address" }),
+        { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    console.log(`[send-notification-email] Found profile for ${recipientEmail}, notifications_enabled: ${profile.email_notifications_enabled}`);
 
     // Check if notifications are enabled
     if (!profile.email_notifications_enabled) {
-      console.log(`[send-notification-email] Email notifications globally disabled for ${profile.email}`);
+      console.log(`[send-notification-email] Email notifications globally disabled for ${recipientEmail}`);
       return new Response(
         JSON.stringify({ message: "Email notifications disabled" }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -1021,7 +1036,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`[send-notification-email] Checking preference ${preferenceField} = ${preferenceValue}`);
     
     if (preferenceValue === false) {
-      console.log(`[send-notification-email] ${type} notifications disabled for ${profile.email} (${preferenceField} = false)`);
+      console.log(`[send-notification-email] ${type} notifications disabled for ${recipientEmail} (${preferenceField} = false)`);
       return new Response(
         JSON.stringify({ message: `${type} notifications disabled`, preference: preferenceField }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -1089,11 +1104,11 @@ const handler = async (req: Request): Promise<Response> => {
 
     const emailContent = getEmailContent(type, data, recipientRole);
 
-    console.log(`[send-notification-email] Sending email to ${profile.email} with subject: ${emailContent.subject}`);
+    console.log(`[send-notification-email] Sending email to ${recipientEmail} with subject: ${emailContent.subject}`);
 
     const emailResponse = await resend.emails.send({
       from: isCandidateEmail(type, recipientRole) ? candidateSenderFor(data?.company_name) : TEAM_SENDER,
-      to: [profile.email],
+      to: [recipientEmail],
       subject: emailContent.subject,
       html: emailContent.html,
     });
@@ -1104,14 +1119,14 @@ const handler = async (req: Request): Promise<Response> => {
     // reported as one: "Email me the link" tells an applicant "Sent to …" on
     // this answer, and every other caller's "sent" means the same.
     if (emailResponse?.error) {
-      console.error(`[send-notification-email] The provider refused ${type} for ${profile.email}:`, JSON.stringify(emailResponse.error));
+      console.error(`[send-notification-email] The provider refused ${type} for ${recipientEmail}:`, JSON.stringify(emailResponse.error));
       return new Response(
         JSON.stringify({ success: false, error: "The email provider refused the message", provider_error: emailResponse.error }),
         { status: 502, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    console.log(`[send-notification-email] Email sent successfully to ${profile.email}:`, JSON.stringify(emailResponse));
+    console.log(`[send-notification-email] Email sent successfully to ${recipientEmail}:`, JSON.stringify(emailResponse));
 
     return new Response(
       // Never the address: the caller may be the other side (an applicant who

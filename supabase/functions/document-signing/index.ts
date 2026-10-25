@@ -131,7 +131,7 @@ function toSigningState(doc: DocumentRow): DocumentSigningState {
 /** The caller's user id — a missing/invalid token is a hard 401 here, not a
  *  silent "no signers" the way verify-document treats it (that function is
  *  public; this one never is). */
-async function resolveCallerId(req: Request): Promise<string | null> {
+async function resolveCaller(req: Request): Promise<{ id: string; email: string } | null> {
   const authHeader = req.headers.get("Authorization");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const url = Deno.env.get("SUPABASE_URL");
@@ -139,7 +139,7 @@ async function resolveCallerId(req: Request): Promise<string | null> {
   try {
     const supabaseUser = createClient(url, anonKey, { global: { headers: { Authorization: authHeader } } });
     const { data: { user } } = await supabaseUser.auth.getUser();
-    return user?.id ?? null;
+    return user?.id ? { id: user.id, email: user.email ?? "" } : null;
   } catch {
     return null;
   }
@@ -172,8 +172,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const callerId = await resolveCallerId(req);
-    if (!callerId) return errorResponse("unauthorized", "Sign in to continue.", 401);
+    const caller = await resolveCaller(req);
+    if (!caller) return errorResponse("unauthorized", "Sign in to continue.", 401);
+    const callerId = caller.id;
 
     let payload: {
       documentId?: string;
@@ -262,11 +263,13 @@ Deno.serve(async (req) => {
 
     const { data: callerProfile } = await admin
       .from("profiles")
-      .select("full_name, email")
+      .select("full_name")
       .eq("user_id", callerId)
       .maybeSingle();
     const callerName = callerProfile?.full_name || (role === "candidate" ? "Candidate" : "Employer");
-    const callerEmail = callerProfile?.email || "";
+    // The signer's address is the one on their sign-in account, never the
+    // profile row they can edit (docs/LAUNCH-PLAN.md, Phase 1, task 5).
+    const callerEmail = caller.email;
 
     const nowIso = new Date().toISOString();
     const ip = bestEffortIp(req);

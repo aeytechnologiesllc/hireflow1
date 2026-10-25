@@ -251,6 +251,14 @@ function client() {
         const userId = world.tokens[token];
         return userId ? { data: { user: { id: userId } }, error: null } : { data: { user: null }, error: { message: "invalid JWT" } };
       },
+      // The sign-in account (auth.users): its address is where an email goes
+      // since 2026-10-25, never the profile row (docs/LAUNCH-PLAN.md, Phase 1, task 5).
+      admin: {
+        getUserById: async (userId) => {
+          const email = world.accountEmails?.[userId] ?? world.profiles.find((p) => p.user_id === userId)?.email ?? null;
+          return email ? { data: { user: { id: userId, email } }, error: null } : { data: { user: null }, error: { message: "User not found" } };
+        },
+      },
     },
   };
 }
@@ -378,6 +386,16 @@ void quiet;
   check("…while a team member limited to a job CAN decide on that job's applicant", limitedOk.status === 200 && world.sent.length === 1 && show(world.sent[0].to) === show([emailOf(BEN)]), show(limitedOk));
   const limitedNo = await hush(async () => (reset((w) => { w.applications = w.applications.filter((a) => !(a.candidate_id === ANA && a.job_id === JOB_B)); }), ask("tok-team-job-b", { type: "status_rejected", recipient_user_id: ANA, data: {} })));
   check("…and not on an applicant who only applied to a job they are not on", limitedNo.status === 403 && world.sent.length === 0, show(limitedNo));
+}
+
+/* 2b. An edited profile email cannot redirect an email (2026-10-25). */
+{
+  const accountAddress = emailOf(ANA);
+  const r = await hush(async () => (reset((w) => {
+    w.accountEmails = { [ANA]: accountAddress };
+    w.profiles = w.profiles.map((p) => (p.user_id === ANA ? { ...p, email: "victim@elsewhere.example" } : p));
+  }), ask("tok-owner", { type: "status_hired", recipient_user_id: ANA, data: {} })));
+  check("an applicant's edited profile email does not redirect mail: it goes to the sign-in account's address", r.status === 200 && world.sent.length === 1 && show(world.sent[0].to) === show([accountAddress]), show(world.sent[0]?.to));
 }
 
 /* 3. The hiring team's own emails still go, and say only what is true. */
