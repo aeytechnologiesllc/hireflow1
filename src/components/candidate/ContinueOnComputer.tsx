@@ -223,7 +223,7 @@ export function ContinueOnComputer({ applicationId, step, index, total, jobTitle
               narrow column left beside the icon broke the heading into three lines. */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
             <div
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--jade-soft)] text-[var(--jade-soft-fg)] sm:h-11 sm:w-11"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--action-soft)] text-[var(--action-soft-fg)] sm:h-11 sm:w-11"
               aria-hidden="true"
             >
               <Monitor className="h-5 w-5" />
@@ -274,7 +274,7 @@ export function ContinueOnComputer({ applicationId, step, index, total, jobTitle
           </div>
 
           <div className="flex items-start gap-3">
-            <GlyphCheckSeal size={22} className="mt-px shrink-0 text-[var(--jade)]" />
+            <GlyphCheckSeal size={22} className="mt-px shrink-0 text-[var(--action)]" />
             <p className="text-sm leading-relaxed text-muted-foreground">
               {startedHere
                 ? "Your answers so far are saved."

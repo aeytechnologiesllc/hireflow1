@@ -221,7 +221,7 @@ export default function InterviewRoom() {
   if (loading) {
     return (
       <div className="ck-page flex min-h-[60vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[var(--jade-bright)]" />
+        <Loader2 className="h-8 w-8 animate-spin text-[var(--action-bright)]" />
       </div>
     );
   }
@@ -314,7 +314,7 @@ export default function InterviewRoom() {
                   {device.micLevels.map((level, i) => (
                     <div
                       key={i}
-                      className={`w-1.5 rounded-full transition-[height] duration-75 ${level > 15 ? "bg-[var(--jade-bright)]" : "bg-muted-foreground/30"}`}
+                      className={`w-1.5 rounded-full transition-[height] duration-75 ${level > 15 ? "bg-[var(--slab-action)]" : "bg-muted-foreground/30"}`}
                       style={{ height: Math.max(4, level / 4 + 4) }}
                     />
                   ))}

@@ -26,7 +26,7 @@ const DAY = {
 };
 
 function tone(status: string): { background: string; color: string } {
-  if (status === "approved") return { background: "var(--jade-soft)", color: "var(--jade-soft-fg)" };
+  if (status === "approved") return { background: "var(--action-soft)", color: "var(--action-soft-fg)" };
   if (status === "submitted" || status === "reviewed") return { background: "var(--hf-gold-soft, var(--surface-2))", color: "var(--hf-text)" };
   if (status === "rejected") return { background: "var(--surface-2)", color: "var(--amber-fg)" };
   return { background: "var(--surface-2)", color: "var(--ink-2)" };
@@ -215,7 +215,7 @@ export function ApplicantDocumentsPanel({ applicationId, firstName, show, onRequ
         )}
         {onRequest && (
           <div className="border-t py-2.5" style={{ borderColor: "var(--line)" }}>
-            <button type="button" className="text-[12.5px] font-medium underline underline-offset-2" style={{ color: "var(--jade)" }} onClick={onRequest} data-request-documents-open>
+            <button type="button" className="text-[12.5px] font-medium underline underline-offset-2" style={{ color: "var(--action)" }} onClick={onRequest} data-request-documents-open>
               Request documents
             </button>
           </div>

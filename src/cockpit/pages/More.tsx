@@ -59,7 +59,7 @@ export default function CockpitMore() {
     <div className="mx-auto max-w-[640px] space-y-3 pb-6">
       {/* account card */}
       <div className="ck-card flex items-center gap-3 p-4">
-        <span className="flex h-11 w-11 items-center justify-center rounded-full text-[14px] font-bold" style={{ background: "linear-gradient(180deg, var(--hf-green-border), var(--hf-green-soft))", color: "var(--hf-text)" }}>{account.initials}</span>
+        <span className="flex h-11 w-11 items-center justify-center rounded-full text-[14px] font-bold" style={{ background: "linear-gradient(180deg, var(--hf-action-border), var(--hf-action-soft))", color: "var(--hf-text)" }}>{account.initials}</span>
         <div className="min-w-0 flex-1">
           <div className="text-[16px] font-semibold" style={{ color: "var(--hf-text)" }}>{account.name}</div>
           <div className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>Owner workspace</div>
@@ -78,7 +78,7 @@ export default function CockpitMore() {
             <it.icon className="h-5 w-5 shrink-0" style={{ color: "var(--hf-text-muted)" }} />
             <span className="flex-1 text-[15px]" style={{ color: "var(--hf-text)" }}>{it.label}</span>
             {it.to === "/interviews" && interviewsToday > 0 && (
-              <span className="rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: "var(--jade-soft)", color: "var(--jade-soft-fg)" }} data-interviews-today>
+              <span className="rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: "var(--action-soft)", color: "var(--action-soft-fg)" }} data-interviews-today>
                 {interviewsToday} today
               </span>
             )}

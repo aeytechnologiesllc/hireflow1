@@ -119,12 +119,12 @@ function RatingNumbers({ value, label, disabled, onRate }: { value: number | nul
             aria-label={`${score} out of ${GUIDE_RATING_MAX}`}
             disabled={disabled}
             onClick={() => onRate(score)}
-            className="h-9 rounded-[9px] border text-[13px] font-semibold tabular-nums transition-colors hover:border-[var(--jade)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--jade)] disabled:opacity-50 sm:h-8"
+            className="h-9 rounded-[9px] border text-[13px] font-semibold tabular-nums transition-colors hover:border-[var(--action)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--action)] disabled:opacity-50 sm:h-8"
             style={
               chosen
-                ? { background: "var(--jade)", borderColor: "var(--jade)", color: "var(--btn-fg)" }
+                ? { background: "var(--action)", borderColor: "var(--action)", color: "var(--btn-fg)" }
                 : under
-                  ? { background: "var(--jade-soft)", borderColor: "transparent", color: "var(--jade-soft-fg)" }
+                  ? { background: "var(--action-soft)", borderColor: "transparent", color: "var(--action-soft-fg)" }
                   : { background: "transparent", borderColor: "var(--line)", color: "var(--ink-2)" }
             }
             data-chosen={chosen || undefined}
@@ -200,7 +200,7 @@ function QuestionCard({ n, q, rating }: { n: number; q: GuideQuestion | Personal
       <div className="flex items-start gap-3">
         <span
           className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11.5px] font-bold"
-          style={{ background: "var(--jade-soft)", color: "var(--jade-soft-fg)" }}
+          style={{ background: "var(--action-soft)", color: "var(--action-soft-fg)" }}
           aria-hidden
         >
           {n}
@@ -230,7 +230,7 @@ function QuestionCard({ n, q, rating }: { n: number; q: GuideQuestion | Personal
             )}
             {q.listenFor && (
               <div>
-                <dt className="inline font-semibold" style={{ color: "var(--jade)" }}>
+                <dt className="inline font-semibold" style={{ color: "var(--action)" }}>
                   Listen for:{" "}
                 </dt>
                 <dd className="inline" style={{ color: "var(--hf-text-soft)" }}>
@@ -313,7 +313,7 @@ function QuestionEditor({
     />
   );
   return (
-    <li className="space-y-2.5 rounded-[12px] border px-3.5 py-3" style={{ borderColor: own ? "var(--jade)" : "var(--line)" }} data-plan-question={own ? "own" : "plan"} data-plan-id={id}>
+    <li className="space-y-2.5 rounded-[12px] border px-3.5 py-3" style={{ borderColor: own ? "var(--action)" : "var(--line)" }} data-plan-question={own ? "own" : "plan"} data-plan-id={id}>
       {box("question", own ? "Your question" : "Question", true, "Write it the way you would say it")}
       {box("listenFor", "Listen for", false, own ? "Optional: what a good answer sounds like" : undefined)}
       {box("redFlag", "Red flag", false, own ? "Optional: what should worry you" : undefined)}
@@ -347,7 +347,7 @@ function TakenOut({ questions, edits, onEdits }: { questions: GuideQuestion[]; e
         {questions.map((q) => (
           <li key={q.id} className="flex items-start justify-between gap-3">
             <span className="min-w-0">{q.question}</span>
-            <button type="button" className="shrink-0 underline underline-offset-2" style={{ color: "var(--jade)" }} onClick={() => onEdits(withQuestionBack(edits, q.id))} data-plan-back>
+            <button type="button" className="shrink-0 underline underline-offset-2" style={{ color: "var(--action)" }} onClick={() => onEdits(withQuestionBack(edits, q.id))} data-plan-back>
               Put back
             </button>
           </li>
@@ -572,7 +572,7 @@ export function InterviewGuideDialog({
               shows one set of questions and then swaps it for another. */}
           {isLoading ? (
             <p className="flex items-center gap-2 py-10 text-[13px]" style={{ color: "var(--hf-text-soft)" }} data-guide-loading>
-              <Loader2 className="h-4 w-4 animate-spin" style={{ color: "var(--jade)" }} aria-hidden />
+              <Loader2 className="h-4 w-4 animate-spin" style={{ color: "var(--action)" }} aria-hidden />
               Opening the guide…
             </p>
           ) : editing && draft ? (
@@ -697,7 +697,7 @@ export function InterviewGuideDialog({
                       Write {first}'s questions
                     </button>
                   )}
-                  {isWriting && <Loader2 className="mt-3 h-4 w-4 animate-spin" style={{ color: "var(--jade)" }} aria-label="Writing" />}
+                  {isWriting && <Loader2 className="mt-3 h-4 w-4 animate-spin" style={{ color: "var(--action)" }} aria-label="Writing" />}
                 </div>
               </div>
             </div>

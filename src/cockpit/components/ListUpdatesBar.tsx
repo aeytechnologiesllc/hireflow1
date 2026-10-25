@@ -38,7 +38,7 @@ export function ListUpdatesBar({ updates, onShow, phone = false, className = "" 
         aria-disabled={!waiting}
         aria-label={waiting ? `Show ${spoken} ${fresh + moved === 1 ? "applicant" : "applicants"}` : "The list is up to date"}
         className={[
-          "flex w-full items-center justify-between gap-3 rounded-[10px] border text-[13px] transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--jade)]",
+          "flex w-full items-center justify-between gap-3 rounded-[10px] border text-[13px] transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--action)]",
           waiting ? "px-3.5 hover:bg-[var(--surface-2)]" : "cursor-default px-1",
         ].join(" ")}
         style={
@@ -51,12 +51,12 @@ export function ListUpdatesBar({ updates, onShow, phone = false, className = "" 
           <span
             aria-hidden
             className={`block shrink-0 rounded-full ${waiting ? "h-[7px] w-[7px]" : "h-[6px] w-[6px]"}`}
-            style={{ background: "var(--jade)", opacity: waiting ? 1 : 0.8 }}
+            style={{ background: "var(--action)", opacity: waiting ? 1 : 0.8 }}
           />
           <span className={`tnum truncate ${waiting ? "" : "text-[12.5px]"}`}>{waiting ? words : "Up to date"}</span>
         </span>
         {waiting && (
-          <span aria-hidden className="shrink-0 font-semibold" style={{ color: "var(--jade-soft-fg)" }}>
+          <span aria-hidden className="shrink-0 font-semibold" style={{ color: "var(--action-soft-fg)" }}>
             Show
           </span>
         )}

@@ -91,7 +91,7 @@ export default function JobWorkflowDialog({ job, open, onOpenChange }: JobWorkfl
   const hasWorkflow = applicationQuestions.length > 0 || quizQuestions.length > 0 || workflowSteps.length > 0;
 
   const difficultyLabels: Record<string, { label: string; color: string }> = {
-    easy: { label: "Easy", color: "text-[var(--jade-bright)]" },
+    easy: { label: "Easy", color: "text-[var(--action-bright)]" },
     medium: { label: "Medium", color: "text-primary" },
     hard: { label: "Hard", color: "text-[var(--brass)]" },
     intense: { label: "Intense", color: "text-destructive" },

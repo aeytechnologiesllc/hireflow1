@@ -56,8 +56,8 @@ const ToastAction = React.forwardRef<
   <ToastPrimitives.Action
     ref={ref}
     className={cn(
-      // A jade word ("Undo"), never a slab.
-      "inline-flex min-h-[44px] sm:min-h-0 sm:h-8 shrink-0 items-center justify-center self-start rounded-[9px] bg-transparent px-2.5 text-[13.5px] font-semibold text-[var(--jade)] transition-colors hover:bg-[var(--jade-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--jade)] disabled:pointer-events-none disabled:opacity-50",
+      // An ink word ("Undo"), never a slab.
+      "inline-flex min-h-[44px] sm:min-h-0 sm:h-8 shrink-0 items-center justify-center self-start rounded-[9px] bg-transparent px-2.5 text-[13.5px] font-semibold text-[var(--action)] transition-colors hover:bg-[var(--action-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--action)] disabled:pointer-events-none disabled:opacity-50",
       className,
     )}
     {...props}
@@ -72,7 +72,7 @@ const ToastClose = React.forwardRef<
   <ToastPrimitives.Close
     ref={ref}
     className={cn(
-      "absolute right-2.5 top-3.5 rounded-lg p-1.5 text-[var(--hf-text-muted)] transition-colors hover:bg-[color-mix(in_srgb,var(--hf-text)_7%,transparent)] hover:text-[var(--hf-text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--jade)]",
+      "absolute right-2.5 top-3.5 rounded-lg p-1.5 text-[var(--hf-text-muted)] transition-colors hover:bg-[color-mix(in_srgb,var(--hf-text)_7%,transparent)] hover:text-[var(--hf-text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--action)]",
       className,
     )}
     toast-close=""

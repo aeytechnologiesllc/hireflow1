@@ -139,7 +139,7 @@ const CHIP_LOOK: Record<string, CSSProperties> = {
   // "Viewed": a Needs-review applicant this reader has already opened
   // (lib/applicantNotes.ts). Quiet, so the unopened ones stand out.
   muted: { color: "var(--ink-3)", background: "color-mix(in srgb, var(--ink) 8%, transparent)" },
-  jade: { color: "var(--jade-soft-fg)", background: "var(--jade-soft)" },
+  good: { color: "var(--action-soft-fg)", background: "var(--action-soft)" },
   crit: { color: "var(--crit)", background: "var(--crit-bg)" },
 };
 
@@ -160,7 +160,7 @@ export function InterviewScoreChip({ words }: { words: string }) {
 /** Needs review, Interview, Offer, Hired, Declined. */
 export function StatusChip({ chip }: { chip: NonNullable<ApplicantListRow["chip"]> }) {
   return (
-    <span className="ck-pill shrink-0 !px-[7px] !py-[3px]" style={CHIP_LOOK[chip.tone] ?? CHIP_LOOK.jade}>
+    <span className="ck-pill shrink-0 !px-[7px] !py-[3px]" style={CHIP_LOOK[chip.tone] ?? CHIP_LOOK.good}>
       {chip.label}
     </span>
   );
@@ -283,7 +283,7 @@ function Who({ row, size = 38 }: { row: ApplicantListRow; size?: number }) {
         <span
           aria-hidden
           className="absolute -right-[1px] -top-[1px] block h-[10px] w-[10px] rounded-full"
-          style={{ background: "var(--jade)", boxShadow: "0 0 0 2px var(--hf-surface)" }}
+          style={{ background: "var(--action)", boxShadow: "0 0 0 2px var(--hf-surface)" }}
         />
       )}
     </span>
@@ -372,9 +372,9 @@ export function ApplicantTableRow({ row, onOpen, index = 0, reveal = true, inter
         "transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--ink)_3.5%,transparent)]",
         // Focus is drawn INSIDE the row: the table card clips anything outside
         // it, and the cockpit's own ring (.ck-scroll a:focus-visible) sits 2px out.
-        "focus-visible:bg-[color-mix(in_srgb,var(--ink)_3.5%,transparent)] focus-visible:outline focus-visible:outline-2 focus-visible:!-outline-offset-2 focus-visible:outline-[var(--jade)]",
-        // the jade tab on the left edge, as in the mockup's hovered row
-        "before:absolute before:bottom-[10px] before:left-0 before:top-[10px] before:w-[3px] before:rounded-r-[3px] before:bg-[var(--jade)] before:opacity-0 before:transition-opacity before:content-['']",
+        "focus-visible:bg-[color-mix(in_srgb,var(--ink)_3.5%,transparent)] focus-visible:outline focus-visible:outline-2 focus-visible:!-outline-offset-2 focus-visible:outline-[var(--action)]",
+        // the ink tab on the left edge, as in the mockup's hovered row
+        "before:absolute before:bottom-[10px] before:left-0 before:top-[10px] before:w-[3px] before:rounded-r-[3px] before:bg-[var(--action)] before:opacity-0 before:transition-opacity before:content-['']",
         "hover:before:opacity-100 focus-visible:before:opacity-100",
       ].join(" ")}
       style={{ gridTemplateColumns: APPLICANT_GRID, borderColor: "var(--line-soft)", ["--ck-i" as string]: Math.min(index, 12) }}
@@ -422,7 +422,7 @@ export function ApplicantTableRow({ row, onOpen, index = 0, reveal = true, inter
 
       {/* data-row-chevron: hidden where the row's ⋯ menu takes its place
           (ApplicantRowFrame, components/ApplicantBulkBar.tsx). */}
-      <ChevronRight data-row-chevron aria-hidden className="h-4 w-4 opacity-60 transition-colors group-hover:opacity-100 group-hover:text-[var(--jade)]" style={{ color: "var(--ink-3)" }} />
+      <ChevronRight data-row-chevron aria-hidden className="h-4 w-4 opacity-60 transition-colors group-hover:opacity-100 group-hover:text-[var(--action)]" style={{ color: "var(--ink-3)" }} />
     </Link>
   );
 }
@@ -463,7 +463,7 @@ export function ApplicantCard({ row, onOpen, index = 0, reveal = true, interview
       data-applicant-row={row.id}
       // `relative` contains anything absolutely placed inside (the flags'
       // screen-reader text), so it can never stretch the page around it.
-      className={`ck-card ${reveal ? "ck-reveal " : ""}relative block !rounded-[16px] px-3.5 pb-[13px] pt-3.5 transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--jade)]`}
+      className={`ck-card ${reveal ? "ck-reveal " : ""}relative block !rounded-[16px] px-3.5 pb-[13px] pt-3.5 transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--action)]`}
       style={{ ["--ck-i" as string]: Math.min(index, 8) }}
     >
       <span className="flex items-center gap-[11px]">

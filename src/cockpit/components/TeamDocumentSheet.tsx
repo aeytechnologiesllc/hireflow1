@@ -236,9 +236,9 @@ export function TeamDocumentSheet({
     state === "waiting"
       ? { text: `Waiting for ${first} to sign`, bg: "var(--amber-bg)", fg: "var(--amber-fg)", Icon: Clock }
       : state === "yours"
-        ? { text: `${First} signed · your turn`, bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)", Icon: PenLine }
+        ? { text: `${First} signed · your turn`, bg: "var(--action-soft)", fg: "var(--action-soft-fg)", Icon: PenLine }
         : state === "done"
-          ? { text: "Signed by both", bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)", Icon: CheckCircle2 }
+          ? { text: "Signed by both", bg: "var(--action-soft)", fg: "var(--action-soft-fg)", Icon: CheckCircle2 }
           : state === "declined"
             ? { text: `${First} declined`, bg: "var(--crit-bg)", fg: "var(--crit)", Icon: XCircle }
             : state === "withdrawn"
@@ -280,8 +280,8 @@ export function TeamDocumentSheet({
         <div className="ck-scroll min-h-0 flex-1 overflow-y-auto px-5 py-5">
           {justFinished ? (
             <div className="py-6 text-center" data-team-document-finished>
-              <div className="mx-auto grid h-16 w-16 place-items-center rounded-full" style={{ background: "var(--jade-soft)" }}>
-                <CheckCircle2 className="h-9 w-9" style={{ color: "var(--jade)" }} aria-hidden />
+              <div className="mx-auto grid h-16 w-16 place-items-center rounded-full" style={{ background: "var(--action-soft)" }}>
+                <CheckCircle2 className="h-9 w-9" style={{ color: "var(--action)" }} aria-hidden />
               </div>
               <h3 className="mt-4 font-display text-[26px]" style={{ color: "var(--hf-text)", fontWeight: 600 }}>
                 {isOffer ? "Signed by both. It's official." : "Signed by both."}
@@ -359,7 +359,7 @@ export function TeamDocumentSheet({
               )}
 
               {state === "yours" && (
-                <section className="mt-5 rounded-[14px] border px-4 py-4" style={{ borderColor: "var(--jade)", background: "color-mix(in srgb, var(--jade-soft) 55%, transparent)" }} data-team-document-sign>
+                <section className="mt-5 rounded-[14px] border px-4 py-4" style={{ borderColor: "var(--action)", background: "color-mix(in srgb, var(--action-soft) 55%, transparent)" }} data-team-document-sign>
                   <h3 className="text-[15px] font-semibold" style={{ color: "var(--hf-text)" }}>
                     Sign to finish
                   </h3>
@@ -394,11 +394,11 @@ export function TeamDocumentSheet({
                     </>
                   )}
                   <label className="mt-3 flex cursor-pointer items-start gap-2.5 text-[13px] leading-snug" style={{ color: "var(--ink-2)" }}>
-                    <input id="ck-teamdoc-review" type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--jade)]" checked={reviewed} onChange={(e) => setReviewed(e.target.checked)} />
+                    <input id="ck-teamdoc-review" type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--action)]" checked={reviewed} onChange={(e) => setReviewed(e.target.checked)} />
                     <span>I've read the letter and {first === "they" ? "their" : `${first}'s`} signature above.</span>
                   </label>
                   <label className="mt-2 flex cursor-pointer items-start gap-2.5 text-[13px] leading-snug" style={{ color: "var(--ink-2)" }}>
-                    <input id="ck-teamdoc-consent" type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--jade)]" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+                    <input id="ck-teamdoc-consent" type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--action)]" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
                     <span>{CONSENT_STATEMENT}</span>
                   </label>
                   {error && (

@@ -178,7 +178,7 @@ console.log("\nThe applications list");
   check("…never the amber notice box again", !/amber-bg|amber-fg/.test(hero));
   check("its button opens the application at the interview", /navigate\(`\/applications\/\$\{application\.id\}#interview`\);/.test(list));
   check("the whole card opens it for a tap; the button inside is the control", /className="ck-reveal cursor-pointer p-5 sm:p-7"\s+onClick=\{onOpen\}/.test(hero) && /data-testid="interview-open"/.test(hero) && !/role="button"/.test(hero.replace(/\/\/.*$/gm, "")));
-  check("its button is a pill, solid jade when it is theirs to do (never a dark slab)", /className=\{`hf-pill \$\{words\.theirMove \? "hf-pill--jade" : "hf-pill--tonal"\} hf-pill--lg w-full shrink-0 sm:w-auto`\}/.test(hero));
+  check("its button is a pill, solid action colour when it is theirs to do (never a dark slab)", /className=\{`hf-pill \$\{words\.theirMove \? "hf-pill--action" : "hf-pill--tonal"\} hf-pill--lg w-full shrink-0 sm:w-auto`\}/.test(hero));
   // The menu is still placed on it; it holds Withdraw only before a decision
   // (an interview is past that, so no menu shows; 2026-10-11).
   check("the withdraw menu's place is still on it, and Withdraw only before a decision", /<div className="-mr-2 -mt-2 shrink-0">\{menu\}<\/div>/.test(hero) && /const menu = !canWithdraw \? null : \(/.test(list) && /const canWithdraw = \["in_progress", "pending", "reviewing"\]/.test(list));
@@ -267,9 +267,9 @@ console.log("\nThe look: the ticket, and no dark buttons");
   const buttons = [...card.matchAll(/<button\b[^>]*?className=(?:"([^"]*)"|\{([^}]*)\})/g)].map((m) => m[1] ?? m[2]);
   check("every button on the card is a pill", buttons.length >= 7 && buttons.every((c) => /hf-pill/.test(c)), buttons.filter((c) => !/hf-pill/.test(c)).join(" | "));
   const pill = (kind) => new RegExp(`\\.hf-pill--${kind}\\.hf-pill--${kind}\\.hf-pill--${kind} \\{([^}]*)\\}`).exec(css)?.[1] ?? "";
-  check("four kinds: jade, tonal, mint, text", ["jade", "tonal", "mint", "text"].every((k) => pill(k).length > 0));
-  check("none of them is filled with the page's dark ground or with black", ["jade", "tonal", "mint", "text"].every((k) => !/var\(--(background|ground|sidebar|surface)\)|#0|#1|black/.test(pill(k))), ["jade", "tonal", "mint", "text"].map(pill).join(" "));
-  check("the soft ones are a tint of the text colour or of jade, so day and night both work", /color-mix\(in srgb, var\(--ink\) 7%, transparent\)/.test(pill("tonal")) && /var\(--jade-soft\)/.test(pill("mint")));
+  check("four kinds: action, tonal, soft action, text", ["action", "tonal", "action-soft", "text"].every((k) => pill(k).length > 0));
+  check("none of them is filled with the page's dark ground or with black", ["action", "tonal", "action-soft", "text"].every((k) => !/var\(--(background|ground|sidebar|surface)\)|#0|#1|black/.test(pill(k))), ["action", "tonal", "action-soft", "text"].map(pill).join(" "));
+  check("the soft ones are a tint of the text colour or of the action colour, so day and night both work", /color-mix\(in srgb, var\(--ink\) 7%, transparent\)/.test(pill("tonal")) && /var\(--action-soft\)/.test(pill("action-soft")));
   check("they outrank the phone stylesheet's button rule (the class is tripled)", /\.hf-pill\.hf-pill\.hf-pill \{/.test(css));
   check("the keyboard ring is quiet, so 'Go back' does not look chosen", /\.hf-pill\.hf-pill\.hf-pill:focus-visible \{ outline: 1\.5px solid color-mix\(in srgb, var\(--ink\) 38%, transparent\)/.test(css));
   check("the ticket: a stub with the date, a dashed tear, two notches", /\.hf-ticket \{ display: grid; grid-template-columns: 208px minmax\(0, 1fr\); \}/.test(css) && /\.hf-ticket__stub::after \{[^}]*border-right: 2px dashed/.test(css) && /\.hf-ticket__notch \{[^}]*background: var\(--ground\);/.test(css));
@@ -297,11 +297,11 @@ console.log("\nThe celebration");
   check("paper is thrown once and clears itself", /export const CONFETTI_MS = \d+;/.test(fx) && /window\.setTimeout\(\(\) => done\.current\?\.\(\), CONFETTI_MS\)/.test(fx) && /\{paper && <ConfettiBurst onDone=\{\(\) => setPaper\(false\)\} \/>\}/.test(fx));
   check("three throws: a popper from each lower corner, then one from the middle", (fx.match(/\.\.\.popper\(/g) ?? []).length === 3);
   const paper = /const PAPER = \[([^\]]+)\]/.exec(fx)?.[1] ?? "";
-  check("only the brand's own colours", paper.length > 0 && paper.split(",").every((c) => /^\s*"var\(--(jade|brass|brass-line|jade-soft-fg|ink)\)"\s*$/.test(c)), paper);
+  check("only the brand's own colours", paper.length > 0 && paper.split(",").every((c) => /^\s*"var\(--(action|brass|brass-line|action-soft-fg|ink)\)"\s*$/.test(c)), paper);
   check("the paper touches nothing and is hidden from screen readers", /className="hf-confetti" aria-hidden/.test(fx) && /\.hf-confetti \{[^}]*pointer-events: none;/.test(css));
   check("once for each interview on a browser, and for the visit when it will not keep anything", /const seenKey = \(interviewId: string\) => `hf-interview-celebrated:\$\{interviewId\}`;/.test(fx) && /seenThisVisit\.add\(interviewId\);/.test(fx) && /if \(seenThisVisit\.has\(interviewId\)\) return true;/.test(fx));
   check("no interview id: nothing to celebrate", /if \(!interviewId\) return true;/.test(fx));
-  check("the surface is jade and brass, with a quiet form for waiting", /\.hf-invite \{[\s\S]*?var\(--jade\)[\s\S]*?var\(--brass\)[\s\S]*?\}/.test(css) && /\.hf-invite\[data-tone="quiet"\]/.test(css) && !/\.hf-invite[^{]*\{[^}]*amber/.test(css));
+  check("the surface is ink and brass, with a quiet form for waiting", /\.hf-invite \{[\s\S]*?var\(--action\)[\s\S]*?var\(--brass\)[\s\S]*?\}/.test(css) && /\.hf-invite\[data-tone="quiet"\]/.test(css) && !/\.hf-invite[^{]*\{[^}]*amber/.test(css));
   const calm = css.slice(css.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
   check("for someone who asked for less motion: no paper, still sparks, words in place", /@media \(prefers-reduced-motion: reduce\) \{\s*\.hf-confetti \{ display: none; \}\s*\.hf-spark \{ animation: none;[^}]*\}\s*\.hf-rise \{ animation: none; \}/.test(css) && /\.hf-dot--live \{ animation: none; \}/.test(calm));
 }

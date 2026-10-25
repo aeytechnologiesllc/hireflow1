@@ -15,11 +15,11 @@ const Switch = React.forwardRef<
     {...props}
     ref={ref}
   >
-    {/* "On" is jade, the action colour. It used to be a teal-to-blue gradient
+    {/* "On" is ink, the action colour. It used to be a teal-to-blue gradient
         with a neon glow — neither colour is in the palette. */}
     <span
       className="pointer-events-none absolute inset-0 rounded-full opacity-0 transition-opacity duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)] group-data-[state=checked]:opacity-100"
-      style={{ background: "var(--hf-green)" }}
+      style={{ background: "var(--hf-action)" }}
       aria-hidden
     />
     <SwitchPrimitives.Thumb
@@ -28,7 +28,7 @@ const Switch = React.forwardRef<
       )}
       style={{
         // --slab-ink is the one warm off-white that is the same in both themes,
-        // so the knob reads on the pale "off" track and on jade alike.
+        // so the knob reads on the pale "off" track and on ink alike.
         background: "var(--slab-ink)",
         boxShadow: "var(--shadow-sm)",
       }}

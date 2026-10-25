@@ -28,8 +28,11 @@ export default {
         signature: ["'Allura'", "'Fraunces'", "Georgia", "serif"],
       },
       colors: {
-        jade: "hsl(var(--ck-jade))",
-        mint: "hsl(var(--ck-mint))",
+        // The action colour (ink by day, ivory at night; it was jade until 2026-10-25).
+        action: {
+          DEFAULT: "hsl(var(--ck-action))",
+          bright: "hsl(var(--ck-action-bright))",
+        },
         brass: {
           DEFAULT: "hsl(var(--ck-brass))",
           bright: "hsl(var(--ck-brass-bright))",

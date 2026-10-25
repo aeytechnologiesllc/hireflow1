@@ -96,8 +96,8 @@ export default function FlowLab() {
     fontSize: 12,
     fontWeight: 600,
     cursor: "pointer",
-    border: `1px solid ${on ? "#0F6B4F" : "#D6CDB6"}`,
-    background: on ? "#0F6B4F" : "#FCFAF4",
+    border: `1px solid ${on ? "#17150F" : "#D6CDB6"}`,
+    background: on ? "#17150F" : "#FCFAF4",
     color: on ? "#F0EBDF" : "#3F4B45",
   });
 
@@ -112,7 +112,7 @@ export default function FlowLab() {
           boxShadow: "0 8px 24px -12px rgba(0,0,0,.5)",
         }}
       >
-        <strong style={{ fontSize: 13, color: "#14201B" }}>Flow lab</strong>
+        <strong style={{ fontSize: 13, color: "#17150F" }}>Flow lab</strong>
 
         <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <button type="button" style={btn(step === VOICE)} onClick={() => setStep(VOICE)}>

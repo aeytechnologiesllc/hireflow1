@@ -188,8 +188,8 @@ const WIZARD_STEPS = [
 const DIFFICULTY_ORDER = ["easy", "medium", "hard", "intense"] as const;
 
 const DIFFICULTY_OPTIONS = [
-  { value: "easy", label: "Easy", description: "Quick screening (8-10 quiz questions)", icon: Clock, color: "text-jade", borderColor: "border-jade", bgColor: "bg-jade/10", shadowColor: "shadow-jade/20" },
-  { value: "medium", label: "Medium", description: "Balanced evaluation (12-15 quiz questions)", icon: Target, color: "text-mint", borderColor: "border-mint", bgColor: "bg-mint/10", shadowColor: "shadow-mint/20" },
+  { value: "easy", label: "Easy", description: "Quick screening (8-10 quiz questions)", icon: Clock, color: "text-action", borderColor: "border-action", bgColor: "bg-action/10", shadowColor: "shadow-action/20" },
+  { value: "medium", label: "Medium", description: "Balanced evaluation (12-15 quiz questions)", icon: Target, color: "text-action-bright", borderColor: "border-action-bright", bgColor: "bg-action-bright/10", shadowColor: "shadow-action-bright/20" },
   { value: "hard", label: "Hard", description: "Intensive screening (18-25 quiz questions)", icon: Flame, color: "text-brass", borderColor: "border-brass", bgColor: "bg-brass/10", shadowColor: "shadow-brass/20" },
   { value: "intense", label: "Intense", description: "Maximum rigor (25-30 quiz questions)", icon: Gauge, color: "text-destructive", borderColor: "border-destructive", bgColor: "bg-destructive/10", shadowColor: "shadow-destructive/20" },
 ];
@@ -2275,10 +2275,10 @@ export default function CreateJob() {
   });
   const screeningRiskAlertStyles = {
     good: {
-      alert: "border-jade/30 bg-jade/10",
-      title: "text-jade",
-      text: "text-jade/80",
-      button: "text-jade hover:text-mint hover:bg-jade/20",
+      alert: "border-action/30 bg-action/10",
+      title: "text-action",
+      text: "text-action/80",
+      button: "text-action hover:text-action-bright hover:bg-action/20",
     },
     caution: {
       alert: "border-brass/30 bg-brass/10",
@@ -3530,7 +3530,7 @@ export default function CreateJob() {
                                 <div className="text-sm text-muted-foreground">{q.question}</div>
                                 {(q.type === 'personality' || q.type === 'situational') ? (
                                   <div className="space-y-2">
-                                    <Badge variant="secondary" className="text-[10px] bg-jade/20 text-jade border-jade/30">
+                                    <Badge variant="secondary" className="text-[10px] bg-action/20 text-action border-action/30">
                                       Fit-based
                                     </Badge>
                                     {q.fit_context && (
@@ -3560,7 +3560,7 @@ export default function CreateJob() {
                                             className={cn(
                                               "p-3 rounded-lg text-sm flex items-center gap-2",
                                               q.correct_answers.includes(opt)
-                                                ? "bg-jade/20 border border-jade/50 text-jade"
+                                                ? "bg-action/20 border border-action/50 text-action"
                                                 : "bg-secondary/50 border border-border/50"
                                             )}
                                           >
@@ -3582,7 +3582,7 @@ export default function CreateJob() {
                                           className={cn(
                                             "p-3 rounded-lg text-sm flex items-center gap-2",
                                             opt === q.correct_answer
-                                              ? "bg-jade/20 border border-jade/50 text-jade"
+                                              ? "bg-action/20 border border-action/50 text-action"
                                               : "bg-secondary/50 border border-border/50"
                                           )}
                                         >
@@ -3704,7 +3704,7 @@ export default function CreateJob() {
                                           <div className="text-xs text-muted-foreground truncate">{info.description}</div>
                                         </div>
                                         {alreadyAdded && (
-                                          <Badge className="bg-jade/20 text-jade border-jade/30 text-[10px] px-2">
+                                          <Badge className="bg-action/20 text-action border-action/30 text-[10px] px-2">
                                             Added
                                           </Badge>
                                         )}
@@ -4672,7 +4672,7 @@ export default function CreateJob() {
                         className={cn(
                           "h-10 w-10 rounded-lg flex items-center justify-center shrink-0 transition-all border-2",
                           editingQuizQuestion.correct_answer === option && option.trim()
-                            ? "bg-jade/20 border-jade text-jade"
+                            ? "bg-action/20 border-action text-action"
                             : "bg-secondary/50 border-border hover:border-primary/50"
                         )}
                       >
@@ -4696,7 +4696,7 @@ export default function CreateJob() {
                         placeholder={`Option ${String.fromCharCode(65 + index)}`}
                         className={cn(
                           "flex-1",
-                          editingQuizQuestion.correct_answer === option && option.trim() && "border-jade/50"
+                          editingQuizQuestion.correct_answer === option && option.trim() && "border-action/50"
                         )}
                       />
                       <Button
@@ -4714,7 +4714,7 @@ export default function CreateJob() {
                 </div>
 
                 {editingQuizQuestion.correct_answer && (
-                  <p className="text-xs text-jade flex items-center gap-1">
+                  <p className="text-xs text-action flex items-center gap-1">
                     <CheckCircle2 className="h-3 w-3" />
                     Correct answer: {editingQuizQuestion.correct_answer}
                   </p>

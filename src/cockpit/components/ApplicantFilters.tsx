@@ -219,7 +219,7 @@ export function Dropdown({ options, value, onPick, children, ariaLabel, triggerC
                       {o.count}
                     </span>
                   )}
-                  <Check aria-hidden className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--jade)", opacity: chosen ? 1 : 0 }} />
+                  <Check aria-hidden className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--action)", opacity: chosen ? 1 : 0 }} />
                 </button>
               );
             })}
@@ -254,9 +254,9 @@ const PICK_BASE: CSSProperties = {
   color: "var(--ink-2)",
 };
 const PICK_SET: CSSProperties = {
-  background: "var(--jade-soft)",
-  borderColor: "color-mix(in srgb, var(--jade) 45%, transparent)",
-  color: "var(--jade-soft-fg)",
+  background: "var(--action-soft)",
+  borderColor: "color-mix(in srgb, var(--action) 45%, transparent)",
+  color: "var(--action-soft-fg)",
   // Room for the × that clears it.
   paddingRight: 29,
 };
@@ -279,7 +279,7 @@ function FilterPick({ group, onPick }: { group: FilterGroup; onPick: (key: Filte
         {/* Unset, the value ("Any", "All") says nothing the name does not:
             below 1440 it is left off, so the row fits on one line beside the
             sort on a laptop. A filter in use always shows what it is set to. */}
-        <b className={set ? "font-medium" : "hidden font-medium min-[1440px]:inline"} style={{ color: set ? "var(--jade-soft-fg)" : "var(--ink)" }}>
+        <b className={set ? "font-medium" : "hidden font-medium min-[1440px]:inline"} style={{ color: set ? "var(--action-soft-fg)" : "var(--ink)" }}>
           {current}
         </b>
         {!set && <ChevronDown aria-hidden className="h-3.5 w-3.5 opacity-70" />}
@@ -290,7 +290,7 @@ function FilterPick({ group, onPick }: { group: FilterGroup; onPick: (key: Filte
           aria-label={`Clear ${group.label.toLowerCase()}`}
           onClick={() => onPick(group.key, group.anyValue)}
           className="absolute right-[5px] top-1/2 flex -translate-y-1/2 items-center justify-center rounded-full transition-opacity hover:opacity-70"
-          style={{ width: 22, height: 22, minHeight: 22, padding: 0, color: "var(--jade-soft-fg)" }}
+          style={{ width: 22, height: 22, minHeight: 22, padding: 0, color: "var(--action-soft-fg)" }}
         >
           <X aria-hidden className="h-3 w-3" strokeWidth={2.6} />
         </button>
@@ -388,7 +388,7 @@ export function FiltersButton({ count, onClick, open }: { count: number; onClick
       {count > 0 && (
         <span
           className="tnum inline-flex items-center justify-center rounded-full text-[11px] font-semibold"
-          style={{ minWidth: 18, height: 18, padding: "0 6px", background: "var(--jade)", color: "var(--btn-fg)" }}
+          style={{ minWidth: 18, height: 18, padding: "0 6px", background: "var(--action)", color: "var(--btn-fg)" }}
           aria-label={`${count} in use`}
         >
           {count}
@@ -412,9 +412,9 @@ const CHIP_BASE: CSSProperties = {
   fontWeight: 400,
 };
 const CHIP_ON: CSSProperties = {
-  background: "var(--jade-soft)",
-  border: "1px solid color-mix(in srgb, var(--jade) 50%, transparent)",
-  color: "var(--jade-soft-fg)",
+  background: "var(--action-soft)",
+  border: "1px solid color-mix(in srgb, var(--action) 50%, transparent)",
+  color: "var(--action-soft-fg)",
   fontWeight: 500,
 };
 
@@ -514,7 +514,7 @@ export function ApplicantFilterSheet({
             <h2 id={titleId} className="font-display text-[21px] font-medium" style={{ color: "var(--ink)" }}>
               Filters
             </h2>
-            <span className="ml-auto text-[13px] font-medium" style={{ color: "var(--jade-soft-fg)" }} aria-live="polite">
+            <span className="ml-auto text-[13px] font-medium" style={{ color: "var(--action-soft-fg)" }} aria-live="polite">
               {matchCount} match
             </span>
           </div>
@@ -539,7 +539,7 @@ export function ApplicantFilterSheet({
                     >
                       {o.label}
                       {g.counts && o.count != null && o.value !== g.anyValue && (
-                        <span className="tnum ml-1 text-[12px]" style={{ color: on ? "var(--jade-soft-fg)" : "var(--ink-3)" }}>
+                        <span className="tnum ml-1 text-[12px]" style={{ color: on ? "var(--action-soft-fg)" : "var(--ink-3)" }}>
                           {o.count}
                         </span>
                       )}
@@ -568,7 +568,7 @@ export function ApplicantFilterSheet({
             type="button"
             onClick={onClose}
             className="flex-1 transition-[filter] hover:brightness-105"
-            style={{ fontSize: 15, fontWeight: 600, padding: "13px 16px", minHeight: 48, borderRadius: 12, background: "var(--jade)", color: "var(--btn-fg)", whiteSpace: "nowrap" }}
+            style={{ fontSize: 15, fontWeight: 600, padding: "13px 16px", minHeight: 48, borderRadius: 12, background: "var(--action)", color: "var(--btn-fg)", whiteSpace: "nowrap" }}
           >
             Show {matchCount} {matchCount === 1 ? "applicant" : "applicants"}
           </button>

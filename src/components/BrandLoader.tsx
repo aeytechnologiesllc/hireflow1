@@ -1,13 +1,13 @@
 /**
  * BrandLoader — the one loading moment, everywhere.
  *
- * The rising line draws itself inside the jade tile, glints, and draws again:
+ * The rising line draws itself inside the ink tile, glints, and draws again:
  * applications come in flat, Ava lifts the ones worth your time — the logo
  * telling its own story while you wait. Fully token-driven, so it is ivory by
  * Day and ink by Night, and correct on candidate surfaces too.
  *
  * Replaces two loaders that predated the design: a WebGL orb on hardcoded
- * old-jade (#0a2019) at sign-in, and a lone seal breathing on the route
+ * the old dark tile at sign-in, and a lone seal breathing on the route
  * fallback. Reduced motion: the finished mark, no animation.
  */
 import { type ReactNode } from "react";
@@ -23,13 +23,13 @@ export function BrandLoader({
   return (
     <div
       className="hf-loader flex min-h-[100dvh] flex-col items-center justify-center gap-6 px-6"
-      style={{ background: "var(--ground, #F0EBDF)", color: "var(--ink, #14201B)" }}
+      style={{ background: "var(--ground, #F0EBDF)", color: "var(--ink, #17150F)" }}
     >
       <style>{`
         .hf-loader .tile {
           width: 64px; height: 64px; border-radius: 14px;
-          background: var(--slab, #0C2A21);
-          box-shadow: var(--shadow-md, 0 10px 22px -14px rgba(20,32,27,.34));
+          background: var(--slab, #1B1813);
+          box-shadow: var(--shadow-md, 0 10px 22px -14px rgba(23,21,15,.34));
           display: flex; align-items: center; justify-content: center;
         }
         .hf-loader .rise {
@@ -60,7 +60,7 @@ export function BrandLoader({
               className="rise"
               d="M4 18 L9 7 L14 15 L20 6"
               pathLength={1}
-              stroke="var(--jade-bright, #3FCE97)"
+              stroke="#E0B96A"
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"

@@ -203,7 +203,8 @@ function AutoUpdate() {
 
 const App = () => (
   <ErrorBoundary>
-    <ThemeProvider attribute="class" defaultTheme="dark">
+    {/* The app follows the device (Day or Night); the toggle in the sidebar overrides it and is remembered on this browser. */}
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <AuthProvider>

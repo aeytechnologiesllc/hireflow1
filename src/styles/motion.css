@@ -75,7 +75,7 @@
    The applicant's own moment (src/components/candidate/InterviewCelebration.tsx).
    The owner, 2026-10-07, on the amber notice box it replaced: "It needs to be
    an actual applause. You have been selected for an interview. Boom, boom,
-   shabam." So: a surface lit in the brand's own jade and brass, a seal that
+   shabam." So: a surface lit in the brand's own ink and brass, a seal that
    presses in, a few sparks, and paper thrown once when the news arrives.
    Only the brand's colours; never a second palette. */
 .hf-invite {
@@ -84,12 +84,12 @@
   border-radius: 24px;
   border: 1px solid color-mix(in srgb, var(--brass-line) 60%, transparent);
   background:
-    radial-gradient(120% 150% at 0% 0%, color-mix(in srgb, var(--jade) 22%, transparent) 0%, transparent 58%),
+    radial-gradient(120% 150% at 0% 0%, color-mix(in srgb, var(--action) 22%, transparent) 0%, transparent 58%),
     radial-gradient(95% 130% at 100% 100%, color-mix(in srgb, var(--brass) 20%, transparent) 0%, transparent 62%),
     var(--surface);
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, var(--brass-line) 55%, transparent),
-    0 22px 46px -28px color-mix(in srgb, var(--jade) 55%, transparent);
+    0 22px 46px -28px color-mix(in srgb, var(--action) 55%, transparent);
 }
 .hf-invite::before {
   content: "";
@@ -97,7 +97,7 @@
   inset-inline: 0;
   top: 0;
   height: 2px;
-  background: linear-gradient(90deg, transparent, var(--jade) 25%, var(--brass) 55%, transparent);
+  background: linear-gradient(90deg, transparent, var(--action) 25%, var(--brass) 55%, transparent);
   opacity: 0.9;
 }
 /* Nothing to celebrate (waiting on the team): the same shape, at rest. */
@@ -202,9 +202,9 @@
    black buttons. I don't like them. Always choose modern."
 
    So no button here is a dark slab. Four kinds, all pills:
-     jade   the one thing to do                (solid)
+     action the one thing to do                (solid)
      tonal  a second thing                     (a soft tint of the text colour)
-     mint   a second thing that is good news   (a soft tint of jade)
+     soft   a second thing that is good news   (a soft tint of the action colour)
      text   everything quieter                 (no surface at all)
    Every colour is a mix of the theme's own tokens, so day and night both
    work. The class is tripled on purpose: the phone stylesheet restyles
@@ -232,12 +232,12 @@
 .hf-pill.hf-pill.hf-pill:focus-visible { outline: 1.5px solid color-mix(in srgb, var(--ink) 38%, transparent); outline-offset: 2px; }
 .hf-pill.hf-pill.hf-pill svg { width: 18px; height: 18px; flex-shrink: 0; }
 
-.hf-pill--jade.hf-pill--jade.hf-pill--jade {
+.hf-pill--action.hf-pill--action.hf-pill--action {
   color: var(--btn-fg);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--jade) 84%, white), var(--jade));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32), 0 12px 28px -14px color-mix(in srgb, var(--jade) 85%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--action) 84%, white), var(--action));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32), 0 12px 28px -14px color-mix(in srgb, var(--action) 85%, transparent);
 }
-.hf-pill--jade.hf-pill--jade.hf-pill--jade:hover:not(:disabled) { filter: brightness(1.07); }
+.hf-pill--action.hf-pill--action.hf-pill--action:hover:not(:disabled) { filter: brightness(1.07); }
 
 .hf-pill--tonal.hf-pill--tonal.hf-pill--tonal {
   color: var(--ink);
@@ -246,12 +246,12 @@
 }
 .hf-pill--tonal.hf-pill--tonal.hf-pill--tonal:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 12%, transparent); }
 
-.hf-pill--mint.hf-pill--mint.hf-pill--mint {
-  color: var(--jade-soft-fg);
-  background: var(--jade-soft);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jade) 26%, transparent);
+.hf-pill--action-soft.hf-pill--action-soft.hf-pill--action-soft {
+  color: var(--action-soft-fg);
+  background: var(--action-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--action) 26%, transparent);
 }
-.hf-pill--mint.hf-pill--mint.hf-pill--mint:hover:not(:disabled) { background: color-mix(in srgb, var(--jade) 24%, transparent); }
+.hf-pill--action-soft.hf-pill--action-soft.hf-pill--action-soft:hover:not(:disabled) { background: color-mix(in srgb, var(--action) 24%, transparent); }
 
 .hf-pill--text.hf-pill--text.hf-pill--text {
   min-height: 40px;
@@ -261,7 +261,7 @@
   background: none;
 }
 .hf-pill--text.hf-pill--text.hf-pill--text:hover:not(:disabled) { color: var(--ink); }
-.hf-pill--text.hf-pill--link.hf-pill--link { color: var(--jade-soft-fg); font-weight: 600; }
+.hf-pill--text.hf-pill--link.hf-pill--link { color: var(--action-soft-fg); font-weight: 600; }
 
 /* A size up, for the row of things to do on the ticket. */
 .hf-pill--lg.hf-pill--lg.hf-pill--lg { min-height: 54px; }
@@ -284,17 +284,17 @@
 }
 .hf-chip svg { width: 13px; height: 13px; flex-shrink: 0; }
 .hf-chip--ok {
-  color: var(--jade-soft-fg);
-  background: var(--jade-soft);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jade) 26%, transparent);
+  color: var(--action-soft-fg);
+  background: var(--action-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--action) 26%, transparent);
 }
 
-/* The little light on the Join pill: brass while it waits, jade and breathing when it is open. */
+/* The little light on the Join pill: brass while it waits, ink and breathing when it is open. */
 .hf-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 999px; background: var(--brass); box-shadow: 0 0 0 4px color-mix(in srgb, var(--brass) 18%, transparent); }
-.hf-dot--live { background: var(--jade); box-shadow: 0 0 0 4px color-mix(in srgb, var(--jade) 24%, transparent); animation: hf-breathe 1.8s ease-in-out 3; }
+.hf-dot--live { background: var(--action); box-shadow: 0 0 0 4px color-mix(in srgb, var(--action) 24%, transparent); animation: hf-breathe 1.8s ease-in-out 3; }
 @keyframes hf-breathe {
-  0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--jade) 26%, transparent); }
-  50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--jade) 8%, transparent); }
+  0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--action) 26%, transparent); }
+  50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--action) 8%, transparent); }
 }
 
 /* The ticket: the date on a stub at the left, torn along a dashed line. */
@@ -308,7 +308,7 @@
   justify-content: center;
   gap: 2px;
   padding: 30px 0;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--jade) 18%, transparent), color-mix(in srgb, var(--jade) 6%, transparent));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--action) 18%, transparent), color-mix(in srgb, var(--action) 6%, transparent));
 }
 .hf-ticket__stub::after {
   content: "";
@@ -363,7 +363,7 @@
   align-items: center;
   justify-content: center;
   padding: 14px 0;
-  background: color-mix(in srgb, var(--jade) 11%, transparent);
+  background: color-mix(in srgb, var(--action) 11%, transparent);
   border-right: 2px dashed color-mix(in srgb, var(--brass) 34%, transparent);
 }
 .hf-mini__stub .hf-ticket__wk { font-size: 11px; }

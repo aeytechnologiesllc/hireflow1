@@ -479,9 +479,9 @@ console.log("\n1. Candidate 1 and CANDIDATE 2, as the live job reads them");
 console.log("\n2. One row per state");
 {
   const r = byName;
-  check("typing live: 'Typing speed and accuracy · step 4 of 7 · live', live in jade", r["Ada Okafor"].lineText === "Typing speed and accuracy · step 4 of 7 · live" && r["Ada Okafor"].line.at(-1).tone === "jade", r["Ada Okafor"].lineText);
+  check("typing live: 'Typing speed and accuracy · step 4 of 7 · live', live in the action colour", r["Ada Okafor"].lineText === "Typing speed and accuracy · step 4 of 7 · live" && r["Ada Okafor"].line.at(-1).tone === "good", r["Ada Okafor"].lineText);
   check("…its ring is on the typing test", dots(r["Ada Okafor"]) === "done done done now todo todo todo" && !r["Ada Okafor"].dots[3].left);
-  check("…'Active now' with the avatar's live dot", r["Ada Okafor"].activeWords === "Active now" && r["Ada Okafor"].activeTone === "jade" && r["Ada Okafor"].liveNow);
+  check("…'Active now' with the avatar's live dot", r["Ada Okafor"].activeWords === "Active now" && r["Ada Okafor"].activeTone === "good" && r["Ada Okafor"].liveNow);
   check("quiz live: 'Skills check · question 6 of 10 · step 2 of 7 · live'", r["Ben Castillo"].lineText === "Skills check · question 6 of 10 · step 2 of 7 · live", r["Ben Castillo"].lineText);
   check("…'Active 6 min ago', no live dot past two minutes", r["Ben Castillo"].activeWords === "Active 6 min ago" && !r["Ben Castillo"].liveNow);
   check("…not scored yet", r["Ben Castillo"].score === null && r["Ben Castillo"].scoreKind === "none" && r["Ben Castillo"].scoreWords === "not scored yet");
@@ -493,8 +493,8 @@ console.log("\n2. One row per state");
   check("on the form, live: 'Filling in the form · 3 of 11 answered · live'", r["Eve Bello"].lineText === "Filling in the form · 3 of 11 answered · live" && r["Eve Bello"].tab === "taking-tests", r["Eve Bello"].lineText);
   check("…country from the form's draft, 'started 5 min ago'", r["Eve Bello"].country === "Jamaica" && r["Eve Bello"].appliedWords === "started 5 min ago" && r["Eve Bello"].onForm);
   check("on the form, quiet, no attempt: 'Filling in the form', Part-way, Unknown country", r["Finn Tan"].lineText === "Filling in the form" && r["Finn Tan"].tab === "part-way" && r["Finn Tan"].country === "Unknown");
-  check("finished, Ava says interview: the suffix in jade", r["Gia Siddiqui"].lineText === "Finished every test · Ava suggests: interview" && r["Gia Siddiqui"].line.at(-1).tone === "jade");
-  check("…'Done 40 min ago', 86 final in jade", r["Gia Siddiqui"].activeWords === "Done 40 min ago" && r["Gia Siddiqui"].scoreTone === "jade" && r["Gia Siddiqui"].scoreKind === "final");
+  check("finished, Ava says interview: the suffix in the action colour", r["Gia Siddiqui"].lineText === "Finished every test · Ava suggests: interview" && r["Gia Siddiqui"].line.at(-1).tone === "good");
+  check("…'Done 40 min ago', 86 final in the action colour", r["Gia Siddiqui"].activeWords === "Done 40 min ago" && r["Gia Siddiqui"].scoreTone === "good" && r["Gia Siddiqui"].scoreKind === "final");
   check("interview: chip Interview, 'Moved to interview', every dot done (connection below the bar)", r["Hal Wanjiru"].chip?.label === "Interview" && r["Hal Wanjiru"].lineText === "Moved to interview" && dots(r["Hal Wanjiru"]) === "done done below done done done done");
   check("…'Interview Thu 3 PM' when one is booked", r["Hal Wanjiru"].activeWords === "Interview Thu 3 PM", r["Hal Wanjiru"].activeWords);
   check("offered: chip Offer, 'Decided yesterday'", r["Ivy Reyes"].chip?.label === "Offer" && r["Ivy Reyes"].lineText === "Offer made" && r["Ivy Reyes"].activeWords === "Decided yesterday", r["Ivy Reyes"].activeWords);
@@ -503,7 +503,7 @@ console.log("\n2. One row per state");
   check("…decided before reaching chat: those dots are not reached, Decision done", dots(r["Kai Mendoza"]) === "done below below done todo todo done", dots(r["Kai Mendoza"]));
   check("…below the bar on the skills check, the connection, and ran on a phone", eq(r["Kai Mendoza"].below, ["skills-check", "connection", "phone"]), show(r["Kai Mendoza"].below));
   check("being checked: 'Typing speed and accuracy · checking the answers · step 4 of 7'", r["Léa Dubois"].lineText === "Typing speed and accuracy · checking the answers · step 4 of 7" && r["Léa Dubois"].tab === "taking-tests", r["Léa Dubois"].lineText);
-  check("…'Active 5 min ago' in jade, inside the server's 7-minute claim", r["Léa Dubois"].activeWords === "Active 5 min ago" && r["Léa Dubois"].activeTone === "jade", r["Léa Dubois"].activeWords);
+  check("…'Active 5 min ago' in the action colour, inside the server's 7-minute claim", r["Léa Dubois"].activeWords === "Active 5 min ago" && r["Léa Dubois"].activeTone === "good", r["Léa Dubois"].activeWords);
   check("parked on a finished step: no ring; the next step 'not opened yet' (the team's turn, as the profile says)", dots(r["Mo Rahman"]) === "done done done done todo todo todo" && r["Mo Rahman"].lineText === "Player chat practice · step 5 of 7 · not opened yet", `${dots(r["Mo Rahman"])} / ${r["Mo Rahman"].lineText}`);
   check("a shorter job has its own number of dots", r["Noor Aziz"].stepTotal === 3 && dots(r["Noor Aziz"]) === "done done now" && r["Noor Aziz"].jobTitle === "Night chat agent");
   check("…and its own 'where' question ('Cebu, PH' → Philippines)", r["Noor Aziz"].country === "Philippines");
@@ -874,7 +874,7 @@ console.log("\n8. Each record is rebuilt only when its own inputs change");
   const lea = later.find((r) => r.name === "Léa Dubois");
   check(
     "…while a claim checked past the server's 7 minutes still leaves Taking tests now (a dead request)",
-    lea.tab === "part-way" && lea.lineText === "Typing speed and accuracy · step 4 of 7 · checking failed, retrying" && lea.activeTone !== "jade",
+    lea.tab === "part-way" && lea.lineText === "Typing speed and accuracy · step 4 of 7 · checking failed, retrying" && lea.activeTone !== "good",
     `${lea.tab} / ${lea.lineText} / ${lea.activeTone}`,
   );
   check("…and every row's words still age", tick.find((r) => r.name === "Candidate 1").activeWords === "Done 20 h ago");
@@ -1564,7 +1564,7 @@ console.log("\nB. Remove and block: the blocked are on Blocked, and nowhere else
     const extra = { ...closedTwice, id: "app-same-person-other-job", jobId: JOB.id };
     const withTwo = B.markBlocked([...rows.filter((r) => r.id !== twice.id), closedTwice, extra], B.blockedIndex([{ candidate_id: twice.candidateId }]));
     check("a person with two applications the block closed: both rows leave All", withTwo.filter((r) => r.candidateId === twice.candidateId).every((r) => r.tab === "blocked"));
-    const interviewRow = { ...twice, id: "app-same-person-interview", jobId: JOB.id, status: "interview", tab: "interview", decided: true, chip: { label: "Interview", tone: "jade" } };
+    const interviewRow = { ...twice, id: "app-same-person-interview", jobId: JOB.id, status: "interview", tab: "interview", decided: true, chip: { label: "Interview", tone: "good" } };
     const withInterview = B.markBlocked([...rows.filter((r) => r.id !== twice.id), closedTwice, interviewRow], B.blockedIndex([{ candidate_id: twice.candidateId }]));
     const stays = withInterview.find((r) => r.id === interviewRow.id);
     check("…but their interview on another job stays on Interview, chip Blocked", stays.tab === "interview" && stays.blocked === true && stays.chip?.label === "Blocked");

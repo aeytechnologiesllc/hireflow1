@@ -118,7 +118,7 @@ console.log("\nViewed");
     row("opened"),
     row("unopened"),
     row("opened-then-they-moved", { lastActiveAt: "2026-10-08T13:00:00Z" }),
-    row("interview", { status: "interview", tab: "interview", chip: { label: "Interview", tone: "jade" } }),
+    row("interview", { status: "interview", tab: "interview", chip: { label: "Interview", tone: "good" } }),
     row("part-way", { tab: "part-way", chip: null }),
   ];
   const views = new Map([["opened", "2026-10-08T12:00:00Z"], ["opened-then-they-moved", "2026-10-08T12:00:00Z"], ["interview", "2026-10-08T12:00:00Z"], ["part-way", "2026-10-08T12:00:00Z"]]);

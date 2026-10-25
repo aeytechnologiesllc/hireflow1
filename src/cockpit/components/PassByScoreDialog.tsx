@@ -175,7 +175,7 @@ export function PassByScoreDialog({
                 const cut = Math.min(1, Math.max(0, (plan.under - from) / 10));
                 const height = n === 0 ? 3 : Math.max(8, Math.round((n / tallest) * 76));
                 return (
-                  <div key={i} className="relative flex-1 overflow-hidden rounded-t-[5px]" style={{ height, background: n === 0 ? "var(--line-soft)" : "var(--jade-soft)" }}>
+                  <div key={i} className="relative flex-1 overflow-hidden rounded-t-[5px]" style={{ height, background: n === 0 ? "var(--line-soft)" : "var(--action-soft)" }}>
                     {n > 0 && cut > 0 && <div className="absolute inset-y-0 left-0" style={{ width: `${cut * 100}%`, background: "var(--crit)", opacity: 0.78 }} />}
                     {n > 0 && (
                       <span className="absolute inset-x-0 top-0.5 text-center text-[10px] font-semibold tabular-nums" style={{ color: "var(--hf-text)" }}>
@@ -201,7 +201,7 @@ export function PassByScoreDialog({
             value={line}
             disabled={busy}
             onChange={(e) => moveTo(Number(e.target.value))}
-            className="mt-1 w-full accent-[var(--jade)]"
+            className="mt-1 w-full accent-[var(--action)]"
             aria-label="The score line"
             data-pass-slider
           />

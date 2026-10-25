@@ -15,7 +15,7 @@ import { usePageHead } from "@/components/seo/usePageHead";
  */
 function Block({ block }: { block: LegalBlock }) {
   if (typeof block === "string") return <p className="mt-3 text-[16px] leading-[1.65] text-[#33413c]">{block}</p>;
-  if ("sub" in block) return <h3 className="mt-6 text-[15px] font-semibold text-[#17231f]">{block.sub}</h3>;
+  if ("sub" in block) return <h3 className="mt-6 text-[15px] font-semibold text-[#17150F]">{block.sub}</h3>;
   return (
     <ul className="mt-3 space-y-2 pl-5 text-[16px] leading-[1.6] text-[#33413c]" style={{ listStyleType: "disc" }}>
       {block.list.map((item) => (
@@ -32,18 +32,18 @@ export function LegalPage({ document: doc, other }: { document: LegalDocument; o
   usePageHead({ title: doc.title, path: pathname, description: doc.intro[0] });
   const navigate = useNavigate();
   return (
-    <div className="min-h-screen bg-[#faf8f3] text-[#17231f]" data-legal-page>
+    <div className="min-h-screen bg-[#faf8f3] text-[#17150F]" data-legal-page>
       <div className="mx-auto w-full max-w-[720px] px-5 pb-20 pt-6 sm:px-8 sm:pt-10">
         <div className="flex items-center justify-between gap-3 text-[14px]">
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 rounded-md py-1 font-medium text-[#0f6b55] hover:underline"
+            className="inline-flex items-center gap-1.5 rounded-md py-1 font-medium text-[#17150F] hover:underline"
             onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/"))}
           >
             <ArrowLeft className="h-4 w-4" aria-hidden />
             Back
           </button>
-          <Link to={other.to} className="font-medium text-[#0f6b55] hover:underline">
+          <Link to={other.to} className="font-medium text-[#17150F] underline underline-offset-2 hover:decoration-2">
             {other.label}
           </Link>
         </div>
@@ -63,7 +63,7 @@ export function LegalPage({ document: doc, other }: { document: LegalDocument; o
           <ol className="grid gap-x-6 gap-y-1.5 text-[14.5px] sm:grid-cols-2">
             {doc.sections.map((section, i) => (
               <li key={section.id}>
-                <a href={`#${section.id}`} className="text-[#0f6b55] hover:underline">
+                <a href={`#${section.id}`} className="text-[#17150F] underline underline-offset-2 hover:decoration-2">
                   {i + 1}. {section.title}
                 </a>
               </li>

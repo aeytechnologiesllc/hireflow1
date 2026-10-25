@@ -735,7 +735,7 @@ Duration: ${formatTime(elapsedSeconds)}
         <Card className="bg-card border-border max-w-md w-full">
           <CardContent className="p-8 text-center space-y-6">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-              <Clock className="h-8 w-8 text-[var(--jade-bright)]" />
+              <Clock className="h-8 w-8 text-[var(--action-bright)]" />
             </div>
 
             <div className="space-y-2">
@@ -814,15 +814,15 @@ Duration: ${formatTime(elapsedSeconds)}
           {/* Arrival essentials — folded to three short glyph-led lines, not a bullet wall */}
           <div className="ck-reveal grid gap-3 rounded-xl bg-muted/30 p-5 sm:grid-cols-3 sm:gap-4">
             <div className="flex items-start gap-2.5 text-sm text-muted-foreground">
-              <GlyphClock size={18} className="mt-0.5 shrink-0 text-[var(--jade-bright)]" />
+              <GlyphClock size={18} className="mt-0.5 shrink-0 text-[var(--action-bright)]" />
               <span>Find a quiet place, minimal background noise</span>
             </div>
             <div className="flex items-start gap-2.5 text-sm text-muted-foreground">
-              <GlyphLetter size={18} className="mt-0.5 shrink-0 text-[var(--jade-bright)]" />
+              <GlyphLetter size={18} className="mt-0.5 shrink-0 text-[var(--action-bright)]" />
               <span>It's recorded and shared with the hiring team for this role</span>
             </div>
             <div className="flex items-start gap-2.5 text-sm text-muted-foreground">
-              <GlyphCheckSeal size={18} className="mt-0.5 shrink-0 text-[var(--jade-bright)]" />
+              <GlyphCheckSeal size={18} className="mt-0.5 shrink-0 text-[var(--action-bright)]" />
               <span>End any time — just say you'd like to end the interview</span>
             </div>
           </div>
@@ -839,9 +839,9 @@ Duration: ${formatTime(elapsedSeconds)}
             {/* the identity mark — carried through both held steps */}
             <div
               className="mx-auto flex h-16 w-16 items-center justify-center rounded-full"
-              style={{ background: "color-mix(in srgb, var(--jade-bright) 16%, transparent)" }}
+              style={{ background: "color-mix(in srgb, var(--action-bright) 16%, transparent)" }}
             >
-              <GlyphVoice size={30} className="text-[var(--jade-bright)]" />
+              <GlyphVoice size={30} className="text-[var(--action-bright)]" />
             </div>
 
             <AnimatePresence mode="wait">
@@ -898,7 +898,7 @@ Duration: ${formatTime(elapsedSeconds)}
                         />
                         <div className="absolute left-3 top-3">
                           <Badge className="gap-1.5 border-transparent bg-[var(--slab)] text-[var(--slab-ink)]">
-                            <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--jade-bright)]" />
+                            <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--slab-action)]" />
                             Camera ready
                           </Badge>
                         </div>
@@ -910,7 +910,7 @@ Duration: ${formatTime(elapsedSeconds)}
                           {micLevels.map((level, i) => (
                             <motion.div
                               key={i}
-                              className={`w-1.5 rounded-full ${level > 15 ? 'bg-[var(--jade-bright)]' : 'bg-muted-foreground/30'}`}
+                              className={`w-1.5 rounded-full ${level > 15 ? 'bg-[var(--slab-action)]' : 'bg-muted-foreground/30'}`}
                               animate={{ height: Math.max(4, level / 4 + 4) }}
                               transition={{ duration: 0.05 }}
                             />
@@ -1419,7 +1419,7 @@ Duration: ${formatTime(elapsedSeconds)}
                           <AlertTriangle className="h-10 w-10" style={{ color: "var(--hf-gold)" }} />
                         ) : (
                           <span className="flex h-full w-full items-center justify-center rounded-full bg-gradient-to-r from-primary to-accent">
-                            {/* theme-exempt: on the jade fill, not the page */}
+                            {/* theme-exempt: on the ink fill, not the page */}
                             <CheckCircle className="h-10 w-10 text-white" />
                           </span>
                         )}

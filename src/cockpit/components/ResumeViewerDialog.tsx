@@ -5,7 +5,7 @@ import { isImageResumeUrl, isPdfResumeUrl } from "@/utils/resumeFiles";
 import { resolveResumeUrl } from "@/utils/resumeSignedUrl";
 
 /**
- * ResumeViewerDialog — a premium, theme-locked (Deep Jade) inline viewer for a
+ * ResumeViewerDialog — a premium, theme-locked (ink and ivory) inline viewer for a
  * candidate's resume. Opens IN the cockpit (never navigates to a new tab or an
  * external app). Images get pinch-free zoom controls; PDFs render inline via the
  * browser's own viewer (FitH). An optional one-line Ava read sits at the bottom
@@ -96,7 +96,7 @@ export function ResumeViewerDialog({ open, url, candidateName, avaRead, onClose 
         {/* header */}
         <div className="flex items-center justify-between gap-3 border-b px-4 py-3" style={{ borderColor: "var(--hf-border-strong)" }}>
           <div className="flex min-w-0 items-center gap-2.5">
-            <FileText className="h-[18px] w-[18px] shrink-0" style={{ color: "var(--hf-green)" }} />
+            <FileText className="h-[18px] w-[18px] shrink-0" style={{ color: "var(--hf-action)" }} />
             <div className="min-w-0">
               <div className="truncate text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>Resume</div>
               <div className="truncate text-[12px]" style={{ color: "var(--hf-text-muted)" }}>{candidateName}</div>

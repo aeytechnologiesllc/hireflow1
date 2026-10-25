@@ -104,7 +104,7 @@ export function InterviewSurface({
 
 /* ── The paper ─────────────────────────────────────────────────────────── */
 
-const PAPER = ["var(--jade)", "var(--brass)", "var(--brass-line)", "var(--jade-soft-fg)", "var(--ink)"];
+const PAPER = ["var(--action)", "var(--brass)", "var(--brass-line)", "var(--action-soft-fg)", "var(--ink)"];
 
 interface Piece {
   style: CSSProperties;
@@ -272,7 +272,7 @@ export function InterviewSelectedMoment({
             type="button"
             onClick={onAction}
             data-testid="interview-moment-action"
-            className="hf-pill hf-pill--jade w-full sm:w-auto"
+            className="hf-pill hf-pill--action w-full sm:w-auto"
             style={{ minHeight: 54, fontSize: 16, paddingInline: 30 }}
           >
             {action}

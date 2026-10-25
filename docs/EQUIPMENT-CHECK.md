@@ -286,7 +286,7 @@ the staff record says "Timed by our server." only beside the marker.
 
 ## 6. What staff see
 
-The record list row: **`↓ 28 · ↑ 9 Mbps`**, verdict "Meets the bar" (jade)
+The record list row: **`↓ 28 · ↑ 9 Mbps`**, verdict "Meets the bar" (the action colour)
 or "Below the bar: upload 1.2 Mbps" (amber). The row's numbers are whole
 Mbps rounded DOWN (28.4 reads 28), and a figure under its bar, or under
 1 Mbps, keeps one decimal rounded down (2.6 against 3 reads "↑ 2.6", never

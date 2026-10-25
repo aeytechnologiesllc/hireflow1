@@ -68,7 +68,7 @@ const BRASS_RULE = (
 );
 
 // Considered field styling — filled var(--ground), var(--line) borders, a
-// gold focus ring instead of the app-wide jade one.
+// gold focus ring instead of the app-wide ink one.
 const FIELD_CLASS = "border-[var(--line)] bg-[var(--ground)] focus-visible:ring-[var(--brass-line)]";
 
 interface ApplicationQuestion {

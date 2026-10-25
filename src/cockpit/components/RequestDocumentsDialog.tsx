@@ -196,11 +196,11 @@ export function RequestDocumentsDialog({ open, applicationId, onClose }: { open:
                         key={kind.key}
                         htmlFor={`ck-request-${kind.key}`}
                         className={`flex items-start gap-3 rounded-[12px] border px-3 py-2.5 transition-colors ${asked ? "cursor-default opacity-60" : "cursor-pointer"}`}
-                        style={{ borderColor: on ? "var(--jade)" : "var(--line)", background: on ? "var(--jade-soft)" : "transparent" }}
+                        style={{ borderColor: on ? "var(--action)" : "var(--line)", background: on ? "var(--action-soft)" : "transparent" }}
                         data-request-kind={kind.key}
                         data-already-asked={asked ? "" : undefined}
                       >
-                        <input id={`ck-request-${kind.key}`} type="checkbox" className="mt-[3px] h-4 w-4 shrink-0 accent-[var(--jade)]" checked={on} disabled={busy || asked} onChange={() => toggle(kind.key)} />
+                        <input id={`ck-request-${kind.key}`} type="checkbox" className="mt-[3px] h-4 w-4 shrink-0 accent-[var(--action)]" checked={on} disabled={busy || asked} onChange={() => toggle(kind.key)} />
                         <span className="min-w-0">
                           <span className="block text-[14px] font-medium" style={{ color: "var(--hf-text)" }}>
                             {kind.label}
@@ -212,7 +212,7 @@ export function RequestDocumentsDialog({ open, applicationId, onClose }: { open:
                             {kind.ask}
                           </span>
                           {kind.idPaper && (
-                            <span className="mt-1 block text-[11.5px] leading-snug" style={{ color: "var(--jade-soft-fg)" }}>
+                            <span className="mt-1 block text-[11.5px] leading-snug" style={{ color: "var(--action-soft-fg)" }}>
                               Deleted {ID_DELETE_HOURS_AFTER_OPENED} hours after you first open it.
                             </span>
                           )}
@@ -220,7 +220,7 @@ export function RequestDocumentsDialog({ open, applicationId, onClose }: { open:
                       </label>
                     );
                   })}
-                  <div className="rounded-[12px] border px-3 py-2.5" style={{ borderColor: other.trim() ? "var(--jade)" : "var(--line)" }}>
+                  <div className="rounded-[12px] border px-3 py-2.5" style={{ borderColor: other.trim() ? "var(--action)" : "var(--line)" }}>
                     <label htmlFor="ck-request-other" className="block text-[14px] font-medium" style={{ color: "var(--hf-text)" }}>
                       Something else
                       <span className="ml-2 text-[11.5px] font-normal" style={{ color: "var(--ink-3)" }}>optional, a photo or PDF</span>

@@ -24,7 +24,7 @@ const candidateMessages = [
 /**
  * The wait between sign-in and the app. One brand moment for both audiences —
  * BrandLoader draws the rising line; only the cycling copy differs. The old
- * version was a WebGL orb on hardcoded pre-design jade for employers and a
+ * version was a WebGL orb on hardcoded pre-design green for employers and a
  * particle field for candidates, neither of which followed the theme.
  *
  * Rendered via a portal to document.body: this screen gets mounted from many

@@ -128,7 +128,7 @@ function chipStyle(tone: ApplicantChip["tone"]) {
     ? { color: "var(--amber-fg)", background: "var(--amber-bg)", borderColor: "var(--brass-line)" }
     : tone === "crit"
       ? { color: "var(--crit)", background: "var(--crit-bg)" }
-      : { color: "var(--jade-soft-fg)", background: "var(--jade-soft)" };
+      : { color: "var(--action-soft-fg)", background: "var(--action-soft)" };
 }
 
 /** The element that scrolls this page — the cockpit's <main class="ck-scroll">
@@ -712,7 +712,7 @@ function CandidateProfile({
   // keeps its own list only before that.
   const riskFlags = analyzed ? [] : (record?.riskFlags ?? c.riskFlags).filter((f) => f !== c.risk.note);
   const riskIconColor =
-    c.risk.level === "High" || c.risk.level === "Medium" ? "var(--amber-fg)" : c.risk.level === "Low" ? "var(--hf-green)" : "var(--hf-text-muted)";
+    c.risk.level === "High" || c.risk.level === "Medium" ? "var(--amber-fg)" : c.risk.level === "Low" ? "var(--hf-action)" : "var(--hf-text-muted)";
 
   const doAdvance = async () => {
     // Read the target before advancing — status flips the moment the
@@ -909,7 +909,7 @@ function CandidateProfile({
           className="flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-[10px] px-3 py-2.5 text-[14px] font-semibold"
           style={
             isHired
-              ? { background: "color-mix(in srgb, var(--hf-green) 16%, transparent)", color: "var(--hf-text-soft)", border: "1px solid color-mix(in srgb, var(--hf-green) 30%, transparent)" }
+              ? { background: "color-mix(in srgb, var(--hf-action) 16%, transparent)", color: "var(--hf-text-soft)", border: "1px solid color-mix(in srgb, var(--hf-action) 30%, transparent)" }
               : { background: "color-mix(in srgb, var(--hf-danger) 12%, transparent)", color: "var(--hf-danger)", border: "1px solid color-mix(in srgb, var(--hf-danger) 25%, transparent)" }
           }
         >
@@ -1179,7 +1179,7 @@ function CandidateProfile({
                 const Icon = STRENGTH_ICONS[i % STRENGTH_ICONS.length];
                 return (
                   <li key={s} className="flex items-start gap-2.5 py-1.5 text-[13.5px] leading-[1.45]" style={{ color: "var(--ink-2)" }}>
-                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--hf-green-soft)", color: "var(--hf-green)" }}>
+                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--hf-action-soft)", color: "var(--hf-action)" }}>
                       <Icon className="h-3.5 w-3.5" />
                     </span>
                     <span className="min-w-0 flex-1">{s}</span>
@@ -1393,7 +1393,7 @@ function CandidateProfile({
               </div>
             )}
           </div>
-          {/* The score once, in the list's colours: jade at 70 and up, brass
+          {/* The score once, in the list's colours: ink at 70 and up, brass
               50–69, ink under. Unscored is "—", not "0" — a 0 would be a claim. */}
           <div className="text-right">
             <div className="ck-num" style={{ fontSize: 38, fontWeight: 600, lineHeight: 0.85, color: scoreColor(score.band) }}>
@@ -1483,7 +1483,7 @@ function CandidateProfile({
                 const Icon = STRENGTH_ICONS[i % STRENGTH_ICONS.length];
                 return (
                   <div key={s} className="flex items-start gap-2.5 py-1.5 text-[13px]" style={{ color: "var(--hf-text)" }}>
-                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--hf-green-soft)", color: "var(--hf-green)" }}>
+                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full" style={{ background: "var(--hf-action-soft)", color: "var(--hf-action)" }}>
                       <Icon className="h-3.5 w-3.5" />
                     </span>
                     <span className="flex-1">{s}</span>

@@ -11,7 +11,7 @@
  * the same 0–1 level the orb consumed, driven on rAF and written straight to
  * style so the pulse never re-renders React.
  *
- * Colours are the existing jade/brass tokens; nothing new is introduced.
+ * Colours are the existing ink/brass tokens; nothing new is introduced.
  */
 import { useEffect, useRef } from "react";
 import AvaSeal from "@/components/ava/AvaSeal";
@@ -79,7 +79,7 @@ export function AvaVoicePulse({ size = 96, getIntensity, active = true, classNam
           position: "absolute",
           inset: "-22%",
           borderRadius: "50%",
-          background: "radial-gradient(circle, var(--jade) 0%, transparent 68%)",
+          background: "radial-gradient(circle, var(--action) 0%, transparent 68%)",
           opacity: 0.18,
           pointerEvents: "none",
           willChange: "transform, opacity",

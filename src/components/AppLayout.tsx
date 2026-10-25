@@ -391,7 +391,7 @@ export default function AppLayout() {
       <Suspense fallback={null}>
         <PushPrompt />
       </Suspense>
-      {/* Deep Jade Owner Cockpit shell (desktop sidebar + mobile bottom tabs) */}
+      {/* Owner cockpit shell (desktop sidebar + mobile bottom tabs) */}
       <CockpitShell>
         {/* The frame draws at once; a page still arriving fills in beside it
             (it used to be a full-screen loader until each page's code came). */}

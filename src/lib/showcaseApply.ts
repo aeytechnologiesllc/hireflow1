@@ -87,7 +87,7 @@ function initialsOf(name: string): string {
 }
 
 function avatarColorOf(name: string): string {
-  const palette = ["#b8d4c8", "#c9e4de", "#d9d4ec", "#e8d5b7", "#c5dff8", "#f0d9c4"];
+  const palette = ["#d8cfbd", "#e3dccb", "#d9d4ec", "#e8d5b7", "#c5dff8", "#f0d9c4"];
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   return palette[Math.abs(hash) % palette.length];

@@ -56,13 +56,13 @@ export function SelectMark({
         e.stopPropagation();
         onToggle(e);
       }}
-      className="grid shrink-0 place-items-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--jade)]"
+      className="grid shrink-0 place-items-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--action)]"
       style={{
         width: size,
         height: size,
         // Opaque, so the avatar under it does not show through.
-        background: quiet ? "transparent" : on ? "var(--jade-soft)" : "var(--surface-2)",
-        border: quiet ? "none" : `1px solid ${on ? "var(--jade)" : "var(--line)"}`,
+        background: quiet ? "transparent" : on ? "var(--action-soft)" : "var(--surface-2)",
+        border: quiet ? "none" : `1px solid ${on ? "var(--action)" : "var(--line)"}`,
       }}
     >
       <span
@@ -71,8 +71,8 @@ export function SelectMark({
         style={{
           width: box,
           height: box,
-          background: on ? "var(--jade)" : "var(--hf-surface)",
-          border: `1.5px solid ${on ? "var(--jade)" : "color-mix(in srgb, var(--ink-3) 85%, transparent)"}`,
+          background: on ? "var(--action)" : "var(--hf-surface)",
+          border: `1.5px solid ${on ? "var(--action)" : "color-mix(in srgb, var(--ink-3) 85%, transparent)"}`,
           color: "var(--ground)",
         }}
       >
@@ -308,11 +308,11 @@ export function ApplicantRowFrame({
       ? [
           "[&:hover>a]:bg-[color-mix(in_srgb,var(--ink)_3.5%,transparent)] [&:hover>a]:before:opacity-100",
           menu ? "[&_[data-row-chevron]]:invisible" : "",
-          selected ? "[&>a]:!bg-[color-mix(in_srgb,var(--jade)_9%,transparent)] [&>a]:before:!opacity-100" : "",
+          selected ? "[&>a]:!bg-[color-mix(in_srgb,var(--action)_9%,transparent)] [&>a]:before:!opacity-100" : "",
         ].join(" ")
       : [
           menu || select ? "[&_[data-card-foot]]:pr-10" : "",
-          selected ? "[&>a]:!border-[var(--jade)] [&>a]:shadow-[0_0_0_1px_var(--jade)]" : "",
+          selected ? "[&>a]:!border-[var(--action)] [&>a]:shadow-[0_0_0_1px_var(--action)]" : "",
         ].join(" "),
   ].join(" ");
 

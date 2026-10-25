@@ -181,7 +181,7 @@ export function ActionsMenu({
         title="More"
         className={[
           "grid shrink-0 place-items-center rounded-full transition-colors",
-          "hover:bg-[color-mix(in_srgb,var(--ink)_8%,transparent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--jade)]",
+          "hover:bg-[color-mix(in_srgb,var(--ink)_8%,transparent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--action)]",
           open ? "bg-[color-mix(in_srgb,var(--ink)_8%,transparent)]" : "",
           className,
         ].join(" ")}

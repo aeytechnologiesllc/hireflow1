@@ -103,8 +103,8 @@ function journeyForCard(application: ApplicationWithJob) {
 type ChipTone = { label: string; bg: string; fg: string };
 
 function getStatusChip(application: ApplicationWithJob, displayState: ApplicationDisplayState): ChipTone | null {
-  if (displayState.isHired) return { label: "Hired", bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)" };
-  if (application.status === "offered") return { label: "Offer extended", bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)" };
+  if (displayState.isHired) return { label: "Hired", bg: "var(--action-soft)", fg: "var(--action-soft-fg)" };
+  if (application.status === "offered") return { label: "Offer extended", bg: "var(--action-soft)", fg: "var(--action-soft-fg)" };
   if (displayState.isRejected) return { label: "Not selected", bg: "var(--surface-2)", fg: "var(--ink-2)" };
 
   // Interview chips first, and NOT gated on isWaitingPhase. The scheduling
@@ -112,11 +112,11 @@ function getStatusChip(application: ApplicationWithJob, displayState: Applicatio
   // asked to pick a time could fall past this whole branch and out to a bare
   // "In review" chip — the exact opposite of what they were emailed.
   if (displayState.interviewNeedsTimePick) return { label: "Pick your time", bg: "var(--amber-bg)", fg: "var(--amber-fg)" };
-  if (displayState.hasScheduledInterview && displayState.interviewConfirmed) return { label: "Interview confirmed", bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)" };
+  if (displayState.hasScheduledInterview && displayState.interviewConfirmed) return { label: "Interview confirmed", bg: "var(--action-soft)", fg: "var(--action-soft-fg)" };
   if (displayState.hasScheduledInterview && displayState.interviewNeedsConfirmation) return { label: "Needs your response", bg: "var(--amber-bg)", fg: "var(--amber-fg)" };
 
   if (displayState.isWaitingPhase) {
-    if (displayState.interviewConfirmed) return { label: "Interview confirmed", bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)" };
+    if (displayState.interviewConfirmed) return { label: "Interview confirmed", bg: "var(--action-soft)", fg: "var(--action-soft-fg)" };
     if (displayState.interviewNeedsConfirmation) return { label: "Needs your response", bg: "var(--amber-bg)", fg: "var(--amber-fg)" };
     if (displayState.interviewRescheduleRequested) return { label: "Reschedule requested", bg: "var(--amber-bg)", fg: "var(--amber-fg)" };
     if (application.status === "interview") return { label: "Interview stage", bg: "var(--amber-bg)", fg: "var(--amber-fg)" };
@@ -244,8 +244,8 @@ function InterviewHero({
           }}
           data-testid="interview-open"
           // A pill, like every button on the interview screens (no dark slabs:
-          // src/styles/motion.css, "Ticket"). Solid jade when it is theirs to do.
-          className={`hf-pill ${words.theirMove ? "hf-pill--jade" : "hf-pill--tonal"} hf-pill--lg w-full shrink-0 sm:w-auto`}
+          // src/styles/motion.css, "Ticket"). Solid ink when it is theirs to do.
+          className={`hf-pill ${words.theirMove ? "hf-pill--action" : "hf-pill--tonal"} hf-pill--lg w-full shrink-0 sm:w-auto`}
           style={words.theirMove ? { paddingInline: 28, fontSize: 15.5 } : undefined}
         >
           {words.action}
@@ -266,7 +266,7 @@ function JourneyProgress({ index, total, title }: { index: number; total: number
       <div className="mt-1.5 h-[5px] w-full overflow-hidden rounded-full" style={{ background: "var(--track)" }}>
         <div
           className="h-full rounded-full transition-[width] duration-500 ease-out"
-          style={{ width: `${pct}%`, background: "var(--jade)" }}
+          style={{ width: `${pct}%`, background: "var(--action)" }}
         />
       </div>
     </div>
@@ -510,7 +510,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
             onClick={handleActionClick}
             data-testid="application-action"
             className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[10px] px-5 text-sm font-semibold transition-[filter] hover:brightness-110 active:scale-[0.98]"
-            style={{ background: "var(--jade)", color: "var(--btn-fg)" }}
+            style={{ background: "var(--action)", color: "var(--btn-fg)" }}
           >
             {ActionIcon && <ActionIcon className="h-4 w-4" />}
             {displayState.actionLabel}
@@ -545,13 +545,13 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
   );
 }
 
-function StatTile({ label, value, tone, index }: { label: string; value: number; tone?: "jade"; index: number }) {
+function StatTile({ label, value, tone, index }: { label: string; value: number; tone?: "good"; index: number }) {
   return (
     <div className="ck-card ck-reveal px-4 py-3.5" style={{ ["--ck-i" as string]: index }}>
       <div className="text-[10px] font-bold uppercase tracking-[0.1em]" style={{ color: "var(--ink-3)" }}>
         {label}
       </div>
-      <div className="ck-num mt-1.5 text-[22px] font-semibold leading-none" style={{ color: tone === "jade" ? "var(--jade)" : "var(--ink)" }}>
+      <div className="ck-num mt-1.5 text-[22px] font-semibold leading-none" style={{ color: tone === "good" ? "var(--action)" : "var(--ink)" }}>
         {value}
       </div>
     </div>
@@ -783,7 +783,7 @@ export default function Applications() {
             <StatTile index={0} label="Applied" value={stats.total} />
             <StatTile index={1} label="Awaiting review" value={stats.pending} />
             <StatTile index={2} label="In progress" value={stats.active} />
-            <StatTile index={3} label="Offers &amp; hires" value={stats.success} tone="jade" />
+            <StatTile index={3} label="Offers &amp; hires" value={stats.success} tone="good" />
           </div>
 
           <div className="relative max-w-md">

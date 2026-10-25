@@ -46,7 +46,7 @@ export default function CandidateOnboardingWizard({ onComplete }: CandidateOnboa
   const handleComplete = () => {
     if (completing) return;
     setCompleting(true);
-    const colors = ["#0F6B4F", "#3FCE97", "#C9A45E", "#DCEDE3"];
+    const colors = ["#17150F", "#8C8473", "#C9A45E", "#E9E3D5"];
     confetti({ particleCount: 70, spread: 65, origin: { y: 0.55, x: 0.3 }, colors });
     setTimeout(() => confetti({ particleCount: 70, spread: 65, origin: { y: 0.55, x: 0.7 }, colors }), 140);
     setTimeout(() => confetti({ particleCount: 90, spread: 100, origin: { y: 0.45 }, colors }), 280);
@@ -62,7 +62,7 @@ export default function CandidateOnboardingWizard({ onComplete }: CandidateOnboa
       <div className="pointer-events-none fixed inset-0 -z-10" aria-hidden="true">
         <div
           className="absolute -right-24 -top-24 h-[320px] w-[320px] rounded-full blur-[110px]"
-          style={{ background: "var(--jade-soft)", opacity: 0.4 }}
+          style={{ background: "var(--action-soft)", opacity: 0.4 }}
         />
         <div
           className="absolute -left-20 bottom-0 h-[260px] w-[260px] rounded-full blur-[100px]"
@@ -95,9 +95,9 @@ export default function CandidateOnboardingWizard({ onComplete }: CandidateOnboa
             {/* mark */}
             <div
               className="mx-auto flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-full"
-              style={{ background: "var(--jade-soft)" }}
+              style={{ background: "var(--action-soft)" }}
             >
-              <GlyphJourney size={28} style={{ color: "var(--jade-soft-fg)" }} />
+              <GlyphJourney size={28} style={{ color: "var(--action-soft-fg)" }} />
             </div>
 
             {/* heading moment */}

@@ -25,8 +25,8 @@ const sizeConfig = {
   xl: { container: "w-56 h-56", barHeight: 96, barWidth: 8, gap: 6 },
 };
 
-// Wax-seal language: the disc is always jade (the seal itself), and each
-// expression only changes the brass/jade balance of the ring glow and bars —
+// Wax-seal language: the disc is always ink (the seal itself), and each
+// expression only changes the brass/ink balance of the ring glow and bars —
 // never a hue swap. This replaces the old orb, which shifted through
 // blue/amber/emerald/teal per state.
 const expressionColors: Record<AvaExpression, { primary: string; glow: string; bg: string }> = {

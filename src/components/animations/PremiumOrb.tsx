@@ -12,14 +12,14 @@ interface PremiumOrbProps {
 
 /**
  * The orb is retired. What renders here now is the wax-seal language —
- * a pressed disc, not a glowing sphere — using the same --seal-* / jade /
+ * a pressed disc, not a glowing sphere — using the same --seal-* / ink /
  * brass tokens as AvaSeal, recoloured per mode instead of per gradient.
  */
 const modeConfig = {
   success: {
     disc: "var(--seal-disc)",
     ring: "var(--seal-ring)",
-    glow: "var(--jade)",
+    glow: "var(--action)",
     icon: Check,
     pulseIntensity: 1.06,
   },
@@ -33,7 +33,7 @@ const modeConfig = {
   processing: {
     disc: "var(--seal-disc)",
     ring: "var(--seal-ring)",
-    glow: "var(--jade)",
+    glow: "var(--action)",
     icon: Loader2,
     pulseIntensity: 1.03,
   },

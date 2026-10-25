@@ -6,7 +6,7 @@
  * (briefly, and wrongly) a stripped third version behind the create-job flow
  * that drew bare numbers instead of gems. This is the single presentational
  * component all the React callers now share — same `ck-rail-*` rules in
- * cockpit.css, same jade → mint → teal → gold spectrum from lib/gemRail.ts,
+ * cockpit.css, same ink-to-brass gem spectrum from lib/gemRail.ts,
  * same traveler.
  *
  * It is deliberately dumb: it knows nothing about candidates, jobs or steps. A
@@ -434,7 +434,7 @@ export function GemRail({
       <div className="ck-rail-band" ref={zoneRef}>
         <div className="ck-rail-track" ref={trackRef} aria-hidden="true" />
         {calm ? (
-          // The line, already whole and in its own colours (jade at the start,
+          // The line, already whole and in its own colours (ink at the start,
           // gold at the decision); what is drawn is how much of it shows.
           <div className="ck-rail-fill-clip" ref={fillRef} aria-hidden="true">
             <div className="ck-rail-fill">

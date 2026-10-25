@@ -71,7 +71,7 @@ function AccountChip({ compact }: { compact?: boolean }) {
       >
         <span
           className="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold"
-          style={{ background: "linear-gradient(180deg, var(--hf-green-border), var(--hf-green-soft))", color: "var(--hf-text)" }}
+          style={{ background: "linear-gradient(180deg, var(--hf-action-border), var(--hf-action-soft))", color: "var(--hf-text)" }}
         >
           {account.initials}
         </span>
@@ -136,13 +136,13 @@ function Sidebar() {
                 // Hover and focus live in classes, not inline styles — an inline
                 // background would beat any :hover rule we could write.
                 "hover:bg-[var(--hf-surface-raised)] hover:text-[var(--hf-text)]",
-                "focus-visible:[outline:2px_solid_var(--jade)] focus-visible:[outline-offset:-2px]",
+                "focus-visible:[outline:2px_solid_var(--action)] focus-visible:[outline-offset:-2px]",
                 active
                   ? "bg-[var(--hf-surface-raised)] font-semibold text-[var(--hf-text)]"
                   : "text-[var(--hf-text-soft)]",
               )}
-              // Jade marks where you are. Brass is money, and never the rail.
-              style={active ? { boxShadow: "inset 2px 0 0 var(--jade), var(--hf-shadow-soft)" } : undefined}
+              // Ink marks where you are. Brass is money, and never the rail.
+              style={active ? { boxShadow: "inset 2px 0 0 var(--action), var(--hf-shadow-soft)" } : undefined}
             >
               <NavIcon name={item.icon} className="h-[18px] w-[18px] shrink-0" />
               <span className="hidden min-[1121px]:inline">{item.label}</span>
@@ -150,7 +150,7 @@ function Sidebar() {
                 <span
                   aria-label={`${unreadMessages} unread`}
                   className="ml-auto flex items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums"
-                  style={{ minWidth: 16, height: 16, background: "var(--jade)", color: "var(--btn-fg)" }}
+                  style={{ minWidth: 16, height: 16, background: "var(--action)", color: "var(--btn-fg)" }}
                 >
                   {unreadMessages > 9 ? "9+" : unreadMessages}
                 </span>
@@ -160,7 +160,7 @@ function Sidebar() {
                   aria-label={`${interviewsToday} today`}
                   title={`${interviewsToday} interview${interviewsToday === 1 ? "" : "s"} still to come today`}
                   className="ml-auto flex items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums"
-                  style={{ minWidth: 16, height: 16, background: "var(--jade)", color: "var(--btn-fg)" }}
+                  style={{ minWidth: 16, height: 16, background: "var(--action)", color: "var(--btn-fg)" }}
                   data-interviews-today
                 >
                   {interviewsToday > 9 ? "9+" : interviewsToday}
@@ -192,7 +192,7 @@ function Sidebar() {
               >
                 <span
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[12px] font-bold"
-                  style={{ background: "linear-gradient(180deg, var(--hf-green-border), var(--hf-green-soft))", color: "var(--hf-text)" }}
+                  style={{ background: "linear-gradient(180deg, var(--hf-action-border), var(--hf-action-soft))", color: "var(--hf-text)" }}
                 >
                   {account.initials}
                 </span>
@@ -263,13 +263,13 @@ function NotificationBell({ compact }: { compact?: boolean }) {
       {unread > 0 && (
         <span
           className="absolute -right-1 -top-1 flex items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums"
-          // Jade on --btn-fg, the system's filled-count pair: --crit is for
+          // Ink on --btn-fg, the system's filled-count pair: --crit is for
           // errors and for a candidate passed on, and raw white is not a token.
           // The ring takes the ground the bell actually sits on.
           style={{
             minWidth: 16,
             height: 16,
-            background: "var(--jade)",
+            background: "var(--action)",
             color: "var(--btn-fg)",
             border: `1.5px solid hsl(var(--ck-${compact ? "bg" : "sidebar"}))`,
           }}
@@ -335,11 +335,11 @@ function MobileTabBar() {
             aria-current={active ? "page" : undefined}
             className="relative flex min-w-0 flex-1 flex-col items-center gap-1 py-1"
           >
-            {/* The sidebar's jade rail, rotated onto the tab bar's top edge. */}
+            {/* The sidebar's ink rail, rotated onto the tab bar's top edge. */}
             <span
               aria-hidden
               className="absolute -top-2 h-[2px] w-8 rounded-full"
-              style={{ background: active ? "var(--jade)" : "transparent" }}
+              style={{ background: active ? "var(--action)" : "transparent" }}
             />
             <span className="relative">
               <NavIcon name={tab.icon} className="h-[22px] w-[22px]" style={{ color: active ? "var(--hf-text)" : "var(--hf-text-muted)" }} />
@@ -347,7 +347,7 @@ function MobileTabBar() {
                 <span
                   aria-label={`${unreadMessages} unread`}
                   className="absolute -right-1.5 -top-1.5 flex items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums"
-                  style={{ minWidth: 16, height: 16, background: "var(--jade)", color: "var(--btn-fg)" }}
+                  style={{ minWidth: 16, height: 16, background: "var(--action)", color: "var(--btn-fg)" }}
                 >
                   {unreadMessages > 9 ? "9+" : unreadMessages}
                 </span>
@@ -356,7 +356,7 @@ function MobileTabBar() {
                 <span
                   aria-label={`${interviewsToday} interview${interviewsToday === 1 ? "" : "s"} today`}
                   className="absolute -right-1.5 -top-1.5 flex items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums"
-                  style={{ minWidth: 16, height: 16, background: "var(--jade)", color: "var(--btn-fg)" }}
+                  style={{ minWidth: 16, height: 16, background: "var(--action)", color: "var(--btn-fg)" }}
                   data-interviews-today
                 >
                   {interviewsToday > 9 ? "9+" : interviewsToday}

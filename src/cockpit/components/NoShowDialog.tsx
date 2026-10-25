@@ -77,7 +77,7 @@ export function NoShowDialog({
         </div>
 
         <div className="ck-scroll min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
-          <section className="rounded-[12px] border px-3.5 py-3" style={{ borderColor: words.suggested === "chance" ? "var(--jade)" : "var(--line)" }} data-no-show-option="chance">
+          <section className="rounded-[12px] border px-3.5 py-3" style={{ borderColor: words.suggested === "chance" ? "var(--action)" : "var(--line)" }} data-no-show-option="chance">
             <h3 className="text-[14px] font-semibold" style={{ color: "var(--hf-text)" }}>
               {words.chance.title}
             </h3>

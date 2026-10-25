@@ -31,10 +31,10 @@ const ROW_ICONS = { briefcase: Briefcase, sparkle: Briefcase, calendar: Calendar
 
 function TeamKpi({ k }: { k: ReturnType<typeof useCockpitTeam>["team"]["kpis"][number] }) {
   const Icon = k.icon === "users" ? Users : k.icon === "mail" ? Mail : Eye;
-  const dotColor = k.dot === "jade" ? "var(--hf-green)" : k.dot === "brass" ? "var(--hf-gold)" : "var(--hf-text-muted)";
+  const dotColor = k.dot === "good" ? "var(--hf-action)" : k.dot === "brass" ? "var(--hf-gold)" : "var(--hf-text-muted)";
   return (
     <div className="ck-card flex items-center gap-4 p-4">
-      <span className="flex h-12 w-12 items-center justify-center rounded-full" style={{ border: "1px solid color-mix(in srgb, var(--hf-green-border) 50%, transparent)", color: "var(--hf-green)", background: "color-mix(in srgb, var(--hf-green-soft) 20%, transparent)" }}>
+      <span className="flex h-12 w-12 items-center justify-center rounded-full" style={{ border: "1px solid color-mix(in srgb, var(--hf-action-border) 50%, transparent)", color: "var(--hf-action)", background: "color-mix(in srgb, var(--hf-action-soft) 20%, transparent)" }}>
         <Icon className="h-5 w-5" />
       </span>
       <div>
@@ -95,7 +95,7 @@ export default function CockpitTeam() {
   };
 
   if (isLoading) {
-    return <div className="flex min-h-[40vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--hf-green)] border-t-transparent" /></div>;
+    return <div className="flex min-h-[40vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--hf-action)] border-t-transparent" /></div>;
   }
 
   // A failed load must never read as "it's just you so far" — that is a
@@ -167,10 +167,10 @@ export default function CockpitTeam() {
                   </div>
                   <div className="hidden text-[13px] md:block" style={{ color: "var(--hf-text-soft)" }}>{m.role}</div>
                   <div className="hidden md:block">
-                    <span className="ck-pill" style={m.permissionTone === "jade" ? { color: "var(--hf-text-soft)", background: "color-mix(in srgb, var(--hf-green) 14%, transparent)", borderColor: "color-mix(in srgb, var(--hf-green) 25%, transparent)" } : { color: "var(--hf-text-soft)", background: "color-mix(in srgb, var(--hf-text-muted) 20%, transparent)", borderColor: "color-mix(in srgb, var(--hf-text-muted) 25%, transparent)" }}>{m.permission}</span>
+                    <span className="ck-pill" style={m.permissionTone === "good" ? { color: "var(--hf-text-soft)", background: "color-mix(in srgb, var(--hf-action) 14%, transparent)", borderColor: "color-mix(in srgb, var(--hf-action) 25%, transparent)" } : { color: "var(--hf-text-soft)", background: "color-mix(in srgb, var(--hf-text-muted) 20%, transparent)", borderColor: "color-mix(in srgb, var(--hf-text-muted) 25%, transparent)" }}>{m.permission}</span>
                   </div>
                   <div className="relative flex items-center justify-end gap-2 md:justify-between">
-                    <span className="flex items-center gap-1.5 text-[12.5px]" style={{ color: "var(--hf-text-soft)" }}><span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--hf-green)" }} />Active</span>
+                    <span className="flex items-center gap-1.5 text-[12.5px]" style={{ color: "var(--hf-text-soft)" }}><span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--hf-action)" }} />Active</span>
                     <button style={{ color: "var(--hf-text-muted)" }} onClick={() => setMenuId(menuId === `m-${m.id}` ? null : `m-${m.id}`)}><MoreHorizontal className="h-4 w-4" /></button>
                     {menuId === `m-${m.id}` && (
                       <>
@@ -263,12 +263,12 @@ export default function CockpitTeam() {
                 return (
                   <div key={row.label} className="grid items-center gap-2 py-3" style={{ gridTemplateColumns: "1.6fr repeat(5, 1fr)", borderBottom: "1px solid color-mix(in srgb, var(--hf-surface-raised) 60%, transparent)" }}>
                     <div className="flex items-center gap-2 text-[12.5px]" style={{ color: "var(--hf-text)" }}>
-                      <span className="flex h-7 w-7 items-center justify-center rounded-full" style={{ background: "var(--hf-surface-raised)", color: "var(--hf-green)" }}><Icon className="h-3.5 w-3.5" /></span>
+                      <span className="flex h-7 w-7 items-center justify-center rounded-full" style={{ background: "var(--hf-surface-raised)", color: "var(--hf-action)" }}><Icon className="h-3.5 w-3.5" /></span>
                       {row.label}
                     </div>
                     {row.allow.map((a, i) => (
                       <div key={i} className="flex justify-center">
-                        {a ? <Check className="h-4 w-4" style={{ color: "var(--hf-green)" }} /> : <Minus className="h-4 w-4" style={{ color: "var(--hf-text-muted)" }} />}
+                        {a ? <Check className="h-4 w-4" style={{ color: "var(--hf-action)" }} /> : <Minus className="h-4 w-4" style={{ color: "var(--hf-text-muted)" }} />}
                       </div>
                     ))}
                   </div>
@@ -278,7 +278,7 @@ export default function CockpitTeam() {
           </div>
 
           <div className="ck-inset mt-4 flex items-start gap-2.5 p-3.5">
-            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--hf-green)" }} />
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--hf-action)" }} />
             <p className="text-[12.5px]" style={{ color: "var(--hf-text-soft)" }}>Owner (Full Admin) has every permission and manages team access and the business's settings.</p>
           </div>
         </div>

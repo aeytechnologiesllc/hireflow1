@@ -36,9 +36,9 @@ export function ProfileCompleteness({ profile, compact = false }: ProfileComplet
   const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
   const getColor = () => {
-    if (percentage === 100) return "var(--jade)";
-    if (percentage >= 75) return "var(--jade)";
-    if (percentage >= 50) return "var(--jade-bright)";
+    if (percentage === 100) return "var(--action)";
+    if (percentage >= 75) return "var(--action)";
+    if (percentage >= 50) return "var(--action-bright)";
     if (percentage >= 25) return "var(--brass)";
     return "hsl(var(--destructive))";
   };

@@ -5,7 +5,7 @@
  *
  * 1. Notifications are a warm card (src/components/ui/sonner.tsx, the older
  *    src/components/ui/toast.tsx, src/styles/toasts.css): the raised surface,
- *    a mark at the left, "Undo" as a jade word, a line that runs out once.
+ *    a mark at the left, "Undo" as an action-coloured word, a line that runs out once.
  *    Never the black box with a white button again.
  * 2. Each menu icon has its own motion, once per pointing
  *    (src/cockpit/components/NavIcon.tsx, cockpit.css .ck-navicon), drawn
@@ -41,7 +41,7 @@ check("the old white action slab is gone", !/actionButton:\s*"group-\[\.toast\]:
 check("the old red slab for errors is gone", !/bg-destructive text-destructive-foreground/.test(radix));
 check("every notification wears the warm card's classes", /toast: "hf-toast"/.test(sonner) && /actionButton: "hf-toast-action"/.test(sonner) && /closeButton: "hf-toast-close"/.test(sonner) && /className="toaster group hf-toaster"/.test(sonner));
 check("the card is the raised surface with the app's line and a 16px corner", /\[data-sonner-toast\]\.hf-toast\[data-styled="true"\] \{[^}]*background: var\(--hf-surface-raised\);[^}]*border: 1px solid var\(--line\);[^}]*border-radius: 16px;/.test(css));
-check("\"Undo\" is a jade word on a clear ground", /\[data-button\]\.hf-toast-action,[\s\S]*?\{[^}]*background: transparent;[^}]*color: var\(--jade\);/.test(css));
+check("\"Undo\" is an action-coloured word on a clear ground", /\[data-button\]\.hf-toast-action,[\s\S]*?\{[^}]*background: transparent;[^}]*color: var\(--action\);/.test(css));
 check("a mark for each kind: check, error, warning, info, loading", ["ok", "crit", "warn", "info", "busy"].every((t) => sonner.includes(`<Mark tone="${t}" />`)));
 check("an error's mark is the soft red one", /\.hf-toast-mark\[data-tone="crit"\] \{[^}]*var\(--crit\)/.test(css));
 check("the close button hides when the card has its own action", /\.hf-toast:has\(\[data-button\]\) \[data-close-button\] \{\s*display: none;/.test(css));
@@ -51,7 +51,7 @@ check("the line waits while the pointer is over the notifications", /\[data-expa
 check("the shadow is a token, defined for both themes", ((await read("src/index.css")).match(/--hf-toast-shadow:/g) ?? []).length === 2 && /box-shadow: var\(--hf-toast-shadow\);/.test(css));
 check("no colour in the notification styles outside the app's tokens", !/#[0-9a-fA-F]{3,8}\b|rgba?\(/.test(css.replace(/\/\*[\s\S]*?\*\//g, "")));
 check("the older notifications are the same card, with a mark and the line", /"hf-rtoast group/.test(radix) && /className="hf-toast-mark shrink-0" data-tone=\{tone\}/.test(radixToaster) && /className="hf-toast-time/.test(radixToaster));
-check("the older notifications' action is a jade word too", /text-\[var\(--jade\)\] transition-colors hover:bg-\[var\(--jade-soft\)\]/.test(radix));
+check("the older notifications' action is an action-coloured word too", /text-\[var\(--action\)\] transition-colors hover:bg-\[var\(--action-soft\)\]/.test(radix));
 check("reduce motion: no drawing check and no line", /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*\.hf-toast-time \{\s*display: none;/.test(css));
 
 /* ── 2. The menu's icons ──────────────────────────────────────────────── */

@@ -75,14 +75,14 @@ import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import { claimSuggestedSlug } from "@/lib/jobSlugAvailability";
 
 const KIND_ICON: Record<string, { icon: LucideIcon; accent: ReviewPhaseCard["accent"] }> = {
-  application: { icon: FileText, accent: "jade" },
-  quiz: { icon: Timer, accent: "mint" },
+  application: { icon: FileText, accent: "good" },
+  quiz: { icon: Timer, accent: "goodSoft" },
   // The computer and connection check (docs/EQUIPMENT-CHECK.md), a remote role's first step.
-  equipment_check: { icon: Gauge, accent: "mint" },
+  equipment_check: { icon: Gauge, accent: "goodSoft" },
   simulation: { icon: MessageSquare, accent: "brass" },
   // Written, not spoken: see KIND_LABEL below.
-  voice_interview: { icon: MessageSquareText, accent: "mint" },
-  coding_test: { icon: Code2, accent: "mint" },
+  voice_interview: { icon: MessageSquareText, accent: "goodSoft" },
+  coding_test: { icon: Code2, accent: "goodSoft" },
   shortlist: { icon: Trophy, accent: "brass" },
 };
 
@@ -108,7 +108,7 @@ function flowToReviewCards(flow: JobFlow): ReviewPhaseCard[] {
     duration: "Public",
   };
   const phases = flow.phases.map((p) => {
-    const meta = KIND_ICON[p.kind] ?? { icon: FileText, accent: "jade" as const };
+    const meta = KIND_ICON[p.kind] ?? { icon: FileText, accent: "good" as const };
     return {
       id: p.id,
       kind: KIND_LABEL[p.kind] ?? p.kind.replace(/_/g, " "),
@@ -499,7 +499,7 @@ export default function AvaCreateJob() {
 
   if (createBlockedReason) {
     return (
-      <div className="min-h-screen overflow-hidden" style={{ background: "hsl(var(--ck-bg))", color: "hsl(var(--ck-text))" }}>
+      <div className="min-h-screen overflow-hidden" style={{ background: "hsl(var(--ck-bg))", color: "hsl(var(--foreground))" }}>
         <HeroBackground />
         <main className="relative mx-auto flex min-h-screen w-full max-w-3xl flex-col items-center justify-center px-5 py-10 text-center">
           <div className="rounded-3xl p-8 shadow-2xl" style={{ background: "hsl(var(--ck-surface))", border: "1px solid hsl(var(--border))" }}>
@@ -532,7 +532,7 @@ export default function AvaCreateJob() {
   return (
     <div
       className="ava-flow scroll-perf relative flex h-[100dvh] flex-col overflow-hidden"
-      style={{ background: "radial-gradient(ellipse 90% 60% at 50% -10%, color-mix(in srgb, var(--hf-green-soft) 50%, transparent) 0%, transparent 60%), hsl(var(--background))", color: "hsl(var(--foreground))" }}
+      style={{ background: "radial-gradient(ellipse 90% 60% at 50% -10%, color-mix(in srgb, var(--hf-action-soft) 50%, transparent) 0%, transparent 60%), hsl(var(--background))", color: "hsl(var(--foreground))" }}
     >
       <style>{FOCUS_CSS}</style>
       <HeroBackground />
@@ -544,7 +544,7 @@ export default function AvaCreateJob() {
         {!(step === 0 && inputMode === "voice") && <div className="hidden flex-1 sm:block"><StepRail step={step} traveler={travelerInitials} receipts={stepReceipts} /></div>}
         {/* Once published it is live: the header said "Draft" over "Your role is live". */}
         {genSource && (
-          <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: publishedCode || genSource === "openai" ? "hsl(var(--ck-mint))" : "hsl(var(--muted-foreground))" }}>
+          <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: publishedCode || genSource === "openai" ? "hsl(var(--ck-action-bright))" : "hsl(var(--muted-foreground))" }}>
             {publishedCode ? "Live" : "Draft"}
           </span>
         )}
@@ -619,7 +619,7 @@ export default function AvaCreateJob() {
                           </div>
                         )}
                         {!geoLoading && geoPreview?.ok && (
-                          <div className="mt-1.5 flex items-center gap-1.5 text-[12px]" style={{ color: "hsl(var(--ck-mint))" }}>
+                          <div className="mt-1.5 flex items-center gap-1.5 text-[12px]" style={{ color: "hsl(var(--ck-action-bright))" }}>
                             <Check className="h-3.5 w-3.5" /> Ava found <span style={{ color: "hsl(var(--foreground))" }}>{formatPlace(geoPreview)}</span>.
                           </div>
                         )}
@@ -657,7 +657,7 @@ export default function AvaCreateJob() {
                 return (
                   <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
                     <span className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--ck-brass))" }}>Ava · Question {fuIndex + 1} of {followUps.length}</span>
-                    <span className="mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold" style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--ck-mint))", border: "1px solid hsl(var(--primary) / 0.22)" }}>
+                    <span className="mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold" style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--ck-action-bright))", border: "1px solid hsl(var(--primary) / 0.22)" }}>
                       <AvaSeal size={11} /> Tailored to a {playbook.label} role
                     </span>
                     <h2 className="mt-4 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>{fu.question}</h2>
@@ -688,7 +688,7 @@ export default function AvaCreateJob() {
                       const isRec = opt.id === playbook.rigor.recommended;
                       return (
                         <button key={opt.id} type="button" onClick={() => { setRigor(opt.id); setRigorTouched(true); }} className="relative rounded-2xl p-5 text-left" style={{ background: active ? "hsl(var(--primary) / 0.1)" : "hsl(var(--card))", border: active ? "1px solid hsl(var(--primary) / 0.6)" : "1px solid hsl(var(--border))" }}>
-                          {isRec && <span className="absolute right-3 top-3 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase" style={{ background: "hsl(var(--ck-jade))", color: "hsl(var(--primary-foreground))" }}>Recommended</span>}
+                          {isRec && <span className="absolute right-3 top-3 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase" style={{ background: "hsl(var(--ck-action))", color: "hsl(var(--primary-foreground))" }}>Recommended</span>}
                           <span className="text-lg font-bold" style={{ fontFamily: DISPLAY, color: active ? "hsl(var(--ck-brass-bright))" : "hsl(var(--foreground))" }}>{opt.label}</span>
                           <p className="mt-1.5 text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>{opt.blurb}</p>
                         </button>
@@ -726,7 +726,7 @@ export default function AvaCreateJob() {
               {step === 4 && (
                 <div className="mx-auto max-w-2xl">
                   <div className="text-center">
-                    <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ borderColor: "hsl(var(--ck-jade) / 0.4)", color: "hsl(var(--ck-mint))" }}>
+                    <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ borderColor: "hsl(var(--ck-action) / 0.4)", color: "hsl(var(--ck-action-bright))" }}>
                       <Check className="h-3 w-3" /> {"Draft · not published yet"}
                     </span>
                     <h2 className="mt-3 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>Here's your hiring plan.</h2>
@@ -764,7 +764,7 @@ export default function AvaCreateJob() {
 
               {step === 5 && publishedCode && (
                 <div className="mx-auto flex max-w-md flex-col items-center text-center">
-                  <span className="mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ background: "hsl(var(--ck-jade) / 0.16)", color: "hsl(var(--ck-mint))" }}>
+                  <span className="mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ background: "hsl(var(--ck-action) / 0.16)", color: "hsl(var(--ck-action-bright))" }}>
                     <Check className="h-3 w-3" /> Your role is live
                   </span>
                   <h2 className="mt-4 text-3xl sm:text-4xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>Share your role.</h2>

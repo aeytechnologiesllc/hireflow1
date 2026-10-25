@@ -227,11 +227,11 @@ function SealedRow({
           {why}
         </p>
 
-        {/* the score — Ava's verdict, and the one jade thing on the row */}
+        {/* the score — Ava's verdict, and the one ink thing on the row */}
         <div className="min-w-[58px] shrink-0 text-right">
           <div
             className="ck-num font-semibold"
-            style={{ fontSize: 38, lineHeight: 0.85, color: "var(--jade)" }}
+            style={{ fontSize: 38, lineHeight: 0.85, color: "var(--action)" }}
           >
             <CountUp value={candidate.overall} duration={700} delay={350 + index * 260} />
           </div>
@@ -353,10 +353,10 @@ function CompanyNameGuide({ onDismiss }: { onDismiss: () => void }) {
    never an invented suggestion. Each row is real data, and each row's action
    goes straight to the thing. */
 
-type NeedTone = "jade" | "brass" | "muted";
+type NeedTone = "good" | "brass" | "muted";
 
 const NEED_TONE_COLOR: Record<NeedTone, string> = {
-  jade: "var(--jade)",
+  good: "var(--action)",
   brass: "var(--brass)",
   muted: "var(--hf-text-muted)",
 };
@@ -479,7 +479,7 @@ function FirstApplicantMoment({
  * journey rail (see ApplicantJourneyRail on the profile): every real phase from
  * `buildJourneyPipeline`, in order, each a small gem node holding its real
  * count. An occupied phase (count > 0) lights up at its position on the
- * jade→mint→teal→gold spectrum; an empty one stays hollow and quiet — still
+ * ink-to-brass gem spectrum; an empty one stays hollow and quiet — still
  * drawn, because "nobody's here yet" is real information. Counts only — no
  * percentage, which would read as a conversion rate against total applicants
  * when it is really just a share of current occupants, a different and
@@ -885,7 +885,7 @@ export default function CockpitDashboard() {
                 node: (
                   <NeedsRow
                     icon={Video}
-                    tone="jade"
+                    tone="good"
                     title={`${format(r.at, "h:mm a")} — ${r.name}`}
                     meta={`${r.role} · today`}
                     actionLabel={joinable || external ? "Join" : "View"}
@@ -904,7 +904,7 @@ export default function CockpitDashboard() {
                 node: (
                   <NeedsRow
                     icon={Video}
-                    tone="jade"
+                    tone="good"
                     title={`${interviewNeeds.today.length} interviews today`}
                     meta={`starting at ${format(interviewNeeds.today[0].at, "h:mm a")}`}
                     actionLabel="View"
@@ -955,7 +955,7 @@ export default function CockpitDashboard() {
                 node: (
                   <NeedsRow
                     icon={Users}
-                    tone="jade"
+                    tone="good"
                     title={`${awaitingDecision} ${awaitingDecision === 1 ? "applicant is" : "applicants are"} waiting on your decision`}
                     meta="Sealed and ranked — pass, or move them forward"
                     actionLabel="Review"
@@ -989,7 +989,7 @@ export default function CockpitDashboard() {
                 node: (
                   <NeedsRow
                     icon={MessageSquare}
-                    tone="jade"
+                    tone="good"
                     title={`${unreadMessages} unread ${unreadMessages === 1 ? "message" : "messages"}`}
                     meta="From candidates you're talking with"
                     actionLabel="Open"
@@ -1065,14 +1065,14 @@ export default function CockpitDashboard() {
                   Ava has been working.
                 </span>{" "}
                 Read{" "}
-                <span className="ck-num font-semibold" style={{ color: "var(--jade-bright)" }}>
+                <span className="ck-num font-semibold" style={{ color: "var(--slab-action)" }}>
                   {readCount}
                 </span>{" "}
                 {readCount === 1 ? "applicant" : "applicants"}
                 {sealed.length > 0 && (
                   <>
                     {" · sealed "}
-                    <span className="ck-num font-semibold" style={{ color: "var(--jade-bright)" }}>
+                    <span className="ck-num font-semibold" style={{ color: "var(--slab-action)" }}>
                       {sealed.length}
                     </span>
                   </>
@@ -1163,8 +1163,8 @@ export default function CockpitDashboard() {
                 </span>
               </p>
               <button
-                className="text-[13px]"
-                style={{ color: "var(--hf-gold)" }}
+                className="text-[13px] font-medium"
+                style={{ color: "var(--action-soft-fg)" }}
                 onClick={() => navigate("/applicants?where=application")}
               >
                 See where they are →

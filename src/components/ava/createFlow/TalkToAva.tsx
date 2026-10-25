@@ -304,18 +304,18 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
 
   // Orb is the hero: large + responsive, grows + warms while she works.
   const orbSize = vw >= 1024 ? 340 : vw >= 640 ? 300 : 248;
-  const GREEN = "152 60% 45%";
+  const GLOW = "40 30% 80%";
   const GOLD = "38 60% 60%";
   const orb = (() => {
     switch (phase) {
-      case "creating": return { scale: 1.06, glow: `drop-shadow(0 0 110px hsl(${GREEN} / 0.55))` };
-      case "readback": return { scale: 1.02, glow: `drop-shadow(0 0 80px hsl(${GOLD} / 0.36)) drop-shadow(0 0 56px hsl(${GREEN} / 0.38))` };
-      case "speaking": return { scale: 1.03, glow: `drop-shadow(0 0 86px hsl(${GREEN} / 0.46)) drop-shadow(0 0 44px hsl(${GOLD} / 0.22))` };
-      case "listening": return { scale: 1.02, glow: `drop-shadow(0 0 76px hsl(${GREEN} / 0.42))` };
-      case "thinking": return { scale: 1.0, glow: `drop-shadow(0 0 62px hsl(${GREEN} / 0.34))` };
+      case "creating": return { scale: 1.06, glow: `drop-shadow(0 0 110px hsl(${GLOW} / 0.55))` };
+      case "readback": return { scale: 1.02, glow: `drop-shadow(0 0 80px hsl(${GOLD} / 0.36)) drop-shadow(0 0 56px hsl(${GLOW} / 0.38))` };
+      case "speaking": return { scale: 1.03, glow: `drop-shadow(0 0 86px hsl(${GLOW} / 0.46)) drop-shadow(0 0 44px hsl(${GOLD} / 0.22))` };
+      case "listening": return { scale: 1.02, glow: `drop-shadow(0 0 76px hsl(${GLOW} / 0.42))` };
+      case "thinking": return { scale: 1.0, glow: `drop-shadow(0 0 62px hsl(${GLOW} / 0.34))` };
       case "error":
       case "stuck": return { scale: 1.0, glow: "drop-shadow(0 0 40px color-mix(in srgb, var(--hf-danger) 30%, transparent))" };
-      default: return { scale: 1.0, glow: `drop-shadow(0 0 56px hsl(${GREEN} / 0.3))` };
+      default: return { scale: 1.0, glow: `drop-shadow(0 0 56px hsl(${GLOW} / 0.3))` };
     }
   })();
 
@@ -334,7 +334,7 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
       return (
         <div className="mx-auto mb-6 w-full max-w-2xl">
           <div className="flex items-center gap-3 rounded-2xl p-3.5 sm:p-4" style={PANEL}>
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full" style={{ background: "hsl(var(--ck-jade) / 0.16)", color: "hsl(var(--ck-mint))" }}>
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full" style={{ background: "hsl(var(--ck-action) / 0.16)", color: "hsl(var(--ck-action-bright))" }}>
               <Check className="h-4 w-4" />
             </span>
             <p className="text-[13.5px] leading-snug" style={{ color: "hsl(var(--foreground) / 0.85)" }}>
@@ -348,7 +348,7 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
     return (
       <div className="mx-auto mb-6 w-full max-w-2xl">
         <div className="flex items-center gap-3.5 rounded-2xl p-3.5 sm:p-4" style={PANEL}>
-          <div aria-hidden className="shrink-0" style={{ filter: `drop-shadow(0 0 26px hsl(${GREEN} / 0.4))` }}>
+          <div aria-hidden className="shrink-0" style={{ filter: `drop-shadow(0 0 26px hsl(${GLOW} / 0.4))` }}>
             <AvaVoicePulse size={56} getIntensity={getVoiceLevel} active={isConnected} />
           </div>
           <div className="min-w-0 flex-1 text-left">

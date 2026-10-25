@@ -42,9 +42,8 @@ export function ProfileCompletionCard() {
   const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
   const getColor = () => {
-    if (percentage >= 75) return "hsl(var(--primary))";
-    if (percentage >= 50) return "hsl(142.1 76.2% 36.3%)";
-    if (percentage >= 25) return "hsl(45.4 93.4% 47.5%)";
+    if (percentage >= 50) return "hsl(var(--primary))";
+    if (percentage >= 25) return "var(--amber-fg)";
     return "hsl(var(--destructive))";
   };
 

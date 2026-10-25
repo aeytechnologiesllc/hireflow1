@@ -44,7 +44,7 @@ export function AlertsRow({ notifications, when }: { notifications: GuideNotific
     if (when === "apply") return null;
     return (
       <p className="flex items-center gap-2 text-[13px]" style={SOFT}>
-        <Bell className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--jade)" }} aria-hidden />
+        <Bell className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--action)" }} aria-hidden />
         We&rsquo;ll tell you the moment the first one finishes.
       </p>
     );
@@ -54,10 +54,10 @@ export function AlertsRow({ notifications, when }: { notifications: GuideNotific
   return (
     <div
       className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[10px] px-3.5 py-2.5"
-      style={{ background: "var(--jade-soft)", border: "1px solid color-mix(in srgb, var(--jade) 22%, transparent)" }}
+      style={{ background: "var(--action-soft)", border: "1px solid color-mix(in srgb, var(--action) 22%, transparent)" }}
       data-guide-alerts={notifications.status}
     >
-      <Bell className="h-4 w-4 shrink-0" style={{ color: "var(--jade)" }} aria-hidden />
+      <Bell className="h-4 w-4 shrink-0" style={{ color: "var(--action)" }} aria-hidden />
       <p className="min-w-0 flex-1 basis-[220px] text-[13px] leading-[1.45]" style={{ color: "var(--ink)" }}>
         {words.text}
       </p>
@@ -247,7 +247,7 @@ export function ApplyingStage({
             </p>
           )}
         </div>
-        <button type="button" className="text-[13px] font-semibold transition-opacity hover:opacity-75" style={{ color: "var(--brass)" }} onClick={onSeeAll}>
+        <button type="button" className="text-[13px] font-semibold transition-opacity hover:opacity-75" style={{ color: "var(--action-soft-fg)" }} onClick={onSeeAll}>
           See everyone who applied →
         </button>
       </div>
@@ -290,7 +290,7 @@ function ReadyRow({ person, candidate, role, first, onOpen }: { person: GuideApp
         </span>
       </span>
       <span className="w-[52px] shrink-0 text-right">
-        <span className="ck-num block text-[30px] font-semibold leading-[0.9]" style={{ color: "var(--jade)" }}>
+        <span className="ck-num block text-[30px] font-semibold leading-[0.9]" style={{ color: "var(--action)" }}>
           {person.score}
         </span>
         <span className="mt-1 block text-[10px] font-bold uppercase leading-none tracking-[0.08em]" style={{ color: "var(--ink-3)" }}>

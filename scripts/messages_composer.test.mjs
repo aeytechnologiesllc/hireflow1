@@ -56,7 +56,7 @@ console.log("\nThe box grows with what is in it");
 console.log("\nOne box, with Send inside it");
 {
   check("the words, the hint and Send share one rounded box", /className="ck-composer rounded-\[18px\] px-3\.5 pb-2\.5 pt-3"/.test(page) && page.indexOf("data-composer-box") < page.indexOf("data-composer-hint") && page.indexOf("data-composer-hint") < page.indexOf("data-composer-send"));
-  check("the box lights up as a whole, and the textarea draws no frame of its own", /\.ck-composer:focus-within \{ border-color: var\(--jade\); box-shadow: 0 0 0 3px var\(--jade-soft\); \}/.test(css) && /\.ck-composer textarea:focus,\s*\.ck-composer textarea:focus-visible \{ outline: none; box-shadow: none; \}/.test(css));
+  check("the box lights up as a whole, and the textarea draws no frame of its own", /\.ck-composer:focus-within \{ border-color: var\(--action\); box-shadow: 0 0 0 3px var\(--action-soft\); \}/.test(css) && /\.ck-composer textarea:focus,\s*\.ck-composer textarea:focus-visible \{ outline: none; box-shadow: none; \}/.test(css));
   check("clicking the box's own padding puts the cursor in it", /if \(e\.target === e\.currentTarget\) composerRef\.current\?\.focus\(\);/.test(page));
   check("Enter sends, Shift+Enter is a new line", /if \(e\.key === "Enter" && !e\.shiftKey\) \{\s*e\.preventDefault\(\);\s*void handleSend\(\);/.test(page));
   check("…and the hint says so on a computer only", /<span className="max-md:hidden">Enter sends · Shift\+Enter for a new line\. <\/span>/.test(page));

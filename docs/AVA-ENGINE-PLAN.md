@@ -7,7 +7,7 @@
 >
 > **Audience:** founder + any agent building the engine. Read [`ARCHITECTURE.md`](./ARCHITECTURE.md)
 > for the current `_repo` data shapes and [`../CLAUDE.md`](../CLAUDE.md) for product rules
-> (Deep Jade, the orb, the **applicant no-AI-language** rule).
+> (the ink-and-ivory design, the orb, the **applicant no-AI-language** rule).
 
 ---
 

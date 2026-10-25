@@ -20,7 +20,7 @@ import "@/styles/careers.css";
  * The Zulu Support Team careers page — hireflownow.com (2026-10-04).
  *
  * HireFlow's own green theme (src/styles/careers.css): Fraunces, ivory ink,
- * jade and brass on warm near-black. Owner: "professional … absolutely
+ * ink and brass on warm near-black. Owner: "professional … absolutely
  * premium and stunning animation but simple." The animation is the job
  * itself — a chat that answers itself while a typing meter climbs past the
  * 45 wpm the role needs — plus the headline rising in, numbers counting up,
@@ -399,7 +399,7 @@ export default function Index() {
           </Reveal>
           <div className="cr-stats">
             <Reveal className="cr-stat">
-              <span className="cr-stat__num cr-stat__num--jade">0</span>
+              <span className="cr-stat__num cr-stat__num--action">0</span>
               <span className="cr-stat__label">Phone calls</span>
               <p className="cr-stat__copy">Every conversation with a player is written. You will never be on the phone.</p>
             </Reveal>
@@ -463,7 +463,7 @@ export default function Index() {
                     <Link to={jobPagePath(job)} className="cr-role" aria-label={`Apply for ${job.title}`}>
                       <div>
                         <div className="cr-chips">
-                          {job.is_remote !== false && <span className="cr-chip cr-chip--jade">Remote</span>}
+                          {job.is_remote !== false && <span className="cr-chip cr-chip--action">Remote</span>}
                           {type && <span className="cr-chip">{type}</span>}
                           {level && <span className="cr-chip">{level}</span>}
                         </div>

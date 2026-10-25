@@ -693,7 +693,7 @@ export function mapTeamMember(member: TeamMember, profile?: Profile | null): Coc
     email: member.email,
     role: member.department ?? member.permission_level ?? "Member",
     permission,
-    permissionTone: member.can_manage_pipeline ? "jade" : "muted",
+    permissionTone: member.can_manage_pipeline ? "good" : "muted",
   };
 }
 

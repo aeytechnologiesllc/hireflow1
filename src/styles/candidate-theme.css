@@ -1,6 +1,6 @@
 /* Candidate-facing surfaces (NO AI language in copy; visual only).
  *
- * This file used to define its own palette — a deep jade ground at hue 156 with
+ * This file used to define its own palette — a deep ink ground at hue 156 with
  * no Day variant at all. That made it a THIRD theme sitting alongside Paper and
  * Ink: the accountless screens (the portal landing, the code entry, the apply
  * form, the return-by-phone page) were locked dark whatever the rest of the app
@@ -21,7 +21,7 @@
   --cand-text: var(--hf-text);
   --cand-muted: var(--hf-text-muted);
   --cand-brass: var(--hf-gold);
-  --cand-jade: var(--hf-green);
+  --cand-action: var(--hf-action);
   min-height: 100dvh;
   background: var(--cand-bg);
   color: var(--cand-text);
@@ -58,12 +58,10 @@
   padding: 0.75rem 1.25rem;
   font-size: 0.875rem;
   font-weight: 600;
-  /* Jade, not brass — this is a free action (apply/continue), and brass is
-     reserved for anything that costs money. */
-  /* Flat jade, and a foreground that FLIPS with the theme. The old pairing was
-     a fixed near-black label, which is legible on Night's light jade (#4FBF95)
-     and unreadable on Day's dark jade (#0F6B4F) — the primary action on the
-     accountless screens was dark-on-dark in Day. */
+  /* The action colour, not brass — this is a free action (apply/continue),
+     and brass is reserved for anything that costs money. The foreground
+     FLIPS with the theme: ivory on Day's ink button, ink on Night's ivory
+     one (a fixed label was dark-on-dark in one of them). */
   background: hsl(var(--primary));
   color: hsl(var(--primary-foreground));
   border: none;

@@ -27,9 +27,9 @@ function deriveInitials(name: string) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-// Controlled accent palette — mint, brass, jade (no other hues).
-const ACCENTS = ["var(--hf-text-soft)", "var(--hf-gold)", "var(--hf-green)"];
-// Muted jade medallion fills (subtle per-person variation, all near-black jade).
+// Controlled accent palette — soft ink, brass, ink (no other hues).
+const ACCENTS = ["var(--hf-text-soft)", "var(--hf-gold)", "var(--hf-action)"];
+// Muted ink medallion fills (subtle per-person variation, all near-black ink).
 const FILLS: Array<[string, string]> = [
   ["var(--hf-border-strong)", "var(--hf-surface-raised)"],
   ["var(--hf-border-strong)", "var(--hf-surface-raised)"],
@@ -38,8 +38,8 @@ const FILLS: Array<[string, string]> = [
 ];
 
 /**
- * Generated candidate identity mark: cream initials inside a Deep Jade
- * medallion with a tiny procedural mint/brass/jade accent. Deterministic per
+ * Generated candidate identity mark: cream initials inside an ink
+ * medallion with a tiny procedural brass/ink accent. Deterministic per
  * name (each person feels unique), readable small and elegant large. Solid &
  * premium — never glassy, never a stock face or generic silhouette.
  */
@@ -87,7 +87,7 @@ export function CkAvatar({ who, size = 40, initials, photo, className }: AvatarP
       </g>
     );
   } else if (pattern === 1) {
-    // brass/jade tick — a short arc segment hugging the ring
+    // brass/ink tick — a short arc segment hugging the ring
     motif = (
       <path d={`M ${cx - 15} ${cy - r * 0.86} A ${r * 0.86} ${r * 0.86} 0 0 1 ${cx + 15} ${cy - r * 0.86}`}
         stroke={accent} strokeWidth={3.4} strokeLinecap="round" fill="none" />

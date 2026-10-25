@@ -11,7 +11,7 @@
  *    too, and the cluttered blocks only come back once it is done;
  *  - the alerts step is there only when this device can have alerts;
  *  - a team member never sees the guide, and it never speaks of the team,
- *    of job boards other than OnlineJobs.ph, or of "AI".
+ *    of any job board by name (they come from shareTargets()), or of "AI".
  *
  * Run with: node scripts/first_hire_guide.test.mjs
  */
@@ -168,7 +168,7 @@ check("the Applicants list is read only once somebody has applied", /props\.ligh
 check("phone alerts are asked for by the notifications hook's seam, never by the guide", /useGuideNotifications\(\)/.test(dash) && !/Notification\.requestPermission|serviceWorker|pushManager/i.test(await read("src/cockpit/components/journey/FirstHireGuide.tsx")));
 const journey = (await Promise.all(guideFiles.map((f) => read(`src/cockpit/components/journey/${f}`)))).join("\n");
 check("it never says AI", !/\bAI\b/.test(journey) && !/\bAI\b/.test(await read("src/cockpit/lib/firstHireStage.ts").then((t) => t.replace(/\/\*[\s\S]*?\*\//g, ""))));
-check("it names OnlineJobs.ph and no other job board", /OnlineJobs\.ph/.test(journey) && !/indeed|linkedin|ziprecruiter|monster|facebook|craigslist/i.test(journey));
+check("it hard-codes no job board: the places to share come from shareTargets() (docs/LAUNCH-PLAN.md, Phase 2, task 6)", /shareTargets\(/.test(journey) && !/onlinejobs|indeed|linkedin|ziprecruiter|monster|facebook|craigslist/i.test(journey.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "")));
 check("it never offers to invite the team", !/Invite your team/i.test(journey) && !/navigate\("\/team"\)/.test(journey));
 check("it reads no decision from a click: no localStorage in the stage rules", !/localStorage|sessionStorage/.test(await read("src/cockpit/lib/firstHireStage.ts")));
 

@@ -36,7 +36,7 @@ const JOBS_SHARE: Tip = {
   key: "jobs_share",
   kicker: "Your job is live",
   title: "Now send people to it",
-  body: "Share link gives you the apply link and the full post to paste on OnlineJobs.ph. Whoever opens it applies right here, and you'll see them in Applicants.",
+  body: "Share link gives you the apply link and the full post to paste on Facebook, LinkedIn, Indeed or a job board. Whoever opens it applies right here, and you'll see them in Applicants.",
   anchors: ['[data-tip-anchor="share"]'],
 };
 

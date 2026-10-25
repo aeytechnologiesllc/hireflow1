@@ -1,7 +1,7 @@
 import type { JobStatus } from "../data";
 
 const CHIP: Record<JobStatus, { label: string; bg: string; fg: string }> = {
-  live: { label: "Live", bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)" },
+  live: { label: "Live", bg: "var(--action-soft)", fg: "var(--action-soft-fg)" },
   draft: { label: "Draft", bg: "var(--amber-bg)", fg: "var(--amber-fg)" },
   closed: { label: "Closed", bg: "var(--surface-2)", fg: "var(--ink-2)" },
 };

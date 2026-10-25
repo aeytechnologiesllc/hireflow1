@@ -215,7 +215,7 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
       <div className="absolute top-20 left-1/2 -translate-x-1/2 w-32 h-32 bg-primary/10 rounded-full blur-3xl animate-glow-pulse pointer-events-none" />
       <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-24 h-24 bg-accent/8 rounded-full blur-3xl animate-glow-pulse pointer-events-none" style={{ animationDelay: '2s' }} />
 
-      {/* Logo — the canonical brand mark (dark tile + jade rising line), same
+      {/* Logo — the canonical brand mark (dark tile + ink rising line), same
           component as the landing header, the employer cockpit rail, and the
           candidate auth page. Never the retired Ava orb or a hand-rolled image. */}
       <div className={cn(

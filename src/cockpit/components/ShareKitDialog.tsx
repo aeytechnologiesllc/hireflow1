@@ -12,7 +12,7 @@ import { hiringLink } from "@/lib/hiringLink";
 import { buildFullJobPost, type FullPostJob } from "@/lib/jobPost";
 
 /**
- * ShareKitDialog — theme-locked (Deep Jade) per-job share kit: apply link +
+ * ShareKitDialog — theme-locked (ink and ivory) per-job share kit: apply link +
  * QR code, ready-to-paste post text, and a printable "We're hiring" QR flyer
  * for the shop window. Opens from the Jobs list so an employer can re-share
  * any job long after publish day. Everything here shares HireFlow's own link.
@@ -255,7 +255,7 @@ export function ShareKitDialog({ open, job, applyUrl: callerUrl, onClose }: Shar
             style={{ background: "var(--hf-gold)" }}
             aria-label="QR code for the apply link"
           >
-            <QRCodeCanvas value={applyUrl} size={112} bgColor="#f7f4ea" fgColor="#10201a" level="M" />
+            <QRCodeCanvas value={applyUrl} size={112} bgColor="#f7f4ea" fgColor="#17150F" level="M" />
           </div>
           <div className="min-w-0 flex-1 self-center">
             <div className="text-[11px] uppercase" style={{ color: "var(--hf-text-muted)", letterSpacing: "0.12em" }}>
@@ -295,7 +295,7 @@ export function ShareKitDialog({ open, job, applyUrl: callerUrl, onClose }: Shar
                   aria-pressed={postKind === kind}
                   onClick={() => setPostKind(kind)}
                   className="whitespace-nowrap rounded-[7px] px-2.5 py-1.5 text-[12.5px]"
-                  style={postKind === kind ? { background: "var(--jade-soft)", color: "var(--jade-soft-fg)", fontWeight: 600 } : { color: "var(--hf-text-soft)" }}
+                  style={postKind === kind ? { background: "var(--action-soft)", color: "var(--action-soft-fg)", fontWeight: 600 } : { color: "var(--hf-text-soft)" }}
                   data-post-kind={kind}
                 >
                   {kind === "short" ? "Short post" : "Full job post"}

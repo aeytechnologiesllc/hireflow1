@@ -37,7 +37,7 @@ import { chatTypingNeedsALook, liveTone, toneColor, type AssessmentEntry, type L
 export function LiveDot({ state, className = "" }: { state: LiveState | null | undefined; className?: string }) {
   if (!state || state === "doing") return <span className={`ck-dot ck-dot-live shrink-0 ${className}`} aria-hidden />;
   const color =
-    state === "left" || state === "away" || state === "waiting" ? "var(--amber-fg)" : state === "failed" ? "var(--crit)" : state === "finished" ? "var(--jade)" : "var(--brass)";
+    state === "left" || state === "away" || state === "waiting" ? "var(--amber-fg)" : state === "failed" ? "var(--crit)" : state === "finished" ? "var(--action)" : "var(--brass)";
   return (
     <span
       aria-hidden
@@ -116,7 +116,7 @@ function RecordRow({ entry, onOpen }: { entry: AssessmentEntry; onOpen: (entry: 
           done
             ? entry.kind === "integrity"
               ? { background: "var(--amber-bg)", color: "var(--amber-fg)" }
-              : { background: "var(--jade-soft)", color: "var(--jade-soft-fg)" }
+              : { background: "var(--action-soft)", color: "var(--action-soft-fg)" }
             : { background: "var(--ground-2)", color: "var(--ink-3)" }
         }
       >

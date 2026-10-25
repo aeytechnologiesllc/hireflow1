@@ -331,7 +331,7 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
   if (phase === "connecting") {
     return (
       <RoomStatusScreen
-        icon={<Loader2 className="h-8 w-8 animate-spin text-[var(--jade-bright)]" />}
+        icon={<Loader2 className="h-8 w-8 animate-spin text-[var(--action-bright)]" />}
         title="Connecting…"
         body="Setting up your call room."
       />
@@ -415,7 +415,7 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <span className="flex items-center gap-2">
           <span
-            className={`h-2 w-2 rounded-full ${remoteHasJoined ? "bg-[var(--jade-bright)]" : "animate-pulse bg-muted-foreground/50"}`}
+            className={`h-2 w-2 rounded-full ${remoteHasJoined ? "bg-[var(--action-bright)]" : "animate-pulse bg-muted-foreground/50"}`}
             aria-hidden
           />
           {remoteHasJoined ? "Connected" : `Waiting for ${otherLabel}`}
@@ -443,9 +443,9 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
           <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-6 text-center">
             <div
               className="flex h-16 w-16 items-center justify-center rounded-full"
-              style={{ background: "color-mix(in srgb, var(--jade-bright) 16%, transparent)" }}
+              style={{ background: "color-mix(in srgb, var(--slab-action) 16%, transparent)" }}
             >
-              <span className="font-display text-2xl text-[var(--jade-bright)]">
+              <span className="font-display text-2xl text-[var(--slab-action)]">
                 {otherLabel.trim().slice(0, 1).toUpperCase() || "?"}
               </span>
             </div>
@@ -538,7 +538,7 @@ function RoomControlButton({
     variant === "warn"
       ? "border-transparent bg-destructive/15 text-destructive hover:bg-destructive/20"
       : variant === "active"
-        ? "border-transparent bg-[var(--jade-soft)] text-[var(--jade-soft-fg)] hover:brightness-105"
+        ? "border-transparent bg-[var(--action-soft)] text-[var(--action-soft-fg)] hover:brightness-105"
         : "border-[var(--brass-line)] bg-transparent text-muted-foreground hover:bg-muted/40";
 
   return (

@@ -16,9 +16,11 @@
   /* ══════════════════════════════════════════════════════════════════════════
      HireFlow — one token system.
 
-     Two themes, one vocabulary. DAY is "Paper": warm ivory ground, deep jade as
-     ink. NIGHT is its true counterpart: warm ink ground, the ivory becomes the
-     text, jade and brass brighten to carry it. Both come from the locked
+     Two themes, one vocabulary. DAY is "Paper": warm ivory ground, ink as the
+     text and the action colour. NIGHT is its true counterpart: warm ink
+     ground, the ivory becomes the text and the action, and brass brightens to
+     carry the accent (the owner's lock, 2026-10-24: ink and ivory, brass
+     accent; until 2026-10-25 the action colour was ink). Both come from the locked
      design system in design/preview/app.html — do not invent values here.
 
      Four token systems used to compete in this file (legacy cobalt :root,
@@ -38,21 +40,27 @@
     --hair: #C6B893;
     --track: #E9E2D2;
 
-    --ink: #14201B;
-    --ink-2: #3F4B45;
-    --ink-3: #5C655E;
+    --ink: #17150F;
+    --ink-2: #45413A;
+    --ink-3: #66615A;
 
-    /* The jade slab sunk into the paper — Ava's read. The signature moment. */
-    --slab: #0C2A21;
+    /* The ink slab sunk into the paper — Ava's read. The signature moment. */
+    --slab: #1B1813;
     --slab-ink: #F2EFE5;
-    --slab-ink-2: #A9C6B8;
+    --slab-ink-2: #B9B1A0;
+    /* The action colour as it reads on the slab, which stays dark in both
+       themes (the video and call panels, Ava's strip): always ivory. */
+    --slab-action: #F2EDE1;
 
-    --jade: #0F6B4F;
-    --jade-bright: #3FCE97;
-    --jade-soft: #DCEDE3;
-    --jade-soft-fg: #0A5340;
+    /* The action colour is ink (2026-10-25: ink and ivory, brass accent —
+       the owner's lock; it was ink). Brass stays Ava's, the score's,
+       "hired"'s and money's. */
+    --action: #17150F;
+    --action-bright: #2B2620;
+    --action-soft: #E9E3D5;
+    --action-soft-fg: #17150F;
 
-    --brass: #8A6420;
+    --brass: #84601F;
     --brass-line: #C9A45E;
 
     --amber-bg: #F6E7C6;
@@ -61,11 +69,11 @@
     --crit-bg: #F4DEDA;
     --btn-fg: #F7F4EB;
 
-    --seal-disc: #0F6B4F;
+    --seal-disc: #1B1813;
     --seal-ring: #C9A45E;
-    --seal-shadow: rgba(20, 32, 27, 0.32);
+    --seal-shadow: rgba(23, 21, 15, 0.32);
 
-    --amb-a: rgba(15, 107, 79, 0.10);
+    --amb-a: rgba(23, 21, 15, 0.06);
     --amb-b: rgba(201, 164, 94, 0.11);
 
     /* ── The type scale ───────────────────────────────────────────────────────
@@ -95,28 +103,28 @@
 
     /* ── shadcn / Tailwind (HSL triplets) ──────────────────────────────────── */
     --background: 42 36% 91%;
-    --foreground: 155 23% 10%;
+    --foreground: 45 21% 7%;
 
     --card: 45 57% 97%;
-    --card-foreground: 155 23% 10%;
+    --card-foreground: 45 21% 7%;
 
     --popover: 45 57% 97%;
-    --popover-foreground: 155 23% 10%;
+    --popover-foreground: 45 21% 7%;
 
-    /* Jade is the action colour — it is what Ava vouches for. */
-    --primary: 162 75% 24%;
+    /* Ink is the action colour (it was ink until 2026-10-25). */
+    --primary: 45 21% 7%;
     --primary-foreground: 45 43% 95%;
 
     --secondary: 43 35% 84%;
-    --secondary-foreground: 155 23% 10%;
+    --secondary-foreground: 45 21% 7%;
 
     --muted: 42 34% 87%;
-    --muted-foreground: 133 5% 38%;
+    --muted-foreground: 40 6% 38%;
 
-    --accent: 145 32% 90%;
-    --accent-foreground: 164 78% 18%;
+    --accent: 42 24% 88%;
+    --accent-foreground: 45 21% 7%;
 
-    --success: 162 75% 24%;
+    --success: 45 21% 7%;
     --success-foreground: 45 43% 95%;
 
     --warning: 38 77% 27%;
@@ -127,31 +135,31 @@
 
     --border: 43 28% 78%;
     --input: 43 28% 78%;
-    --ring: 162 75% 24%;
+    --ring: 45 21% 7%;
 
     --radius: 0.625rem;
 
-    --gradient-primary: linear-gradient(135deg, hsl(162 75% 24%) 0%, hsl(164 78% 18%) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(45 21% 7%) 0%, hsl(40 12% 18%) 100%);
     --gradient-hero: radial-gradient(ellipse 90% 70% at 28% 20%, var(--amb-a) 0%, transparent 60%), var(--ground);
     --gradient-card: linear-gradient(180deg, #FCFAF4 0%, #F7F3E9 100%);
     --gradient-bg: radial-gradient(ellipse 70% 50% at 88% 8%, var(--amb-a) 0%, transparent 55%),
                    radial-gradient(ellipse 60% 45% at 8% 92%, var(--amb-b) 0%, transparent 55%),
                    var(--ground);
 
-    --shadow-sm: 0 1px 1px rgba(20, 32, 27, 0.05), 0 1px 3px -1px rgba(20, 32, 27, 0.11);
-    --shadow-md: 0 1px 2px rgba(20, 32, 27, 0.06), 0 10px 22px -14px rgba(20, 32, 27, 0.34);
-    --shadow-lg: 0 2px 4px rgba(20, 32, 27, 0.07), 0 18px 36px -20px rgba(20, 32, 27, 0.38);
-    --shadow-xl: 0 3px 6px rgba(20, 32, 27, 0.08), 0 28px 56px -26px rgba(20, 32, 27, 0.42);
-    --shadow-glow: 0 0 40px rgba(15, 107, 79, 0.14);
+    --shadow-sm: 0 1px 1px rgba(23, 21, 15, 0.05), 0 1px 3px -1px rgba(23, 21, 15, 0.11);
+    --shadow-md: 0 1px 2px rgba(23, 21, 15, 0.06), 0 10px 22px -14px rgba(23, 21, 15, 0.34);
+    --shadow-lg: 0 2px 4px rgba(23, 21, 15, 0.07), 0 18px 36px -20px rgba(23, 21, 15, 0.38);
+    --shadow-xl: 0 3px 6px rgba(23, 21, 15, 0.08), 0 28px 56px -26px rgba(23, 21, 15, 0.42);
+    --shadow-glow: 0 0 40px rgba(23, 21, 15, 0.10);
 
     --sidebar-background: 43 34% 86%;
-    --sidebar-foreground: 155 23% 10%;
-    --sidebar-primary: 162 75% 24%;
+    --sidebar-foreground: 45 21% 7%;
+    --sidebar-primary: 45 21% 7%;
     --sidebar-primary-foreground: 45 43% 95%;
     --sidebar-accent: 43 35% 84%;
-    --sidebar-accent-foreground: 155 23% 10%;
+    --sidebar-accent-foreground: 45 21% 7%;
     --sidebar-border: 43 28% 78%;
-    --sidebar-ring: 162 75% 24%;
+    --sidebar-ring: 45 21% 7%;
 
     /* ── Cockpit tokens (--ck-*, HSL) ──────────────────────────────────────── */
     --ck-bg: 42 36% 91%;
@@ -159,10 +167,10 @@
     --ck-surface: 45 57% 97%;
     --ck-surface-2: 43 35% 84%;
     --ck-line: 43 28% 78%;
-    --ck-cream: 155 23% 10%;     /* the reading colour, dark on paper */
-    --ck-sub: 133 5% 38%;
-    --ck-jade: 162 75% 24%;
-    --ck-mint: 157 59% 53%;
+    --ck-cream: 45 21% 7%;     /* the reading colour, dark on paper */
+    --ck-sub: 40 6% 38%;
+    --ck-action: 45 21% 7%;
+    --ck-action-bright: 36 15% 15%;
     --ck-brass: 38 62% 33%;
     --ck-brass-bright: 39 50% 58%;
 
@@ -174,21 +182,21 @@
     --hf-surface-strong: #E4DCC7;
     --hf-border: #D6CDB6;
     --hf-border-strong: #C6B893;
-    --hf-text: #14201B;
-    --hf-text-soft: #3F4B45;
-    --hf-text-muted: #5C655E;
-    --hf-green: #0F6B4F;
-    --hf-green-soft: #DCEDE3;
-    --hf-green-border: rgba(15, 107, 79, 0.30);
-    --hf-gold: #8A6420;
+    --hf-text: #17150F;
+    --hf-text-soft: #45413A;
+    --hf-text-muted: #66615A;
+    --hf-action: #17150F;
+    --hf-action-soft: #E9E3D5;
+    --hf-action-border: rgba(23, 21, 15, 0.28);
+    --hf-gold: #84601F;
     --hf-gold-hover: #7A5410;
     --hf-gold-soft: #F6E7C6;
     --hf-gold-border: #C9A45E;
     --hf-danger: #A8352A;
     --hf-warning: #7A5410;
-    --hf-shadow-soft: 0 1px 2px rgba(20, 32, 27, 0.06), 0 10px 22px -14px rgba(20, 32, 27, 0.34);
-    --hf-toast-shadow: 0 1px 2px rgba(20, 32, 27, 0.06), 0 18px 36px -18px rgba(20, 32, 27, 0.4);
-    --hf-shadow-raised: 0 2px 4px rgba(20, 32, 27, 0.07), 0 18px 36px -20px rgba(20, 32, 27, 0.38);
+    --hf-shadow-soft: 0 1px 2px rgba(23, 21, 15, 0.06), 0 10px 22px -14px rgba(23, 21, 15, 0.34);
+    --hf-toast-shadow: 0 1px 2px rgba(23, 21, 15, 0.06), 0 18px 36px -18px rgba(23, 21, 15, 0.4);
+    --hf-shadow-raised: 0 2px 4px rgba(23, 21, 15, 0.07), 0 18px 36px -20px rgba(23, 21, 15, 0.38);
     --hf-shadow-gold: 0 8px 22px -12px rgba(138, 100, 32, 0.35);
     --hf-radius-sm: 8px;
     --hf-radius-md: 10px;
@@ -212,14 +220,15 @@
     --ink-2: #C3BBA9;
     --ink-3: #948B7C;
 
-    --slab: #0B2A21;
+    --slab: #0E0C09;
     --slab-ink: #F2EFE5;
-    --slab-ink-2: #A9C6B8;
+    --slab-ink-2: #B5AD9B;
+    --slab-action: #F2EDE1;
 
-    --jade: #4FBF95;
-    --jade-bright: #67E3AF;
-    --jade-soft: rgba(79, 191, 149, 0.15);
-    --jade-soft-fg: #6ADCAA;
+    --action: #F2EDE1;
+    --action-bright: #FBF7EE;
+    --action-soft: rgba(244, 239, 227, 0.12);
+    --action-soft-fg: #F4EFE3;
 
     --brass: #E0B96A;
     --brass-line: rgba(224, 185, 106, 0.55);
@@ -233,11 +242,11 @@
     --crit-bg: rgba(217, 113, 95, 0.14);
     --btn-fg: #17140F;
 
-    --seal-disc: #17805F;
+    --seal-disc: #2A251D;
     --seal-ring: #D9B876;
     --seal-shadow: rgba(0, 0, 0, 0.55);
 
-    --amb-a: rgba(79, 191, 149, 0.09);
+    --amb-a: rgba(244, 239, 227, 0.05);
     --amb-b: rgba(224, 185, 106, 0.08);
 
     --background: 38 21% 7%;
@@ -249,7 +258,7 @@
     --popover: 33 19% 11%;
     --popover-foreground: 42 44% 92%;
 
-    --primary: 158 47% 53%;
+    --primary: 43 40% 92%;
     --primary-foreground: 38 21% 7%;
 
     --secondary: 30 16% 15%;
@@ -261,7 +270,7 @@
     --accent: 30 16% 15%;
     --accent-foreground: 42 44% 92%;
 
-    --success: 158 47% 53%;
+    --success: 43 40% 92%;
     --success-foreground: 38 21% 7%;
 
     --warning: 37 69% 66%;
@@ -278,9 +287,9 @@
        hairline. The three sites that DO pass an alpha were raised to match. */
     --border: 42 12% 22%;
     --input: 30 16% 15%;
-    --ring: 158 47% 53%;
+    --ring: 43 40% 92%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(158 47% 53%) 0%, hsl(155 69% 65%) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(43 40% 92%) 0%, hsl(40 30% 82%) 100%);
     --gradient-hero: radial-gradient(ellipse 90% 70% at 28% 20%, var(--amb-a) 0%, transparent 60%), var(--ground);
     --gradient-card: linear-gradient(180deg, #221D17 0%, #1C1813 100%);
     --gradient-bg: radial-gradient(ellipse 70% 50% at 88% 8%, var(--amb-a) 0%, transparent 55%),
@@ -291,16 +300,16 @@
     --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.5), 0 12px 28px -16px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(244, 239, 227, 0.075);
     --shadow-lg: 0 3px 6px rgba(0, 0, 0, 0.55), 0 20px 44px -22px rgba(0, 0, 0, 0.92);
     --shadow-xl: 0 4px 8px rgba(0, 0, 0, 0.6), 0 30px 64px -28px rgba(0, 0, 0, 0.95);
-    --shadow-glow: 0 0 40px rgba(79, 191, 149, 0.14);
+    --shadow-glow: 0 0 40px rgba(244, 239, 227, 0.08);
 
     --sidebar-background: 34 24% 6%;
     --sidebar-foreground: 42 44% 92%;
-    --sidebar-primary: 158 47% 53%;
+    --sidebar-primary: 43 40% 92%;
     --sidebar-primary-foreground: 38 21% 7%;
     --sidebar-accent: 30 16% 15%;
     --sidebar-accent-foreground: 42 44% 92%;
     --sidebar-border: 30 16% 15%;
-    --sidebar-ring: 158 47% 53%;
+    --sidebar-ring: 43 40% 92%;
 
     --ck-bg: 38 21% 7%;
     --ck-sidebar: 34 24% 6%;
@@ -309,8 +318,8 @@
     --ck-line: 30 16% 18%;
     --ck-cream: 42 44% 92%;
     --ck-sub: 37 10% 53%;
-    --ck-jade: 158 47% 53%;
-    --ck-mint: 155 69% 65%;
+    --ck-action: 43 40% 92%;
+    --ck-action-bright: 40 50% 97%;
     --ck-brass: 40 66% 65%;
     --ck-brass-bright: 37 69% 66%;
 
@@ -324,9 +333,9 @@
     --hf-text: #F4EFE3;
     --hf-text-soft: #C3BBA9;
     --hf-text-muted: #948B7C;
-    --hf-green: #4FBF95;
-    --hf-green-soft: rgba(79, 191, 149, 0.15);
-    --hf-green-border: rgba(79, 191, 149, 0.36);
+    --hf-action: #F2EDE1;
+    --hf-action-soft: rgba(244, 239, 227, 0.12);
+    --hf-action-border: rgba(244, 239, 227, 0.30);
     --hf-gold: #E0B96A;
     --hf-gold-hover: #E9C983;
     --hf-gold-soft: rgba(224, 170, 80, 0.16);
@@ -889,7 +898,7 @@ button:not(.ck-btn):not(.cand-btn-primary):not(.cand-btn-ghost):not(:disabled):n
 
 :root {
   /* Ink-toned scrim instead of flat black, so the lifted sheet reads as
-     paper above the room. --slab is the one dark jade-black that stays
+     paper above the room. --slab is the one dark ink that stays
      dark in both themes (unlike --ink, which flips to light in Night). */
   --dialog-overlay: color-mix(in srgb, var(--slab) 65%, transparent);
 }

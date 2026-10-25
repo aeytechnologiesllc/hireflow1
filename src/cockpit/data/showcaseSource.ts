@@ -299,7 +299,7 @@ export async function fetchShowcaseDocuments() {
   return {
     kpis: [
       { label: "Pending", value: pending, icon: "clock" as const, tone: "brass" as const },
-      { label: "Signed", value: signed, icon: "check" as const, tone: "jade" as const },
+      { label: "Signed", value: signed, icon: "check" as const, tone: "good" as const },
       { label: "Declined", value: 0, icon: "x" as const, tone: "muted" as const },
       { label: "Awaiting your signature", value: pending, icon: "edit" as const, tone: "brass" as const },
     ],
@@ -385,7 +385,7 @@ export async function fetchShowcaseTeam(profile?: { name?: string | null; email?
 
   return {
     kpis: [
-      { label: "Active members", value: 1, note: "People with access", icon: "users" as const, dot: "jade" as const },
+      { label: "Active members", value: 1, note: "People with access", icon: "users" as const, dot: "good" as const },
       { label: "Pending invites", value: 0, note: "Invites awaiting response", icon: "mail" as const, dot: "brass" as const },
       { label: "View-only members", value: 0, note: "Can view but not edit", icon: "eye" as const, dot: "muted" as const },
     ],
@@ -397,7 +397,7 @@ export async function fetchShowcaseTeam(profile?: { name?: string | null; email?
         email: ownerEmail,
         role: "Owner",
         permission: "Full admin",
-        permissionTone: "jade" as const,
+        permissionTone: "good" as const,
       },
     ],
     invites: [] as Array<{

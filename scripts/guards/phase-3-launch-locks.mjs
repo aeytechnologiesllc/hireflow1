@@ -10,10 +10,51 @@
  *     bar pinned for the whole page, the opening and the end.
  *   - share-image-neutral-for-other-businesses: a job or careers link from any
  *     business shows the plain picture, never "remote"/"work from home".
+ *   - no-jade-tokens-left: ink and ivory with a brass accent (the owner locked
+ *     it 2026-10-25); no jade token, class or green colour value comes back.
+ *   - brass-only-for-ava-score-money: the action colour is ink by day and
+ *     ivory at night; brass never becomes a button, the primary or a focus ring.
+ *   - every-css-variable-is-defined: a var(--x) with no fallback names a token
+ *     that exists, and the gem rail's stops are tokens in both themes (the
+ *     rename left the rail asking for --gem-teal, which no longer existed).
  */
 
 const MARK_TILE = "#14120E";
 const MARK_LINE = "#E0B96A";
+
+/** [r, g, b] 0-255 from #rgb / #rrggbb, rgb()/rgba(), or a bare "H S% L%". */
+function rgbOf(value) {
+  const hex = /#([0-9a-f]{6}|[0-9a-f]{3})\b/i.exec(value);
+  if (hex) {
+    const x = hex[1].length === 3 ? [...hex[1]].map((c) => c + c).join("") : hex[1];
+    return [0, 2, 4].map((i) => parseInt(x.slice(i, i + 2), 16));
+  }
+  const rgb = /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/.exec(value);
+  if (rgb) return rgb.slice(1, 4).map(Number);
+  const hsl = /^\s*(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%\s*$/.exec(value);
+  if (hsl) {
+    const [h, sat, l] = [Number(hsl[1]), Number(hsl[2]) / 100, Number(hsl[3]) / 100];
+    const k = (n) => (n + h / 30) % 12;
+    const a = sat * Math.min(l, 1 - l);
+    return [0, 8, 4].map((n) => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)))));
+  }
+  return null;
+}
+
+/** Hue in degrees and chroma 0-1 (how far from grey). */
+function hueChroma([r, g, b]) {
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), c = max - min;
+  if (c === 0) return { hue: 0, chroma: 0 };
+  let hue = max === r ? ((g - b) / c) % 6 : max === g ? (b - r) / c + 2 : (r - g) / c + 4;
+  hue = (hue * 60 + 360) % 360;
+  return { hue, chroma: c / 255 };
+}
+
+/** Green, as the old jade/mint/teal family was: hue 90-200 and clearly not grey. */
+const isGreen = (rgb) => {
+  const { hue, chroma } = hueChroma(rgb);
+  return hue >= 90 && hue <= 200 && chroma > 0.08;
+};
 
 export default [
   {
@@ -91,6 +132,123 @@ export default [
       if (/export function JourneyDots\b|<JourneyDots\b/.test(row)) detail.push("ApplicantRow.tsx: the per-step dot rail is back");
       const guide = (await read("src/cockpit/components/journey/GuideStages.tsx")) ?? "";
       if (/<JourneyDots\b/.test(guide) || !/<MilestoneRail /.test(guide)) detail.push("GuideStages.tsx: the first-hire guide must draw the milestones");
+      return detail.length ? { ok: false, detail } : { ok: true };
+    },
+  },
+  {
+    id: "no-jade-tokens-left",
+    why:
+      "The owner locked the colours on 2026-10-25: ink and ivory with a brass accent, and no green " +
+      "anywhere (\"I didn't like the green landing page\"). Every jade token was renamed for what it " +
+      "means (--jade → --action, --hf-green → --hf-action, --ck-jade/mint → --ck-action/-bright, " +
+      "--gem-jade… → --gem-1..4) and every green value replaced. A green colour value, an old token or " +
+      "Tailwind class, or the old candidate-jade.css coming back fails here. Google's own logo green " +
+      "(#34A853) on the sign-in button is the one exception.",
+    run: async ({ read, walk }) => {
+      const detail = [];
+      const rels = [
+        ...(await walk("src", [".ts", ".tsx", ".css"])),
+        "index.html",
+        "public/landing.html",
+        "public/site.webmanifest",
+        "tailwind.config.ts",
+        "scripts/make-app-icons.mjs",
+        "scripts/make-share-images.mjs",
+      ];
+      const tokens = /--(?:jade|hf-green|ck-jade|ck-mint|an-jade|gem-(?:jade|mint|teal|gold))\b|\b(?:bg|text|border|ring|from|to|via|fill|stroke|outline|shadow|decoration)-(?:jade|mint)\b|candidate-jade\.css|auth-jade\b/;
+      const values = /#[0-9a-f]{6}\b|#[0-9a-f]{3}\b|rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+|(?<![\w.-])\d{2,3}(?:\.\d+)?\s+\d{1,3}(?:\.\d+)?%\s+\d{1,3}(?:\.\d+)?%/gi;
+      for (const rel of rels) {
+        const text = (await read(rel)) ?? "";
+        text.split("\n").forEach((line, i) => {
+          const where = `${rel}:${i + 1}`;
+          if (tokens.test(line)) detail.push(`${where}  old jade token or class: ${line.trim().slice(0, 110)}`);
+          for (const m of line.matchAll(values)) {
+            if (/^#34A853$/i.test(m[0])) continue; // Google's logo
+            const rgb = rgbOf(m[0]);
+            if (rgb && isGreen(rgb)) detail.push(`${where}  green colour ${m[0]}: ${line.trim().slice(0, 100)}`);
+          }
+        });
+      }
+      if ((await read("src/styles/candidate-jade.css")) != null) detail.push("src/styles/candidate-jade.css is back (it is candidate-theme.css)");
+      return detail.length ? { ok: false, detail } : { ok: true };
+    },
+  },
+  {
+    id: "brass-only-for-ava-score-money",
+    why:
+      "Brass is Ava's verdict, the score and anything that costs money (src/index.css, the owner's lock " +
+      "of 2026-10-25). The action colour is ink by day and ivory at night: --action, --primary, --ring, " +
+      "--success, --ck-action and --hf-action stay near grey in both themes, the default button and the " +
+      "action pill fill with the action colour, and keyboard focus rings are the action colour, so " +
+      "brass never reads as a plain button or as \"this will be charged\" on Pass, Hire or Save.",
+    run: async ({ read }) => {
+      const detail = [];
+      const css = (await read("src/index.css")) ?? "";
+      const actionTokens = ["action", "action-bright", "primary", "ring", "success", "ck-action", "ck-action-bright", "hf-action"];
+      for (const name of actionTokens) {
+        const found = [...css.matchAll(new RegExp(`--${name}:\\s*([^;]+);`, "g"))];
+        if (found.length < 2) detail.push(`src/index.css: --${name} is not set for both Day and Night`);
+        for (const m of found) {
+          const rgb = rgbOf(m[1]);
+          if (!rgb) { detail.push(`src/index.css: --${name}: ${m[1]} is not a colour this guard can read`); continue; }
+          const { chroma } = hueChroma(rgb);
+          if (chroma > 0.15) detail.push(`src/index.css: --${name}: ${m[1].trim()} is a colour, not ink or ivory (chroma ${chroma.toFixed(2)})`);
+        }
+      }
+      const variants = (await read("src/components/ui/button-variants.ts")) ?? "";
+      if (!/default: "bg-primary text-primary-foreground/.test(variants)) detail.push("button-variants.ts: the default button is not the primary (action) colour");
+      const motion = (await read("src/styles/motion.css")) ?? "";
+      const pill = /\.hf-pill--action\.hf-pill--action\.hf-pill--action \{([^}]*)\}/.exec(motion)?.[1] ?? "";
+      if (!/var\(--action\)/.test(pill) || /brass/.test(pill)) detail.push("motion.css: .hf-pill--action must fill with --action, never brass");
+      const cockpit = (await read("src/cockpit/cockpit.css")) ?? "";
+      const primary = /\.ck-btn-primary \{([^}]*)\}/.exec(cockpit)?.[1] ?? "";
+      if (!/background: var\(--action\)/.test(primary)) detail.push("cockpit.css: .ck-btn-primary must fill with --action");
+      for (const [rel, text] of [["src/cockpit/cockpit.css", cockpit], ["src/styles/motion.css", motion], ["src/index.css", css]]) {
+        for (const m of text.matchAll(/:focus-visible[^{]*\{([^}]*)\}/g)) {
+          if (/outline[^;]*brass|box-shadow[^;]*brass/.test(m[1])) detail.push(`${rel}: a focus ring is brass: ${m[0].replace(/\s+/g, " ").slice(0, 100)}`);
+        }
+      }
+      return detail.length ? { ok: false, detail } : { ok: true };
+    },
+  },
+  {
+    id: "every-css-variable-is-defined",
+    why:
+      "The colour rename of 2026-10-25 left the gem rail building var(--gem-teal) and friends from its " +
+      "own stop names after the tokens became --gem-1..4, so every pipeline circle lost its colour and " +
+      "nothing failed. A var(--x) with no fallback must name a token defined somewhere in src (CSS, a " +
+      "style object, a Tailwind [--x:…] class or setProperty), and src/cockpit/lib/gemRail.ts's stops " +
+      "must each be a --gem-N token set for Day and Night in cockpit.css.",
+    run: async ({ read, walk }) => {
+      const detail = [];
+      const defined = new Set();
+      const used = new Map();
+      const rels = [...(await walk("src", [".ts", ".tsx", ".css"])), "index.html", "tailwind.config.ts"];
+      for (const rel of rels) {
+        const text = (await read(rel)) ?? "";
+        for (const re of [/(?<![\w-])--([\w-]+)\s*:/g, /["'`]--([\w-]+)["'`]\s*(?:as\s+\w+\s*)?[:\]]/g, /\[--([\w-]+):/g, /setProperty\(\s*[`"']--([\w-]+)/g]) {
+          for (const m of text.matchAll(re)) defined.add(m[1]);
+        }
+        if (rel.endsWith(".html") || rel === "tailwind.config.ts") continue;
+        // var(--name) with nothing after the name but ")" has no fallback.
+        for (const m of text.matchAll(/var\(--([\w-]+)\s*\)/g)) {
+          if (!used.has(m[1])) used.set(m[1], rel);
+        }
+      }
+      for (const [name, rel] of used) {
+        // --tw-* and --radix-* come from libraries; shadcn's chart sets --color-<key> from its config.
+        if (/^(tw|radix|color)-/.test(name) || defined.has(name)) continue;
+        detail.push(`${rel}: var(--${name}) has no fallback and --${name} is defined nowhere`);
+      }
+      const rail = (await read("src/cockpit/lib/gemRail.ts")) ?? "";
+      const stops = /const GEM_STOPS = \[([^\]]+)\]/.exec(rail)?.[1]?.match(/"([^"]+)"/g)?.map((x) => x.slice(1, -1)) ?? [];
+      if (stops.length < 2) detail.push("gemRail.ts: GEM_STOPS not found");
+      if (!/var\(--gem-\$\{b\}\)/.test(rail)) detail.push("gemRail.ts: the fill is no longer var(--gem-${stop}); update this guard with it");
+      const cockpit = (await read("src/cockpit/cockpit.css")) ?? "";
+      for (const stop of stops) {
+        const n = (cockpit.match(new RegExp(`--gem-${stop}:`, "g")) ?? []).length;
+        if (n < 2) detail.push(`cockpit.css: --gem-${stop} (a gemRail.ts stop) is set ${n} time(s); it needs Day and Night`);
+      }
       return detail.length ? { ok: false, detail } : { ok: true };
     },
   },

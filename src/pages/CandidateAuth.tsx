@@ -543,17 +543,17 @@ export default function CandidateAuth() {
 
   return (
     <div
-      className="candidate-auth-jade scroll-perf relative min-h-[100dvh] overflow-y-auto overflow-x-hidden"
+      className="candidate-auth-theme scroll-perf relative min-h-[100dvh] overflow-y-auto overflow-x-hidden"
       style={{ background: "var(--hf-bg)", color: "var(--hf-text)" }}
     >
       <style>{`
         /* Same token-driven treatment as the employer Auth screen — this page
            carries no private palette of its own; only what's genuinely local
            to it lives here. */
-        .candidate-auth-jade h1,.candidate-auth-jade h2{font-family:'Fraunces',Georgia,serif;font-weight:500;letter-spacing:-0.01em;}
-        .candidate-auth-jade .auth-card{border-color:var(--hf-border);background:var(--hf-surface);}
-        .candidate-auth-jade input{background:var(--ground);border-color:var(--line);transition:border-color .18s ease, box-shadow .18s ease;}
-        .candidate-auth-jade input:focus,.candidate-auth-jade input:focus-visible{
+        .candidate-auth-theme h1,.candidate-auth-theme h2{font-family:'Fraunces',Georgia,serif;font-weight:500;letter-spacing:-0.01em;}
+        .candidate-auth-theme .auth-card{border-color:var(--hf-border);background:var(--hf-surface);}
+        .candidate-auth-theme input{background:var(--ground);border-color:var(--line);transition:border-color .18s ease, box-shadow .18s ease;}
+        .candidate-auth-theme input:focus,.candidate-auth-theme input:focus-visible{
           outline:none;
           border-color:var(--hf-gold);
           box-shadow:0 0 0 1px var(--hf-gold-border);
@@ -594,7 +594,7 @@ export default function CandidateAuth() {
             >
               <span
                 className="h-1.5 w-1.5 rounded-full"
-                style={{ background: "var(--hf-green)" }}
+                style={{ background: "var(--hf-action)" }}
               />
               {backToJob ? (applyingForTitle ? "Applying for" : "Your application") : "Candidate Portal"}
             </span>
@@ -712,9 +712,9 @@ export default function CandidateAuth() {
                     <div className="text-center py-6">
                       <div
                         className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
-                        style={{ background: "var(--hf-green-soft)" }}
+                        style={{ background: "var(--hf-action-soft)" }}
                       >
-                        <GlyphLetter size={30} style={{ color: "var(--hf-green)" }} />
+                        <GlyphLetter size={30} style={{ color: "var(--hf-action)" }} />
                       </div>
                       <p className="text-muted-foreground text-sm mb-6">
                         We've sent a password reset link to <span className="font-medium text-foreground">{forgotPasswordEmail}</span>
@@ -823,12 +823,12 @@ export default function CandidateAuth() {
 
                   {/* Tabs — a shallow groove sunk into the card's own paper,
                       not a contrasting pill sitting on top of it. */}
-                  <div className="flex mb-5 sm:mb-8 rounded-xl p-1 bg-[var(--hf-bg-soft)] shadow-[inset_0_1px_2px_rgba(20,32,27,0.08)]">
+                  <div className="flex mb-5 sm:mb-8 rounded-xl p-1 bg-[var(--hf-bg-soft)] shadow-[inset_0_1px_2px_rgba(23,21,15,0.08)]">
                     <button
                       onClick={() => setActiveTab("signin")}
                       className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all ${
                         activeTab === "signin"
-                          ? "bg-[var(--hf-surface)] text-[var(--hf-text)] shadow-[0_1px_3px_rgba(20,32,27,0.12)]"
+                          ? "bg-[var(--hf-surface)] text-[var(--hf-text)] shadow-[0_1px_3px_rgba(23,21,15,0.12)]"
                           : "text-[var(--hf-text-muted)] hover:text-[var(--hf-text)]"
                       }`}
                     >
@@ -838,7 +838,7 @@ export default function CandidateAuth() {
                       onClick={() => setActiveTab("signup")}
                       className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all ${
                         activeTab === "signup"
-                          ? "bg-[var(--hf-surface)] text-[var(--hf-text)] shadow-[0_1px_3px_rgba(20,32,27,0.12)]"
+                          ? "bg-[var(--hf-surface)] text-[var(--hf-text)] shadow-[0_1px_3px_rgba(23,21,15,0.12)]"
                           : "text-[var(--hf-text-muted)] hover:text-[var(--hf-text)]"
                       }`}
                     >

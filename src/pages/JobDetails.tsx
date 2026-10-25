@@ -668,7 +668,7 @@ export default function JobDetails() {
                       {employerProfile?.company_logo ? (
                         <img src={employerProfile.company_logo} alt={employerProfile.company_name ?? "Company logo"} className="h-full w-full object-contain" />
                       ) : (
-                        <GlyphJobPost size={28} style={{ color: "var(--hf-green)" }} />
+                        <GlyphJobPost size={28} style={{ color: "var(--hf-action)" }} />
                       )}
                     </div>
                     <div className="min-w-0">

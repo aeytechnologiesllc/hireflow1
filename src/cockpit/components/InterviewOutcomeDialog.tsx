@@ -25,7 +25,7 @@ function Choice({ title, hint, icon, filled, disabled, onClick, mark }: { title:
       disabled={disabled}
       data-outcome-choice={mark}
       className="flex w-full items-center gap-3 rounded-[12px] border px-4 py-3 text-left transition-[filter,background-color] disabled:opacity-50"
-      style={filled ? { background: "var(--jade)", borderColor: "var(--jade)", color: "var(--btn-fg)" } : { background: "var(--hf-surface)", borderColor: "var(--hf-border-strong)", color: "var(--hf-text)" }}
+      style={filled ? { background: "var(--action)", borderColor: "var(--action)", color: "var(--btn-fg)" } : { background: "var(--hf-surface)", borderColor: "var(--hf-border-strong)", color: "var(--hf-text)" }}
     >
       {icon && (
         <span className="shrink-0" aria-hidden>
@@ -126,8 +126,8 @@ export function InterviewOutcomeDialog({
             </div>
           ) : (
             <>
-              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-[12px] px-3.5 py-3" style={{ background: next.rated ? "var(--jade-soft)" : "var(--surface-2)" }} data-outcome-rating>
-                <span className="min-w-0 text-[13.5px] font-semibold leading-snug" style={{ color: next.rated ? "var(--jade-soft-fg)" : "var(--hf-text)" }}>
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-[12px] px-3.5 py-3" style={{ background: next.rated ? "var(--action-soft)" : "var(--surface-2)" }} data-outcome-rating>
+                <span className="min-w-0 text-[13.5px] font-semibold leading-snug" style={{ color: next.rated ? "var(--action-soft-fg)" : "var(--hf-text)" }}>
                   {next.rating}
                 </span>
                 <button type="button" className="ck-btn ck-btn-outline !py-1.5 !text-[12.5px]" onClick={onGuide} data-outcome-guide>

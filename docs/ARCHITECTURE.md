@@ -83,7 +83,7 @@ Create job
 - [CANDIDATE-FLOW.md](./CANDIDATE-FLOW.md) — UX flows and routes
 - [BACKEND-SCHEMA.md](./BACKEND-SCHEMA.md) — live tables, columns, RLS
 - [MIGRATION-HISTORY.md](./MIGRATION-HISTORY.md) — repo file ↔ live migration version mapping
-- Parent repo `CLAUDE.md` — product rules, Deep Jade design, Ava seal, applicant no-AI-language rule
+- Parent repo `CLAUDE.md` — product rules, ink-and-ivory design (brass accent), Ava seal, applicant no-AI-language rule
 
 ## Run locally
 

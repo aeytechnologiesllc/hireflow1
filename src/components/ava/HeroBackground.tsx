@@ -1,9 +1,9 @@
 /**
- * HeroBackground — the brand's premium Deep Jade ambient background, ported from
+ * HeroBackground — the brand's ink-and-ivory ambient background, ported from
  * the marketing landing hero (`public/landing.html`).
  *
- * The landing hero layers (1) a slow jade aurora and (2) a faint drifting
- * constellation of mint particles with thin connecting lines. This component
+ * The landing hero layers (1) a slow ink aurora and (2) a faint drifting
+ * constellation of ivory particles with thin connecting lines. This component
  * reproduces that same look as a self-contained, GPU-friendly React layer so
  * other surfaces (e.g. the Ava create-job flow) feel brighter, smoother, and
  * consistent with the brand — instead of a flat checkered grid.
@@ -16,7 +16,7 @@
  *  - Constellation = ONE lightweight 2D canvas (~half-res, throttled to ~30fps,
  *    paused when the tab is hidden) — cheap and subtle.
  *  - Reduced-motion: both the aurora animation and the canvas are disabled; a
- *    static jade glow remains so the surface still looks premium.
+ *    static ink glow remains so the surface still looks premium.
  *  - Renders BEHIND content (z-0) and is pointer-events:none. Callers keep their
  *    content at z-10+. A soft top/bottom vignette protects text contrast.
  */
@@ -31,8 +31,8 @@ const STYLE = `
   .hf-hero-bg__aurora::before {
     top: -26%; left: -12%; width: 64vw; height: 64vw; max-width: 820px; max-height: 820px;
     background: radial-gradient(circle at 50% 50%,
-      color-mix(in srgb, var(--hf-green-border) 46%, transparent) 0%,
-      color-mix(in srgb, var(--hf-green-soft) 18%, transparent) 38%,
+      color-mix(in srgb, var(--hf-action-border) 46%, transparent) 0%,
+      color-mix(in srgb, var(--hf-action-soft) 18%, transparent) 38%,
       transparent 68%);
     /* Once, then still (nothing on screen animates forever, 2026-10-09). */
     animation: hf-hero-a 26s ease-in-out 1;
@@ -40,18 +40,18 @@ const STYLE = `
   .hf-hero-bg__aurora::after {
     bottom: -32%; right: -16%; width: 58vw; height: 58vw; max-width: 720px; max-height: 720px;
     background: radial-gradient(circle at 50% 50%,
-      color-mix(in srgb, var(--hf-green-soft) 34%, transparent) 0%,
+      color-mix(in srgb, var(--hf-action-soft) 34%, transparent) 0%,
       color-mix(in srgb, var(--hf-gold-hover) 10%, transparent) 42%,
       transparent 70%);
     animation: hf-hero-b 32s ease-in-out 1;
   }
-  /* a third, brighter jade core glow up top — gives the "brighter" hero feel */
+  /* a third, brighter ink core glow up top — gives the "brighter" hero feel */
   .hf-hero-bg__glow {
     position: absolute; top: -18%; left: 50%; transform: translateX(-50%);
     width: 70vw; height: 46vw; max-width: 900px; max-height: 560px;
     background: radial-gradient(ellipse at 50% 50%,
-      color-mix(in srgb, var(--hf-green-border) 30%, transparent) 0%,
-      color-mix(in srgb, var(--hf-green-soft) 10%, transparent) 45%,
+      color-mix(in srgb, var(--hf-action-border) 30%, transparent) 0%,
+      color-mix(in srgb, var(--hf-action-soft) 10%, transparent) 45%,
       transparent 72%);
   }
   .hf-hero-bg__canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -164,12 +164,12 @@ export function HeroBackground({ className, contained = false }: { className?: s
         if (p.x > W) p.x = 0;
         if (p.y < 0) p.y = H;
         if (p.y > H) p.y = 0;
-        ctx.fillStyle = `rgba(159,231,201,${p.a})`;
+        ctx.fillStyle = `rgba(244,239,227,${p.a})`;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
         ctx.fill();
       }
-      ctx.strokeStyle = "rgba(159,231,201,0.045)";
+      ctx.strokeStyle = "rgba(244,239,227,0.045)";
       ctx.lineWidth = 0.5;
       for (let i = 0; i < particles.length; i++) {
         for (let j = i + 1; j < particles.length; j++) {

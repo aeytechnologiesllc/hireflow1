@@ -19,7 +19,7 @@ import {
  * Where they are in the job's process, on the full profile — the shared
  * <GemRail>, with every gem decided by the applicant's RECORD (see
  * journeyDots in ../lib/applicantProfile.ts), the same rule as the list's
- * dots: done (jade), done below the job's bar (brass), on it now (ring),
+ * dots: done (ink), done below the job's bar (brass), on it now (ring),
  * skipped (dashed: a step they went past with no result on file, such as one
  * the job gained after they passed it — it says "Skipped", never "Completed"),
  * not reached (empty). Never by position.
@@ -50,11 +50,11 @@ function glyphFor(stepType: string): Glyph {
 }
 
 /** The gem's fill for its state. --ground is the ink on both: deep on Night's
- *  light jade and brass, ivory on Day's dark ones. */
+ *  light ink and brass, ivory on Day's dark ones. */
 function paint(dot: JourneyDot): Pick<GemRailNode, "color" | "ink"> {
   if (dot.id === DECISION_STAGE_ID) return { color: "var(--brass)" };
   if (dot.state === "below") return { color: "var(--brass)", ink: "var(--ground)" };
-  if (dot.state === "done" || dot.state === "now") return { color: "var(--jade)", ink: "var(--ground)" };
+  if (dot.state === "done" || dot.state === "now") return { color: "var(--action)", ink: "var(--ground)" };
   return {};
 }
 

@@ -1273,7 +1273,7 @@ export default function InterviewSchedulingWizard({
                         onClick={() => setExactTimeMode((v) => !v)}
                         onPointerDown={hapticLight}
                         className="text-xs font-medium transition-opacity duration-150 ease-out active:opacity-60 motion-reduce:transition-none"
-                        style={{ color: "var(--jade)" }}
+                        style={{ color: "var(--action)" }}
                       >
                         {exactTimeMode ? "Offer a time for them to book instead" : "Already agreed a time? Book it directly"}
                       </button>
@@ -1384,7 +1384,7 @@ export default function InterviewSchedulingWizard({
                                   <span
                                     className="flex h-11 w-11 items-center justify-center rounded-full text-[15px] font-semibold transition-colors duration-150 ease-out"
                                     style={{
-                                      background: active ? "var(--jade)" : "transparent",
+                                      background: active ? "var(--action)" : "transparent",
                                       color: active ? "var(--slab-ink)" : "var(--ink)",
                                     }}
                                   >
@@ -1392,7 +1392,7 @@ export default function InterviewSchedulingWizard({
                                   </span>
                                   <span
                                     className="h-1 w-1 rounded-full transition-opacity duration-150"
-                                    style={{ background: "var(--jade)", opacity: hasWindows ? 1 : 0 }}
+                                    style={{ background: "var(--action)", opacity: hasWindows ? 1 : 0 }}
                                   />
                                 </button>
                               </div>
@@ -1428,7 +1428,7 @@ export default function InterviewSchedulingWizard({
                                       onPointerDown={hapticLight}
                                       className="text-xs font-semibold transition-opacity duration-150 ease-out active:opacity-60 motion-reduce:transition-none"
                                       // The phone stylesheet's 44px button floor would open a gap in this line.
-                                      style={{ color: "var(--jade)", minHeight: 0, padding: 0 }}
+                                      style={{ color: "var(--action)", minHeight: 0, padding: 0 }}
                                       data-testid="time-suggestion-go"
                                     >
                                       Go to {sayClock(suggestion.slots[0])}
@@ -1456,14 +1456,14 @@ export default function InterviewSchedulingWizard({
                                 <span className="truncate text-left">{firstName === "them" ? "Their" : `${firstName}'s`} time</span>
                               </div>
                             )}
-                            {/* Center band — soft jade tint behind the selected row */}
+                            {/* Center band — soft ink tint behind the selected row */}
                             <div
                               className="pointer-events-none absolute left-0 right-0 rounded-2xl"
                               style={{
                                 top: "50%",
                                 height: WHEEL_ROW_HEIGHT,
                                 transform: "translateY(-50%)",
-                                background: "var(--jade-soft)",
+                                background: "var(--action-soft)",
                                 zIndex: 0,
                               }}
                             />
@@ -1538,19 +1538,19 @@ export default function InterviewSchedulingWizard({
                                         {selected && (
                                           <span
                                             className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full"
-                                            style={{ background: "var(--jade)" }}
+                                            style={{ background: "var(--action)" }}
                                             aria-hidden="true"
                                           />
                                         )}
                                       </span>
                                       {theirs && (
-                                        /* Their own clock for this row. A suggested time reads in jade. */
+                                        /* Their own clock for this row. A suggested time reads in ink. */
                                         <span
                                           className="whitespace-nowrap text-left"
                                           style={{
                                             fontSize: centered ? 14 : 12.5,
                                             fontWeight: isSuggested ? 600 : 500,
-                                            color: isSuggested ? "var(--jade-soft-fg)" : centered ? "var(--ink-2)" : "var(--ink-3)",
+                                            color: isSuggested ? "var(--action-soft-fg)" : centered ? "var(--ink-2)" : "var(--ink-3)",
                                           }}
                                           data-their-time
                                         >
@@ -1565,7 +1565,7 @@ export default function InterviewSchedulingWizard({
                             )}
                           </div>
 
-                          {/* Add action — jade pill, label tracks the centered row live */}
+                          {/* Add action — ink pill, label tracks the centered row live */}
                           <button
                             type="button"
                             disabled={!daySlots[wheelCenterIndex]}
@@ -1578,8 +1578,8 @@ export default function InterviewSchedulingWizard({
                             style={
                               daySlots[wheelCenterIndex] &&
                               isWindowSelected(viewDay, daySlots[wheelCenterIndex].value)
-                                ? { background: "var(--jade-soft)", color: "var(--jade-soft-fg)" }
-                                : { background: "var(--jade)", color: "var(--btn-fg)" }
+                                ? { background: "var(--action-soft)", color: "var(--action-soft-fg)" }
+                                : { background: "var(--action)", color: "var(--btn-fg)" }
                             }
                           >
                             {daySlots[wheelCenterIndex] ? (

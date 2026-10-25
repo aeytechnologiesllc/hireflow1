@@ -256,7 +256,7 @@ export default function CandidateStepGate({
         <Card className="bg-card border-border max-w-md w-full">
           <CardContent className="p-8 text-center space-y-6">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-              <Clock className="h-8 w-8 text-[var(--jade-bright)]" />
+              <Clock className="h-8 w-8 text-[var(--action-bright)]" />
             </div>
             <div className="space-y-2">
               <h2 className="text-xl font-semibold text-foreground">Not quite time yet</h2>

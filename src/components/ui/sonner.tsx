@@ -10,8 +10,8 @@ const DEFAULT_MS = 4000;
 /**
  * The notifications (2026-10-11, approved by the owner from a mock-up: "the
  * black box becomes a warm card"). Same place, same words; each one sits on
- * the app's raised surface with a soft shadow, a jade check (a soft red
- * mark for an error), "Undo" as a jade word instead of a white slab, and a
+ * the app's raised surface with a soft shadow, an ink check (a soft red
+ * mark for an error), "Undo" as an ink word instead of a white slab, and a
  * thin line along the bottom that runs out once, for as long as it stays.
  * The look lives in src/styles/toasts.css, on the app's own color tokens, so
  * it follows the dark and Paper themes.

@@ -85,7 +85,7 @@ const rules = calm.replace(/\/\*[\s\S]*?\*\//g, "");
 check("the calm block is where the test expects it", calm.length > 2000);
 check("nothing in it loops", !/infinite/.test(rules));
 check("the halo is there and still", /\.ck-rail-calm \.ck-rail-node\.is-current \.ck-rail-dot::after \{ opacity: 0\.22; animation: none; \}/.test(rules));
-check("the line's colours are fixed: one gradient, not sized or slid", /\.ck-rail-calm \.ck-rail-ink \{[^}]*linear-gradient\(90deg, var\(--gem-jade\), var\(--gem-mint\), var\(--gem-teal\), var\(--gem-gold\)\)[^}]*\}/.test(rules) && !/background-size|background-position/.test(rules));
+check("the line's colours are fixed: one gradient, not sized or slid", /\.ck-rail-calm \.ck-rail-ink \{[^}]*linear-gradient\(90deg, var\(--gem-1\), var\(--gem-2\), var\(--gem-3\), var\(--gem-4\)\)[^}]*\}/.test(rules) && !/background-size|background-position/.test(rules));
 const travel = ["fill", "ink", "chip"].map((part) => (rules.match(new RegExp(`\\.ck-rail-calm \\.ck-rail-${part} \\{([^}]*)\\}`)) ?? [])[1] ?? "");
 check("the line and the initials travel by transform only, on one curve", travel.every((body) => /transition: transform var\(--rail-move, 660ms\) cubic-bezier\(0\.4, 0, 0\.2, 1\);/.test(body)));
 const openers = ["window", "ink", "ride"].map((name) => (rules.match(new RegExp(`@keyframes ck-rail-open-${name} \\{([\\s\\S]*?)\\n\\}`)) ?? [])[1] ?? "");
@@ -96,7 +96,7 @@ check("the track is never drawn a frame late under reduced motion", /\.ck-rail-t
 check("reduced motion: no transitions and no animations on the calm rail", /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*\.ck-rail-calm \.ck-rail-chip,[\s\S]*animation: none !important;/.test(rules));
 // Its shimmer plays twice, then rests: nothing on screen animates forever
 // (the owner's rule, 2026-10-09).
-check("the walk's own rules are untouched (its shimmer plays twice, never forever)", /\.ck-rail-track-fill \{\s*\n\s*background: linear-gradient\(90deg, var\(--gem-jade\), var\(--gem-mint\), var\(--gem-teal\), var\(--gem-gold\)\);\s*\n\s*background-size: 240% 100%;\s*\n\s*animation: ck-rail-flow 8s linear 2;/.test(css));
+check("the walk's own rules are untouched (its shimmer plays twice, never forever)", /\.ck-rail-track-fill \{\s*\n\s*background: linear-gradient\(90deg, var\(--gem-1\), var\(--gem-2\), var\(--gem-3\), var\(--gem-4\)\);\s*\n\s*background-size: 240% 100%;\s*\n\s*animation: ck-rail-flow 8s linear 2;/.test(css));
 
 console.log(`\n${passed} passed, ${failed} failed.`);
 process.exit(failed ? 1 : 0);

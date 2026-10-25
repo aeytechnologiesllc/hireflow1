@@ -1,6 +1,7 @@
 /* ============================================================
-   Hireflow — Deep Jade "Owner Cockpit" utilities
-   Solid, elevated surfaces. Brass accents. Cream on near-black jade.
+   Hireflow — "Owner Cockpit" utilities
+   Solid, elevated surfaces. Ink and ivory, brass accents (2026-10-25; it was
+   deep green).
    No glassmorphism / blur / neon.
    ============================================================ */
 
@@ -191,10 +192,10 @@
 }
 .ck-btn:not(:disabled):active { transform: translateY(0.5px) scale(0.97); }
 
-/* The action colour is jade — it is what Ava vouches for. Brass is reserved for
+/* The action colour is ink — it is what Ava vouches for. Brass is reserved for
    things that cost money, and those are outlined, never filled. */
 .ck-btn-primary {
-  background: var(--jade);
+  background: var(--action);
   color: var(--btn-fg);
   box-shadow: var(--hf-shadow-soft);
 }
@@ -223,7 +224,7 @@
 
 /* A control that cannot be pressed must not offer the press: while an
    advance/reject mutation is in flight the whole decision bar is inert, and
-   until now it kept its full jade fill, the pointer and the hover lift. Sits
+   until now it kept its full ink fill, the pointer and the hover lift. Sits
    after the variants so it wins the box-shadow they set. */
 .ck-btn:disabled,
 .ck-btn[aria-disabled="true"] {
@@ -250,16 +251,16 @@
   border-radius: 999px;
   border: 1px solid transparent;
 }
-.ck-pill-live   { color: var(--hf-green); background: var(--hf-green-soft); border-color: var(--hf-green-border); }
+.ck-pill-live   { color: var(--hf-action); background: var(--hf-action-soft); border-color: var(--hf-action-border); }
 .ck-pill-draft  { color: var(--hf-text-muted); background: rgba(143, 153, 142, 0.12); border-color: var(--hf-border-strong); }
 .ck-pill-closed { color: var(--hf-gold); background: var(--hf-gold-soft); border-color: var(--hf-gold-border); }
-.ck-pill-stage  { color: var(--hf-green); background: var(--hf-green-soft); border-color: var(--hf-green-border); }
+.ck-pill-stage  { color: var(--hf-action); background: var(--hf-action-soft); border-color: var(--hf-action-border); }
 .ck-pill-stage-voice { color: var(--hf-gold); background: var(--hf-gold-soft); border-color: var(--hf-gold-border); }
 .ck-pill-stage-neutral { color: var(--hf-text-soft); background: rgba(143, 153, 142, 0.10); border-color: var(--hf-border); }
 
 /* status dots */
 .ck-dot { width: 7px; height: 7px; border-radius: 999px; display: inline-block; }
-.ck-dot-live   { background: var(--hf-green); box-shadow: 0 0 8px rgba(57, 217, 138, 0.55); }
+.ck-dot-live   { background: var(--hf-action); box-shadow: 0 0 8px color-mix(in srgb, var(--hf-action) 55%, transparent); }
 .ck-dot-draft  { background: var(--hf-text-muted); }
 .ck-dot-closed { background: var(--hf-gold); }
 
@@ -299,7 +300,7 @@ main.ck-scroll,
   font-size: 0.875rem;
 }
 .ck-input::placeholder { color: var(--hf-text-muted); }
-.ck-input:focus { outline: none; border-color: var(--jade); box-shadow: 0 0 0 3px var(--jade-soft); }
+.ck-input:focus { outline: none; border-color: var(--action); box-shadow: 0 0 0 3px var(--action-soft); }
 
 /* ── The message box (Messages): one rounded box holding the words, the
    hint and Send. It lights up as a whole when the cursor is in it; the
@@ -310,7 +311,7 @@ main.ck-scroll,
   cursor: text;
   transition: border-color 150ms ease-out, box-shadow 150ms ease-out;
 }
-.ck-composer:focus-within { border-color: var(--jade); box-shadow: 0 0 0 3px var(--jade-soft); }
+.ck-composer:focus-within { border-color: var(--action); box-shadow: 0 0 0 3px var(--action-soft); }
 .ck-composer textarea::placeholder { color: var(--hf-text-muted); }
 /* The page's own focus ring would draw a second frame inside the box. */
 .ck-composer textarea:focus,
@@ -382,7 +383,7 @@ main.ck-scroll,
 .ck-btn:not(:disabled):hover { transform: translateY(-1px); }
 .ck-btn:not(:disabled):active { transform: translateY(0.5px) scale(0.97); }
 
-/* ── Ambient depth — ONE cheap, living jade aurora layer ──────
+/* ── Ambient depth — ONE cheap, living aurora layer (warm ink and brass) ──────
    Two soft radial blobs that drift/scale very slowly behind the cockpit to
    give a premium sense of depth. Pure transform/opacity (GPU-composited),
    no blur filters, no WebGL. Elegant and dark — complements the orb. */
@@ -435,8 +436,8 @@ main.ck-scroll,
 }
 .hf-inspector-enter { animation: hfInspector var(--hf-med) var(--hf-ease) both; }
 
-/* ── Accessibility: visible keyboard focus ring (jade), no effect on mouse use ──
-   Jade is the action colour and brass means it costs money, so a brass ring on
+/* ── Accessibility: visible keyboard focus ring (ink), no effect on mouse use ──
+   Ink is the action colour and brass means it costs money, so a brass ring on
    Pass, Hire or Save read as "this will be charged". The two bare-element
    selectors sweep up the links and buttons in the scrolling pane that declare
    no focus style of their own, so none of them falls through to the browser's
@@ -447,7 +448,7 @@ main.ck-scroll,
 .ck-pill:focus-visible,
 .ck-scroll a:focus-visible,
 .ck-scroll button:focus-visible {
-  outline: 2px solid var(--jade);
+  outline: 2px solid var(--action);
   outline-offset: 2px;
 }
 
@@ -720,33 +721,36 @@ main.ck-scroll,
    ══════════════════════════════════════════════════════════════════════════ */
 
 :root {
-  /* the curated journey spectrum the track flows through and every cleared
-     gem draws its fill from — deep jade leading through mint and teal to the
-     warm gold that hands off into the brass Decision seal. Deep jade and the
-     mint/teal midtones read the same in both themes; gold is tuned per theme
-     below so it neither washes out on ivory nor undersells on ink. */
-  --gem-jade: #0F6B4F;
-  --gem-mint: #1C9A72;
-  --gem-teal: #1F7A78;
-  --gem-gold: #B8860B;
+  /* the journey spectrum the track flows through and every cleared gem draws
+     its fill from — ink leading through warm stone to the gold that hands off
+     into the brass Decision seal (2026-10-25: ink and ivory, brass accent; it
+     ran green to gold until 2026-10-25). Day runs dark to light on ivory; Night
+     runs light to bright on ink, so the first gem never sinks into the
+     ground. */
+  --gem-1: #2A2620;
+  --gem-2: #5E574B;
+  --gem-3: #8C8473;
+  --gem-4: #B8860B;
 
-  /* the glyph ink that reads best against each stop — checked against both
-     themes' resolved colors, not guessed: jade and (Day) teal are dark
-     enough to need an ivory glyph, mint and gold are light enough for ink. */
-  --gem-ink-jade: #F4EFE3;
-  --gem-ink-mint: #14100a;
-  --gem-ink-teal: #F4EFE3;
-  --gem-ink-gold: #14100a;
+  /* the glyph ink that reads best against each stop: the two dark stops take
+     an ivory glyph, the light ones ink. */
+  --gem-ink-1: #F4EFE3;
+  --gem-ink-2: #F4EFE3;
+  --gem-ink-3: #14100a;
+  --gem-ink-4: #14100a;
 
   /* untraveled track — a whisper of the page's own ink, so the groove reads
      as "muted" on ivory Day and on near-black Night without a second token */
   --rail-track-base: color-mix(in srgb, var(--ink) 9%, transparent);
 }
 .dark {
-  --gem-mint: #3FCE97;
-  --gem-teal: #2FA3A0;
-  --gem-gold: #E0B96A;
-  --gem-ink-teal: #14100a;
+  --gem-1: #A69C88;
+  --gem-2: #C7BEAA;
+  --gem-3: #E3DAC6;
+  --gem-4: #E0B96A;
+  --gem-ink-1: #14100a;
+  --gem-ink-2: #14100a;
+  --gem-ink-3: #14100a;
 }
 
 .ck-rail-outer { margin-bottom: 14px; }
@@ -776,10 +780,10 @@ main.ck-scroll,
 }
 .ck-rail-track { background: var(--rail-track-base); }
 .ck-rail-track-fill {
-  background: linear-gradient(90deg, var(--gem-jade), var(--gem-mint), var(--gem-teal), var(--gem-gold));
+  background: linear-gradient(90deg, var(--gem-1), var(--gem-2), var(--gem-3), var(--gem-4));
   background-size: 240% 100%;
   animation: ck-rail-flow 8s linear 2;
-  box-shadow: 0 0 14px -3px color-mix(in srgb, var(--gem-mint) 55%, transparent);
+  box-shadow: 0 0 14px -3px color-mix(in srgb, var(--gem-2) 55%, transparent);
   transition: transform 0.9s cubic-bezier(0.22, 1.36, 0.36, 1);
 }
 @keyframes ck-rail-flow {
@@ -831,15 +835,15 @@ main.ck-scroll,
    against the ground. Depth, not gloss. */
 .ck-rail-node.is-cleared .ck-rail-dot {
   border-color: transparent;
-  background: var(--node-color, var(--gem-jade));
+  background: var(--node-color, var(--gem-1));
   color: var(--node-ink, #14100a);
   box-shadow:
-    0 1px 2px rgba(20, 32, 27, 0.22),
-    0 0 0 1px color-mix(in srgb, var(--node-color, var(--gem-jade)) 62%, transparent);
+    0 1px 2px rgba(23, 21, 15, 0.22),
+    0 0 0 1px color-mix(in srgb, var(--node-color, var(--gem-1)) 62%, transparent);
 }
 .ck-rail-node.is-current .ck-rail-dot {
-  border-color: var(--node-color, var(--gem-jade));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--node-color, var(--gem-jade)) 26%, transparent);
+  border-color: var(--node-color, var(--gem-1));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--node-color, var(--gem-1)) 26%, transparent);
 }
 /* breathing halo behind the current gem */
 .ck-rail-node.is-current .ck-rail-dot::after {
@@ -847,7 +851,7 @@ main.ck-scroll,
   position: absolute;
   inset: -9px;
   border-radius: 50%;
-  background: radial-gradient(circle, var(--node-color, var(--gem-jade)) 0%, transparent 70%);
+  background: radial-gradient(circle, var(--node-color, var(--gem-1)) 0%, transparent 70%);
   opacity: 0.24;
   animation: ck-rail-halo 2.6s ease-in-out 3;
   z-index: -1;
@@ -932,7 +936,7 @@ main.ck-scroll,
 }
 
 .ck-rail-node:focus-visible .ck-rail-dot {
-  outline: 2px solid var(--jade);
+  outline: 2px solid var(--action);
   outline-offset: 3px;
 }
 
@@ -1015,7 +1019,7 @@ main.ck-scroll,
 
    Here the gems always show the record and the rail is still. Opening a
    profile draws ONE glide over them, on the cockpit's own curve; a later step
-   is one more. The line is whole from the start, jade at the first gem and
+   is one more. The line is whole from the start, ink at the first gem and
    gold at the decision, so the colour under the traveller says how far along
    they are; what moves is how much of it shows (a window that slides, the
    line counter-sliding inside it: transforms only, so the line and the chip
@@ -1039,7 +1043,7 @@ main.ck-scroll,
   inset: 0;
   overflow: hidden;
   border-radius: 999px;
-  box-shadow: 0 0 14px -3px color-mix(in srgb, var(--gem-mint) 55%, transparent);
+  box-shadow: 0 0 14px -3px color-mix(in srgb, var(--gem-2) 55%, transparent);
   transform: translateX(calc((var(--rail-p, 0) - 1) * 100%));
   transition: transform var(--rail-move, 660ms) cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -1047,7 +1051,7 @@ main.ck-scroll,
   position: absolute;
   inset: 0;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--gem-jade), var(--gem-mint), var(--gem-teal), var(--gem-gold));
+  background: linear-gradient(90deg, var(--gem-1), var(--gem-2), var(--gem-3), var(--gem-4));
   transform: translateX(calc((1 - var(--rail-p, 0)) * 100%));
   transition: transform var(--rail-move, 660ms) cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -1078,7 +1082,7 @@ main.ck-scroll,
   inset: -9px;
   z-index: -1;
   border-radius: 50%;
-  background: radial-gradient(circle, var(--node-color, var(--gem-jade)) 0%, transparent 70%);
+  background: radial-gradient(circle, var(--node-color, var(--gem-1)) 0%, transparent 70%);
   opacity: 0;
   pointer-events: none;
   animation: none;
@@ -1090,7 +1094,7 @@ main.ck-scroll,
   content: "";
   position: absolute;
   inset: -4px;
-  border: 1.5px solid var(--node-color, var(--gem-jade));
+  border: 1.5px solid var(--node-color, var(--gem-1));
   border-radius: 50%;
   opacity: 0;
   pointer-events: none;
@@ -1174,7 +1178,7 @@ main.ck-scroll,
    candidate's progress (no traveler chip, no cleared/current/upcoming
    states) but the shape of the whole live pipeline — every real phase from
    candidateJourney, each node showing how many live applicants are on it
-   right now. An occupied phase lights up at its spot on the jade→mint→teal
+   right now. An occupied phase lights up at its spot on the ink-to-brass gem
    →gold spectrum (--node-color/--node-ink set inline per node, same
    convention as ck-rail-* above); an empty phase stays hollow and quiet —
    the node is always drawn, because "nobody's here yet" is real information,
@@ -1194,7 +1198,7 @@ main.ck-scroll,
   height: 2px;
   border-radius: 999px;
   z-index: 1;
-  background: linear-gradient(90deg, var(--gem-jade), var(--gem-mint), var(--gem-teal), var(--gem-gold));
+  background: linear-gradient(90deg, var(--gem-1), var(--gem-2), var(--gem-3), var(--gem-4));
   opacity: 0.5;
 }
 
@@ -1230,11 +1234,11 @@ main.ck-scroll,
 }
 .ck-mini-rail-node.is-active .ck-mini-rail-dot {
   border-color: transparent;
-  background: radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.4), var(--node-color, var(--gem-jade)) 68%);
+  background: radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.4), var(--node-color, var(--gem-1)) 68%);
   color: var(--node-ink, #14100a);
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.14) inset,
-    0 0 10px 1px color-mix(in srgb, var(--node-color, var(--gem-jade)) 45%, transparent);
+    0 0 10px 1px color-mix(in srgb, var(--node-color, var(--gem-1)) 45%, transparent);
 }
 
 .ck-mini-rail-label {
@@ -1421,7 +1425,7 @@ main.ck-scroll,
 }
 button.ckp-tile { cursor: pointer; }
 button.ckp-tile:hover { border-color: var(--hair); }
-button.ckp-tile:focus-visible { outline: 2px solid var(--jade); outline-offset: 2px; }
+button.ckp-tile:focus-visible { outline: 2px solid var(--action); outline-offset: 2px; }
 /* Not reached, not taken: quiet, an outline only. */
 .ckp-tile[data-state="none"] {
   /* Its own height, not its row's: a tall empty dashed box reads as missing content. */

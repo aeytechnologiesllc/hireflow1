@@ -11,7 +11,7 @@ and both share pictures (`scripts/make-share-images.mjs`). Icon links are
 
 The owner, 2026-10-10: "I'm not really loving this HireFlow app icon ... Logo
 is fine. The app icon and the favicon, we need to [change]." Of four options
-(https://claude.ai/artifact/8bREyawrQQqTqrggg94dtL) he chose **A**: the very
+(https://claude.ai/artifact/8bREyawrQQqTqrggg94dtL) they chose **A**: the very
 mark beside the name in the app (`src/cockpit/components/Wordmark.tsx`): a
 **dark jade tile `#0C2A21`** with the **bright jade rising line `#3FCE97`**
 (applications come in flat; the good ones rise). The app, the browser tab and

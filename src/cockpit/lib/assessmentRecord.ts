@@ -92,14 +92,14 @@ export type AssessmentKind =
 
 export type AssessmentStatus = "not_started" | "in_progress" | "done";
 
-/** jade = cleared, amber = below the bar or flagged, ink = neutral, muted = nothing yet. */
-export type AssessmentTone = "jade" | "amber" | "ink" | "muted";
+/** ink = cleared, amber = below the bar or flagged, ink = neutral, muted = nothing yet. */
+export type AssessmentTone = "good" | "amber" | "ink" | "muted";
 
 /** The cockpit colour token for a tone. */
 export function toneColor(tone: AssessmentTone): string {
   switch (tone) {
-    case "jade":
-      return "var(--jade)";
+    case "good":
+      return "var(--action)";
     case "amber":
       return "var(--amber-fg)";
     case "ink":
@@ -1570,7 +1570,7 @@ interface Built {
 
 function scoreTone(score: number | null, passing: number): AssessmentTone {
   if (score == null) return "ink";
-  return score >= passing ? "jade" : "amber";
+  return score >= passing ? "good" : "amber";
 }
 
 function completedAtFor(ctx: BuildContext, stepId: string, record: Obj | null): string | null {
@@ -1751,7 +1751,7 @@ function buildQuiz(ctx: BuildContext): Built {
   const headline = correct != null && total != null ? `${formatCount(correct)} / ${formatCount(total)}` : score != null ? `${Math.round(score)}%` : null;
   return {
     headline,
-    tone: passed === true ? "jade" : passed === false ? "amber" : "ink",
+    tone: passed === true ? "good" : passed === false ? "amber" : "ink",
     verdict: passed === true ? "Passed" : passed === false ? "Did not pass" : null,
     subline: null,
     receipt: headline
@@ -1793,7 +1793,7 @@ function buildTyping(ctx: BuildContext, step: CandidateJourneyStep): Built {
   const headline = wpm != null ? `${Math.round(wpm)} WPM` : null;
   return {
     headline,
-    tone: passed === true || (meetsSpeed === true && !below) ? "jade" : below ? "amber" : "ink",
+    tone: passed === true || (meetsSpeed === true && !below) ? "good" : below ? "amber" : "ink",
     verdict,
     subline: accuracy != null ? `${Math.round(accuracy)}% accurate` : null,
     receipt: headline
@@ -1979,7 +1979,7 @@ function buildEquipment(ctx: BuildContext, step: CandidateJourneyStep): Built {
 
   return {
     headline,
-    tone: meetsBars === true ? "jade" : meetsBars === false ? "amber" : "ink",
+    tone: meetsBars === true ? "good" : meetsBars === false ? "amber" : "ink",
     verdict,
     // No joined second line: the flags are each their own line, under the
     // verdict, from detail.flags (AssessmentRecordList draws them; §6).
@@ -2098,7 +2098,7 @@ function buildChatInterview(ctx: BuildContext, step: CandidateJourneyStep): Buil
   const declined = recommendation != null && /\bno\b|not|reject|decline/i.test(recommendation);
   return {
     headline,
-    tone: recommendation ? (declined ? "amber" : /hire|yes|advance|strong/i.test(recommendation) ? "jade" : scoreTone(score, ctx.passing)) : scoreTone(score, ctx.passing),
+    tone: recommendation ? (declined ? "amber" : /hire|yes|advance|strong/i.test(recommendation) ? "good" : scoreTone(score, ctx.passing)) : scoreTone(score, ctx.passing),
     verdict: recommendation,
     subline: [questionCount != null ? `${questionCount} ${questionCount === 1 ? "question" : "questions"}` : null, duration].filter(Boolean).join(" · ") || null,
     // The rail's receipt stays a number: the recommendation is on the row.

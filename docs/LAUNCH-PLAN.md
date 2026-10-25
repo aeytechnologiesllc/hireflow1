@@ -907,6 +907,55 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
 
+### 2026-10-25 (later) — Pass C rounds 3–5 on Phase 2; Phase 3's look built
+
+- **Pass C round 3** (on the round-2 fixes): the code now goes only to the
+  address the database recorded it for (never looked up again); the inbox
+  and overall limits hold under a burst (advisory locks); ten an hour and
+  twenty a day per inbox with the real wait; a Google sign-in passes only
+  while its Google address is the sign-in address; a platform admin's own
+  writes are not refused (business_email_check_round3, live).
+- **Pass C round 4:** no security hole; wording, a stray staged file in a
+  commit (re-committed as 15bf8fd0) and feed words fixed.
+- **Pass C round 5** (on 15bf8fd0): the guard read SQL text and could be got
+  round (quoted names, `'select true'` bodies, grants on all functions, a
+  disabled or re-made trigger, an always-true is_platform_admin, required
+  lines inside a `/* */` comment, locks taken after the counts). Fixed two
+  ways: `business_email_check.pglite.test.mjs` now replays every later
+  migration that touches the check and asserts what the database does, so
+  each of those fails it (proven one by one); and the guard reads all the
+  reported forms (proven one by one). The feed's country reading was
+  rewritten (no-US, non-US, "US excluded" rule a country out; "except
+  weekends" does not; "US & Canada clients", "for a US company", "US
+  patients" are who they serve, not where; a time zone alone keeps its
+  country) with a 33-string table both copies must answer the same. The
+  per-IP refusal gives the real wait.
+- **Phase 3, built:** one logo (brass line on the ink tile, icons `?v=7`);
+  the front page rewritten (one button, "Post your first job free", pinned;
+  any team that answers customers; Southern Digital Technologies LLC in the
+  structured data); neutral share pictures; sign-up says "Start hiring";
+  hiring links on careers and job pages; four milestones on the applicants
+  list. **Colour:** no jade anywhere. Tokens renamed for what they mean
+  (`--jade` → `--action`, `--hf-green` → `--hf-action`, `--gem-jade…` →
+  `--gem-1..4`, `candidate-jade.css` → `candidate-theme.css`); ink and ivory
+  with brass for Ava, the score and money. The app follows the device
+  (Day/Night) and the toggle overrides; sign-up holds Night. Every text pair
+  passes WCAG AA in both themes (`scripts/theme_contrast.test.mjs`, 52
+  pairs; Day brass darkened to #84601F to clear 4.5). Guards:
+  `no-jade-tokens-left`, `brass-only-for-ava-score-money`,
+  `every-css-variable-is-defined` (it found the gem rail asking for
+  `--gem-teal` after the rename, and an undefined `--ck-text`). Dark panels
+  (video, calls, Ava's strip) use `--slab-action` so nothing goes ink on ink
+  by day.
+- **Owner inputs still open:** www → apex as a 308 (a Vercel domain
+  setting; today it is a 307); Turnstile keys; OpenAI spending cap (later);
+  a contact address for the legal pages (Phase 5). Note: hireflow1.vercel.app
+  is an older, separate project; this app's own vercel.app address
+  (hireflow1-iota.vercel.app) already points search engines to
+  hireflownow.com.
+- **Open:** a fresh Pass C reviewer on the round-5 fixes and the Phase 3
+  commits together; Lighthouse and share-preview checks; then Phases 4–7.
+
 ### 2026-10-25 — Phase 1 closed; Phase 2 built, shipped, two Pass C rounds; Phase 3 begun
 
 - Model: Opus 5.5 (the owner switched to it for the autonomous run).

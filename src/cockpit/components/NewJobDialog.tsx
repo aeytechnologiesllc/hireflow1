@@ -28,7 +28,7 @@ import { START_FROM_JOB_LINE, jobStartActionLabel, type JobStartOption } from "@
  */
 
 const CHIP: Record<JobStartOption["status"], { label: string; bg: string; fg: string }> = {
-  live: { label: "Live", bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)" },
+  live: { label: "Live", bg: "var(--action-soft)", fg: "var(--action-soft-fg)" },
   draft: { label: "Draft", bg: "var(--amber-bg)", fg: "var(--amber-fg)" },
   closed: { label: "Closed", bg: "var(--surface-2)", fg: "var(--ink-2)" },
 };
@@ -150,7 +150,7 @@ export function NewJobDialog({
                       {option.when}
                     </span>
                   </span>
-                  <span className="shrink-0 text-[12.5px] font-medium" style={{ color: option.status === "draft" ? "var(--jade-soft-fg)" : "var(--hf-text-soft)" }}>
+                  <span className="shrink-0 text-[12.5px] font-medium" style={{ color: option.status === "draft" ? "var(--action-soft-fg)" : "var(--hf-text-soft)" }}>
                     {copying ? "Copying…" : jobStartActionLabel(option.status)}
                   </span>
                 </button>

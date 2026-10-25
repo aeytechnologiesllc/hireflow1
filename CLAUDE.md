@@ -56,7 +56,9 @@
 
 ## Branding / App Icon
 
-The app icon is **"A" — the logo's own mark**: a dark jade tile `#0C2A21` with the bright jade rising line `#3FCE97`, the same mark as `Wordmark.tsx` (chosen by the owner 2026-10-11; it replaced "Direction 4", the ivory tile with the jade orb). Every size is made by `node scripts/make-app-icons.mjs`; docs in [`BRANDING.md`](BRANDING.md). **Do NOT revive the old dark-tile orb icon** (removed 2026-06-30) — see the "DO NOT REVIVE" section in BRANDING.md. Direction 5 (brass flow) is kept as a backup at `branding/backup-icon-flow.png`.
+The app icon is **the logo's own mark**: the brass rising line `#E0B96A` on the ink tile `#14120E`, the same mark as `Wordmark.tsx` and the front page's bar (recoloured 2026-10-25 when the owner locked the colours; it was the jade line on a dark jade tile, chosen 2026-10-11).
+
+**The colours are locked (owner, 2026-10-25): ink and ivory with a brass accent.** No green anywhere. The front page stays dark; the app follows the device (Day: ink on ivory; Night: ivory on ink). The action colour is `--action` (ink by day, ivory at night; it was `--jade`); brass is Ava's verdict, the score and anything that costs money, never a plain button. Guards `no-jade-tokens-left` and `brass-only-for-ava-score-money` hold it. Every size is made by `node scripts/make-app-icons.mjs`; docs in [`BRANDING.md`](BRANDING.md). **Do NOT revive the old dark-tile orb icon** (removed 2026-06-30) — see the "DO NOT REVIVE" section in BRANDING.md. Direction 5 (brass flow) is kept as a backup at `branding/backup-icon-flow.png`.
 
 ## The October 2026 hiring run was the owner's own (noted 2026-10-24)
 

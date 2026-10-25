@@ -200,11 +200,11 @@ export function NextStepCard({ applicationId, completedTitle, doneStepId }: Next
           ) : (
             <>
               {standing.kind === "waiting" ? (
-                <GlyphClock size={44} className="mx-auto text-[var(--jade)]" />
+                <GlyphClock size={44} className="mx-auto text-[var(--action)]" />
               ) : (
                 <GlyphCheckSeal
                   size={44}
-                  className={cn("mx-auto ck-seal-press", finishedMark ? "text-[var(--brass)]" : "text-[var(--jade)]")}
+                  className={cn("mx-auto ck-seal-press", finishedMark ? "text-[var(--brass)]" : "text-[var(--action)]")}
                 />
               )}
               <div className="space-y-2">

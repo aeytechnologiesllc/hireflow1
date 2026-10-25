@@ -51,8 +51,8 @@ function mulberry32(a: number) {
   };
 }
 
-const DOT_JADE = "var(--hf-green)";
-const DOT_MINT = "var(--hf-text-soft)";
+const DOT_ACTION = "var(--hf-action)";
+const DOT_SOFT = "var(--hf-text-soft)";
 const DOT_BRASS = "var(--hf-gold)";
 
 interface Node {
@@ -65,7 +65,7 @@ interface Node {
 }
 
 /**
- * Score → ring colours. High = jade; as the score eases down the accent warms
+ * Score → ring colours. High = ink; as the score eases down the accent warms
  * gently toward brass. Never red, never harsh.
  *
  * Both ends of the ramp are tokens and the blend happens in CSS, not in JS —
@@ -78,8 +78,8 @@ function ringColors(score: number) {
   w = Math.min(1, Math.max(0, w));
   w = w * w * (3 - 2 * w); // smoothstep
   const warm = `${(w * 100).toFixed(0)}%`;
-  const c0 = `color-mix(in srgb, var(--brass) ${warm}, var(--jade))`;
-  const c1 = `color-mix(in srgb, var(--brass-line) ${warm}, var(--jade-bright))`;
+  const c0 = `color-mix(in srgb, var(--brass) ${warm}, var(--action))`;
+  const c1 = `color-mix(in srgb, var(--brass-line) ${warm}, var(--action-bright))`;
   // glow tracks the deep stop (opaque in both themes) so the halo never fades out
   const glow = `color-mix(in srgb, ${c0} 50%, transparent)`;
   return { c0, c1, glow };
@@ -89,12 +89,12 @@ function buildMark(seed: string, level: 0 | 1 | 2, maxR: number) {
   const rng = mulberry32(hashStr(seed) || 1);
   const base = [6, 9, 13][level];
   const count = base + Math.floor(rng() * 4);
-  const nodes: Node[] = [{ x: 50, y: 50, r: 2.0, color: DOT_MINT, o: 0.9, layer: 1 }];
+  const nodes: Node[] = [{ x: 50, y: 50, r: 2.0, color: DOT_SOFT, o: 0.9, layer: 1 }];
   for (let i = 0; i < count; i++) {
     const ang = rng() * Math.PI * 2;
     const rad = Math.sqrt(rng()) * maxR;
     const roll = rng();
-    const color = roll > 0.88 ? DOT_BRASS : roll > 0.6 ? DOT_MINT : DOT_JADE;
+    const color = roll > 0.88 ? DOT_BRASS : roll > 0.6 ? DOT_SOFT : DOT_ACTION;
     nodes.push({
       x: 50 + Math.cos(ang) * rad,
       y: 50 + Math.sin(ang) * rad,
@@ -157,9 +157,9 @@ export function CandidateMark({
   const maxR = showRing ? 29 : 34;
 
   const m = useMemo(() => buildMark(seed, level, maxR), [seed, level, maxR]);
-  // state colour only drives the score ring; calm/quiet avatars stay neutral jade/mint
+  // state colour only drives the score ring; calm/quiet avatars stay neutral ink
   const { c0, c1, glow } = ringColors(sc);
-  const accent = showRing ? c1 : DOT_MINT;
+  const accent = showRing ? c1 : DOT_SOFT;
 
   const R = 45;
   const SW = 6.5;
@@ -215,7 +215,7 @@ export function CandidateMark({
                           y1={n.y}
                           x2={m.nodes[link[1]].x}
                           y2={m.nodes[link[1]].y}
-                          stroke={DOT_JADE}
+                          stroke={DOT_ACTION}
                           strokeWidth={0.5}
                           opacity={0.18}
                         />

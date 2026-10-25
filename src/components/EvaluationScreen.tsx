@@ -44,8 +44,8 @@ export function EvaluationScreen({
 
   return (
     // Was a hardcoded near-black ground — rgba(8,12,20), the retired cobalt,
-    // not --ground — with an emerald-500 glow that is not jade either. The
-    // children paint with text-foreground, which in Day is #141F1B: near-black
+    // not --ground — with an emerald-500 glow that is not the action colour either. The
+    // children paint with text-foreground, which in Day is #17150F: near-black
     // text on a near-black rectangle, about 1.1:1. So anyone on the Day theme
     // saw a blank black box after submitting EVERY step, including the screen
     // that tells them they are finished. --gradient-bg already composes the
@@ -80,7 +80,7 @@ export function EvaluationScreen({
               </p>
               {saved && (
                 <p className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
-                  <CheckCircle className="h-4 w-4 shrink-0 text-[var(--jade)]" aria-hidden="true" />
+                  <CheckCircle className="h-4 w-4 shrink-0 text-[var(--action)]" aria-hidden="true" />
                   Your answers are saved.
                 </p>
               )}

@@ -244,7 +244,7 @@ console.log("\nTotals only, and the wiring");
   check("each section plays once, when it comes into view", /new IntersectionObserver\(/.test(motion) && /watch\.disconnect\(\);/.test(motion) && /typeof IntersectionObserver === "undefined"/.test(motion));
   check("without motion everything is in its final state", /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*\.an-reveal, \.an-reveal\.in \{ opacity: 1; transform: none; \}[\s\S]*\.an-reveal \.an-odo-col \{ transform: translateY\(calc\(var\(--to\) \* -1 \* var\(--row\)\)\); \}/.test(css));
   check("the default drawing is the final one: motion is only ever added by .an-reveal", /\.an-odo-col \{[^}]*transform: translateY\(calc\(var\(--to\) \* -1 \* var\(--row\)\)\); \}/.test(css) && /\.an-reveal \.an-odo-col \{ transform: translateY\(0\);/.test(css));
-  check("both themes: every colour is one of the app's own tokens", !/#[0-9a-fA-F]{6}\b/.test(css.replace(/#072a1f/g, "")) );
+  check("both themes: every colour is one of the app's own tokens", !/#[0-9a-fA-F]{6}\b/.test(css.replace(/#0B0A08/g, "")) );
   const doc = await read("docs/ANALYTICS.md");
   check("docs/ANALYTICS.md explains it and names this test", /scripts\/analytics_view\.test\.mjs/.test(doc) && /lib\/analyticsView\.ts/.test(doc));
 }

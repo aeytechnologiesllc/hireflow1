@@ -10,7 +10,7 @@ import { scoreColor } from "../lib/applicantProfile";
  */
 
 const LINE_TONE: Record<HeaderLine["tone"], string> = {
-  jade: "var(--jade-soft-fg)",
+  good: "var(--action-soft-fg)",
   amber: "var(--amber-fg)",
   crit: "var(--crit)",
   muted: "var(--ink-3)",
@@ -22,7 +22,7 @@ export const SUGGESTION_SHOWN_MS = 8000;
 /** The suggestion's box: a solid tint of its tone over the page's ground
  *  (no translucent panel), the words in the tone's readable shade. */
 const SUGGEST_STYLE: Record<AvaSuggestion["tone"], { background: string; color: string }> = {
-  jade: { background: "color-mix(in srgb, var(--jade) 14%, var(--ground))", color: "var(--jade-soft-fg)" },
+  good: { background: "color-mix(in srgb, var(--action) 14%, var(--ground))", color: "var(--action-soft-fg)" },
   amber: { background: "color-mix(in srgb, var(--amber-fg) 14%, var(--ground))", color: "var(--amber-fg)" },
   crit: { background: "color-mix(in srgb, var(--crit) 13%, var(--ground))", color: "var(--crit)" },
 };
@@ -71,7 +71,7 @@ export function ApplicantHeaderBand({
             role="img"
             aria-label="Active now"
             className="absolute right-[2px] top-[2px] block h-3 w-3 rounded-full"
-            style={{ background: "var(--jade-bright)", boxShadow: "0 0 0 3px var(--ground)" }}
+            style={{ background: "var(--action-bright)", boxShadow: "0 0 0 3px var(--ground)" }}
           />
         )}
       </span>

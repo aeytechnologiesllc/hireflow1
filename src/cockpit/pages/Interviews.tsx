@@ -176,7 +176,7 @@ function fromRow(row: InterviewWithDetails): Session {
 function Chip({ tone, children }: { tone: "live" | "amber" | "mut"; children: ReactNode }) {
   const skin =
     tone === "live"
-      ? { background: "var(--jade-soft)", color: "var(--jade-soft-fg)" }
+      ? { background: "var(--action-soft)", color: "var(--action-soft-fg)" }
       : tone === "amber"
         ? { background: "var(--amber-bg)", color: "var(--amber-fg)" }
         : { background: "var(--surface-2)", color: "var(--ink-2)" };
@@ -559,7 +559,7 @@ export default function CockpitInterviews() {
         subtitle={subtitle}
         actions={
           candidates.length > 0 ? (
-            /* Going to the applicant list is navigation, not a decision. Jade is
+            /* Going to the applicant list is navigation, not a decision. Ink is
                spent on the one control that needs the owner — "Review times" on
                a reschedule request — so this stays quiet, and at the one button
                size the rest of the page uses. */
@@ -644,7 +644,7 @@ export default function CockpitInterviews() {
                             <span>&middot; today</span>
                             <span
                               className="h-[5px] w-[5px] rounded-full"
-                              style={{ background: "var(--jade)" }}
+                              style={{ background: "var(--action)" }}
                               aria-hidden
                             />
                           </>
@@ -666,8 +666,8 @@ export default function CockpitInterviews() {
                               className="mt-[7px] block w-full px-2 py-[5px] text-left text-[11px] font-semibold leading-[1.35]"
                               style={{
                                 borderRadius: 6,
-                                background: confirm ? "var(--amber-bg)" : awaitingPick ? "var(--surface-2)" : "var(--jade-soft)",
-                                color: confirm ? "var(--amber-fg)" : awaitingPick ? "var(--ink-2)" : "var(--jade-soft-fg)",
+                                background: confirm ? "var(--amber-bg)" : awaitingPick ? "var(--surface-2)" : "var(--action-soft)",
+                                color: confirm ? "var(--amber-fg)" : awaitingPick ? "var(--ink-2)" : "var(--action-soft-fg)",
                               }}
                             >
                               {format(s.at as Date, "h:mm aaa")} &middot; {firstName(s.name)}
@@ -729,7 +729,7 @@ export default function CockpitInterviews() {
                     key={s.id}
                     className="ck-card ck-reveal flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3"
                     // The one that is on now is ringed, so it is the first thing seen.
-                    style={{ ["--ck-i" as string]: i, borderRadius: 10, ...(when?.tone === "now" ? { boxShadow: "0 0 0 2px var(--jade)" } : null) }}
+                    style={{ ["--ck-i" as string]: i, borderRadius: 10, ...(when?.tone === "now" ? { boxShadow: "0 0 0 2px var(--action)" } : null) }}
                     data-interview-row={when?.tone ?? "unset"}
                   >
                     {awaitingPick && s.windowsOffered === 1 && s.at ? (
@@ -787,9 +787,9 @@ export default function CockpitInterviews() {
                             className="mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] text-[10.5px] font-bold uppercase tracking-[0.06em]"
                             style={
                               when.tone === "now"
-                                ? { background: "var(--jade)", color: "var(--btn-fg)" }
+                                ? { background: "var(--action)", color: "var(--btn-fg)" }
                                 : when.tone === "soon"
-                                  ? { background: "var(--jade-soft)", color: "var(--jade-soft-fg)" }
+                                  ? { background: "var(--action-soft)", color: "var(--action-soft-fg)" }
                                   : { background: "var(--surface-2)", color: "var(--ink-2)" }
                             }
                             data-interview-when={when.tone}
@@ -835,7 +835,7 @@ export default function CockpitInterviews() {
                         </span>
                         <span
                           className="mt-0.5 block text-[12px] leading-[1.35]"
-                          style={picked ? { color: "var(--jade-soft-fg)", fontWeight: 600 } : { color: "var(--ink-3)" }}
+                          style={picked ? { color: "var(--action-soft-fg)", fontWeight: 600 } : { color: "var(--ink-3)" }}
                         >
                           {/* A confirmed row with no duration or type on it
                               leaves meta empty — the role must not trail a

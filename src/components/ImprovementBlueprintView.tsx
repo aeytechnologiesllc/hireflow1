@@ -28,7 +28,7 @@ export function ImprovementBlueprintView({ data, onDownloadPdf, isDownloading }:
       >
         <div className="flex items-center gap-2.5">
           <AvaSeal size={22} />
-          <span className="text-sm font-semibold tracking-wide" style={{ color: "var(--jade)" }}>
+          <span className="text-sm font-semibold tracking-wide" style={{ color: "var(--action)" }}>
             HireFlow
           </span>
           <span className="text-sm" style={{ color: "var(--ink-3)" }}>
@@ -64,9 +64,9 @@ export function ImprovementBlueprintView({ data, onDownloadPdf, isDownloading }:
           </p>
           <div
             className="rounded-[10px] border-l-[3px] px-4 py-3"
-            style={{ background: "var(--jade-soft)", borderColor: "var(--jade)" }}
+            style={{ background: "var(--action-soft)", borderColor: "var(--action)" }}
           >
-            <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--jade-soft-fg)" }}>
+            <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--action-soft-fg)" }}>
               The one thing to remember
             </p>
             <p className="mt-1 text-sm" style={{ color: "var(--ink)" }}>
@@ -81,7 +81,7 @@ export function ImprovementBlueprintView({ data, onDownloadPdf, isDownloading }:
             <div className="space-y-4">
               {whatWentWell.map((s, i) => (
                 <div key={i} className="rounded-[10px] border px-4 py-3" style={{ borderColor: "var(--line)", background: "var(--surface)" }}>
-                  <p className="text-sm font-semibold" style={{ color: "var(--jade)" }}>
+                  <p className="text-sm font-semibold" style={{ color: "var(--action)" }}>
                     {s.strength}
                   </p>
                   <p className="mt-1 text-[13px] leading-snug" style={{ color: "var(--ink-3)" }}>
@@ -120,7 +120,7 @@ export function ImprovementBlueprintView({ data, onDownloadPdf, isDownloading }:
                   <div className="space-y-2 pt-1">
                     {g.practiceSteps.map((step, si) => (
                       <div key={si} className="rounded-[8px] border px-3 py-2" style={{ borderColor: "var(--line)", background: "var(--surface)" }}>
-                        <p className="text-[13px] font-medium" style={{ color: "var(--jade)" }}>
+                        <p className="text-[13px] font-medium" style={{ color: "var(--action)" }}>
                           {step.action}
                         </p>
                         <p className="mt-0.5 text-[12.5px] italic leading-snug" style={{ color: "var(--ink-3)" }}>

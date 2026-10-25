@@ -184,7 +184,7 @@ export function AvasRead({
                           rel="noopener noreferrer"
                           aria-label={`Play ${candidate.name}'s voice interview`}
                           className="inline-flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full transition-transform duration-150 hover:scale-[1.08]"
-                          style={{ background: "var(--jade-soft)", color: "var(--jade-soft-fg)" }}
+                          style={{ background: "var(--action-soft)", color: "var(--action-soft-fg)" }}
                         >
                           <Play className="h-[11px] w-[11px]" fill="currentColor" strokeWidth={0} />
                         </a>
@@ -206,7 +206,7 @@ export function AvasRead({
 
                 {(why.up.length > 0 || why.down.length > 0) && (
                   <div className="mt-4 grid grid-cols-2 gap-7">
-                    <WhyList title="Why up" items={why.up} color="var(--jade-soft-fg)" dot="var(--jade)" />
+                    <WhyList title="Why up" items={why.up} color="var(--action-soft-fg)" dot="var(--action)" />
                     <WhyList title="Why down" items={why.down} color="var(--amber-fg)" dot="var(--brass)" />
                   </div>
                 )}
@@ -253,13 +253,13 @@ export function AvasRead({
           <AvaSeal size={24} />
         </span>
         <span className="min-w-0">
-          <Label color="var(--jade-soft-fg)">Ava&rsquo;s read</Label>
+          <Label color="var(--action-soft-fg)">Ava&rsquo;s read</Label>
           <span className="mt-[3px] block text-[11px]" style={{ color: "var(--ink-3)" }}>
             {weighedLine}
           </span>
         </span>
         {analyzed && showScore && (
-          <span className="ck-num ml-auto shrink-0 text-[38px] font-semibold leading-[0.85]" style={{ color: "var(--jade)" }}>
+          <span className="ck-num ml-auto shrink-0 text-[38px] font-semibold leading-[0.85]" style={{ color: "var(--action)" }}>
             <CountUp value={candidate.overall} duration={700} delay={150} />
             <span className="text-[13px]" style={{ color: "var(--ink-3)" }}>
               /100
@@ -294,7 +294,7 @@ export function AvasRead({
                     rel="noopener noreferrer"
                     aria-label={`Play ${candidate.name}'s voice interview`}
                     className="inline-flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full transition-transform duration-150 hover:scale-[1.08]"
-                    style={{ background: "var(--jade-soft)", color: "var(--jade-soft-fg)" }}
+                    style={{ background: "var(--action-soft)", color: "var(--action-soft-fg)" }}
                   >
                     <Play className="h-[11px] w-[11px]" fill="currentColor" strokeWidth={0} />
                   </a>

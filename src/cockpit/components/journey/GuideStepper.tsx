@@ -5,11 +5,11 @@ import type { GuideStep } from "../../lib/firstHireStage";
 
 /**
  * The steps of "Your first hire". On a wide card: one line of numbered dots,
- * the current one lit, a done one ticked in jade (the content of the current
+ * the current one lit, a done one ticked in ink (the content of the current
  * step is drawn by the caller under the line). On a narrow card (a phone): the
  * same steps stacked, the current one open with its content right under it.
  *
- * Colour: jade only where it means something (a tick, the current ring, the
+ * Colour: ink only where it means something (a tick, the current ring, the
  * line up to it). Never a large fill: the dots are 24px.
  */
 
@@ -31,7 +31,7 @@ function Dot({ n, state }: { n: number; state: StepView["state"] }) {
   const common = "grid h-6 w-6 shrink-0 place-items-center rounded-full text-[12px] font-semibold leading-none";
   if (state === "done") {
     return (
-      <span className={common} style={{ background: "var(--jade)", color: "var(--btn-fg)" }} aria-hidden>
+      <span className={common} style={{ background: "var(--action)", color: "var(--btn-fg)" }} aria-hidden>
         <Check className="h-3.5 w-3.5" strokeWidth={3} />
       </span>
     );
@@ -40,7 +40,7 @@ function Dot({ n, state }: { n: number; state: StepView["state"] }) {
     return (
       <span
         className={`ck-num ${common}`}
-        style={{ border: "2px solid var(--jade)", color: "var(--jade)", background: "var(--surface)", boxShadow: "0 0 0 3px var(--jade-soft)" }}
+        style={{ border: "2px solid var(--action)", color: "var(--action)", background: "var(--surface)", boxShadow: "0 0 0 3px var(--action-soft)" }}
         aria-hidden
       >
         {n}
@@ -81,14 +81,14 @@ export function StepStrip({ steps, compact = false }: { steps: StepView[]; compa
                 aria-hidden
                 role="presentation"
                 className="h-px min-w-[10px] flex-1"
-                style={{ background: steps[i - 1].state === "done" && lit ? "var(--jade)" : "var(--line)" }}
+                style={{ background: steps[i - 1].state === "done" && lit ? "var(--action)" : "var(--line)" }}
               />
             )}
             <li
               className="flex min-w-0 shrink items-center gap-2 rounded-full py-1 pr-3"
               style={
                 s.state === "active"
-                  ? { background: "var(--jade-soft)", border: "1px solid color-mix(in srgb, var(--jade) 40%, transparent)", paddingLeft: 3 }
+                  ? { background: "var(--action-soft)", border: "1px solid color-mix(in srgb, var(--action) 40%, transparent)", paddingLeft: 3 }
                   : { border: "1px solid transparent", paddingLeft: 3 }
               }
               aria-current={s.state === "active" ? "step" : undefined}
@@ -129,7 +129,7 @@ export function StepColumn({ steps, active }: { steps: StepView[]; active: React
                 <span
                   aria-hidden
                   className="my-0.5 w-px flex-1"
-                  style={{ background: s.state === "done" && steps[i + 1].state !== "todo" && steps[i + 1].state !== "open" ? "var(--jade)" : "var(--line)", minHeight: 8 }}
+                  style={{ background: s.state === "done" && steps[i + 1].state !== "todo" && steps[i + 1].state !== "open" ? "var(--action)" : "var(--line)", minHeight: 8 }}
                 />
               )}
             </div>

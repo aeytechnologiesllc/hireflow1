@@ -6,7 +6,7 @@ import { isStaffHost } from "./lib/hosts";
 import { setUpServiceWorkers } from "./lib/webPush";
 import "./index.css";
 import "./cockpit/cockpit.css";
-import "./styles/candidate-jade.css";
+import "./styles/candidate-theme.css";
 import "./styles/motion.css";
 
 // Crash alerts: window 'error' / 'unhandledrejection' (ErrorBoundary.tsx

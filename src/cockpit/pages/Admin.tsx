@@ -33,8 +33,8 @@ const TABS: ReadonlyArray<{ key: Tab; label: string }> = [
 
 const STATUS_WORDS: Record<BusinessStatus, string> = { new: "Open", approved: "Open", suspended: "Paused" };
 const STATUS_STYLE: Record<BusinessStatus, CSSProperties> = {
-  new: { background: "var(--jade-soft)", color: "var(--jade-soft-fg)" },
-  approved: { background: "var(--jade-soft)", color: "var(--jade-soft-fg)" },
+  new: { background: "var(--action-soft)", color: "var(--action-soft-fg)" },
+  approved: { background: "var(--action-soft)", color: "var(--action-soft-fg)" },
   suspended: { background: "color-mix(in srgb, var(--hf-danger) 14%, transparent)", color: "var(--hf-danger)" },
 };
 
@@ -113,7 +113,7 @@ export default function CockpitAdmin() {
             aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
             className="-mb-px border-b-2 py-2.5 text-[14px]"
-            style={tab === t.key ? { borderColor: "var(--jade)", color: "var(--hf-text)", fontWeight: 600 } : { borderColor: "transparent", color: "var(--ink-3)" }}
+            style={tab === t.key ? { borderColor: "var(--action)", color: "var(--hf-text)", fontWeight: 600 } : { borderColor: "transparent", color: "var(--ink-3)" }}
             data-admin-tab={t.key}
           >
             {t.label}
@@ -424,7 +424,7 @@ function AdminThread({ thread }: { thread: HelpThread }) {
             <div
               key={m.id}
               className={`max-w-[85%] rounded-[14px] px-3.5 py-2.5 text-[14px] leading-[1.5] ${m.from_admin ? "self-end" : "self-start"}`}
-              style={m.from_admin ? { background: "var(--jade-soft)", color: "var(--hf-text)" } : { background: "var(--surface-2)", color: "var(--hf-text)" }}
+              style={m.from_admin ? { background: "var(--action-soft)", color: "var(--hf-text)" } : { background: "var(--surface-2)", color: "var(--hf-text)" }}
             >
               <div className="whitespace-pre-wrap break-words">{m.body}</div>
               <div className="mt-1 text-[11.5px]" style={{ color: "var(--ink-3)" }}>

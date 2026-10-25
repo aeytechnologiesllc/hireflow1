@@ -18,7 +18,7 @@ import { DECISION_STAGE_ID, titleFor } from "@/lib/candidateJourney";
 /* ── The journey dots ──────────────────────────────────────────────────── */
 
 /**
- * - done: finished, at or over the job's bar (jade, check).
+ * - done: finished, at or over the job's bar (ink, check).
  * - below: finished, below the job's bar (brass, check). The record's tone
  *   says it: a done step is amber only when it fell short (a failed quiz, a
  *   typing speed or connection under the bar, a score under the pass mark, a
@@ -146,7 +146,7 @@ export function railIndex(dots: readonly JourneyDot[], liveStepId?: string | nul
 /** The status chip beside the name (list row and profile header alike). */
 export interface ApplicantChip {
   label: "Needs review" | "Interview" | "Offer" | "Hired" | "Declined";
-  tone: "amber" | "jade" | "crit";
+  tone: "amber" | "good" | "crit";
 }
 
 export function applicantChip(status: string | null | undefined, finished: boolean): ApplicantChip | null {
@@ -154,11 +154,11 @@ export function applicantChip(status: string | null | undefined, finished: boole
     case "rejected":
       return { label: "Declined", tone: "crit" };
     case "hired":
-      return { label: "Hired", tone: "jade" };
+      return { label: "Hired", tone: "good" };
     case "offered":
-      return { label: "Offer", tone: "jade" };
+      return { label: "Offer", tone: "good" };
     case "interview":
-      return { label: "Interview", tone: "jade" };
+      return { label: "Interview", tone: "good" };
     default:
       return finished ? { label: "Needs review", tone: "amber" } : null;
   }
@@ -219,7 +219,7 @@ export function dotStateWords(dot: JourneyDot): string {
 
 /** A colour by meaning for one run of the line; the list maps it onto the
  *  cockpit's tokens (TONE_VAR in applicantList.ts). */
-export type LineTone = "jade" | "amber" | "soft" | "muted";
+export type LineTone = "good" | "amber" | "soft" | "muted";
 
 export interface LineRun {
   text: string;
@@ -275,7 +275,7 @@ export function effectiveLiveState(live: LiveStatus | null | undefined, session:
 }
 
 /** The states that count as taking a test right now: the list's "Taking tests
- *  now" tab, the jade "Active …" and the profile's "live". */
+ *  now" tab, the ink "Active …" and the profile's "live". */
 export const LIVE_NOW_STATES: ReadonlySet<LiveState> = new Set<LiveState>(["doing", "away", "checking"]);
 
 function lowerFirst(s: string): string {
@@ -325,7 +325,7 @@ export function journeyLineRuns(dots: readonly JourneyDot[], status: string | nu
   if (finishedEveryTest(dots)) {
     push("Finished every test", "soft");
     if (ctx.recommendedAction === "reject") push(" · Ava suggests: decline", "amber");
-    else if (ctx.recommendedAction === "advance") push(" · Ava suggests: interview", "jade");
+    else if (ctx.recommendedAction === "advance") push(" · Ava suggests: interview", "good");
     return runs;
   }
 
@@ -365,7 +365,7 @@ export function journeyLineRuns(dots: readonly JourneyDot[], status: string | nu
     if (state && p.total) push(` · ${p.answered ?? 0} of ${p.total} answered`, "muted");
     if (state === "doing") {
       push(" · ", "muted");
-      push("live", "jade");
+      push("live", "good");
     }
   } else if (state) {
     push(dot.title, "soft");
@@ -374,7 +374,7 @@ export function journeyLineRuns(dots: readonly JourneyDot[], status: string | nu
     push(` · ${stepOf}`, "muted");
     if (state === "doing") {
       push(" · ", "muted");
-      push("live", "jade");
+      push("live", "good");
     } else if (state === "failed") {
       push(" · checking failed, retrying", "amber");
     }
@@ -437,7 +437,7 @@ export interface ApplicantScore {
   value: number | null;
   /** Ava is still waiting on tests (ai_scorecard.decisionState = needs_more_evidence). */
   soFar: boolean;
-  /** jade at 70 and up, brass 50–69, ink under 50. */
+  /** ink at 70 and up, brass 50–69, ink under 50. */
   band: "hi" | "mid" | "lo" | null;
 }
 
@@ -453,7 +453,7 @@ export function applicantScore(app: { ai_score?: unknown; ai_scorecard?: unknown
 export function scoreColor(band: ApplicantScore["band"]): string {
   // The list's ScoreCell colours (TONE_VAR in applicantList.ts): ink, not a
   // softer grey, under 50 (docs/APPLICANTS-LIST.md §2).
-  return band === "hi" ? "var(--jade)" : band === "mid" ? "var(--brass)" : band === "lo" ? "var(--ink)" : "var(--ink-3)";
+  return band === "hi" ? "var(--action)" : band === "mid" ? "var(--brass)" : band === "lo" ? "var(--ink)" : "var(--ink-3)";
 }
 
 /* ── "3 of 64": the list's order, carried to the profile ─────────────── */
@@ -637,11 +637,11 @@ export function scorecardWhy(scorecard: unknown): { up: string[]; down: string[]
   return { up: clean(card?.whyUp), down: clean(card?.whyDown) };
 }
 
-/** "Ava suggests", in words: jade to move them on, amber to look closer,
+/** "Ava suggests", in words: ink to move them on, amber to look closer,
  *  crit to decline. Null once a person has decided, while they are still on
  *  the form, and before she has a recommendation. */
 export interface AvaSuggestion {
-  tone: "jade" | "amber" | "crit";
+  tone: "good" | "amber" | "crit";
   text: string;
 }
 
@@ -652,7 +652,7 @@ export function avaSuggests(scorecard: unknown, status: string | null | undefine
   const requirements = text(card?.hardRequirementStatus);
   if (action === "advance") {
     const target = advanceLabel ? advanceLabel.toLowerCase() : "the next stage";
-    return { tone: "jade", text: `Move to ${target}.${requirements === "met" ? " Every requirement met." : ""}` };
+    return { tone: "good", text: `Move to ${target}.${requirements === "met" ? " Every requirement met." : ""}` };
   }
   if (action === "review") {
     const why = requirements === "mixed" ? " Some requirements are mixed." : requirements === "at_risk" ? " A requirement is at risk." : "";
@@ -669,7 +669,7 @@ export function avaSuggests(scorecard: unknown, status: string | null | undefine
 
 export interface HeaderLine {
   text: string;
-  tone: "jade" | "amber" | "crit" | "muted";
+  tone: "good" | "amber" | "crit" | "muted";
 }
 
 /**
@@ -698,12 +698,12 @@ export function headerLine(
   if (row.decided) return row.activeWords ? { text: row.activeWords, tone: "muted" } : null;
   if (live && row.liveState) {
     const tone: HeaderLine["tone"] =
-      row.liveState === "left" || row.liveState === "away" || row.liveState === "waiting" ? "amber" : row.liveState === "failed" ? "crit" : "jade";
+      row.liveState === "left" || row.liveState === "away" || row.liveState === "waiting" ? "amber" : row.liveState === "failed" ? "crit" : "good";
     return { text: live.summary, tone };
   }
   if (row.finished) {
     const at = row.lastActiveAt ? Date.parse(row.lastActiveAt) : NaN;
-    return { text: `Finished every test ${agoWords(Number.isFinite(at) ? at : null, now)}`, tone: "jade" };
+    return { text: `Finished every test ${agoWords(Number.isFinite(at) ? at : null, now)}`, tone: "good" };
   }
   return row.lineText ? { text: row.lineText, tone: "muted" } : null;
 }
@@ -902,7 +902,7 @@ export interface TestTileRow {
   value: string;
   /** A pick-several answer's picks, each on its own (value is them joined). */
   values?: string[];
-  tone?: "jade" | "amber" | "ink" | "muted";
+  tone?: "good" | "amber" | "ink" | "muted";
 }
 
 export interface TestTile {
@@ -913,7 +913,7 @@ export interface TestTile {
   state: "done" | "live" | "none";
   /** The number that matters, set as a figure with its unit beside it. */
   big: { value: string; unit: string | null } | null;
-  verdict: { text: string; tone: "jade" | "amber" | "ink" | "muted" } | null;
+  verdict: { text: string; tone: "good" | "amber" | "ink" | "muted" } | null;
   /** Up to two label → value rows. */
   rows: TestTileRow[];
   /** Lines that must never be cut: the connection check's flags, the chat
@@ -984,8 +984,8 @@ function quizRows(entry: AssessmentEntry, quizQuestions: unknown): TestTileRow[]
   // ("Missed: Accounts, Security" and "Money rules: Missed", not both).
   const missed = [...new Set(marked.filter((i) => i.isCorrect === false).map(areaOf))].filter((w) => areaRight || !area || w !== areaWords(area));
   const rows: TestTileRow[] = [];
-  if (missed.length > 0 || areaRight) rows.push({ label: "Missed", value: missed.length > 0 ? missed.join(", ") : "None", tone: missed.length > 0 ? "amber" : "jade" });
-  if (area) rows.push({ label: areaWords(area), value: areaRight ? "Right" : "Missed", tone: areaRight ? "jade" : "amber" });
+  if (missed.length > 0 || areaRight) rows.push({ label: "Missed", value: missed.length > 0 ? missed.join(", ") : "None", tone: missed.length > 0 ? "amber" : "good" });
+  if (area) rows.push({ label: areaWords(area), value: areaRight ? "Right" : "Missed", tone: areaRight ? "good" : "amber" });
   return rows.slice(0, 2);
 }
 
@@ -1033,7 +1033,7 @@ function applicationVerdict(entry: AssessmentEntry, questions: unknown): TestTil
   };
   const missing = required.filter((q) => !answered(q)).length;
   return missing === 0
-    ? { text: withSubline("All required answered"), tone: "jade" }
+    ? { text: withSubline("All required answered"), tone: "good" }
     : { text: withSubline(`${missing} required ${missing === 1 ? "answer" : "answers"} missing`), tone: "amber" };
 }
 
@@ -1099,7 +1099,7 @@ export function testTiles(
             d.belowPassMark === true
               ? { text: `Below the ${passing} pass mark`, tone: "amber" }
               : d.belowPassMark === false
-                ? { text: `Meets the ${passing} pass mark`, tone: "jade" }
+                ? { text: `Meets the ${passing} pass mark`, tone: "good" }
                 : null;
           rows = d.scores.slice(0, 2).map((s) => ({ label: s.label, value: String(Math.round(s.value)) }));
           if (d.typing) notes.push({ text: d.typing.line, tone: chatTypingNeedsALook(d.typing) ? "amber" : "muted", kind: "typing" });

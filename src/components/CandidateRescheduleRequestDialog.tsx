@@ -158,7 +158,7 @@ export function CandidateRescheduleRequestDialog({
           </button>
           <button
             type="button"
-            className="hf-pill hf-pill--jade"
+            className="hf-pill hf-pill--action"
             onClick={handleSubmit}
             disabled={isSubmitting || !ready}
             data-interview-availability-send

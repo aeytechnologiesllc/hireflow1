@@ -5,7 +5,7 @@
  *
  * Pure visual/motion prototype: canned data + setTimeout only, NO backend /
  * OpenAI calls. It lets the founder SEE the flow, design, and motion before real
- * logic is wired. Reuses the real Deep Jade tokens, Fraunces/Inter fonts, and the
+ * logic is wired. Reuses the real ink-and-ivory tokens, Fraunces/Inter fonts, and the
  * app's own Gemline rail and seal (the orb it once used is retired).
  *
  * The follow-up questions, Ava's reasoning, the rigor recommendation, and the
@@ -64,12 +64,12 @@ import { StepRail, PhaseRow } from "@/components/ava/createFlow/shared";
 const STEPS = ["Brief", "Follow-ups", "Rigor", "Ava builds", "Review plan", "Publish"] as const;
 
 type RigorId = "easy" | "standard" | "high";
-type Accent = "brass" | "jade" | "mint";
+type Accent = "brass" | "good" | "goodSoft";
 
 const ACCENT: Record<Accent, { tile: string; fg: string; line: string; edge: string }> = {
   brass: { tile: "hsl(var(--primary) / 0.14)", fg: "hsl(var(--ck-brass-bright))", line: "hsl(var(--primary))", edge: "hsl(var(--primary) / 0.3)" },
-  jade: { tile: "hsl(var(--ck-jade) / 0.16)", fg: "hsl(var(--ck-jade))", line: "hsl(var(--ck-jade))", edge: "hsl(var(--ck-jade) / 0.3)" },
-  mint: { tile: "hsl(var(--ck-mint) / 0.16)", fg: "hsl(var(--ck-mint))", line: "hsl(var(--ck-mint))", edge: "hsl(var(--ck-mint) / 0.3)" },
+  good: { tile: "hsl(var(--ck-action) / 0.16)", fg: "hsl(var(--ck-action))", line: "hsl(var(--ck-action))", edge: "hsl(var(--ck-action) / 0.3)" },
+  goodSoft: { tile: "hsl(var(--ck-action-bright) / 0.16)", fg: "hsl(var(--ck-action-bright))", line: "hsl(var(--ck-action-bright))", edge: "hsl(var(--ck-action-bright) / 0.3)" },
 };
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -148,10 +148,10 @@ const PLAYBOOKS: Record<Family, Playbook> = {
     },
     plan: (role) => [
       { id: "p0", kind: "Job post", icon: ClipboardList, accent: "brass", title: role, candidate: "Warm, clear listing: run daily operations, lead a small team, own the till and open/close. Friendly, no jargon.", rationale: "I led with the day-to-day and team size you gave me, so the right people self-select in.", count: "Ready to post", duration: "Public" },
-      { id: "p1", kind: "Application", icon: FileText, accent: "jade", title: "A few quick questions", candidate: "Availability, years leading a team, comfort with cash, and why this place.", rationale: "Short enough that good people finish, sharp enough to filter.", count: "4 questions", duration: "~3 min" },
-      { id: "p2", kind: "Quiz", icon: Timer, accent: "mint", title: "Short timed scenarios", candidate: "A till comes up short, a delivery's late before the rush, two staff call out.", rationale: "Timed, so I see judgment under a little pressure — like a real shift.", count: "12 items", duration: "10 min" },
+      { id: "p1", kind: "Application", icon: FileText, accent: "good", title: "A few quick questions", candidate: "Availability, years leading a team, comfort with cash, and why this place.", rationale: "Short enough that good people finish, sharp enough to filter.", count: "4 questions", duration: "~3 min" },
+      { id: "p2", kind: "Quiz", icon: Timer, accent: "goodSoft", title: "Short timed scenarios", candidate: "A till comes up short, a delivery's late before the rush, two staff call out.", rationale: "Timed, so I see judgment under a little pressure — like a real shift.", count: "12 items", duration: "10 min" },
       { id: "p3", kind: "Simulation", icon: MessageSquare, accent: "brass", title: "Handle a real moment", candidate: "Calm an upset regular, then reconcile the end-of-day till.", rationale: "A practical role-play graded on de-escalation and accuracy — your two biggest risks.", count: "2 scenarios", duration: "~6 min" },
-      { id: "p4", kind: "Voice interview", icon: Mic, accent: "mint", title: "Answer a few questions out loud", candidate: "A short, friendly recording about leading a team and a tough day you turned around.", rationale: "The strongest signal — I score clarity, judgment and ownership, and it's the hardest to fake.", count: "8 questions", duration: "~8 min" },
+      { id: "p4", kind: "Voice interview", icon: Mic, accent: "goodSoft", title: "Answer a few questions out loud", candidate: "A short, friendly recording about leading a team and a tough day you turned around.", rationale: "The strongest signal — I score clarity, judgment and ownership, and it's the hardest to fake.", count: "8 questions", duration: "~8 min" },
       { id: "p5", kind: "Shortlist", icon: Trophy, accent: "brass", title: "Your ranked top picks", candidate: "", rationale: "I rank everyone and hand you the top 3 with my read. You just Advance or Pass.", count: "Top 3", duration: "Weighted" },
     ],
   },
@@ -186,10 +186,10 @@ const PLAYBOOKS: Record<Family, Playbook> = {
     },
     plan: (role) => [
       { id: "p0", kind: "Job post", icon: ClipboardList, accent: "brass", title: role, candidate: "Clear, honest listing: the spaces, the hours, and what 'done right' looks like. No jargon.", rationale: "I kept it plain and specific so reliable people know exactly what they're signing up for.", count: "Ready to post", duration: "Public" },
-      { id: "p1", kind: "Application", icon: FileText, accent: "jade", title: "A few quick questions", candidate: "Availability, reliable transport, past cleaning work, and references.", rationale: "Reliability is the whole game here — I check it first.", count: "4 questions", duration: "~2 min" },
-      { id: "p2", kind: "Reliability check", icon: ShieldCheck, accent: "mint", title: "A short reliability check", candidate: "Quick scenarios: you're running late, a client changes the time, something's broken when you arrive.", rationale: "Dependability and honesty matter more than speed — these surface both.", count: "6 items", duration: "5 min" },
+      { id: "p1", kind: "Application", icon: FileText, accent: "good", title: "A few quick questions", candidate: "Availability, reliable transport, past cleaning work, and references.", rationale: "Reliability is the whole game here — I check it first.", count: "4 questions", duration: "~2 min" },
+      { id: "p2", kind: "Reliability check", icon: ShieldCheck, accent: "goodSoft", title: "A short reliability check", candidate: "Quick scenarios: you're running late, a client changes the time, something's broken when you arrive.", rationale: "Dependability and honesty matter more than speed — these surface both.", count: "6 items", duration: "5 min" },
       { id: "p3", kind: "Walkthrough", icon: Camera, accent: "brass", title: "Show your standard", candidate: "Walk through how you'd deep-clean a space and what you'd flag to the owner.", rationale: "Lets me see attention to detail and care in private spaces — without a trial visit.", count: "1 scenario", duration: "~4 min" },
-      { id: "p4", kind: "Voice interview", icon: Mic, accent: "mint", title: "Answer a few questions out loud", candidate: "A short recording about working unsupervised and handling a client's trust.", rationale: "Trust is hard to test on paper — voice shows me reliability and care.", count: "5 questions", duration: "~5 min" },
+      { id: "p4", kind: "Voice interview", icon: Mic, accent: "goodSoft", title: "Answer a few questions out loud", candidate: "A short recording about working unsupervised and handling a client's trust.", rationale: "Trust is hard to test on paper — voice shows me reliability and care.", count: "5 questions", duration: "~5 min" },
       { id: "p5", kind: "Shortlist", icon: Trophy, accent: "brass", title: "Your ranked top picks", candidate: "", rationale: "I rank for reliability and trust, then hand you the top few. You just Advance or Pass.", count: "Top 5", duration: "Weighted" },
     ],
   },
@@ -224,10 +224,10 @@ const PLAYBOOKS: Record<Family, Playbook> = {
     },
     plan: (role) => [
       { id: "p0", kind: "Job post", icon: ClipboardList, accent: "brass", title: role, candidate: "Clear listing: the calendars, the tools, and the confidentiality this role carries.", rationale: "I emphasized organization and discretion so the right profile applies.", count: "Ready to post", duration: "Public" },
-      { id: "p1", kind: "Application", icon: FileText, accent: "jade", title: "A few quick questions", candidate: "Tools you know, scheduling experience, and comfort with confidential info.", rationale: "Filters for the office-software fit and discretion this role needs.", count: "4 questions", duration: "~3 min" },
-      { id: "p2", kind: "Skills check", icon: Keyboard, accent: "mint", title: "A short practical check", candidate: "Tidy a messy calendar, prioritize a busy inbox, and spot a confidentiality slip.", rationale: "Shows real organization and judgment — not just a tidy résumé.", count: "8 items", duration: "8 min" },
+      { id: "p1", kind: "Application", icon: FileText, accent: "good", title: "A few quick questions", candidate: "Tools you know, scheduling experience, and comfort with confidential info.", rationale: "Filters for the office-software fit and discretion this role needs.", count: "4 questions", duration: "~3 min" },
+      { id: "p2", kind: "Skills check", icon: Keyboard, accent: "goodSoft", title: "A short practical check", candidate: "Tidy a messy calendar, prioritize a busy inbox, and spot a confidentiality slip.", rationale: "Shows real organization and judgment — not just a tidy résumé.", count: "8 items", duration: "8 min" },
       { id: "p3", kind: "Simulation", icon: MessageSquare, accent: "brass", title: "Handle a real moment", candidate: "Draft a calm reply to a double-booked client and reschedule cleanly.", rationale: "Tone and accuracy under a little chaos — exactly the day-to-day.", count: "1 scenario", duration: "~5 min" },
-      { id: "p4", kind: "Voice interview", icon: Mic, accent: "mint", title: "Answer a few questions out loud", candidate: "A short recording about juggling priorities and handling sensitive information.", rationale: "I score clarity and discretion — the traits that make or break this role.", count: "6 questions", duration: "~6 min" },
+      { id: "p4", kind: "Voice interview", icon: Mic, accent: "goodSoft", title: "Answer a few questions out loud", candidate: "A short recording about juggling priorities and handling sensitive information.", rationale: "I score clarity and discretion — the traits that make or break this role.", count: "6 questions", duration: "~6 min" },
       { id: "p5", kind: "Shortlist", icon: Trophy, accent: "brass", title: "Your ranked top picks", candidate: "", rationale: "I rank for organization and discretion, then hand you the top few.", count: "Top 5", duration: "Weighted" },
     ],
   },
@@ -262,10 +262,10 @@ const PLAYBOOKS: Record<Family, Playbook> = {
     },
     plan: (role) => [
       { id: "p0", kind: "Job post", icon: ClipboardList, accent: "brass", title: role, candidate: "Clear listing: the stack, the team, and how you work (remote-friendly).", rationale: "I led with the stack and setup you gave me so the right engineers apply.", count: "Ready to post", duration: "Public" },
-      { id: "p1", kind: "Application", icon: FileText, accent: "jade", title: "A few quick questions", candidate: "Core stack, years of experience, work setup, and a link to past work.", rationale: "Quick filter on stack fit and ways of working.", count: "4 questions", duration: "~3 min" },
-      { id: "p2", kind: "Code test", icon: Code2, accent: "mint", title: "A short practical task", candidate: "A small, real take-home: build one focused feature and explain a tradeoff.", rationale: "Real code beats buzzwords — this is the signal that actually predicts the job.", count: "1 task", duration: "~45 min" },
+      { id: "p1", kind: "Application", icon: FileText, accent: "good", title: "A few quick questions", candidate: "Core stack, years of experience, work setup, and a link to past work.", rationale: "Quick filter on stack fit and ways of working.", count: "4 questions", duration: "~3 min" },
+      { id: "p2", kind: "Code test", icon: Code2, accent: "goodSoft", title: "A short practical task", candidate: "A small, real take-home: build one focused feature and explain a tradeoff.", rationale: "Real code beats buzzwords — this is the signal that actually predicts the job.", count: "1 task", duration: "~45 min" },
       { id: "p3", kind: "Technical scenarios", icon: ListChecks, accent: "brass", title: "Short technical scenarios", candidate: "Debug a failing snippet, pick a data structure, reason about an edge case.", rationale: "Sharp, timed checks of the fundamentals to back up the take-home.", count: "8 items", duration: "12 min" },
-      { id: "p4", kind: "Voice interview", icon: Mic, accent: "mint", title: "Answer a few questions out loud", candidate: "A short recording walking through a project and a hard technical call you made.", rationale: "I score how they reason and communicate — the part a code test can't show.", count: "6 questions", duration: "~7 min" },
+      { id: "p4", kind: "Voice interview", icon: Mic, accent: "goodSoft", title: "Answer a few questions out loud", candidate: "A short recording walking through a project and a hard technical call you made.", rationale: "I score how they reason and communicate — the part a code test can't show.", count: "6 questions", duration: "~7 min" },
       { id: "p5", kind: "Shortlist", icon: Trophy, accent: "brass", title: "Your ranked top picks", candidate: "", rationale: "I weight the code test highest, then hand you the top few.", count: "Top 3", duration: "Weighted" },
     ],
   },
@@ -288,10 +288,10 @@ const PLAYBOOKS: Record<Family, Playbook> = {
     rigor: { recommended: "standard", rationale: "A balanced screen fits most roles — enough signal to rank well without over-testing good applicants." },
     plan: (role) => [
       { id: "p0", kind: "Job post", icon: ClipboardList, accent: "brass", title: role, candidate: "Clear, warm listing of the day-to-day and what great looks like.", rationale: "I kept it specific so the right people self-select in.", count: "Ready to post", duration: "Public" },
-      { id: "p1", kind: "Application", icon: FileText, accent: "jade", title: "A few quick questions", candidate: "Availability, relevant experience, and why this role.", rationale: "A quick filter for fit.", count: "4 questions", duration: "~3 min" },
-      { id: "p2", kind: "Quiz", icon: Timer, accent: "mint", title: "Short timed scenarios", candidate: "Real situations from a typical day on the job.", rationale: "Timed, so I see judgment under a little pressure.", count: "8 items", duration: "8 min" },
+      { id: "p1", kind: "Application", icon: FileText, accent: "good", title: "A few quick questions", candidate: "Availability, relevant experience, and why this role.", rationale: "A quick filter for fit.", count: "4 questions", duration: "~3 min" },
+      { id: "p2", kind: "Quiz", icon: Timer, accent: "goodSoft", title: "Short timed scenarios", candidate: "Real situations from a typical day on the job.", rationale: "Timed, so I see judgment under a little pressure.", count: "8 items", duration: "8 min" },
       { id: "p3", kind: "Simulation", icon: MessageSquare, accent: "brass", title: "Handle a real moment", candidate: "Walk through a common tricky situation for this role.", rationale: "A practical role-play graded on judgment.", count: "1 scenario", duration: "~5 min" },
-      { id: "p4", kind: "Voice interview", icon: Mic, accent: "mint", title: "Answer a few questions out loud", candidate: "A short recording about your experience and approach.", rationale: "The strongest signal — clarity, judgment, ownership.", count: "6 questions", duration: "~6 min" },
+      { id: "p4", kind: "Voice interview", icon: Mic, accent: "goodSoft", title: "Answer a few questions out loud", candidate: "A short recording about your experience and approach.", rationale: "The strongest signal — clarity, judgment, ownership.", count: "6 questions", duration: "~6 min" },
       { id: "p5", kind: "Shortlist", icon: Trophy, accent: "brass", title: "Your ranked top picks", candidate: "", rationale: "I rank everyone and hand you the top few.", count: "Top 5", duration: "Weighted" },
     ],
   },
@@ -461,7 +461,7 @@ function FollowUpStep({
         </span>
         <span
           className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold"
-          style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--ck-mint))", border: "1px solid hsl(var(--primary) / 0.22)" }}
+          style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--ck-action-bright))", border: "1px solid hsl(var(--primary) / 0.22)" }}
         >
           <AvaSeal size={10} /> Tailored to a {label} role
         </span>
@@ -599,7 +599,7 @@ function RigorStep({
               }}
             >
               {isRec && (
-                <span className="absolute right-3 top-3 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ background: "hsl(var(--ck-jade))", color: "hsl(var(--primary-foreground))" }}>
+                <span className="absolute right-3 top-3 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ background: "hsl(var(--ck-action))", color: "hsl(var(--primary-foreground))" }}>
                   Recommended
                 </span>
               )}
@@ -675,7 +675,7 @@ function BuildStep({ onDone, role, rigorLabel, reasoning }: { onDone: () => void
               style={{ background: newest ? "hsl(var(--primary) / 0.1)" : "transparent", border: newest ? "1px solid hsl(var(--primary) / 0.28)" : "1px solid transparent" }}
             >
               {i < revealed - 1 ? (
-                <Check className="h-4 w-4 shrink-0" style={{ color: "hsl(var(--ck-jade))" }} />
+                <Check className="h-4 w-4 shrink-0" style={{ color: "hsl(var(--ck-action))" }} />
               ) : newest ? (
                 <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ background: "hsl(var(--primary))", boxShadow: "0 0 0 4px hsl(var(--primary) / 0.18)" }} />
               ) : (
@@ -721,7 +721,7 @@ function ReviewStep({
           initial={reduce ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em]"
-          style={{ borderColor: "hsl(var(--ck-jade) / 0.4)", color: "hsl(var(--ck-mint))" }}
+          style={{ borderColor: "hsl(var(--ck-action) / 0.4)", color: "hsl(var(--ck-action-bright))" }}
         >
           <Check className="h-3 w-3" /> Draft · not published yet
         </motion.span>
@@ -787,7 +787,7 @@ function PublishStep({ count }: { count: number }) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
         className="mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em]"
-        style={{ background: "hsl(var(--ck-jade) / 0.16)", color: "hsl(var(--ck-mint))" }}
+        style={{ background: "hsl(var(--ck-action) / 0.16)", color: "hsl(var(--ck-action-bright))" }}
       >
         <Check className="h-3 w-3" /> Your role is live
       </motion.span>
@@ -988,13 +988,13 @@ export default function AvaFlowPreview({ externalStep, embedded }: AvaFlowPrevie
     <div
       className={`ava-prev scroll-perf relative flex flex-col overflow-x-hidden ${embedded ? "min-h-[560px]" : "min-h-[100dvh]"}`}
       style={{
-        background: "radial-gradient(ellipse 90% 60% at 50% -10%, color-mix(in srgb, var(--hf-green-soft) 50%, transparent) 0%, transparent 60%), hsl(var(--background))",
+        background: "radial-gradient(ellipse 90% 60% at 50% -10%, color-mix(in srgb, var(--hf-action-soft) 50%, transparent) 0%, transparent 60%), hsl(var(--background))",
         color: "hsl(var(--foreground))",
       }}
     >
       <style>{FOCUS_CSS}</style>
 
-      {/* Brand hero ambient — same jade aurora + drifting constellation as the
+      {/* Brand hero ambient — same ink aurora + drifting constellation as the
           marketing landing hero. Replaces the old flat checkered grid. Sits
           behind all 6 flow states (content is z-10+). */}
       <HeroBackground />

@@ -76,7 +76,7 @@ console.log("\nThe wiring");
   const page = code(await read("src/cockpit/pages/Interviews.tsx"));
   check("the line is shown only for a time the applicant has agreed to, off the page's own clock", /const when = s\.response === "confirmed" \? interviewWhen\(s\.at, now, s\.minutes\) : null;/.test(page));
   check("it sits under the time, and says which kind it is", page.includes("data-interview-when={when.tone}") && /\{when\.label\}/.test(page));
-  check("the one that is on now is ringed, and its button says 'Join now'", /when\?\.tone === "now" \? \{ boxShadow: "0 0 0 2px var\(--jade\)" \} : null/.test(page) && (page.match(/when\?\.tone === "now" \? "Join now" : "Join interview"/g) ?? []).length === 2);
+  check("the one that is on now is ringed, and its button says 'Join now'", /when\?\.tone === "now" \? \{ boxShadow: "0 0 0 2px var\(--action\)" \} : null/.test(page) && (page.match(/when\?\.tone === "now" \? "Join now" : "Join interview"/g) ?? []).length === 2);
   check("the page's clock still ticks every 30 seconds, and stops with the page", /setInterval\(\(\) => setNow\(Date\.now\(\)\), 30_000\);\s*return \(\) => clearInterval\(t\);/.test(page));
   const hook = code(await read("src/cockpit/hooks/useInterviewsLeftToday.ts"));
   check("the count reads the list the Interviews page reads (one cached query), and checks the clock once a minute", /const \{ data: rows \} = useInterviews\(\);/.test(hook) && /window\.setInterval\(\(\) => setNow\(Date\.now\(\)\), 60_000\);\s*return \(\) => window\.clearInterval\(timer\);/.test(hook) && !/supabase|\.from\(/.test(hook));

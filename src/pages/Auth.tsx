@@ -20,6 +20,7 @@ import { candidateOrigin, isStaffHost } from "@/lib/hosts";
 import { cleanAddress } from "@/components/business/CareersPageCard";
 import { SecondStepForm } from "@/components/auth/SecondStepForm";
 import { needsSecondStep } from "@/lib/secondStep";
+import { useNightWhileOpen } from "@/hooks/useNightWhileOpen";
 
 // Google OAuth isn't enabled on the Supabase backend yet (authorize endpoint
 // returns 400) — keep the UI hidden until credentials exist. Flip
@@ -95,6 +96,8 @@ const PasswordRequirements = ({ password }: { password: string }) => {
 };
 
 export default function Auth() {
+  // The bridge from the dark front page stays dark; the app after it follows the device.
+  useNightWhileOpen();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { signIn, signUp, signInWithGoogle, user, loading: authLoading } = useAuth();
@@ -529,24 +532,24 @@ export default function Auth() {
 
   return (
     <div
-      className="auth-jade scroll-perf relative min-h-[100dvh] overflow-y-auto overflow-x-hidden"
+      className="auth-theme scroll-perf relative min-h-[100dvh] overflow-y-auto overflow-x-hidden"
       style={{ background: "var(--hf-bg)", color: "var(--hf-text)" }}
     >
       <style>{`
         /* This page used to carry its own copy of the whole token set, pinned to
-           the old dark jade and forced into .dark, so it ignored the theme
+           the old dark green and forced into .dark, so it ignored the theme
            entirely. It now inherits the app's tokens like every other surface;
            only the things that are genuinely local to it live here. */
-        .auth-jade h1,.auth-jade h2{font-family:'Fraunces',Georgia,serif;font-weight:500;letter-spacing:-0.01em;}
-        .auth-jade .auth-card{border-color:var(--hf-border);background:var(--hf-surface);}
+        .auth-theme h1,.auth-theme h2{font-family:'Fraunces',Georgia,serif;font-weight:500;letter-spacing:-0.01em;}
+        .auth-theme .auth-card{border-color:var(--hf-border);background:var(--hf-surface);}
         /* Letterhead field: the paper itself, not a raised chip — filled with
            the same ground as the page, a hairline border, gold on focus. */
-        .auth-jade input{
+        .auth-theme input{
           background:var(--ground);
           border-color:var(--line);
           transition:border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
         }
-        .auth-jade input:focus,.auth-jade input:focus-visible{
+        .auth-theme input:focus,.auth-theme input:focus-visible{
           outline:none;
           border-color:var(--hf-gold);
           box-shadow:0 0 0 1px var(--hf-gold-border);
@@ -561,14 +564,14 @@ export default function Auth() {
            pale paper (the veil leans on the background token too, so a light
            theme re-covers its own glow far harder than a dark one does — the
            cockpit's ambient layer hit this identical wall, see cockpit.css).
-           Paint one more coat of the same brass/jade tokens above that veil,
+           Paint one more coat of the same brass/ink tokens above that veil,
            Day only, so the backdrop keeps the presence the candidate screen
            already has. Night is untouched — it already reads right. */
-        .auth-jade .hero-lift{position:fixed;inset:0;z-index:0;pointer-events:none;}
-        :root:not(.dark) .auth-jade .hero-lift{
+        .auth-theme .hero-lift{position:fixed;inset:0;z-index:0;pointer-events:none;}
+        :root:not(.dark) .auth-theme .hero-lift{
           background:
-            radial-gradient(ellipse 68vw 42vw at 50% -10%, var(--hf-green-border), transparent 72%),
-            radial-gradient(circle at 4% 2%, var(--hf-green-soft), transparent 58%),
+            radial-gradient(ellipse 68vw 42vw at 50% -10%, var(--hf-action-border), transparent 72%),
+            radial-gradient(circle at 4% 2%, var(--hf-action-soft), transparent 58%),
             radial-gradient(circle at 97% 100%, var(--hf-gold-soft), transparent 55%);
         }
       `}</style>
@@ -614,7 +617,7 @@ export default function Auth() {
             >
               <span
                 className="h-1.5 w-1.5 rounded-full"
-                style={{ background: "var(--hf-green)" }}
+                style={{ background: "var(--hf-action)" }}
               />
               {authMode === "signup" ? "Start hiring" : "Sign in"}
             </span>

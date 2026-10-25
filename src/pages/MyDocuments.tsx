@@ -31,7 +31,7 @@ function signStatusChip(doc: DocumentWithApplication): { label: string; bg: stri
       : { label: "Withdrawn", bg: "var(--surface-2)", fg: "var(--ink-3)" };
   }
   if (doc.status === "declined") return { label: "Declined", bg: "var(--crit-bg)", fg: "var(--crit)" };
-  if (doc.status === "signed") return { label: "Signed", bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)" };
+  if (doc.status === "signed") return { label: "Signed", bg: "var(--action-soft)", fg: "var(--action-soft-fg)" };
   if (doc.candidate_signed_at) {
     return { label: "Sent to the employer", bg: "var(--surface-2)", fg: "var(--ink-2)" };
   }

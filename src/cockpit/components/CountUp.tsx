@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * CountUp — eased number roll-up for KPIs / big numbers (Deep Jade cockpit).
+ * CountUp — eased number roll-up for KPIs / big numbers (the cockpit).
  *
  * Performance-first: a single requestAnimationFrame loop per number, no layout
  * thrash. Fully gated behind `prefers-reduced-motion: reduce` → the final value

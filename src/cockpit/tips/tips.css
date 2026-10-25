@@ -1,5 +1,5 @@
-/* Guided tips (the 2026-10-11 "Guided start" mock-up): a dark jade card with
-   a jade kicker, a Fraunces title, two short lines, "No more tips" and one
+/* Guided tips (the 2026-10-11 "Guided start" mock-up): a dark ink card with
+   an ivory kicker, a Fraunces title, two short lines, "No more tips" and one
    button. The same card in both themes: it is the guide's voice, set apart
    from the page. It rises once; nothing loops. */
 
@@ -9,8 +9,8 @@
   width: min(320px, calc(100vw - 24px));
   padding: 15px 16px 13px;
   border-radius: 14px;
-  background: #16241e;
-  border: 1px solid rgba(79, 195, 154, 0.4);
+  background: #1B1813;
+  border: 1px solid rgba(244, 239, 227, 0.22);
   box-shadow: 0 22px 60px rgba(0, 0, 0, 0.32);
   color: #efe8da;
   font-family: "Inter", system-ui, sans-serif;
@@ -22,9 +22,9 @@
   position: absolute;
   width: 12px;
   height: 12px;
-  background: #16241e;
-  border-left: 1px solid rgba(79, 195, 154, 0.4);
-  border-top: 1px solid rgba(79, 195, 154, 0.4);
+  background: #1B1813;
+  border-left: 1px solid rgba(244, 239, 227, 0.22);
+  border-top: 1px solid rgba(244, 239, 227, 0.22);
   left: calc(var(--tip-arrow-x, 26px) - 6px);
 }
 .ck-tip--below::before { top: -7px; transform: rotate(45deg); }
@@ -57,14 +57,14 @@
   line-height: 1;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #4fc39a;
+  color: #E3DAC6;
 }
 .ck-tip__kick i {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #4fc39a;
-  box-shadow: 0 0 0 4px rgba(79, 195, 154, 0.18);
+  background: #E3DAC6;
+  box-shadow: 0 0 0 4px rgba(227, 218, 198, 0.16);
 }
 .ck-tip__title {
   margin: 8px 0 4px;
@@ -102,20 +102,20 @@
   padding: 6px 14px;
   border: 0;
   border-radius: 8px;
-  background: #4fc39a;
+  background: #F4EFE3;
   font: inherit;
   font-size: 12.5px;
   font-weight: 600;
-  color: #0d1a14;
+  color: #17150F;
   cursor: pointer;
 }
-.ck-tip__got:hover { background: #63d3ab; }
+.ck-tip__got:hover { background: #FBF7EE; }
 .ck-tip__off:focus-visible,
 .ck-tip__got:focus-visible { outline: 2px solid #efe8da; outline-offset: 2px; }
 
 /* What the tip explains, ringed while it shows. */
 .ck-tip-target {
-  outline: 2px solid rgba(79, 195, 154, 0.7) !important;
+  outline: 2px solid color-mix(in srgb, var(--action) 70%, transparent) !important;
   outline-offset: 3px;
 }
 

@@ -107,12 +107,12 @@ function FilterPill({
 }: {
   label: string;
   count?: number;
-  tone: "neutral" | "amber" | "jade";
+  tone: "neutral" | "amber" | "good";
   pressed: boolean;
   onClick: () => void;
 }) {
   const dot =
-    tone === "amber" ? "var(--amber-fg)" : tone === "jade" ? "var(--jade)" : "var(--ink-3)";
+    tone === "amber" ? "var(--amber-fg)" : tone === "good" ? "var(--action)" : "var(--ink-3)";
   return (
     <button
       type="button"
@@ -199,7 +199,7 @@ function ThreadRow({
           {unread > 0 && (
             <span
               className="mt-1.5 h-[7px] w-[7px] shrink-0 rounded-full"
-              style={{ background: "var(--jade)" }}
+              style={{ background: "var(--action)" }}
               aria-label={`${unread} unread`}
             />
           )}
@@ -264,8 +264,8 @@ function Bubble({
         mine
           ? {
               alignSelf: "flex-end",
-              background: "var(--jade-soft)",
-              color: "var(--jade-soft-fg)",
+              background: "var(--action-soft)",
+              color: "var(--action-soft-fg)",
               borderBottomRightRadius: 6,
             }
           : {
@@ -842,7 +842,7 @@ export default function CockpitMessages() {
                         key={e.employer_id}
                         type="button"
                         onClick={() => setActiveId(e.employer_id)}
-                        className="flex items-center gap-3 rounded-[10px] border p-3 text-left transition-colors hover:border-[var(--hair)] hover:bg-[var(--surface)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--jade)]"
+                        className="flex items-center gap-3 rounded-[10px] border p-3 text-left transition-colors hover:border-[var(--hair)] hover:bg-[var(--surface)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--action)]"
                         style={{ borderColor: "var(--line)" }}
                       >
                         <CkAvatar who={name} size={34} />
@@ -854,7 +854,7 @@ export default function CockpitMessages() {
                             {e.job_title}
                           </span>
                         </span>
-                        <span className="shrink-0 text-[11px] font-bold uppercase tracking-[0.06em]" style={{ color: "var(--jade)" }}>
+                        <span className="shrink-0 text-[11px] font-bold uppercase tracking-[0.06em]" style={{ color: "var(--action)" }}>
                           Write
                         </span>
                       </button>
@@ -927,7 +927,7 @@ export default function CockpitMessages() {
             <FilterPill
               label="Caught up"
               count={quiet}
-              tone="jade"
+              tone="good"
               pressed={filter === "quiet"}
               onClick={() => setFilter("quiet")}
             />
@@ -1127,7 +1127,7 @@ export default function CockpitMessages() {
                         type="button"
                         onClick={() => fillReply(reply.text)}
                         title={reply.text}
-                        className="rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors hover:border-[var(--jade)] hover:bg-[var(--jade-soft)] hover:text-[var(--jade-soft-fg)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--jade)]"
+                        className="rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors hover:border-[var(--action)] hover:bg-[var(--action-soft)] hover:text-[var(--action-soft-fg)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--action)]"
                         style={{ borderColor: "var(--line)", color: "var(--ink-2)" }}
                         data-quick-reply={reply.id}
                       >

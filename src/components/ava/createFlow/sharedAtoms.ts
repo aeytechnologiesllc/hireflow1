@@ -12,12 +12,12 @@ export const DISPLAY = "'Fraunces', Georgia, serif";
 
 export const STEPS = ["Brief", "Follow-ups", "Rigor", "Ava builds", "Review plan", "Publish"] as const;
 
-export type Accent = "brass" | "jade" | "mint";
+export type Accent = "brass" | "good" | "goodSoft";
 
 export const ACCENT: Record<Accent, { tile: string; fg: string; line: string; edge: string }> = {
   brass: { tile: "hsl(var(--primary) / 0.14)", fg: "hsl(var(--ck-brass-bright))", line: "hsl(var(--primary))", edge: "hsl(var(--primary) / 0.3)" },
-  jade: { tile: "hsl(var(--ck-jade) / 0.16)", fg: "hsl(var(--ck-jade))", line: "hsl(var(--ck-jade))", edge: "hsl(var(--ck-jade) / 0.3)" },
-  mint: { tile: "hsl(var(--ck-mint) / 0.16)", fg: "hsl(var(--ck-mint))", line: "hsl(var(--ck-mint))", edge: "hsl(var(--ck-mint) / 0.3)" },
+  good: { tile: "hsl(var(--ck-action) / 0.16)", fg: "hsl(var(--ck-action))", line: "hsl(var(--ck-action))", edge: "hsl(var(--ck-action) / 0.3)" },
+  goodSoft: { tile: "hsl(var(--ck-action-bright) / 0.16)", fg: "hsl(var(--ck-action-bright))", line: "hsl(var(--ck-action-bright))", edge: "hsl(var(--ck-action-bright) / 0.3)" },
 };
 
 export const FOCUS_CSS = `

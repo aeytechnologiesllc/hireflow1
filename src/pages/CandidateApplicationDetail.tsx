@@ -753,12 +753,12 @@ export default function CandidateApplicationDetail() {
                   </p>
                   {isFinished ? (
                     <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-foreground">
-                      <CheckCircle className="h-3.5 w-3.5 text-[var(--jade)]" />
+                      <CheckCircle className="h-3.5 w-3.5 text-[var(--action)]" />
                       You&apos;ve finished every step
                     </span>
                   ) : isWaiting ? (
                     <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                      <CheckCircle className="h-3.5 w-3.5 text-[var(--jade)]" />
+                      <CheckCircle className="h-3.5 w-3.5 text-[var(--action)]" />
                       Done
                     </span>
                   ) : null}
@@ -773,7 +773,7 @@ export default function CandidateApplicationDetail() {
                   aria-label="Application progress"
                 >
                   <div
-                    className="h-full rounded-full bg-[var(--jade)] transition-[width] duration-500 ease-out"
+                    className="h-full rounded-full bg-[var(--action)] transition-[width] duration-500 ease-out"
                     style={{ width: `${progressPercentage}%` }}
                   />
                 </div>
@@ -907,10 +907,10 @@ export default function CandidateApplicationDetail() {
                       skipped
                         ? "text-[var(--brass-line)]"
                         : isCompleted
-                        ? "text-[var(--jade)]"
+                        ? "text-[var(--action)]"
                         : isDecisionStep && isDecided
                         ? isHired
-                          ? "text-[var(--jade)]"
+                          ? "text-[var(--action)]"
                           : "text-[var(--crit)]"
                         : isCurrent
                         ? isRejected

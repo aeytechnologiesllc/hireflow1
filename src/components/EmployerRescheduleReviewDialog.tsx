@@ -532,7 +532,7 @@ export function EmployerRescheduleReviewDialog({
             </button>
             <button
               type="button"
-              className="hf-pill hf-pill--jade"
+              className="hf-pill hf-pill--action"
               onClick={handleSetNewTime}
               disabled={isSubmitting || !newStart || !newStartAhead}
               data-review-send-new-time
@@ -649,7 +649,7 @@ export function EmployerRescheduleReviewDialog({
               Keep the time as it is
             </button>
           )}
-          <button type="button" className="hf-pill hf-pill--jade" onClick={handleAcceptTime} disabled={isSubmitting || !selectedTime} data-review-accept>
+          <button type="button" className="hf-pill hf-pill--action" onClick={handleAcceptTime} disabled={isSubmitting || !selectedTime} data-review-accept>
             {isSubmitting && action === "accept" ? <Loader2 className="animate-spin" /> : <Check />}
             Accept this time
           </button>

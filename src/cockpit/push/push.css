@@ -1,6 +1,6 @@
 /* The first-time "turn on notifications" card (docs/PUSH-NOTIFICATIONS.md).
    A paper card, not a green panel: ivory in Day, the dark brown surface in
-   Night, with one small jade bell. On a phone it sits across the bottom over
+   Night, with one small ink bell. On a phone it sits across the bottom over
    the tab bar; on a desktop it sits in the corner. It rises once; nothing loops. */
 
 .ck-push {
@@ -39,8 +39,8 @@
   height: 34px;
   flex: none;
   border-radius: 50%;
-  background: var(--jade-soft);
-  color: var(--jade-soft-fg);
+  background: var(--action-soft);
+  color: var(--action-soft-fg);
 }
 .ck-push__title {
   margin: 1px 0 0;

@@ -217,9 +217,9 @@ function Facts({ items }: { items: Array<{ label: string; value: string; note?: 
   );
 }
 
-function Bullets({ items, tone = "ink" }: { items: string[]; tone?: "ink" | "amber" | "jade" }) {
+function Bullets({ items, tone = "ink" }: { items: string[]; tone?: "ink" | "amber" | "good" }) {
   if (items.length === 0) return null;
-  const dot = tone === "amber" ? "var(--amber-fg)" : tone === "jade" ? "var(--jade)" : "var(--hair)";
+  const dot = tone === "amber" ? "var(--amber-fg)" : tone === "good" ? "var(--action)" : "var(--hair)";
   return (
     <ul className="flex flex-col gap-1.5">
       {items.map((item, i) => (
@@ -305,7 +305,7 @@ function Transcript({
               className="max-w-[88%] whitespace-pre-wrap break-words rounded-[12px] px-3.5 py-2.5 text-[13.5px] leading-[1.5]"
               style={
                 mine
-                  ? { background: "var(--jade-soft)", color: "var(--ink)", borderTopRightRadius: 4 }
+                  ? { background: "var(--action-soft)", color: "var(--ink)", borderTopRightRadius: 4 }
                   : { background: "var(--surface)", color: "var(--ink)", border: "1px solid var(--line-soft)", borderTopLeftRadius: 4 }
               }
             >
@@ -536,7 +536,7 @@ function FileAttachment({ applicationId, path, pages, label }: { applicationId: 
         ) : failed ? (
           <span className="flex flex-wrap items-center gap-2 text-[12px]" style={{ color: "var(--ink-3)" }}>
             {fileKind(path)} attached, but it can&rsquo;t be opened just now.
-            <button type="button" className="font-semibold hover:underline" style={{ color: "var(--brass)" }} onClick={() => void full.refetch()}>
+            <button type="button" className="font-semibold hover:underline" style={{ color: "var(--action-soft-fg)" }} onClick={() => void full.refetch()}>
               Try again
             </button>
           </span>
@@ -561,7 +561,7 @@ function AnswerValue({ answer, draft, applicationId }: { answer: AnswerItem; dra
       <ul className="mt-1.5 flex flex-col gap-1">
         {answer.selected.map((s) => (
           <li key={s} className="flex items-start gap-2 text-[13.5px] leading-[1.45]" style={{ color: "var(--ink)" }}>
-            <Check className="mt-[3px] h-3.5 w-3.5 shrink-0" style={{ color: "var(--jade)" }} aria-hidden />
+            <Check className="mt-[3px] h-3.5 w-3.5 shrink-0" style={{ color: "var(--action)" }} aria-hidden />
             {s}
           </li>
         ))}
@@ -709,9 +709,9 @@ function QuizQuestion({
         : item.onScreen
           ? gone(liveState)
             ? { text: "Where they stopped", color: "var(--amber-fg)" }
-            : { text: "On screen now", color: "var(--jade)" }
+            : { text: "On screen now", color: "var(--action)" }
           : item.isCorrect === true
-            ? { text: "Right", color: "var(--jade)" }
+            ? { text: "Right", color: "var(--action)" }
             : item.partial
               ? { text: "Half right", color: "var(--amber-fg)" }
               : item.isCorrect === false
@@ -791,20 +791,20 @@ function QuizQuestion({
                   ? "var(--ink-2)"
                   : mark === "plain"
                     ? "var(--hair)"
-                    : "var(--jade)";
+                    : "var(--action)";
             return (
               <li
                 key={i}
                 className="flex items-start gap-2.5 rounded-[8px] px-2.5 py-1.5 text-[13px] leading-[1.45]"
                 style={{
-                  background: picked ? "var(--ground-2)" : right ? "var(--jade-soft)" : "transparent",
+                  background: picked ? "var(--ground-2)" : right ? "var(--action-soft)" : "transparent",
                   color: "var(--ink)",
                 }}
               >
                 <Icon className="mt-[2px] h-3.5 w-3.5 shrink-0" style={{ color: iconColor }} aria-hidden />
                 <span className="min-w-0 flex-1">{option}</span>
                 {(picked || right) && (
-                  <span className="shrink-0 pt-[2px] text-[10px] font-bold uppercase tracking-[0.06em]" style={{ color: picked ? "var(--ink-3)" : "var(--jade-soft-fg)" }}>
+                  <span className="shrink-0 pt-[2px] text-[10px] font-bold uppercase tracking-[0.06em]" style={{ color: picked ? "var(--ink-3)" : "var(--action-soft-fg)" }}>
                     {picked ? (live ? "Their pick so far" : "Their pick") : "Right answer"}
                   </span>
                 )}
@@ -895,7 +895,7 @@ function QuizBody({
       <Facts
         items={[
           ...(detail.correct != null && detail.total != null
-            ? [{ label: "Right", value: `${formatCount(detail.correct)} of ${formatCount(detail.total)}`, tone: detail.passed === false ? "var(--amber-fg)" : "var(--jade)" }]
+            ? [{ label: "Right", value: `${formatCount(detail.correct)} of ${formatCount(detail.total)}`, tone: detail.passed === false ? "var(--amber-fg)" : "var(--action)" }]
             : []),
           ...(detail.score != null ? [{ label: "Score", value: `${Math.round(detail.score)}%`, note: detail.passed === true ? "Passed" : detail.passed === false ? "Did not pass" : null }] : []),
           ...(detail.live && detail.total != null
@@ -1003,7 +1003,7 @@ function TypingBody({ detail }: { detail: Extract<AssessmentDetail, { kind: "typ
         title="What they typed"
         aside={
           detail.words ? (
-            <span className="text-[11px] font-semibold" style={{ color: detail.words.wrong > 0 ? "var(--amber-fg)" : "var(--jade)" }}>
+            <span className="text-[11px] font-semibold" style={{ color: detail.words.wrong > 0 ? "var(--amber-fg)" : "var(--action)" }}>
               {detail.words.wrong === 0 ? "No wrong words" : `${detail.words.wrong} wrong ${detail.words.wrong === 1 ? "word" : "words"}`}
               {missed > 0 ? ` · ${missed} not reached` : ""}
             </span>
@@ -1324,7 +1324,7 @@ function ChatPracticeBody({
       )}
       {detail.strengths.length > 0 && (
         <Section title="What went well">
-          <Bullets items={detail.strengths} tone="jade" />
+          <Bullets items={detail.strengths} tone="good" />
         </Section>
       )}
       {detail.improvements.length > 0 && (
@@ -1377,7 +1377,7 @@ function InterviewBody({
       <Facts
         items={[
           ...(detail.score != null ? [{ label: "Score", value: `${Math.round(detail.score)} / 100` }] : []),
-          ...(detail.recommendation ? [{ label: "Recommendation", value: detail.recommendation, tone: declined ? "var(--amber-fg)" : "var(--jade)" }] : []),
+          ...(detail.recommendation ? [{ label: "Recommendation", value: detail.recommendation, tone: declined ? "var(--amber-fg)" : "var(--action)" }] : []),
           ...(detail.credibility ? [{ label: "Credibility", value: detail.credibility }] : []),
           ...(detail.questionCount != null || detail.duration
             ? [{ label: "Length", value: detail.duration ?? `${detail.questionCount} questions`, note: detail.duration && detail.questionCount != null ? `${detail.questionCount} questions` : null }]
@@ -1391,7 +1391,7 @@ function InterviewBody({
       )}
       {detail.strengths.length > 0 && (
         <Section title="Strengths">
-          <Bullets items={detail.strengths} tone="jade" />
+          <Bullets items={detail.strengths} tone="good" />
         </Section>
       )}
       {detail.concerns.length > 0 && (
@@ -1739,7 +1739,7 @@ export function AssessmentRecordSheet({
                 ? { background: "var(--amber-bg)", color: "var(--amber-fg)" }
                 : inProgress
                   ? { background: "var(--ground-2)", color: "var(--ink-2)" }
-                  : { background: "var(--jade-soft)", color: "var(--jade-soft-fg)" }
+                  : { background: "var(--action-soft)", color: "var(--action-soft-fg)" }
             }
           >
             <EntryIcon entry={shown} className="h-4 w-4" />

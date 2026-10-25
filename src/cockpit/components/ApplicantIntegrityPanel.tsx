@@ -33,7 +33,7 @@ export function ApplicantIntegrityPanel({ record, onOpen }: { record: Assessment
               <button
                 type="button"
                 className="mt-1 inline-flex items-center gap-0.5 text-[12.5px] font-medium hover:underline"
-                style={{ color: "var(--jade-soft-fg)" }}
+                style={{ color: "var(--action-soft-fg)" }}
                 onClick={() => onOpen(entry)}
               >
                 Every flag, with its time
@@ -44,7 +44,7 @@ export function ApplicantIntegrityPanel({ record, onOpen }: { record: Assessment
         </div>
       ) : (
         <p className="flex items-start gap-2.5 text-[13px] leading-[1.5]" style={{ color: "var(--ink-2)" }}>
-          <ShieldCheck aria-hidden className="mt-[2px] h-4 w-4 shrink-0" style={{ color: "var(--jade)" }} strokeWidth={2} />
+          <ShieldCheck aria-hidden className="mt-[2px] h-4 w-4 shrink-0" style={{ color: "var(--action)" }} strokeWidth={2} />
           <span>No flags on any test so far.</span>
         </p>
       )}

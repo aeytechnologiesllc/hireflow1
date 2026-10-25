@@ -192,5 +192,5 @@ export interface TeamMember {
   email: string;
   role: string;
   permission: string;
-  permissionTone: "jade" | "muted";
+  permissionTone: "good" | "muted";
 }

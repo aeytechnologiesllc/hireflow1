@@ -63,7 +63,7 @@ export default function CandidatePortalLanding() {
             <div key={feature.title} className="cand-panel p-5 text-left">
               <div
                 className="mb-4 flex h-11 w-11 items-center justify-center rounded-full"
-                style={{ background: "var(--hf-green-soft)", color: "var(--hf-green)" }}
+                style={{ background: "var(--hf-action-soft)", color: "var(--hf-action)" }}
               >
                 <feature.icon className="h-5 w-5" />
               </div>
@@ -85,7 +85,7 @@ export default function CandidatePortalLanding() {
               <div key={step} className="flex items-start gap-4 border-t pt-4 first:border-t-0 first:pt-0" style={{ borderColor: "var(--hf-border-strong)" }}>
                 <span
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
-                  style={{ background: "var(--hf-green-soft)", color: "var(--hf-green)" }}
+                  style={{ background: "var(--hf-action-soft)", color: "var(--hf-action)" }}
                 >
                   {step}
                 </span>

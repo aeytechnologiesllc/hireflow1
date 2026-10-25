@@ -16,7 +16,7 @@ own tokens (NIGHT and DAY). The PHONE layout does not change.
 2. **Header band, no box**: avatar (live dot when active), name, the status chip, then one meta line:
    job title, country, applied when, and the live line ("Finished every test 40 min ago", "Escalated chat
    practice: away from the test for under a minute"). On the right: "Ava suggests" (the recommendation in
-   words, jade when interview/advance, amber when review, crit when decline) and the big score with
+   words, the action colour when interview/advance, amber when review, crit when decline) and the big score with
    "final score", "so far" or "not scored yet" under it. A hairline under the band.
 3. **The journey across the full width**, open (no card): the existing rail with each result under its
    step; dot states as on the list (done, below the bar, on it now, skipped, not reached).
@@ -134,7 +134,7 @@ Now (`GemRail motion="calm"`, `ck-rail-calm` in cockpit.css, timings in `src/coc
   inks as the line reaches it (its delay is the inverse of the glide's easing, not a clock of its own),
   the initials ride the line's end, and one soft ring marks where they land. `cubic-bezier(0.4, 0, 0.2,
   1)`, 140 ms after the page turns, 660 ms to 1.2 s by distance. No lean, no overshoot.
-- **Then it is still.** The line is whole and in fixed colours, jade at the first gem and gold at the
+- **Then it is still.** The line is whole and in fixed colours, ink at the first gem and gold at the
   decision, so the colour under the initials says how far along they are. No sliding, no pulsing.
 - **The pager turns to a rail already in place** (`entrance="none"`). The pager's navigation carries
   `PAGER_MOVE` in its state, because the cockpit's shell remounts the whole page for every person and

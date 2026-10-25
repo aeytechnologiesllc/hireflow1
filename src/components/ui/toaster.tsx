@@ -4,7 +4,7 @@ import "@/styles/toasts.css";
 
 /** The older notifications, drawn as the same warm card as the main ones
  *  (src/components/ui/sonner.tsx): a mark at the left (a soft red one for an
- *  error), the words, an action as a jade word, and the line that runs out. */
+ *  error), the words, an action as an ink word, and the line that runs out. */
 export function Toaster() {
   const { toasts } = useToast();
 
@@ -32,7 +32,7 @@ export function Toaster() {
             </div>
             {action}
             <ToastClose />
-            <span className="hf-toast-time text-[var(--jade)] group-[.destructive]:text-[var(--crit)] group-[.warning]:text-[var(--hf-warning)]" aria-hidden="true" />
+            <span className="hf-toast-time text-[var(--action)] group-[.destructive]:text-[var(--crit)] group-[.warning]:text-[var(--hf-warning)]" aria-hidden="true" />
           </Toast>
         );
       })}

@@ -10,7 +10,7 @@ interface PipelineProps {
   className?: string;
 }
 
-const JADE = "var(--hf-green)";
+const ACTION = "var(--hf-action)";
 const BRASS = "var(--hf-gold)";
 const MUTED = "var(--hf-text-muted)";
 const RED = "var(--hf-danger)";
@@ -18,21 +18,21 @@ const RED = "var(--hf-danger)";
 function nodeColor(node: PipelineNode) {
   if (node.tone === "bottleneck") return BRASS;
   if (node.tone === "muted") return MUTED;
-  return JADE;
+  return ACTION;
 }
 
 function candColor(state: PipelineNode["state"]) {
-  if (state === "done") return JADE;
+  if (state === "done") return ACTION;
   if (state === "current") return BRASS;
   if (state === "passed") return RED;
   return MUTED; // upcoming
 }
 
-/** Connected-circle pipeline motif (Deep Jade).
+/** Connected-circle pipeline motif (ink and ivory).
  *  Two modes:
  *   • aggregate (default) — each node shows a count + tone (green/bottleneck/muted).
  *   • single-candidate progress — when any node carries a `state`, the funnel
- *     tracks one applicant: jade up to and including their cleared stages, amber
+ *     tracks one applicant: ink up to and including their cleared stages, amber
  *     at their current stage, muted ahead. */
 export function Pipeline({ variant = "health", nodes = [], className }: PipelineProps) {
   const candidateMode = nodes.some((n) => n.state != null);
@@ -48,9 +48,9 @@ export function Pipeline({ variant = "health", nodes = [], className }: Pipeline
         const isLast = i === nodes.length - 1;
 
         // Connector color: aggregate mutes after the bottleneck; candidate mode
-        // keeps the line jade only through stages the candidate has cleared.
+        // keeps the line ink only through stages the candidate has cleared.
         const aggSegMuted = bottleneckIdx >= 0 && i >= bottleneckIdx;
-        const segColor = candidateMode ? (node.state === "done" ? JADE : MUTED) : aggSegMuted ? MUTED : JADE;
+        const segColor = candidateMode ? (node.state === "done" ? ACTION : MUTED) : aggSegMuted ? MUTED : ACTION;
         const segOpacity = candidateMode ? (node.state === "done" ? 0.85 : 0.5) : aggSegMuted ? 0.6 : 0.85;
 
         const isCurrent = candidateMode && node.state === "current";
@@ -117,7 +117,7 @@ export function Pipeline({ variant = "health", nodes = [], className }: Pipeline
                     <CountUp value={node.count} delay={120 + i * 90} />
                   </span>
                 )}
-                {candidateMode && variant === "large" && node.state === "done" && <Check className="h-6 w-6" style={{ color: JADE }} />}
+                {candidateMode && variant === "large" && node.state === "done" && <Check className="h-6 w-6" style={{ color: ACTION }} />}
                 {candidateMode && variant === "large" && node.state === "current" && (
                   <span style={{ width: 14, height: 14, borderRadius: 999, background: BRASS, boxShadow: `0 0 10px ${BRASS}` }} />
                 )}

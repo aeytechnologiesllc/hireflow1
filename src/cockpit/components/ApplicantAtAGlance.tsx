@@ -47,7 +47,7 @@ function CopyButton({ value, what }: { value: string; what: string }) {
     <button
       type="button"
       className="ml-1.5 shrink-0 text-[12px] font-medium hover:underline"
-      style={{ color: state === "failed" ? "var(--amber-fg)" : "var(--jade-soft-fg)" }}
+      style={{ color: state === "failed" ? "var(--amber-fg)" : "var(--action-soft-fg)" }}
       aria-label={`Copy ${what}`}
       onClick={async () => setState((await copyText(value)) ? "copied" : "failed")}
     >

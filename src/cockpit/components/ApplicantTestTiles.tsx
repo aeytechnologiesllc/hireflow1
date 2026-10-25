@@ -14,7 +14,7 @@ import { notTakenGroups, SHORT_LABEL_MAX, type TestTile, type TestTileRow } from
  */
 
 const TONE: Record<string, string> = {
-  jade: "var(--jade)",
+  good: "var(--action)",
   amber: "var(--amber-fg)",
   ink: "var(--ink)",
   muted: "var(--ink-3)",
@@ -62,7 +62,7 @@ function TileBody({ tile }: { tile: TestTile }) {
   return (
     <>
       <span className="flex items-start gap-2 pr-[58px]">
-        <span aria-hidden className="mt-[1px] shrink-0" style={{ color: tile.state === "none" ? "var(--ink-3)" : "var(--jade-soft-fg)" }}>
+        <span aria-hidden className="mt-[1px] shrink-0" style={{ color: tile.state === "none" ? "var(--ink-3)" : "var(--action-soft-fg)" }}>
           <EntryIcon entry={entry} className="h-[14px] w-[14px]" />
         </span>
         <span className="min-w-0 break-words text-[11px] font-semibold uppercase leading-[1.35] tracking-[0.12em]" style={{ color: "var(--ink-3)" }}>

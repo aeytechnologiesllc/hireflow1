@@ -114,7 +114,7 @@ function GuideCard({ stage, jobs, candidatesById, rowsById, loading, onPostJob, 
         const title = jobRow?.title || named?.title || "Your job";
         return { ...s, label: done ? title : "Post your first job", short: done ? title : "Post your job", href: done && jobRow ? `/jobs/${jobRow.id}` : undefined };
       }
-      if (s.key === "share") return { ...s, label: "Share it on OnlineJobs.ph", short: "Share it" };
+      if (s.key === "share") return { ...s, label: "Share your job", short: "Share it" };
       if (s.key === "best") return { ...s, label: "Meet your best three", short: "Best three" };
       // The alerts step. On a phone it carries its own button; wide, the slim row under the words does.
       const words = alerts && alerts.status !== "on" ? alertsWords(alerts.status, "apply") : null;

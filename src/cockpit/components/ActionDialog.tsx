@@ -2,9 +2,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 
 /**
- * ActionDialog — a small, theme-locked (Deep Jade) confirm/reason modal for
+ * ActionDialog — a small, theme-locked (ink and ivory) confirm/reason modal for
  * cockpit decisions (Hire, Decline Offer, Pass). Keeps the cockpit's own dark
- * jade styling rather than the app's lighter shadcn dialog. Optional reason
+ * ink styling rather than the app's lighter shadcn dialog. Optional reason
  * textarea turns it into a "give a reason" prompt.
  */
 interface ActionDialogProps {
@@ -128,7 +128,7 @@ export function ActionDialog({
             className="mt-4 rounded-xl px-3.5 py-3 text-[12.5px] leading-relaxed"
             style={
               noteTone === "good"
-                ? { background: "color-mix(in srgb, var(--hf-green) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--hf-green) 25%, transparent)", color: "var(--hf-text)" }
+                ? { background: "color-mix(in srgb, var(--hf-action) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--hf-action) 25%, transparent)", color: "var(--hf-text)" }
                 : noteTone === "caution"
                   // Caution uses the system's own amber pair rather than a brass tint: this line
                   // is the last warning before an irreversible pass/hire, so it has to stay legible.

@@ -34,13 +34,13 @@ import { externalHref, openExternal } from "@/lib/safeLink";
 /* ── Shared pieces ──────────────────────────────────────────────────────
    Every state is the same shell: a quiet icon mark, one Fraunces headline
    (the moment), one warm sentence, quiet supporting details, and a single
-   jade primary action. No competing cards, no rainbow tones, no confetti —
+   ink primary action. No competing cards, no rainbow tones, no confetti —
    the seal-press payoff carries the celebration. */
 
-type Mood = "jade" | "brass" | "amber" | "crit" | "neutral";
+type Mood = "good" | "brass" | "amber" | "crit" | "neutral";
 
 const moodBg: Record<Mood, string> = {
-  jade: "var(--jade-soft)",
+  good: "var(--action-soft)",
   brass: "var(--amber-bg)", // brass has no soft fill token; amber-bg reads as warm parchment, not alarm
   amber: "var(--amber-bg)",
   crit: "var(--crit-bg)",
@@ -48,7 +48,7 @@ const moodBg: Record<Mood, string> = {
 };
 
 const moodFg: Record<Mood, string> = {
-  jade: "var(--jade-soft-fg)",
+  good: "var(--action-soft-fg)",
   brass: "var(--brass)",
   amber: "var(--amber-fg)",
   crit: "var(--crit)",
@@ -344,7 +344,7 @@ export function CandidateStatusScreen({
           {state === "interview_scheduled" && (
             <Card className="bg-card border-border overflow-hidden">
               <CardContent className="space-y-6 p-8 text-center">
-                <StatusMark icon={Calendar} mood="jade" />
+                <StatusMark icon={Calendar} mood="good" />
 
                 <div className="space-y-2">
                   <h2 className="font-display ck-ink text-2xl text-foreground sm:text-3xl">
@@ -372,8 +372,8 @@ export function CandidateStatusScreen({
                     </Button>
                   </div>
                 ) : localCandidateResponse === "confirmed" ? (
-                  <div className="rounded-lg p-4 text-left" style={{ background: "var(--jade-soft)" }}>
-                    <div className="mb-1.5 flex items-center gap-2" style={{ color: "var(--jade-soft-fg)" }}>
+                  <div className="rounded-lg p-4 text-left" style={{ background: "var(--action-soft)" }}>
+                    <div className="mb-1.5 flex items-center gap-2" style={{ color: "var(--action-soft-fg)" }}>
                       <CheckCircle className="h-4 w-4" />
                       <span className="text-sm font-medium">Interview confirmed</span>
                     </div>
@@ -508,7 +508,7 @@ export function CandidateStatusScreen({
           {state === "reconsidered" && (
             <Card className="bg-card border-border overflow-hidden">
               <CardContent className="space-y-6 p-8 text-center">
-                <StatusMark icon={RefreshCw} mood="jade" />
+                <StatusMark icon={RefreshCw} mood="good" />
 
                 <div className="space-y-2">
                   <h2 className="font-display ck-ink text-2xl text-foreground sm:text-3xl">

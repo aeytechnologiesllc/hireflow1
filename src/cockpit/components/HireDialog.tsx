@@ -205,11 +205,11 @@ export function HireDialog({
                     key={kind.key}
                     htmlFor={`ck-hire-${kind.key}`}
                     className={`flex items-center gap-3 rounded-[12px] border px-3 py-2 transition-colors ${done || lockedKind ? "cursor-default opacity-60" : "cursor-pointer"}`}
-                    style={{ borderColor: on ? "var(--jade)" : "var(--line)", background: on ? "var(--jade-soft)" : "transparent" }}
+                    style={{ borderColor: on ? "var(--action)" : "var(--line)", background: on ? "var(--action-soft)" : "transparent" }}
                     data-hire-kind={kind.key}
                     data-hire-kind-locked={lockedKind ? "true" : undefined}
                   >
-                    <input id={`ck-hire-${kind.key}`} type="checkbox" className="h-4 w-4 shrink-0 accent-[var(--jade)]" checked={on} disabled={busy || !!done || lockedKind} onChange={() => toggle(kind.key)} />
+                    <input id={`ck-hire-${kind.key}`} type="checkbox" className="h-4 w-4 shrink-0 accent-[var(--action)]" checked={on} disabled={busy || !!done || lockedKind} onChange={() => toggle(kind.key)} />
                     <span className="min-w-0 flex-1 text-[14px] font-medium" style={{ color: "var(--hf-text)" }}>
                       {kind.label}
                     </span>
@@ -260,7 +260,7 @@ export function HireDialog({
 
             <div
               className="rounded-[12px] px-3 py-2.5 text-[13px] leading-snug"
-              style={offerUnsigned ? { background: "var(--amber-bg)", color: "var(--amber-fg)" } : offer?.kind === "signed" ? { background: "var(--jade-soft)", color: "var(--jade-soft-fg)" } : { background: "var(--surface-2)", color: "var(--ink-2)" }}
+              style={offerUnsigned ? { background: "var(--amber-bg)", color: "var(--amber-fg)" } : offer?.kind === "signed" ? { background: "var(--action-soft)", color: "var(--action-soft-fg)" } : { background: "var(--surface-2)", color: "var(--ink-2)" }}
               data-hire-offer={offer?.kind ?? "loading"}
             >
               {!offer
@@ -300,7 +300,7 @@ export function HireDialog({
                   We'll follow up with your start date and next steps.
                 </p>
               )}
-              <div className="mt-3 inline-block rounded-[6px] px-3 py-1.5 text-[12.5px] font-semibold" style={{ background: "var(--jade)", color: "var(--btn-fg)" }}>
+              <div className="mt-3 inline-block rounded-[6px] px-3 py-1.5 text-[12.5px] font-semibold" style={{ background: "var(--action)", color: "var(--btn-fg)" }}>
                 {todo.length > 0 ? "Open HireFlow" : "Open your application"}
               </div>
               <p className="mt-3 border-t pt-2 text-[12px]" style={{ borderColor: "var(--line)", color: "var(--ink-3)" }}>

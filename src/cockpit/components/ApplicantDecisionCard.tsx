@@ -47,7 +47,7 @@ function Outcome({ outcome, className = "" }: { outcome: "hired" | "rejected"; c
   return (
     <p
       className={`flex items-center gap-2 text-[14px] font-semibold leading-[1.3] ${className}`}
-      style={{ color: hired ? "var(--jade-soft-fg)" : "var(--crit)" }}
+      style={{ color: hired ? "var(--action-soft-fg)" : "var(--crit)" }}
     >
       {hired ? <CheckCircle2 aria-hidden className="h-4 w-4 shrink-0" /> : <XCircle aria-hidden className="h-4 w-4 shrink-0" />}
       {hired ? "Hired" : "Not moving forward"}
@@ -71,7 +71,7 @@ export interface DecisionInterviewStatus {
 }
 
 export function InterviewStatus({ status, className = "" }: { status: DecisionInterviewStatus; className?: string }) {
-  const color = status.tone === "ok" ? "var(--jade-soft-fg)" : status.tone === "act" ? "var(--brass)" : "var(--ink)";
+  const color = status.tone === "ok" ? "var(--action-soft-fg)" : status.tone === "act" ? "var(--brass)" : "var(--ink)";
   return (
     <div className={className} data-interview-status={status.tone} role="status">
       <p className="flex items-center gap-2 text-[14px] font-semibold leading-[1.3]" style={{ color }}>

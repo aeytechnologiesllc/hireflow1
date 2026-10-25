@@ -52,7 +52,7 @@ export function StatCard({ label, value, unit, icon, delta, className, index = 0
           {delta && (
             <div
               className="mt-2 flex items-center gap-1 text-[12.5px]"
-              style={{ color: delta.good ? "var(--hf-green)" : "var(--hf-danger)" }}
+              style={{ color: delta.good ? "var(--hf-action)" : "var(--hf-danger)" }}
             >
               {delta.trend === "up" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}
               <span style={{ color: "var(--hf-text-muted)" }}>{delta.text}</span>
@@ -61,7 +61,7 @@ export function StatCard({ label, value, unit, icon, delta, className, index = 0
         </div>
         <div
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
-          style={{ border: "1px solid color-mix(in srgb, var(--hf-green-border) 50%, transparent)", color: "var(--hf-green)", background: "color-mix(in srgb, var(--hf-green-soft) 18%, transparent)" }}
+          style={{ border: "1px solid color-mix(in srgb, var(--hf-action-border) 50%, transparent)", color: "var(--hf-action)", background: "color-mix(in srgb, var(--hf-action-soft) 18%, transparent)" }}
         >
           {icon}
         </div>

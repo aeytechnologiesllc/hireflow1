@@ -26,14 +26,14 @@ import { shortLinkFor } from "@/lib/jobSlug";
  * Your jobs.
  *
  * One row per role: what state it is in, how many people came through it, and
- * the single next thing to do with it. Live roles carry a jade edge because
+ * the single next thing to do with it. Live roles carry an ink edge because
  * they are the ones working right now.
  *
  * A published role gets its own public page, and that is the only place this
  * screen says it is. Free job boards are not part of HireFlow (the owner,
  * 2026-10-21: "we're not doing free job boards ... they will have to post it
  * themselves"), so there is no boards chip and no listings link here: the
- * Share Kit hands over the post to paste on OnlineJobs.ph. Google for Jobs
+ * Share Kit hands over the post and the places to paste it (src/lib/shareTargets.ts). Google for Jobs
  * went on 2026-10-05 (owner: "remove google jobs").
  */
 
@@ -46,12 +46,12 @@ const SORTS = [
   { value: "title", label: "A–Z" },
 ];
 
-function JobStat({ label, value, tone }: { label: string; value: number; tone?: "jade" }) {
+function JobStat({ label, value, tone }: { label: string; value: number; tone?: "good" }) {
   return (
     <div className="min-w-[62px] shrink-0 text-right">
       <div
         className="ck-num leading-none"
-        style={{ fontSize: 30, fontWeight: 600, color: tone === "jade" ? "var(--jade)" : "var(--ink)" }}
+        style={{ fontSize: 30, fontWeight: 600, color: tone === "good" ? "var(--action)" : "var(--ink)" }}
       >
         {value}
       </div>
@@ -62,13 +62,13 @@ function JobStat({ label, value, tone }: { label: string; value: number; tone?: 
   );
 }
 
-function Tile({ label, value, sub, tone, index }: { label: string; value: string; sub: string; tone?: "jade"; index: number }) {
+function Tile({ label, value, sub, tone, index }: { label: string; value: string; sub: string; tone?: "good"; index: number }) {
   return (
     <div className="ck-card ck-reveal px-3.5 py-3" style={{ ["--ck-i" as string]: index }}>
       <div className="text-[10px] font-bold uppercase tracking-[0.1em]" style={{ color: "var(--ink-3)" }}>
         {label}
       </div>
-      <div className="ck-num mt-1.5" style={{ fontSize: 20, fontWeight: 600, color: tone === "jade" ? "var(--jade)" : "var(--ink)" }}>
+      <div className="ck-num mt-1.5" style={{ fontSize: 20, fontWeight: 600, color: tone === "good" ? "var(--action)" : "var(--ink)" }}>
         {value}
       </div>
       <div className="mt-[3px] text-[11px] leading-snug" style={{ color: "var(--ink-3)" }}>
@@ -155,7 +155,7 @@ function JobListRow({
       ? `Hired ${extras.hiredName} · ${extras.when.toLowerCase()}`
       : [extras.when, job.pay, job.location].filter(Boolean).join(" · ");
 
-  // One jade number per row, and only when there is something real behind it.
+  // One ink number per row, and only when there is something real behind it.
   const second =
     job.stats.hired > 0
       ? { label: "Hired", value: job.stats.hired }
@@ -179,7 +179,7 @@ function JobListRow({
         }
       }}
       aria-label={draft ? `Finish ${job.title}` : `Open ${job.title}`}
-      // A live role carries a jade edge — it is the one that is working right now.
+      // A live role carries an ink edge — it is the one that is working right now.
       // It has to be a class: an inline box-shadow outranks .ck-row:hover, which
       // left the rows that matter most as the only ones that never lifted.
       className={`ck-row ck-reveal flex cursor-pointer flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3${live ? " ck-row-live" : ""}`}
@@ -199,7 +199,7 @@ function JobListRow({
       {/* the numbers */}
       <div className="flex shrink-0 items-start gap-5">
         <JobStat label="Applied" value={job.applicants} />
-        {second && <JobStat label={second.label} value={second.value} tone="jade" />}
+        {second && <JobStat label={second.label} value={second.value} tone="good" />}
       </div>
 
       {/* the one next thing — with the quiet ways out first, so the primary stays loudest.
@@ -251,7 +251,7 @@ function JobListRow({
         {live && (
           <button
             type="button"
-            // Quiet and jade, never brass: this hands over the link, QR and a
+            // Quiet and ink, never brass: this hands over the link, QR and a
             // printable flyer — sharing your own listing, nothing paid. "Boost"
             // is reserved for the future paid Ava Boost.
             title="Get the apply link, a QR code and a printable flyer for this job"
@@ -518,7 +518,7 @@ export default function CockpitJobs() {
   }, [applications]);
 
   const tiles = useMemo(() => {
-    const out: Array<{ label: string; value: string; sub: string; tone?: "jade" }> = [];
+    const out: Array<{ label: string; value: string; sub: string; tone?: "good" }> = [];
     if (totals.applicants === 0) return out;
 
     const busiest = [...jobs].sort((a, b) => b.applicants - a.applicants)[0];
@@ -539,7 +539,7 @@ export default function CockpitJobs() {
         // "shortlist": that is the team's own picks now (lib/shortlist.ts).
         label: "Applied → in review",
         value: `${Math.round((totals.inPlay / totals.applicants) * 100)}%`,
-        tone: "jade",
+        tone: "good",
         sub: `${totals.inPlay} of ${totals.applicants} moved past the first read`,
       });
     }
@@ -702,7 +702,7 @@ export default function CockpitJobs() {
               >
                 <StatusPill label="All" count={jobs.length} dot="var(--ink-3)" active={status === "all"} onClick={() => setStatus("all")} />
                 {counts.live > 0 && (
-                  <StatusPill label="Live" count={counts.live} dot="var(--jade)" active={status === "live"} onClick={() => setStatus("live")} />
+                  <StatusPill label="Live" count={counts.live} dot="var(--action)" active={status === "live"} onClick={() => setStatus("live")} />
                 )}
                 {counts.draft > 0 && (
                   <StatusPill label="Draft" count={counts.draft} dot="var(--amber-fg)" active={status === "draft"} onClick={() => setStatus("draft")} />

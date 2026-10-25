@@ -115,7 +115,7 @@ export default function CockpitHelp() {
                   style={
                     m.from_admin
                       ? { background: "var(--surface-2)", color: "var(--hf-text)" }
-                      : { background: "var(--jade-soft)", color: "var(--hf-text)", border: "1px solid color-mix(in srgb, var(--jade) 25%, transparent)" }
+                      : { background: "var(--action-soft)", color: "var(--hf-text)", border: "1px solid color-mix(in srgb, var(--action) 25%, transparent)" }
                   }
                   data-help-message={m.from_admin ? "hireflow" : "business"}
                 >

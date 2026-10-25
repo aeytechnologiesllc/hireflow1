@@ -557,9 +557,9 @@ export default function VideoIntroPhase() {
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6">
                       <div
                         className="flex h-20 w-20 items-center justify-center rounded-full"
-                        style={{ background: "color-mix(in srgb, var(--jade-bright) 16%, transparent)" }}
+                        style={{ background: "color-mix(in srgb, var(--slab-action) 16%, transparent)" }}
                       >
-                        <Camera className="h-10 w-10 text-[var(--jade-bright)]" />
+                        <Camera className="h-10 w-10 text-[var(--slab-action)]" />
                       </div>
                       <p className="text-center text-[var(--slab-ink-2)]">
                         When you're ready, we'll ask for your camera and mic — you'll see a preview before
@@ -575,7 +575,7 @@ export default function VideoIntroPhase() {
                   {recordingState === "camera_preview" && (
                     <div className="absolute left-4 top-4">
                       <Badge className="gap-1.5 border-transparent bg-[var(--slab)] text-[var(--slab-ink)]">
-                        <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--jade-bright)]" />
+                        <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--slab-action)]" />
                         Camera ready
                       </Badge>
                     </div>

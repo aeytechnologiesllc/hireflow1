@@ -34,7 +34,7 @@ export function ApplicantInTheirWords({ words, onAll }: { words: InTheirWords; o
       sub={sub}
       more={
         onAll && words.total > 0 ? (
-          <button type="button" className="inline-flex items-center gap-0.5 text-[13px] font-medium hover:underline" style={{ color: "var(--jade-soft-fg)" }} onClick={onAll}>
+          <button type="button" className="inline-flex items-center gap-0.5 text-[13px] font-medium hover:underline" style={{ color: "var(--action-soft-fg)" }} onClick={onAll}>
             All {words.total} {words.total === 1 ? "answer" : "answers"}
             <ChevronRight aria-hidden className="h-3.5 w-3.5" />
           </button>

@@ -43,8 +43,8 @@ export { glyphForKind };
  * StepRail — the create-job flow's progress rail.
  *
  * The same Gemline rail as the landing hero and the applicant profile's journey rail,
- * through the one shared <GemRail>: same gems, same glyphs, same jade → mint →
- * teal → gold spectrum, same traveler chip, same walk. It replaced both a plain
+ * through the one shared <GemRail>: same gems, same glyphs, same ink-to-brass
+ * gem ramp, same traveler chip, same walk. It replaced both a plain
  * pill stepper and the 248px orb that used to sit above it, so the progress
  * chrome the screen already needed is what carries the brand moment.
  *
@@ -146,7 +146,7 @@ export function PhaseRow({
             fontFamily: DISPLAY,
             fontVariantNumeric: "tabular-nums",
             letterSpacing: "-0.02em",
-            color: "var(--hf-green)",
+            color: "var(--hf-action)",
           }}
         >
           {index + 1}
@@ -162,8 +162,8 @@ export function PhaseRow({
         className="group mb-3 flex-1 overflow-hidden rounded-xl transition-colors duration-200"
         style={{
           background: editing ? "var(--hf-surface-raised)" : "var(--hf-surface)",
-          border: `1px solid ${editing ? "var(--hf-green-border)" : "var(--hf-border-strong)"}`,
-          boxShadow: editing ? "inset 3px 0 0 var(--hf-green)" : "none",
+          border: `1px solid ${editing ? "var(--hf-action-border)" : "var(--hf-border-strong)"}`,
+          boxShadow: editing ? "inset 3px 0 0 var(--hf-action)" : "none",
         }}
       >
         <div className="h-[3px] w-full" style={{ background: "var(--hf-gold-border)" }} />
@@ -199,7 +199,7 @@ export function PhaseRow({
             <div className="flex shrink-0 items-center gap-0.5">
               <button type="button" aria-label="Move up" disabled={index === 0} onClick={() => onMove(-1)} className={ctrlBtn} style={ctrlStyle}><ArrowUp className="h-3.5 w-3.5" /></button>
               <button type="button" aria-label="Move down" disabled={index === total - 1} onClick={() => onMove(1)} className={ctrlBtn} style={ctrlStyle}><ArrowDown className="h-3.5 w-3.5" /></button>
-              <button type="button" aria-label={editing ? "Done editing" : "Edit"} onClick={onEdit} className={ctrlBtn} style={editing ? { color: "var(--hf-green)", opacity: 1 } : ctrlStyle}>
+              <button type="button" aria-label={editing ? "Done editing" : "Edit"} onClick={onEdit} className={ctrlBtn} style={editing ? { color: "var(--hf-action)", opacity: 1 } : ctrlStyle}>
                 {editing ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
               </button>
               <button type="button" aria-label="Remove" onClick={onRemove} className={ctrlBtn} style={ctrlStyle}><X className="h-3.5 w-3.5" /></button>
@@ -298,7 +298,7 @@ export function BuildStep({
               className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 transition-colors duration-500"
               style={{ background: newest ? "hsl(var(--primary) / 0.1)" : "transparent", border: newest ? "1px solid hsl(var(--primary) / 0.28)" : "1px solid transparent" }}
             >
-              {i < revealed - 1 ? <Check className="h-4 w-4 shrink-0" style={{ color: "hsl(var(--ck-jade))" }} /> : newest ? <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ background: "hsl(var(--primary))", boxShadow: "0 0 0 4px hsl(var(--primary) / 0.18)" }} /> : <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ border: "1.5px solid hsl(var(--border))" }} />}
+              {i < revealed - 1 ? <Check className="h-4 w-4 shrink-0" style={{ color: "hsl(var(--ck-action))" }} /> : newest ? <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ background: "hsl(var(--primary))", boxShadow: "0 0 0 4px hsl(var(--primary) / 0.18)" }} /> : <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ border: "1.5px solid hsl(var(--border))" }} />}
               <span className="text-sm" style={{ color: newest ? "hsl(var(--foreground))" : shown ? "hsl(var(--foreground) / 0.7)" : "hsl(var(--muted-foreground))", fontWeight: newest ? 600 : 400 }}>{line}</span>
             </motion.div>
           );

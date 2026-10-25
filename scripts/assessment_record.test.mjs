@@ -274,7 +274,7 @@ check(
   JSON.stringify(byKey.application.detail.flags),
 );
 
-check("skills check reads 10 / 10, Passed", byKey.quiz.headline === "10 / 10" && byKey.quiz.verdict === "Passed" && byKey.quiz.tone === "jade");
+check("skills check reads 10 / 10, Passed", byKey.quiz.headline === "10 / 10" && byKey.quiz.verdict === "Passed" && byKey.quiz.tone === "good");
 check("skills check keeps every question with the pick", byKey.quiz.detail.items.length === 10 && byKey.quiz.detail.items.every((q) => q.picked[0] === 1));
 check("skills check options come from the job", byKey.quiz.detail.items[0].options.length === 4 && byKey.quiz.detail.items[1].options[1] === "False");
 check("skills check keys are filed under the top-level quiz", byKey.quiz.detail.keyStepId === QUIZ_QUESTIONS_KEY_STEP);
@@ -309,7 +309,7 @@ check("her weighed line counts a full record instead of listing it", weighedPhra
 
 const conn = byKey.step_connection;
 check("the connection row reads '↓ 28 · ↑ 9 Mbps'", conn.headline === "↓ 28 · ↑ 9 Mbps", conn.headline);
-check("…and 'Meets the bar', jade", conn.verdict === "Meets the bar" && conn.tone === "jade", `${conn.verdict} ${conn.tone}`);
+check("…and 'Meets the bar', in the action colour", conn.verdict === "Meets the bar" && conn.tone === "good", `${conn.verdict} ${conn.tone}`);
 check("…with no flags on a clean run (no second line)", conn.subline === null && conn.detail.flags.length === 0, JSON.stringify([conn.subline, conn.detail.flags]));
 check("…its rail receipt is the figures alone when the bar is met", conn.receipt === "↓ 28 · ↑ 9 Mbps", conn.receipt);
 check("…its finished time comes from the trusted record", conn.completedAt === "2026-10-05T15:45:58.031Z", conn.completedAt);
@@ -382,14 +382,14 @@ check("without a snapshot the step's config is the bar, and the figures decide o
 const noBars = buildAssessmentRecord(finishedApp({ notes: connNotes({ ...ROBIN_CONNECTION, bars: undefined, meetsBars: undefined, below: undefined }), jobs: { ...JOB, workflow_steps: [{ id: "step_connection", type: "equipment_check", title: "Your computer and connection" }, ...ZULU_STEPS.slice(1)] } })).entries.find((e) => e.key === "step_connection");
 check("with no bar anywhere nothing is judged: the number, no verdict, ink", noBars.headline === "↓ 28 · ↑ 9 Mbps" && noBars.verdict === null && noBars.tone === "ink" && noBars.detail.meetsBars === null, `${noBars.verdict} ${noBars.tone}`);
 
-// A phone run that still met the bar: jade number, a flag the team sees.
+// A phone run that still met the bar: action-coloured number, a flag the team sees.
 const phone = buildAssessmentRecord(finishedApp({ notes: connNotes({ ...ROBIN_CONNECTION, deviceKind: "phone", usingThisComputer: "ran_here_anyway", device: { ...ROBIN_CONNECTION.device, os: "Android", osVersion: "14", touch: true, model: "Pixel 8", memoryGb: null, connectionType: null } }) })).entries.find((e) => e.key === "step_connection");
 check("a phone run keeps its verdict and says so in the flags", phone.verdict === "Meets the bar" && JSON.stringify(phone.detail.flags) === JSON.stringify(["Not the computer they'll work from (ran here anyway)", "Ran on a phone"]), JSON.stringify(phone.detail.flags));
 check("…the device table says what the browser did not report, and the model when it did", phone.detail.device.find((r) => r.label === "Memory").value === "Not reported" && phone.detail.device.find((r) => r.label === "Model").value === "Pixel 8" && phone.detail.device.find((r) => r.label === "Touch screen").value === "Yes");
 const switched = buildAssessmentRecord(finishedApp({ notes: connNotes({ ...ROBIN_CONNECTION, usingThisComputer: "no_switched" }) })).entries.find((e) => e.key === "step_connection");
 check(
   "a switch to the right computer is said, never as a fault: no flag at all, the answer itself says it",
-  switched.tone === "jade" && switched.detail.flags.length === 0 && switched.detail.usingThisComputer === "no_switched",
+  switched.tone === "good" && switched.detail.flags.length === 0 && switched.detail.usingThisComputer === "no_switched",
   JSON.stringify(switched.detail.flags),
 );
 
@@ -419,7 +419,7 @@ const manual = buildAssessmentRecord(
     ),
   }),
 ).entries.find((e) => e.key === "step_interview");
-check("End-button interview reads its flat score", manual.headline === "61 / 100" && manual.verdict === "Hire" && manual.tone === "jade");
+check("End-button interview reads its flat score", manual.headline === "61 / 100" && manual.verdict === "Hire" && manual.tone === "good");
 check("End-button interview duration in seconds reads as m:ss", manual.detail.duration === "4:11", manual.detail.duration);
 check("End-button interview transcript is honestly absent", manual.detail.transcript === null && manual.detail.messageCount === 12);
 
@@ -799,7 +799,7 @@ const sam = buildAssessmentRecord(
     notes: JSON.stringify(finishedNotes({ typingTestResult: { wpm: 52, accuracy: 96, score: 96, passed: false, requiredWpm: 45 }, step_typing: undefined })),
   }),
 ).entries.find((e) => e.key === "step_typing");
-check("typing at or over the job's bars meets it, whatever the always-false `passed` says", sam.verdict === "Meets the bar" && sam.tone === "jade", `${sam.verdict} ${sam.tone}`);
+check("typing at or over the job's bars meets it, whatever the always-false `passed` says", sam.verdict === "Meets the bar" && sam.tone === "good", `${sam.verdict} ${sam.tone}`);
 
 /* ── 13. One attempt's events folded in (the record sheet) ─────────────── */
 
@@ -1541,7 +1541,7 @@ const typedOk = typedChatEntry(typedChatApp(chatTypingBlock()));
 check("the chat practice's tile carries the typing line, word for word",
   typedOk.detail.typing?.line === "Typing 47 WPM · 6% corrections · replies in 38 s (median)", typedOk.detail.typing?.line);
 check("…at or over the bars: the step keeps its mark's tone, the receipt adds the speed",
-  typedOk.tone === "jade" && typedOk.receipt === "80/100 · 47 WPM" && typedOk.detail.typing.jobMeasure === true && typedOk.detail.typing.below.length === 0,
+  typedOk.tone === "good" && typedOk.receipt === "80/100 · 47 WPM" && typedOk.detail.typing.jobMeasure === true && typedOk.detail.typing.below.length === 0,
   `${typedOk.tone} ${typedOk.receipt}`);
 check("…its own mark is kept beside it (score, under the pass mark or not)", typedOk.detail.score === 80 && typedOk.detail.belowPassMark === false);
 
@@ -1558,7 +1558,7 @@ check("the chat step's own bars decide (44 under 45)", ownBars.tone === "amber" 
 
 const typedThin = typedChatEntry(typedChatApp(chatTypingBlock({ wpm: null, correctionsPct: null, repliesTimed: 2 })));
 check("fewer than 3 timed replies: 'not enough typing to time', never a fail",
-  typedThin.detail.typing?.line === "Typing: not enough typing to time · replies in 38 s (median)" && typedThin.tone === "jade" && typedThin.receipt === "80/100",
+  typedThin.detail.typing?.line === "Typing: not enough typing to time · replies in 38 s (median)" && typedThin.tone === "good" && typedThin.receipt === "80/100",
   `${typedThin.detail.typing?.line} | ${typedThin.tone} | ${typedThin.receipt}`);
 const typedThinWithNumber = chatTypingOf(chatTypingBlock({ wpm: 33, repliesTimed: 2 }));
 check("…even when a number came with it", typedThinWithNumber.wpm === null && !typedThinWithNumber.enoughToTime && typedThinWithNumber.below.length === 0);
@@ -1570,7 +1570,7 @@ check("…the page did not time them (an older page): said as such, not as 'too 
 const jumps = typedChatEntry(typedChatApp(chatTypingBlock({ wpm: null, correctionsPct: null, repliesTimed: 1, pasteLike: 4, notTimed: "arrived_without_typing" })));
 check("…replies that arrived without typing: said, and worth a look (amber line), but not 'below the bar'",
   jumps.detail.typing.line === "Typing: replies arrived without typing · replies in 38 s (median)" && jumps.detail.typing.arrivedWithoutTyping &&
-    chatTypingNeedsALook(jumps.detail.typing) && !chatTypingBelowBar(jumps.detail.typing) && jumps.tone === "jade",
+    chatTypingNeedsALook(jumps.detail.typing) && !chatTypingBelowBar(jumps.detail.typing) && jumps.tone === "good",
   `${jumps.detail.typing.line} | ${jumps.tone}`);
 check("one reply in jumps beside five timed ones is not worth a look; two are, and so is one beside one timed",
   !chatTypingOf(chatTypingBlock({ pasteLike: 1, repliesTimed: 5 })).arrivedWithoutTyping &&
@@ -1578,7 +1578,7 @@ check("one reply in jumps beside five timed ones is not worth a look; two are, a
     chatTypingOf(chatTypingBlock({ wpm: null, pasteLike: 1, repliesTimed: 1 })).arrivedWithoutTyping);
 
 const untyped = typedChatEntry(typedChatApp(null));
-check("an older chat with no typing block reads exactly as before", untyped.detail.typing === null && untyped.receipt === "80/100" && untyped.tone === "jade");
+check("an older chat with no typing block reads exactly as before", untyped.detail.typing === null && untyped.receipt === "80/100" && untyped.tone === "good");
 const typedFailed = typedChatEntry(typedChatApp(chatTypingBlock({ wpm: 32 }), { score: 30 }));
 check("a mark under the pass mark AND typing under the bar: both are said", typedFailed.tone === "amber" && typedFailed.detail.belowPassMark === true && chatTypingBelowBar(typedFailed.detail.typing));
 
@@ -1587,7 +1587,7 @@ check("a mark under the pass mark AND typing under the bar: both are said", type
 const withTypingStep = typedChatEntry(typedChatApp(chatTypingBlock({ wpm: 25, medianReplySeconds: 200 }), { job: JOB, keepTypingTest: true }));
 check("a job with a typing step: the chat's typing is shown for information, the step keeps its mark's tone",
   withTypingStep.detail.typing?.line === "Typing 25 WPM · 6% corrections · replies in 200 s (median)" && withTypingStep.detail.typing.jobMeasure === false &&
-    !chatTypingBelowBar(withTypingStep.detail.typing) && !chatTypingNeedsALook(withTypingStep.detail.typing) && withTypingStep.tone === "jade",
+    !chatTypingBelowBar(withTypingStep.detail.typing) && !chatTypingNeedsALook(withTypingStep.detail.typing) && withTypingStep.tone === "good",
   `${withTypingStep.tone} ${withTypingStep.receipt}`);
 check("…and its gem shows only the mark: the typing test's gem has the WPM that counts, so one row never shows two", withTypingStep.receipt === "80/100", withTypingStep.receipt);
 
@@ -1598,7 +1598,7 @@ const gradedTyping = typedChatEntry(typedChatApp(null), {
   sessions: [sess({ id: "ct1", step_id: "step_chat", step_type: "chat_simulation", status: "completed", grading: { graded_at: ago(5 * MIN), result: { score: 80 }, typing: { replies: [{ reply: 1, chars: 60, replySeconds: 30, typing: null, wpm: null, correctionsPct: null, timed: false, pasteLike: false }], spelling_mistakes: null } } })],
   now: NOW,
 });
-check("…the typing is read from the notes only, never from the session's grading", gradedTyping.detail.typing === null && gradedTyping.receipt === "80/100" && gradedTyping.tone === "jade", JSON.stringify(gradedTyping.detail.typing));
+check("…the typing is read from the notes only, never from the session's grading", gradedTyping.detail.typing === null && gradedTyping.receipt === "80/100" && gradedTyping.tone === "good", JSON.stringify(gradedTyping.detail.typing));
 check("the live attempt carries no typing until it is graded", (() => {
   const live = buildAssessmentRecord(
     finishedApp({ jobs: NO_TYPING_JOB, status: "pending", phase: "step_chat", notes: JSON.stringify(finishedNotes({ chatSimulationResult: undefined, chatInterviewResult: undefined, typingTestResult: undefined, step_typing: undefined, _trusted: { step_connection: { stepType: "equipment_check", completedAt: ago(30 * MIN) } } })) }),

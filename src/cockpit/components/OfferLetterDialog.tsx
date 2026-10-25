@@ -147,7 +147,7 @@ function Choice<T extends string | number>({ name, value, options, onChange, dis
 function Check({ id, checked, onChange, children, disabled }: { id: string; checked: boolean; onChange: (value: boolean) => void; children: ReactNode; disabled?: boolean }) {
   return (
     <label htmlFor={id} className="flex cursor-pointer items-start gap-2.5 text-[13.5px] leading-snug" style={{ color: "var(--hf-text)" }}>
-      <input id={id} type="checkbox" className="mt-[3px] h-4 w-4 shrink-0 accent-[var(--jade)]" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+      <input id={id} type="checkbox" className="mt-[3px] h-4 w-4 shrink-0 accent-[var(--action)]" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
       <span>{children}</span>
     </label>
   );
@@ -158,7 +158,7 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
   return (
     <section className="flex flex-col gap-3" aria-label={title}>
       <h3 className="flex items-center gap-2 text-[11.5px] font-semibold uppercase tracking-[0.1em]" style={{ color: "var(--ink-3)" }}>
-        <span className="grid h-5 w-5 place-items-center rounded-full text-[11px] tracking-normal" style={{ background: "var(--jade-soft)", color: "var(--jade-soft-fg)" }}>
+        <span className="grid h-5 w-5 place-items-center rounded-full text-[11px] tracking-normal" style={{ background: "var(--action-soft)", color: "var(--action-soft-fg)" }}>
           {n}
         </span>
         {title}
@@ -480,7 +480,7 @@ export function OfferLetterDialog({
                         </span>
                         <span
                           className="shrink-0 rounded-[5px] px-2 py-[3px] text-[10px] font-bold uppercase leading-none tracking-[0.06em]"
-                          style={p.status === "interview" ? { background: "var(--jade-soft)", color: "var(--jade-soft-fg)" } : { background: "var(--surface-2)", color: "var(--ink-2)" }}
+                          style={p.status === "interview" ? { background: "var(--action-soft)", color: "var(--action-soft-fg)" } : { background: "var(--surface-2)", color: "var(--ink-2)" }}
                         >
                           {STAGE_WORDS[p.status] ?? p.status}
                         </span>

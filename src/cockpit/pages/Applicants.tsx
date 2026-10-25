@@ -954,7 +954,7 @@ export default function CockpitApplicants({ jobId = null }: { jobId?: string | n
           {shownJob && !jobId && (
             <>
               {" · "}
-              <span style={{ color: "var(--jade-soft-fg)", fontWeight: 500 }}>{shownJob.title}</span>
+              <span style={{ color: "var(--action-soft-fg)", fontWeight: 500 }}>{shownJob.title}</span>
             </>
           )}
         </p>
@@ -1048,7 +1048,7 @@ export default function CockpitApplicants({ jobId = null }: { jobId?: string | n
                 <span className="tnum ml-1.5 text-[12px]" style={{ color: t.value === "needs-review" && count > 0 ? "var(--amber-fg)" : "var(--ink-3)" }}>
                   {count}
                 </span>
-                {on && <span aria-hidden className="absolute bottom-0 left-3 right-3 h-[2px] rounded-[2px]" style={{ background: "var(--jade)" }} />}
+                {on && <span aria-hidden className="absolute bottom-0 left-3 right-3 h-[2px] rounded-[2px]" style={{ background: "var(--action)" }} />}
               </button>
             );
           })}

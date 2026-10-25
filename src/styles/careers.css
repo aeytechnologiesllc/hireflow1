@@ -1,11 +1,10 @@
 /* ═══════════════════════════════════════════════════════════════════════
    CAREERS — the Zulu Support Team careers page at hireflownow.com.
 
-   HireFlow's own green theme: the "Night" palette of the original
-   hireflownow.com landing — warm near-black ground, ivory ink, jade and
-   mint, one brass accent, Fraunces for display and Inter for reading.
-   Owner, 2026-10-04: "hireflow needs to be professional, have its own theme,
-   the green one … absolutely premium and stunning animation but simple."
+   The Night palette in ink and ivory with one brass accent (2026-10-25: the
+   colour the owner locked on 2026-10-24 for everything; this page was green
+   since 2026-10-04). Warm near-black ground, ivory ink and buttons, brass for
+   the accent words, Fraunces for display and Inter for reading.
 
    Everything is scoped under .cr-page, and the page is always Night,
    whichever theme the rest of the app is in.
@@ -21,20 +20,22 @@
   --ink: #f4efe3;
   --ink-2: #c3bba9;
   --ink-3: #948b7c;
-  --jade: #4fbf95;
-  --jade-bright: #67e3af;
-  --jade-deep: #0f6b4f;
-  --jade-soft: rgba(79, 191, 149, 0.14);
+  --action: #f2ede1;
+  --action-bright: #fbf7ee;
+  --action-deep: #2a251d;
+  --action-soft: rgba(244, 239, 227, 0.12);
   --brass: #e0b96a;
   --brass-line: rgba(224, 185, 106, 0.5);
-  --slab: #0b2a21;
-  --slab-ink-2: #a9c6b8;
+  --slab: #0e0c09;
+  --slab-ink-2: #b5ad9b;
   /* the Gemline rail reads these too — pinned to Night here */
-  --gem-jade: #0f6b4f;
-  --gem-mint: #3fce97;
-  --gem-teal: #2fa3a0;
-  --gem-gold: #e0b96a;
-  --gem-ink-teal: #14100a;
+  --gem-1: #a69c88;
+  --gem-2: #c7beaa;
+  --gem-3: #e3dac6;
+  --gem-4: #e0b96a;
+  --gem-ink-1: #14100a;
+  --gem-ink-2: #14100a;
+  --gem-ink-3: #14100a;
   --rail-track-base: rgba(244, 239, 227, 0.09);
 
   --serif: Fraunces, Georgia, serif;
@@ -99,7 +100,7 @@
   letter-spacing: -0.025em;
   color: var(--ink);
 }
-.cr-h2 em { font-style: italic; font-weight: 500; color: var(--jade-bright); }
+.cr-h2 em { font-style: italic; font-weight: 500; color: var(--brass); }
 .cr-sub {
   margin: 18px 0 0;
   max-width: 38em;
@@ -130,9 +131,9 @@
 }
 .cr-btn svg { width: 18px; height: 18px; transition: transform 200ms var(--ease); }
 .cr-btn--primary {
-  background: var(--jade);
-  color: #0f1712;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 12px 32px -14px rgba(79, 191, 149, 0.6);
+  background: var(--action);
+  color: #17140f;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 12px 32px -14px rgba(0, 0, 0, 0.6);
 }
 .cr-btn--ghost {
   background: var(--surface);
@@ -146,14 +147,14 @@
 }
 .cr-btn--sm { height: 40px; padding: 0 16px; border-radius: 10px; font-size: 14px; }
 @media (hover: hover) {
-  .cr-btn--primary:hover { background: var(--jade-bright); transform: translateY(-1px); }
+  .cr-btn--primary:hover { background: var(--action-bright); transform: translateY(-1px); }
   .cr-btn--ghost:hover { background: var(--surface-2); border-color: rgba(244, 239, 227, 0.26); }
   .cr-btn--cream:hover { background: #fffaf0; transform: translateY(-1px); }
   .cr-btn:hover .cr-nudge-x { transform: translateX(3px); }
   .cr-btn:hover .cr-nudge-y { transform: translateY(3px); }
 }
 .cr-btn:active { transform: translateY(1px) scale(0.99); }
-.cr-btn:focus-visible { outline: 2px solid var(--jade-bright); outline-offset: 3px; }
+.cr-btn:focus-visible { outline: 2px solid var(--action-bright); outline-offset: 3px; }
 
 .cr-link {
   color: var(--ink-2);
@@ -163,7 +164,7 @@
   transition: color 160ms, text-decoration-color 160ms;
 }
 @media (hover: hover) {
-  .cr-link:hover { color: var(--ink); text-decoration-color: var(--jade-bright); }
+  .cr-link:hover { color: var(--ink); text-decoration-color: var(--action-bright); }
 }
 
 /* ── header ──────────────────────────────────────────────────────────── */
@@ -196,10 +197,10 @@
   place-items: center;
   width: 34px;
   height: 34px;
-  border: 1px solid rgba(103, 227, 175, 0.3);
+  border: 1px solid rgba(244, 239, 227, 0.3);
   border-radius: 10px;
-  background: #0e2b22;
-  color: var(--jade-bright);
+  background: #1B1813;
+  color: var(--action-bright);
   font-family: var(--serif);
   font-size: 19px;
   font-style: italic;
@@ -245,7 +246,7 @@
   -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 62%, transparent 100%);
   mask-image: linear-gradient(to bottom, #000 0%, #000 62%, transparent 100%);
   background:
-    radial-gradient(42% 42% at 76% 34%, rgba(79, 191, 149, 0.2), transparent 70%),
+    radial-gradient(42% 42% at 76% 34%, rgba(224, 185, 106, 0.14), transparent 70%),
     radial-gradient(30% 34% at 14% 82%, rgba(224, 185, 106, 0.09), transparent 70%);
   /* Once, then it rests (nothing on screen animates forever, 2026-10-09). */
   animation: cr-drift 18s ease-in-out 1 forwards;
@@ -282,13 +283,13 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--jade-bright);
+  background: var(--action-bright);
 }
 .cr-dot::after {
   content: "";
   position: absolute;
   inset: -5px;
-  border: 1px solid var(--jade-bright);
+  border: 1px solid var(--action-bright);
   border-radius: 50%;
   animation: cr-ping 2.6s ease-out 3;
 }
@@ -313,7 +314,7 @@
   display: inline-block;
   font-style: italic;
   font-weight: 500;
-  color: var(--jade-bright);
+  color: var(--action-bright);
 }
 .cr-swoosh {
   position: absolute;
@@ -326,7 +327,7 @@
 }
 .cr-swoosh path {
   fill: none;
-  stroke: var(--jade-bright);
+  stroke: var(--action-bright);
   stroke-linecap: round;
   stroke-width: 3;
   vector-effect: non-scaling-stroke;
@@ -352,7 +353,7 @@
   color: var(--ink-3);
 }
 .cr-trust li { display: inline-flex; align-items: center; gap: 8px; }
-.cr-trust svg { width: 16px; height: 16px; color: var(--jade); }
+.cr-trust svg { width: 16px; height: 16px; color: var(--action); }
 
 /* ── the live chat demo ──────────────────────────────────────────────── */
 
@@ -366,7 +367,7 @@
   z-index: -1;
   inset: 6% -10% -6% 4%;
   border-radius: 40px;
-  background: radial-gradient(60% 60% at 50% 50%, rgba(79, 191, 149, 0.16), transparent 72%);
+  background: radial-gradient(60% 60% at 50% 50%, rgba(224, 185, 106, 0.12), transparent 72%);
 }
 .cr-card {
   overflow: hidden;
@@ -406,7 +407,7 @@
   gap: 9px;
   margin-left: auto;
   white-space: nowrap;
-  color: var(--jade-bright);
+  color: var(--action-bright);
   font-size: 11.5px;
   font-weight: 600;
   letter-spacing: 0.14em;
@@ -444,7 +445,7 @@
 }
 .cr-msg--you .cr-bubble {
   border-bottom-right-radius: 6px;
-  background: var(--jade-deep);
+  background: var(--action-deep);
   color: var(--ink);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
@@ -455,7 +456,7 @@
   margin-left: 2px;
   vertical-align: -2px;
   border-radius: 1px;
-  background: var(--jade-bright);
+  background: var(--action-bright);
   animation: cr-blink 1s steps(1) 6;
 }
 @keyframes cr-blink { 50% { opacity: 0; } }
@@ -466,10 +467,10 @@
   align-self: center;
   margin-top: 4px;
   padding: 7px 13px;
-  border: 1px solid rgba(103, 227, 175, 0.3);
+  border: 1px solid rgba(244, 239, 227, 0.3);
   border-radius: 999px;
-  background: var(--jade-soft);
-  color: var(--jade-bright);
+  background: var(--action-soft);
+  color: var(--action-bright);
   font-size: 12.5px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -512,7 +513,7 @@
   position: absolute;
   inset: 0 auto 0 0;
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--gem-jade), var(--gem-mint));
+  background: linear-gradient(90deg, var(--gem-1), var(--gem-2));
   transition: width 120ms linear;
 }
 .cr-meter__mark {
@@ -558,7 +559,7 @@
   letter-spacing: -0.04em;
   font-variant-numeric: tabular-nums;
 }
-.cr-stat__num--jade { color: var(--jade-bright); }
+.cr-stat__num--action { color: var(--action-bright); }
 .cr-stat__num--brass { color: var(--brass); }
 .cr-stat__label { display: block; margin-top: 16px; color: var(--ink); font-size: 15.5px; font-weight: 600; }
 .cr-stat__copy { margin: 8px 0 0; color: var(--ink-3); font-size: 14.5px; line-height: 1.58; }
@@ -585,7 +586,7 @@
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
-  background: linear-gradient(180deg, var(--jade-bright), var(--jade-deep));
+  background: linear-gradient(180deg, var(--action-bright), var(--action-deep));
 }
 .cr-role::after {
   content: "";
@@ -593,17 +594,17 @@
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: radial-gradient(60% 120% at 100% 0%, rgba(79, 191, 149, 0.1), transparent 60%);
+  background: radial-gradient(60% 120% at 100% 0%, rgba(244, 239, 227, 0.06), transparent 60%);
   opacity: 0;
   transition: opacity 240ms;
 }
 .cr-role > * { position: relative; z-index: 1; }
 @media (hover: hover) {
-  .cr-role:hover { transform: translateY(-3px); border-color: rgba(103, 227, 175, 0.34); box-shadow: 0 30px 60px -36px rgba(79, 191, 149, 0.5); }
+  .cr-role:hover { transform: translateY(-3px); border-color: rgba(244, 239, 227, 0.3); box-shadow: 0 30px 60px -36px rgba(0, 0, 0, 0.7); }
   .cr-role:hover::after { opacity: 1; }
   .cr-role:hover .cr-nudge-x { transform: translateX(3px); }
 }
-.cr-role:focus-visible { outline: 2px solid var(--jade-bright); outline-offset: 4px; }
+.cr-role:focus-visible { outline: 2px solid var(--action-bright); outline-offset: 4px; }
 .cr-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .cr-chip {
   display: inline-flex;
@@ -617,7 +618,7 @@
   font-size: 12.5px;
   font-weight: 600;
 }
-.cr-chip--jade { background: var(--jade-soft); color: var(--jade-bright); }
+.cr-chip--action { background: var(--action-soft); color: var(--action-bright); }
 .cr-page .cr-role__title {
   margin: 18px 0 0;
   color: var(--ink);
@@ -630,7 +631,7 @@
 .cr-role__for {
   display: block;
   margin-top: 6px;
-  color: var(--jade-bright);
+  color: var(--action-bright);
   font-size: 0.62em;
   font-style: italic;
   font-weight: 500;
@@ -696,7 +697,7 @@
   overflow: hidden;
   margin-top: clamp(96px, 10vw, 150px);
   padding: clamp(72px, 8vw, 112px) 0;
-  border-top: 1px solid rgba(103, 227, 175, 0.16);
+  border-top: 1px solid rgba(244, 239, 227, 0.16);
   background: var(--slab);
 }
 .cr-close__glow {
@@ -704,7 +705,7 @@
   z-index: -1;
   inset: -40% -10%;
   background:
-    radial-gradient(40% 50% at 50% 0%, rgba(103, 227, 175, 0.2), transparent 70%),
+    radial-gradient(40% 50% at 50% 0%, rgba(244, 239, 227, 0.2), transparent 70%),
     radial-gradient(30% 40% at 85% 100%, rgba(224, 185, 106, 0.08), transparent 70%);
   animation: cr-drift 20s ease-in-out 1 forwards;
 }
@@ -712,7 +713,7 @@
 .cr-close .cr-h2 { color: #f2efe5; }
 .cr-close .cr-sub { margin-inline: auto; color: var(--slab-ink-2); }
 .cr-close__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 14px 24px; margin-top: 34px; }
-.cr-close .cr-link { color: var(--slab-ink-2); text-decoration-color: rgba(169, 198, 184, 0.35); font-size: 15px; }
+.cr-close .cr-link { color: var(--slab-ink-2); text-decoration-color: rgba(185, 177, 160, 0.35); font-size: 15px; }
 
 /* footer */
 .cr-foot { border-top: 1px solid var(--line-soft); background: var(--ground); }

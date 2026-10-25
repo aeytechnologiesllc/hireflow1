@@ -51,7 +51,7 @@ function describe(status: PushUiStatus, audience: Audience): { word: string; det
 }
 
 const DOT: Record<"on" | "off" | "warn", string> = {
-  on: "var(--jade)",
+  on: "var(--action)",
   off: "var(--hf-text-muted)",
   warn: "var(--brass)",
 };

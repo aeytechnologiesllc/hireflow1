@@ -147,7 +147,7 @@ function TrafficSection({ days, applications, roles }: { days: CareersTrafficDay
                   className="w-full rounded-t-[4px]"
                   style={{
                     height: d.total === 0 ? 3 : Math.max(6, Math.round((d.total / peak) * 72)),
-                    background: d.total === 0 ? "var(--line)" : "var(--jade)",
+                    background: d.total === 0 ? "var(--line)" : "var(--action)",
                     opacity: d.total === 0 ? 1 : 0.85,
                   }}
                 />
@@ -352,7 +352,7 @@ export default function CockpitAnalytics() {
                   {scores.of > 0 && (
                     <>
                       {" "}
-                      <span className="an-jade">
+                      <span className="an-action">
                         {scores.atBar === 0 ? `None scored ${scores.bar} or more yet` : `${scores.atBar} of them scored ${scores.bar} or more`}
                       </span>
                       {view.waiting > 0 ? "," : "."}
@@ -375,8 +375,8 @@ export default function CockpitAnalytics() {
                   <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
                     <defs>
                       <linearGradient id="an-dayfill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0" stopColor="var(--jade)" stopOpacity="0.34" />
-                        <stop offset="1" stopColor="var(--jade)" stopOpacity="0" />
+                        <stop offset="0" stopColor="var(--action)" stopOpacity="0.34" />
+                        <stop offset="1" stopColor="var(--action)" stopOpacity="0" />
                       </linearGradient>
                     </defs>
                     <path className="an-area" d={`${dayLine} L${dayPts[dayPts.length - 1][0]} 100 L${dayPts[0][0]} 100 Z`} />
@@ -461,13 +461,13 @@ export default function CockpitAnalytics() {
               <svg viewBox={`0 0 ${n * 100} 200`} preserveAspectRatio="none" aria-hidden style={vars({ "--an-run": `${n * 100 + 40}px` })}>
                 <defs>
                   <linearGradient id="an-core" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0" stopColor="var(--an-jade-2)" />
-                    <stop offset="1" stopColor="var(--jade)" />
+                    <stop offset="0" stopColor="var(--an-action-2)" />
+                    <stop offset="1" stopColor="var(--action)" />
                   </linearGradient>
                   <linearGradient id="an-outer" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0" stopColor="var(--jade)" stopOpacity="0.5" />
-                    <stop offset="0.45" stopColor="var(--jade)" stopOpacity="0.3" />
-                    <stop offset="1" stopColor="var(--jade)" stopOpacity="0.2" />
+                    <stop offset="0" stopColor="var(--action)" stopOpacity="0.5" />
+                    <stop offset="0.45" stopColor="var(--action)" stopOpacity="0.3" />
+                    <stop offset="1" stopColor="var(--action)" stopOpacity="0.2" />
                   </linearGradient>
                   <linearGradient id="an-shine" x1="0" y1="0" x2="1" y2="0">
                     <stop offset="0" stopColor="#fff" stopOpacity="0" />
@@ -556,7 +556,7 @@ export default function CockpitAnalytics() {
               <div className="an-split" aria-hidden>
                 {view.after.waiting > 0 && <i className="brass" style={vars({ "--w": view.after.waiting, "--d": "0.2s" })} />}
                 {view.after.declined > 0 && <i className="mute" style={vars({ "--w": view.after.declined, "--d": "0.45s" })} />}
-                {view.after.forward > 0 && <i className="jade" style={vars({ "--w": view.after.forward, "--d": "0.7s" })} />}
+                {view.after.forward > 0 && <i className="good" style={vars({ "--w": view.after.forward, "--d": "0.7s" })} />}
               </div>
               <div className="an-legend">
                 <span>
@@ -568,7 +568,7 @@ export default function CockpitAnalytics() {
                   <b>{view.after.declined}</b> declined
                 </span>
                 <span>
-                  <i style={{ background: "var(--jade)" }} />
+                  <i style={{ background: "var(--action)" }} />
                   <b>{view.after.forward}</b> moved to interview
                 </span>
               </div>
@@ -611,7 +611,7 @@ export default function CockpitAnalytics() {
                 ))}
               </div>
               <div className="an-chips">
-                <span className="an-chip jade">
+                <span className="an-chip good">
                   <b>{scores.atBar}</b> scored {scores.bar} or more
                 </span>
                 {scores.top != null && (
@@ -629,12 +629,12 @@ export default function CockpitAnalytics() {
                 <div className="an-advice" data-analytics-advice>
                   <span className="an-label">Ava's advice on them</span>
                   <div className="an-split" aria-hidden>
-                    {view.advice.look > 0 && <i className="jade" style={vars({ "--w": view.advice.look, "--d": "0.5s" })} />}
+                    {view.advice.look > 0 && <i className="good" style={vars({ "--w": view.advice.look, "--d": "0.5s" })} />}
                     {view.advice.decline > 0 && <i className="mute" style={vars({ "--w": view.advice.decline, "--d": "0.75s" })} />}
                   </div>
                   <div className="an-legend">
                     <span>
-                      <i style={{ background: "var(--jade)" }} />
+                      <i style={{ background: "var(--action)" }} />
                       <b>{view.advice.look}</b> worth a closer look
                     </span>
                     <span>
@@ -756,7 +756,7 @@ export default function CockpitAnalytics() {
               </>
             )}
             <div className="an-chips">
-              <span className="an-chip jade">
+              <span className="an-chip good">
                 <b>{hourWords(hours.peakHour)}</b> {hours.theirs ? "their busiest hour" : "the busiest hour"}
               </span>
               {peakForReader != null && (

@@ -490,9 +490,9 @@ export function TeamInviteWizard({ open, onOpenChange, onSuccess }: TeamInviteWi
             animate={{ opacity: 1, scale: 1 }}
             className="space-y-6 text-center"
           >
-            {/* Success is jade — the action colour — not a Tailwind green. */}
-            <div className="p-4 rounded-full bg-[var(--jade-soft)] w-fit mx-auto">
-              <Check className="h-12 w-12 text-[var(--jade-soft-fg)]" />
+            {/* Success is ink — the action colour — not a Tailwind green. */}
+            <div className="p-4 rounded-full bg-[var(--action-soft)] w-fit mx-auto">
+              <Check className="h-12 w-12 text-[var(--action-soft-fg)]" />
             </div>
 
             <div>

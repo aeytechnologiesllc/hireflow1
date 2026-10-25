@@ -176,8 +176,8 @@ Desktop columns: Applicant · Where they are · Last active · Flags · Score ·
   on the owner's job, and the owner: "I don't like how these weird dots
   appear"). Under the rail the four names, the current one stressed; under
   that, one line with the step detail. See "Milestones" below.
-- **Last active**: "Active now" (jade) within 2 minutes; "Active 6 min ago"
-  (jade only while the attempt is live: doing, away, or checking inside the
+- **Last active**: "Active now" (the action colour) within 2 minutes; "Active 6 min ago"
+  (the action colour only while the attempt is live: doing, away, or checking inside the
   claim limit);
   "Last active 20 h ago" (also for someone who walked away, as on the
   mockup: the line beside it already says "Left at …"); "Done 2 days ago";
@@ -186,7 +186,7 @@ Desktop columns: Applicant · Where they are · Last active · Flags · Score ·
   (a decision is a staff write); that is its only use on the list.
 - **Flags**: shield + "3 flags" in amber, or "None". The tooltip lists them
   ("Left the window 3 times · 1 copy").
-- **Score**: `ai_score` as a big Fraunces number over "/100": jade at 70+,
+- **Score**: `ai_score` as a big Fraunces number over "/100": the action colour at 70+,
   brass 50–69, ink under 50. "so far" under it when
   `ai_scorecard.decisionState = needs_more_evidence`. "—" and "not scored yet"
   when `ai_score` is null. Never a quiz percentage standing in for it.
@@ -233,7 +233,7 @@ profile uses the same call, so the list and the profile always agree.
 
 | dot | when (entry for that step) |
 | --- | --- |
-| done (jade, check) | `status = done`, tone not amber |
+| done (action colour, check) | `status = done`, tone not amber |
 | done, below the bar (brass, check) | `status = done`, tone amber |
 | on it now (ring) | `status = in_progress`; if no entry is in progress and every real step is done or skipped, the Decision dot; a decided applicant's Decision dot is done |
 | skipped (dashed ring) | not done and before the applicant's position: "No result on file" (for example a step the job gained after they passed it) |
@@ -256,7 +256,7 @@ limit), "Left at chat practice, reply 3" (amber), "Away from the test for 3
 min", "Filling in the form · 3 of 11 answered · live", "Away from the form for
 2 min" (the form is not a test), "Left the form at 3 of 11". Otherwise:
 "Finished every test" (+ " · Ava suggests: decline" in amber, or " · Ava
-suggests: interview" in jade, from `ai_scorecard.recommendedAction`), "Moved
+suggests: interview" in the action colour, from `ai_scorecard.recommendedAction`), "Moved
 to interview", "Declined", "Computer and connection · step 3 of 7 · not
 started" (theirs to take now), "Player chat practice · step 5 of 7 · not
 opened yet" (parked: what they took is in and the next test waits on the

@@ -67,7 +67,7 @@ function isPacket(row: DocRow) {
 const CHIPS: Record<DocStatus, { label: string; bg: string; fg: string }> = {
   Pending: { label: "Waiting", bg: "var(--amber-bg)", fg: "var(--amber-fg)" },
   Submitted: { label: "On file", bg: "var(--surface-2)", fg: "var(--ink-2)" },
-  Signed: { label: "Signed", bg: "var(--jade-soft)", fg: "var(--jade-soft-fg)" },
+  Signed: { label: "Signed", bg: "var(--action-soft)", fg: "var(--action-soft-fg)" },
   Declined: { label: "Declined", bg: "var(--crit-bg)", fg: "var(--crit)" },
   Withdrawn: { label: "Withdrawn", bg: "var(--surface-2)", fg: "var(--ink-3)" },
   Voided: { label: "Voided", bg: "var(--crit-bg)", fg: "var(--crit)" },
@@ -332,12 +332,12 @@ function Seg<T extends string>({ value, options, onPick, label, counts }: { valu
               aria-pressed={on}
               onClick={() => onPick(option)}
               className="shrink-0 whitespace-nowrap rounded-[7px] px-2.5 py-1.5 text-[12.5px] transition-colors"
-              style={on ? { background: "var(--jade-soft)", color: "var(--jade-soft-fg)", fontWeight: 600 } : { color: "var(--ink-2)" }}
+              style={on ? { background: "var(--action-soft)", color: "var(--action-soft-fg)", fontWeight: 600 } : { color: "var(--ink-2)" }}
               data-filter-option={option}
             >
               {label(option)}
               {counts && counts[option] !== undefined && (
-                <span className="ml-1.5 text-[11.5px] tnum" style={{ color: on ? "var(--jade-soft-fg)" : "var(--ink-3)" }}>
+                <span className="ml-1.5 text-[11.5px] tnum" style={{ color: on ? "var(--action-soft-fg)" : "var(--ink-3)" }}>
                   {counts[option]}
                 </span>
               )}
@@ -718,7 +718,7 @@ export default function CockpitDocuments() {
                   className="h-[10px] w-[10px] rounded-[3px] border"
                   style={
                     tone === "on"
-                      ? { background: "var(--jade)", borderColor: "var(--jade)" }
+                      ? { background: "var(--action)", borderColor: "var(--action)" }
                       : tone === "mid"
                         ? { background: "var(--amber-bg)", borderColor: "var(--amber-fg)" }
                         : { borderColor: "var(--hair)" }
@@ -739,7 +739,7 @@ export default function CockpitDocuments() {
       {shownCount === 0 && (
         <div className="ck-card mt-3 p-5 text-[13.5px]" style={{ color: "var(--ink-2)" }} data-filter-empty>
           {filtersOn ? "Nothing matches these filters." : `Nothing is ${STATUS_WORDS[status].toLowerCase()} right now.`}{" "}
-          <button type="button" className="underline underline-offset-2" style={{ color: "var(--jade)" }} onClick={clearFilters}>
+          <button type="button" className="underline underline-offset-2" style={{ color: "var(--action)" }} onClick={clearFilters}>
             Show everything
           </button>
         </div>

@@ -105,7 +105,7 @@ export interface ApplicantDot {
   title: string;
   state: DotState;
   /** A "now" ring they walked away from (the record's live state is left):
-   *  drawn grey, not jade. */
+   *  drawn grey, not ink. */
   left: boolean;
 }
 
@@ -134,10 +134,10 @@ export const TAB_LABELS: Record<ApplicantTab, string> = {
 };
 
 /** A colour by meaning; TONE_VAR maps it onto the cockpit's own tokens. */
-export type ListTone = "jade" | "brass" | "amber" | "crit" | "ink" | "soft" | "muted";
+export type ListTone = "good" | "brass" | "amber" | "crit" | "ink" | "soft" | "muted";
 
 export const TONE_VAR: Record<ListTone, string> = {
-  jade: "var(--jade)",
+  good: "var(--action)",
   brass: "var(--brass)",
   amber: "var(--amber-fg)",
   crit: "var(--crit)",
@@ -891,12 +891,12 @@ export function listRowFor(
     activeWords = interviewMs != null ? interviewWords(interviewMs, now) : `Decided ${dayWords(toMillis(app.updated_at) ?? lastActiveMs ?? now, now)}`;
   } else if (liveNow) {
     activeWords = "Active now";
-    activeTone = "jade";
+    activeTone = "good";
   } else if (liveState && LIVE_NOW_STATES.has(liveState)) {
-    // In a test, being checked, or away from it for a moment: jade. Not a
+    // In a test, being checked, or away from it for a moment: ink. Not a
     // check that failed, and not someone who left.
     activeWords = `Active ${agoWords(lastActiveMs, now)}`;
-    activeTone = "jade";
+    activeTone = "good";
   } else if (finished) {
     activeWords = `Done ${agoWords(lastActiveMs, now)}`;
   } else {
@@ -979,7 +979,7 @@ export function listRowFor(
     below,
     score,
     scoreKind,
-    scoreTone: score == null ? "muted" : score >= 70 ? "jade" : score >= 50 ? "brass" : "ink",
+    scoreTone: score == null ? "muted" : score >= 70 ? "good" : score >= 50 ? "brass" : "ink",
     scoreWords: scoreKind === "so_far" ? "so far" : scoreKind === "none" ? "not scored yet" : null,
     recommendedAction,
     interviewAt: interviewMs != null ? new Date(interviewMs).toISOString() : null,

@@ -1,5 +1,5 @@
 /**
- * gemRail.ts — the curated jade → mint → teal → gold spectrum shared by every
+ * gemRail.ts — the curated ink-to-brass gem spectrum shared by every
  * gem-rail rendering in the cockpit: the single-candidate journey rail on the
  * applicant profile (ApplicantJourneyRail, `ck-rail-*`), and the aggregate "Pipeline at a glance"
  * miniature on the Dashboard (`ck-mini-rail-*`). One interpolation, used by
@@ -13,13 +13,15 @@
  * correct across a theme flip with no re-render required.
  */
 
-const GEM_STOPS = ["jade", "mint", "teal", "gold"] as const;
+// The four stops are the --gem-1..4 tokens in cockpit.css (dark ink through
+// warm stone to brass by day; light to brass at night).
+const GEM_STOPS = ["1", "2", "3", "4"] as const;
 
 const GEM_INK: Record<(typeof GEM_STOPS)[number], string> = {
-  jade: "var(--gem-ink-jade)",
-  mint: "var(--gem-ink-mint)",
-  teal: "var(--gem-ink-teal)",
-  gold: "var(--gem-ink-gold)",
+  "1": "var(--gem-ink-1)",
+  "2": "var(--gem-ink-2)",
+  "3": "var(--gem-ink-3)",
+  "4": "var(--gem-ink-4)",
 };
 
 /** Where step `index` of `total` sits on the spectrum: a fill blended between

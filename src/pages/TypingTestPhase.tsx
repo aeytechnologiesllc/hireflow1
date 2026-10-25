@@ -999,7 +999,7 @@ export default function TypingTestPhase() {
                 </div>
               </div>
 
-              {/* Actions — one primary, jade-filled; the redo is a quiet text-link */}
+              {/* Actions — one primary, ink-filled; the redo is a quiet text-link */}
               <div className="flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
                 {serverCheckWaiting ? (
                   <span />

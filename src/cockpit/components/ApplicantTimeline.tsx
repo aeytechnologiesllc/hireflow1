@@ -57,7 +57,7 @@ export function ApplicantTimeline({
   layout?: "strip" | "list";
 }) {
   const moments = timelineMoments(app, record);
-  const decisionTone = app?.status === "rejected" ? "var(--crit)" : "var(--jade-soft-fg)";
+  const decisionTone = app?.status === "rejected" ? "var(--crit)" : "var(--action-soft-fg)";
 
   if (layout === "list") {
     if (moments.length === 0) return null;
@@ -72,7 +72,7 @@ export function ApplicantTimeline({
               ? decisionTone
               : entry?.tone === "amber"
                 ? "var(--brass)"
-                : "var(--jade)";
+                : "var(--action)";
           return (
             <li key={m.key} className="grid grid-cols-[14px_minmax(0,1fr)_auto] items-start gap-2.5 py-[5px] text-[13px] leading-[1.45]">
               <span aria-hidden className="mt-[6px] block h-[9px] w-[9px] rounded-full" style={{ background: dot }} />

@@ -333,7 +333,7 @@ check("…short words and numbers are left alone", softHyphenate("Skills check �
 check("…and the text reads the same without them", softHyphenate("Pass, or move to Interview").replace(/\u00ad/g, "") === "Pass, or move to Interview");
 
 /* ── 5. The score words ────────────────────────────────────────────────── */
-check("70 is jade, 69 brass", applicantScore({ ai_score: 70 }).band === "hi" && applicantScore({ ai_score: 69.4 }).band === "mid");
+check("70 is the action colour, 69 brass", applicantScore({ ai_score: 70 }).band === "hi" && applicantScore({ ai_score: 69.4 }).band === "mid");
 check("50 is brass, 49 ink", applicantScore({ ai_score: 50 }).band === "mid" && applicantScore({ ai_score: 49 }).band === "lo");
 check("a real 0 is a score, not 'not scored yet'", applicantScore({ ai_score: 0 }).value === 0);
 check("numeric text from PostgREST reads as the number", applicantScore({ ai_score: "86" }).value === 86);
@@ -540,7 +540,7 @@ check("a test being taken is a live tile with no figure, the rest not reached", 
 
 // The tiles' rows, from entries shaped as the record builds them.
 const doneEntry = (kind, detail, over = {}) => ({
-  key: `k-${kind}`, kind, stepType: kind, title: kind, status: "done", statusLabel: "Done", headline: "7 / 10", tone: "jade",
+  key: `k-${kind}`, kind, stepType: kind, title: kind, status: "done", statusLabel: "Done", headline: "7 / 10", tone: "good",
   verdict: null, subline: null, receipt: null, completedAt: null, integrity: { total: 0 }, openable: true, detail, ...over,
 });
 const quizItems = (marks) => marks.map(([category, isCorrect], index) => ({ id: `q${index + 1}`, index, category, isCorrect }));
@@ -549,7 +549,7 @@ check("skills check: the must-pass area missed has its own row and is not said a
 rows = testTiles([doneEntry("quiz", { kind: "quiz", items: quizItems([["money_rules", false], ["bonuses", true]]) })])[0].rows;
 check("…only the must-pass area missed: its row alone, no 'Missed: None' beside it", JSON.stringify(rows) === JSON.stringify([{ label: "Money rules", value: "Missed", tone: "amber" }]), JSON.stringify(rows));
 rows = testTiles([doneEntry("quiz", { kind: "quiz", items: quizItems([["money_rules", true], ["accounts", false]]) })])[0].rows;
-check("…the area right: Missed lists the rest, the area says Right", JSON.stringify(rows) === JSON.stringify([{ label: "Missed", value: "Accounts", tone: "amber" }, { label: "Money rules", value: "Right", tone: "jade" }]), JSON.stringify(rows));
+check("…the area right: Missed lists the rest, the area says Right", JSON.stringify(rows) === JSON.stringify([{ label: "Missed", value: "Accounts", tone: "amber" }, { label: "Money rules", value: "Right", tone: "good" }]), JSON.stringify(rows));
 rows = testTiles([doneEntry("chat_interview", { kind: "chat_interview", credibility: "High", questionCount: 4, duration: "5:28" }, { verdict: "No Hire" })])[0].rows;
 check("written interview: credibility, and the questions with their length on one row (the cap never drops the length)", JSON.stringify(rows) === JSON.stringify([{ label: "Credibility", value: "High" }, { label: "Questions", value: "4 in 5:28" }]), JSON.stringify(rows));
 // An application saved before ids were kept: its answers are matched to the
@@ -560,7 +560,7 @@ const oldForm = doneEntry(
   { headline: "2 answers", subline: "Cover letter" },
 );
 let verdict = testTiles([oldForm], { questions: [{ id: "a1", question: "Full name", required: true }, { id: "a2", question: "Why this job?", required: true }] })[0].verdict;
-check("application: answers with no question id still count, by the question's words; the cover letter is said beside", verdict?.text === "All required answered · Cover letter" && verdict?.tone === "jade", JSON.stringify(verdict));
+check("application: answers with no question id still count, by the question's words; the cover letter is said beside", verdict?.text === "All required answered · Cover letter" && verdict?.tone === "good", JSON.stringify(verdict));
 verdict = testTiles([oldForm], { questions: [{ id: "a1", question: "Full name", required: true }, { id: "a3", question: "Phone?", required: true }] })[0].verdict;
 check("…a required question with no answer by id or words is still missing", verdict?.text === "1 required answer missing · Cover letter" && verdict?.tone === "amber", JSON.stringify(verdict));
 // The connection check's flags and the chat practice's typing are never cut.
@@ -578,17 +578,17 @@ check("connection: download · upload as the figure (rounded down; the missed on
 check("…its flags each a line of their own", conn?.notes.some((n) => n.kind === "flag" && /ran here anyway/.test(n.text)) && conn?.notes.some((n) => /3 runs/.test(n.text)), JSON.stringify(conn?.notes));
 const chatTile = tiles.find((t) => t.entry.kind === "chat_simulation");
 check("chat practice: its typing line, amber when it needs a look (the job has a typing test: information only)", chatTile?.notes.some((n) => n.kind === "typing" && /32 WPM/.test(n.text)) === true, JSON.stringify(chatTile?.notes));
-check("…over the pass mark says so", chatTile?.verdict?.text === "Meets the 60 pass mark" && chatTile?.verdict?.tone === "jade");
+check("…over the pass mark says so", chatTile?.verdict?.text === "Meets the 60 pass mark" && chatTile?.verdict?.tone === "good");
 
 /* ── 14. The desktop profile: the header ───────────────────────────────── */
 check("scorecardWhy reads whyUp / whyDown, deduped, empty on an older scorecard", JSON.stringify(scorecardWhy({ whyUp: ["a", "a", " b "], whyDown: ["c", 3] })) === '{"up":["a","b"],"down":["c"]}' && JSON.stringify(scorecardWhy(null)) === '{"up":[],"down":[]}');
-check("Ava suggests: move on (jade), every requirement met", JSON.stringify(avaSuggests({ recommendedAction: "advance", hardRequirementStatus: "met" }, "reviewing", "Interview")) === JSON.stringify({ tone: "jade", text: "Move to interview. Every requirement met." }));
+check("Ava suggests: move on (action colour), every requirement met", JSON.stringify(avaSuggests({ recommendedAction: "advance", hardRequirementStatus: "met" }, "reviewing", "Interview")) === JSON.stringify({ tone: "good", text: "Move to interview. Every requirement met." }));
 check("…look closer (amber)", avaSuggests({ recommendedAction: "review", hardRequirementStatus: "mixed" }, "reviewing", "Interview")?.tone === "amber");
 check("…decline (crit), with her reason", avaSuggests({ recommendedAction: "reject", hardRejectReason: "Typing 38 WPM is below 45." }, "reviewing", "Interview")?.text === "Decline. Typing 38 WPM is below 45." && avaSuggests({ recommendedAction: "reject" }, "pending", "Shortlist")?.tone === "crit");
 check("…nothing once a person has decided, while on the form, or before she has a view", avaSuggests({ recommendedAction: "advance" }, "interview", "Offer") === null && avaSuggests({ recommendedAction: "advance" }, "in_progress", null) === null && avaSuggests({}, "reviewing", "Interview") === null);
 const words2 = (ms, now) => (ms == null ? "a while ago" : `${Math.round((now - ms) / MIN)} min ago`);
 const rowBase = { decided: false, finished: false, liveState: null, lastActiveAt: null, activeWords: "", lineText: "" };
-check("header line: finished every test, when", JSON.stringify(headerLine({ ...rowBase, finished: true, lastActiveAt: ago(40 * MIN) }, null, words2, NOW)) === JSON.stringify({ text: "Finished every test 40 min ago", tone: "jade" }));
+check("header line: finished every test, when", JSON.stringify(headerLine({ ...rowBase, finished: true, lastActiveAt: ago(40 * MIN) }, null, words2, NOW)) === JSON.stringify({ text: "Finished every test 40 min ago", tone: "good" }));
 check("…a live attempt in its own words; amber once they have gone", headerLine({ ...rowBase, liveState: "away" }, { summary: "Player chat practice: away from the test for under a minute" }, words2, NOW)?.tone === "amber" &&
   headerLine({ ...rowBase, liveState: "doing" }, { summary: "Skills check: answering question 3" }, words2, NOW)?.text === "Skills check: answering question 3");
 check("…otherwise where they are on the journey, muted; decided, the row's own words", headerLine({ ...rowBase, lineText: "Typing test · step 4 of 7 · not started" }, null, words2, NOW)?.tone === "muted" && headerLine({ ...rowBase, decided: true, activeWords: "Decided Mon" }, null, words2, NOW)?.text === "Decided Mon");

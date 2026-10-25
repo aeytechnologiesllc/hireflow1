@@ -22,14 +22,14 @@ export function InterviewMoment({
   return (
     <div
       className={`ck-reveal flex flex-wrap items-center gap-3 rounded-[10px] border px-4 py-3 ${className}`}
-      style={{ borderColor: "var(--jade-soft-fg)", background: "var(--jade-soft)" }}
+      style={{ borderColor: "var(--action-soft-fg)", background: "var(--action-soft)" }}
     >
       <span className="ck-seal ck-seal-press shrink-0">
         <AvaSeal size={22} />
       </span>
       {/* At least 12rem for the words: on a phone the buttons drop to their
           own line rather than squeezing the question into a column. */}
-      <p className="min-w-[12rem] flex-1 text-[13px] leading-[1.5]" style={{ color: "var(--jade-soft-fg)" }}>
+      <p className="min-w-[12rem] flex-1 text-[13px] leading-[1.5]" style={{ color: "var(--action-soft-fg)" }}>
         Moved to interviews. Want to propose times to {firstName(name)} now?
       </p>
       <div className="flex shrink-0 items-center gap-2">

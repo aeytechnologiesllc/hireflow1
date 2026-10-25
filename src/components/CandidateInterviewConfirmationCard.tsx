@@ -369,7 +369,7 @@ export function CandidateInterviewConfirmationCard({
         {action ? (
           <button
             type="button"
-            className="hf-pill hf-pill--mint hf-pill--sm"
+            className="hf-pill hf-pill--action-soft hf-pill--sm"
             disabled={busy}
             aria-label={`${word} ${interviewWhen(w.start)}`}
             onClick={(e) => {
@@ -496,7 +496,7 @@ export function CandidateInterviewConfirmationCard({
                   true,
                 )}
                 <div className="mt-6">
-                  <button type="button" className="hf-pill hf-pill--jade" onClick={() => setSuggestOpen(true)} data-interview-suggest>
+                  <button type="button" className="hf-pill hf-pill--action" onClick={() => setSuggestOpen(true)} data-interview-suggest>
                     {TELL_AVAILABILITY}
                     <ArrowRight />
                   </button>
@@ -524,7 +524,7 @@ export function CandidateInterviewConfirmationCard({
               Confirm it if it works. If you can&apos;t make it, tell them when you are free.
             </p>
             <div className="hf-acts mt-4">
-              <button type="button" className="hf-pill hf-pill--jade hf-pill--lg" onClick={handleConfirm} disabled={isConfirming} data-interview-confirm>
+              <button type="button" className="hf-pill hf-pill--action hf-pill--lg" onClick={handleConfirm} disabled={isConfirming} data-interview-confirm>
                 {isConfirming ? <Loader2 className="animate-spin" /> : <Check />}
                 Confirm this time
               </button>
@@ -590,7 +590,7 @@ export function CandidateInterviewConfirmationCard({
                 <button
                   type="button"
                   onClick={handleJoin}
-                  className={canJoin ? "hf-pill hf-pill--jade hf-pill--lg" : "hf-pill hf-pill--tonal hf-pill--lg"}
+                  className={canJoin ? "hf-pill hf-pill--action hf-pill--lg" : "hf-pill hf-pill--tonal hf-pill--lg"}
                   data-interview-join={canJoin ? "open" : "not-yet"}
                 >
                   {canJoin ? <Video /> : <span className="hf-dot" aria-hidden />}
@@ -600,7 +600,7 @@ export function CandidateInterviewConfirmationCard({
               )}
               <button
                 type="button"
-                className="hf-pill hf-pill--mint hf-pill--lg"
+                className="hf-pill hf-pill--action-soft hf-pill--lg"
                 onClick={handleAddToCalendar}
                 title="Saves a calendar file that works with Google, Apple and Outlook"
               >
@@ -618,7 +618,7 @@ export function CandidateInterviewConfirmationCard({
             </div>
             <p
               className="mt-3.5 flex items-center gap-2 text-[13.5px] leading-snug"
-              style={{ color: canJoin ? "var(--jade-soft-fg)" : joinAsked ? "var(--ink)" : "var(--ink-3)", fontWeight: joinAsked && !canJoin ? 500 : 400 }}
+              style={{ color: canJoin ? "var(--action-soft-fg)" : joinAsked ? "var(--ink)" : "var(--ink-3)", fontWeight: joinAsked && !canJoin ? 500 : 400 }}
               data-interview-join-note
               aria-live="polite"
             >
@@ -673,7 +673,7 @@ export function CandidateInterviewConfirmationCard({
               Go back
             </AlertDialogCancel>
             <AlertDialogAction
-              className="hf-pill hf-pill--jade"
+              className="hf-pill hf-pill--action"
               data-interview-ask-yes
               onClick={() => {
                 const chosen = asking;

@@ -162,7 +162,7 @@ cannot disagree. Four stages:
     later. It stands still for anyone who asked for less motion.
   - **While an interview is live it is all the application shows.** On the
     list (`src/pages/Applications.tsx`) the card IS the interview
-    (`InterviewHero`, on the lit jade-and-brass surface `InterviewSurface`):
+    (`InterviewHero`, on the lit ink-and-brass surface `InterviewSurface`):
     no step, no "Take Assessment". On the application page
     (`src/pages/CandidateApplicationDetail.tsx`) the interview card comes
     first, and the step panel and the list of steps are not shown
@@ -201,8 +201,8 @@ cannot disagree. Four stages:
   time large beside it. Each offered time is a small ticket with its own
   "Choose". The stub is three short labels, so the surface carries the date
   in words for a screen reader. Buttons are four kinds of pill and nothing
-  else (`.hf-pill` in `src/styles/motion.css`): jade (the one thing to do),
-  tonal (a soft tint of the text colour), mint (a soft tint of jade) and
+  else (`.hf-pill` in `src/styles/motion.css`): action (the one thing to do),
+  tonal (a soft tint of the text colour), soft action (a soft tint of the action colour) and
   text. The stock `Button` is not used on these screens or their pop-ups:
   its `outline` variant is `bg-background`, a black slab at night. Fields on
   the pop-ups use the same tint (`.hf-field`), and pop-ups are soft rounded
