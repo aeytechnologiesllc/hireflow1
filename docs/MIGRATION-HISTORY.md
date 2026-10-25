@@ -420,6 +420,7 @@ the next. Same migration, different version stamp, as in section 2: match by
 | `20261025240000_phase5_review4.sql` | `20261025085354` | `phase5_review4` |
 | `20261025235000_application_evaluations.sql` | `20261025101542` | `application_evaluations` |
 | `20261025250000_phase5_review5.sql` | `20261025103724` | `phase5_review5` |
+| `20261025260000_drop_evaluation_move_backup.sql` | `20261025105115` | `drop_evaluation_move_backup` |
 
 The live copies carry a short header pointing at the repo file instead of
 the repo file's full comment block; the SQL statements are identical.

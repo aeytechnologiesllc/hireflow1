@@ -133,9 +133,9 @@ these either; each has a guard or a test that CI runs:
   an authenticator app in Settings, after which admin tools need the code.
 - Everything reachable without sign-in is listed in docs/BACKEND-SCHEMA.md
   ("Reachable without sign-in"), guarded by `public-functions-allow-list`.
-- (Phase 7, task 6; built on a branch 2026-10-25, NOT applied live yet:
-  check `select to_regclass('public.application_evaluations')` before
-  trusting this line.) The hiring team's evaluation (`ai_score`,
+- (Phase 7, task 6; live since 2026-10-25, migration
+  `application_evaluations` 20261025101542, the 109 scored applications moved
+  with an exact fingerprint match.) The hiring team's evaluation (`ai_score`,
   `ai_analysis`, `ai_scorecard`, `phase_ai_analysis`, `employer_notes`)
   lives in `application_evaluations`, which the applicant cannot read;
   writers keep writing `applications`, and `zz_applications_evaluation_*`
