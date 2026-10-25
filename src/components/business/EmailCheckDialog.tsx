@@ -6,6 +6,7 @@
  * page carries on with the publish it was doing.
  */
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -127,7 +128,6 @@ export function EmailCheckDialog({
               inputMode="numeric"
               autoComplete="one-time-code"
               placeholder="123456"
-              maxLength={6}
               className="text-center text-lg tracking-[0.4em]"
             />
             <Button type="submit" disabled={checking || cleanCode(code).length !== 6} className="w-full">
@@ -147,6 +147,14 @@ export function EmailCheckDialog({
             {problem}
           </p>
         )}
+
+        {/* A typo at sign-up would otherwise be a dead end: nothing else in
+            the app changes the sign-in address. */}
+        <p className="text-xs text-muted-foreground">
+          <Link to="/help" className="underline underline-offset-2" onClick={() => onOpenChange(false)}>
+            {W.wrongAddress}
+          </Link>
+        </p>
       </DialogContent>
     </Dialog>
   );

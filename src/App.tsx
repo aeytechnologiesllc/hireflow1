@@ -97,12 +97,11 @@ const JobDetails = lazyWithReload(() => import("./pages/JobDetails"));
 const BusinessCareers = lazyWithReload(() => import("./pages/BusinessCareers"));
 const OpenJobs = lazyWithReload(() => import("./pages/OpenJobs"));
 /**
- * The accountless applicant's way back in: they enter the phone number they
- * applied with and get their applications. Eight links across four files
- * pointed at /candidate/continue — the portal landing, the public job page and
- * the apply form among them — while the route itself was never registered, so
- * every one of them fell through to the catch-all and rendered "404 Oops! Page
- * not found" on production. The page had been written and simply never mounted.
+ * "Continue your application" (/candidate/continue). Links across the app
+ * point here. On the live schema it sends the applicant to sign in and on to
+ * their applications; the phone-number lookup it was written for reads the
+ * old prototype's tables and runs only on that schema (2026-10-25;
+ * docs/LAUNCH-PLAN.md, Phase 2, task 7).
  */
 const CandidateContinue = lazyWithReload(() => import("./pages/CandidateContinue"));
 const Applications = lazyWithReload(routeImporters["/applications"]);

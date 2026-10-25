@@ -23,6 +23,8 @@ import path from "node:path";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const MIGRATION = path.join(ROOT, "supabase/migrations/20261025100000_business_email_check.sql");
+// The second Pass C review's hardening replaces the same functions.
+const HARDENING = path.join(ROOT, "supabase/migrations/20261025130000_business_email_check_hardening.sql");
 const words = await import(path.join(ROOT, "supabase/functions/_shared/businessEmailCode.ts"));
 
 let passed = 0;
@@ -83,6 +85,7 @@ await db.exec(`
   grant select, insert, update on public.jobs to authenticated, service_role;
 `);
 await db.exec(readFileSync(MIGRATION, "utf8"));
+await db.exec(readFileSync(HARDENING, "utf8"));
 // Signed up after the migration: never asked yet.
 await db.exec(`insert into public.profiles (user_id, email) values ('${NEW_BIZ}', 'new@biz.test'); insert into public.user_roles values ('${NEW_BIZ}', 'employer');`);
 
@@ -101,7 +104,7 @@ const one = async (uid, role, sql) => (await as(uid, role, sql)).rows[0] ?? {};
 const issue = (uid) => one(null, "service_role", `select public.issue_business_email_code('${uid}') as r`).then((x) => x.r);
 const verify = (uid, code) => one(uid, "authenticated", `select public.verify_business_email_code('${code}') as r`).then((x) => x.r);
 const stamped = async (uid) => (await db.query(`select email_verified_at from public.profiles where user_id = '${uid}'`)).rows[0]?.email_verified_at != null;
-const age = (uid, interval) => db.exec(`update private.business_email_codes set sent_at = sent_at - interval '${interval}', window_started_at = window_started_at - interval '${interval}', expires_at = expires_at - interval '${interval}' where user_id = '${uid}'`);
+const age = (uid, interval) => db.exec(`update private.business_email_codes set sent_at = sent_at - interval '${interval}', window_started_at = window_started_at - interval '${interval}', expires_at = expires_at - interval '${interval}' where user_id = '${uid}'; update private.business_email_code_sends set sent_at = sent_at - interval '${interval}'`);
 const ageSentOnly = (uid, interval) => db.exec(`update private.business_email_codes set sent_at = sent_at - interval '${interval}' where user_id = '${uid}'`);
 
 console.log("\nThe businesses that already existed\n");
@@ -153,17 +156,19 @@ console.log("\nChecking it\n");
   check("a wrong code: says so, with the tries left", w1?.ok === false && w1.reason === "wrong_code" && w1.tries_left === 4, JSON.stringify(w1));
   const junk = await verify(NEW_BIZ, "12ab");
   check("something that is not six digits counts as a wrong try", junk?.ok === false && junk.tries_left === 3, JSON.stringify(junk));
-  const other = await verify(OLD_BIZ, first.code);
-  check("another account's code does nothing for them (they are already confirmed anyway)", other?.ok === true && other.already === true);
+  const UNCONFIRMED = "20000000-0000-4000-8000-000000000007";
+  await db.exec(`insert into auth.users values ('${UNCONFIRMED}', 'other@biz.test'); insert into public.profiles (user_id, email) values ('${UNCONFIRMED}', 'other@biz.test'); insert into public.user_roles values ('${UNCONFIRMED}', 'employer');`);
+  const other = await verify(UNCONFIRMED, first.code);
+  check("another business's code does nothing for an unconfirmed account", other?.ok === false && other.reason === "no_code" && !(await stamped(UNCONFIRMED)), JSON.stringify(other));
   const app = await verify(APPLICANT, first.code);
   check("an applicant with the business's code: no code of their own", app?.ok === false && app.reason === "no_code", JSON.stringify(app));
   check("…and is not stamped", !(await stamped(APPLICANT)));
   await verify(NEW_BIZ, wrongCode);
   await verify(NEW_BIZ, wrongCode);
   const w5 = await verify(NEW_BIZ, wrongCode);
-  check("the fifth wrong try ends the code", w5?.ok === false && w5.reason === "expired", JSON.stringify(w5));
+  check("the fifth wrong try uses the code up (said as such, not 'expired')", w5?.ok === false && w5.reason === "used_up", JSON.stringify(w5));
   const late = await verify(NEW_BIZ, first.code);
-  check("…even the right code no longer works", late?.ok === false && late.reason === "expired" && !(await stamped(NEW_BIZ)), JSON.stringify(late));
+  check("…even the right code no longer works", late?.ok === false && late.reason === "used_up" && !(await stamped(NEW_BIZ)), JSON.stringify(late));
 
   await ageSentOnly(NEW_BIZ, "61 seconds");
   const fresh = await issue(NEW_BIZ);
@@ -182,6 +187,51 @@ console.log("\nChecking it\n");
   check("the page can ask whether it passed", (await one(NEW_BIZ, "authenticated", `select public.my_business_email_verified() as v`)).v === true);
 }
 
+console.log("\nThe hardening (second Pass C review)\n");
+{
+  // An applicant account never gets a code.
+  const app = await issue(APPLICANT);
+  check("an applicant account gets no code (businesses only)", app?.ok === false && app.reason === "not_a_business", JSON.stringify(app));
+
+  // The stamp is for an address.
+  check("a confirmed business passes while its address is the one it confirmed", (await one(NEW_BIZ, "authenticated", `select public.my_business_email_verified() as v`)).v === true);
+  await db.exec(`update auth.users set email = 'hr@victim.test' where id = '${NEW_BIZ}'`);
+  check("…and stops passing the moment its sign-in address changes", (await one(NEW_BIZ, "authenticated", `select public.my_business_email_verified() as v`)).v === false);
+  const sneaky = await as(NEW_BIZ, "authenticated", `insert into public.jobs (employer_id, title, status) values ('${NEW_BIZ}', 'Under another address', 'published')`);
+  check("…so it cannot publish under the new address without confirming it", !!sneaky.error && /Confirm your email/.test(sneaky.error), sneaky.error ?? "no error");
+  check("…and the refusal no longer promises a code where none is sent", !/We'll send you a 6-digit code/.test(sneaky.error ?? "") && /press Publish in the job editor/.test(sneaky.error ?? ""));
+  await db.exec(`update auth.users set email = 'NEW@biz.test' where id = '${NEW_BIZ}'`);
+  check("…case does not matter for the same address", (await one(NEW_BIZ, "authenticated", `select public.my_business_email_verified() as v`)).v === true);
+
+  // A code is for the address it went to.
+  const SWITCH = "20000000-0000-4000-8000-000000000008";
+  await db.exec(`insert into auth.users values ('${SWITCH}', 'a@switch.test'); insert into public.profiles (user_id, email) values ('${SWITCH}', 'a@switch.test'); insert into public.user_roles values ('${SWITCH}', 'employer');`);
+  const sent = await issue(SWITCH);
+  await db.exec(`update auth.users set email = 'b@switch.test' where id = '${SWITCH}'`);
+  const switched = await verify(SWITCH, sent.code);
+  check("a code sent to one address does nothing after a switch to another", switched?.ok === false && switched.reason === "address_changed" && !(await stamped(SWITCH)), JSON.stringify(switched));
+
+  // One inbox, however it is written.
+  const keys = (await db.query(`select private.inbox_key('Vic.Tim+1@GoogleMail.com') as a, private.inbox_key('victim+2@gmail.com') as b, private.inbox_key('v.i.c.t.i.m@gmail.com') as c, private.inbox_key('Sam.Lee+x@clinic.test') as d`)).rows[0];
+  check("the inbox key ignores case, +tags, and Gmail's dots and googlemail.com", keys.a === "victim@gmail.com" && keys.b === "victim@gmail.com" && keys.c === "victim@gmail.com" && keys.d === "sam.lee@clinic.test", JSON.stringify(keys));
+  const flood = [];
+  for (let i = 1; i <= 6; i += 1) {
+    const uid = `30000000-0000-4000-8000-00000000000${i}`;
+    await db.exec(`insert into auth.users values ('${uid}', 'victim+${i}@gmail.com'); insert into public.profiles (user_id, email) values ('${uid}', 'victim+${i}@gmail.com'); insert into public.user_roles values ('${uid}', 'employer');`);
+    flood.push((await issue(uid))?.ok === true);
+  }
+  check("six new accounts at victim+N@gmail.com: five codes reach that inbox, the sixth does not", flood.slice(0, 5).every(Boolean) && flood[5] === false, JSON.stringify(flood));
+
+  // Everyone together.
+  await db.exec(`insert into private.business_email_code_sends (address_key, sent_at) select 'x' || g || '@load.test', now() from generate_series(1, 300) g`);
+  const LATE2 = "20000000-0000-4000-8000-000000000010";
+  await db.exec(`insert into auth.users values ('${LATE2}', 'late2@biz.test'); insert into public.profiles (user_id, email) values ('${LATE2}', 'late2@biz.test'); insert into public.user_roles values ('${LATE2}', 'employer');`);
+  check("past 300 codes in an hour for everyone, the next waits", (await issue(LATE2))?.reason === "busy");
+  await db.exec(`delete from private.business_email_code_sends where address_key like '%@load.test'`);
+  const sends = await as(NEW_BIZ, "authenticated", `select * from private.business_email_code_sends`);
+  check("the send log is nobody's to read through the API", !!sends.error);
+}
+
 console.log("\nNobody stamps themself\n");
 {
   const u = await as(APPLICANT, "authenticated", `update public.profiles set email_verified_at = now() where user_id = '${APPLICANT}'`);
@@ -191,6 +241,9 @@ console.log("\nNobody stamps themself\n");
   check("an insert through the API comes in unstamped", i.error === null && !(await stamped(APPLICANT)), i.error);
   const clear = await as(NEW_BIZ, "authenticated", `update public.profiles set email_verified_at = null where user_id = '${NEW_BIZ}'`);
   check("nor can a stamp be cleared through the API", clear.error === null && (await stamped(NEW_BIZ)), clear.error);
+  const repoint = await as(NEW_BIZ, "authenticated", `update public.profiles set email_verified_for = 'hr@victim.test' where user_id = '${NEW_BIZ}'`);
+  const forNow = (await db.query(`select email_verified_for from public.profiles where user_id = '${NEW_BIZ}'`)).rows[0]?.email_verified_for;
+  check("nor can the confirmed address be pointed somewhere else", repoint.error === null && forNow === "new@biz.test", `${repoint.error} ${forNow}`);
 }
 
 console.log("\nPutting a job live\n");
@@ -231,9 +284,10 @@ console.log("\nPutting a job live\n");
 
 console.log("\nThe email and its answers (_shared/businessEmailCode.ts)\n");
 {
-  const e = words.businessEmailCodeEmail({ code: "042917", firstName: "Dana Lee" });
+  const e = words.businessEmailCodeEmail({ code: "042917", firstName: "hireflow-verify.example/login" });
   check("the subject carries the code", e.subject === "Your HireFlow code: 042917");
-  check("it greets them by first name and says how long it lasts", e.lines[0].startsWith("Hi Dana,") && /15 minutes/.test(e.lines.join(" ")));
+  check("it says how long the code lasts", /15 minutes/.test(e.lines.join(" ")));
+  check("it carries nothing the account typed, not even a first name (second Pass C review)", !/hireflow-verify|Hi /.test(JSON.stringify(e)));
   check("it says what to do if they did not ask", /didn't ask for it/.test(e.lines.join(" ")));
   check("no player, Zulu or sweepstakes wording", !/player|zulu|sweepstake/i.test(JSON.stringify(e)));
   check("a good answer gives the code", JSON.stringify(words.readIssuedCode({ ok: true, code: "123456" })) === JSON.stringify({ ok: true, code: "123456" }));
@@ -244,6 +298,8 @@ console.log("\nThe email and its answers (_shared/businessEmailCode.ts)\n");
   check("too many: 429 with the minutes", many.status === 429 && /25 minutes/.test(many.error));
   check("already confirmed: not an error for the page", words.readIssuedCode({ ok: false, reason: "already_verified" }).status === 200);
   check("anything unreadable: try later", words.readIssuedCode(null).status === 503 && words.readIssuedCode({ ok: false, reason: "made_up" }).code === "try_later");
+  check("an applicant account: refused in words", words.readIssuedCode({ ok: false, reason: "not_a_business" }).status === 403);
+  check("busy for everyone: a wait in words", words.readIssuedCode({ ok: false, reason: "busy" }).status === 503 && /few minutes/.test(words.readIssuedCode({ ok: false, reason: "busy" }).error));
 }
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);

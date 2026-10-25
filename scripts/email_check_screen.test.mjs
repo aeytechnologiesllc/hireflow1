@@ -26,8 +26,8 @@ function check(name, ok, detail = "") {
 
 console.log("\nThe database's refusal\n");
 check("the HINT is enough", E.isEmailNotVerifiedError({ hint: "email_not_verified", message: "x" }));
-check("so is the message alone (the Ava publish path keeps only the message)", E.isEmailNotVerifiedError(new Error("Confirm your email to put this job live. We'll send you a 6-digit code.")));
-check("the database's own wording is what the page looks for", readFileSync(path.join(ROOT, "supabase/migrations/20261025100000_business_email_check.sql"), "utf8").includes("Confirm your email to put this job live."));
+check("so is the message alone (the Ava publish path keeps only the message)", E.isEmailNotVerifiedError(new Error("Confirm your email to put this job live: press Publish in the job editor and we'll send a code to your sign-in address.")));
+check("the database's own wording (its latest version) is what the page looks for", readFileSync(path.join(ROOT, "supabase/migrations/20261025130000_business_email_check_hardening.sql"), "utf8").includes("Confirm your email to put this job live:"));
 check("another refusal is not this one", !E.isEmailNotVerifiedError({ hint: "business_suspended", message: "Your business is paused" }) && !E.isEmailNotVerifiedError(null) && !E.isEmailNotVerifiedError("Confirm"));
 check("the page and the function name the same kind", E.BUSINESS_EMAIL_CODE_TYPE === server.BUSINESS_EMAIL_CODE_TYPE);
 
@@ -52,6 +52,8 @@ check("wrong, with the tries left", E.verifyOutcome({ ok: false, reason: "wrong_
 check("…one try left reads right", E.verifyOutcome({ ok: false, reason: "wrong_code", tries_left: 1 }).message === "That code isn't right. 1 try left.");
 check("expired: send a new one", E.verifyOutcome({ ok: false, reason: "expired" }).kind === "expired" && /Send a new one/.test(E.verifyOutcome({ ok: false, reason: "expired" }).message));
 check("no code yet: send one first", /Send a code first/.test(E.verifyOutcome({ ok: false, reason: "no_code" }).message));
+check("five wrong tries: 'used up', not 'expired'", /used up/.test(E.verifyOutcome({ ok: false, reason: "used_up" }).message) && E.verifyOutcome({ ok: false, reason: "used_up" }).kind === "expired");
+check("the address changed since the code was sent: says so", /sign-in email changed/.test(E.verifyOutcome({ ok: false, reason: "address_changed" }).message));
 check("anything else: try again", E.verifyOutcome(null).kind === "failed" && E.verifyOutcome({ ok: false, reason: "no_profile" }).kind === "failed");
 check("six digits from whatever was pasted", E.cleanCode(" 04 29-17x9") === "042917" && E.cleanCode("") === "");
 
@@ -60,6 +62,11 @@ const W = E.EMAIL_CHECK_WORDS;
 check("names the address when it is known", W.intro("dana@clinic.test").includes("dana@clinic.test") && /only do it once/.test(W.intro(null)));
 check("says how long the code lasts", /15 minutes/.test(W.sent("x@y.test")));
 check("the button says what happens next", W.confirm === "Confirm and publish");
+check("a long wait to resend is said in minutes, not thousands of seconds", W.resendIn(3412) === "Send a new code in 57 min" && W.resendIn(42) === "Send a new code in 42s");
+check("a wrong address is never a dead end: Help is offered", /Help/.test(W.wrongAddress));
+const dialog = readFileSync(path.join(ROOT, "src/components/business/EmailCheckDialog.tsx"), "utf8");
+check("pasting '042 917' is not cut short by a 6-character limit before the digits are kept", !/maxLength=\{6\}/.test(dialog) && /cleanCode\(e\.target\.value\)/.test(dialog));
+check("the screen links to Help for a wrong address", /<Link to="\/help"/.test(dialog) && /W\.wrongAddress/.test(dialog));
 check("a team member is told who can do it", /account owner needs to confirm their email/.test(E.OWNER_MUST_CONFIRM_EMAIL));
 check("no player, Zulu or sweepstakes wording", !/player|zulu|sweepstake/i.test(JSON.stringify({ W: Object.values(W).map((v) => (typeof v === "function" ? v("a@b.test", 5) : v)), o: E.OWNER_MUST_CONFIRM_EMAIL })));
 

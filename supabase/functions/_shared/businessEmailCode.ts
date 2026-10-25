@@ -7,8 +7,11 @@
  * request (after continue_on_computer): the code goes to whoever is signed
  * in, at the address on their sign-in account, never to a user id or an
  * address named in the body. The database makes the code and keeps the
- * limits (one a minute, five an hour); this file is the words and what each
- * answer means.
+ * limits (business accounts only; one a minute and five an hour per account;
+ * five an hour per inbox, however it is written; 300 an hour in all); the
+ * function adds ten an hour per IP. This file is the words and what each
+ * answer means. The email carries nothing its account typed (not even a
+ * first name): a name field is free text, and this email is HireFlow's.
  *
  * No imports: plain Node loads this file for
  * scripts/business_email_check.pglite.test.mjs, and the function for the send.
@@ -25,13 +28,12 @@ export interface BusinessEmailCodeWords {
 }
 
 /** The email: the code, how long it lasts, and what to do if they did not ask. */
-export function businessEmailCodeEmail(input: { code: string; firstName?: string | null }): BusinessEmailCodeWords {
-  const first = typeof input.firstName === "string" ? input.firstName.trim().split(/\s+/)[0] ?? "" : "";
+export function businessEmailCodeEmail(input: { code: string }): BusinessEmailCodeWords {
   return {
     subject: `Your HireFlow code: ${input.code}`,
     title: "Confirm your email",
     lines: [
-      `Hi${first ? ` ${first}` : ""}, here is the code to confirm this email address on HireFlow.`,
+      "Here is the code to confirm this email address on HireFlow.",
       "Enter it on the Publish screen. It works for 15 minutes.",
       "If you didn't ask for it, you can ignore this email. Nothing changes until the code is entered.",
     ],
@@ -40,7 +42,7 @@ export function businessEmailCodeEmail(input: { code: string; firstName?: string
 
 export type BusinessEmailCodeAnswer =
   | { ok: true; code: string }
-  | { ok: false; status: 200 | 401 | 429 | 503; code: string; error: string; retryAfter?: number };
+  | { ok: false; status: 200 | 401 | 403 | 404 | 429 | 503; code: string; error: string; retryAfter?: number };
 
 function waitWords(seconds: number): string {
   if (seconds <= 60) return `${Math.max(1, seconds)} second${seconds === 1 ? "" : "s"}`;
@@ -62,6 +64,12 @@ export function readIssuedCode(issued: unknown): BusinessEmailCodeAnswer {
       return { ok: false, status: 429, code: "too_soon", error: `A code is on its way. You can ask for another in ${waitWords(retry ?? 60)}.`, retryAfter: retry ?? 60 };
     case "too_many":
       return { ok: false, status: 429, code: "too_many", error: `That's five codes this hour. You can ask again in ${waitWords(retry ?? 3600)}.`, retryAfter: retry ?? 3600 };
+    case "not_a_business":
+      return { ok: false, status: 403, code: "not_a_business", error: "Only a business account confirms its email here." };
+    case "no_address":
+      return { ok: false, status: 404, code: "no_address", error: "Your account has no email address to send a code to." };
+    case "busy":
+      return { ok: false, status: 503, code: "busy", error: "A lot of codes are going out right now. Try again in a few minutes.", retryAfter: 300 };
     default:
       return { ok: false, status: 503, code: "try_later", error: "We couldn't send a code just now. Try again in a minute." };
   }

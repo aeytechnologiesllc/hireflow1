@@ -9,7 +9,7 @@ import { declineNoteLines } from "../_shared/declineNote.ts";
 import { welcomeTodo, type WelcomeTodo } from "../_shared/welcomeTodo.ts";
 import { CONTINUE_ON_COMPUTER_TYPE, continueOnComputerEmail, decideContinueLinkEmail } from "../_shared/continueOnComputerEmail.ts";
 import { BUSINESS_EMAIL_CODE_TYPE, businessEmailCodeEmail, readIssuedCode } from "../_shared/businessEmailCode.ts";
-import { checkRateLimit } from "../_shared/rateLimit.ts";
+import { callerId as callerIp, checkRateLimit } from "../_shared/rateLimit.ts";
 import {
   NOTIFICATION_RULES,
   decideNotification,
@@ -742,7 +742,7 @@ const getEmailContent = (
     // the code the database made and the account's first name; nothing here
     // came from the page.
     business_email_code: (() => {
-      const words = businessEmailCodeEmail({ code: String(data.code ?? ""), firstName: data.first_name });
+      const words = businessEmailCodeEmail({ code: String(data.code ?? "") });
       return {
         subject: words.subject,
         html: wrapEmail(
@@ -899,6 +899,12 @@ const handler = async (req: Request): Promise<Response> => {
       if (caller.kind !== "user") {
         return refuse(401, { error: "Your sign-in has ended. Sign in again to get a code.", code: "not_signed_in" });
       }
+      // Ten an hour from one network, on top of the database's own limits
+      // (per account, per inbox, for everyone).
+      const ipLimit = await checkRateLimit("business-email-code-ip", callerIp(req), 10, 3600);
+      if (!ipLimit.allowed) {
+        return refuse(429, { error: "That's a lot of codes from here. Try again in an hour.", code: "too_many", retryAfter: ipLimit.retryAfter }, ipLimit.retryAfter);
+      }
       const { data: issuedRow, error: issueError } = await supabase.rpc("issue_business_email_code", { p_user: caller.id });
       if (issueError) console.error("[send-notification-email] business_email_code: could not make a code:", issueError.message);
       const issued = readIssuedCode(issueError ? null : issuedRow);
@@ -911,9 +917,7 @@ const handler = async (req: Request): Promise<Response> => {
       if (accountError || !to) {
         return refuse(404, { error: "Your account has no email address to send a code to.", code: "no_address" });
       }
-      const { data: me } = await supabase.from("profiles").select("full_name").eq("user_id", caller.id).maybeSingle();
-      const first = String(me?.full_name ?? "").trim().split(/\s+/)[0]?.slice(0, 40) || undefined;
-      const content = getEmailContent(BUSINESS_EMAIL_CODE_TYPE, { code: issued.code, first_name: first }, "employer");
+      const content = getEmailContent(BUSINESS_EMAIL_CODE_TYPE, { code: issued.code }, "employer");
       const sent = await resend.emails.send({ from: TEAM_SENDER, to: [to], subject: content.subject, html: content.html });
       if (sent?.error) {
         console.error("[send-notification-email] The provider refused business_email_code:", JSON.stringify(sent.error));

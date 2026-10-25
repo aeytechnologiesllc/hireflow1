@@ -92,6 +92,21 @@ const fixtures = [
     expectBoards: false,
   },
   {
+    name: "remote that rules a country out is not for that country",
+    job: { ...baseJob, id: "j-remote-not-india", location_country_code: null, location_country: null, location_city: null, is_remote: true, location: "Remote (not open to India)" },
+    expectBoards: false,
+  },
+  {
+    name: "remote with a capital US",
+    job: { ...baseJob, id: "j-remote-us-caps", location_country_code: null, location_country: null, location_city: null, is_remote: true, location: "Remote — US only" },
+    expectBoards: true,
+  },
+  {
+    name: "remote with a lower-case 'us' is not the US",
+    job: { ...baseJob, id: "j-remote-join-us", location_country_code: null, location_country: null, location_city: null, is_remote: true, location: "Remote, join us" },
+    expectBoards: false,
+  },
+  {
     name: "an onsite job does not get a country from its text this way",
     job: { ...baseJob, id: "j-onsite-text", location_country_code: null, location_country: null, location_city: null, is_remote: false, location: "Manila, Philippines" },
     expectBoards: false,

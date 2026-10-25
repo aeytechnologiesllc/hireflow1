@@ -28,7 +28,11 @@ interface RefreshTokenRequest {
   refreshToken: string;
 }
 
-type RequestBody = CreateEventRequest | TokenExchangeRequest | RefreshTokenRequest;
+interface StatusRequest {
+  action: "status";
+}
+
+type RequestBody = CreateEventRequest | TokenExchangeRequest | RefreshTokenRequest | StatusRequest;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -54,6 +58,18 @@ serve(async (req) => {
 
     const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID");
     const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET");
+    const body: RequestBody = await req.json();
+
+    // Is Google set up on the server? The scheduling wizard shows "Connect
+    // Google Calendar" only when it is: without the server's keys the button
+    // led through Google's consent screen to a failure (docs/LAUNCH-PLAN.md,
+    // Phase 2, task 7). Says yes or no, nothing else.
+    if (body.action === "status") {
+      return new Response(JSON.stringify({ configured: Boolean(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
       console.error("Google OAuth credentials not configured");
@@ -62,8 +78,6 @@ serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    const body: RequestBody = await req.json();
 
     // Exchange authorization code for tokens
     if (body.action === "exchange_token") {

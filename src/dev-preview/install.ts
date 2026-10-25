@@ -9,7 +9,7 @@ import { __setPreviewSupabaseClient } from "@/integrations/supabase/client";
 import { STAMP_TAIL_BYTES } from "@/lib/connectionTest";
 import { parseApplicationNotes } from "@/utils/applicationNotes";
 import { OFFER_DEFAULTS, addDays, dayOf, encodeDocumentBody, offerDocumentBody, offerExpiry, offerLetterName, type OfferLetterFields } from "@/cockpit/lib/offerLetter";
-import { createFixtureSupabaseClient, type FixtureAuthUser, type FixtureRow, type FixtureTables } from "./fixtureClient";
+import { createFixtureSupabaseClient, type FixtureAuthUser, type FixtureClientOptions, type FixtureRow, type FixtureTables } from "./fixtureClient";
 import { buildFixtureRpcHandlers, buildFixtureTables, FIXTURE_SCENARIOS, type FixtureScenario } from "./fixtures";
 import { previewHiring, previewRequests } from "./previewRequests";
 import { LUCKY_USER, previewAppliedToBoth, previewBusinesses } from "./previewBusinesses";
@@ -1138,6 +1138,66 @@ function previewContinueLinkEmail(user: FixtureAuthUser, mode: string | null): (
 }
 
 /**
+ * "Confirm your email" at a business's first Publish (docs/LAUNCH-PLAN.md,
+ * Phase 2, task 4; src/components/business/EmailCheckDialog.tsx), offline:
+ * `__previewEmailCheck=1` makes the stand-in database refuse a job going live
+ * the way jobs_publish_needs_email_check does, until the code is entered.
+ * The code is always 123456; "Send the code" answers as the real function
+ * does (once, then "too soon" for a minute). `=sent` starts with a code
+ * already sent.
+ */
+function previewEmailCheck(mode: string | null): {
+  rpc: Record<string, (args: unknown) => unknown>;
+  invoke: (name: string, options?: InvokeOptions) => InvokeReply | null;
+  refuseWrite: FixtureClientOptions["refuseWrite"];
+} {
+  if (mode !== "1" && mode !== "sent") return { rpc: {}, invoke: () => null, refuseWrite: undefined };
+  let confirmed = false;
+  let sentAt = mode === "sent" ? Date.now() : 0;
+  let wrong = 0;
+  return {
+    rpc: {
+      my_business_email_verified: () => confirmed,
+      verify_business_email_code: (args) => {
+        if (confirmed) return { ok: true, already: true };
+        if (!sentAt) return { ok: false, reason: "no_code" };
+        if (wrong >= 5) return { ok: false, reason: "used_up" };
+        if (String((args as { p_code?: unknown } | null)?.p_code ?? "").replace(/\s/g, "") === "123456") {
+          confirmed = true;
+          return { ok: true };
+        }
+        wrong += 1;
+        return { ok: false, reason: wrong >= 5 ? "used_up" : "wrong_code", tries_left: Math.max(0, 5 - wrong) };
+      },
+    },
+    invoke: (name, options) => {
+      const body = (options?.body ?? {}) as { type?: unknown };
+      if (name !== "send-notification-email" || body.type !== "business_email_code") return null;
+      if (sentAt && Date.now() - sentAt < 60_000) {
+        const retryAfter = Math.ceil((60_000 - (Date.now() - sentAt)) / 1000);
+        return {
+          data: null,
+          error: Object.assign(new Error("Edge Function returned a non-2xx status code"), {
+            name: "FunctionsHttpError",
+            context: new Response(JSON.stringify({ error: `A code is on its way. You can ask for another in ${retryAfter} seconds.`, code: "too_soon", retryAfter }), { status: 429, headers: { "Content-Type": "application/json" } }),
+          }),
+        };
+      }
+      sentAt = Date.now();
+      return { data: { success: true }, error: null };
+    },
+    refuseWrite: (table, _type, payload) =>
+      table === "jobs" && payload.status === "published" && !confirmed
+        ? {
+            message: "Confirm your email to put this job live: press Publish in the job editor and we'll send a code to your sign-in address.",
+            code: "23514",
+            hint: "email_not_verified",
+          }
+        : null,
+  };
+}
+
+/**
  * For the set-up screen's two clocks and its suggestion
  * (src/lib/interviewSuggestion.ts):
  *  - `__previewTheirZone=Asia/Manila` puts every applicant's connection
@@ -1201,10 +1261,13 @@ export function install(params: URLSearchParams): void {
   // Signing in as the second business's owner (`?__previewEmployer=lucky`,
   // with `__previewBusinesses=two`).
   const signedIn = role === "employer" && params.get("__previewEmployer") === "lucky" ? LUCKY_USER : ROLE_USERS[role];
+  const emailCheck = previewEmailCheck(params.get("__previewEmailCheck"));
   const base = createFixtureSupabaseClient({
     user: signedIn,
     tables,
+    refuseWrite: emailCheck.refuseWrite,
     rpc: {
+      ...emailCheck.rpc,
       ...buildFixtureRpcHandlers(scenario),
       ...previewBlockHandlers(tables, signedIn),
       ...previewShortlistHandlers(tables, signedIn),
@@ -1253,6 +1316,8 @@ export function install(params: URLSearchParams): void {
         }
         const emailed = continueLinkEmail(name, options);
         if (emailed) return emailed;
+        const coded = emailCheck.invoke(name, options);
+        if (coded) return coded;
         // `?__previewMail=sent`: the mail service accepts every notification
         // (the default answers as it does with no mail service at all).
         if (name === "send-notification-email" && params.get("__previewMail") === "sent") {

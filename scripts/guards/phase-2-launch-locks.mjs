@@ -124,29 +124,56 @@ export default [
       "signed-in caller (send-notification-email, business_email_code).",
     run: async ({ read, walk }) => {
       const detail = [];
-      const sql = (await read("supabase/migrations/20261025100000_business_email_check.sql")) ?? "";
-      if (!/create trigger jobs_publish_needs_email_check\s+before insert or update of status on public\.jobs/i.test(sql)) {
+      // Each piece is checked in its LATEST definition, so a later migration
+      // cannot quietly weaken it with a `create or replace` (second Pass C
+      // review, 2026-10-25), and its trigger cannot be dropped.
+      const files = (await walk("supabase/migrations", [".sql"])).sort();
+      const latest = new Map();
+      for (const rel of files) {
+        const text = (await read(rel)) ?? "";
+        for (const m of text.matchAll(/create or replace function (public|private)\.(\w+)\(/gi)) latest.set(m[2], { rel, text });
+        if (/drop\s+trigger\s+(if\s+exists\s+)?(jobs_publish_needs_email_check|profiles_email_verified_from_server)\b/i.test(text) &&
+            !/create trigger (jobs_publish_needs_email_check|profiles_email_verified_from_server)\b/i.test(text)) {
+          detail.push(`${rel}: drops a trigger of the business email check without creating it again`);
+        }
+        if (/drop\s+function\s+(if\s+exists\s+)?(public\.)?(jobs_publish_needs_email_check|business_email_verified|profiles_email_verified_from_server|issue_business_email_code|verify_business_email_code)\b/i.test(text)) {
+          detail.push(`${rel}: drops a function of the business email check`);
+        }
+      }
+      const must = [
+        ["jobs_publish_needs_email_check", /if not public\.business_email_verified\(new\.employer_id\) then/, "refuses a publish for a business that has not confirmed"],
+        ["jobs_publish_needs_email_check", /hint = 'email_not_verified'/, "keeps its HINT email_not_verified"],
+        ["business_email_verified", /lower\(p\.email_verified_for\) = lower\(u\.email\)/, "passes only while the confirmed address is still the sign-in address"],
+        ["profiles_email_verified_from_server", /new\.email_verified_at := old\.email_verified_at/, "keeps email_verified_at the server's"],
+        ["profiles_email_verified_from_server", /new\.email_verified_for := old\.email_verified_for/, "keeps email_verified_for the server's"],
+        ["issue_business_email_code", /'not_a_business'/, "gives codes to business accounts only"],
+        ["issue_business_email_code", /private\.inbox_key\(/, "limits each inbox, however it is written"],
+        ["issue_business_email_code", /pg_advisory_xact_lock\(/, "serialises one account's requests"],
+        ["verify_business_email_code", /'address_changed'/, "takes a code only for the address it went to"],
+      ];
+      for (const [fn, pattern, what] of must) {
+        const def = latest.get(fn);
+        if (!def) detail.push(`no migration defines ${fn}`);
+        else if (!pattern.test(def.text)) detail.push(`${def.rel}: ${fn} no longer ${what}`);
+      }
+      const issueDef = latest.get("issue_business_email_code");
+      if (issueDef && (!/grant execute on function public\.issue_business_email_code\(uuid\) to service_role;/.test(issueDef.text) || /issue_business_email_code\(uuid\) to authenticated/.test(issueDef.text))) {
+        detail.push(`${issueDef.rel}: only the system may make a code`);
+      }
+      const first = (await read("supabase/migrations/20261025100000_business_email_check.sql")) ?? "";
+      if (!/create trigger jobs_publish_needs_email_check\s+before insert or update of status on public\.jobs/i.test(first)) {
         detail.push("20261025100000_business_email_check.sql: the publish trigger is missing or no longer covers insert and status updates");
       }
-      if (!/hint = 'email_not_verified'/.test(sql)) detail.push("20261025100000_business_email_check.sql: the refusal lost its HINT email_not_verified");
-      if (!/grant execute on function public\.issue_business_email_code\(uuid\) to service_role;/.test(sql) || /issue_business_email_code\(uuid\) to authenticated/.test(sql)) {
-        detail.push("20261025100000_business_email_check.sql: only the system may make a code");
-      }
-      for (const rel of await walk("supabase/migrations", [".sql"])) {
-        const name = rel.split("/").pop() ?? "";
-        if (name <= "20261025100000_business_email_check.sql") continue;
-        const later = (await read(rel)) ?? "";
-        if (/drop\s+(trigger|function)\s+(if\s+exists\s+)?(public\.)?(jobs_publish_needs_email_check|business_email_verified)/i.test(later)) {
-          detail.push(`${name}: drops the business email check`);
-        }
+      if (!/create trigger profiles_email_verified_from_server\s+before insert or update on public\.profiles/i.test(first)) {
+        detail.push("20261025100000_business_email_check.sql: the trigger keeping the stamp the server's is missing");
       }
       for (const page of ["src/pages/CreateJob.tsx", "src/pages/AvaCreateJob.tsx"]) {
         const src = (await read(page)) ?? "";
         if (!/isEmailNotVerifiedError\(/.test(src) || !/<EmailCheckDialog/.test(src)) detail.push(`${page}: no longer opens the code screen when the publish is refused`);
       }
       const fn = (await read("supabase/functions/send-notification-email/index.ts")) ?? "";
-      if (!/if \(type === BUSINESS_EMAIL_CODE_TYPE\) \{[\s\S]*?if \(caller\.kind !== "user"\)[\s\S]*?getUserById\(caller\.id\)/.test(fn)) {
-        detail.push("send-notification-email: the code must go to the signed-in caller's own sign-in address");
+      if (!/if \(type === BUSINESS_EMAIL_CODE_TYPE\) \{[\s\S]*?if \(caller\.kind !== "user"\)[\s\S]*?checkRateLimit\("business-email-code-ip"[\s\S]*?getUserById\(caller\.id\)/.test(fn)) {
+        detail.push("send-notification-email: the code must go to the signed-in caller's own sign-in address, ten an hour per IP");
       }
       return detail.length ? { ok: false, detail } : { ok: true };
     },

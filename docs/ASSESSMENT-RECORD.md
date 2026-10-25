@@ -220,7 +220,7 @@ add keys of its own, for example `question_count` for the interview. **Never put
 {
   "graded_at": "2026-10-06T15:57:59Z",
   "model": "gpt-5.6-terra",
-  "prompt_version": "chat-sim-eval-5",
+  "prompt_version": "chat-sim-eval-6",
   "fallback": false,
   "result": { "...": "the grader's full output, unabridged" }
 }

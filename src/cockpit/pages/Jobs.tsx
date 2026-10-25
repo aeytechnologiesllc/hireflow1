@@ -661,8 +661,8 @@ export default function CockpitJobs() {
             </h2>
           </div>
           <p className="mt-2 max-w-[54ch] text-[14px] leading-relaxed" style={{ color: "var(--ink-2)" }}>
-            Tell me who you need. I&rsquo;ll write the post, put it on your job page and in your feed, then read
-            everyone who applies and send you the ones worth your time.
+            Tell me who you need. I&rsquo;ll write the post and put it on your job page, then read everyone who
+            applies and send you the ones worth your time.
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
             {/* Talking to Ava is the platform's own account only (AvaCreateJob's

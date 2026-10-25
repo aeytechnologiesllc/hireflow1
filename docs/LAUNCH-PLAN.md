@@ -907,6 +907,74 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
 
+### 2026-10-25 — Phase 1 closed; Phase 2 built, shipped, two Pass C rounds; Phase 3 begun
+
+- Model: Opus 5.5 (the owner switched to it for the autonomous run).
+- **Phase 1 (security), live.** Commits 08ed6e34 … d44a9eb3. Migrations
+  (live versions in docs/MIGRATION-HISTORY.md §4): safe_links,
+  ai_daily_budget, protect_application_staff_columns,
+  profiles_email_from_account, drop_leftover_open_policies,
+  platform_admin_two_step, revoke_unneeded_function_access,
+  protect_voice_evidence, voice_recording_this_project. Auth
+  password_min_length 8. CSP live report-only on both hosts; reports reach
+  client_error_events. The planned guards that are tests instead
+  (csp-header-present, ava-analysis-ignores-client-force,
+  rate-limit-keys-on-cf-ip, profiles-email-read-only) run in CI on every push.
+- **Phase 2, live.** The front page is counted and attributed (verified: a
+  tagged visit landed in page_view_daily and the sign-up links carried the
+  tag; the test row was deleted); Admin → Growth (admin_growth,
+  admin_growth_one_role); "player" is a property of the business
+  (business_pages.home_alias), never guessed from text; the team-lead
+  interview script defaults to the general one; the share step lists
+  Facebook, LinkedIn, Indeed, OnlineJobs.ph with tagged links;
+  /candidate/continue sends live applicants to sign in; the developer code
+  task that never reached applicants is gone; /ava-preview and /flow-lab are
+  noindex (verified live); the Google Calendar card shows only when the
+  server has its keys (it has none today, so it is hidden); a remote job may
+  name its one country in its location text for the feed; "manage billing"
+  and "in your feed" are gone; a business confirms its email with a 6-digit
+  code at its first Publish (business_email_check + hardening; the 15
+  existing businesses were stamped). Verified live: the owner publishes as
+  before; a business without the stamp is refused with the code prompt (in a
+  rolled-back transaction); the code maker works and refuses a second within
+  a minute; nothing was left behind.
+- **Pass C round 1** (fresh reviewer on 7aabae2e..d2ccd088, 11 findings):
+  recording link accepted any Supabase project; "team player" switched on
+  the owner's word; interview guide and scoring labels said "player"; the
+  owner's focus labels said "customer"; an unknown business got the owner's
+  script; sales turns were served for a closed step; prompt versions not
+  bumped; in-progress chat word, growth label and double count; stale voice
+  doc. All fixed. Kept as is, with the reason: a "busy" (grading/failed)
+  attempt still serves turns from the request's history (an applicant on an
+  active step can already do the same within the per-IP rate limit and the
+  daily AI ceiling; refusing would break a turn racing a submit).
+- **Pass C round 2** (fresh reviewer on d44a9eb3..1e526eb1, 12 findings): the
+  email stamp was not tied to the address (fixed: email_verified_for, codes
+  bound to the address they went to); the code email could flood an inbox
+  and carried the account's own name (fixed: businesses only, per-account
+  lock, five an hour per inbox however written, 300 an hour in all, ten an
+  hour per IP, no name in the email); a sign-up typo was a dead end (fixed:
+  Help link); the Google card checked only the site's key (fixed: server
+  status); guards too narrow (fixed: latest-definition checks, proven to fail
+  on a weakened copy); screen wording, paste and countdown (fixed); share
+  hint invisible on phones (fixed); tests that did not run the code branch
+  (fixed: the real function now runs it against stand-ins); stale docs
+  (fixed: NOTIFICATION-EMAILS, BUSINESS-TRUST, BACKEND-SCHEMA,
+  TRUSTED-RESULTS, App.tsx); "manage billing"/"in your feed" (fixed); feed
+  country from text ruled-out countries and "US" (fixed); the word swap
+  changed the business's own case text (fixed; chat-sim-eval-6). Not taken:
+  the PGlite test keeps its stand-in schema (as every PGlite test here
+  does); the landing page's "player" copy is Phase 3's rewrite.
+- **Found by our own probe:** a request body over about 1 MB never reaches a
+  function: Supabase's gateway holds it until a 504. The function never
+  runs, so it costs nothing; noted in practiceTurnGuard.ts.
+- **Phase 3 begun:** "where they are" is four milestones (Option C) on the
+  applicants list, the phone card and the first-hire guide, with a guard.
+- **Open:** Pass C round 3 on the round-2 fixes; then the rest of Phase 3.
+  Turnstile (needs the owner's keys); CSP enforce and the
+  application_evaluations split (Phase 7); OpenAI spending cap (the owner,
+  later); `npx eslint .` reports 154 old errors (not in CI; none new).
+
 ### 2026-10-24 (later) — Plan re-reviewed; mock-ups; two decisions
 
 - Model: Fable 5.1, high reasoning (the owner switched it for the review).

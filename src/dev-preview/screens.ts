@@ -29,6 +29,7 @@ import {
   APP_ZULU_INTERVIEW_ID,
   APP_ZULU_TYPING_ID,
   CANDIDATE_USER_ID,
+  JOB_CASHIER_DRAFT_ID,
   JOB_FRESH_ID,
   STEP_CHAT_INTERVIEW,
   STEP_CHAT_SIM,
@@ -64,6 +65,7 @@ export const PREVIEW_SCREENS: PreviewScreen[] = [
   { id: "settings", group: "Employer cockpit", label: "Settings", role: "employer", path: "/settings" },
 
   // ------------------------------- employer cockpit: one live role, nobody yet
+  { id: "email-check-publish", group: "Employer cockpit", label: "Publish before confirming the email (code is 123456)", role: "employer", path: `/jobs/edit/${JOB_CASHIER_DRAFT_ID}?__previewEmailCheck=1` },
   { id: "fresh-dashboard", group: "New account (1 live role, 0 applicants)", label: "Dashboard", role: "employer", path: "/dashboard?__previewScenario=fresh" },
   { id: "fresh-jobs", group: "New account (1 live role, 0 applicants)", label: "Jobs", role: "employer", path: "/jobs?__previewScenario=fresh" },
   { id: "fresh-applicants", group: "New account (1 live role, 0 applicants)", label: "Applicants (via Open)", role: "employer", path: `/applicants?roleId=${JOB_FRESH_ID}&__previewScenario=fresh` },

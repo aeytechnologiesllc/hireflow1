@@ -71,13 +71,16 @@ const US_STATE_NAME_HINT = /,\s*(alabama|alaska|arizona|arkansas|california|colo
 /**
  * Mirrors api/job-feed.mjs remoteCountryCode. The country a REMOTE job names in its location text, for a job with no
  * stored country ("Remote - Philippines", "Remote (Canada only)"). Country
- * names only, plus USA / U.S. / UK: a bare "us" ("work with us") is never a
- * country here. Two different countries, or none, give null: "Remote
- * (worldwide)" still has no country and stays out (2026-10-25;
- * docs/LAUNCH-PLAN.md, Phase 2, task 7).
+ * names only, plus USA / U.S. / UK and a capital "US": a lower-case "us"
+ * ("work with us") is never a country here. Two different countries, or
+ * none, give null: "Remote (worldwide)" still has no country and stays out.
+ * Text that rules a country out ("not open to India", "except Canada",
+ * "outside the US") gives null too: the country it names is the one it is
+ * not for (2026-10-25; docs/LAUNCH-PLAN.md, Phase 2, task 7).
  */
 const REMOTE_COUNTRY_NAMES: Array<[RegExp, string]> = [
   [/\bunited states(?: of america)?\b|\busa\b|\bu\.s\.a?\.?(?=\s|$|[),;])/i, "US"],
+  [/(?<![A-Za-z])US(?![A-Za-z])/, "US"],
   [/\bphilippines\b/i, "PH"],
   [/\bcanada\b/i, "CA"],
   [/\bunited kingdom\b|\buk\b|\bgreat britain\b/i, "GB"],
@@ -94,6 +97,7 @@ const REMOTE_COUNTRY_NAMES: Array<[RegExp, string]> = [
 
 export function remoteCountryCode(locationText?: string | null): string | null {
   const text = String(locationText ?? "");
+  if (/\b(not|except|excluding|outside|no)\b/i.test(text)) return null;
   const found = new Set(REMOTE_COUNTRY_NAMES.filter(([re]) => re.test(text)).map(([, code]) => code));
   return found.size === 1 ? [...found][0] : null;
 }

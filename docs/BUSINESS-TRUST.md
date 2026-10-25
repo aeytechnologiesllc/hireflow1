@@ -32,6 +32,40 @@ hiring app to check a business's tax number, so there is no TIN check.
 - The `new` status is still allowed in the table but nothing sets it; the
   ID-paper gate for it (`id_requests_need_approval`) is unreachable.
 
+## A business confirms its email before its first job goes live (2026-10-25)
+
+Supabase confirms nobody's address here (`mailer_autoconfirm` is on so
+applicants are never slowed down), so a business could sign up with anyone's
+address and put a job live under it. At its first Publish a business gets a
+6-digit code at its sign-in address and enters it once
+(`20261025100000_business_email_check.sql`, hardened by
+`20261025130000_business_email_check_hardening.sql`; proof in
+`scripts/business_email_check.pglite.test.mjs`):
+
+- `jobs_publish_needs_email_check` refuses a job going to `published` (a new
+  job, or any other status turning into it, closed included) unless
+  `business_email_verified(job's business)`: the profile's stamp
+  (`email_verified_at`) for the address it confirmed (`email_verified_for`)
+  while that is still the sign-in address, or a Google sign-in, or a platform
+  admin. HINT `email_not_verified`; the job editor and Ava's publish open
+  "Confirm your email" on it (`src/components/business/EmailCheckDialog.tsx`)
+  and carry on with the publish once confirmed. Service-role writes pass.
+- The code: only a business account (the employer role) gets one; made by the
+  database from a strong random source, only its hash kept, 15 minutes, five
+  wrong tries, for the address it was sent to only. Limits are in the
+  database (per account, per inbox however written, for everyone) and in
+  send-notification-email (per IP). See docs/NOTIFICATION-EMAILS.md.
+- Nobody stamps themself: an API write to `email_verified_at` or
+  `email_verified_for` keeps the old value.
+- Changing the sign-in address ends the stamp until the new address is
+  confirmed.
+- Applicants are never asked. Team members cannot confirm the owner's address
+  (they are told the owner must). A wrong address at sign-up is not a dead
+  end: the screen points to Help.
+- The 15 business accounts that existed on 2026-10-25 were stamped (all
+  pre-launch accounts; the plan's narrower "active since October" would have
+  stamped only the owner's).
+
 ## Applications only to open jobs
 
 Until 2026-10-11 the database accepted an application to a closed or draft job

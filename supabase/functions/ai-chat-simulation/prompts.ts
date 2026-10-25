@@ -43,8 +43,10 @@ import { withCounterpart } from "../_shared/counterpart.ts";
  *  applicant's lines (docs/TYPING-IN-CHAT.md, typosPer100Words).
  *  5 (2026-10-25): the lead review uses the business's own word ("customer",
  *  or "player" for the owner's own business; _shared/counterpart.ts), focus
- *  labels included. */
-export const EVAL_PROMPT_VERSION = "chat-sim-eval-5";
+ *  labels included.
+ *  6 (2026-10-25): the business's own case text, job title and customer name
+ *  are no longer swapped with it. */
+export const EVAL_PROMPT_VERSION = "chat-sim-eval-6";
 
 /** Which rubric marks the chat: the escalated lead one, or the support-agent one. */
 export type PracticeRubric = "team_lead" | "support_agent";
@@ -378,18 +380,27 @@ export function evaluatorPromptFor(input: EvaluatorInput): string {
 
   if (input.rubric === "team_lead") {
     // Written for players (the owner's own gaming jobs); any other business
-    // reads "customer" throughout (counterpartFor). Everything inside says
-    // "player", focus labels included, so the one swap below covers it all.
-    return withCounterpart(`You review one practice chat from a hiring test for the job "${jobTitle || "team leader"}"${stepName}. You work for the employer. You are a strict, fair reviewer, not a person in the chat.
+    // reads "customer" throughout (counterpartFor). Everything of OURS says
+    // "player", focus labels included, so one swap covers it; what the
+    // business wrote (its job title, step name, case and customer name) is
+    // held aside and put back after the swap, untouched: a case saying "team
+    // player" must not become "team customer" (second Pass C review).
+    const held = new Map<string, string>();
+    const hold = (text: string): string => {
+      const token = `\u0000${held.size}\u0000`;
+      held.set(token, text);
+      return token;
+    };
+    const prompt = withCounterpart(`You review one practice chat from a hiring test for the job "${hold(jobTitle || "team leader")}"${hold(stepName)}. You work for the employer. You are a strict, fair reviewer, not a person in the chat.
 
 THE SET-UP
-The applicant played a TEAM LEADER (lines marked LEAD) who took over a player's chat after one of their agents handled it badly. The player, ${customerName}, is marked PLAYER and was played by the test. Every line is numbered.
+The applicant played a TEAM LEADER (lines marked LEAD) who took over a player's chat after one of their agents handled it badly. The player, ${input.customerName ? hold(customerName) : "the player"}, is marked PLAYER and was played by the test. Every line is numbered.
 
 THE SITUATION (the applicant read this before starting):
-${situation}
+${hold(situation)}
 
 WHAT THE TEAM LEADER KNOWS (the only true facts; everything the lead says must match them):
-${leaderKnows ?? "Not given separately: use the facts in the situation above."}
+${hold(leaderKnows ?? "Not given separately: use the facts in the situation above.")}
 
 ${focusBlock(input.focus, "player")}
 
@@ -428,6 +439,9 @@ ${spellingJson("LEAD")}
   "improvements": ["<1 to 3 short points about the work>"],
   "overallFeedback": "<2 sentences for the hiring team>"
 }`, input.counterpart ?? "customer");
+    let out = prompt;
+    for (const [token, text] of held) out = out.split(token).join(text);
+    return out;
   }
 
   return `You review one practice chat from a hiring test for the job "${jobTitle || "support agent"}"${stepName}. You work for the employer. You are a strict, fair reviewer, not a person in the chat.

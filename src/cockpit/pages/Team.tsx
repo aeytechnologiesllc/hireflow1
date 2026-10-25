@@ -279,7 +279,7 @@ export default function CockpitTeam() {
 
           <div className="ck-inset mt-4 flex items-start gap-2.5 p-3.5">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--hf-green)" }} />
-            <p className="text-[12.5px]" style={{ color: "var(--hf-text-soft)" }}>Owner (Full Admin) has all permissions and can manage billing, team access, and organization settings.</p>
+            <p className="text-[12.5px]" style={{ color: "var(--hf-text-soft)" }}>Owner (Full Admin) has every permission and manages team access and the business's settings.</p>
           </div>
         </div>
       </div>

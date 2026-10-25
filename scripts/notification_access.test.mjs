@@ -246,6 +246,12 @@ function client() {
   };
   return {
     from,
+    // The database's code maker (issue_business_email_code), answered by the world.
+    rpc: async (fn, args) => {
+      if (world.databaseDown) return { data: null, error: { message: "stand-in: database down" } };
+      const answer = world.rpcs?.[fn];
+      return answer ? { data: answer(args), error: null } : { data: null, error: { message: `stand-in: no ${fn}` } };
+    },
     auth: {
       getUser: async (token) => {
         const userId = world.tokens[token];
@@ -725,6 +731,39 @@ void quiet;
   check("'Email me the link' is unchanged: to the signed-in applicant, looked up", r.status === 200 && show(world.sent[0]?.to) === show([emailOf(ANA)]) && textOf(world.sent[0]).includes(`for the ${TITLE_A} role`), show(r));
   r = await hush(async () => (reset(), ask(SERVICE_KEY, { type: "continue_on_computer", recipient_user_id: ANA, data: { application_id: id(201) } })));
   check("…and it is not the system's to send for someone", r.status === 401 && world.sent.length === 0, show(r));
+
+  // The email-check code (docs/LAUNCH-PLAN.md, Phase 2, task 4), run for real
+  // against the stand-ins: the signed-in caller's own address, the
+  // database's code, nothing from the request, no name, a per-IP limit.
+  const issued = [];
+  const codeWorld = (answer) => (w) => {
+    w.rpcs = { issue_business_email_code: (args) => (issued.push(args), answer) };
+    w.profiles.find((p) => p.user_id === OWNER).full_name = "hireflow-verify.example/login Owner";
+  };
+  r = await hush(async () => (reset(codeWorld({ ok: true, code: "042917" })), ask("tok-owner", { type: "business_email_code", recipient_user_id: ANA, data: { code: "111111", email: "victim@example.com" } })));
+  const codeMail = world.sent[0];
+  check("the code: sent to the signed-in caller's own address, not the request's", r.status === 200 && show(codeMail?.to) === show([emailOf(OWNER)]) && issued.at(-1)?.p_user === OWNER, show({ r, to: codeMail?.to }));
+  check("…with the database's code, never one from the request", textOf(codeMail).includes("042917") && !textOf(codeMail).includes("111111") && codeMail?.subject === "Your HireFlow code: 042917");
+  check("…and nothing the account typed (no name)", !/hireflow-verify|Owner/.test(textOf(codeMail)), textOf(codeMail).slice(0, 200));
+  check("…and neither the code nor the address in the answer", r.body && !JSON.stringify(r.body).includes("042917") && !JSON.stringify(r.body).includes(emailOf(OWNER)), show(r.body));
+  r = await hush(async () => (reset(codeWorld({ ok: true, code: "042917" })), ask(SERVICE_KEY, { type: "business_email_code", recipient_user_id: OWNER, data: {} })));
+  check("…the system cannot send one for someone either", r.status === 401 && world.sent.length === 0, show(r));
+  r = await hush(async () => (reset(codeWorld({ ok: false, reason: "too_soon", retry_after: 42 })), ask("tok-owner", { type: "business_email_code" })));
+  check("…the database's 'too soon' is a 429 with the wait, and nothing is sent", r.status === 429 && r.body?.code === "too_soon" && r.retryAfter === "42" && world.sent.length === 0, show(r));
+  r = await hush(async () => (reset(codeWorld({ ok: false, reason: "not_a_business" })), ask("tok-ana", { type: "business_email_code" })));
+  check("…an applicant account gets none", r.status === 403 && r.body?.code === "not_a_business" && world.sent.length === 0, show(r));
+  r = await hush(async () => (reset((w) => { w.databaseDown = true; }), ask("tok-owner", { type: "business_email_code" })));
+  check("…a database it cannot ask sends nothing", r.status === 503 && world.sent.length === 0, show(r));
+  r = await hush(async () => {
+    reset(codeWorld({ ok: true, code: "042917" }));
+    let last = null;
+    for (let i = 0; i < 11; i += 1) {
+      world.sent = [];
+      last = await ask("tok-owner", { type: "business_email_code" });
+    }
+    return last;
+  });
+  check("…ten an hour from one network: the eleventh is refused", r.status === 429 && world.sent.length === 0, show(r));
 }
 check("nothing in any of this reached outside the stand-ins", world.outside.length === 0 && globalThis.__world.outside.length === 0);
 globalThis.fetch = realFetch;

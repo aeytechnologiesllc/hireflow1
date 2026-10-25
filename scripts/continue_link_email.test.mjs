@@ -266,7 +266,7 @@ console.log("\nThe wiring:\n");
   const gate = fn.slice(gateAt, profileAt);
   check("who is asking comes from their own sign-in, not from the request", /supabase\.auth\.getUser\(token\)/.test(gate) && /req\.headers\.get\("Authorization"\)/.test(gate));
   check("the application is read with its applicant, its status and its job's own team", /\.from\("applications"\)\s*\.select\("id, candidate_id, status, jobs\(title, employer_id\)"\)\s*\.eq\("id", applicationId\)/.test(gate));
-  check("the limiter is the shared one", /checkLimit: checkRateLimit,/.test(gate) && /import \{ checkRateLimit \} from "\.\.\/_shared\/rateLimit\.ts";/.test(fn));
+  check("the limiter is the shared one", /checkLimit: checkRateLimit,/.test(gate) && /import \{[^}]*\bcheckRateLimit\b[^}]*\} from "\.\.\/_shared\/rateLimit\.ts";/.test(fn));
   check("a refusal answers there and then: nothing below it runs", /if \(!decision\.ok\) \{[\s\S]*?return new Response\(/.test(gate));
   check("then the recipient and the data are REPLACED by what was decided", /recipient_user_id = decision\.recipientUserId;\s*data = decision\.data;/.test(gate));
   const template = /continue_on_computer: \(\(\) => \{[\s\S]*?\}\)\(\),/.exec(fn)?.[0] ?? "";

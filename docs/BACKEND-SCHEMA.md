@@ -66,6 +66,7 @@ these buckets by a permanent public URL any more.
 
 - `has_role`, `get_user_role`, `is_job_owner`, `is_active_team_member_for_job` — caller-scoped checks used across RLS policies and edge functions; each answers only about the calling user (`docs/` migrations `20260915131000_rpc_caller_checks.sql`, `20260915141000_job_owner_rpc_caller_checks.sql`)
 - `protect_application_columns`, `protect_document_columns` — triggers that block a client write from forging server-owned columns (scores, signing state)
+- The business email check (2026-10-25; docs/BUSINESS-TRUST.md): `profiles.email_verified_at` / `email_verified_for` (server-written only, trigger `profiles_email_verified_from_server`); `private.business_email_codes` and `private.business_email_code_sends` (no client access); `issue_business_email_code` (service role only), `verify_business_email_code` and `my_business_email_verified` (signed in), `business_email_verified` (internal); trigger `jobs_publish_needs_email_check` on `jobs`
 - `job_limit_for_user` / `subscription_plan_for_limits` — billing limit lookups, currently relaxed to unlimited while Stripe is off (`20260904110000_free_tier_open.sql`)
 
 ## Reachable without sign-in (2026-10-25)

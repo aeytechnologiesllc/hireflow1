@@ -61,7 +61,7 @@ function matches(row: FixtureRow, col: string, op: FilterOp, val: unknown): bool
 
 interface PostgrestResult<T = unknown> {
   data: T;
-  error: { message: string; code?: string } | null;
+  error: { message: string; code?: string; hint?: string } | null;
   count?: number | null;
 }
 
@@ -86,6 +86,7 @@ class FixtureQueryBuilder implements PromiseLike<PostgrestResult> {
   constructor(
     private readonly table: string,
     private readonly tables: FixtureTables,
+    private readonly refuseWrite?: FixtureClientOptions["refuseWrite"],
   ) {
     if (!this.tables[table]) this.tables[table] = [];
   }
@@ -170,6 +171,11 @@ class FixtureQueryBuilder implements PromiseLike<PostgrestResult> {
         return { data: removed, error: null };
       }
       const incoming = Array.isArray(this.mutation.payload) ? this.mutation.payload : [this.mutation.payload];
+      // A database rule a screen needs to be seen refusing (a trigger's error).
+      for (const payload of incoming as FixtureRow[]) {
+        const refused = this.refuseWrite?.(this.table, this.mutation.type, payload);
+        if (refused) return { data: null, error: refused };
+      }
       const written: FixtureRow[] = [];
       for (const payload of incoming as FixtureRow[]) {
         if (this.mutation.type === "insert") {
@@ -233,6 +239,8 @@ export interface FixtureClientOptions {
   user: FixtureAuthUser | null;
   tables: FixtureTables;
   rpc?: Record<string, (args: unknown) => unknown>;
+  /** A write the stand-in database refuses, the way a real trigger would. */
+  refuseWrite?: (table: string, type: "insert" | "update" | "upsert", payload: FixtureRow) => { message: string; code?: string; hint?: string } | null;
 }
 
 function buildSession(user: FixtureAuthUser) {
@@ -326,7 +334,7 @@ export function createFixtureSupabaseClient(opts: FixtureClientOptions) {
       // in step with its writes. applications_staff_list is applications
       // with the notes' server-only parts left out (migration
       // 20261011201000); the fixtures never had those parts.
-      return new FixtureQueryBuilder(VIEW_OF[table] ?? table, opts.tables);
+      return new FixtureQueryBuilder(VIEW_OF[table] ?? table, opts.tables, opts.refuseWrite);
     },
     rpc(name: string, args?: unknown) {
       const handler = opts.rpc?.[name];

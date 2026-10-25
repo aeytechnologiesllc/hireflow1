@@ -48,6 +48,7 @@ export function sendCodeOutcome(status: number | null | undefined, body: unknown
     return { kind: "wait", seconds, message };
   }
   if (status === 401) return { kind: "signed_out", message };
+  // 403 (not a business account), 404 (no address), 5xx: the function's own words.
   return { kind: "failed", message: status ? message : TRY_AGAIN };
 }
 
@@ -64,6 +65,10 @@ export function verifyOutcome(result: unknown): VerifyOutcome {
     }
     case "expired":
       return { kind: "expired", message: "That code has expired. Send a new one." };
+    case "used_up":
+      return { kind: "expired", message: "That code is used up after five wrong tries. Send a new one." };
+    case "address_changed":
+      return { kind: "expired", message: "Your sign-in email changed after that code was sent. Send a new one." };
     case "no_code":
       return { kind: "expired", message: "Send a code first." };
     case "not_signed_in":
@@ -91,7 +96,8 @@ export const EMAIL_CHECK_WORDS = {
   confirm: "Confirm and publish",
   confirming: "Checking…",
   resend: "Send a new code",
-  resendIn: (seconds: number) => `Send a new code in ${seconds}s`,
+  resendIn: (seconds: number) => (seconds > 90 ? `Send a new code in ${Math.ceil(seconds / 60)} min` : `Send a new code in ${seconds}s`),
   spam: "Not there? Check spam, or send a new code.",
+  wrongAddress: "Not your address? Message us from Help and we'll sort it out.",
   done: "Email confirmed.",
 } as const;

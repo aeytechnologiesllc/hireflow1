@@ -20,12 +20,16 @@
 --   - jobs_publish_needs_email_check refuses a job going to "published"
 --     (insert, or update from any other status) unless the job's business
 --     passes, with HINT 'email_not_verified' so the page can open the code
---     screen (src/lib/emailCheck.ts). The system's own writes pass.
+--     screen (src/lib/emailCheck.ts). Service-role writes pass (a write as
+--     postgres with no sign-in, such as a cron job, is checked like any other).
 --   - profiles.email_verified_at is the server's: a write through the API
 --     keeps the old value, the way profiles.email does (20261025040000).
 --
--- The 15 business accounts that exist today were never asked and are
--- stamped now, so nothing changes for them. published_jobs_public is left as
+-- Every account with the employer role today (15, all from before launch)
+-- was never asked and is stamped now, so nothing changes for them. (The plan
+-- said "the 15 that published or signed in since October"; only the owner's
+-- met that, and the others are pre-launch accounts too.) Hardened later by
+-- 20261025130000_business_email_check_hardening.sql. published_jobs_public is left as
 -- it is: every way a job becomes published passes through this trigger, so
 -- a filter there would only hide jobs this rule already let through.
 

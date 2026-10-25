@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect, memo } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCreateInterview, useInterviews } from "@/hooks/useInterviews";
 import { clashAt, clashWords, type BusyInterview } from "@/lib/interviewClash";
 import { atClock, firstDayWithTimes, timesLeftOn } from "@/lib/interviewOfferDays";
@@ -274,6 +274,18 @@ export default function InterviewSchedulingWizard({
   const [isGoogleConnected, setIsGoogleConnected] = useState(false);
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
+  // Is Google set up on the server too? The site's client id alone is not
+  // enough: without the server's keys the button went through Google's
+  // consent screen and then failed (google-calendar "status").
+  const { data: googleReady = false } = useQuery({
+    queryKey: ["google-calendar-status"],
+    enabled: Boolean(GOOGLE_CLIENT_ID),
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("google-calendar", { body: { action: "status" } });
+      return !error && (data as { configured?: unknown } | null)?.configured === true;
+    },
+  });
   const [isCreating, setIsCreating] = useState(false);
   const [createdMeetLink, setCreatedMeetLink] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -1784,9 +1796,9 @@ export default function InterviewSchedulingWizard({
                     {interviewType === "video" && exactTimeMode && (
                       <>
                         {/* Google Calendar Connection: only when the site has a Google client
-                            (VITE_GOOGLE_CLIENT_ID). Without one the button could only say
-                            it can't connect (docs/LAUNCH-PLAN.md, Phase 2, task 7). */}
-                        {GOOGLE_CLIENT_ID && (
+                            (VITE_GOOGLE_CLIENT_ID) and the server has its keys (googleReady).
+                            Otherwise the button could only fail (docs/LAUNCH-PLAN.md, Phase 2, task 7). */}
+                        {GOOGLE_CLIENT_ID && googleReady && (
                           <div className="p-4 rounded-lg border border-border bg-card">
                             <div className="flex items-start gap-4">
                               <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ background: "var(--gradient-primary)" }}>

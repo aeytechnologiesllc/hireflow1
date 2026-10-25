@@ -392,10 +392,10 @@ cannot change it at all, full stop.
 
 ## `voice_interview` is special
 
-Until October 2026 `VoiceInterviewPhase.tsx` wrote
-`applications.voice_interview_transcript` from the browser, after
-`voice_interview_result` had been set server-side, so the flag could not be
-flipped without moving that write first. That write is gone: the transcript
+`VoiceInterviewPhase.tsx` once wrote `applications.voice_interview_transcript`
+from the browser, after `voice_interview_result` had been set server-side, so
+the flag could not be flipped until that write moved. It moved before the
+flag was flipped (above): the transcript
 is written by `ava-voice-tools` (service role) and
 `submit_voice_interview_manual_end` (its own `hireflow.in_voice_interview_submit`
 flag), and since 2026-10-25 an applicant cannot write it at all, whatever the
@@ -405,8 +405,8 @@ into this project's own `voice-interview-recordings` bucket, under their own
 application's folder: exactly what `useVideoInterviewRecorder.ts` writes
 after the upload (`20261025110000_voice_recording_this_project.sql`; the
 first version accepted any Supabase project's host). Anything else is
-refused. If `voiceInterviewResult` is ever flipped on, nothing in the
-candidate's own interview-end flow writes a column the flag blocks.
+refused. `voiceInterviewResult` is enforced (see above), and nothing in the
+candidate's own interview-end flow writes a column it blocks.
 
 ## What an applicant's own call can and cannot do (2026-10-25)
 
