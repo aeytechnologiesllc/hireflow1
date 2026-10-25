@@ -907,6 +907,42 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
 
+### 2026-10-25 (morning) — Phase 6 built and live; Phase 5 round 2; Phase 4 round 4
+
+- **Phase 6, built and live (docs/BLOG.md):** scripts/build-blog.mjs turns
+  content/blog/*.md into plain pages in the front page's look, run by `npm
+  run build`; /blog, seven guides and three drafts for the owner (cost per
+  agent, the owner's team-lead hire, hiring from the Philippines); RSS feed
+  and blog-sitemap.xml (in robots.txt); "Guides" in the front page's bar and
+  footer; `blog` reserved. Checked live with Googlebot, facebookexternalhit
+  and a plain browser (title, canonical, Open Graph, tagged button). Found
+  live and fixed: an unknown /blog address answered with the app's shell
+  (now a noindex "guide not found" page), and the page counter redacted every
+  guide's address as a token (words joined by hyphens are kept now; proved
+  live). Guards `blog-slug-reserved`, `blog-pages-have-cta-and-tags`; test
+  `build_blog.test.mjs`. Fresh review of the phase running.
+- **Phase 5, Pass C round 2** (13 findings, 44b1b17d): job-writing AI was
+  open to any account, applicants' included, each on its own daily budget
+  (now hiring accounts only, billed to the business, 40 an hour per
+  account); Contact us moved to /contact (/help is staff-only on the staff
+  host) and answers link there; deleting a blocked applicant's last
+  application removes the block; the per-application practice cap answers
+  with the calm reply; the rate-limit table keeps two days and is pruned
+  hourly (it was never pruned); an empty chat reply never calls the model;
+  file removal steps fail on their own; the day's limit says "later today or
+  tomorrow"; the guard reads the live budget definition and counts direct
+  OpenAI requests; the legal pages no longer send privacy questions to
+  Messages and say the company forwards deletion requests to the business.
+  Migrations rate_limit_prune (20261025074755) and
+  remove_applicant_help_review2 (20261025074829), verified live.
+- **Phase 4, Pass C round 4** (a9e3c4a1, 977c064a): Ava now asks "What kind
+  of job is it?" first, starting on her guess, so a wrong guess costs one
+  click (four rounds of word rules still misread titles both ways); the
+  guess reads the title's role noun; the channel guess lets the title lead;
+  reviewer text keeps only plain characters (a closed rule, after four
+  rounds of look-alike colons). A CI failure from a route list was fixed in
+  the same push; from now on the full suite runs before every push.
+
 ### 2026-10-25 (early morning) — Phase 4 round 3; Phase 5 Pass C round 1
 
 - **Phase 4, Pass C round 3** (8 findings, all fixed, c1839ab8): role nouns
