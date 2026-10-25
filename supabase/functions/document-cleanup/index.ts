@@ -98,6 +98,7 @@ Deno.serve(async (req) => {
   const { data: trash, error: trashError } = await admin.from("document_file_trash").select("id, candidate_id, request_id, file_url").limit(200);
   if (trashError) console.error("[document-cleanup] could not read the trash:", trashError.message);
   let orphans = 0;
+  let orphansFailed = 0;
   for (const note of trash ?? []) {
     const folder = `${note.candidate_id}/${note.request_id}`;
     const file = String(note.file_url ?? "");
@@ -107,7 +108,7 @@ Deno.serve(async (req) => {
     if (paths.length > 0) {
       const { error: removeError } = await admin.storage.from(BUCKET).remove(paths);
       if (removeError) {
-        counts.failed += 1;
+        orphansFailed += 1;
         console.error(`[document-cleanup] could not delete the file of deleted request ${note.request_id}:`, removeError.message);
         continue;
       }
@@ -163,27 +164,30 @@ Deno.serve(async (req) => {
   // queues ran), so a lasting error shows in the scheduler's history instead
   // of quietly stopping the 24-hour deletion (the third Phase 5 review).
   // The scheduler's history only shows the request was sent, so the platform
-  // admins are told in the app, once a day, when the requests could not be
-  // read (the fourth Phase 5 review) or an ID file could not be deleted (the
-  // fifth: a lasting storage failure, or a file outside the applicant's own
-  // folder, would quietly break the 24-hour promise).
-  if (error || counts.failed > 0) {
+  // admins are told in the app, once a day for each kind: when the requests
+  // could not be read (the fourth Phase 5 review: no ID is deleted at all),
+  // and when files could not be deleted (the fifth: an ID past 24 hours, or a
+  // file of a deleted request; the sixth keeps the two apart, so one never
+  // hides the other).
+  const tell = async (title: string, message: string) => {
     const since = new Date(Date.now() - 86_400_000).toISOString();
-    const { count: told } = await admin
-      .from("notifications")
-      .select("id", { count: "exact", head: true })
-      .eq("title", "ID papers were not deleted on time")
-      .gte("created_at", since);
-    if (!told) {
-      const message = error
-        ? `document-cleanup could not read the ID-paper requests: ${String(error.message ?? error).slice(0, 200)}. The 24-hour deletion waits until it can.`
-        : `document-cleanup could not delete ${counts.failed} ID file${counts.failed === 1 ? "" : "s"} past 24 hours (see its logs). It tries again on every run.`;
-      const { data: admins } = await admin.from("platform_admins").select("user_id");
-      for (const a of admins ?? []) {
-        await admin.from("notifications").insert({ user_id: a.user_id, type: "system", title: "ID papers were not deleted on time", message, is_read: false });
-      }
+    const { count: told } = await admin.from("notifications").select("id", { count: "exact", head: true }).eq("title", title).gte("created_at", since);
+    if (told) return;
+    const { data: admins } = await admin.from("platform_admins").select("user_id");
+    for (const a of admins ?? []) {
+      await admin.from("notifications").insert({ user_id: a.user_id, type: "system", title, message, is_read: false });
     }
-    if (error) return json({ error: "read_failed", ...counts, orphans, leftoversRemoved, leftoversFailed }, 500);
+  };
+  if (error) {
+    await tell("ID papers are not being deleted", `document-cleanup could not read the ID-paper requests: ${String(error.message ?? error).slice(0, 200)}. No ID is deleted until it can; it tries again every hour.`);
+    return json({ error: "read_failed", ...counts, orphans, orphansFailed, leftoversRemoved, leftoversFailed }, 500);
   }
-  return json({ ok: counts.failed === 0, ...counts, orphans, leftoversRemoved, leftoversFailed });
+  if (counts.failed > 0 || orphansFailed > 0) {
+    const parts = [
+      counts.failed > 0 ? `${counts.failed} ID file${counts.failed === 1 ? "" : "s"} past 24 hours` : "",
+      orphansFailed > 0 ? `${orphansFailed} file${orphansFailed === 1 ? "" : "s"} of deleted requests` : "",
+    ].filter(Boolean);
+    await tell("ID papers were not deleted on time", `document-cleanup could not delete ${parts.join(" and ")} (see its logs). It tries again on every run.`);
+  }
+  return json({ ok: counts.failed === 0 && orphansFailed === 0, ...counts, orphans, orphansFailed, leftoversRemoved, leftoversFailed });
 });

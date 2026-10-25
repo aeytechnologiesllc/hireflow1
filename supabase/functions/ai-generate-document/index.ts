@@ -330,7 +330,7 @@ Generate the complete, professionally formatted document now:`;
       // Phase 5 review: it reached the business as a bare server error).
       if (isAiUnavailable(error)) {
         const message = error.reason === "budget_reached"
-          ? "Ava's writing help for your account is used up for today. It starts again at midnight UTC; a new account gets the full day once it confirms its email (press Publish on a job)."
+          ? "Ava's writing help is used up for today. It starts again at midnight UTC."
           : "Writing documents is unavailable right now. Please try again in a few minutes.";
         return new Response(JSON.stringify({ error: message, code: error.reason }), {
           status: 503,

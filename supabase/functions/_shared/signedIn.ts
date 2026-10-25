@@ -52,20 +52,9 @@ export async function jobWritingBusiness(userId: string): Promise<string | null>
   }
 }
 
-/**
- * The business a signed-in account sends documents for, or null: its own as
- * a business owner, or the business whose team it is on when it may send
- * documents (the same permission the app's Documents page and hire dialog
- * ask for). For document AI (writing a document, finding its signing
- * fields): an applicant's account spent there on its own daily budget (the
- * third Phase 5 review), and a teammate without the permission could still
- * spend their business's day (the fourth).
- */
-/**
- * Why hiringBusiness said no, in the caller's words: a teammate whose role
+/** Why hiringBusiness said no, in the caller's words: a teammate whose role
  * does not include documents is told so, anyone else that it is for hiring
- * accounts (the fifth Phase 5 review).
- */
+ * accounts (the fifth Phase 5 review). */
 export async function hiringBusinessRefusal(userId: string): Promise<string> {
   const url = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -81,6 +70,15 @@ export async function hiringBusinessRefusal(userId: string): Promise<string> {
   return "Only a hiring account can do this.";
 }
 
+/**
+ * The business a signed-in account sends documents for, or null: its own as
+ * a business owner, or the business whose team it is on when it may send
+ * documents (the same permission the app's Documents page and hire dialog
+ * ask for). For document AI (writing a document, finding its signing
+ * fields): an applicant's account spent there on its own daily budget (the
+ * third Phase 5 review), and a teammate without the permission could still
+ * spend their business's day (the fourth).
+ */
 export async function hiringBusiness(userId: string): Promise<string | null> {
   const url = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -94,8 +92,10 @@ export async function hiringBusiness(userId: string): Promise<string | null> {
       .select("employer_id")
       .eq("user_id", userId)
       .eq("status", "active")
-      // An unset permission reads as allowed, as the app's own check does (useTeamMemberPermissions).
-      .or("can_send_documents.is.null,can_send_documents.eq.true")
+      // Only an explicit yes, as the database's own document rules require
+      // (tm.can_send_documents = true): an unset one would spend the day on
+      // drafts it could never send (the sixth Phase 5 review).
+      .eq("can_send_documents", true)
       .limit(1)
       .maybeSingle();
     return typeof team?.employer_id === "string" ? team.employer_id : null;

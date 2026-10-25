@@ -29,10 +29,26 @@ export function resumeFilesToRemove(candidateId: string, resumeUrl: unknown, not
   const own = storagePathIn(resumeUrl, "resumes");
   if (own && own.startsWith(`${candidateId}/`)) found.add(own);
   const escaped = candidateId.replace(/[-]/g, "\\-");
-  // A file name may have spaces or accents ("Scan 2026"): a path runs to the
-  // next quote, backslash, angle bracket or line end (the fourth Phase 5
-  // review), and stops at a query or a list ("?token=", "&", ", next/path"; the fifth).
-  for (const m of String(notes ?? "").matchAll(new RegExp(`${escaped}/[^"'\\\\<>\\r\\n?#&,]{1,400}`, "g"))) found.add(m[0].replace(/\s+$/, ""));
+  // A file name may have spaces, accents, commas or "&" ("Scan 2026", "CV, final",
+  // "Smith & Co"; a name without a dot is kept whole): a path runs to the next
+  // quote, backslash, angle bracket or line end (the fourth and sixth Phase 5
+  // reviews). A list of paths splits at ", <their folder>/", and a signed
+  // address loses its "?token=…" (the fifth); a percent-encoded one is read
+  // both ways.
+  const listSplit = new RegExp(`,\\s*(?=${escaped}/)`);
+  for (const m of String(notes ?? "").matchAll(new RegExp(`${escaped}/[^"'\\\\<>\\r\\n]{1,400}`, "g"))) {
+    for (const piece of m[0].split(listSplit)) {
+      const path = piece.replace(/\?(token|download|t|X-Amz-[A-Za-z-]+)=[\s\S]*$/, "").replace(/[\s,]+$/, "");
+      found.add(path);
+      if (/%[0-9a-f]{2}/i.test(path)) {
+        try {
+          found.add(decodeURIComponent(path));
+        } catch {
+          // not an encoded address after all
+        }
+      }
+    }
+  }
   // Only a plain path inside their own folder: never "..", an empty segment
   // or another folder, whatever the notes (partly their own writing) say.
   const safe = (path: string) => path.startsWith(`${candidateId}/`) && !path.includes("..") && !path.includes("//") && !path.endsWith("/");
