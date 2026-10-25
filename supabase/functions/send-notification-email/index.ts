@@ -8,7 +8,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { declineNoteLines } from "../_shared/declineNote.ts";
 import { welcomeTodo, type WelcomeTodo } from "../_shared/welcomeTodo.ts";
 import { CONTINUE_ON_COMPUTER_TYPE, continueOnComputerEmail, decideContinueLinkEmail } from "../_shared/continueOnComputerEmail.ts";
-import { BUSINESS_EMAIL_CODE_TYPE, businessEmailCodeEmail, readIssuedCode } from "../_shared/businessEmailCode.ts";
+import { BUSINESS_EMAIL_CODE_TYPE, businessEmailCodeEmail, readIssuedCode, waitWords } from "../_shared/businessEmailCode.ts";
 import { callerId as callerIp, checkRateLimit } from "../_shared/rateLimit.ts";
 import {
   NOTIFICATION_RULES,
@@ -903,7 +903,7 @@ const handler = async (req: Request): Promise<Response> => {
       // for everyone).
       const ipLimit = await checkRateLimit("business-email-code-ip", callerIp(req), 20, 3600);
       if (!ipLimit.allowed) {
-        return refuse(429, { error: "That's a lot of codes from here. Try again in an hour.", code: "too_many", retryAfter: ipLimit.retryAfter }, ipLimit.retryAfter);
+        return refuse(429, { error: `That's a lot of codes from here. You can ask again in ${waitWords(ipLimit.retryAfter || 3600)}.`, code: "too_many", retryAfter: ipLimit.retryAfter }, ipLimit.retryAfter);
       }
       const { data: issuedRow, error: issueError } = await supabase.rpc("issue_business_email_code", { p_user: caller.id });
       if (issueError) console.error("[send-notification-email] business_email_code: could not make a code:", issueError.message);

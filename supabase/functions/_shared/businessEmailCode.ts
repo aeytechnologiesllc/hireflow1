@@ -47,7 +47,7 @@ export type BusinessEmailCodeAnswer =
   | { ok: true; code: string; email: string }
   | { ok: false; status: 200 | 401 | 403 | 404 | 429 | 503; code: string; error: string; retryAfter?: number };
 
-function waitWords(seconds: number): string {
+export function waitWords(seconds: number): string {
   if (seconds <= 60) return `${Math.max(1, seconds)} second${seconds === 1 ? "" : "s"}`;
   const minutes = Math.ceil(seconds / 60);
   return `${minutes} minute${minutes === 1 ? "" : "s"}`;

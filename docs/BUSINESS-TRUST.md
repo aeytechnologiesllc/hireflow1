@@ -73,7 +73,7 @@ address and put a job live under it. At its first Publish a business gets a
   every address its own limit, so one inbox there can get twenty codes an
   hour per network, up to the ceiling. A determined sender with many networks
   could also fill the 300-an-hour ceiling. A bot check on sign-up (Cloudflare Turnstile, Phase 2 task 5,
-  waiting on the owner's keys) is the fix for both.
+  waiting on the owner's keys) is the fix for all three.
 - Applicants are never asked. Team members cannot confirm the owner's address
   (they are told the owner must). A wrong address at sign-up is not a dead
   end: the screen points to Help.

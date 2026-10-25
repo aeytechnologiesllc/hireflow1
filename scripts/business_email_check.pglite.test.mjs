@@ -18,14 +18,32 @@
  * Run with: node scripts/business_email_check.pglite.test.mjs
  */
 import { PGlite } from "@electric-sql/pglite";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
-const MIGRATION = path.join(ROOT, "supabase/migrations/20261025100000_business_email_check.sql");
-// The second Pass C review's hardening replaces the same functions.
-const HARDENING = path.join(ROOT, "supabase/migrations/20261025130000_business_email_check_hardening.sql");
-const ROUND3 = path.join(ROOT, "supabase/migrations/20261025140000_business_email_check_round3.sql");
+const MIGRATIONS = path.join(ROOT, "supabase/migrations");
+// Every migration from the check onward that defines, replaces, grants, drops
+// or disables any piece of it (or is_platform_admin, which every publish goes
+// through), applied in order, so a later file that weakens the rule fails the
+// checks below however its SQL is written (the fifth Pass C review found
+// text-matching in the guard could be got round: quoted names, 'select true'
+// bodies, grants on all functions, a disabled or re-made trigger). A file
+// picked up here that needs more of the schema fails loudly: add what it
+// needs to the stub below.
+const TOUCHES_THE_CHECK = new RegExp([
+  String.raw`function\s+[\w."]*?\b(issue_business_email_code|verify_business_email_code|business_email_verified|my_business_email_verified|jobs_publish_needs_email_check|profiles_email_verified_from_server|inbox_key|is_platform_admin)\b`,
+  String.raw`trigger\s+(if\s+exists\s+)?"?(jobs_publish_needs_email_check|profiles_email_verified_from_server)\b`,
+  String.raw`\b(disable|enable)\s+(always\s+|replica\s+)?trigger\b`,
+  String.raw`\bon\s+all\s+functions\s+in\s+schema\b`,
+  String.raw`\bsession_replication_role\b`,
+  String.raw`\bprivate\.business_email_code`,
+  String.raw`\btable\s+[\w."]*?\bplatform_admins\b`,
+].join("|"), "i");
+const LATER = readdirSync(MIGRATIONS)
+  .filter((name) => name.endsWith(".sql") && name >= "20261025100000_business_email_check.sql")
+  .sort()
+  .filter((name) => TOUCHES_THE_CHECK.test(readFileSync(path.join(MIGRATIONS, name), "utf8").replace(/--[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "")));
 const words = await import(path.join(ROOT, "supabase/functions/_shared/businessEmailCode.ts"));
 
 let passed = 0;
@@ -88,9 +106,15 @@ await db.exec(`
   create policy jobs_any on public.jobs for all to authenticated using (true) with check (true);
   grant select, insert, update on public.jobs to authenticated, service_role;
 `);
-await db.exec(readFileSync(MIGRATION, "utf8"));
-await db.exec(readFileSync(HARDENING, "utf8"));
-await db.exec(readFileSync(ROUND3, "utf8"));
+console.log(`\nApplied, in order: ${LATER.join(", ")}\n`);
+for (const name of LATER) {
+  try {
+    await db.exec(readFileSync(path.join(MIGRATIONS, name), "utf8"));
+  } catch (e) {
+    check(`${name} applies on this test's schema (it touches the email check; extend the stub if it needs more)`, false, e.message ?? String(e));
+  }
+}
+check("the three migrations that make the check are among them", ["20261025100000_business_email_check.sql", "20261025130000_business_email_check_hardening.sql", "20261025140000_business_email_check_round3.sql"].every((n) => LATER.includes(n)), LATER.join(", "));
 // Signed up after the migration: never asked yet.
 await db.exec(`insert into public.profiles (user_id, email) values ('${NEW_BIZ}', 'new@biz.test'); insert into public.user_roles values ('${NEW_BIZ}', 'employer');`);
 
@@ -232,8 +256,10 @@ console.log("\nThe hardening (second Pass C review)\n");
     flood.push(r?.ok === true);
     if (!r?.ok) refusal = r;
   }
-  // (One connection here: the advisory locks that keep a parallel burst from
-  // slipping past are checked by the guard, not run concurrently.)
+  // (One connection here, so a parallel burst is not run. That the inbox and
+  // overall locks are taken before the counts are read and the code written
+  // is checked by the publish-requires-verified-email guard, by position in
+  // the function's body; the guard cannot prove the locks' effect.)
   check("eleven new accounts at victim+N@gmail.com: ten codes reach that inbox in an hour, the eleventh does not", flood.slice(0, 10).every(Boolean) && flood[10] === false, JSON.stringify(flood));
   check("…and the wait it gives is the real one, not always an hour", refusal?.reason === "too_many" && refusal.retry_after > 1700 && refusal.retry_after <= 1800, JSON.stringify(refusal));
   await db.exec(`update private.business_email_code_sends set sent_at = sent_at - interval '31 minutes' where address_key = 'victim@gmail.com'`);

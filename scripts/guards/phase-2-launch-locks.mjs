@@ -134,24 +134,58 @@ export default [
       const files = (await walk("supabase/migrations", [".sql"])).sort();
       const latest = new Map();
       // Bodies between their own dollar-quote tags ($$ or $function$), with
-      // "--" comments taken out, so words in a comment or in the next function
-      // never count (fourth Pass C review).
-      const noComments = (sql) => sql.replace(/--[^\n]*/g, "");
+      // "--" and "/* */" comments taken out, so words in a comment or in the
+      // next function never count (fourth and fifth Pass C reviews). Names may
+      // be quoted, pg_dump style ("public"."fn").
+      const noComments = (sql) => sql.replace(/\/\*[\s\S]*?\*\//g, "").replace(/--[^\n]*/g, "");
+      const WATCHED = /^(jobs_publish_needs_email_check|business_email_verified|my_business_email_verified|profiles_email_verified_from_server|issue_business_email_code|verify_business_email_code|inbox_key|is_platform_admin)$/i;
+      const header = /create\s+(?:or\s+replace\s+)?function\s+(?:"?(?:public|private)"?\.)?"?(\w+)"?\s*\(/gi;
+      const trigger = /create\s+(?:or\s+replace\s+)?trigger\s+"?(jobs_publish_needs_email_check|profiles_email_verified_from_server)"?\s+([\s\S]*?)\s+execute\s/gi;
+      const latestTrigger = new Map();
       for (const rel of files) {
-        const text = (await read(rel)) ?? "";
-        const bodies = /create\s+(?:or\s+replace\s+)?function\s+(?:(?:public|private)\.)?"?(\w+)"?\s*\([\s\S]*?\bas\s+(\$\w*\$)([\s\S]*?)\2/gi;
-        for (const m of text.matchAll(bodies)) latest.set(m[1], { rel, text: noComments(m[3]), file: text });
-        // A grant anywhere, in any later file, that lets anyone but the system make a code.
-        if (/grant\s+execute\s+on\s+function\s+(public\.)?issue_business_email_code\s*\([^)]*\)\s+to\s+[^;]*\b(authenticated|anon|public)\b/i.test(noComments(text))) {
-          detail.push(`${rel}: lets someone other than the system make a code (a grant on issue_business_email_code)`);
+        const text = noComments((await read(rel)) ?? "");
+        for (const h of text.matchAll(header)) {
+          const name = h[1].toLowerCase();
+          const rest = text.slice(h.index);
+          const body = /^[\s\S]*?\bas\s+(\$\w*\$)([\s\S]*?)\1/i.exec(rest);
+          const nextHeader = rest.slice(1).search(/create\s+(?:or\s+replace\s+)?function\s/i);
+          if (!body || (nextHeader >= 0 && body.index + body[0].length > nextHeader + 1)) {
+            if (WATCHED.test(name)) detail.push(`${rel}: ${name} is defined without a $$ body this guard can read (write it as $$ ... $$)`);
+            continue;
+          }
+          latest.set(name, { rel, text: body[2], file: text });
         }
-        if (/drop\s+trigger\s+(if\s+exists\s+)?(jobs_publish_needs_email_check|profiles_email_verified_from_server)\b/i.test(text) &&
-            !/create trigger (jobs_publish_needs_email_check|profiles_email_verified_from_server)\b/i.test(text)) {
+        for (const t of text.matchAll(trigger)) latestTrigger.set(t[1].toLowerCase(), { rel, events: t[2].replace(/\s+/g, " ").toLowerCase() });
+        // A grant anywhere, in any later file, that lets anyone but the system make a code.
+        if (/grant\s+(?:execute|all(?:\s+privileges)?)\s+on\s+(?:function\s+[\w."]*?\bissue_business_email_code\b|all\s+functions\s+in\s+schema\s+"?public"?)[^;]*?\bto\s+[^;]*?"?\b(?:authenticated|anon|public)\b"?/i.test(text)) {
+          detail.push(`${rel}: lets someone other than the system make a code (a grant on issue_business_email_code or on all functions)`);
+        }
+        if (/\bdisable\s+trigger\s+(?:all|"?(?:jobs_publish_needs_email_check|profiles_email_verified_from_server)"?)\b/i.test(text) || /\bsession_replication_role\b/i.test(text)) {
+          detail.push(`${rel}: switches off a trigger of the business email check`);
+        }
+        if (/drop\s+trigger\s+(?:if\s+exists\s+)?"?(jobs_publish_needs_email_check|profiles_email_verified_from_server)"?/i.test(text) &&
+            !/create\s+(?:or\s+replace\s+)?trigger\s+"?(jobs_publish_needs_email_check|profiles_email_verified_from_server)"?/i.test(text)) {
           detail.push(`${rel}: drops a trigger of the business email check without creating it again`);
         }
-        if (/drop\s+function\s+(if\s+exists\s+)?(public\.)?(jobs_publish_needs_email_check|business_email_verified|profiles_email_verified_from_server|issue_business_email_code|verify_business_email_code)\b/i.test(text)) {
+        if (/drop\s+function\s+(?:if\s+exists\s+)?(?:"?public"?\.)?"?(jobs_publish_needs_email_check|business_email_verified|profiles_email_verified_from_server|issue_business_email_code|verify_business_email_code)"?/i.test(text)) {
           detail.push(`${rel}: drops a function of the business email check`);
         }
+      }
+      const publishTrigger = latestTrigger.get("jobs_publish_needs_email_check");
+      if (!publishTrigger || !/^before insert or update of status on public\.jobs for each row$/.test(publishTrigger.events)) {
+        detail.push(`${publishTrigger?.rel ?? "migrations"}: the publish trigger must be "before insert or update of status on public.jobs for each row" (found: ${publishTrigger?.events ?? "none"})`);
+      }
+      const stampTrigger = latestTrigger.get("profiles_email_verified_from_server");
+      if (!stampTrigger || !/^before insert or update on public\.profiles for each row$/.test(stampTrigger.events)) {
+        detail.push(`${stampTrigger?.rel ?? "migrations"}: the trigger keeping the stamp the server's must be "before insert or update on public.profiles for each row"`);
+      }
+      const admin = latest.get("is_platform_admin");
+      if (admin && !(/platform_admins/.test(admin.text) && /auth\.uid\(\)/.test(admin.text))) {
+        detail.push(`${admin.rel}: is_platform_admin no longer asks platform_admins about auth.uid() (every publish goes through it)`);
+      }
+      const test = (await read("scripts/business_email_check.pglite.test.mjs")) ?? "";
+      if (!/const TOUCHES_THE_CHECK = /.test(test) || !/name >= "20261025100000_business_email_check\.sql"/.test(test)) {
+        detail.push("scripts/business_email_check.pglite.test.mjs: must replay every later migration that touches the check (TOUCHES_THE_CHECK), the real lock behind this guard");
       }
       const must = [
         ["jobs_publish_needs_email_check", /if not public\.business_email_verified\(new\.employer_id\) then/, "refuses a publish for a business that has not confirmed"],
@@ -164,7 +198,7 @@ export default [
         ["issue_business_email_code", /business_email_code:/, "serialises one account's requests"],
         ["issue_business_email_code", /business_email_inbox:/, "serialises one inbox's requests"],
         ["issue_business_email_code", /business_email_all/, "serialises the overall count"],
-        ["business_email_verified", /i\.identity_data ->> 'email'/, "passes a Google sign-in only while its Google address is the sign-in address"],
+        ["business_email_verified", /lower\(coalesce\(i\.identity_data ->> 'email', ''\)\) = lower\(u\.email\)/, "passes a Google sign-in only while its Google address is the sign-in address"],
         ["verify_business_email_code", /'address_changed'/, "takes a code only for the address it went to"],
       ];
       for (const [fn, pattern, what] of must) {
@@ -174,15 +208,16 @@ export default [
       }
       const issueDef = latest.get("issue_business_email_code");
       if (issueDef && !/'email', v_email/.test(issueDef.text)) detail.push(`${issueDef.rel}: issue_business_email_code no longer says which address the code is for`);
-      if (issueDef && !/grant execute on function public\.issue_business_email_code\(uuid\) to service_role;/.test(issueDef.file)) {
+      if (issueDef && !/grant\s+execute\s+on\s+function\s+public\.issue_business_email_code\(uuid\)\s+to\s+service_role;/i.test(issueDef.file)) {
         detail.push(`${issueDef.rel}: only the system may make a code`);
       }
-      const first = (await read("supabase/migrations/20261025100000_business_email_check.sql")) ?? "";
-      if (!/create trigger jobs_publish_needs_email_check\s+before insert or update of status on public\.jobs/i.test(first)) {
-        detail.push("20261025100000_business_email_check.sql: the publish trigger is missing or no longer covers insert and status updates");
-      }
-      if (!/create trigger profiles_email_verified_from_server\s+before insert or update on public\.profiles/i.test(first)) {
-        detail.push("20261025100000_business_email_check.sql: the trigger keeping the stamp the server's is missing");
+      // The inbox and overall locks only serialise anything if they are taken
+      // before the counts are read and the code is written.
+      if (issueDef) {
+        const at = (re) => issueDef.text.search(re);
+        const locks = Math.max(at(/business_email_inbox:/), at(/business_email_all/));
+        const reads = [at(/from\s+private\.business_email_code_sends/i), at(/insert\s+into\s+private\.business_email_codes/i)].filter((i) => i >= 0);
+        if (locks < 0 || reads.length < 2 || reads.some((i) => i < locks)) detail.push(`${issueDef.rel}: issue_business_email_code must take the inbox and overall locks before it counts sends or writes the code`);
       }
       for (const page of ["src/pages/CreateJob.tsx", "src/pages/AvaCreateJob.tsx"]) {
         const src = (await read(page)) ?? "";

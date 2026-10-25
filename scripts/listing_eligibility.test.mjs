@@ -227,5 +227,40 @@ for (const f of fixtures) {
 }
 
 // ---------------------------------------------------------------------------
+// Part 3 — which country a remote job's words name (both copies agree).
+// The feed lists a remote job with no stored country under the country its
+// location text names; a wrong one is a wrong listing, so each answer is
+// checked, not just whether the job reaches the feed (fifth Pass C review).
+// ---------------------------------------------------------------------------
+console.log("\nThe country in a remote job's words (listingEligibility.ts and api/job-feed.mjs):\n");
+{
+  const { remoteCountryCode: inApp } = await import("../src/cockpit/lib/listingEligibility.ts");
+  const { remoteCountryCode: inFeed } = await import("../api/job-feed.mjs");
+  const COUNTRY_CASES = [
+    ["Remote - Philippines", "PH"], ["Remote (Canada only)", "CA"], ["Remote — US only", "US"], ["Remote - United States", "US"],
+    ["Remote U.S.", "US"], ["Remote (U.S.A.)", "US"], ["Remote (worldwide)", null], ["work with us remotely", null],
+    ["Remote (USA or Canada)", null], ["Remote (US/Canada)", null],
+    // who they serve and when is not where the job is
+    ["Remote - Philippines (US shift)", "PH"], ["Remote - Philippines (US night shift, except weekends)", "PH"],
+    ["Philippines (US shift, not on weekends)", "PH"], ["Remote Philippines (US & Canada clients)", "PH"],
+    ["Philippines (Canada/US clients)", "PH"], ["Philippines (UK shift)", "PH"], ["Philippines (US healthcare clients)", "PH"],
+    ["Philippines (for a US company)", "PH"], ["Remote India - US clients, EST hours", "IN"],
+    ["Remote (US night shift, except weekends)", null], ["Work from home - US patients, EST hours", null],
+    // a country ruled out is not the job's country
+    ["Remote (not open to India)", null], ["Remote (no US)", null], ["Remote - no US applicants", null],
+    ["Remote, non-US", null], ["Remote (US excluded)", null], ["Remote (outside the US)", null], ["Remote - except Canada", null],
+    ["Remote (Philippines, not US)", "PH"],
+    // a time zone alone keeps its country, unless another is named
+    ["Remote (US Eastern Time)", "US"], ["Remote - US - Eastern time zone", "US"], ["Remote (US Pacific Time zone)", "US"],
+    ["Remote PH (US EST)", "PH"],
+  ];
+  for (const [text, want] of COUNTRY_CASES) {
+    const app = inApp(text);
+    const feed = inFeed(text);
+    check(`"${text}" → ${want ?? "no country"}`, app === want && feed === want, `app ${app}, feed ${feed}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

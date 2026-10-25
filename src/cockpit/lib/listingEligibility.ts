@@ -69,21 +69,31 @@ const US_STATE_HINT = /,\s*(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|IA|ID|IL|IN|KS|KY|L
 const US_STATE_NAME_HINT = /,\s*(alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming)\b/i;
 
 /**
- * Mirrors api/job-feed.mjs remoteCountryCode. The country a REMOTE job names in its location text, for a job with no
+ * Mirrors api/job-feed.mjs remoteCountryCode (scripts/listing_eligibility.test.mjs
+ * checks both give the same answers). The country a REMOTE job names in its location text, for a job with no
  * stored country ("Remote - Philippines", "Remote (Canada only)"). Country
- * names only, plus USA / U.S. / UK and a capital "US": a lower-case "us"
- * ("work with us") is never a country here. Two different countries, or
+ * names only, plus USA / U.S. / UK and a capital "US" or "PH": a lower-case
+ * "us" ("work with us") is never a country here. Two different countries, or
  * none, give null: "Remote (worldwide)" still has no country and stays out.
- * Text that rules a country out ("not open to India", "except Canada",
- * "outside the US") gives null too: the country it names is the one it is
- * not for (2026-10-25; docs/LAUNCH-PLAN.md, Phase 2, task 7).
+ *
+ *   - Who they will serve and when is not where the job is: "US shift",
+ *     "US & Canada clients", "US healthcare clients", "for a US company",
+ *     "US patients" are taken out before anything is read (Philippine posts
+ *     say this all the time). A post that names only that has no country.
+ *   - A country ruled out is not the job's country: "no US", "non-US",
+ *     "not open to India", "except Canada", "outside the US", "US excluded".
+ *     A word like "except" that rules out something else ("except
+ *     weekends") changes nothing.
+ *   - A time zone alone keeps its country ("Remote (US Eastern Time)" is
+ *     US), unless another country is named too ("Remote PH (US EST)" is PH).
+ *
+ * (2026-10-25; docs/LAUNCH-PLAN.md, Phase 2, task 7; the fifth Pass C review.)
  */
 const REMOTE_COUNTRY_NAMES: Array<[RegExp, string]> = [
-  [/\bunited states(?: of america)?\b|\busa\b|\bu\.s\.a?\.?(?=\s|$|[),;])/i, "US"],
-  [/(?<![A-Za-z])US(?![A-Za-z])/, "US"],
-  [/\bphilippines\b/i, "PH"],
+  [/\busx\b|\bunited states(?: of america)?\b/i, "US"],
+  [/\bphilippines\b|\bphx\b/i, "PH"],
   [/\bcanada\b/i, "CA"],
-  [/\bunited kingdom\b|\buk\b|\bgreat britain\b/i, "GB"],
+  [/\bunited kingdom\b|\buk\b|\bu\.k\.(?=\s|$|[),;])|\bgreat britain\b/i, "GB"],
   [/\bindia\b/i, "IN"],
   [/\bpakistan\b/i, "PK"],
   [/\baustralia\b/i, "AU"],
@@ -94,19 +104,35 @@ const REMOTE_COUNTRY_NAMES: Array<[RegExp, string]> = [
   [/\bcolombia\b/i, "CO"],
   [/\bireland\b/i, "IE"],
 ];
+const COUNTRY_WORD = String.raw`(?:usx|phx|united states(?: of america)?|uk|u\.k\.|united kingdom|great britain|canada|australia|philippines|india|pakistan|mexico|south africa|nigeria|kenya|colombia|ireland)`;
+const COUNTRY_LIST = String.raw`${COUNTRY_WORD}(?:\s*(?:\/|&|\+|,|\band\b|\bor\b)\s*${COUNTRY_WORD})*`;
+const ZONE_WORD = String.raw`(?:est|edt|pst|pdt|cst|cdt|mst|mdt|et|pt|ct|mt|eastern|pacific|central|mountain)`;
+const SERVE_WORD = String.raw`(?:night|day|morning|evening|graveyard|overnight|mid|time|zone|timezone|based|${ZONE_WORD}|healthcare|medical|dental|insurance|e-?commerce|retail|real estate|saas|tech|b2b|b2c|english[\s-]speaking)`;
+const SERVE_NOUN = String.raw`(?:shifts?|clients?|customers?|patients?|callers?|consumers?|markets?|accounts?|campaigns?|business hours|working hours|office hours|hours)`;
+const FOR_WHOM = new RegExp(String.raw`\bfor\s+(?:an?\s+|the\s+)?${COUNTRY_LIST}(?:[\s-]+based)?\s+(?:company|companies|clients?|customers?|business(?:es)?|brands?|teams?|employers?|agency|agencies|firms?|startups?)\b`, "gi");
+const SERVING = new RegExp(String.raw`${COUNTRY_LIST}(?:[\s-]+${SERVE_WORD}){0,3}[\s-]+${SERVE_NOUN}\b`, "gi");
+const RULED_OUT_BEFORE = new RegExp(String.raw`\b(?:not|no|except|excluding|exclude|outside(?:\s+of)?|non)[\s-]+(?:(?:open|available)\s+(?:to|in)\s+|for\s+|in\s+|from\s+|the\s+|applicants?\s+from\s+)*(${COUNTRY_LIST})`, "gi");
+const RULED_OUT_AFTER = new RegExp(String.raw`(${COUNTRY_LIST})(?:[\s-]+(?:applicants?|residents?|candidates?))?[\s-]+(?:is\s+|are\s+)?(?:excluded|not\s+(?:eligible|accepted|allowed|open))`, "gi");
+const US_HOURS = new RegExp(String.raw`\busx[\s-]+${ZONE_WORD}\b`, "gi");
+
+const countriesIn = (text: string) => new Set(REMOTE_COUNTRY_NAMES.filter(([re]) => re.test(text)).map(([, code]) => code));
 
 export function remoteCountryCode(locationText?: string | null): string | null {
-  const text = String(locationText ?? "");
-  // "US shift", "US night shift", "US EST hours", "US/Canada clients": who
-  // they will serve and when, not where the job is (Pass C reviews: Philippine
-  // posts say this all the time). Taken out before anything else is read.
-  const where = text.replace(
-    /\b(?:U\.?S\.?A?\.?|United States)(?:\s*\/\s*(?:Canada|UK|AU|Australia))?(?:[\s-]+(?:night|day|morning|evening|graveyard|overnight|EST|EDT|PST|PDT|CST|CDT|MST|ET|PT|CT|Eastern|Pacific|Central|Mountain))*[\s-]*(?:based\s+)?(?:shifts?|clients?|hours?|time(?:\s?zones?)?|customers?|market|accounts?|business\s+hours)\b/gi,
-    " ",
-  );
-  if (/\b(not|except|excluding|outside)\b/i.test(where)) return null;
-  const found = new Set(REMOTE_COUNTRY_NAMES.filter(([re]) => re.test(where)).map(([, code]) => code));
-  return found.size === 1 ? [...found][0] : null;
+  // A capital "US" / "U.S." / "USA" (or "PH") is the country; "us" never is.
+  let where = ` ${String(locationText ?? "")} `
+    .replace(/(?<![A-Za-z.])(?:U\.S\.A\.?|U\.S\.?|USA|US)(?![A-Za-z])/g, " usx ")
+    .replace(/(?<![A-Za-z])PH(?![A-Za-z])/g, " phx ");
+  where = where.replace(FOR_WHOM, " ").replace(SERVING, " ");
+  const ruledOut = new Set<string>();
+  const ruleOut = (_m: string, list: string) => {
+    for (const code of countriesIn(list)) ruledOut.add(code);
+    return " ";
+  };
+  where = where.replace(RULED_OUT_BEFORE, ruleOut).replace(RULED_OUT_AFTER, ruleOut);
+  const pick = (text: string) => [...countriesIn(text)].filter((code) => !ruledOut.has(code));
+  let found = pick(where);
+  if (found.length > 1 && found.includes("US")) found = pick(where.replace(US_HOURS, " "));
+  return found.length === 1 ? found[0] : null;
 }
 
 function inferCountryCode(locationText?: string | null): string | null {
